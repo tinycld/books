@@ -1,0 +1,28 @@
+{
+    "name": "@tinycld/books",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Double-entry bookkeeping and accounting.",
+    "exports": {
+        "./package.json": "./package.json",
+        "./manifest": "./manifest.ts",
+        "./types": "./tinycld/books/types.ts",
+        "./collections": "./tinycld/books/collections.ts",
+        "./screens/*": "./tinycld/books/screens/*.tsx",
+        "./seed": "./tinycld/books/seed.ts",
+        "./sidebar": "./tinycld/books/sidebar.tsx",
+        "./provider": "./tinycld/books/provider.tsx",
+        "./hooks/*": "./tinycld/books/hooks/*.ts",
+        "./components/*": "./tinycld/books/components/*.tsx"
+    },
+    "scripts": {
+        "typecheck": "tinycld-pkg typecheck",
+        "test": "tinycld-pkg test",
+        "test:e2e": "tinycld-pkg test:e2e",
+        "check": "tinycld-pkg check"
+    },
+    "devDependencies": {
+        "@tinycld/package-scripts": "*"
+    }
+}

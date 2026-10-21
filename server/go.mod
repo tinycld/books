@@ -1,0 +1,8 @@
+module tinycld.org/packages/books
+
+go 1.27.2
+
+require (
+	github.com/pocketbase/pocketbase v0.40.4
+	tinycld.org/core v0.0.0
+)
