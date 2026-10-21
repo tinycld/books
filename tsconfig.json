@@ -1,0 +1,10 @@
+{
+    "extends": "@tinycld/core/tsconfig.package-base.json",
+    "compilerOptions": {
+        "paths": {
+            "~/tinycld/books/*": ["./tinycld/books/*"]
+        }
+    },
+    "include": ["tinycld/**/*.ts", "tinycld/**/*.tsx"],
+    "exclude": ["node_modules", "server", "pb-migrations", "tests/**/*.spec.ts"]
+}
