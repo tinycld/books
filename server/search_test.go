@@ -1,6 +1,7 @@
 package books
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -76,5 +77,62 @@ func TestSearch_HidesVoidReversals(t *testing.T) {
 	res, _ := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"1"}, Limit: 10})
 	if rowIDs(res.Rows) != "entry:"+sale.Id || res.Rows[0].Title != "Journal entry 1 (void)" {
 		t.Fatalf("rows %s %+v", rowIDs(res.Rows), res.Rows)
+	}
+}
+
+// A query that matches many accounts still shows entries on its first page:
+// accounts and entries take turns, so neither kind starves the other.
+func TestSearch_AccountsDoNotCrowdOutEntries(t *testing.T) {
+	env := newLedgerEnv(t)
+	var accounts []string
+	for _, n := range []string{"101", "102", "103"} {
+		a := saveRecord(t, env.app, "books_accounts", map[string]any{
+			"name": "Account " + n, "number": n, "type": "expense", "detail_type": "office_general", "currency": "USD",
+		})
+		accounts = append(accounts, "account:"+a.Id)
+	}
+	draft := env.sale(t, "2026-05-01", 100)
+	setMemo(t, env, draft.Id, "Invoice 1")
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"1"}, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := accounts[0] + ",entry:" + draft.Id; rowIDs(res.Rows) != want || res.Total != 4 {
+		t.Fatalf("rows %s total %d, want %s total 4", rowIDs(res.Rows), res.Total, want)
+	}
+	res, _ = searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"1"}, Limit: 10, Offset: 2})
+	if want := accounts[1] + "," + accounts[2]; rowIDs(res.Rows) != want {
+		t.Fatalf("second page %s, want %s", rowIDs(res.Rows), want)
+	}
+}
+
+func TestSearch_LimitOffsetAndTheDefaultLimit(t *testing.T) {
+	env := newLedgerEnv(t)
+	var ids []string
+	for i := range defaultSearchLimit + 5 {
+		a := mkAccount(t, env.app, fmt.Sprintf("Fund %02d", i), "bank", "checking")
+		ids = append(ids, "account:"+a.Id)
+	}
+	query := func(limit, offset int) search.Result {
+		t.Helper()
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"fund"}, Limit: limit, Offset: offset})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	if res := query(0, 0); rowIDs(res.Rows) != strings.Join(ids[:defaultSearchLimit], ",") || res.Total != len(ids) {
+		t.Fatalf("default limit: %d rows, total %d", len(res.Rows), res.Total)
+	}
+	if res := query(5, 3); rowIDs(res.Rows) != strings.Join(ids[3:8], ",") {
+		t.Fatalf("limit 5 offset 3: %s", rowIDs(res.Rows))
+	}
+	if res := query(5, len(ids)); len(res.Rows) != 0 {
+		t.Fatalf("offset past the end: %s", rowIDs(res.Rows))
+	}
+	// The aggregator clamps a negative offset; a source called directly
+	// must not panic on one either.
+	if res := query(5, -3); rowIDs(res.Rows) != strings.Join(ids[:5], ",") {
+		t.Fatalf("negative offset: %s", rowIDs(res.Rows))
 	}
 }
