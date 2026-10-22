@@ -60,3 +60,8 @@ the rest of the workspace (`app` + `core` + the workspace `package.json` and
 coordination files) via `npx @tinycld/bootstrap --assemble-only`, installs at
 the workspace root, and runs `tinycld-pkg check` / `tinycld-pkg test:e2e` —
 exactly what a developer runs locally.
+
+## Docs
+
+- [GLOSSARY.md](GLOSSARY.md): the terms Books uses.
+- [docs/adr/](docs/adr/): decisions and why we made them.
