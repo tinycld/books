@@ -30,10 +30,16 @@ func registerSequenceGuard(app core.App) {
 	})
 }
 
+// highestSequenceSQL reads the highest number issued, by any entry that
+// holds one: posted, void, or a void's reversal. It repeats the partial
+// index's condition (sequence > 0), so SQLite seeks the last row of
+// idx_books_je_doc_sequence instead of reading every entry.
+const highestSequenceSQL = "SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM books_journal_entries WHERE doc_type = {:type} AND sequence > 0"
+
 func highestSequence(app core.App, docType string) (int, error) {
 	var highest int
 	err := app.DB().
-		NewQuery("SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM books_journal_entries WHERE doc_type = {:type}").
+		NewQuery(highestSequenceSQL).
 		Bind(dbx.Params{"type": docType}).
 		Row(&highest)
 	if err != nil {

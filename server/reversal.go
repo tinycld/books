@@ -26,10 +26,22 @@ var voidEditable = map[string]bool{"status": true, "voided_by": true, "voided_at
 // transactions do not overlap and the mark cannot leak to another void.
 var voiding sync.Map
 
+// postedReversalQuery selects the posted reversal of an entry. It repeats
+// the partial index's own conditions (reverses is not empty, status is
+// posted), so SQLite seeks idx_books_je_one_reversal instead of reading
+// every posted entry.
+func postedReversalQuery(app core.App, entryID string) *dbx.SelectQuery {
+	return app.RecordQuery("books_journal_entries").
+		AndWhere(dbx.NewExp(`[[books_journal_entries.reverses]] != ''
+			AND [[books_journal_entries.reverses]] = {:id}
+			AND [[books_journal_entries.status]] = 'posted'`, dbx.Params{"id": entryID})).
+		Limit(1)
+}
+
 // postedReversalOf returns the posted reversal of an entry, or nil.
 func postedReversalOf(app core.App, entryID string) (*core.Record, error) {
-	rev, err := app.FindFirstRecordByFilter("books_journal_entries",
-		"reverses = {:id} && status = 'posted'", dbx.Params{"id": entryID})
+	rev := &core.Record{}
+	err := postedReversalQuery(app, entryID).One(rev)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

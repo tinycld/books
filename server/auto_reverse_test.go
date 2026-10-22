@@ -349,29 +349,55 @@ func TestAutoReverse_StopsWhenItsContextEnds(t *testing.T) {
 func TestAutoReverse_ReversalLookupUsesTheReversesIndex(t *testing.T) {
 	env := newLedgerEnv(t)
 	q := pendingAutoReversals(env.app, "2026-06-30").Build()
+	requirePlanStep(t, env.app, q.SQL(), q.Params(), "SCAN r", "SEARCH r USING INDEX idx_books_je_reverses")
+}
+
+// requirePlanStep runs EXPLAIN QUERY PLAN on sql and fails unless a step
+// starts with want and none starts with scan.
+func requirePlanStep(t testing.TB, app core.App, sql string, params dbx.Params, scan, want string) {
+	t.Helper()
 	var plan []struct {
 		ID      int    `db:"id"`
 		Parent  int    `db:"parent"`
 		NotUsed int    `db:"notused"`
 		Detail  string `db:"detail"`
 	}
-	if err := env.app.DB().NewQuery("EXPLAIN QUERY PLAN " + q.SQL()).Bind(q.Params()).All(&plan); err != nil {
+	if err := app.DB().NewQuery("EXPLAIN QUERY PLAN " + sql).Bind(params).All(&plan); err != nil {
 		t.Fatal(err)
 	}
 	var details []string
-	usesIndex := false
 	for _, step := range plan {
 		details = append(details, step.Detail)
-		if strings.HasPrefix(step.Detail, "SCAN r") {
-			t.Fatalf("the reversal lookup scans the entries table: %q", details)
+	}
+	found := false
+	for _, d := range details {
+		if strings.HasPrefix(d, scan) {
+			t.Fatalf("the query scans the table: %q", details)
 		}
-		if strings.HasPrefix(step.Detail, "SEARCH r USING INDEX idx_books_je_reverses") {
-			usesIndex = true
+		if strings.HasPrefix(d, want) {
+			found = true
 		}
 	}
-	if !usesIndex {
-		t.Fatalf("the reversal lookup does not use idx_books_je_reverses: %q", details)
+	if !found {
+		t.Fatalf("no plan step starts with %q: %q", want, details)
 	}
+}
+
+// A void and a reversal each look up the entry's posted reversal, so the
+// lookup must use the one-reversal index, not scan every entry.
+func TestReverse_PostedReversalLookupUsesItsIndex(t *testing.T) {
+	env := newLedgerEnv(t)
+	q := postedReversalQuery(env.app, "someentryid0001").Build()
+	requirePlanStep(t, env.app, q.SQL(), q.Params(), "SCAN books_journal_entries",
+		"SEARCH books_journal_entries USING INDEX idx_books_je_one_reversal")
+}
+
+// Every post moves the sequence row, and the sequence guard then reads the
+// highest issued number, so that read must seek an index.
+func TestSequence_HighestIssuedLookupUsesItsIndex(t *testing.T) {
+	env := newLedgerEnv(t)
+	requirePlanStep(t, env.app, highestSequenceSQL, dbx.Params{"type": "journal"}, "SCAN books_journal_entries",
+		"SEARCH books_journal_entries USING COVERING INDEX idx_books_je_doc_sequence")
 }
 
 // The close-date guard runs when the close date changes. Another settings
