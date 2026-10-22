@@ -12,34 +12,34 @@ import (
 // maxAccountDepth bounds sub-account nesting, counting the top account.
 const maxAccountDepth = 5
 
+// Every account guard reads other rows (the parent chain, sub-accounts, line
+// counts) inside serialized, so no post, line or other account write can
+// commit between the check and the write it allows.
 func registerAccountGuard(app core.App) {
 	app.OnRecordCreate("books_accounts").BindFunc(func(e *core.RecordEvent) error {
-		if err := stampCurrency(e.App, e.Record); err != nil {
-			return err
-		}
-		if err := validateAccount(e.App, e.Record); err != nil {
-			return err
-		}
-		return e.Next()
+		return serialized(e, func(tx core.App) error {
+			if err := stampCurrency(tx, e.Record); err != nil {
+				return err
+			}
+			return validateAccount(tx, e.Record)
+		})
 	})
 	app.OnRecordUpdate("books_accounts").BindFunc(func(e *core.RecordEvent) error {
-		stored, err := e.App.FindRecordById("books_accounts", e.Record.Id)
-		if err != nil {
-			return err
-		}
-		if err := validateAccount(e.App, e.Record); err != nil {
-			return err
-		}
-		if err := checkAccountChange(e.App, stored, e.Record); err != nil {
-			return err
-		}
-		return e.Next()
+		return serialized(e, func(tx core.App) error {
+			stored, err := tx.FindRecordById("books_accounts", e.Record.Id)
+			if err != nil {
+				return err
+			}
+			if err := validateAccount(tx, e.Record); err != nil {
+				return err
+			}
+			return checkAccountChange(tx, stored, e.Record)
+		})
 	})
 	app.OnRecordDelete("books_accounts").BindFunc(func(e *core.RecordEvent) error {
-		if err := checkAccountDelete(e.App, e.Record); err != nil {
-			return err
-		}
-		return e.Next()
+		return serialized(e, func(tx core.App) error {
+			return checkAccountDelete(tx, e.Record)
+		})
 	})
 }
 

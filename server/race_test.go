@@ -163,3 +163,39 @@ func TestRace_ASequenceEditedWhileAnEntryPosts(t *testing.T) {
 	}
 	requireNextNumber(t, env.app, 4)
 }
+
+// An account's type changes while a line on it is added and posted. The type
+// is fixed once the account is used, so the change must land before the line
+// (no lines then, so it is allowed) or be refused. It never lands on an
+// account that already carries a posted line.
+func TestRace_AnAccountTypeChangesWhileALineOnItPosts(t *testing.T) {
+	env := newLedgerEnv(t)
+	supplies := mkAccount(t, env.app, "Supplies", "expense", "office_general")
+	entry := mkDraft(t, env.app, "2026-05-10", ln{env.checking, 0, 100})
+	var line *core.Record
+	posted := bindRace(t, env.app.OnRecordUpdate("books_accounts"), func() error {
+		col, err := env.app.FindCollectionByNameOrId("books_journal_lines")
+		if err != nil {
+			return err
+		}
+		line = core.NewRecord(col)
+		line.Load(map[string]any{"entry": entry.Id, "account": supplies.Id, "debit": 100, "position": 1})
+		if err := env.app.Save(line); err != nil {
+			return err
+		}
+		return setStatus(env.app, entry.Id, statusPosted, "")
+	})
+	supplies.Set("type", "cost_of_goods_sold")
+	supplies.Set("detail_type", "supplies_materials")
+	if err := env.app.Save(supplies); err != nil {
+		t.Fatalf("change the type of an unused account: %v", err)
+	}
+	if err := posted(); err != nil {
+		t.Fatalf("racing line and post: %v", err)
+	}
+	changed := reload(t, env.app, "books_accounts", supplies.Id).GetDateTime("updated")
+	added := reload(t, env.app, "books_journal_lines", line.Id).GetDateTime("created")
+	if added.Before(changed) {
+		t.Fatalf("the type changed at %s, after a line was added at %s", changed, added)
+	}
+}
