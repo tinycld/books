@@ -8,4 +8,7 @@ package-lock.json
 pnpm-lock.yaml
 yarn.lock
 bun.lock
+# Per-member Go workspace, written by the app shell's generator on every
+# install so this module resolves tinycld.org/core when built on its own.
+/server/go.work
 /server/go.work.sum
