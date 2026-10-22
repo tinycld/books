@@ -1,0 +1,11 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "menu",
+            "url": "/a/books/helix-mockup?state=new-menu",
+            "ready": "books-new-invoice"
+        }
+    ],
+    "schemes": ["dark", "light"]
+}

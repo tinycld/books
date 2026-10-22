@@ -20,6 +20,14 @@
 (none yet)
 
 ## Rebuttals
+- **finding:** fix review (reviewer A), cp3, "NewFab.tsx has no test … reverting to a single component with useState would still pass."
+  **rebutted because:** rendering `NewFab` requires `useNewMenu`, our own hook, which the test mandate forbids mocking ("never mock our own components, hooks, or actions"); the behavior is a mount/unmount structure, covered by the structure itself.
+- **finding:** reviewer A and fix review, cp3, "phone layout (isSheet stacking, sheetSide=bottom) is never rendered or asserted in a unit test."
+  **rebutted because:** the checkpoint's Gates line is `1 · 2 · 3` and its Tests list names no phone assertion; gate 2's `menu-390-*` screenshots show the stacked bottom sheet, and happy-dom is never the mobile breakpoint.
+- **finding:** fix review, cp3, "NewMenu.tsx has no overflow handling; a small phone with many actions will clip the sheet."
+  **rebutted because:** the spec's Behavior bullet is "a bottom sheet with the same groups stacked on phones"; core's `Sheet` scrolls its content, and phase 1 has at most one action. No spec text asks for more.
+- **finding:** reviewer A, cp3, "placement=bottom-start repeats the Popover default; popover has no arrow-key roving."
+  **rebutted because:** the spec names no keyboard behavior for + New, and `Popover` is core.
 - **finding:** critic, cp2, "hub-1280-light.png: Lists row — no active highlight … BLOCKING (spec: The active destination is highlighted with the `active-indicator` token.)"
   **rebutted because:** the built URL the plan names, `/a/books/lists`, is created by checkpoint 4 ("Create: `tinycld/books/screens/lists.tsx`"); at `/a/books`, the only route that exists, no entry matches by the spec'd `isActivePath` rule. The wiring is unit-tested (`isActive` true for `/a/books/lists`). Checkpoint 4's gate 2 must show it.
 - **finding:** fix review (reviewer A), cp2, "hitSlop={8} plus a 44px box is redundant."
@@ -30,9 +38,12 @@
   **rebutted because:** the implementer declared it; consumers take `readonly NewAction[]` (checkpoint 1 Interfaces: `newMenuColumns(actions: readonly NewAction[])`), so nothing needs a mutable array.
 
 ## Design notes
-(none yet)
+- cp 2 · hub-390: no phone shot shows the drawer, the fold, or an active item — carried to cp 4.
+- cp 3 · menu-1280: popover rows are 48px apart (reference ~25px); the Other column leaves empty width; dark popover surface equals the page background.
+- cp 3 · menu-390: sheet title sits 12px left of the group headings; the tab bar stays undimmed under the sheet (core Sheet).
 
 ## Out-of-plan changes
+- `tests/setup-cleanup.ts` (new) and `vitest.config.ts` (`setupFiles`): runs Testing Library `cleanup` after each test; vitest globals are off so the automatic cleanup never registered.
 - `tinycld/books/hooks/useBooksAccess.ts`: import changed from `~/tinycld/books/lib/access` to `../lib/access` (Metro cannot resolve `~/tinycld/books/...` for package files; found when the capture route first built).
 - `tinycld/books/stores/books-ui-store.ts` (checkpoint 1 file, edited in checkpoint 2): `toggleAccounting` now has a block body so it returns void; the expression body returned persist's thenable and React's `act` took the async path.
 - `docs/plans/books-shell-evidence/cp2/capture.json`: biome formatting only.
@@ -66,6 +77,18 @@
 - gate 3 A (correctness): active test only covered inactive (accepted: fresh test writer added a matching-path test with `useUrl` mocked, a core dependency); fold logic lived in the component with no test (accepted: `visibleAccounting`/`hasAccounting` moved into the hook and tested); plan said usePathname (plan amended)
 - gate 3 B (conformance): out-of-plan store fix recorded; AccountingHeading extracted with `isVisible`; chevron touch target 44px (accepted, fixed); gate-2 gap carried to checkpoint 4
 - fix review: reviewer A pass over the fix diff: redundant `hitSlop` (rebutted), group header may grow to 44px (checked in screenshots at checkpoint 4), plan Interfaces amended for the two extra hook fields
+- reviewer-caught deferrals: none
+
+## Checkpoint 3
+- test writer: tests/new-menu.test.tsx; red for the right reason: yes (NewMenu module missing); untestable: none (rendering an open Popover works in happy-dom inside the real OverlayProvider)
+- implementer: hooks/useNewMenu.ts, components/NewMenu.tsx, components/NewFab.tsx, sidebar.tsx, screens/_layout.tsx; DONE
+- test disputes: none
+- self-declared differences: placement `bottom-start`, 44px rows; `tests/setup-cleanup.ts` + `vitest.config.ts` setupFiles (vitest globals are off, so Testing Library cleanup never ran and `getByText` saw earlier renders)
+- gate 1: tests unedited: yes · pass (55 tests; full e2e green)
+- gate 2: invalid shots: menu-390-light (sheet still sliding in; fixed by waiting for the ready element's box to stop moving, dark scheme first) · blocking: none · notes: 6 (row pitch 48px vs reference ~25px; popover wider than content; popover dark surface equals page; title/heading indent step in sheet; tab bar not dimmed under the sheet, core Sheet behavior). A real finding the shot exposed, fixed: the sheet opened from the top when the trigger was in the top half; `sheetSide="bottom"` now pins it (spec: bottom sheet on phones).
+- gate 3 A (correctness): NewFab kept open state across hide (accepted, fixed: NewFabContent owns the state, mounted only when visible); close-on-select not asserted (accepted: fresh test writer asserts onOpenChange(false)); duplicate useNewMenu (accepted, fixed); placement/roving nit (rebutted)
+- gate 3 B (conformance): out-of-plan setup-cleanup + vitest.config recorded; capture.json in Files-block gap only; nothing else
+- fix review: reviewer A pass over the fix diff: no new test for NewFab hide (rebutted), phone layout untested in unit (rebutted), sheet overflow (rebutted)
 - reviewer-caught deferrals: none
 
 ## Final review
