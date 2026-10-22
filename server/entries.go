@@ -31,6 +31,11 @@ func registerEntryHooks(app core.App) {
 		return e.Next()
 	})
 	app.OnRecordUpdateRequest("books_journal_entries").BindFunc(func(e *core.RecordRequestEvent) error {
+		// Stamp only on a transition. A save that keeps an entry posted is not
+		// a post, and rewriting its poster would be a change to a posted entry.
+		if e.Record.Original().GetString("status") == e.Record.GetString("status") {
+			return e.Next()
+		}
 		switch e.Record.GetString("status") {
 		case statusPosted:
 			stampActor(e.Record, "posted_by", e.Auth)
@@ -90,8 +95,8 @@ func checkNewEntry(r *core.Record) error {
 	return nil
 }
 
-// transitionEntry is the whole lifecycle: a draft is edited or posted, and
-// nothing else changes.
+// transitionEntry is the whole lifecycle: a draft is edited or posted; a
+// posted or void entry changes only when PocketBase unlinks a deleted user.
 func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) error {
 	from, to := stored.GetString("status"), next.GetString("status")
 	switch {
@@ -102,6 +107,12 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 			return err
 		}
 		return postEntry(tx, next, now)
+	case from == to:
+		changed := changedFields(stored, next, nil)
+		if len(changed) == 0 || onlyUserLinksCleared(next, changed) {
+			return nil
+		}
+		return refuseImmutable(stored, changed)
 	}
 	return refuse("%s cannot go from %s to %s.", entryName(stored), from, to)
 }
