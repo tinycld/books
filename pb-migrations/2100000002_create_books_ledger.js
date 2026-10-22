@@ -15,9 +15,10 @@
 // A client creates only drafts, with origin manual or reversal. It edits only
 // drafts, or moves a posted entry to void. It deletes only drafts.
 //
-// MONEY is integer minor units (onlyInt), at most 10^15 per line, which keeps
-// every total inside JavaScript's exact-integer range. currency is optional in
-// the schema because Go stamps it from books_settings on create.
+// MONEY is integer minor units (onlyInt), at most 10^15 per line. Go refuses a
+// post whose entry total or account-month balance would pass 2^53-1, the
+// largest integer a number field (float64) stores exactly. currency is optional
+// in the schema because Go stamps it from books_settings on create.
 //
 // DATES are YYYY-MM-DD text: an accounting date is a calendar day with no time
 // zone, and a PocketBase datetime would shift it a day for anyone west of UTC.

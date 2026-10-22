@@ -1,6 +1,8 @@
 package books
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -8,14 +10,22 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// maxLinesPerEntry keeps an entry's totals far inside int64 (1000 x 10^15)
-// and its lines inside one back-relation expand, which PocketBase caps at
-// 1000 rows.
+// maxLinesPerEntry keeps an entry's lines inside one back-relation expand,
+// which PocketBase caps at 1000 rows. It also keeps the sum of an entry's
+// lines (at most 1000 x 10^15) inside Go's int while it is checked against
+// maxStoredAmount.
 const maxLinesPerEntry = 1000
 
-// maxAmount is the largest line amount in minor units, ten trillion dollars,
-// inside JavaScript's exact-integer range.
+// maxAmount is the largest line amount in minor units, ten trillion dollars.
+// It is below maxStoredAmount, so one line alone always fits; the entry total
+// and the balance rows are checked against maxStoredAmount separately.
 const maxAmount = 1_000_000_000_000_000
+
+// maxStoredAmount is the largest total Books stores: 2^53-1 minor units.
+// PocketBase number fields are float64 in Go and JavaScript, and above 2^53-1
+// a float64 drops integers, so a larger total would be saved wrong and drift
+// from the ledger with no way for a rebuild to repair it.
+const maxStoredAmount = 1<<53 - 1
 
 // postEntry is the point of enforcement (spec, Ledger rules). It runs inside
 // the entry update's transaction, before PocketBase writes the entry.
@@ -107,8 +117,11 @@ func validateLines(tx core.App, entry *core.Record, lines []*core.Record, allowI
 			return 0, refuse("Line %d: the amount is too large.", n)
 		}
 		account, err := tx.FindRecordById("books_accounts", line.GetString("account"))
-		if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return 0, refuse("Line %d: the account does not exist.", n)
+		}
+		if err != nil {
+			return 0, fmt.Errorf("books: read the account of line %d: %w", n, err)
 		}
 		if account.GetBool("inactive") && !allowInactive {
 			return 0, refuse("Line %d: account %s is inactive.", n, account.GetString("name"))
@@ -126,6 +139,10 @@ func validateLines(tx core.App, entry *core.Record, lines []*core.Record, allowI
 		}
 		return 0, refuse("Debits (%s) do not equal credits (%s). The entry is out of balance by %s.",
 			formatMinor(debits), formatMinor(credits), formatMinor(gap))
+	}
+	if debits > maxStoredAmount {
+		return 0, refuse("The entry total (%s) is more than the largest amount Books can store (%s).",
+			formatMinor(debits), formatMinor(maxStoredAmount))
 	}
 	return debits, nil
 }
