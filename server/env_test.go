@@ -1,13 +1,17 @@
 package books
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 
@@ -214,4 +218,96 @@ func reload(t testing.TB, app core.App, collection, id string) *core.Record {
 		t.Fatalf("reload %s/%s: %v", collection, id, err)
 	}
 	return r
+}
+
+// ledgerEnv is a migrated app with every ledger hook bound, one user per
+// level and three accounts.
+type ledgerEnv struct {
+	app                     *tests.TestApp
+	users                   levelUsers
+	checking, revenue, rent *core.Record
+}
+
+func newLedgerEnv(t *testing.T) *ledgerEnv {
+	t.Helper()
+	app := newBooksApp(t)
+	registerLedger(app)
+	return &ledgerEnv{
+		app:      app,
+		users:    newLevelUsers(t, app),
+		checking: mkAccount(t, app, "Checking", "bank", "checking"),
+		revenue:  mkAccount(t, app, "Consulting Income", "income", "service_income"),
+		rent:     mkAccount(t, app, "Rent", "expense", "rent_lease"),
+	}
+}
+
+// sale is a balanced draft: cash in, income out.
+func (env *ledgerEnv) sale(t testing.TB, date string, amount int) *core.Record {
+	t.Helper()
+	return mkDraft(t, env.app, date, ln{env.checking, amount, 0}, ln{env.revenue, 0, amount})
+}
+
+// setStatus reloads an entry and saves it with a new status, the way an
+// internal caller would, and returns what the hooks said.
+func setStatus(app core.App, entryID, status, actorID string) error {
+	fresh, err := app.FindRecordById("books_journal_entries", entryID)
+	if err != nil {
+		return err
+	}
+	fresh.Set("status", status)
+	switch status {
+	case statusPosted:
+		fresh.Set("posted_by", actorID)
+	case statusVoid:
+		fresh.Set("voided_by", actorID)
+	}
+	return app.Save(fresh)
+}
+
+func mustPost(t testing.TB, app core.App, entryID, actorID string) *core.Record {
+	t.Helper()
+	if err := setStatus(app, entryID, statusPosted, actorID); err != nil {
+		t.Fatalf("post %s: %v", entryID, err)
+	}
+	return reload(t, app, "books_journal_entries", entryID)
+}
+
+func balanceOf(t testing.TB, app core.App, account *core.Record, period string) (int, int) {
+	t.Helper()
+	row, err := app.FindFirstRecordByFilter("books_account_balances",
+		"account = {:a} && period = {:p}", dbx.Params{"a": account.Id, "p": period})
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0
+	}
+	if err != nil {
+		t.Fatalf("balance row: %v", err)
+	}
+	return row.GetInt("debit_total"), row.GetInt("credit_total")
+}
+
+func setCloseDate(t testing.TB, app core.App, day string) {
+	t.Helper()
+	s := reload(t, app, "books_settings", settingsID)
+	s.Set("close_date", day)
+	if err := app.Save(s); err != nil {
+		t.Fatalf("set close date %s: %v", day, err)
+	}
+}
+
+func grantOverride(t testing.TB, app core.App, user *core.Record, expires time.Time) *core.Record {
+	t.Helper()
+	return saveRecord(t, app, "books_close_overrides", map[string]any{
+		"user": user.Id, "reason": "Year-end adjustment", "expires_at": expires,
+	})
+}
+
+func requireNoDrift(t testing.TB, app core.App) {
+	t.Helper()
+	drifts, err := verifyBalances(app)
+	if err != nil {
+		t.Fatalf("verify balances: %v", err)
+	}
+	if len(drifts) > 0 {
+		t.Fatalf("balance rows drifted from the ledger: %+v", drifts)
+	}
 }
