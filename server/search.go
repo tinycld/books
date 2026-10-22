@@ -41,7 +41,8 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if limit <= 0 {
 		limit = defaultSearchLimit
 	}
-	window := q.Offset + limit
+	offset := max(q.Offset, 0)
+	window := offset + limit
 	ctx := q.Context()
 
 	accounts, accountTotal, err := searchAccounts(ctx, app, q, window)
@@ -52,8 +53,26 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := append(accounts, entries...)
-	return search.Result{Rows: page(rows, q.Offset, limit), Total: accountTotal + entryTotal}, nil
+	rows := interleave(accounts, entries)
+	return search.Result{Rows: page(rows, offset, limit), Total: accountTotal + entryTotal}, nil
+}
+
+// interleave alternates accounts and entries, then adds what is left of the
+// longer list, so a query that matches many of one kind (a number matches
+// account numbers and entry numbers) still shows the other on its first
+// page. Each list holds its first window hits in order, so the first window
+// rows here are the same whichever page asks.
+func interleave(a, b []search.Row) []search.Row {
+	rows := make([]search.Row, 0, len(a)+len(b))
+	for i := range max(len(a), len(b)) {
+		if i < len(a) {
+			rows = append(rows, a[i])
+		}
+		if i < len(b) {
+			rows = append(rows, b[i])
+		}
+	}
+	return rows
 }
 
 type accountHit struct {
