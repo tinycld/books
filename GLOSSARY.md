@@ -10,7 +10,7 @@ _Avoid_: Database, register
 
 **Journal Entry**:
 A dated set of debit and credit lines that sum to zero. The only record that changes an Account balance.
-_Avoid_: Transaction, posting
+_Avoid_: Transaction, Posting (Posting is the act, not the record)
 
 **Account**:
 A named category in the Chart of Accounts that holds a running balance (asset, liability, equity, income, expense).
@@ -49,7 +49,7 @@ The Account that holds received payments until a bank deposit groups them.
 A percentage tied to one liability Account. A Tax Group combines several Tax Rates into one choice.
 
 **Closed Through Date**:
-The date on or before which no Journal Entry may be posted.
+The date on or before which no Journal Entry may be posted, except by a user who holds an Override.
 _Avoid_: Period lock
 
 **Product/Service**:
@@ -94,7 +94,7 @@ The moment a Draft becomes immutable and gets its Document Number. Only a posted
 _Avoid_: Saving, committing
 
 **Reversing Entry**:
-A Journal Entry that cancels another by swapping its debits and credits. Voids, edits of posted entries, and one-click reverses all use it.
+A Journal Entry that cancels another by swapping its debits and credits. Voids and one-click reverses post one. An edit posts one when it voids the original.
 _Avoid_: Adjustment, undo
 
 **Document Number**:
