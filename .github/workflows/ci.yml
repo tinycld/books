@@ -39,9 +39,19 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: ws/.node-version
+      # Books commits no go.sum: every dependency resolves through go.work
+      # replaces to local dirs, so its own cache key is server/go.mod. The
+      # modules the install's schema generation and the Go steps download are
+      # core's graph, so the tinycld go.sum files join the key. Without a
+      # cache-dependency-path, setup-go looks for a go.sum at the repo root,
+      # finds none, and warns on every run.
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/tinycld/core/server/go.mod
+          cache-dependency-path: |
+            ws/books/server/go.mod
+            ws/tinycld/server/go.sum
+            ws/tinycld/core/server/go.sum
       # 5. Enable corepack so the pnpm version pinned in the workspace root's
       #    package.json "packageManager" field is used. pnpm discovers members
       #    from pnpm-workspace.yaml; node-linker=hoisted (set there) gives an
@@ -54,6 +64,17 @@ jobs:
       - name: Typecheck + unit
         working-directory: ws/${{ env.PACKAGE }}
         run: pnpm exec tinycld-pkg check
+      # The ledger's guarantees (rules, posting, immutability, numbering) are
+      # proven by the Go tests in server/; tinycld-pkg check runs no Go.
+      # go mod download fills go.work.sum, which workspace-mode go test needs.
+      - name: Go build
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: |
+          go mod download
+          go build ./...
+      - name: Go test
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: go test -count=1 ./...
 
   e2e:
     name: E2E
@@ -77,6 +98,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/tinycld/core/server/go.mod
+          cache-dependency-path: |
+            ws/books/server/go.mod
+            ws/tinycld/server/go.sum
+            ws/tinycld/core/server/go.sum
       - name: Enable corepack (pnpm)
         run: corepack enable
       - name: Install (workspace root)

@@ -11,6 +11,7 @@
         "./collections": "./tinycld/books/collections.ts",
         "./screens/*": "./tinycld/books/screens/*.tsx",
         "./seed": "./tinycld/books/seed.ts",
+        "./search-adapter": "./tinycld/books/search-adapter.ts",
         "./sidebar": "./tinycld/books/sidebar.tsx",
         "./provider": "./tinycld/books/provider.tsx",
         "./hooks/*": "./tinycld/books/hooks/*.ts",
