@@ -215,3 +215,55 @@ func TestLedgerSchema_AccountNamesAreUniqueAmongSiblings(t *testing.T) {
 	}
 	mkAccount(t, app, "Power", "expense", "utilities") // a top-level Power is a different sibling set
 }
+
+// Read-only and none users are refused every write on entries and lines. A
+// create that fails a rule is a 400; an update or delete of a row the rule
+// hides is a 404.
+func TestLedgerRules_WritesRefusedBelowBookkeeper(t *testing.T) {
+	cases := []struct {
+		name   string
+		method string
+		url    func(r ledgerRows) string
+		body   func(r ledgerRows) string
+		want   int
+	}{
+		{"create an entry", http.MethodPost,
+			func(ledgerRows) string { return "/api/collections/books_journal_entries/records" },
+			func(ledgerRows) string {
+				return `{"date":"2026-05-03","doc_type":"journal","status":"draft","origin":"manual"}`
+			}, http.StatusBadRequest},
+		{"update a draft entry", http.MethodPatch,
+			func(r ledgerRows) string { return "/api/collections/books_journal_entries/records/" + r.draft.Id },
+			func(ledgerRows) string { return `{"memo":"x"}` }, http.StatusNotFound},
+		{"void a posted entry", http.MethodPatch,
+			func(r ledgerRows) string { return "/api/collections/books_journal_entries/records/" + r.posted.Id },
+			func(ledgerRows) string { return `{"status":"void"}` }, http.StatusNotFound},
+		{"delete a draft entry", http.MethodDelete,
+			func(r ledgerRows) string { return "/api/collections/books_journal_entries/records/" + r.draft.Id },
+			func(ledgerRows) string { return "" }, http.StatusNotFound},
+		{"create a line", http.MethodPost,
+			func(ledgerRows) string { return "/api/collections/books_journal_lines/records" },
+			func(r ledgerRows) string {
+				return fmt.Sprintf(`{"entry":%q,"account":%q,"debit":5}`, r.draft.Id, r.account.Id)
+			}, http.StatusBadRequest},
+		{"update a line", http.MethodPatch,
+			func(r ledgerRows) string { return "/api/collections/books_journal_lines/records/" + r.draftLine.Id },
+			func(ledgerRows) string { return `{"memo":"x"}` }, http.StatusNotFound},
+		{"delete a line", http.MethodDelete,
+			func(r ledgerRows) string { return "/api/collections/books_journal_lines/records/" + r.draftLine.Id },
+			func(ledgerRows) string { return "" }, http.StatusNotFound},
+	}
+	for _, level := range []Level{LevelNone, LevelReadOnly} {
+		for _, tc := range cases {
+			t.Run(string(level)+"/"+tc.name, func(t *testing.T) {
+				app := newBooksApp(t)
+				users := newLevelUsers(t, app)
+				rows := seedLedgerRows(t, app)
+				apiReq{
+					method: tc.method, url: tc.url(rows), token: tokenFor(t, users.byLevel(level)),
+					body: tc.body(rows), want: tc.want,
+				}.run(t, app)
+			})
+		}
+	}
+}
