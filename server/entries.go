@@ -128,7 +128,7 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 	from, to := stored.GetString("status"), next.GetString("status")
 	switch {
 	case from == statusDraft && to == statusDraft:
-		changed, err := changesBeyondUnlinks(tx, stored, next, draftEditable)
+		changed, err := changesBeyondUnlinks(tx, stored, next, draftEditable, entryUserLinks)
 		if err != nil {
 			return err
 		}
@@ -147,7 +147,7 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 		}
 		return voidEntry(tx, next, now)
 	case from == to:
-		changed, err := changesBeyondUnlinks(tx, stored, next, nil)
+		changed, err := changesBeyondUnlinks(tx, stored, next, nil, entryUserLinks)
 		if err != nil || len(changed) == 0 {
 			return err
 		}
