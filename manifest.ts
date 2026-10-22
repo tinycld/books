@@ -10,6 +10,7 @@ const manifest = {
         order: 30,
         shortcut: 'k',
     },
+    help: { directory: 'help' },
     sidebar: { component: 'sidebar' },
     provider: { component: 'provider' },
     migrations: { directory: 'pb-migrations' },
