@@ -1,6 +1,6 @@
 # Posted journal entries are immutable
 
-Once a Journal Entry is posted, it never changes. A correction is a reversing entry plus a new entry. The UI still shows a normal Edit button and hides this. The server enforces the rules at posting: debits equal credits, and the date is after the Closed Through Date unless the poster holds an Override. A void keeps the original number. An edit voids the original and posts the correction under the same number. The one-click reverse is different: it posts a mirror entry on a later date under a new number.
+Once a Journal Entry is posted, it never changes. A correction is a reversing entry plus a new entry. The server enforces balance and the Closed Through Date at posting.
 
 ## Considered Options
 
@@ -8,6 +8,7 @@ Once a Journal Entry is posted, it never changes. A correction is a reversing en
 
 ## Consequences
 
-- Every edit and every void writes entries dated in the original period. The Closed Through Date therefore applies to them.
-- To correct an entry in a closed period, the user needs an Override.
+- The UI shows a normal Edit and hides the reversal.
+- A void posts a reversal in the original period under the original number. An edit voids the original and posts the correction under the same number. A one-click reverse posts a mirror entry dated on or after the original, under a new number.
+- Every void and every edit writes a reversal dated in the original period. The Closed Through Date applies to it, and to a one-click reverse or a correction. To correct an entry in a closed period, the user needs an Override.
 - A refused change returns a plain error. The server never restores an old value silently.
