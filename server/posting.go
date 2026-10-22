@@ -28,7 +28,11 @@ const maxAmount = 1_000_000_000_000_000
 const maxStoredAmount = 1<<53 - 1
 
 // postEntry is the point of enforcement (spec, Ledger rules). It runs inside
-// the entry update's transaction, before PocketBase writes the entry.
+// the entry update's transaction, before PocketBase writes the entry. Lines
+// are validated before an edit voids its original, so a bad correction leaves
+// the original untouched. Every error is returned, never handled here: a
+// reversal or an edit posts inside the caller's transaction, which has no
+// savepoint, so only a rollback of the whole transaction undoes its writes.
 func postEntry(tx core.App, entry *core.Record, now time.Time) error {
 	day := entry.GetString("date")
 	if _, err := parseDay(day); err != nil {
@@ -44,18 +48,28 @@ func postEntry(tx core.App, entry *core.Record, now time.Time) error {
 	if err := checkAutoReverseDate(entry); err != nil {
 		return err
 	}
-	if entry.GetString("reverses") != "" || entry.GetString("replaces") != "" {
-		return refuse("Reversals and edits of posted entries are not available yet.")
+
+	var reversed *core.Record
+	if entry.GetString("reverses") != "" {
+		target, err := reversalTarget(tx, entry)
+		if err != nil {
+			return err
+		}
+		if err := writeReversalLines(tx, entry, target); err != nil {
+			return err
+		}
+		reversed = target
 	}
+
 	lines, err := entryLines(tx, entry.Id)
 	if err != nil {
 		return err
 	}
-	total, err := validateLines(tx, entry, lines, false)
+	total, err := validateLines(tx, entry, lines, reversed != nil)
 	if err != nil {
 		return err
 	}
-	seq, number, err := allocateNumber(tx, entry.GetString("doc_type"))
+	seq, number, err := numberFor(tx, entry, reversed, now)
 	if err != nil {
 		return err
 	}
