@@ -1,7 +1,7 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import type { SearchRow } from '@tinycld/core/lib/search/types'
 import { useRouter } from 'expo-router'
-import { searchTarget } from '~/tinycld/books/lib/search-target'
+import { searchTarget } from './lib/search-target'
 
 // Row shaping is the server's job (server/search.go). Selection stays here
 // because it needs the router. The palette calls this hook for every package
