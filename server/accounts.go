@@ -1,6 +1,8 @@
 package books
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/pocketbase/dbx"
@@ -63,8 +65,11 @@ func validateParent(app core.App, r *core.Record) error {
 		return refuse("An account cannot be placed inside its own sub-account.")
 	}
 	parent, err := app.FindRecordById("books_accounts", parentID)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return refuse("The parent account does not exist.")
+	}
+	if err != nil {
+		return fmt.Errorf("read the parent account: %w", err)
 	}
 	if parent.GetString("type") != r.GetString("type") {
 		return refuse("A sub-account must have the same type as its parent (%s).", typeLabel(parent.GetString("type")))

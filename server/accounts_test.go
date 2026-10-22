@@ -1,8 +1,10 @@
 package books
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -113,5 +115,29 @@ func TestAccount_DeleteExplainsWhatBlocksIt(t *testing.T) {
 	unused := mkAccount(t, app, "Unused", "expense", "travel")
 	if err := app.Delete(unused); err != nil {
 		t.Fatalf("delete unused: %v", err)
+	}
+}
+
+// Only a parent that is not there reads as "does not exist". A failed read is
+// returned as the error it is, not shown to a person as a missing parent.
+func TestAccount_AFailedParentReadIsNotAMissingParent(t *testing.T) {
+	app := newBooksApp(t)
+	col, err := app.FindCollectionByNameOrId("books_accounts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := core.NewRecord(col)
+	r.Load(map[string]any{"name": "Sub", "type": "bank", "detail_type": "checking", "parent": "noparent0000001"})
+	requireRefused(t, validateParent(app, r), "The parent account does not exist.")
+	db, ok := app.ConcurrentDB().(*dbx.DB)
+	if !ok {
+		t.Fatalf("concurrent db is %T", app.ConcurrentDB())
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	err = validateParent(app, r)
+	if err == nil || strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("a failed read = %v, want the read error", err)
 	}
 }
