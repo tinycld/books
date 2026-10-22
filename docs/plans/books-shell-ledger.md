@@ -20,7 +20,10 @@
 (none yet)
 
 ## Rebuttals
-(none yet)
+- **finding:** reviewer A, cp1, "tinycld/books/stores/books-ui-store.ts:11, no hydration handling. asyncStorage hydrates asynchronously, so a user who folded Accounting sees it open for a frame, then it snaps shut."
+  **rebutted because:** the spec says "its state persists across sessions in a Zustand store" and the checkpoint says "persisted under the name `tinycld_books_ui`"; both are met. No bullet asks for a hydration gate, and every other persisted store in core (`workspace-store.ts`) has the same one-frame behavior.
+- **finding:** reviewer A, cp1, "fixture uses `as const satisfies readonly NewAction[]`; the checkpoint said plain `satisfies`."
+  **rebutted because:** the implementer declared it; consumers take `readonly NewAction[]` (checkpoint 1 Interfaces: `newMenuColumns(actions: readonly NewAction[])`), so nothing needs a mutable array.
 
 ## Design notes
 (none yet)
@@ -34,6 +37,18 @@
 - phase 3: direction A; reference captured (menu, hub x 390/1280 x light/dark)
 - phase 4: plan review fixed: org-href helper named (useOrgHref), EmptyState message prop, controlled NewMenu for the FAB, pure isActivePath tested, useNewMenu tested via newMenuForAccess (no own-hook mock), help body written, capture manifest file named. Gaps accepted: no unit render of sidebar or NewFab (covered by gate 2 and e2e), no asyncStorage rehydrate test, no unit test of the sheet stacking branch, no menu-select e2e (no action is available until a later unit).
 - review mode: C
+
+## Checkpoint 1
+- test writer: tests/shell-nav.test.ts, tests/books-ui-store.test.ts; red for the right reason: yes (modules missing); untestable: none
+- implementer: lib/shell-nav.ts, stores/books-ui-store.ts, fixture retyped; DONE (as const satisfies instead of satisfies; icons and ids chosen by implementer)
+- test disputes: none
+- self-declared differences: `as const satisfies` (keeps literal column types); icons List/BookOpen/FileText
+- gate 1: tests unedited: yes · pass (41 tests)
+- gate 2: n/a
+- gate 3 A (correctness): 8 findings. Accepted+fixed by a fresh test writer: store partialize assertion strengthened, store reset beforeEach, icon cast removed, isActivePath edge cases, registry uniqueness test, mixed available/unavailable column. Finding 3 (sidebarSections does not filter) accepted as CP2 requirement: the sidebar hook composes availableOnly first and tests it. Rebutted: 6 (hydration flash), 7 (as const).
+- gate 3 B (conformance): nothing found
+- fix review: n/a (only test files changed)
+- reviewer-caught deferrals: none
 
 ## Final review
 - eval: (pending)
