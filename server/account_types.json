@@ -1,0 +1,109 @@
+[
+    {"key": "bank", "label": "Bank", "group": "asset", "normal": "debit", "detailTypes": [
+        {"key": "checking", "label": "Checking"},
+        {"key": "savings", "label": "Savings"},
+        {"key": "money_market", "label": "Money market"},
+        {"key": "cash_on_hand", "label": "Cash on hand"},
+        {"key": "trust_account", "label": "Trust account"}
+    ]},
+    {"key": "accounts_receivable", "label": "Accounts receivable", "group": "asset", "normal": "debit", "detailTypes": [
+        {"key": "accounts_receivable", "label": "Accounts receivable"}
+    ]},
+    {"key": "other_current_asset", "label": "Other current asset", "group": "asset", "normal": "debit", "detailTypes": [
+        {"key": "undeposited_funds", "label": "Undeposited funds"},
+        {"key": "prepaid_expenses", "label": "Prepaid expenses"},
+        {"key": "employee_advances", "label": "Employee advances"},
+        {"key": "loans_to_others", "label": "Loans to others"},
+        {"key": "inventory", "label": "Inventory"},
+        {"key": "other_current_asset", "label": "Other current asset"}
+    ]},
+    {"key": "fixed_asset", "label": "Fixed asset", "group": "asset", "normal": "debit", "detailTypes": [
+        {"key": "buildings", "label": "Buildings"},
+        {"key": "land", "label": "Land"},
+        {"key": "machinery_equipment", "label": "Machinery and equipment"},
+        {"key": "vehicles", "label": "Vehicles"},
+        {"key": "furniture_fixtures", "label": "Furniture and fixtures"},
+        {"key": "leasehold_improvements", "label": "Leasehold improvements"},
+        {"key": "accumulated_depreciation", "label": "Accumulated depreciation"},
+        {"key": "other_fixed_asset", "label": "Other fixed asset"}
+    ]},
+    {"key": "other_asset", "label": "Other asset", "group": "asset", "normal": "debit", "detailTypes": [
+        {"key": "security_deposits", "label": "Security deposits"},
+        {"key": "intangible_assets", "label": "Intangible assets"},
+        {"key": "goodwill", "label": "Goodwill"},
+        {"key": "accumulated_amortization", "label": "Accumulated amortization"},
+        {"key": "other_long_term_asset", "label": "Other long-term asset"}
+    ]},
+    {"key": "accounts_payable", "label": "Accounts payable", "group": "liability", "normal": "credit", "detailTypes": [
+        {"key": "accounts_payable", "label": "Accounts payable"}
+    ]},
+    {"key": "credit_card", "label": "Credit card", "group": "liability", "normal": "credit", "detailTypes": [
+        {"key": "credit_card", "label": "Credit card"}
+    ]},
+    {"key": "other_current_liability", "label": "Other current liability", "group": "liability", "normal": "credit", "detailTypes": [
+        {"key": "sales_tax_payable", "label": "Sales tax payable"},
+        {"key": "payroll_liabilities", "label": "Payroll liabilities"},
+        {"key": "accrued_liabilities", "label": "Accrued liabilities"},
+        {"key": "line_of_credit", "label": "Line of credit"},
+        {"key": "short_term_loan", "label": "Short-term loan"},
+        {"key": "customer_deposits", "label": "Customer deposits"},
+        {"key": "other_current_liability", "label": "Other current liability"}
+    ]},
+    {"key": "long_term_liability", "label": "Long-term liability", "group": "liability", "normal": "credit", "detailTypes": [
+        {"key": "notes_payable", "label": "Notes payable"},
+        {"key": "owner_loans", "label": "Loans from owners"},
+        {"key": "other_long_term_liability", "label": "Other long-term liability"}
+    ]},
+    {"key": "equity", "label": "Equity", "group": "equity", "normal": "credit", "detailTypes": [
+        {"key": "opening_balance_equity", "label": "Opening balance equity"},
+        {"key": "owners_equity", "label": "Owner's equity"},
+        {"key": "owner_draws", "label": "Owner draws"},
+        {"key": "partner_contributions", "label": "Partner contributions"},
+        {"key": "common_stock", "label": "Common stock"},
+        {"key": "paid_in_capital", "label": "Additional paid-in capital"},
+        {"key": "retained_earnings", "label": "Retained earnings"}
+    ]},
+    {"key": "income", "label": "Income", "group": "income", "normal": "credit", "detailTypes": [
+        {"key": "service_income", "label": "Service income"},
+        {"key": "product_sales", "label": "Product sales"},
+        {"key": "discounts_refunds", "label": "Discounts and refunds given"},
+        {"key": "other_primary_income", "label": "Other primary income"}
+    ]},
+    {"key": "other_income", "label": "Other income", "group": "income", "normal": "credit", "detailTypes": [
+        {"key": "interest_earned", "label": "Interest earned"},
+        {"key": "dividend_income", "label": "Dividend income"},
+        {"key": "gain_on_sale", "label": "Gain on sale of assets"},
+        {"key": "other_misc_income", "label": "Other miscellaneous income"}
+    ]},
+    {"key": "cost_of_goods_sold", "label": "Cost of goods sold", "group": "expense", "normal": "debit", "detailTypes": [
+        {"key": "supplies_materials", "label": "Supplies and materials"},
+        {"key": "cost_of_labor", "label": "Cost of labor"},
+        {"key": "freight_delivery", "label": "Freight and delivery"},
+        {"key": "other_costs", "label": "Other costs of sales"}
+    ]},
+    {"key": "expense", "label": "Expense", "group": "expense", "normal": "debit", "detailTypes": [
+        {"key": "advertising_marketing", "label": "Advertising and marketing"},
+        {"key": "bank_charges", "label": "Bank charges and fees"},
+        {"key": "contractors", "label": "Contractors"},
+        {"key": "dues_subscriptions", "label": "Dues and subscriptions"},
+        {"key": "insurance", "label": "Insurance"},
+        {"key": "interest_paid", "label": "Interest paid"},
+        {"key": "legal_professional", "label": "Legal and professional fees"},
+        {"key": "meals", "label": "Meals"},
+        {"key": "office_general", "label": "Office and general"},
+        {"key": "payroll_expenses", "label": "Payroll expenses"},
+        {"key": "rent_lease", "label": "Rent or lease"},
+        {"key": "repairs_maintenance", "label": "Repairs and maintenance"},
+        {"key": "taxes_licenses", "label": "Taxes and licenses"},
+        {"key": "travel", "label": "Travel"},
+        {"key": "utilities", "label": "Utilities"},
+        {"key": "vehicle_expenses", "label": "Vehicle expenses"},
+        {"key": "other_business_expenses", "label": "Other business expenses"}
+    ]},
+    {"key": "other_expense", "label": "Other expense", "group": "expense", "normal": "debit", "detailTypes": [
+        {"key": "depreciation", "label": "Depreciation"},
+        {"key": "amortization", "label": "Amortization"},
+        {"key": "penalties_settlements", "label": "Penalties and settlements"},
+        {"key": "other_misc_expense", "label": "Other miscellaneous expense"}
+    ]}
+]
