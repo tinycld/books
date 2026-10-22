@@ -1,33 +1,26 @@
 # books
 
-Double-entry bookkeeping and accounting.
+Books is double-entry accounting for one organization. It keeps a chart of
+accounts and a general ledger, and every entry balances.
 
-A feature package for the [tinycld](https://tinycld.org/) ecosystem. It lives in
-its own git repo and is developed as a **workspace member** alongside the app
-shell (`app`), `@tinycld/core` (its own standalone repo, cloned as a sibling —
-not bundled), and the other feature packages.
+The UI follows the QuickBooks Online model: familiar screens for accounts,
+transactions and reports. It is a feature package for the
+[tinycld](https://tinycld.org/) ecosystem and works on web and native. The
+design lives in the tinycld docs, not in this repo.
 
 ## Development
 
-The package is one member of a tinycld workspace. To work on it you need a
-workspace root containing at least `app`, `core`, and this package as siblings,
-linked by a single `pnpm install` at the root.
+The package is one member of a tinycld workspace. To work on it, clone it into
+the workspace root, then link every member with one install at the root.
 
 ```sh
-# In a fresh workspace directory, clone this package into a member slot…
 git clone git@github.com:tinycld/books.git
 
-# …then assemble the rest of the workspace (app + core + the workspace
-# package.json / tinycld.packages.ts). bootstrap --assemble-only skips
-# dirs that already exist.
-npx @tinycld/bootstrap@latest --assemble-only
-
-# Link every member with one install at the WORKSPACE ROOT (never inside a
-# member — siblings have no node_modules of their own; deps hoist to the root).
+# At the WORKSPACE ROOT (never inside a member):
 pnpm install
 
-# Run the full stack (Expo + PocketBase, single-port dev proxy) from the app.
-cd app
+# Run the full stack (Expo + PocketBase) from the app.
+cd tinycld
 pnpm run dev
 ```
 
@@ -67,12 +60,3 @@ the rest of the workspace (`app` + `core` + the workspace `package.json` and
 coordination files) via `npx @tinycld/bootstrap --assemble-only`, installs at
 the workspace root, and runs `tinycld-pkg check` / `tinycld-pkg test:e2e` —
 exactly what a developer runs locally.
-
-## Package anatomy
-
-- `manifest.ts` — the single source of truth for this package's capabilities
-- `package.json` — name, exports map, `tinycld-pkg` scripts, peer deps
-- `tsconfig.json` — extends the app shell's package tsconfig base
-- `vitest.config.ts` (and `playwright.config.ts` — full preset only) — thin configs spreading the app's
-- `tinycld/books/` — the package's TypeScript surface (screens, collections, …)
-- `tests/` — vitest unit tests (and Playwright e2e specs — full preset only)
