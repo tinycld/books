@@ -20,6 +20,12 @@
 (none yet)
 
 ## Rebuttals
+- **finding:** reviewer A, cp4, "The 'redirect' bullet is checked only by the final URL … satisfied whether navigateToPackage lands on /books/lists directly or via the Redirect."
+  **rebutted because:** before the redirect existed, the same e2e failed with `Received string: "http://localhost:7200/a/books"`, so `navigateToPackage` lands on `/a/books` and only the `Redirect` in `screens/index.tsx` can produce `/books/lists`.
+- **finding:** reviewer A, cp4, "The e2e test depends on LIST_ENTRIES and SIDEBAR_ENTRIES having no available entry besides Lists; the next unit has to rewrite the assertions."
+  **rebutted because:** the checkpoint's e2e bullet specifies exactly this state ("the 'No lists yet' text visible … no 'New' button (no action is available yet)"); each later unit that flips an `available` flag updates it.
+- **finding:** reviewer B, cp4, "`style={{ minHeight: 44 }}` could be a NativeWind class such as min-h-11."
+  **rebutted because:** no spec, plan, or codebase rule requires a class form; the committed sidebar and NewMenu use the same inline `minHeight: 44`.
 - **finding:** fix review (reviewer A), cp3, "NewFab.tsx has no test … reverting to a single component with useState would still pass."
   **rebutted because:** rendering `NewFab` requires `useNewMenu`, our own hook, which the test mandate forbids mocking ("never mock our own components, hooks, or actions"); the behavior is a mount/unmount structure, covered by the structure itself.
 - **finding:** reviewer A and fix review, cp3, "phone layout (isSheet stacking, sheetSide=bottom) is never rendered or asserted in a unit test."
@@ -38,11 +44,13 @@
   **rebutted because:** the implementer declared it; consumers take `readonly NewAction[]` (checkpoint 1 Interfaces: `newMenuColumns(actions: readonly NewAction[])`), so nothing needs a mutable array.
 
 ## Design notes
+- cp 4 · hub-1280/390 (empty state): the empty state hugs the top of the page (`ListsHub` wraps core `EmptyState`, whose `flex-1` centering has no effect inside a ScrollView child); title-to-message gap is ~80px because the empty card container still renders; message and subtext are two components with a loose rhythm; the help topic does not describe the empty hub.
 - cp 2 · hub-390: no phone shot shows the drawer, the fold, or an active item — carried to cp 4.
 - cp 3 · menu-1280: popover rows are 48px apart (reference ~25px); the Other column leaves empty width; dark popover surface equals the page background.
 - cp 3 · menu-390: sheet title sits 12px left of the group headings; the tab bar stays undimmed under the sheet (core Sheet).
 
 ## Out-of-plan changes
+- `tests/e2e/books-smoke.spec.ts` deleted: `/a/books` now redirects to Lists, the spec's "Books" text assertion is unreachable, and `tests/e2e/books-shell.spec.ts` covers opening Books (URL, empty state, sidebar item, no New button).
 - `tests/setup-cleanup.ts` (new) and `vitest.config.ts` (`setupFiles`): runs Testing Library `cleanup` after each test; vitest globals are off so the automatic cleanup never registered.
 - `tinycld/books/hooks/useBooksAccess.ts`: import changed from `~/tinycld/books/lib/access` to `../lib/access` (Metro cannot resolve `~/tinycld/books/...` for package files; found when the capture route first built).
 - `tinycld/books/stores/books-ui-store.ts` (checkpoint 1 file, edited in checkpoint 2): `toggleAccounting` now has a block body so it returns void; the expression body returned persist's thenable and React's `act` took the async path.
@@ -89,6 +97,18 @@
 - gate 3 A (correctness): NewFab kept open state across hide (accepted, fixed: NewFabContent owns the state, mounted only when visible); close-on-select not asserted (accepted: fresh test writer asserts onOpenChange(false)); duplicate useNewMenu (accepted, fixed); placement/roving nit (rebutted)
 - gate 3 B (conformance): out-of-plan setup-cleanup + vitest.config recorded; capture.json in Files-block gap only; nothing else
 - fix review: reviewer A pass over the fix diff: no new test for NewFab hide (rebutted), phone layout untested in unit (rebutted), sheet overflow (rebutted)
+- reviewer-caught deferrals: none
+
+## Checkpoint 4
+- test writer: tests/lists-hub.test.tsx, tests/e2e/books-shell.spec.ts; red for the right reason: yes (module missing; URL stayed `/a/books`); untestable: none
+- implementer: hooks/useListsHub.ts, components/ListsHub.tsx, screens/lists.tsx, screens/index.tsx (Redirect), manifest help, help/navigating-books.md; DONE
+- test disputes: none
+- self-declared differences: `useListsHub` also returns `open(entry)`; card testIDs; Do step 5 (a built-capture copy of the manifest) not needed, the cp4 evidence capture.json carries the `/a/books/lists` shot
+- gate 1: tests unedited: yes · pass (60 tests). A red e2e was root-caused: the old `books-smoke.spec.ts` asserted the text "Books", which `/a/books` no longer shows after the redirect; the spec was removed because `books-shell.spec.ts` covers opening Books with stronger assertions.
+- gate 2: invalid shots: none · blocking: none · notes: 4 (empty state hugs the top of the page, `ListsHub` defeats core EmptyState's centering; title-to-message gap ~80px because the empty card container still renders; message and subtext split across two components; help topic says nothing about the empty hub). The cp2 rebuttal is closed: the active highlight shows for Lists.
+- gate 3 A (correctness): card navigation untested (accepted: fresh test writer added a press test asserting `router.push('/a/books/accounts')`); redirect proven only by URL (rebutted); e2e coupled to registry state (rebutted)
+- gate 3 B (conformance): out-of-plan deletion of the smoke spec and cp4 evidence recorded; `open` interface addition recorded; `minHeight: 44` as inline style (rebutted)
+- fix review: n/a (only test files changed)
 - reviewer-caught deferrals: none
 
 ## Final review

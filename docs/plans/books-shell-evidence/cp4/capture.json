@@ -1,0 +1,4 @@
+{
+    "outDir": ".",
+    "shots": [{ "name": "hub", "url": "/a/books/lists" }]
+}
