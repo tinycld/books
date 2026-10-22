@@ -91,6 +91,54 @@ func TestOverride_ShortenedNotExtended(t *testing.T) {
 	}
 }
 
+// Deleting the admin who granted an override clears granted_by and nothing
+// else: the override stays as the log and keeps working for its holder.
+func TestOverride_DeletingTheGranterClearsGrantedByOnly(t *testing.T) {
+	app := newGuardedApp(t)
+	holder := mkUser(t, app, "member")
+	granter := mkUser(t, app, "admin")
+	ov := saveRecord(t, app, "books_close_overrides", map[string]any{
+		"user": holder.Id, "reason": "Late fix", "expires_at": types.NowDateTime().Add(24 * time.Hour), "granted_by": granter.Id,
+	})
+	expires := reload(t, app, "books_close_overrides", ov.Id).GetString("expires_at")
+	if err := app.Delete(granter); err != nil {
+		t.Fatalf("delete the granting admin: %v", err)
+	}
+	after := reload(t, app, "books_close_overrides", ov.Id)
+	if after.GetString("granted_by") != "" || after.GetString("user") != holder.Id ||
+		after.GetString("reason") != "Late fix" || after.GetString("expires_at") != expires {
+		t.Fatalf("after = %v", after.PublicExport())
+	}
+}
+
+// Only PocketBase's unlink of a deleted user may clear granted_by.
+func TestOverride_ClearingALiveGranterIsRefused(t *testing.T) {
+	app := newGuardedApp(t)
+	granter := mkUser(t, app, "admin")
+	ov := saveRecord(t, app, "books_close_overrides", map[string]any{
+		"user": mkUser(t, app, "member").Id, "reason": "Late fix",
+		"expires_at": types.NowDateTime().Add(time.Hour), "granted_by": granter.Id,
+	})
+	ov.Set("granted_by", "")
+	requireRefused(t, app.Save(ov), "Only an override's expiry can change.")
+}
+
+// The holder is a required link, so PocketBase refuses to delete a user who
+// holds an override: the override is the log of why they could post into a
+// closed period. Offboarding expires it instead.
+func TestOverride_TheHolderCannotBeDeleted(t *testing.T) {
+	app := newGuardedApp(t)
+	holder := mkUser(t, app, "member")
+	ov := saveRecord(t, app, "books_close_overrides", map[string]any{
+		"user": holder.Id, "reason": "Late fix", "expires_at": types.NowDateTime().Add(time.Hour),
+	})
+	requireRefused(t, app.Delete(holder), "part of a required reference")
+	if got := reload(t, app, "books_close_overrides", ov.Id).GetString("user"); got != holder.Id {
+		t.Fatalf("user = %q, want %q", got, holder.Id)
+	}
+	reload(t, app, "users", holder.Id)
+}
+
 func TestOverride_ActiveOverrideIsTheNewestUnexpired(t *testing.T) {
 	app := newGuardedApp(t)
 	user := mkUser(t, app, "member")

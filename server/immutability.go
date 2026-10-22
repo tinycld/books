@@ -14,21 +14,22 @@ import (
 // the ledger is worse than a visible refusal. Model hooks, so this holds for
 // every writer: REST, a batch, another package's Go.
 
-// userLinkFields are the user relations PocketBase clears on its own when the
-// referenced user is hard-deleted. That unlink is the only change a posted or
-// void entry accepts, and the only server-field change a draft accepts, so a
-// user delete is never blocked over attribution.
-var userLinkFields = map[string]bool{"posted_by": true, "voided_by": true, "created_by": true}
+// entryUserLinks are the entry's user relations PocketBase clears on its own
+// when the referenced user is hard-deleted. That unlink is the only change a
+// posted or void entry accepts, and the only server-field change a draft
+// accepts, so a user delete is never blocked over attribution.
+var entryUserLinks = map[string]bool{"posted_by": true, "voided_by": true, "created_by": true}
 
 // changesBeyondUnlinks returns the changed fields, skipping allowed, unless
-// every one of them is PocketBase unlinking a deleted user; then it returns
-// none. A link cleared while its user still exists is a change like any other.
-// PocketBase deletes the user row before it unlinks the references, inside
-// the same transaction, so tx no longer finds that user.
-func changesBeyondUnlinks(tx core.App, stored, next *core.Record, allowed map[string]bool) ([]string, error) {
+// every one of them is PocketBase unlinking a deleted user from one of
+// userLinks; then it returns none. A link cleared while its user still exists
+// is a change like any other. PocketBase deletes the user row before it
+// unlinks the references, inside the same transaction, so tx no longer finds
+// that user.
+func changesBeyondUnlinks(tx core.App, stored, next *core.Record, allowed, userLinks map[string]bool) ([]string, error) {
 	changed := changedFields(stored, next, allowed)
 	for _, name := range changed {
-		if !userLinkFields[name] || next.GetString(name) != "" {
+		if !userLinks[name] || next.GetString(name) != "" {
 			return changed, nil
 		}
 		_, err := tx.FindRecordById("users", stored.GetString(name))

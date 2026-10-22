@@ -9,6 +9,11 @@ import (
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
+// overrideUserLinks is the override's optional user relation. Deleting the
+// admin who granted an override clears it; the override stays as the log.
+// The holder (user) is required, so PocketBase refuses to delete a holder.
+var overrideUserLinks = map[string]bool{"granted_by": true}
+
 // registerCloseOverrideHooks keeps close-date overrides honest. An override is
 // the log of why a user may post into the closed period, so its user and
 // reason never change and it is never deleted (the rules refuse deletes);
@@ -29,7 +34,11 @@ func registerCloseOverrideHooks(app core.App) {
 		if err != nil {
 			return err
 		}
-		if changed := changedFields(stored, e.Record, map[string]bool{"expires_at": true}); len(changed) > 0 {
+		changed, err := changesBeyondUnlinks(e.App, stored, e.Record, map[string]bool{"expires_at": true}, overrideUserLinks)
+		if err != nil {
+			return err
+		}
+		if len(changed) > 0 {
 			return refuse("Only an override's expiry can change.")
 		}
 		if e.Record.GetDateTime("expires_at").Time().After(stored.GetDateTime("expires_at").Time()) {
