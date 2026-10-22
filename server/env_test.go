@@ -166,3 +166,33 @@ func (r apiReq) run(t *testing.T, app *tests.TestApp) {
 	}
 	scenario.Test(t)
 }
+
+// mkAccount saves an account directly. It sets currency itself so it also
+// works on an app with no hooks bound.
+func mkAccount(t testing.TB, app core.App, name, accountType, detailType string) *core.Record {
+	t.Helper()
+	return saveRecord(t, app, "books_accounts", map[string]any{
+		"name": name, "type": accountType, "detail_type": detailType, "currency": "USD",
+	})
+}
+
+// ln is one journal line of a fixture entry, in minor units.
+type ln struct {
+	account       *core.Record
+	debit, credit int
+}
+
+// mkDraft saves a manual draft entry and its lines directly.
+func mkDraft(t testing.TB, app core.App, date string, lines ...ln) *core.Record {
+	t.Helper()
+	entry := saveRecord(t, app, "books_journal_entries", map[string]any{
+		"date": date, "status": "draft", "doc_type": "journal", "origin": "manual", "currency": "USD",
+	})
+	for i, l := range lines {
+		saveRecord(t, app, "books_journal_lines", map[string]any{
+			"entry": entry.Id, "account": l.account.Id, "debit": l.debit, "credit": l.credit,
+			"position": i, "currency": "USD",
+		})
+	}
+	return entry
+}
