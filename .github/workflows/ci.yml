@@ -52,10 +52,6 @@ jobs:
             ws/books/server/go.mod
             ws/tinycld/server/go.sum
             ws/tinycld/core/server/go.sum
-          cache-dependency-path: |
-            ws/books/server/go.mod
-            ws/tinycld/server/go.sum
-            ws/tinycld/core/server/go.sum
       # 5. Enable corepack so the pnpm version pinned in the workspace root's
       #    package.json "packageManager" field is used. pnpm discovers members
       #    from pnpm-workspace.yaml; node-linker=hoisted (set there) gives an
@@ -102,6 +98,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/tinycld/core/server/go.mod
+          cache-dependency-path: |
+            ws/books/server/go.mod
+            ws/tinycld/server/go.sum
+            ws/tinycld/core/server/go.sum
       - name: Enable corepack (pnpm)
         run: corepack enable
       - name: Install (workspace root)
