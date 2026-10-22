@@ -11,15 +11,19 @@ import (
 // forward but never back over numbers already issued: that would hand a
 // second document a number the books already used.
 func registerSequenceGuard(app core.App) {
+	// Serialized with posting: a post that takes a number after the check
+	// would otherwise be overwritten by this save's older next number.
 	app.OnRecordUpdate("books_doc_sequences").BindFunc(func(e *core.RecordEvent) error {
-		highest, err := highestSequence(e.App, e.Record.GetString("doc_type"))
-		if err != nil {
-			return err
-		}
-		if e.Record.GetInt("next_number") <= highest {
-			return refuse("Numbers up to %d are already used. The next number must be %d or higher.", highest, highest+1)
-		}
-		return e.Next()
+		return serialized(e, func(tx core.App) error {
+			highest, err := highestSequence(tx, e.Record.GetString("doc_type"))
+			if err != nil {
+				return err
+			}
+			if e.Record.GetInt("next_number") <= highest {
+				return refuse("Numbers up to %d are already used. The next number must be %d or higher.", highest, highest+1)
+			}
+			return nil
+		})
 	})
 	app.OnRecordDelete("books_doc_sequences").BindFunc(func(e *core.RecordEvent) error {
 		return refuse("A number sequence cannot be deleted.")

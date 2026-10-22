@@ -48,21 +48,22 @@ func stampCurrency(app core.App, r *core.Record) error {
 func registerSettingsGuard(app core.App) {
 	// The close date is checked only when it changes, so an edit of another
 	// setting is never refused over the close date.
+	// Serialized with posting: an entry that posts after the pending
+	// auto-reversal check would otherwise slip under the new close date.
 	app.OnRecordUpdate("books_settings").BindFunc(func(e *core.RecordEvent) error {
-		// The stored row, not Original(): a caller that saved and changed the
-		// record again without reloading carries a stale Original().
-		stored, err := e.App.FindRecordById("books_settings", e.Record.Id)
-		if err != nil {
-			return fmt.Errorf("read settings: %w", err)
-		}
-		closeDate := e.Record.GetString("close_date")
-		if closeDate == stored.GetString("close_date") {
-			return e.Next()
-		}
-		if err := checkCloseDate(e.App, closeDate); err != nil {
-			return err
-		}
-		return e.Next()
+		return serialized(e, func(tx core.App) error {
+			// The stored row, not Original(): a caller that saved and changed
+			// the record again without reloading carries a stale Original().
+			stored, err := tx.FindRecordById("books_settings", e.Record.Id)
+			if err != nil {
+				return fmt.Errorf("read settings: %w", err)
+			}
+			closeDate := e.Record.GetString("close_date")
+			if closeDate == stored.GetString("close_date") {
+				return nil
+			}
+			return checkCloseDate(tx, closeDate)
+		})
 	})
 	app.OnRecordDelete("books_settings").BindFunc(func(e *core.RecordEvent) error {
 		return refuse("Books settings cannot be deleted.")
