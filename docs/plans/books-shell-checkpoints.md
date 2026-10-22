@@ -1,6 +1,6 @@
 # books-shell — checkpoint plan
 
-Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger.md`. All paths are relative to the `books` package root. Package files that Metro loads import each other relatively (`../lib/x`), never with `~/tinycld/books/...`. The fixture `tinycld/books/lib/books-shell-fixture.ts` feeds the scratch route and the tests; it reads no collection, so it has no seed wiring.
+Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger.md`. All paths are relative to the `books` package root. Navigation: registry `href` values are root-relative app paths without the `/a` prefix (`books/lists`); every navigation and redirect builds its target with `useOrgHref` from `@tinycld/core/lib/org-routes` (`orgHref(entry.href)`). The `active-indicator` highlight comes from `SidebarItem`'s `isActive` prop. Package files that Metro loads import each other relatively (`../lib/x`), never with `~/tinycld/books/...`. The fixture `tinycld/books/lib/books-shell-fixture.ts` feeds the scratch route and the tests; it reads no collection, so it has no seed wiring.
 
 ### Checkpoint 1 — Shell registries and fold store
 
@@ -10,6 +10,7 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
 - Create: `tinycld/books/lib/shell-nav.ts`
 - Create: `tinycld/books/stores/books-ui-store.ts`
 - Modify: `tinycld/books/lib/books-shell-fixture.ts` (type the fixture with `satisfies` against the registry types)
+- Modify: `tinycld/books/screens/helix-mockup.tsx` (scratch route: follow the renamed fixture exports)
 - Test: `tests/shell-nav.test.ts` · `tests/books-ui-store.test.ts`
 
 **Interfaces:**
@@ -24,6 +25,7 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
   - `newMenuColumns(actions: readonly NewAction[]): NewMenuColumn[]`
   - `newMenuForAccess(access: BooksAccessState, actions?: readonly NewAction[]): NewMenuColumn[]`
   - `sidebarSections(entries: readonly SidebarEntry[]): { top: SidebarEntry[]; accounting: SidebarEntry[] }`
+  - `isActivePath(pathname: string, entry: SidebarEntry): boolean` (true when `pathname` ends with `/${entry.href}` or contains `/${entry.href}/`)
   - `useBooksUIStore` with `isAccountingOpen: boolean` and `toggleAccounting(): void`, persisted under the name `tinycld_books_ui`
 
 **Gates:** 1 · 3 (nothing renders)
@@ -42,10 +44,11 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
 - `tests/shell-nav.test.ts` — `newMenuColumns` returns columns in the order Customers, Vendors, Other and drops a column whose actions are all unavailable; given no available action it returns `[]`.
 - `tests/shell-nav.test.ts` — `newMenuForAccess` returns `[]` for levels `none` and `read_only` even when actions are available, and returns the columns for `bookkeeper` and `admin` (built with `accessFromRow`).
 - `tests/shell-nav.test.ts` — `sidebarSections` puts `group: 'accounting'` entries under `accounting` and the rest under `top`, and returns an empty `accounting` list when none is available.
+- `tests/shell-nav.test.ts` — `isActivePath('/a/books/lists', lists)` is true, `isActivePath('/a/books/accounts', lists)` is false, and a sub-path `/a/books/accounts/42` is active for the accounts entry.
 - `tests/books-ui-store.test.ts` — `isAccountingOpen` starts true; `toggleAccounting` flips it; the persisted partial contains `isAccountingOpen`.
 
 **Do:**
-1. Create `lib/shell-nav.ts` with the types above and the three constants: `SIDEBAR_ENTRIES` = Lists (`href: 'lists'`, available true), Chart of Accounts (`accounts`, group accounting, false), Journal Entries (`entries`, group accounting, false); `NEW_ACTIONS` = Journal entry (`entries/new`, column other, false); `LIST_ENTRIES` = Accounts (`accounts`, description "Chart of accounts", false). Icons come from `lucide-react-native`.
+1. Create `lib/shell-nav.ts` with the types above and the three constants: `SIDEBAR_ENTRIES` = Lists (`href: 'books/lists'`, available true), Chart of Accounts (`books/accounts`, group accounting, false), Journal Entries (`books/entries`, group accounting, false); `NEW_ACTIONS` = Journal entry (`books/entries/new`, column other, false); `LIST_ENTRIES` = Accounts (`books/accounts`, description "Chart of accounts", false). Icons come from `lucide-react-native`.
 2. Implement the five functions. Column headings are Customers, Vendors, Other; `newMenuForAccess` defaults `actions` to `NEW_ACTIONS` and returns `[]` unless `access.canWrite`.
 3. Create the store with `create<State>()(persist(..., { name: 'tinycld_books_ui', storage: asyncStorage, partialize: s => ({ isAccountingOpen: s.isAccountingOpen }) }))`, `isAccountingOpen` true by default.
 4. Modify the fixture so its actions and lists are typed `satisfies readonly NewAction[]` / `readonly ListEntry[]` (all `available: true`, with `id`, `href`, `column`, `description` filled), and export `NEW_ACTIONS_FIXTURE` and `LIST_ENTRIES_FIXTURE`; keep the old exports only if a later step still uses them, otherwise remove them and update `screens/helix-mockup.tsx`.
@@ -61,7 +64,7 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
 
 **Interfaces:**
 - Consumes: `SIDEBAR_ENTRIES`, `availableOnly`, `sidebarSections`, `SidebarEntry`, `useBooksUIStore`, `isAccountingOpen`, `toggleAccounting` from checkpoint 1; `SidebarItem`, `SidebarHeading`, `SidebarNav` from `@tinycld/core/components/sidebar-primitives`
-- Produces: `useBooksSidebar(entries?: readonly SidebarEntry[]): { top: SidebarEntry[]; accounting: SidebarEntry[]; isAccountingOpen: boolean; toggleAccounting: () => void; isActive: (entry: SidebarEntry) => boolean }`
+- Produces: `useBooksSidebar(entries?: readonly SidebarEntry[]): { top: SidebarEntry[]; accounting: SidebarEntry[]; isAccountingOpen: boolean; toggleAccounting: () => void; isActive: (entry: SidebarEntry) => boolean }` (`isActive` is `isActivePath(usePathname(), entry)`)
 
 **Gates:** 1 · 2 (reference: `hub-*` screenshots; built URL: `/a/books/lists`) · 3
 
@@ -71,13 +74,13 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
 - "The active destination is highlighted with the `active-indicator` token."
 
 **Tests it must add:** (written by the test writer before the implementer starts; the implementer may not edit them)
-- `tests/books-sidebar.test.tsx` — `useBooksSidebar` (rendered with `renderHook` from `@testing-library/react`) given a fixture entry list returns only available entries split into `top` and `accounting`; with no available accounting entry `accounting` is `[]`.
+- `tests/books-sidebar.test.tsx` — `useBooksSidebar` (rendered with `renderHook` from `@testing-library/react`) given `SIDEBAR_ENTRIES` mapped to `available: true` in the test file returns only available entries split into `top` and `accounting`; with no available accounting entry `accounting` is `[]`.
 - `tests/books-sidebar.test.tsx` — calling `toggleAccounting` through the hook flips `isAccountingOpen`.
-- `tests/books-sidebar.test.tsx` — `isActive(entry)` is true when the current pathname ends with the entry's `href` and false otherwise (the pathname comes from the shared `expo-router` stub in `setupFiles`).
+- `tests/books-sidebar.test.tsx` — `isActive` agrees with `isActivePath` for the pathname `usePathname` returns (the `expo-router` stub returns `'/'`, so every entry is inactive; assert that).
 
 **Do:**
 1. Create `hooks/useBooksSidebar.ts`: read the pathname with `usePathname` from `expo-router`, take the store fields with selectors, and split `availableOnly(entries)` with `sidebarSections`.
-2. Rewrite `sidebar.tsx`: `SidebarNav` containing a `SidebarItem` per `top` entry; when `accounting` is non-empty, a `SidebarHeading` "Accounting" whose `action` is a chevron `Pressable` calling `toggleAccounting`, followed by its items when `isAccountingOpen`. Navigate with the same router helper `drive/tinycld/drive/sidebar.tsx` uses for an in-package route, `closesDrawer` true. Each item gets `isActive` and a `testID` of `books-nav-<id>`. No raw hex; icons colored with `useThemeColor`.
+2. Rewrite `sidebar.tsx`: `SidebarNav` containing a `SidebarItem` per `top` entry; when `accounting` is non-empty, a `SidebarHeading` "Accounting" whose `action` is a chevron `Pressable` calling `toggleAccounting`, followed by its items when `isAccountingOpen`. Navigate with `router.push(orgHref(entry.href))` (`orgHref` from `useOrgHref`), `closesDrawer` true. Each item gets `isActive` and a `testID` of `books-nav-<id>`. No raw hex; icons colored with `useThemeColor`.
 3. Keep JSX minimal: all derivation stays in the hook.
 
 ### Checkpoint 3 — New menu and phone button
@@ -94,10 +97,10 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
 - Test: `tests/new-menu.test.tsx`
 
 **Interfaces:**
-- Consumes: `newMenuForAccess`, `NewMenuColumn`, `NewAction`, `NEW_ACTIONS` from checkpoint 1; `useBooksAccess` from `tinycld/books/hooks/useBooksAccess.ts`; `Popover` from `@tinycld/core/ui/popover`; `SidebarActionButton`; `FAB` from `@tinycld/core/components/FAB`
+- Consumes: `newMenuForAccess`, `NewMenuColumn`, `NewAction`, `NEW_ACTIONS` from checkpoint 1; `useBooksAccess` from `tinycld/books/hooks/useBooksAccess.ts`; `Popover` from `@tinycld/core/ui/popover`; `SidebarActionButton`; `FAB` from `@tinycld/core/components/FAB`; `useBreakpoint` from `@tinycld/core/components/workspace/useBreakpoint`; `useOrgHref` from `@tinycld/core/lib/org-routes`
 - Produces:
   - `useNewMenu(actions?: readonly NewAction[]): { isVisible: boolean; columns: NewMenuColumn[]; open: (action: NewAction) => void }`
-  - `NewMenu({ columns, trigger, onSelect }: { columns: NewMenuColumn[]; trigger: ReactElement; onSelect: (action: NewAction) => void })`
+  - `NewMenu({ columns, onSelect, trigger, isOpen, onOpenChange }: { columns: NewMenuColumn[]; onSelect: (action: NewAction) => void; trigger?: ReactElement; isOpen?: boolean; onOpenChange?: (open: boolean) => void })` (uncontrolled with a `trigger`, or controlled with `isOpen`/`onOpenChange`, passed straight to `Popover`)
   - `NewFab()` which returns `null` unless the breakpoint is mobile and `useNewMenu().isVisible`
 
 **Gates:** 1 · 2 (reference: `menu-*` screenshots; built URL: `/a/books/helix-mockup?state=new-menu`) · 3
@@ -109,17 +112,17 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
 - "Users below bookkeeper level see no + New (`useBooksAccess`)."
 
 **Tests it must add:** (written by the test writer before the implementer starts; the implementer may not edit them)
-- `tests/new-menu.test.tsx` — `useNewMenu` returns `isVisible: false` and `columns: []` when `useBooksAccess` reports `read_only`, and when no action is available at `bookkeeper`; it returns `isVisible: true` with the Other column for a fixture action at `bookkeeper`. The access level reaches the hook through `accessFromRow` rows served by the shared live-query test setup, not a mock of our own hook.
+- `tests/new-menu.test.tsx` — `newMenuForAccess` (the function `useNewMenu` calls) with `accessFromRow({ level: 'read_only' }, true)` returns `[]`, and with `bookkeeper` and `NEW_ACTIONS_FIXTURE` returns three columns; `useNewMenu` itself is a thin wrapper and is not rendered in a unit test because it needs a live query (the sidebar e2e and gate 2 cover it).
 - `tests/new-menu.test.tsx` — rendering `NewMenu` with the fixture columns (open) shows the headings Customers, Vendors, Other and each action label, and pressing an action calls `onSelect` with that action.
 - `tests/new-menu.test.tsx` — rendering `NewMenu` with a single non-empty column draws only that heading.
 
 **Do:**
-1. `hooks/useNewMenu.ts`: read the level with `useBooksAccess()`, compute `columns = newMenuForAccess(access, actions)`, `isVisible = columns.length > 0`, and `open` navigates to the action's `href` with the same router helper as the sidebar.
+1. `hooks/useNewMenu.ts`: read the level with `useBooksAccess()`, compute `columns = newMenuForAccess(access, actions)`, `isVisible = columns.length > 0`, and `open` navigates with `router.push(orgHref(action.href))`.
 2. `components/NewMenu.tsx`: a `Popover` (presentation `auto`, `title` "New") whose body is a row of columns, each a heading `Text` plus one `Pressable` row per action; on a phone the body stacks the columns (read `usePopoverContext().isSheet`). Pressing an action calls `onSelect` and closes the popover.
-3. `components/NewFab.tsx`: `useBreakpoint() === 'mobile'` and `isVisible` gate a `FAB` with the `Plus` icon, wrapped in a `NewMenu` trigger.
+3. `components/NewFab.tsx`: `useBreakpoint() === 'mobile'` and `isVisible` gate a `FAB` (`icon` `Plus`, `accessibilityLabel` "New", `isVisible` true) that sets local `useState` open state, beside a controlled `NewMenu` (`isOpen`/`onOpenChange`, no trigger: `FAB` does not forward a ref).
 4. `sidebar.tsx`: when `useNewMenu().isVisible` and the breakpoint is not mobile, render `NewMenu` with a `SidebarActionButton` (label "New", `Plus` icon) as the trigger above the entries.
 5. `screens/_layout.tsx`: wrap the `Stack` in a `View` with `flex-1` and mount `NewFab` after it.
-6. Update the scratch route so `?state=new-menu` renders `NewMenu` initially open with `NEW_ACTIONS_FIXTURE` columns; add that shot to the capture manifest for gate 2.
+6. Update the scratch route so `?state=new-menu` renders `NewMenu` initially open with `NEW_ACTIONS_FIXTURE` columns; add a `new-menu` shot (`url` `/a/books/helix-mockup?state=new-menu`) to `docs/plans/books-shell-capture.json` for gate 2.
 
 ### Checkpoint 4 — Lists hub and redirect
 
@@ -152,7 +155,7 @@ Spec: `docs/specs/books-shell-design.md`. Ledger: `docs/plans/books-shell-ledger
 
 **Do:**
 1. `hooks/useListsHub.ts` returns `availableOnly(entries)` as `cards` and `isEmpty`.
-2. `components/ListsHub.tsx`: a `ScrollView` with a page heading "Lists"; a wrapped row of card `Pressable`s (label, description) navigating to the entry's `href`; when `isEmpty`, an `EmptyState` from `@tinycld/core/components/EmptyState` titled "No lists yet" with the line "Lists appear here as Books features are added."
+2. `components/ListsHub.tsx`: a `ScrollView` with a page heading "Lists"; a wrapped row of card `Pressable`s (label, description) navigating to the entry's `href`; when `isEmpty`, an `EmptyState` from `@tinycld/core/components/EmptyState` with `message` "No lists yet", and under it a `Text` "Lists appear here as Books features are added."
 3. `screens/lists.tsx` renders `ListsHub`; `screens/index.tsx` returns a `Redirect` from `expo-router` to the package's `lists` route, built the way `drive` builds its package-relative hrefs.
-4. Write `help/navigating-books.md` (frontmatter `title`, `summary`; task-oriented prose: how to move around Books and open the + New menu, with `⌘` glyph conventions if a shortcut is mentioned) and set `help: { directory: 'help' }` in the manifest; run `cd ~/tmp/tinycld/books/tinycld && pnpm run packages:generate`.
-5. Add the gate-2 built shot for `hub` to the capture manifest.
+4. Write `help/navigating-books.md` (frontmatter `title`, `summary`; title "Moving around Books", summary "Use the sidebar, the New menu and the Lists hub."; body: "To open a list, choose Lists in the sidebar and pick a card. To start a transaction, choose New (the round + button on a phone) and pick an action; the menu is hidden if you have read-only access. The Accounting group in the sidebar folds with its arrow.") and set `help: { directory: 'help' }` in the manifest; run `cd ~/tmp/tinycld/books/tinycld && pnpm run packages:generate`.
+5. The `hub` shot already in `docs/plans/books-shell-capture.json` is the gate-2 built shot for `/a/books/lists`; point its `url` at `/a/books/lists` in the built-capture manifest copy.
