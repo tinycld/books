@@ -1,0 +1,7 @@
+{
+    "outDir": "books-shell-reference",
+    "shots": [
+        { "name": "menu", "url": "/a/books/helix-mockup?state=menu" },
+        { "name": "hub", "url": "/a/books/helix-mockup?state=hub" }
+    ]
+}
