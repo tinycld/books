@@ -59,15 +59,51 @@ func newRegisteredApp(t testing.TB) (*tests.TestApp, *pocketbase.PocketBase) {
 
 func TestAudit_CoversEveryCollectionPeopleWrite(t *testing.T) {
 	app := newBooksApp(t)
+	audited := auditedCollections(app)
 	for _, c := range booksCollections(t, app, core.CollectionTypeBase) {
-		if _, ok := auditedCollections[c.Name]; !ok && !serverOnly[c.Name] {
+		if _, ok := audited[c.Name]; !ok && !serverOnly[c.Name] {
 			t.Errorf("%s is neither audited nor listed as server-only", c.Name)
 		}
 	}
-	for name := range auditedCollections {
+	for name := range audited {
 		if _, err := app.FindCollectionByNameOrId(name); err != nil {
 			t.Errorf("audited collection %s does not exist", name)
 		}
+	}
+}
+
+// An audit row's label is what a person reads in the log, so it must name the
+// thing: the granted user rather than their id, and a line's account and
+// amount rather than its memo, which is usually empty.
+func TestAudit_LabelsNameWhatChanged(t *testing.T) {
+	env := newLedgerEnv(t)
+	audited := auditedCollections(env.app)
+	label := func(collection string, r *core.Record) string {
+		t.Helper()
+		return audited[collection].ExtractLabel(r)
+	}
+
+	grantee := mkUser(t, env.app, "member")
+	grant := saveRecord(t, env.app, "books_admins", map[string]any{"user": grantee.Id})
+	if got, want := label("books_admins", grant), "Books member <"+grantee.Email()+">"; got != want {
+		t.Errorf("admin grant label = %q, want %q", got, want)
+	}
+
+	numbered := mkAccount(t, env.app, "Petty Cash", "bank", "cash_on_hand")
+	numbered.Set("number", "1010")
+	if err := env.app.Save(numbered); err != nil {
+		t.Fatal(err)
+	}
+	entry := mkDraft(t, env.app, "2026-05-10", ln{numbered, 2550, 0}, ln{env.revenue, 0, 2550})
+	lines, err := entryLines(env.app, entry.Id)
+	if err != nil || len(lines) != 2 {
+		t.Fatalf("lines %v, err %v", lines, err)
+	}
+	if got, want := label("books_journal_lines", lines[0]), "1010:Petty Cash debit 25.50"; got != want {
+		t.Errorf("debit line label = %q, want %q", got, want)
+	}
+	if got, want := label("books_journal_lines", lines[1]), "Consulting Income credit 25.50"; got != want {
+		t.Errorf("credit line label = %q, want %q", got, want)
 	}
 }
 
@@ -212,6 +248,63 @@ func TestOAuth_TokenReadsTheLedger(t *testing.T) {
 	}.run(t, app)
 }
 
+// A token acts as its user: a read-only user's token cannot write the ledger
+// even when it holds books:write, because the collection rules still apply.
+func TestOAuth_ReadOnlyUsersTokenCannotWrite(t *testing.T) {
+	app, pb := newRegisteredApp(t)
+	oauth.Register(pb)
+	users := newLevelUsers(t, app)
+	apiReq{
+		method: http.MethodPost,
+		url:    "/api/collections/books_accounts/records",
+		token:  oauthToken(t, app, users.readOnly, scopeRead, scopeWrite),
+		body:   `{"name":"Petty Cash","type":"bank","detail_type":"cash_on_hand"}`,
+		want:   http.StatusBadRequest,
+		after: func(t testing.TB, app *tests.TestApp) {
+			if n, _ := app.CountRecords("books_accounts"); n != 0 {
+				t.Errorf("%d accounts exist after a read-only user's write", n)
+			}
+		},
+	}.run(t, app)
+}
+
+// A user with no Books access reads nothing through a token that holds
+// books:read.
+func TestOAuth_NoAccessUsersTokenReadsNothing(t *testing.T) {
+	app, pb := newRegisteredApp(t)
+	oauth.Register(pb)
+	users := newLevelUsers(t, app)
+	mkAccount(t, app, "Checking", "bank", "checking")
+	apiReq{
+		method:  http.MethodGet,
+		url:     "/api/collections/books_accounts/records",
+		token:   oauthToken(t, app, users.none, scopeRead, scopeWrite),
+		want:    http.StatusOK,
+		content: []string{`"totalItems":0`},
+	}.run(t, app)
+}
+
+// The settings hold the close date. Even a Books admin's token with every
+// Books scope cannot change them: no scope writes configuration.
+func TestOAuth_AdminsTokenCannotChangeSettings(t *testing.T) {
+	app, pb := newRegisteredApp(t)
+	oauth.Register(pb)
+	users := newLevelUsers(t, app)
+	apiReq{
+		method:  http.MethodPatch,
+		url:     "/api/collections/books_settings/records/" + settingsID,
+		token:   oauthToken(t, app, users.admin, scopeRead, scopeWrite),
+		body:    `{"close_date":"2026-01-31"}`,
+		want:    http.StatusForbidden,
+		content: []string{"not available to API tokens"},
+		after: func(t testing.TB, app *tests.TestApp) {
+			if got := reload(t, app, "books_settings", settingsID).GetString("close_date"); got != "" {
+				t.Errorf("close_date = %q after a token's write", got)
+			}
+		},
+	}.run(t, app)
+}
+
 // Quota counts stored bytes. No Books collection stores files yet, so the
 // source list is empty; this fails the day one does without a registration.
 func TestQuota_EveryFileCollectionIsASource(t *testing.T) {
@@ -232,26 +325,69 @@ func TestQuota_EveryFileCollectionIsASource(t *testing.T) {
 	}
 }
 
-func TestOffboard_KeepsTheLedgerAndDropsGrants(t *testing.T) {
-	t.Cleanup(offboard.ResetHandlersForTesting)
-	env := newLedgerEnv(t)
-	registerOffboard()
-	leaver := env.users.admin
-	ov := grantOverride(t, env.app, leaver, time.Now().Add(24*time.Hour))
-	posted := mustPost(t, env.app, env.sale(t, "2026-05-10", 100).Id, leaver.Id)
+// offboardCase is a leaver and a colleague who stays, each a Books admin with
+// an unexpired close-date override, so a test can show that offboarding ends
+// the leaver's grants and only theirs.
+type offboardCase struct {
+	leaver, stayer     *core.Record
+	leaverOv, stayerOv *core.Record
+}
 
-	if _, err := offboard.OffboardUser(env.app, leaver.Id, offboard.Plan{Mode: offboard.ModeDeleteMyData}, ""); err != nil {
-		t.Fatalf("offboard: %v", err)
+func newOffboardCase(t testing.TB, app core.App, leaver, stayer *core.Record) offboardCase {
+	t.Helper()
+	for _, u := range []*core.Record{leaver, stayer} {
+		if n, _ := app.CountRecords("books_admins", dbx.HashExp{"user": u.Id}); n == 0 {
+			makeBooksAdmin(t, app, u)
+		}
 	}
-	after := reload(t, env.app, "books_journal_entries", posted.Id)
-	if after.GetString("status") != statusPosted || after.GetString("posted_by") != leaver.Id {
-		t.Fatalf("ledger changed on offboard: %v", after.PublicExport())
+	expires := time.Now().Add(24 * time.Hour)
+	return offboardCase{
+		leaver:   leaver,
+		stayer:   stayer,
+		leaverOv: grantOverride(t, app, leaver, expires),
+		stayerOv: grantOverride(t, app, stayer, expires),
 	}
-	if n, _ := env.app.CountRecords("books_admins", dbx.HashExp{"user": leaver.Id}); n != 0 {
+}
+
+func (c offboardCase) requireOnlyTheLeaverLostAccess(t testing.TB, app core.App) {
+	t.Helper()
+	if n, _ := app.CountRecords("books_admins", dbx.HashExp{"user": c.leaver.Id}); n != 0 {
 		t.Error("the leaver is still a Books admin")
 	}
-	if exp := reload(t, env.app, "books_close_overrides", ov.Id).GetDateTime("expires_at").Time(); exp.After(time.Now().Add(time.Second)) {
+	if n, _ := app.CountRecords("books_admins", dbx.HashExp{"user": c.stayer.Id}); n != 1 {
+		t.Errorf("the colleague who stays has %d Books admin rows, want 1", n)
+	}
+	if exp := reload(t, app, "books_close_overrides", c.leaverOv.Id).GetDateTime("expires_at").Time(); exp.After(time.Now().Add(time.Second)) {
 		t.Errorf("the leaver's override still expires at %v", exp)
+	}
+	if exp := reload(t, app, "books_close_overrides", c.stayerOv.Id).GetDateTime("expires_at").Time(); !exp.After(time.Now().Add(time.Hour)) {
+		t.Errorf("the colleague's override was cut to %v", exp)
+	}
+}
+
+func TestOffboard_KeepsTheLedgerAndDropsGrants(t *testing.T) {
+	modes := []offboard.Mode{offboard.ModeDeleteMyData, offboard.ModeKeep, offboard.ModeReassign}
+	for _, mode := range modes {
+		t.Run(string(mode), func(t *testing.T) {
+			t.Cleanup(offboard.ResetHandlersForTesting)
+			env := newLedgerEnv(t)
+			registerOffboard()
+			c := newOffboardCase(t, env.app, env.users.admin, env.users.bookkeeper)
+			posted := mustPost(t, env.app, env.sale(t, "2026-05-10", 100).Id, c.leaver.Id)
+
+			plan := offboard.Plan{Mode: mode}
+			if mode == offboard.ModeReassign {
+				plan.SuccessorUserID = c.stayer.Id
+			}
+			if _, err := offboard.OffboardUser(env.app, c.leaver.Id, plan, ""); err != nil {
+				t.Fatalf("offboard: %v", err)
+			}
+			after := reload(t, env.app, "books_journal_entries", posted.Id)
+			if after.GetString("status") != statusPosted || after.GetString("posted_by") != c.leaver.Id {
+				t.Fatalf("ledger changed on offboard: %v", after.PublicExport())
+			}
+			c.requireOnlyTheLeaverLostAccess(t, env.app)
+		})
 	}
 }
 
@@ -265,8 +401,8 @@ func TestRegister_WiresEverything(t *testing.T) {
 	if after["OnServe"] <= before["OnServe"] || after["OnRecordUpdate"] <= before["OnRecordUpdate"] {
 		t.Fatal("Register bound no serve or record hooks")
 	}
-	if got := after["OnRecordCreateRequest"] - before["OnRecordCreateRequest"]; got < len(auditedCollections) {
-		t.Fatalf("Register bound %d create-request hooks, want at least %d for audit", got, len(auditedCollections))
+	if got, audited := after["OnRecordCreateRequest"]-before["OnRecordCreateRequest"], len(auditedCollections(app)); got < audited {
+		t.Fatalf("Register bound %d create-request hooks, want at least %d for audit", got, audited)
 	}
 	if len(oauth.PackageScopes("books")) != 2 {
 		t.Fatalf("OAuth scopes = %v", oauth.PackageScopes("books"))
@@ -344,12 +480,9 @@ func TestRegister_PostsOnceAndServesTheRebuild(t *testing.T) {
 // core alone removes the leaver's Books admin grant.
 func TestRegister_OffboardsThroughCore(t *testing.T) {
 	app, _ := newRegisteredApp(t)
-	leaver := mkUser(t, app, "member")
-	makeBooksAdmin(t, app, leaver)
-	if _, err := offboard.OffboardUser(app, leaver.Id, offboard.Plan{Mode: offboard.ModeKeep}, ""); err != nil {
+	c := newOffboardCase(t, app, mkUser(t, app, "member"), mkUser(t, app, "member"))
+	if _, err := offboard.OffboardUser(app, c.leaver.Id, offboard.Plan{Mode: offboard.ModeKeep}, ""); err != nil {
 		t.Fatalf("offboard: %v", err)
 	}
-	if n, _ := app.CountRecords("books_admins", dbx.HashExp{"user": leaver.Id}); n != 0 {
-		t.Error("the leaver is still a Books admin")
-	}
+	c.requireOnlyTheLeaverLostAccess(t, app)
 }
