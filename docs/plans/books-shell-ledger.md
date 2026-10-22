@@ -112,5 +112,5 @@
 - reviewer-caught deferrals: none
 
 ## Final review
-- eval: (pending)
+- eval: approved
 - native: not executed in this run
