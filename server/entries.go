@@ -101,24 +101,34 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 	from, to := stored.GetString("status"), next.GetString("status")
 	switch {
 	case from == statusDraft && to == statusDraft:
-		return checkDraftEdit(stored, next)
+		changed, err := changesBeyondUnlinks(tx, stored, next, draftEditable)
+		if err != nil {
+			return err
+		}
+		return refuseServerFields(changed)
 	case from == statusDraft && to == statusPosted:
 		if err := checkDraftEdit(stored, next); err != nil {
 			return err
 		}
 		return postEntry(tx, next, now)
 	case from == to:
-		changed := changedFields(stored, next, nil)
-		if len(changed) == 0 || onlyUserLinksCleared(next, changed) {
-			return nil
+		changed, err := changesBeyondUnlinks(tx, stored, next, nil)
+		if err != nil || len(changed) == 0 {
+			return err
 		}
 		return refuseImmutable(stored, changed)
 	}
 	return refuse("%s cannot go from %s to %s.", entryName(stored), from, to)
 }
 
+// checkDraftEdit refuses a change to a field Books sets, with no unlink
+// allowance: posting is never PocketBase unlinking a deleted user.
 func checkDraftEdit(stored, next *core.Record) error {
-	if changed := changedFields(stored, next, draftEditable); len(changed) > 0 {
+	return refuseServerFields(changedFields(stored, next, draftEditable))
+}
+
+func refuseServerFields(changed []string) error {
+	if len(changed) > 0 {
 		return refuse("Books sets these fields itself: %s.", strings.Join(changed, ", "))
 	}
 	return nil

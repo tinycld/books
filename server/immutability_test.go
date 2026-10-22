@@ -217,10 +217,86 @@ func TestImmutable_VoidEntryRefusesChanges(t *testing.T) {
 	void.Set("memo", "rewritten")
 	requireRefused(t, app.Save(void), "Journal entry 2 is void and cannot change.")
 	requireRefused(t, setStatus(app, rows.void.Id, statusPosted, ""), "cannot go from void to posted")
-	requireRefused(t, app.Delete(reload(t, app, "books_journal_entries", rows.void.Id)), "Journal entry 2 is void and cannot be deleted")
+	requireMessage(t, app.Delete(reload(t, app, "books_journal_entries", rows.void.Id)), "Journal entry 2 is void and cannot be deleted.")
 	if n, _ := app.CountRecords("books_journal_lines"); n != 3 {
 		t.Fatalf("lines = %d, want 3 (a refused delete keeps every line)", n)
 	}
+	line := reload(t, app, "books_journal_lines", rows.voidLine.Id)
+	line.Set("memo", "x")
+	requireMessage(t, app.Save(line), "Journal entry 2 is void, so its lines cannot change.")
+}
+
+// A void entry is already voided, so its refusals must not tell the caller to
+// void it. A posted entry's refusals do.
+func TestImmutable_PostedRefusalsPointAtVoid(t *testing.T) {
+	env := newLedgerEnv(t)
+	posted := mustPost(t, env.app, env.sale(t, "2026-05-10", 100).Id, "")
+	requireMessage(t, env.app.Delete(posted), "Journal entry 1 is posted and cannot be deleted. Void it instead.")
+	lines, _ := entryLines(env.app, posted.Id)
+	lines[0].Set("memo", "x")
+	requireMessage(t, env.app.Save(lines[0]),
+		"Journal entry 1 is posted, so its lines cannot change. Void the entry or edit it instead.")
+}
+
+// requireMessage asserts the whole refusal, for messages whose wording matters.
+func requireMessage(t testing.TB, err error, want string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected the refusal %q, got none", want)
+	}
+	if err.Error() != want {
+		t.Fatalf("refusal = %q, want %q", err.Error(), want)
+	}
+}
+
+// Only PocketBase's unlink of a deleted user may clear a user link. While the
+// user exists, clearing the link is a change like any other.
+func TestImmutable_ClearingALinkToALiveUserIsRefused(t *testing.T) {
+	env := newLedgerEnv(t)
+	creator := mkUser(t, env.app, "member")
+	entry := draftCreatedBy(t, env, creator)
+	posted := mustPost(t, env.app, entry.Id, env.users.admin.Id)
+
+	posted.Set("posted_by", "")
+	requireRefused(t, env.app.Save(posted), "is posted and cannot change (posted_by)")
+
+	posted = reload(t, env.app, "books_journal_entries", posted.Id)
+	posted.Set("created_by", "")
+	requireRefused(t, env.app.Save(posted), "is posted and cannot change (created_by)")
+
+	draft := draftCreatedBy(t, env, creator)
+	draft.Set("created_by", "")
+	requireRefused(t, env.app.Save(draft), "Books sets these fields itself: created_by.")
+}
+
+// PocketBase unlinks a deleted user from a draft too; that save is a draft
+// edit and must not be refused as a change to a server field.
+func TestImmutable_DeletingTheCreatorOfADraftClearsTheLinkOnly(t *testing.T) {
+	env := newLedgerEnv(t)
+	creator := mkUser(t, env.app, "member")
+	draft := draftCreatedBy(t, env, creator)
+	if err := env.app.Delete(creator); err != nil {
+		t.Fatalf("delete the creator of a draft: %v", err)
+	}
+	after := reload(t, env.app, "books_journal_entries", draft.Id)
+	if after.GetString("created_by") != "" || after.GetString("status") != statusDraft || after.GetString("date") != "2026-05-10" {
+		t.Fatalf("after = %v", after.PublicExport())
+	}
+	lines, err := entryLines(env.app, draft.Id)
+	if err != nil || len(lines) != 2 {
+		t.Fatalf("lines = %d (%v), want the draft's 2", len(lines), err)
+	}
+}
+
+// draftCreatedBy is a balanced sale draft attributed to a creator.
+func draftCreatedBy(t testing.TB, env *ledgerEnv, creator *core.Record) *core.Record {
+	t.Helper()
+	entry := saveRecord(t, env.app, "books_journal_entries", map[string]any{
+		"date": "2026-05-10", "status": "draft", "doc_type": "journal", "origin": "manual", "created_by": creator.Id,
+	})
+	saveRecord(t, env.app, "books_journal_lines", map[string]any{"entry": entry.Id, "account": env.checking.Id, "debit": 100})
+	saveRecord(t, env.app, "books_journal_lines", map[string]any{"entry": entry.Id, "account": env.revenue.Id, "credit": 100})
+	return entry
 }
 
 // Clearing a user link is the only change a posted entry accepts: pointing it
@@ -242,11 +318,7 @@ func TestImmutable_OnlyClearingAUserLinkIsAllowed(t *testing.T) {
 func TestImmutable_DeletingTheCreatorAndPosterClearsBothLinks(t *testing.T) {
 	env := newLedgerEnv(t)
 	person := mkUser(t, env.app, "member")
-	entry := saveRecord(t, env.app, "books_journal_entries", map[string]any{
-		"date": "2026-05-10", "status": "draft", "doc_type": "journal", "origin": "manual", "created_by": person.Id,
-	})
-	saveRecord(t, env.app, "books_journal_lines", map[string]any{"entry": entry.Id, "account": env.checking.Id, "debit": 100})
-	saveRecord(t, env.app, "books_journal_lines", map[string]any{"entry": entry.Id, "account": env.revenue.Id, "credit": 100})
+	entry := draftCreatedBy(t, env, person)
 	mustPost(t, env.app, entry.Id, person.Id)
 	if err := env.app.Delete(person); err != nil {
 		t.Fatalf("delete the person: %v", err)
