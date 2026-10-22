@@ -12,5 +12,6 @@ export default mergeConfig(appConfig, {
     test: {
         root: __dirname,
         include: ['tests/**/*.test.{ts,tsx}'],
+        setupFiles: [path.resolve(__dirname, 'tests/setup-cleanup.ts')],
     },
 })
