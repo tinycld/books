@@ -45,7 +45,7 @@ func postEntry(tx core.App, entry *core.Record, now time.Time) error {
 	if err := checkClosePeriod(tx, entry, s, day, now); err != nil {
 		return err
 	}
-	if err := checkAutoReverseDate(entry); err != nil {
+	if err := checkAutoReverseDate(entry, s); err != nil {
 		return err
 	}
 
@@ -178,7 +178,10 @@ func checkClosePeriod(tx core.App, entry *core.Record, s settings, day string, n
 	return nil
 }
 
-func checkAutoReverseDate(entry *core.Record) error {
+// checkAutoReverseDate also keeps the date after the close date. The
+// automatic reversal posts with no override, so one dated in the closed
+// period could never post, and the close date could never move past it.
+func checkAutoReverseDate(entry *core.Record, s settings) error {
 	on := entry.GetString("auto_reverse_on")
 	if on == "" {
 		return nil
@@ -191,6 +194,9 @@ func checkAutoReverseDate(entry *core.Record) error {
 	}
 	if on <= entry.GetString("date") {
 		return refuse("The auto-reverse date must be after the entry date.")
+	}
+	if s.CloseDate != "" && on <= s.CloseDate {
+		return refuse("The books are closed through %s, so the auto-reverse date must be after it.", s.CloseDate)
 	}
 	return nil
 }
