@@ -15,17 +15,31 @@ import (
 // every writer: REST, a batch, another package's Go.
 
 // userLinkFields are the user relations PocketBase clears on its own when the
-// referenced user is hard-deleted. Clearing one is the only change a posted
-// entry accepts, so a user delete is never blocked over attribution.
+// referenced user is hard-deleted. That unlink is the only change a posted or
+// void entry accepts, and the only server-field change a draft accepts, so a
+// user delete is never blocked over attribution.
 var userLinkFields = map[string]bool{"posted_by": true, "voided_by": true, "created_by": true}
 
-func onlyUserLinksCleared(next *core.Record, changed []string) bool {
+// changesBeyondUnlinks returns the changed fields, skipping allowed, unless
+// every one of them is PocketBase unlinking a deleted user; then it returns
+// none. A link cleared while its user still exists is a change like any other.
+// PocketBase deletes the user row before it unlinks the references, inside
+// the same transaction, so tx no longer finds that user.
+func changesBeyondUnlinks(tx core.App, stored, next *core.Record, allowed map[string]bool) ([]string, error) {
+	changed := changedFields(stored, next, allowed)
 	for _, name := range changed {
 		if !userLinkFields[name] || next.GetString(name) != "" {
-			return false
+			return changed, nil
+		}
+		_, err := tx.FindRecordById("users", stored.GetString(name))
+		if err == nil {
+			return changed, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
 		}
 	}
-	return true
+	return nil, nil
 }
 
 func refuseImmutable(stored *core.Record, changed []string) error {
@@ -42,8 +56,11 @@ func registerImmutabilityGuards(app core.App) {
 		if err != nil {
 			return err
 		}
-		if stored.GetString("status") != statusDraft {
-			return refuse("%s is %s and cannot be deleted. Void it instead.", entryName(stored), stored.GetString("status"))
+		switch stored.GetString("status") {
+		case statusVoid:
+			return refuse("%s is void and cannot be deleted.", entryName(stored))
+		case statusPosted:
+			return refuse("%s is posted and cannot be deleted. Void it instead.", entryName(stored))
 		}
 		return e.Next()
 	})
@@ -95,9 +112,11 @@ func requireDraftEntry(app core.App, line *core.Record) error {
 	if err != nil {
 		return err
 	}
-	if entry.GetString("status") != statusDraft {
-		return refuse("%s is %s, so its lines cannot change. Void the entry or edit it instead.",
-			entryName(entry), entry.GetString("status"))
+	switch entry.GetString("status") {
+	case statusVoid:
+		return refuse("%s is void, so its lines cannot change.", entryName(entry))
+	case statusPosted:
+		return refuse("%s is posted, so its lines cannot change. Void the entry or edit it instead.", entryName(entry))
 	}
 	return nil
 }
