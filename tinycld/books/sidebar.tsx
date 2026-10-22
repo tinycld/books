@@ -1,12 +1,6 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Text, View } from 'react-native'
 
-// Sidebar for the Books package. Rendered in the workspace drawer
-// when a user is on any /a/books/... route.
-//
-// Replace with real navigation (folders, favorites, filters, etc). See
-// @tinycld/calendar or @tinycld/mail sidebars for richer examples.
-
 export default function BooksSidebar() {
     const fg = useThemeColor('foreground')
     const muted = useThemeColor('muted-foreground')
@@ -15,7 +9,7 @@ export default function BooksSidebar() {
         <View className="p-3 gap-2">
             <Text style={{ color: fg, fontSize: 14, fontWeight: '600' }}>Books</Text>
             <Text style={{ color: muted, fontSize: 12 }}>
-                Replace this with your package's sidebar nav.
+                Chart of accounts and journal entries arrive with the ledger.
             </Text>
         </View>
     )
