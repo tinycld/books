@@ -32,12 +32,27 @@ func applyToBalances(tx core.App, account, day string, debit, credit int, curren
 		row.Set("period", period)
 		row.Set("currency", currency)
 	}
-	row.Set("debit_total", row.GetInt("debit_total")+debit)
-	row.Set("credit_total", row.GetInt("credit_total")+credit)
+	debitTotal, creditTotal := row.GetInt("debit_total")+debit, row.GetInt("credit_total")+credit
+	if debitTotal > maxStoredAmount || creditTotal > maxStoredAmount {
+		return balanceOverflow(tx, account, period)
+	}
+	row.Set("debit_total", debitTotal)
+	row.Set("credit_total", creditTotal)
 	if err := tx.Save(row); err != nil {
 		return fmt.Errorf("books: save balance %s %s: %w", account, period, err)
 	}
 	return nil
+}
+
+// balanceOverflow refuses a post that would take a month row past what a
+// number field stores exactly (see maxStoredAmount).
+func balanceOverflow(tx core.App, accountID, period string) error {
+	name := accountID
+	if account, err := tx.FindRecordById("books_accounts", accountID); err == nil {
+		name = account.GetString("name")
+	}
+	return refuse("Posting this entry would take the balance of %s for %s past the largest amount Books can store (%s).",
+		name, period, formatMinor(maxStoredAmount))
 }
 
 type balanceKey struct{ account, period string }

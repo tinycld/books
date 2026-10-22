@@ -2,10 +2,12 @@ package books
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 )
@@ -282,4 +284,158 @@ func TestFormatMinor(t *testing.T) {
 			t.Errorf("formatMinor(%d) = %s, want %s", n, got, want)
 		}
 	}
+}
+
+// requireNothingPosted checks that a refused post left no trace: the entry is
+// a draft with no number, its lines are unstamped, and no number was used.
+func requireNothingPosted(t testing.TB, app core.App, entryID string) {
+	t.Helper()
+	entry := reload(t, app, "books_journal_entries", entryID)
+	if entry.GetString("status") != statusDraft || entry.GetString("number") != "" || entry.GetInt("total") != 0 {
+		t.Errorf("entry after a refused post: %v", entry.PublicExport())
+	}
+	if n := reload(t, app, "books_doc_sequences", "booksseqjournal").GetInt("next_number"); n != 1 {
+		t.Errorf("next_number = %d, want 1", n)
+	}
+	lines, err := entryLines(app, entryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range lines {
+		if l.GetBool("posted") || l.GetString("date") != "" {
+			t.Errorf("a refused post stamped a line: %v", l.PublicExport())
+		}
+	}
+}
+
+// bigSale is a balanced draft whose debit side is the given line amounts.
+func (env *ledgerEnv) bigSale(t testing.TB, amounts ...int) *core.Record {
+	t.Helper()
+	var lines []ln
+	for _, a := range amounts {
+		lines = append(lines, ln{env.checking, a, 0}, ln{env.revenue, 0, a})
+	}
+	return mkDraft(t, env.app, "2026-05-01", lines...)
+}
+
+func repeat(n, amount int) []int {
+	out := make([]int, n)
+	for i := range out {
+		out[i] = amount
+	}
+	return out
+}
+
+func TestPost_LineLimitFitsUnderTheStoredLimit(t *testing.T) {
+	if maxAmount > maxStoredAmount {
+		t.Fatalf("maxAmount %d is above maxStoredAmount %d", maxAmount, maxStoredAmount)
+	}
+	if maxStoredAmount != 1<<53-1 {
+		t.Fatalf("maxStoredAmount = %d, want 2^53-1", maxStoredAmount)
+	}
+}
+
+func TestPost_TotalOverTheStoredLimitIsRefused(t *testing.T) {
+	env := newLedgerEnv(t)
+	// Ten lines of 10^15 a side: each line is allowed, the total is not.
+	entry := env.bigSale(t, repeat(10, maxAmount)...)
+	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),
+		"largest amount Books can store (90071992547409.91)")
+	requireNothingPosted(t, env.app, entry.Id)
+	if d, c := balanceOf(t, env.app, env.checking, "2026-05"); d != 0 || c != 0 {
+		t.Errorf("a refused post moved a balance: %d/%d", d, c)
+	}
+}
+
+func TestPost_BalanceRowOverTheStoredLimitIsRefused(t *testing.T) {
+	env := newLedgerEnv(t)
+	saveRecord(t, env.app, "books_account_balances", map[string]any{
+		"account": env.checking.Id, "period": "2026-05", "debit_total": maxStoredAmount - 50, "currency": "USD",
+	})
+	entry := env.sale(t, "2026-05-01", 100)
+	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),
+		"Checking for 2026-05 past the largest amount Books can store (90071992547409.91)")
+	requireNothingPosted(t, env.app, entry.Id)
+	if d, c := balanceOf(t, env.app, env.checking, "2026-05"); d != maxStoredAmount-50 || c != 0 {
+		t.Errorf("checking = %d/%d, want the seeded row unchanged", d, c)
+	}
+	if d, c := balanceOf(t, env.app, env.revenue, "2026-05"); d != 0 || c != 0 {
+		t.Errorf("revenue = %d/%d, want no row", d, c)
+	}
+}
+
+func TestPost_ExactlyAtTheStoredLimitPosts(t *testing.T) {
+	env := newLedgerEnv(t)
+	amounts := append(repeat(9, maxAmount), maxStoredAmount-9*maxAmount)
+	posted := mustPost(t, env.app, env.bigSale(t, amounts...).Id, "")
+	if posted.GetInt("total") != maxStoredAmount {
+		t.Fatalf("total = %d, want %d", posted.GetInt("total"), maxStoredAmount)
+	}
+	if d, _ := balanceOf(t, env.app, env.checking, "2026-05"); d != maxStoredAmount {
+		t.Errorf("checking debit = %d, want %d", d, maxStoredAmount)
+	}
+	if _, c := balanceOf(t, env.app, env.revenue, "2026-05"); c != maxStoredAmount {
+		t.Errorf("revenue credit = %d, want %d", c, maxStoredAmount)
+	}
+	requireNoDrift(t, env.app)
+}
+
+func TestPost_ServerFieldsChangedWhilePostingAreRefused(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := reload(t, env.app, "books_journal_entries", env.sale(t, "2026-05-01", 100).Id)
+	entry.Set("status", statusPosted)
+	entry.Set("created_by", env.users.admin.Id)
+	requireRefused(t, env.app.Save(entry), "Books sets these fields itself: created_by")
+	requireNothingPosted(t, env.app, entry.Id)
+}
+
+// These rows cannot be made through the hooks, which refuse them on create;
+// raw SQL stands in for a row written before a rule existed.
+func TestPost_RowsTheHooksWouldRefuseAreCaughtAtPosting(t *testing.T) {
+	cases := []struct {
+		name  string
+		query func(env *ledgerEnv, line *core.Record) (string, dbx.Params)
+		want  string
+	}{
+		{"a line in another currency", func(_ *ledgerEnv, line *core.Record) (string, dbx.Params) {
+			return "UPDATE books_journal_lines SET currency = 'EUR' WHERE id = {:id}", dbx.Params{"id": line.Id}
+		}, "Line 2: its currency does not match the entry (USD)"},
+		{"an account in another currency", func(env *ledgerEnv, _ *core.Record) (string, dbx.Params) {
+			return "UPDATE books_accounts SET currency = 'EUR' WHERE id = {:id}", dbx.Params{"id": env.revenue.Id}
+		}, "Line 2: its currency does not match the entry (USD)"},
+		{"a line whose account is gone", func(_ *ledgerEnv, line *core.Record) (string, dbx.Params) {
+			return "UPDATE books_journal_lines SET account = 'missingacct0001' WHERE id = {:id}", dbx.Params{"id": line.Id}
+		}, "Line 2: the account does not exist"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newLedgerEnv(t)
+			entry := env.sale(t, "2026-05-01", 100)
+			lines, err := entryLines(env.app, entry.Id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sql, params := tc.query(env, lines[1])
+			if _, err := env.app.DB().NewQuery(sql).Bind(params).Execute(); err != nil {
+				t.Fatal(err)
+			}
+			requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""), tc.want)
+			requireNothingPosted(t, env.app, entry.Id)
+		})
+	}
+}
+
+func TestPost_AFailureAfterTheWritesRollsThemBack(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := reload(t, env.app, "books_journal_entries", env.sale(t, "2026-05-01", 100).Id)
+	// The hooks accept the memo; PocketBase's field validation, which runs
+	// after the posting writes, refuses it.
+	entry.Set("memo", strings.Repeat("x", 5000))
+	entry.Set("status", statusPosted)
+	requireRefused(t, env.app.Save(entry), "memo")
+	requireNothingPosted(t, env.app, entry.Id)
+	if d, c := balanceOf(t, env.app, env.checking, "2026-05"); d != 0 || c != 0 {
+		t.Errorf("a rolled-back post moved a balance: %d/%d", d, c)
+	}
+	requireNoDrift(t, env.app)
 }
