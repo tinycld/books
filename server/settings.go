@@ -65,5 +65,5 @@ func checkCloseDate(app core.App, closeDate string) error {
 	if _, err := parseDay(closeDate); err != nil {
 		return refuse("Close date: %v.", err)
 	}
-	return nil
+	return checkPendingAutoReversals(app, closeDate)
 }
