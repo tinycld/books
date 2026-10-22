@@ -75,9 +75,27 @@ func registerEntryHooks(app core.App) {
 	})
 }
 
+// postingFields are the fields Books fills when it posts or voids an entry.
+// The create rule refuses them over REST; checkNewEntry refuses them for a Go
+// caller too, so a draft never starts with a number, a poster or an override.
+// created_by and currency are not here: Books stamps them on create.
+var postingFields = []string{
+	"number", "sequence", "total", "posted_at", "posted_by", "voided_at", "voided_by", "close_override",
+}
+
 func checkNewEntry(r *core.Record) error {
 	if r.GetString("status") != statusDraft {
 		return refuse("A journal entry starts as a draft. Post it after adding its lines.")
+	}
+	var set []string
+	for _, name := range postingFields {
+		// A number field reads "0" and an unset date "" when empty.
+		if v := r.GetString(name); v != "" && v != "0" {
+			set = append(set, name)
+		}
+	}
+	if err := refuseServerFields(set); err != nil {
+		return err
 	}
 	reverses := r.GetString("reverses") != ""
 	switch r.GetString("origin") {

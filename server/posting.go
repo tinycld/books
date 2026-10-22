@@ -162,9 +162,11 @@ func validateLines(tx core.App, entry *core.Record, lines []*core.Record, allowI
 }
 
 // checkClosePeriod refuses a post on or before the close date unless the
-// poster holds an unexpired override, which the entry then records.
+// poster holds an unexpired override, which the entry then records. A post
+// that needs no override records none, whatever the draft carried.
 func checkClosePeriod(tx core.App, entry *core.Record, s settings, day string, now time.Time) error {
 	if s.CloseDate == "" || day > s.CloseDate {
+		entry.Set("close_override", "")
 		return nil
 	}
 	override, err := activeOverride(tx, entry.GetString("posted_by"), now)

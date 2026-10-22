@@ -217,6 +217,44 @@ func TestCreate_EntriesStartAsDrafts(t *testing.T) {
 	}
 }
 
+// The create rule pins Books' fields for REST. A Go caller passes no rule,
+// so the create hook refuses the same fields: a draft cannot start with a
+// number, a total, a poster or a close-date override.
+func TestCreate_ServerFieldsOnANewDraftAreRefused(t *testing.T) {
+	env := newLedgerEnv(t)
+	col, _ := env.app.FindCollectionByNameOrId("books_journal_entries")
+	ov := grantOverride(t, env.app, env.users.bookkeeper, time.Now().Add(time.Hour))
+	now := time.Now()
+	cases := map[string]any{
+		"number": "7", "sequence": 7, "total": 100, "posted_at": now, "posted_by": env.users.bookkeeper.Id,
+		"voided_at": now, "voided_by": env.users.bookkeeper.Id, "close_override": ov.Id,
+	}
+	for field, value := range cases {
+		t.Run(field, func(t *testing.T) {
+			r := core.NewRecord(col)
+			r.Load(map[string]any{"date": "2026-05-01", "doc_type": "journal", "status": "draft", "origin": "manual"})
+			r.Set(field, value)
+			requireRefused(t, env.app.Save(r), "Books sets these fields itself: "+field+".")
+		})
+	}
+}
+
+// A close_override left on a draft by a bypass of the hooks is not the
+// override of this post. A post that needs no override clears it.
+func TestPost_AStaleCloseOverrideIsCleared(t *testing.T) {
+	env := newLedgerEnv(t)
+	ov := grantOverride(t, env.app, env.users.bookkeeper, time.Now().Add(time.Hour))
+	entry := env.sale(t, "2026-05-01", 100)
+	if _, err := env.app.DB().NewQuery("UPDATE books_journal_entries SET close_override = {:ov} WHERE id = {:id}").
+		Bind(dbx.Params{"ov": ov.Id, "id": entry.Id}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+	posted := mustPost(t, env.app, entry.Id, env.users.bookkeeper.Id)
+	if got := posted.GetString("close_override"); got != "" {
+		t.Fatalf("close_override = %q after a post that needed no override", got)
+	}
+}
+
 func TestDraftEdit_ServerFieldsAreRefused(t *testing.T) {
 	env := newLedgerEnv(t)
 	draft := env.sale(t, "2026-05-01", 100)
