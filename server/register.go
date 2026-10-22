@@ -6,6 +6,7 @@ import (
 
 	"tinycld.org/core/oauth"
 	"tinycld.org/core/quota"
+	"tinycld.org/core/search"
 )
 
 // Register wires the Books server. Core's generator calls it once from
@@ -22,6 +23,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerLedger(app)
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())
+	search.RegisterSources(searchSource())
 	quota.RegisterSources(quotaSources()...)
 	registerOffboard()
 	registerAutoReverseSweep(app)

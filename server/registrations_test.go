@@ -407,6 +407,10 @@ func TestRegister_WiresEverything(t *testing.T) {
 	if len(oauth.PackageScopes("books")) != 2 {
 		t.Fatalf("OAuth scopes = %v", oauth.PackageScopes("books"))
 	}
+	sources := search.RegisteredSources()
+	if len(sources) != 1 || sources[0].Slug != "books" || sources[0].Order != 30 {
+		t.Fatalf("search sources = %+v, want one books source", sources)
+	}
 	for _, s := range quota.RegisteredSources() {
 		if strings.HasPrefix(s.Collection, "books_") {
 			t.Errorf("Register added quota source %+v, but quotaSources is empty", s)
