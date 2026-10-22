@@ -12,4 +12,6 @@ func registerLedger(app core.App) {
 	registerSequenceGuard(app)
 	registerCloseOverrideHooks(app)
 	registerAccountGuard(app)
+	registerEntryHooks(app)
+	registerLineHooks(app)
 }
