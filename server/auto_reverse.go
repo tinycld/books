@@ -30,8 +30,10 @@ const (
 // pendingAutoReversals selects the posted entries whose auto-reverse date is
 // on or before through and that no reversal has settled. A reversal that was
 // posted settles the entry even after it is voided: re-reversing would undo
-// the person's void. A voided or edited original is void, not posted, so it
-// never matches.
+// the person's void. A draft reversal settles nothing. A voided or edited
+// original is void, not posted, so it never matches. The subquery repeats
+// the partial index's own condition (reverses is not empty), so SQLite uses
+// idx_books_je_reverses for the lookup instead of scanning the table.
 func pendingAutoReversals(app core.App, through string) *dbx.SelectQuery {
 	return app.RecordQuery("books_journal_entries").
 		AndWhere(dbx.NewExp(`[[books_journal_entries.status]] = 'posted'
@@ -39,7 +41,8 @@ func pendingAutoReversals(app core.App, through string) *dbx.SelectQuery {
 			AND [[books_journal_entries.auto_reverse_on]] <= {:through}
 			AND NOT EXISTS (
 				SELECT 1 FROM {{books_journal_entries}} [[r]]
-				WHERE [[r.reverses]] = [[books_journal_entries.id]] AND [[r.status]] != 'draft'
+				WHERE [[r.reverses]] != '' AND [[r.reverses]] = [[books_journal_entries.id]]
+					AND [[r.status]] != 'draft'
 			)`, dbx.Params{"through": through})).
 		OrderBy("books_journal_entries.auto_reverse_on", "books_journal_entries.id")
 }
@@ -52,7 +55,10 @@ func pendingAutoReversals(app core.App, through string) *dbx.SelectQuery {
 // It must not run inside a transaction. PocketBase nests a transaction with
 // no savepoint, so a refused reversal could not be undone on its own there,
 // and logging it and going on would commit its partial writes.
-func runAutoReversals(app core.App, now time.Time) (int, error) {
+//
+// It stops between entries when ctx ends (the app's terminate) or read-only
+// mode starts; the next sweep finds what is left.
+func runAutoReversals(ctx context.Context, app core.App, now time.Time) (int, error) {
 	if app.IsTransactional() {
 		return 0, errors.New("the auto-reverse sweep must not run inside a transaction: each reversal commits on its own")
 	}
@@ -64,8 +70,8 @@ func runAutoReversals(app core.App, now time.Time) (int, error) {
 	posted := 0
 	for _, entry := range due {
 		// A sweep writes without a request, so read-only mode cannot refuse
-		// it; it stops instead, and the next sweep finds what is left.
-		if readonly.Active() {
+		// it; it stops instead.
+		if ctx.Err() != nil || readonly.Active() {
 			break
 		}
 		done, err := reverseIfPending(app, entry.Id, today)
@@ -156,7 +162,7 @@ func registerAutoReverseSweep(app core.App) {
 
 func startAutoReverseSweep(app core.App) {
 	background.For(app, "books").Run("books auto-reverse sweep", func(ctx context.Context) {
-		n, err := runAutoReversals(app, time.Now())
+		n, err := runAutoReversals(ctx, app, time.Now())
 		if err != nil {
 			log.ErrorContext(ctx, "auto-reverse sweep failed", "err", err)
 			return
