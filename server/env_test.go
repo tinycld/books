@@ -151,6 +151,11 @@ func (r apiReq) run(t *testing.T, app *tests.TestApp) {
 		TestAppFactory:        func(testing.TB) *tests.TestApp { return app },
 		DisableTestAppCleanup: true,
 	}
+	if len(r.content) == 0 {
+		// ApiScenario demands an empty body unless it has a content check; a
+		// status-only request has a body of any shape, so assert on a NUL byte.
+		scenario.NotExpectedContent = []string{"\x00"}
+	}
 	if r.before != nil {
 		before := r.before
 		scenario.BeforeTestFunc = func(_ testing.TB, _ *tests.TestApp, e *core.ServeEvent) { before(e) }
