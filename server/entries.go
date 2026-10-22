@@ -1,6 +1,8 @@
 package books
 
 import (
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -46,6 +48,9 @@ func registerEntryHooks(app core.App) {
 	})
 	app.OnRecordCreate("books_journal_entries").BindFunc(func(e *core.RecordEvent) error {
 		if err := checkNewEntry(e.Record); err != nil {
+			return err
+		}
+		if err := checkLinkedEntries(e.App, e.Record); err != nil {
 			return err
 		}
 		if err := stampCurrency(e.App, e.Record); err != nil {
@@ -95,8 +100,34 @@ func checkNewEntry(r *core.Record) error {
 	return nil
 }
 
-// transitionEntry is the whole lifecycle: a draft is edited or posted; a
-// posted or void entry changes only when PocketBase unlinks a deleted user.
+// checkLinkedEntries refuses a reversal or a correction of a draft. The entry
+// it names must be one that cannot be deleted (posted or void): deleting a
+// named draft would make PocketBase clear the link on this entry, a change to
+// a field fixed at create, which the update hook refuses, so the draft could
+// never be deleted. Whether the named entry may be reversed or edited is
+// checked at posting, when it counts.
+func checkLinkedEntries(app core.App, r *core.Record) error {
+	for _, field := range []string{"reverses", "replaces"} {
+		id := r.GetString(field)
+		if id == "" {
+			continue
+		}
+		target, err := app.FindRecordById("books_journal_entries", id)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			// PocketBase's relation validation refuses the entry next.
+		case err != nil:
+			return err
+		case target.GetString("status") == statusDraft:
+			return refuse("The entry this one %s is a draft. Post it first, or edit the draft itself.", field)
+		}
+	}
+	return nil
+}
+
+// transitionEntry is the whole lifecycle: a draft is edited or posted, a
+// posted entry is voided, and nothing else changes except PocketBase
+// unlinking a deleted user.
 func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) error {
 	from, to := stored.GetString("status"), next.GetString("status")
 	switch {
@@ -111,6 +142,14 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 			return err
 		}
 		return postEntry(tx, next, now)
+	case from == statusPosted && to == statusVoid:
+		// The update rule lets {"status":"void"} carry any field a draft may
+		// edit, so the void itself refuses every change but its own.
+		if changed := changedFields(stored, next, voidEditable); len(changed) > 0 {
+			return refuse("%s cannot change (%s) when it is voided. A void changes only the status.",
+				entryName(stored), strings.Join(changed, ", "))
+		}
+		return voidEntry(tx, next, now)
 	case from == to:
 		changed, err := changesBeyondUnlinks(tx, stored, next, nil)
 		if err != nil || len(changed) == 0 {
