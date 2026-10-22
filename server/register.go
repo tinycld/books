@@ -2,19 +2,31 @@ package books
 
 import (
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
+
+	"tinycld.org/core/oauth"
+	"tinycld.org/core/quota"
 )
 
-// Register wires server-side hooks for the Books package. Core's
-// generator injects a call to this function from `server/package_extensions.go`
-// once the package is linked.
+// Register wires the Books server. Core's generator calls it once from
+// server/package_extensions.go; it is the only place the parts below are
+// bound, so each hook and the route exist once (registrations_test.go pins
+// that against the parts bound by hand).
 //
-// Typical responsibilities:
-//   - Register audit hooks for your collections (see tinycld.org/core/audit).
-//   - Bind record lifecycle hooks via `app.OnRecordCreate("...").BindFunc(...)`.
-//   - Register HTTP endpoints via `app.OnServe().BindFunc(...)`.
-//
-// See contacts/server/register.go or calendar/server/register.go for richer
-// examples.
-func Register(_ *pocketbase.PocketBase) {
-	// No server-side logic yet.
+// Authorization is rule-first: the collection rules (pb-migrations) decide
+// who may read and write, by Books access level. The Go here adds what a rule
+// cannot express: posting validation, immutability, numbering, balance rows
+// and reversals. Core learns what Books provides through its registries and
+// never names Books.
+func Register(app *pocketbase.PocketBase) {
+	registerLedger(app)
+	registerAudit(app)
+	oauth.RegisterPackage(oauthPackage())
+	quota.RegisterSources(quotaSources()...)
+	registerOffboard()
+	registerAutoReverseSweep(app)
+	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		bindBalanceRoutes(e)
+		return e.Next()
+	})
 }

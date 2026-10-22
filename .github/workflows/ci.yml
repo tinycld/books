@@ -54,6 +54,17 @@ jobs:
       - name: Typecheck + unit
         working-directory: ws/${{ env.PACKAGE }}
         run: pnpm exec tinycld-pkg check
+      # The ledger's guarantees (rules, posting, immutability, numbering) are
+      # proven by the Go tests in server/; tinycld-pkg check runs no Go.
+      # go mod download fills go.work.sum, which workspace-mode go test needs.
+      - name: Go build
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: |
+          go mod download
+          go build ./...
+      - name: Go test
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: go test -count=1 ./...
 
   e2e:
     name: E2E
