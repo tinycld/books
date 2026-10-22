@@ -196,3 +196,22 @@ func mkDraft(t testing.TB, app core.App, date string, lines ...ln) *core.Record 
 	}
 	return entry
 }
+
+func requireRefused(t testing.TB, err error, want string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected a refusal containing %q, got none", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("expected a refusal containing %q, got: %v", want, err)
+	}
+}
+
+func reload(t testing.TB, app core.App, collection, id string) *core.Record {
+	t.Helper()
+	r, err := app.FindRecordById(collection, id)
+	if err != nil {
+		t.Fatalf("reload %s/%s: %v", collection, id, err)
+	}
+	return r
+}
