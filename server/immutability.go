@@ -51,18 +51,22 @@ func refuseImmutable(stored *core.Record, changed []string) error {
 }
 
 func registerImmutabilityGuards(app core.App) {
+	// Every guard below reads the entry's status inside serialized, so no
+	// post can commit between the read and the write it allows.
 	app.OnRecordDelete("books_journal_entries").BindFunc(func(e *core.RecordEvent) error {
-		stored, err := e.App.FindRecordById("books_journal_entries", e.Record.Id)
-		if err != nil {
-			return err
-		}
-		switch stored.GetString("status") {
-		case statusVoid:
-			return refuse("%s is void and cannot be deleted.", entryName(stored))
-		case statusPosted:
-			return refuse("%s is posted and cannot be deleted. Void it instead.", entryName(stored))
-		}
-		return e.Next()
+		return serialized(e, func(tx core.App) error {
+			stored, err := tx.FindRecordById("books_journal_entries", e.Record.Id)
+			if err != nil {
+				return err
+			}
+			switch stored.GetString("status") {
+			case statusVoid:
+				return refuse("%s is void and cannot be deleted.", entryName(stored))
+			case statusPosted:
+				return refuse("%s is posted and cannot be deleted. Void it instead.", entryName(stored))
+			}
+			return nil
+		})
 	})
 	// A request hook, not a model hook: Books itself writes a reversal's
 	// lines, through the model path, and must not be refused.
@@ -80,23 +84,24 @@ func registerImmutabilityGuards(app core.App) {
 	})
 	app.OnRecordCreate("books_journal_lines").BindFunc(lineGuard)
 	app.OnRecordUpdate("books_journal_lines").BindFunc(func(e *core.RecordEvent) error {
-		stored, err := e.App.FindRecordById("books_journal_lines", e.Record.Id)
-		if err != nil {
-			return err
-		}
-		if stored.GetString("entry") != e.Record.GetString("entry") {
-			return refuse("A line cannot move to another journal entry.")
-		}
-		return lineGuard(e)
+		return serialized(e, func(tx core.App) error {
+			stored, err := tx.FindRecordById("books_journal_lines", e.Record.Id)
+			if err != nil {
+				return err
+			}
+			if stored.GetString("entry") != e.Record.GetString("entry") {
+				return refuse("A line cannot move to another journal entry.")
+			}
+			return requireDraftEntry(tx, e.Record)
+		})
 	})
 	app.OnRecordDelete("books_journal_lines").BindFunc(lineGuard)
 }
 
 func lineGuard(e *core.RecordEvent) error {
-	if err := requireDraftEntry(e.App, e.Record); err != nil {
-		return err
-	}
-	return e.Next()
+	return serialized(e, func(tx core.App) error {
+		return requireDraftEntry(tx, e.Record)
+	})
 }
 
 // requireDraftEntry allows a line write only while its entry is a draft. The

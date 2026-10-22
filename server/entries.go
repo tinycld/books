@@ -60,21 +60,17 @@ func registerEntryHooks(app core.App) {
 	})
 	// Every entry update runs in one transaction. Posting writes the lines,
 	// the balance rows and the number counter; a void also writes and posts
-	// a reversal. Any refusal rolls all of it back. e.App is swapped for the
-	// transaction so PocketBase's own write of the entry joins it.
+	// a reversal. Any refusal rolls all of it back, and PocketBase's own
+	// write of the entry joins the transaction.
 	app.OnRecordUpdate("books_journal_entries").BindFunc(func(e *core.RecordEvent) error {
-		return e.App.RunInTransaction(func(tx core.App) error {
-			e.App = tx
+		return serialized(e, func(tx core.App) error {
 			// The stored row, not Original(): a caller that saved a record and
 			// changed it again without reloading carries a stale Original().
 			stored, err := tx.FindRecordById("books_journal_entries", e.Record.Id)
 			if err != nil {
 				return err
 			}
-			if err := transitionEntry(tx, stored, e.Record, time.Now()); err != nil {
-				return err
-			}
-			return e.Next()
+			return transitionEntry(tx, stored, e.Record, time.Now())
 		})
 	})
 }
