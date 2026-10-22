@@ -1,7 +1,9 @@
 package books
 
 import (
+	"context"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +31,7 @@ func at(day string, hour int) time.Time {
 
 func requireSweep(t testing.TB, app core.App, now time.Time, want int) {
 	t.Helper()
-	if n, err := runAutoReversals(app, now); err != nil || n != want {
+	if n, err := runAutoReversals(context.Background(), app, now); err != nil || n != want {
 		t.Fatalf("sweep at %s posted %d, err %v; want %d", now.Format(time.RFC3339), n, err, want)
 	}
 }
@@ -37,17 +39,17 @@ func requireSweep(t testing.TB, app core.App, now time.Time, want int) {
 func TestAutoReverse_PostsOnTheDateOnce(t *testing.T) {
 	env := newLedgerEnv(t)
 	entry := accrual(t, env, "2026-05-31", "2026-06-01")
-	if n, err := runAutoReversals(env.app, at("2026-05-31", 23)); err != nil || n != 0 {
+	if n, err := runAutoReversals(context.Background(), env.app, at("2026-05-31", 23)); err != nil || n != 0 {
 		t.Fatalf("before the date: %d, %v", n, err)
 	}
-	if n, err := runAutoReversals(env.app, at("2026-06-01", 1)); err != nil || n != 1 {
+	if n, err := runAutoReversals(context.Background(), env.app, at("2026-06-01", 1)); err != nil || n != 1 {
 		t.Fatalf("on the date: %d, %v", n, err)
 	}
 	rev := findReversal(t, env.app, entry.Id)
 	if rev.GetString("origin") != originAutoReversal || rev.GetString("date") != "2026-06-01" || rev.GetString("number") != "2" {
 		t.Fatalf("reversal = %v", rev.PublicExport())
 	}
-	if n, err := runAutoReversals(env.app, at("2026-06-02", 1)); err != nil || n != 0 {
+	if n, err := runAutoReversals(context.Background(), env.app, at("2026-06-02", 1)); err != nil || n != 0 {
 		t.Fatalf("second sweep: %d, %v", n, err)
 	}
 	requireNoDrift(t, env.app)
@@ -61,7 +63,7 @@ func TestAutoReverse_SkipsVoidedAndReversed(t *testing.T) {
 	}
 	reversed := accrual(t, env, "2026-05-30", "2026-06-01")
 	mustPost(t, env.app, reversalDraft(t, env.app, reversed, "2026-05-31").Id, "")
-	if n, err := runAutoReversals(env.app, at("2026-06-01", 1)); err != nil || n != 0 {
+	if n, err := runAutoReversals(context.Background(), env.app, at("2026-06-01", 1)); err != nil || n != 0 {
 		t.Fatalf("sweep posted %d, err %v; want 0", n, err)
 	}
 }
@@ -74,7 +76,7 @@ func TestAutoReverse_ClosedPeriodIsSkippedNotForced(t *testing.T) {
 	if _, err := env.app.DB().NewQuery("UPDATE books_settings SET close_date = '2026-06-30'").Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := runAutoReversals(env.app, at("2026-07-01", 1)); err != nil || n != 0 {
+	if n, err := runAutoReversals(context.Background(), env.app, at("2026-07-01", 1)); err != nil || n != 0 {
 		t.Fatalf("sweep posted %d, err %v; want 0", n, err)
 	}
 	if rev, _ := postedReversalOf(env.app, entry.Id); rev != nil {
@@ -88,7 +90,7 @@ func TestCloseDate_RefusedOverAPendingAutoReversal(t *testing.T) {
 	s := reload(t, env.app, "books_settings", settingsID)
 	s.Set("close_date", "2026-06-30")
 	requireRefused(t, env.app.Save(s), "reverses automatically on 2026-06-01")
-	if _, err := runAutoReversals(env.app, at("2026-06-01", 1)); err != nil {
+	if _, err := runAutoReversals(context.Background(), env.app, at("2026-06-01", 1)); err != nil {
 		t.Fatal(err)
 	}
 	setCloseDate(t, env.app, "2026-06-30")
@@ -221,7 +223,7 @@ func TestAutoReverse_RefusesToRunInsideATransaction(t *testing.T) {
 	env := newLedgerEnv(t)
 	entry := accrual(t, env, "2026-05-31", "2026-06-01")
 	err := env.app.RunInTransaction(func(tx core.App) error {
-		_, err := runAutoReversals(tx, at("2026-06-01", 0))
+		_, err := runAutoReversals(context.Background(), tx, at("2026-06-01", 0))
 		return err
 	})
 	requireRefused(t, err, "must not run inside a transaction")
@@ -310,4 +312,83 @@ func requireReversedSoon(t testing.TB, app core.App, entryID string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("the background sweep posted no reversal")
+}
+
+// A draft reversal settles nothing: the close date stays blocked, the sweep
+// still posts, and the leftover draft is then refused.
+func TestAutoReverse_ADraftReversalDoesNotSettleTheEntry(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := accrual(t, env, "2026-05-31", "2026-06-01")
+	draft := reversalDraft(t, env.app, entry, "2026-05-31")
+	requireRefused(t, checkPendingAutoReversals(env.app, "2026-06-30"), "reverses automatically on 2026-06-01")
+	requireSweep(t, env.app, at("2026-06-01", 0), 1)
+	if rev, err := postedReversalOf(env.app, entry.Id); err != nil || rev == nil || rev.GetString("origin") != originAutoReversal {
+		t.Fatalf("posted reversal = %v (err %v), want the automatic one", rev, err)
+	}
+	requireRefused(t, setStatus(env.app, draft.Id, statusPosted, ""), "already reversed")
+	setCloseDate(t, env.app, "2026-06-30")
+}
+
+// The terminate cancels the background job's ctx; the sweep then posts
+// nothing more.
+func TestAutoReverse_StopsWhenItsContextEnds(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := accrual(t, env, "2026-05-31", "2026-06-01")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if n, err := runAutoReversals(ctx, env.app, at("2026-06-01", 0)); err != nil || n != 0 {
+		t.Fatalf("cancelled sweep posted %d, err %v; want 0", n, err)
+	}
+	if rev, _ := postedReversalOf(env.app, entry.Id); rev != nil {
+		t.Fatal("a cancelled sweep posted a reversal")
+	}
+}
+
+// Every settled historical auto-reverse entry stays posted with its date, so
+// the "has a reversal" lookup runs once per such entry and must be indexed.
+func TestAutoReverse_ReversalLookupUsesTheReversesIndex(t *testing.T) {
+	env := newLedgerEnv(t)
+	q := pendingAutoReversals(env.app, "2026-06-30").Build()
+	var plan []struct {
+		ID      int    `db:"id"`
+		Parent  int    `db:"parent"`
+		NotUsed int    `db:"notused"`
+		Detail  string `db:"detail"`
+	}
+	if err := env.app.DB().NewQuery("EXPLAIN QUERY PLAN " + q.SQL()).Bind(q.Params()).All(&plan); err != nil {
+		t.Fatal(err)
+	}
+	var details []string
+	usesIndex := false
+	for _, step := range plan {
+		details = append(details, step.Detail)
+		if strings.HasPrefix(step.Detail, "SCAN r") {
+			t.Fatalf("the reversal lookup scans the entries table: %q", details)
+		}
+		if strings.HasPrefix(step.Detail, "SEARCH r USING INDEX idx_books_je_reverses") {
+			usesIndex = true
+		}
+	}
+	if !usesIndex {
+		t.Fatalf("the reversal lookup does not use idx_books_je_reverses: %q", details)
+	}
+}
+
+// The close-date guard runs when the close date changes. Another settings
+// edit is not refused over the close date.
+func TestCloseDate_OtherSettingsEditsSkipTheCloseDateGuard(t *testing.T) {
+	env := newLedgerEnv(t)
+	accrual(t, env, "2026-05-31", "2026-06-01")
+	// A close date over a pending reversal, as only a bypass could leave it.
+	if _, err := env.app.DB().NewQuery("UPDATE books_settings SET close_date = '2026-06-30'").Execute(); err != nil {
+		t.Fatal(err)
+	}
+	s := reload(t, env.app, "books_settings", settingsID)
+	s.Set("fiscal_year_start_month", 4)
+	if err := env.app.Save(s); err != nil {
+		t.Fatalf("fiscal year edit refused: %v", err)
+	}
+	s = reload(t, env.app, "books_settings", settingsID)
+	s.Set("close_date", "2026-07-31")
+	requireRefused(t, env.app.Save(s), "reverses automatically on 2026-06-01")
 }

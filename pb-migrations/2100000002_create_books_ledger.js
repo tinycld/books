@@ -178,6 +178,9 @@ migrate(
         entries.indexes = [
             "CREATE UNIQUE INDEX idx_books_je_sequence ON books_journal_entries (doc_type, sequence) WHERE sequence > 0 AND status = 'posted' AND origin != 'void_reversal'",
             "CREATE UNIQUE INDEX idx_books_je_one_reversal ON books_journal_entries (reverses) WHERE reverses != '' AND status = 'posted'",
+            // Serves the auto-reverse sweep's "has a reversal" lookup, which
+            // counts voided reversals too, so the posted-only index above cannot.
+            "CREATE INDEX idx_books_je_reverses ON books_journal_entries (reverses) WHERE reverses != ''",
             'CREATE INDEX idx_books_je_date ON books_journal_entries (date)',
             'CREATE INDEX idx_books_je_status_date ON books_journal_entries (status, date)',
             "CREATE INDEX idx_books_je_auto_reverse ON books_journal_entries (auto_reverse_on) WHERE auto_reverse_on != ''",
