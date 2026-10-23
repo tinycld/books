@@ -154,7 +154,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     const petty = await pb.collection('books_accounts').create({
         name: 'Old Petty Cash',
         number: '6900',
-        type: 'expense',
+        type: 'other_expense',
         detail_type: 'other_misc_expense',
         parent: '',
     })

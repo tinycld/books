@@ -1,5 +1,5 @@
-import { log } from '@tinycld/core/lib/logger'
 import { type AccountGroup, accountTypeDef } from './account-types'
+import { warnOnce } from './warn-once'
 
 export const maxAccountDepth = 5
 
@@ -32,15 +32,10 @@ export type TreeNode<T extends TreeAccount> = {
     rollupBalance: number
 }
 
-const warnedTypes = new Set<string>()
-
 export function ownBalance(type: string, debitTotal: number, creditTotal: number): number {
     // An unknown type stays debit-normal so its balance is still shown rather than dropped.
     const def = accountTypeDef(type)
-    if (!def && !warnedTypes.has(type)) {
-        warnedTypes.add(type)
-        log.warn('books.account-tree', 'unknown account type', { type })
-    }
+    if (!def) warnOnce(`type:${type}`, 'books.accounts', 'unknown account type', { key: type })
     const normal = def?.normal
     return normal === 'credit' ? creditTotal - debitTotal : debitTotal - creditTotal
 }
