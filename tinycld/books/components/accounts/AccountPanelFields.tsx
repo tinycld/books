@@ -71,7 +71,6 @@ export function AccountPanelFields({ account, accounts }: AccountPanelFieldsProp
                 control={control}
                 label="Account type"
                 options={TYPE_OPTIONS}
-                presentation="dropdown"
                 placeholder="Select an account type"
                 testID="account-type"
                 hint={typeLockReason ?? undefined}
@@ -83,7 +82,6 @@ export function AccountPanelFields({ account, accounts }: AccountPanelFieldsProp
                 control={control}
                 label="Detail type"
                 options={detailChoices}
-                presentation="dropdown"
                 placeholder="Choose an account type first"
                 testID="account-detail-type"
                 disabled={fieldsDisabled || type === ''}
@@ -93,7 +91,6 @@ export function AccountPanelFields({ account, accounts }: AccountPanelFieldsProp
                 control={control}
                 label="Parent account"
                 options={parentChoices}
-                presentation="dropdown"
                 disabled={fieldsDisabled}
                 testID="account-parent"
             />
