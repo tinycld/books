@@ -8,6 +8,7 @@ import { AccountsScreenView } from '../tinycld/books/components/accounts/Account
 import { useAccountTree } from '../tinycld/books/hooks/useAccountTree'
 import { accountTypeDef } from '../tinycld/books/lib/account-types'
 import { byTestId, fixtureRows } from './accounts-test-rows'
+import { viewProps } from './accounts-view-props'
 
 // Assumed signature: AccountsEmptyState({ hasFilters, hasHiddenInactive, canWrite,
 // onNew, onClear, onShowInactive }). hasFilters means a query or group is active;
@@ -92,6 +93,7 @@ function renderView(
                 canWrite={opts.canWrite ?? true}
                 isError={false}
                 tree={tree}
+                {...viewProps()}
                 onOpen={vi.fn()}
                 onNew={opts.onNew ?? vi.fn()}
                 onRetry={vi.fn()}
@@ -257,6 +259,7 @@ function Harness({ rows, isWide }: { rows: ReturnType<typeof fixtureRows>; isWid
             canWrite={true}
             isError={false}
             tree={tree}
+            {...viewProps()}
             onOpen={vi.fn()}
             onNew={vi.fn()}
             onRetry={vi.fn()}

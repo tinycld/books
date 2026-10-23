@@ -10,6 +10,7 @@ import { useAccountTree } from '../tinycld/books/hooks/useAccountTree'
 import { useAccountsPanelStore } from '../tinycld/books/stores/accounts-panel-store'
 import { seedBooks } from './accounts-form-harness'
 import { byTestId, classOf, fixtureRows } from './accounts-test-rows'
+import { viewProps } from './accounts-view-props'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -35,6 +36,7 @@ function renderView(
             canWrite={props.canWrite ?? true}
             isError={props.isError ?? false}
             tree={tree}
+            {...viewProps()}
             {...handlers}
         />
     )
@@ -173,6 +175,7 @@ describe('AccountsScreenView selected row', () => {
                             canWrite
                             isError={false}
                             tree={tree}
+                            {...viewProps()}
                             onOpen={vi.fn()}
                             onNew={vi.fn()}
                             onRetry={vi.fn()}

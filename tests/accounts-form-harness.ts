@@ -19,6 +19,14 @@ const state = {
     registry: {} as Record<string, unknown>,
     refusal: null as unknown,
     gate: null as Promise<void> | null,
+    // Refuses only the writes that touch these account ids.
+    refusalFor: {} as Record<string, unknown>,
+    // Ids of every account write that reached the server handler, in order.
+    entered: [] as string[],
+}
+
+export function enteredWrites() {
+    return [...state.entered]
 }
 
 // Holds every accounts write open until the returned function is called, so a
@@ -56,8 +64,16 @@ function local<T extends { id: string }>(name: string, initialData: T[]) {
 // is what makes a write go through them instead of completing at once.
 function accountsCollection() {
     counter += 1
-    const refuseWhenAsked = async () => {
+    const refuseWhenAsked = async ({
+        transaction,
+    }: {
+        transaction: { mutations: ReadonlyArray<{ key: unknown }> }
+    }) => {
+        const keys = transaction.mutations.map(m => String(m.key))
+        state.entered.push(...keys)
         if (state.gate) await state.gate
+        const refusedKey = keys.find(key => key in state.refusalFor)
+        if (refusedKey !== undefined) throw state.refusalFor[refusedKey]
         if (state.refusal) throw state.refusal
     }
     return createCollection(
@@ -67,6 +83,7 @@ function accountsCollection() {
             initialData: ACCOUNTS,
             onInsert: refuseWhenAsked,
             onUpdate: refuseWhenAsked,
+            onDelete: refuseWhenAsked,
             ...indexed,
         })
     )
@@ -123,6 +140,8 @@ export function seedBooks(
         level?: Level
         linesOn?: Record<string, number>
         refusal?: unknown
+        // Refuses only the writes on these account ids, by id.
+        refusalFor?: Record<string, unknown>
         // A journal-lines collection that never finishes loading, so the usage
         // query stays not ready.
         linesNeverReady?: boolean
@@ -146,6 +165,8 @@ export function seedBooks(
         is_admin: level === 'admin',
     }
     state.refusal = opts.refusal ?? null
+    state.refusalFor = opts.refusalFor ?? {}
+    state.entered = []
     state.gate = null
     state.registry = {
         books_accounts: accountsCollectionFor(opts),

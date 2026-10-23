@@ -1,8 +1,11 @@
 import { Pressable, Text, View } from 'react-native'
 import type { AccountRow as AccountData } from '../../hooks/useAccountsQuery'
+import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
 import type { VisibleRow } from '../../lib/account-tree'
 import { formatMoney } from '../../lib/money'
 import { AccountCaret } from './AccountCaret'
+import { AccountRowMenu } from './AccountRowMenu'
+import { AccountSelectBox } from './AccountSelectBox'
 import { accountDisplay } from './account-display'
 import { GroupChip } from './GroupChip'
 
@@ -11,7 +14,7 @@ export const TYPE_COLUMN_WIDTH = 210
 export const TYPE_CELL_STYLE = { width: TYPE_COLUMN_WIDTH, flexShrink: 1, minWidth: 80 }
 // Balance never shrinks: a clipped amount misleads, so the table scrolls sideways instead.
 export const BALANCE_CELL_STYLE = { width: 112, minWidth: 104, flexShrink: 0 }
-export const LEADING_CELL_WIDTH = 40
+export const LEADING_CELL_WIDTH = 44
 export const TRAILING_CELL_WIDTH = 44
 export const INDENT_STEP = 20
 // Name wins the free space; Detail type is the column that truncates. Header and rows share these.
@@ -24,6 +27,11 @@ interface AccountTableRowProps {
     onToggle: (id: string) => void
     onOpen: (id: string) => void
     selectedId: string
+    canWrite: boolean
+    isWorking: boolean
+    isSelected: (id: string) => boolean
+    onSelect: (id: string) => void
+    menu: AccountMenuHandlers
 }
 
 export function AccountTableRow({
@@ -32,23 +40,36 @@ export function AccountTableRow({
     onToggle,
     onOpen,
     selectedId,
+    canWrite,
+    isWorking,
+    isSelected,
+    onSelect,
+    menu,
 }: AccountTableRowProps) {
     const { account, depth } = row.node
     const { typeLabel, detailLabel, group } = accountDisplay(account.type, account.detail_type)
     const dim = account.inactive ? 'opacity-60' : ''
-    const isSelected = selectedId !== '' && selectedId === account.id
-    const bg = isSelected ? 'bg-accent' : 'bg-background'
+    const isOpenRow = selectedId !== '' && selectedId === account.id
+    const bg = isOpenRow ? 'bg-accent' : 'bg-background'
 
     return (
         <Pressable
             testID={`account-row-${account.id}`}
             accessibilityRole="button"
-            accessibilityState={{ selected: isSelected }}
+            accessibilityState={{ selected: isOpenRow }}
             onPress={() => onOpen(account.id)}
             className={`flex-row items-center gap-3 border-b border-border ${bg} px-2 ${dim}`}
             style={{ minHeight: 44 }}
         >
-            <View style={{ width: LEADING_CELL_WIDTH }} />
+            <View style={{ width: LEADING_CELL_WIDTH }}>
+                <RowCheckbox
+                    isVisible={canWrite}
+                    id={account.id}
+                    name={account.name}
+                    isSelected={isSelected}
+                    onSelect={onSelect}
+                />
+            </View>
             <View className="min-w-0" style={NAME_CELL_STYLE}>
                 <View
                     className="min-w-0 flex-row items-center"
@@ -84,7 +105,9 @@ export function AccountTableRow({
                 </Text>
                 <RollupLabel isVisible={row.showsRollup} />
             </View>
-            <View style={{ width: TRAILING_CELL_WIDTH }} />
+            <View style={{ width: TRAILING_CELL_WIDTH }}>
+                <RowMenu isVisible={canWrite} row={account} menu={menu} isDisabled={isWorking} />
+            </View>
         </Pressable>
     )
 }
@@ -107,4 +130,20 @@ export function RollupLabel({ isVisible }: { isVisible: boolean }) {
 function ChipFor({ group }: { group: ReturnType<typeof accountDisplay>['group'] }) {
     if (!group) return null
     return <GroupChip group={group} />
+}
+
+export function RowCheckbox({
+    isVisible,
+    ...props
+}: { isVisible: boolean } & Parameters<typeof AccountSelectBox>[0]) {
+    if (!isVisible) return null
+    return <AccountSelectBox {...props} />
+}
+
+export function RowMenu({
+    isVisible,
+    ...props
+}: { isVisible: boolean } & Parameters<typeof AccountRowMenu>[0]) {
+    if (!isVisible) return null
+    return <AccountRowMenu {...props} />
 }

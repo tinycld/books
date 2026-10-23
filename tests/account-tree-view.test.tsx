@@ -19,6 +19,7 @@ import {
 } from '../tinycld/books/lib/account-tree'
 import { formatMoney } from '../tinycld/books/lib/money'
 import { byTestId, classOf, fixtureRows } from './accounts-test-rows'
+import { listProps } from './accounts-view-props'
 
 const open: TreeFilters = { collapsed: new Set(), query: '', group: '', showInactive: true }
 
@@ -35,6 +36,7 @@ function renderTree(filters: Partial<TreeFilters> = {}, selectedId = '') {
             sort={{ key: null, direction: 'asc' }}
             canToggle={true}
             selectedId={selectedId}
+            {...listProps()}
             {...handlers}
         />
     )
@@ -320,6 +322,7 @@ function renderSorted(sort: SortState) {
             onSort={vi.fn()}
             onToggle={vi.fn()}
             onOpen={vi.fn()}
+            {...listProps()}
         />
     )
 }
@@ -595,7 +598,13 @@ function renderCard(id: string, filters: Partial<TreeFilters> = {}, selectedId =
     if (!row) throw new Error(`no row ${id}`)
     const handlers = { onToggle: vi.fn(), onOpen: vi.fn() }
     const view = render(
-        <AccountCard row={row} canToggle={true} selectedId={selectedId} {...handlers} />
+        <AccountCard
+            row={row}
+            canToggle={true}
+            selectedId={selectedId}
+            {...listProps()}
+            {...handlers}
+        />
     )
     return { ...view, row, ...handlers }
 }
@@ -608,6 +617,54 @@ describe('AccountCard', () => {
         expect(getByText(formatMoney(row.balance, 'USD'))).toBeTruthy()
         expect(getByText('Bank')).toBeTruthy()
         expect(getByText('Checking')).toBeTruthy()
+    })
+
+    it('renders the balance and the type line below the name row, not beside the name', () => {
+        const { container, getByText, row } = renderCard('acct_bank_0002')
+        const card = byTestId(container, 'account-card-acct_bank_0002') as HTMLElement
+        const rowOf = (el: HTMLElement) => {
+            let cur: HTMLElement | null = el.parentElement
+            while (cur && cur !== card) {
+                if (/(?:^|\s)flex-row(?:\s|$)/.test(classOf(cur))) return cur
+                cur = cur.parentElement
+            }
+            return null
+        }
+        const name = getByText('Operating checking')
+        const balance = getByText(formatMoney(row.balance, 'USD'))
+        const type = getByText('Bank')
+        const nameRow = rowOf(name)
+        const balanceRow = rowOf(balance)
+        expect(nameRow).not.toBeNull()
+        expect(balanceRow).not.toBeNull()
+        expect(balanceRow).not.toBe(nameRow)
+        expect(nameRow?.contains(balance)).toBe(false)
+        expect(
+            name.compareDocumentPosition(balance) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        expect(
+            nameRow?.compareDocumentPosition(balanceRow as HTMLElement) ===
+                Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBe(true)
+        expect(nameRow?.contains(type)).toBe(false)
+    })
+
+    it('keeps the checkbox, caret and menu on the card', () => {
+        const row = visibleRows().find(r => r.node.account.id === 'acct_fa_00001')
+        if (!row) throw new Error('no row')
+        const { container } = render(
+            <AccountCard
+                row={row}
+                canToggle={true}
+                onToggle={vi.fn()}
+                onOpen={vi.fn()}
+                selectedId=""
+                {...listProps({ canWrite: true })}
+            />
+        )
+        expect(byTestId(container, 'account-select-acct_fa_00001')).not.toBeNull()
+        expect(byTestId(container, 'account-caret-acct_fa_00001')).not.toBeNull()
+        expect(byTestId(container, 'account-menu-acct_fa_00001')).not.toBeNull()
     })
 
     it('indents by level the way the table row does', () => {
@@ -694,6 +751,8 @@ describe('canToggle false (search query active)', () => {
                 onSort={vi.fn()}
                 onToggle={vi.fn()}
                 onOpen={vi.fn()}
+                selectedId=""
+                {...listProps()}
             />
         )
         expect(
@@ -706,7 +765,14 @@ describe('canToggle false (search query active)', () => {
         const row = visibleRows().find(r => r.node.account.id === 'acct_fa_00001')
         if (!row) throw new Error('no row')
         const { container } = render(
-            <AccountCard row={row} canToggle={false} onToggle={vi.fn()} onOpen={vi.fn()} />
+            <AccountCard
+                row={row}
+                canToggle={false}
+                onToggle={vi.fn()}
+                onOpen={vi.fn()}
+                selectedId=""
+                {...listProps()}
+            />
         )
         expect(byTestId(container, 'account-caret-acct_fa_00001')).toBeNull()
     })
