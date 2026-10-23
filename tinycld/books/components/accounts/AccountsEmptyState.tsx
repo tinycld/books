@@ -7,6 +7,7 @@ interface AccountsEmptyStateProps {
     hasFilters: boolean
     hasHiddenInactive: boolean
     canWrite: boolean
+    isWide: boolean
     onNew: () => void
     onClear: () => void
     onShowInactive: () => void
@@ -41,14 +42,29 @@ function ClearAction({ isVisible, onClear }: { isVisible: boolean; onClear: () =
     )
 }
 
-function WriterActions({ isVisible, onNew }: { isVisible: boolean; onNew: () => void }) {
+function NewAction({ isVisible, onNew }: { isVisible: boolean; onNew: () => void }) {
+    if (!isVisible) return null
+    return (
+        <Button size="sm" onPress={onNew}>
+            <ButtonText>New account</ButtonText>
+        </Button>
+    )
+}
+
+function WriterActions({
+    isVisible,
+    showNew,
+    onNew,
+}: {
+    isVisible: boolean
+    showNew: boolean
+    onNew: () => void
+}) {
     const orgHref = useOrgHref()
     if (!isVisible) return null
     return (
         <View className="items-center gap-3">
-            <Button size="sm" onPress={onNew}>
-                <ButtonText>New account</ButtonText>
-            </Button>
+            <NewAction isVisible={showNew} onNew={onNew} />
             <Pressable
                 testID="account-empty-import"
                 accessibilityRole="link"
@@ -65,6 +81,7 @@ export function AccountsEmptyState({
     hasFilters,
     hasHiddenInactive,
     canWrite,
+    isWide,
     onNew,
     onClear,
     onShowInactive,
@@ -79,7 +96,8 @@ export function AccountsEmptyState({
                 isVisible={hasHiddenInactive && !hasFilters}
                 onShowInactive={onShowInactive}
             />
-            <WriterActions isVisible={!noMatch && canWrite} onNew={onNew} />
+            {/* The phone header already carries "New account". */}
+            <WriterActions isVisible={!noMatch && canWrite} showNew={isWide} onNew={onNew} />
         </View>
     )
 }
