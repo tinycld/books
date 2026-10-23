@@ -34,8 +34,8 @@ List
 
 New and edit panel
 - Opens in a core `Drawer` from the right (a bottom-anchored overlay on phones, an inline panel beside the list on wide screens, an overlay on tablets). (Q9)
-- Fields: Account name (required), Account number (optional), Account type (select), Detail type (select, disabled until a type is chosen, options from the type), "Make this a sub-account" toggle that reveals a Parent account select, Description.
-- The parent select lists only accounts of the chosen type that would not exceed depth 5, excluding the account being edited and its descendants. Changing the type clears the parent and the detail type.
+- Fields: Account name (required), Account number (optional), Account type (select), Detail type (select, disabled until a type is chosen, options from the type), Parent account (a select, always shown; the first option is "None (top level)"), Description.
+- Account type, Detail type and Parent account are dropdowns. The parent select lists "None (top level)" first, then only accounts of the chosen type that would not exceed depth 5, excluding the account being edited and its descendants. Changing the type clears the parent and the detail type.
 - Sticky bar: Cancel, Save, Save and new (create only).
 - Validation is one zod schema through `useForm` and `zodResolver` (`@tinycld/core/ui/form`): name required and at most 200 characters, number at most 20 characters matching `^[0-9A-Za-z.-]*$`, type and detail type required and a valid pair, description at most 1000 characters. Server refusals (duplicate number, duplicate name under the same parent, depth, type mismatch, inactive rules) go through `handleMutationErrorsWithForm`. (Q4)
 - Edit rules shown before the server refuses: type is disabled when the account has journal lines or sub-accounts, with the server's reason as help text. Currency is never shown as editable.
@@ -81,7 +81,7 @@ Access and registry
 - Hover-only controls are not used; the row menu button is always visible.
 
 ## Sparks carried
-All-lists back link; filter by name or number; group chip beside the type; Batch actions menu; right side panel (core `Drawer`); sub-account toggle with parent picker; detail type enabled by type; Save and Save and new; three-step import; sample as an inline example.
+All-lists back link; filter by name or number; group chip beside the type; Batch actions menu; right side panel (core `Drawer`); Parent account picker; detail type enabled by type; Save and Save and new; three-step import; sample as an inline example.
 
 ## Non-goals
 Reports, register, opening balances, account merge, reordering by drag, export, multi-currency choice, plan limits, any network import source.

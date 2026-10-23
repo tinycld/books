@@ -11,6 +11,7 @@ import {
     RollupLabel,
     RowCheckbox,
     RowMenu,
+    spaceOpens,
 } from './AccountRow'
 import { accountDisplay } from './account-display'
 
@@ -48,9 +49,11 @@ export function AccountCard({
     return (
         <Pressable
             testID={`account-card-${account.id}`}
-            accessibilityRole="button"
+            // Not a button: the checkbox, caret and menu inside it are buttons, and buttons cannot nest.
+            role="row"
             accessibilityState={{ selected: isOpenRow }}
             onPress={() => onOpen(account.id)}
+            {...spaceOpens(account.id, onOpen)}
             className={`flex-row items-center border-b border-border ${bg} px-4 ${dim}`}
             style={{ minHeight: 64 }}
         >

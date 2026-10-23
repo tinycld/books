@@ -57,25 +57,60 @@ function field(label: string): HTMLElement | null {
     )
 }
 
+// Account type, Detail type and Parent account are dropdowns: a trigger with a stable testID that
+// opens a menu whose rows are `${testID}-${value}`.
+const TRIGGER_IDS: Record<string, string> = {
+    'Account type': 'account-type',
+    'Detail type': 'account-detail-type',
+    'Parent account': 'account-parent',
+}
+// What the trigger shows while nothing is chosen.
+const UNCHOSEN = /^(select|choose|none|pick)/i
+
 function group(label: string): HTMLElement | null {
-    return document.querySelector(`[accessibilityrole="radiogroup"][accessibilitylabel="${label}"]`)
+    return document.querySelector(`[testID="${TRIGGER_IDS[label]}"]`)
 }
 
-function radios(label: string): HTMLElement[] {
+function trigger(label: string): HTMLElement {
     const el = group(label)
-    return el ? Array.from(el.querySelectorAll('[accessibilityrole="radio"]')) : []
+    if (!el) throw new Error(`no dropdown ${label}`)
+    return el
+}
+
+function selectedLabel(label: string): string {
+    const text = trigger(label).getAttribute('accessibilitylabel') ?? ''
+    return text.slice(`${label}: `.length)
+}
+
+function dropdownDisabled(label: string): boolean {
+    return trigger(label).getAttribute('aria-disabled') === 'true'
+}
+
+function menuItems(label: string): HTMLElement[] {
+    const prefix = `${TRIGGER_IDS[label]}-`
+    return Array.from(document.body.querySelectorAll<HTMLElement>('[data-testid]')).filter(el =>
+        el.getAttribute('data-testid')?.startsWith(prefix)
+    )
+}
+
+function openOptions(label: string): string[] {
+    fireEvent.click(trigger(label))
+    return menuItems(label).map(el => el.textContent?.trim() ?? '')
 }
 
 function choose(groupLabel: string, optionLabel: string) {
-    const option = radios(groupLabel).find(
-        r => r.getAttribute('accessibilitylabel') === optionLabel
-    )
+    fireEvent.click(trigger(groupLabel))
+    const option = menuItems(groupLabel).find(el => el.textContent?.trim() === optionLabel)
     if (!option) throw new Error(`no option ${optionLabel} in ${groupLabel}`)
     fireEvent.click(option)
 }
 
 function checked(groupLabel: string): HTMLElement[] {
-    return radios(groupLabel).filter(r => r.getAttribute('aria-checked') === 'true')
+    const el = group(groupLabel)
+    if (!el || UNCHOSEN.test(selectedLabel(groupLabel)) || selectedLabel(groupLabel) === '') {
+        return []
+    }
+    return [el]
 }
 
 function typeInto(label: string, value: string) {
@@ -157,22 +192,28 @@ describe('AccountPanel placement', () => {
 })
 
 describe('AccountPanel fields', () => {
-    it('shows one disabled placeholder detail option until a type is chosen, then the real options', async () => {
+    it('disables the Detail type dropdown with a placeholder until a type is chosen, then lists the real options', async () => {
         renderPanel(blankNew)
         await waitFor(() => expect(group('Detail type')).not.toBeNull())
-        const before = radios('Detail type')
-        expect(before).toHaveLength(1)
-        expect(before[0].getAttribute('accessibilitylabel')).toBe('Choose an account type first')
-        expect(before[0].getAttribute('aria-disabled')).toBe('true')
+        expect(dropdownDisabled('Detail type')).toBe(true)
+        expect(checked('Detail type')).toHaveLength(0)
 
         choose('Account type', 'Bank')
 
-        const after = radios('Detail type')
-        const labels = after.map(r => r.getAttribute('accessibilitylabel'))
+        expect(dropdownDisabled('Detail type')).toBe(false)
+        const labels = openOptions('Detail type')
         expect(labels).toContain('Checking')
         expect(labels).toContain('Savings')
         expect(labels).not.toContain('Choose an account type first')
-        expect(after.every(r => r.getAttribute('aria-disabled') !== 'true')).toBe(true)
+    })
+
+    it('renders Account type, Detail type and Parent account as dropdowns, not radio groups', async () => {
+        renderPanel({ mode: 'new', parentId: 'acct_bank_0001' })
+        await waitFor(() => expect(group('Parent account')).not.toBeNull())
+        expect(group('Account type')).not.toBeNull()
+        expect(group('Detail type')).not.toBeNull()
+        expect(document.querySelector('[accessibilityrole="radiogroup"]')).toBeNull()
+        expect(document.querySelector('[accessibilityrole="radio"]')).toBeNull()
     })
 
     it('disables the Type select and shows typeLockReason as help text for an account with sub-accounts', async () => {
@@ -180,27 +221,29 @@ describe('AccountPanel fields', () => {
         const reason = typeLockMessage({ lines: 0, children: 3 })
 
         await waitFor(() => expect(screen.getByText(reason)).toBeTruthy())
-        const options = radios('Account type')
-        expect(options.length).toBeGreaterThan(1)
-        expect(options.every(r => r.getAttribute('aria-disabled') === 'true')).toBe(true)
+        expect(dropdownDisabled('Account type')).toBe(true)
     })
 
     it('leaves the Type select enabled and shows no lock text for an unused account', async () => {
         await editLoaded('acct_oca_0001', 'Undeposited funds')
-        const options = radios('Account type')
-        expect(options.length).toBeGreaterThan(1)
-        expect(options.every(r => r.getAttribute('aria-disabled') !== 'true')).toBe(true)
+        expect(dropdownDisabled('Account type')).toBe(false)
         expect(screen.queryByText(/cannot change|share their parent/)).toBeNull()
     })
 
-    it('reveals the Parent account select when the sub-account toggle is turned on', async () => {
+    it('always shows the Parent account dropdown, with only None until a type is chosen', async () => {
         renderPanel(blankNew)
-        await waitFor(() => expect(field('Make this a sub-account')).not.toBeNull())
-        expect(group('Parent account')).toBeNull()
+        await waitFor(() => expect(group('Parent account')).not.toBeNull())
+        expect(selectedLabel('Parent account')).toBe('None (top level)')
+        expect(openOptions('Parent account')).toEqual(['None (top level)'])
+    })
 
-        fireEvent.click(field('Make this a sub-account') as HTMLElement)
-
-        expect(group('Parent account')).not.toBeNull()
+    it('lists None first, then the eligible parents of the chosen type', async () => {
+        renderPanel(blankNew)
+        await waitFor(() => expect(group('Account type')).not.toBeNull())
+        choose('Account type', 'Bank')
+        const options = openOptions('Parent account')
+        expect(options[0]).toBe('None (top level)')
+        expect(options.length).toBeGreaterThan(1)
     })
 
     it.each([
@@ -230,15 +273,12 @@ describe('AccountPanel fields', () => {
         expect(group('Parent account')).not.toBeNull()
     })
 
-    it('clears the parent when the sub-account toggle is turned off and on again', async () => {
+    it('clears the parent when None (top level) is chosen', async () => {
         renderPanel({ mode: 'new', parentId: 'acct_bank_0001' })
         await waitFor(() => expect(checked('Parent account')).toHaveLength(1))
 
-        fireEvent.click(field('Make this a sub-account') as HTMLElement)
-        expect(group('Parent account')).toBeNull()
-        fireEvent.click(field('Make this a sub-account') as HTMLElement)
+        choose('Parent account', 'None (top level)')
 
-        expect(group('Parent account')).not.toBeNull()
         expect(checked('Parent account')).toHaveLength(0)
     })
 })
@@ -324,11 +364,9 @@ describe('AccountPanel for a read-only user', () => {
         for (const label of ['Account name', 'Account number', 'Description']) {
             expect(field(label)?.getAttribute('aria-disabled')).toBe('true')
         }
-        expect(field('Make this a sub-account')?.getAttribute('aria-disabled')).toBe('true')
+        expect(dropdownDisabled('Parent account')).toBe(true)
         for (const label of ['Account type', 'Detail type']) {
-            const options = radios(label)
-            expect(options.length).toBeGreaterThan(0)
-            expect(options.every(r => r.getAttribute('aria-disabled') === 'true')).toBe(true)
+            expect(dropdownDisabled(label)).toBe(true)
         }
         expect(screen.queryByText('Save')).toBeNull()
         expect(screen.queryByText('Save and new')).toBeNull()
@@ -360,31 +398,16 @@ function isDisabled(el: HTMLElement) {
 }
 
 describe('AccountPanel stale errors', () => {
-    async function failedSubmitWithSubAccount() {
+    it('clears the detail_type error when the type changes', async () => {
         renderPanel(blankNew)
-        await waitFor(() => expect(field('Make this a sub-account')).not.toBeNull())
-        fireEvent.click(field('Make this a sub-account') as HTMLElement)
+        await waitFor(() => expect(group('Account type')).not.toBeNull())
         press('Save')
-        await waitFor(() => expect(summaryText()).toContain('parent'))
-        expect(summaryText()).toContain('detail_type')
-    }
-
-    it('clears the parent and detail_type errors when the type changes', async () => {
-        await failedSubmitWithSubAccount()
+        await waitFor(() => expect(summaryText()).toContain('detail_type'))
 
         choose('Account type', 'Bank')
 
         await waitFor(() => expect(summaryText()).not.toContain('detail_type'))
-        expect(summaryText()).not.toContain('parent')
         expect(summaryText()).toContain('name')
-    })
-
-    it('clears the parent error when the sub-account toggle is turned off', async () => {
-        await failedSubmitWithSubAccount()
-
-        fireEvent.click(field('Make this a sub-account') as HTMLElement)
-
-        await waitFor(() => expect(summaryText()).not.toContain('parent'))
     })
 })
 
@@ -451,13 +474,9 @@ describe('AccountPanel edit seeding', () => {
         for (const label of ['Account name', 'Account number', 'Description']) {
             expect(field(label)?.getAttribute('aria-disabled')).toBe('true')
         }
-        expect(field('Make this a sub-account')?.getAttribute('aria-disabled')).toBe('true')
-        const typeOptions = radios('Account type')
-        expect(typeOptions.length).toBeGreaterThan(0)
-        expect(typeOptions.every(r => r.getAttribute('aria-disabled') === 'true')).toBe(true)
-        expect(radios('Detail type').every(r => r.getAttribute('aria-disabled') === 'true')).toBe(
-            true
-        )
+        expect(dropdownDisabled('Parent account')).toBe(true)
+        expect(dropdownDisabled('Account type')).toBe(true)
+        expect(dropdownDisabled('Detail type')).toBe(true)
     })
 
     it('shows the form once the missing row is inserted', async () => {
@@ -477,10 +496,8 @@ describe('AccountPanel edit seeding', () => {
         for (const label of ['Account name', 'Account number', 'Description']) {
             expect(field(label)?.getAttribute('aria-disabled')).not.toBe('true')
         }
-        expect(field('Make this a sub-account')?.getAttribute('aria-disabled')).not.toBe('true')
-        expect(radios('Account type').every(r => r.getAttribute('aria-disabled') !== 'true')).toBe(
-            true
-        )
+        expect(dropdownDisabled('Parent account')).toBe(false)
+        expect(dropdownDisabled('Account type')).toBe(false)
     })
 
     // Not testable here: the panel stays quiet through a transient empty result
@@ -605,9 +622,7 @@ describe('AccountPanel type lock while usage loads', () => {
     it('disables every Type option while the usage query is not ready', async () => {
         seedBooks({ linesNeverReady: true })
         await editLoaded('acct_oca_0001', 'Undeposited funds')
-        const options = radios('Account type')
-        expect(options.length).toBeGreaterThan(1)
-        expect(options.every(r => r.getAttribute('aria-disabled') === 'true')).toBe(true)
+        expect(dropdownDisabled('Account type')).toBe(true)
     })
 })
 
@@ -775,17 +790,13 @@ describe('AccountPanel usage hint', () => {
         seedBooks({ linesNeverReady: true })
         await editLoaded('acct_oca_0001', 'Undeposited funds')
         expect(screen.getByText(hint)).toBeTruthy()
-        expect(radios('Account type').every(r => r.getAttribute('aria-disabled') === 'true')).toBe(
-            true
-        )
+        expect(dropdownDisabled('Account type')).toBe(true)
     })
 
     it('drops the hint and enables Type once usage is ready with no lines or sub-accounts', async () => {
         await editLoaded('acct_oca_0001', 'Undeposited funds')
         await waitFor(() => expect(screen.queryByText(hint)).toBeNull())
-        expect(radios('Account type').every(r => r.getAttribute('aria-disabled') !== 'true')).toBe(
-            true
-        )
+        expect(dropdownDisabled('Account type')).toBe(false)
     })
 })
 
@@ -839,7 +850,7 @@ describe('AccountPanel after a refused save', () => {
         await waitFor(() => expect(storedAccounts()).toHaveLength(before + 1))
         await waitFor(() => expect(inputValue('Account name')).toBe(''))
         expect(checked('Parent account')).toHaveLength(1)
-        expect(checked('Account type')[0].getAttribute('accessibilitylabel')).toBe('Bank')
+        expect(selectedLabel('Account type')).toBe('Bank')
         expect(target()).toMatchObject(subAccount)
     })
 })

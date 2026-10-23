@@ -99,17 +99,15 @@ describe('useAccountForm defaults', () => {
             number: '',
             type: '',
             detail_type: '',
-            isSubAccount: false,
             parent: '',
             description: '',
         })
         expect(result.current.isEditing).toBe(false)
     })
 
-    it('pre-fills isSubAccount, parent and type from the parent of a new sub-account', () => {
+    it('pre-fills parent and type from the parent of a new sub-account', () => {
         const { result } = renderForm({ mode: 'new', parentId: 'acct_bank_0001' })
         expect(result.current.form.getValues()).toMatchObject({
-            isSubAccount: true,
             parent: 'acct_bank_0001',
             type: 'bank',
         })
@@ -124,7 +122,6 @@ describe('useAccountForm defaults', () => {
             number: '1010',
             type: 'bank',
             detail_type: 'checking',
-            isSubAccount: true,
             parent: 'acct_bank_0001',
         })
 
@@ -136,7 +133,6 @@ describe('useAccountForm defaults', () => {
                 number: '1100',
                 type: 'accounts_receivable',
                 detail_type: 'accounts_receivable',
-                isSubAccount: false,
                 parent: '',
             })
         )
@@ -553,7 +549,6 @@ describe('useAccountForm after a refused save', () => {
             number: '',
             type: 'bank',
             detail_type: '',
-            isSubAccount: true,
             parent: 'acct_bank_0001',
             description: '',
         })

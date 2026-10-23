@@ -55,9 +55,11 @@ export function AccountTableRow({
     return (
         <Pressable
             testID={`account-row-${account.id}`}
-            accessibilityRole="button"
+            // Not a button: the checkbox, caret and menu inside it are buttons, and buttons cannot nest.
+            role="row"
             accessibilityState={{ selected: isOpenRow }}
             onPress={() => onOpen(account.id)}
+            {...spaceOpens(account.id, onOpen)}
             className={`flex-row items-center gap-3 border-b border-border ${bg} px-2 ${dim}`}
             style={{ minHeight: 44 }}
         >
@@ -110,6 +112,18 @@ export function AccountTableRow({
             </View>
         </Pressable>
     )
+}
+
+// Pressable activates on Enter for any role but on Space only for a button role, which this row cannot have.
+// react-native types omit onKeyDown, though react-native-web forwards it to the DOM element.
+export function spaceOpens(id: string, onOpen: (id: string) => void) {
+    return {
+        onKeyDown: (event: KeyboardEvent) => {
+            if (event.key !== ' ' || event.target !== event.currentTarget) return
+            event.preventDefault()
+            onOpen(id)
+        },
+    }
 }
 
 export function NumberLabel({ number }: { number: string }) {
