@@ -20,7 +20,6 @@ const BLANK: AccountFormValues = {
     number: '',
     type: '',
     detail_type: '',
-    isSubAccount: false,
     parent: '',
     description: '',
 }
@@ -34,14 +33,13 @@ function defaultsFor(target: PanelTarget, accounts: AccountRow[]): AccountFormVa
             number: row.number,
             type: row.type,
             detail_type: row.detail_type,
-            isSubAccount: row.parent !== '',
             parent: row.parent,
             description: row.description,
         }
     }
     const parent = accounts.find(a => a.id === target.parentId)
     if (!parent) return BLANK
-    return { ...BLANK, isSubAccount: true, parent: parent.id, type: parent.type }
+    return { ...BLANK, parent: parent.id, type: parent.type }
 }
 
 function targetKey(target: PanelTarget) {
@@ -140,7 +138,7 @@ export function useAccountForm(target: PanelTarget, accounts: AccountRow[], isRe
                 // The schema has already rejected a type that is not a known one.
                 type: values.type as BooksAccounts['type'],
                 detail_type: values.detail_type,
-                parent: values.isSubAccount ? values.parent : '',
+                parent: values.parent,
                 description: values.description,
             }
             if (id === null) {

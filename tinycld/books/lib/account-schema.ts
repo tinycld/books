@@ -14,7 +14,6 @@ export const accountFormSchema = z
             .regex(/^[0-9A-Za-z.-]*$/, 'Use letters, digits, dots and dashes only'),
         type: z.string().min(1, 'Choose an account type'),
         detail_type: z.string().min(1, 'Choose a detail type'),
-        isSubAccount: z.boolean(),
         parent: z.string(),
         description: z.string().max(1000, 'Use 1000 characters or fewer'),
     })
@@ -31,10 +30,6 @@ export const accountFormSchema = z
             path: ['detail_type'],
             message: 'This detail type does not belong to the account type',
         })
-    })
-    .superRefine((values, ctx) => {
-        if (!values.isSubAccount || values.parent !== '') return
-        ctx.addIssue({ code: 'custom', path: ['parent'], message: 'Choose a parent account' })
     })
 
 export type AccountFormValues = z.infer<typeof accountFormSchema>

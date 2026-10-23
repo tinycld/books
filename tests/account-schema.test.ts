@@ -6,7 +6,6 @@ const valid = {
     number: '',
     type: 'bank',
     detail_type: 'checking',
-    isSubAccount: false,
     parent: '',
     description: '',
 }
@@ -83,17 +82,13 @@ describe('accountFormSchema', () => {
         })
     })
 
-    describe('sub-account', () => {
-        it('fails with the error on parent when isSubAccount is true and parent is empty', () => {
-            expect(errorFields({ isSubAccount: true, parent: '' })).toContain('parent')
+    describe('parent', () => {
+        it('passes with a parent chosen', () => {
+            expect(errorFields({ parent: 'acct_bank_0001' })).toEqual([])
         })
 
-        it('passes when isSubAccount is true and a parent is chosen', () => {
-            expect(errorFields({ isSubAccount: true, parent: 'acct_bank_0001' })).toEqual([])
-        })
-
-        it('does not need a parent when isSubAccount is false', () => {
-            expect(errorFields({ isSubAccount: false, parent: '' })).toEqual([])
+        it('passes with no parent, for a top-level account', () => {
+            expect(errorFields({ parent: '' })).toEqual([])
         })
     })
 })

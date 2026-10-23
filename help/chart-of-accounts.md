@@ -15,7 +15,7 @@ To find an account, type part of its name or number in the search box. To narrow
 
 ## Add or edit an account
 
-To add an account, choose New account. Enter a name, choose the type and the detail type, and choose Save. To keep adding accounts, choose Save and new. To make an account a sub-account, turn on Make this a sub-account and choose its parent. A sub-account has the same type as its parent. Accounts can nest up to 5 levels.
+To add an account, choose New account. Enter a name, choose the type and the detail type, and choose Save. To keep adding accounts, choose Save and new. To make an account a sub-account, choose its Parent account. Leave Parent account on None (top level) for a top-level account. A sub-account has the same type as its parent. Accounts can nest up to 5 levels.
 
 To edit an account, press its row. The type is locked when the account has journal lines or sub-accounts.
 

@@ -44,8 +44,10 @@ async function createAccount(page: Page, name: string, type: string, detailType:
     const panel = page.getByTestId('account-panel')
     await expect(panel).toBeVisible()
     await page.getByLabel('Account name').fill(name)
-    await panel.getByRole('radio', { name: type, exact: true }).click()
-    await panel.getByRole('radio', { name: detailType, exact: true }).click()
+    await panel.getByTestId('account-type').click()
+    await page.getByRole('menuitem', { name: type, exact: true }).click()
+    await panel.getByTestId('account-detail-type').click()
+    await page.getByRole('menuitem', { name: detailType, exact: true }).click()
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(row(page, name)).toBeVisible()
 }
@@ -96,6 +98,15 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await expect(page.getByLabel('Account name')).toHaveValue('Business Checking')
         await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(panel).toHaveCount(0)
+
+        // The row opens from the keyboard too: Enter, then Space.
+        for (const key of ['Enter', 'Space']) {
+            await row(page, 'Business Checking').focus()
+            await page.keyboard.press(key)
+            await expect(panel).toBeVisible()
+            await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+            await expect(panel).toHaveCount(0)
+        }
 
         // New account, then make it inactive: it leaves the default list.
         await createAccount(page, MARKETING, 'Expense', 'Advertising and marketing')
