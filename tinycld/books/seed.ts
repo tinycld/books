@@ -150,6 +150,15 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
         })
         ids.set(account.key, created.id)
     }
+    // Created active, then deactivated, because the app makes an account inactive by updating it.
+    const petty = await pb.collection('books_accounts').create({
+        name: 'Old Petty Cash',
+        number: '6900',
+        type: 'expense',
+        detail_type: 'other_misc_expense',
+        parent: '',
+    })
+    await pb.collection('books_accounts').update(petty.id, { inactive: true })
     for (const entry of ENTRIES) {
         const created = await pb.collection('books_journal_entries').create({
             date: `${year}-${entry.day}`,

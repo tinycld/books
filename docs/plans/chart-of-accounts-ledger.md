@@ -39,3 +39,16 @@
 ## Final review
 - eval: pending
 - native: not executed in this run
+
+## Checkpoint 1 — Money helper and tree logic
+- test writer: tests/money.test.ts, tests/account-tree.test.ts, tests/account-messages.test.ts; red: all three fail at import (modules missing: lib/money.ts, lib/account-tree.ts, lib/account-messages.ts); untestable: none
+- implementer: lib/money.ts, lib/account-tree.ts, lib/account-messages.ts, seed.ts (Old Petty Cash inactive); DONE. Self-declared extras: nextSort toggles on every repeat press; self-parent treated as top level; hasChildren counts surviving children; isCollapsed false under a query; group filter drops subtree per node; parent-cycle guards in parentChoices/accountPath; formatMoney locale en-US.
+- test disputes: none
+- gate 1: biome flagged formatting only in tests/account-tree.test.ts (import order, formatting) and capture.json; fixed with `biome check --write` (no assertion changes; test diff is formatting only) · pnpm exec tinycld-pkg check green (13 files, 112 tests). No e2e: no screen/route changed.
+- gate 3 A (round 1): balance sort by ownBalance vs displayed balance; hasChildren from filtered children; parent-cycle drops; parseMoney float precision/-0/commas; formatMoney throws on bad currency; non-numeric number sort — all accepted, fixed via fresh test-writer + implementer.
+- gate 3 B (round 1): capture.json out-of-plan formatting → kept (biome gate-1 red fixed at the source; see Out-of-plan); ledger exempt (run protocol); hasChildren under query, ownBalance unknown type, parseMoney -0, numeric sort → fixed. "1 journal lines" plural mirrors the server string (drift-tested); needs a server change, out of scope.
+- gate 3 fix review (round 1): reviewer A over the fix found 11 items (vacuous query test, child-level sort untested, buildAccountTree second balance-sort path, nondeterministic cycle promotion, warn flood, parseMoney leniency, NaN/Infinity, unknown-type warn) → all accepted except #9 (sub-half-cent guard kept, harmless) → fixed round 2: 150 tests green.
+- rebuttals: nextSort toggling on every repeat press (reviewer A #8) — spec: "A second press reverses the order"; later presses continue to reverse.
+- out-of-plan changes: docs/plans/chart-of-accounts-capture.json (biome formatting only, gate-1 red fixed at source).
+- gate 3 fix reviews (rounds 2-3): reviewer A found only low items (non-finite warn flood, desc tie order, NaN sort, id tiebreak) plus weak tests; all fixed; final pass found no source defects, test-strength gaps closed by a fresh test writer. Unknown-type-under-group-filter rebutted: the account belongs to no group (pinned by test).
+- commit: see git log (cp1)

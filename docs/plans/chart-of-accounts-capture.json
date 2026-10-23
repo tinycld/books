@@ -6,8 +6,16 @@
         { "name": "filtered", "url": "/a/books/helix-mockup?state=filtered" },
         { "name": "panel-open", "url": "/a/books/helix-mockup?state=panel-open" },
         { "name": "no-match", "url": "/a/books/helix-mockup?state=no-match" },
-        { "name": "import-upload", "url": "/a/books/helix-mockup?state=import-upload", "fullPage": true },
+        {
+            "name": "import-upload",
+            "url": "/a/books/helix-mockup?state=import-upload",
+            "fullPage": true
+        },
         { "name": "import-map", "url": "/a/books/helix-mockup?state=import-map", "fullPage": true },
-        { "name": "import-preview", "url": "/a/books/helix-mockup?state=import-preview", "fullPage": true }
+        {
+            "name": "import-preview",
+            "url": "/a/books/helix-mockup?state=import-preview",
+            "fullPage": true
+        }
     ]
 }
