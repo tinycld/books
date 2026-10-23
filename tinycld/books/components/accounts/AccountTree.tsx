@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, Text, View, type ViewStyle } from 'react-native'
 import type { AccountRow } from '../../hooks/useAccountsQuery'
+import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
 import type { SortKey, SortState, VisibleRow } from '../../lib/account-tree'
 import {
     AccountTableRow,
@@ -22,6 +23,11 @@ interface AccountTreeProps {
     onToggle: (id: string) => void
     onOpen: (id: string) => void
     selectedId: string
+    canWrite: boolean
+    isWorking: boolean
+    isSelected: (id: string) => boolean
+    onSelect: (id: string) => void
+    menu: AccountMenuHandlers
 }
 
 interface HeaderCellProps {
@@ -137,6 +143,11 @@ export function AccountTree({
     onToggle,
     onOpen,
     selectedId,
+    canWrite,
+    isWorking,
+    isSelected,
+    onSelect,
+    menu,
 }: AccountTreeProps) {
     const items = rows.map(row => (
         <AccountTableRow
@@ -146,6 +157,11 @@ export function AccountTree({
             onToggle={onToggle}
             onOpen={onOpen}
             selectedId={selectedId}
+            canWrite={canWrite}
+            isWorking={isWorking}
+            isSelected={isSelected}
+            onSelect={onSelect}
+            menu={menu}
         />
     ))
     return (

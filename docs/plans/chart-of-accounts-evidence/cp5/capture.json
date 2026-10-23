@@ -1,0 +1,107 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "selectRow": "Business Checking"
+                }
+            ]
+        },
+        {
+            "name": "menu-open",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "openMenu": "Business Checking"
+                },
+                {
+                    "waitFor": "account-search"
+                }
+            ]
+        },
+        {
+            "name": "batch-actions",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "selectRow": "Business Checking"
+                },
+                {
+                    "selectRow": "Rent"
+                },
+                {
+                    "click": "account-batch-actions",
+                    "onlyIf": "wide"
+                },
+                {
+                    "click": "account-batch-actions",
+                    "onlyIf": "phone"
+                }
+            ]
+        },
+        {
+            "name": "delete-blocked",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "openMenu": "Business Checking"
+                },
+                {
+                    "clickItem": "Delete"
+                },
+                {
+                    "waitButtons": ["Cancel", "Make inactive"]
+                }
+            ]
+        },
+        {
+            "name": "error-banner",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "openMenu": "Software Subscriptions"
+                },
+                {
+                    "clickItem": "Make inactive"
+                },
+                {
+                    "waitFor": "accounts-action-error"
+                }
+            ]
+        },
+        {
+            "name": "delete-free",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "ensureAccount": "Temp Expense"
+                },
+                {
+                    "openMenu": "Temp Expense"
+                },
+                {
+                    "clickItem": "Delete"
+                }
+            ]
+        },
+        {
+            "name": "all-hidden",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "deleteAll": true
+                }
+            ]
+        }
+    ]
+}

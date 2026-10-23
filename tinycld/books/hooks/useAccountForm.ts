@@ -110,7 +110,7 @@ export function useAccountForm(target: PanelTarget, accounts: AccountRow[], isRe
     const hasRootError = useRef(false)
 
     const type = useWatch({ control, name: 'type' })
-    const usage = useAccountUsage(editingId, accounts)
+    const usage = useAccountUsage(editingId)
     const isReadOnly = !canWriteAccounts(access)
     const typeLocked = isEditing && (!usage.isReady || usage.lines > 0 || usage.children > 0)
     const inFlight = useRef(false)

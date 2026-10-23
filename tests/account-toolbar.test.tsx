@@ -20,9 +20,18 @@ function makeTree(overrides: Partial<Tree> = {}) {
     return { tree: { ...real, ...spies, ...overrides } as Tree, spies }
 }
 
-function renderToolbar(props: { isWide?: boolean; canWrite?: boolean; tree?: Partial<Tree> } = {}) {
+function renderToolbar(
+    props: {
+        isWide?: boolean
+        canWrite?: boolean
+        selectedCount?: number
+        isWorking?: boolean
+        tree?: Partial<Tree>
+    } = {}
+) {
     const { tree, spies } = makeTree(props.tree)
     const onNew = vi.fn()
+    const onMakeInactive = vi.fn()
     const view = render(
         <OverlayProvider>
             <AccountToolbar
@@ -30,10 +39,13 @@ function renderToolbar(props: { isWide?: boolean; canWrite?: boolean; tree?: Par
                 canWrite={props.canWrite ?? true}
                 isWide={props.isWide ?? true}
                 onNew={onNew}
+                selectedCount={props.selectedCount ?? 0}
+                onMakeInactive={onMakeInactive}
+                isWorking={props.isWorking ?? false}
             />
         </OverlayProvider>
     )
-    return { ...view, ...spies, onNew }
+    return { ...view, ...spies, onNew, onMakeInactive }
 }
 
 const CHIPS = [

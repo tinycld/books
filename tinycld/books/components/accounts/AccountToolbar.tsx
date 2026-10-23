@@ -8,6 +8,7 @@ import { Search } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import type { useAccountTree } from '../../hooks/useAccountTree'
 import type { AccountGroup } from '../../lib/account-types'
+import { BatchActions } from './BatchActions'
 
 type Tree = ReturnType<typeof useAccountTree>
 
@@ -16,6 +17,9 @@ interface AccountToolbarProps {
     canWrite: boolean
     isWide: boolean
     onNew: () => void
+    selectedCount: number
+    onMakeInactive: () => void
+    isWorking: boolean
 }
 
 const FILTER_CHIPS: { group: AccountGroup; label: string }[] = [
@@ -179,17 +183,47 @@ function NewAccountButton({ isVisible, onNew }: { isVisible: boolean; onNew: () 
     )
 }
 
-export function AccountToolbar({ tree, canWrite, isWide, onNew }: AccountToolbarProps) {
+function BatchSlot({
+    isVisible,
+    ...props
+}: { isVisible: boolean } & Parameters<typeof BatchActions>[0]) {
+    if (!isVisible) return null
+    return <BatchActions {...props} />
+}
+
+export function AccountToolbar({
+    tree,
+    canWrite,
+    isWide,
+    onNew,
+    selectedCount,
+    onMakeInactive,
+    isWorking,
+}: AccountToolbarProps) {
     return (
         <View className="gap-3 px-4 pb-3">
             <View className="flex-row flex-wrap items-center gap-2">
                 <SearchField query={tree.query} onChange={tree.setQuery} />
                 <PhoneFilters isVisible={!isWide} tree={tree} />
+                <BatchSlot
+                    isVisible={canWrite && !isWide}
+                    isIcon
+                    selectedCount={selectedCount}
+                    onMakeInactive={onMakeInactive}
+                    isWorking={isWorking}
+                />
                 <WideFilters isVisible={isWide} tree={tree} />
             </View>
             <View className="flex-row flex-wrap items-center gap-2">
                 <ToggleAllButton tree={tree} />
                 <ImportLink isVisible={canWrite} />
+                <BatchSlot
+                    isVisible={canWrite && isWide}
+                    isIcon={false}
+                    selectedCount={selectedCount}
+                    onMakeInactive={onMakeInactive}
+                    isWorking={isWorking}
+                />
                 <NewAccountButton isVisible={canWrite && isWide} onNew={onNew} />
             </View>
         </View>

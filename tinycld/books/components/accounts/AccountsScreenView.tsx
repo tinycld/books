@@ -5,27 +5,44 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { router } from 'expo-router'
 import { ArrowLeft } from 'lucide-react-native'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import type { useAccountActions } from '../../hooks/useAccountActions'
+import type { useAccountSelection } from '../../hooks/useAccountSelection'
 import type { AccountRow } from '../../hooks/useAccountsQuery'
+import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
 import type { useAccountTree } from '../../hooks/useAccountTree'
 import type { VisibleRow } from '../../lib/account-tree'
 import { useAccountsPanelStore } from '../../stores/accounts-panel-store'
 import { AccountCard } from './AccountCard'
 import { AccountPanel } from './AccountPanel'
 import { AccountsEmptyState } from './AccountsEmptyState'
+import { AccountsErrorBanner } from './AccountsErrorBanner'
 import { AccountToolbar } from './AccountToolbar'
 import { AccountTree } from './AccountTree'
+import { DeleteAccountDialog } from './DeleteAccountDialog'
 
 interface AccountsScreenViewProps {
     isReady: boolean
     isWide: boolean
-    isTablet?: boolean
+    isTablet: boolean
     canWrite: boolean
     isError: boolean
     tree: ReturnType<typeof useAccountTree<AccountRow>>
     onOpen: (id: string) => void
     onNew: () => void
     onRetry: () => void
+    selection: Selection
+    selectedCount: number
+    menu: AccountMenuHandlers
+    makeSelectedInactive: () => void
+    deleteTarget: AccountRow | null
+    cancelDelete: () => void
+    actions: ReturnType<typeof useAccountActions>
+    isWorking: boolean
+    actionError: string | null
+    clearActionError: () => void
 }
+
+type Selection = Pick<ReturnType<typeof useAccountSelection>, 'isSelected' | 'toggle'>
 
 function BackLink() {
     const orgHref = useOrgHref()
@@ -71,6 +88,10 @@ interface AccountListProps {
     onToggle: (id: string) => void
     onOpen: (id: string) => void
     selectedId: string
+    canWrite: boolean
+    isWorking: boolean
+    selection: Selection
+    menu: AccountMenuHandlers
 }
 
 function AccountCards({
@@ -80,6 +101,10 @@ function AccountCards({
     onToggle,
     onOpen,
     selectedId,
+    canWrite,
+    isWorking,
+    selection,
+    menu,
 }: AccountListProps) {
     if (!isVisible) return null
     const cards = rows.map(row => (
@@ -90,6 +115,11 @@ function AccountCards({
             onToggle={onToggle}
             onOpen={onOpen}
             selectedId={selectedId}
+            canWrite={canWrite}
+            isWorking={isWorking}
+            isSelected={selection.isSelected}
+            onSelect={selection.toggle}
+            menu={menu}
         />
     ))
     return <ScrollView className="flex-1">{cards}</ScrollView>
@@ -115,13 +145,23 @@ function AccountsLoading({ isVisible }: { isVisible: boolean }) {
 export function AccountsScreenView({
     isReady,
     isWide,
-    isTablet = false,
+    isTablet,
     canWrite,
     isError,
     tree,
     onOpen,
     onNew,
     onRetry,
+    selection,
+    selectedCount,
+    menu,
+    makeSelectedInactive,
+    deleteTarget,
+    cancelDelete,
+    actions,
+    isWorking,
+    actionError,
+    clearActionError,
 }: AccountsScreenViewProps) {
     const { rows, sort, canToggle, onSort, toggleCollapsed } = tree
     const selectedId = useAccountsPanelStore(s => (s.target?.mode === 'edit' ? s.target.id : ''))
@@ -136,6 +176,10 @@ export function AccountsScreenView({
             <View className="min-w-0 flex-1">
                 <ScreenHeader isPhoneWriter={canWrite && !isWide} onNew={onNew} />
                 <AccountsError isVisible={isError} onRetry={onRetry} />
+                <AccountsErrorBanner
+                    message={deleteTarget ? null : actionError}
+                    onDismiss={clearActionError}
+                />
                 <AccountsLoading isVisible={!isReady && !isError} />
                 <ToolbarSlot
                     isVisible={isLoaded && !tree.isEmpty}
@@ -143,6 +187,9 @@ export function AccountsScreenView({
                     canWrite={canWrite}
                     isWide={isWide}
                     onNew={onNew}
+                    selectedCount={selectedCount}
+                    onMakeInactive={makeSelectedInactive}
+                    isWorking={isWorking}
                 />
                 <EmptySlot
                     isVisible={isEmpty}
@@ -162,6 +209,10 @@ export function AccountsScreenView({
                     onToggle={toggleCollapsed}
                     onOpen={onOpen}
                     selectedId={selectedId}
+                    canWrite={canWrite}
+                    isWorking={isWorking}
+                    selection={selection}
+                    menu={menu}
                 />
                 <AccountCards
                     isVisible={showList && !isWide}
@@ -170,9 +221,14 @@ export function AccountsScreenView({
                     onToggle={toggleCollapsed}
                     onOpen={onOpen}
                     selectedId={selectedId}
+                    canWrite={canWrite}
+                    isWorking={isWorking}
+                    selection={selection}
+                    menu={menu}
                 />
             </View>
             <AccountPanel isWide={isWide} isTablet={isTablet} />
+            <DeleteAccountDialog account={deleteTarget} actions={actions} onClose={cancelDelete} />
         </View>
     )
 }
@@ -207,6 +263,10 @@ function WideTable({
     onToggle,
     onOpen,
     selectedId,
+    canWrite,
+    isWorking,
+    selection,
+    menu,
 }: WideTableProps) {
     if (!isVisible) return null
     return (
@@ -218,6 +278,11 @@ function WideTable({
             onToggle={onToggle}
             onOpen={onOpen}
             selectedId={selectedId}
+            canWrite={canWrite}
+            isWorking={isWorking}
+            isSelected={selection.isSelected}
+            onSelect={selection.toggle}
+            menu={menu}
         />
     )
 }

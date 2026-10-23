@@ -14,3 +14,11 @@ export function typeLockMessage(usage: { lines: number; children: number }): str
 export function inactiveRefusalMessage(activeChildren: number): string {
     return `Make the ${activeChildren} active sub-accounts inactive first.`
 }
+
+// Shown before a delete is tried; the server still decides and its own
+// refusal is shown if it differs.
+export function deleteBlockedMessage(usage: { lines: number; children: number }): string | null {
+    if (usage.lines > 0) return 'This account is used on journal lines'
+    if (usage.children > 0) return 'This account has sub-accounts'
+    return null
+}
