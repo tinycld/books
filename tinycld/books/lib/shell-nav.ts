@@ -40,7 +40,7 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         icon: BookOpen,
         href: 'books/accounts',
         group: 'accounting',
-        available: false,
+        available: true,
     },
     {
         id: 'entries',
@@ -68,7 +68,7 @@ export const LIST_ENTRIES: ListEntry[] = [
         label: 'Accounts',
         description: 'Chart of accounts',
         href: 'books/accounts',
-        available: false,
+        available: true,
     },
 ]
 

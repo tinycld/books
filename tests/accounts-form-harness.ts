@@ -23,6 +23,14 @@ const state = {
     refusalFor: {} as Record<string, unknown>,
     // Ids of every account write that reached the server handler, in order.
     entered: [] as string[],
+    // Refuses every write after the first `after` ones that reached the handler.
+    refuseAfter: null as { after: number; error: unknown } | null,
+    // Names passed to useStore, in order, so a test can see which collections a hook reads.
+    requested: [] as string[],
+}
+
+export function requestedStores() {
+    return [...state.requested]
 }
 
 export function enteredWrites() {
@@ -39,7 +47,15 @@ export function holdWrites() {
     return () => release()
 }
 
+// Stops refusing writes without replacing the stores, so rows written so far stay.
+export function liftRefusal() {
+    state.refusal = null
+    state.refuseAfter = null
+    state.refusalFor = {}
+}
+
 export function useStoreStub(...names: string[]) {
+    state.requested.push(...names)
     return names.map(name => state.registry[name])
 }
 
@@ -72,6 +88,9 @@ function accountsCollection() {
         const keys = transaction.mutations.map(m => String(m.key))
         state.entered.push(...keys)
         if (state.gate) await state.gate
+        if (state.refuseAfter && state.entered.length > state.refuseAfter.after) {
+            throw state.refuseAfter.error
+        }
         const refusedKey = keys.find(key => key in state.refusalFor)
         if (refusedKey !== undefined) throw state.refusalFor[refusedKey]
         if (state.refusal) throw state.refusal
@@ -142,6 +161,8 @@ export function seedBooks(
         refusal?: unknown
         // Refuses only the writes on these account ids, by id.
         refusalFor?: Record<string, unknown>
+        // Lets the first `after` writes through and refuses each later one.
+        refuseAfter?: { after: number; error: unknown }
         // A journal-lines collection that never finishes loading, so the usage
         // query stays not ready.
         linesNeverReady?: boolean
@@ -150,6 +171,8 @@ export function seedBooks(
         accountsNeverReady?: boolean
         // An accounts collection whose sync fails, so the accounts query errors.
         accountsErrored?: boolean
+        // A balances collection that never finishes loading.
+        balancesNeverReady?: boolean
     } = {}
 ) {
     const level = opts.level ?? 'bookkeeper'
@@ -166,11 +189,15 @@ export function seedBooks(
     }
     state.refusal = opts.refusal ?? null
     state.refusalFor = opts.refusalFor ?? {}
+    state.refuseAfter = opts.refuseAfter ?? null
     state.entered = []
+    state.requested = []
     state.gate = null
     state.registry = {
         books_accounts: accountsCollectionFor(opts),
-        books_account_balances: local<BooksAccountBalances>('books_account_balances', BALANCES),
+        books_account_balances: opts.balancesNeverReady
+            ? neverReady<BooksAccountBalances>()
+            : local<BooksAccountBalances>('books_account_balances', BALANCES),
         books_journal_lines: opts.linesNeverReady
             ? neverReady<BooksJournalLines>()
             : local<BooksJournalLines>('books_journal_lines', lines),

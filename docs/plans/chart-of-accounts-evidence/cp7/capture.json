@@ -1,0 +1,71 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "import-upload",
+            "url": "/a/books/accounts/import",
+            "ready": "account-import-drop",
+            "fullPage": true
+        },
+        {
+            "name": "import-map",
+            "url": "/a/books/accounts/import",
+            "ready": "account-import-drop",
+            "steps": [
+                {
+                    "setInputFiles": "account-import-file",
+                    "csv": "Number,Name,Type,Detail type,Parent,Description,Inactive\n83{n}0,Imported Parent {n},Expense,Office and general,,,\n83{n}1,Imported Child {n},Expense,Office and general,Imported Parent {n},,\n6100,Rent,Expense,Rent or lease,,,"
+                },
+                {
+                    "waitFor": "account-import-next"
+                }
+            ],
+            "fullPage": true
+        },
+        {
+            "name": "import-preview",
+            "url": "/a/books/accounts/import",
+            "ready": "account-import-drop",
+            "steps": [
+                {
+                    "setInputFiles": "account-import-file",
+                    "csv": "Number,Name,Type,Detail type,Parent,Description,Inactive\n83{n}0,Imported Parent {n},Expense,Office and general,,,\n6100,Rent,Expense,Rent or lease,,,\n8999,Mystery {n},Bogus,,,,"
+                },
+                {
+                    "click": "account-import-next"
+                },
+                {
+                    "waitFor": "account-import-run"
+                }
+            ],
+            "fullPage": true
+        },
+        {
+            "name": "import-summary",
+            "url": "/a/books/accounts/import",
+            "ready": "account-import-drop",
+            "steps": [
+                {
+                    "setInputFiles": "account-import-file",
+                    "csv": "Number,Name,Type,Detail type,Parent,Description,Inactive\n83{n}0,Imported Parent {n},Expense,Office and general,,,\n83{n}1,Imported Child {n},Expense,Office and general,Imported Parent {n},,\n6100,Rent,Expense,Rent or lease,,,"
+                },
+                {
+                    "click": "account-import-next"
+                },
+                {
+                    "click": "account-import-run"
+                },
+                {
+                    "waitFor": "account-import-done"
+                }
+            ],
+            "fullPage": true
+        },
+        {
+            "name": "accounts-nav",
+            "url": "/a/books/lists",
+            "ready": "books-list-card-accounts",
+            "fullPage": true
+        }
+    ]
+}
