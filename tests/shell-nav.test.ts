@@ -36,10 +36,10 @@ describe('registries', () => {
         expect(availableOnly(items).map(i => i.id)).toEqual(['a', 'c', 'e'])
     })
 
-    it('SIDEBAR_ENTRIES has Lists available and the accounting entries unavailable', () => {
+    it('SIDEBAR_ENTRIES has Lists and Chart of Accounts available and Journal Entries unavailable', () => {
         const byHref = (href: string) => SIDEBAR_ENTRIES.find(e => e.href === href)
         expect(byHref('books/lists')?.available).toBe(true)
-        expect(byHref('books/accounts')?.available).toBe(false)
+        expect(byHref('books/accounts')?.available).toBe(true)
         expect(byHref('books/accounts')?.group).toBe('accounting')
         expect(byHref('books/entries')?.available).toBe(false)
         expect(byHref('books/entries')?.group).toBe('accounting')
@@ -51,9 +51,9 @@ describe('registries', () => {
         expect(journal?.available).toBe(false)
     })
 
-    it('LIST_ENTRIES has an unavailable Accounts entry', () => {
+    it('LIST_ENTRIES has an available Accounts entry', () => {
         const accounts = LIST_ENTRIES.find(e => e.href === 'books/accounts')
-        expect(accounts?.available).toBe(false)
+        expect(accounts?.available).toBe(true)
     })
 })
 
