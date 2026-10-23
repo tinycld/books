@@ -7,32 +7,45 @@ import { accountDisplay } from './account-display'
 import { GroupChip } from './GroupChip'
 
 export const TYPE_COLUMN_WIDTH = 210
-export const BALANCE_COLUMN_WIDTH = 160
+// Type gives up width before Balance does, so an inline panel never pushes Balance off screen.
+export const TYPE_CELL_STYLE = { width: TYPE_COLUMN_WIDTH, flexShrink: 1, minWidth: 80 }
+// Balance never shrinks: a clipped amount misleads, so the table scrolls sideways instead.
+export const BALANCE_CELL_STYLE = { width: 112, minWidth: 104, flexShrink: 0 }
 export const LEADING_CELL_WIDTH = 40
 export const TRAILING_CELL_WIDTH = 44
 export const INDENT_STEP = 20
 // Name wins the free space; Detail type is the column that truncates. Header and rows share these.
-export const NAME_CELL_STYLE = { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 160 }
-export const DETAIL_CELL_STYLE = { flexGrow: 2, flexShrink: 1, flexBasis: 0 }
+export const NAME_CELL_STYLE = { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 120 }
+export const DETAIL_CELL_STYLE = { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 72 }
 
 interface AccountTableRowProps {
     row: VisibleRow<AccountData>
     canToggle: boolean
     onToggle: (id: string) => void
     onOpen: (id: string) => void
+    selectedId: string
 }
 
-export function AccountTableRow({ row, canToggle, onToggle, onOpen }: AccountTableRowProps) {
+export function AccountTableRow({
+    row,
+    canToggle,
+    onToggle,
+    onOpen,
+    selectedId,
+}: AccountTableRowProps) {
     const { account, depth } = row.node
     const { typeLabel, detailLabel, group } = accountDisplay(account.type, account.detail_type)
     const dim = account.inactive ? 'opacity-60' : ''
+    const isSelected = selectedId !== '' && selectedId === account.id
+    const bg = isSelected ? 'bg-accent' : 'bg-background'
 
     return (
         <Pressable
             testID={`account-row-${account.id}`}
             accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
             onPress={() => onOpen(account.id)}
-            className={`flex-row items-center gap-3 border-b border-border bg-background px-2 ${dim}`}
+            className={`flex-row items-center gap-3 border-b border-border ${bg} px-2 ${dim}`}
             style={{ minHeight: 44 }}
         >
             <View style={{ width: LEADING_CELL_WIDTH }} />
@@ -54,7 +67,7 @@ export function AccountTableRow({ row, canToggle, onToggle, onOpen }: AccountTab
                     <InactiveLabel isVisible={account.inactive} />
                 </View>
             </View>
-            <View style={{ width: TYPE_COLUMN_WIDTH }} className="flex-row items-center gap-2">
+            <View style={TYPE_CELL_STYLE} className="min-w-0 flex-row items-center gap-2">
                 <Text numberOfLines={1} className="shrink text-sm text-foreground">
                     {typeLabel}
                 </Text>
@@ -65,7 +78,7 @@ export function AccountTableRow({ row, canToggle, onToggle, onOpen }: AccountTab
                     {detailLabel}
                 </Text>
             </View>
-            <View style={{ width: BALANCE_COLUMN_WIDTH }} className="items-end">
+            <View style={BALANCE_CELL_STYLE} className="items-end">
                 <Text className="text-right text-sm font-medium text-foreground">
                     {formatMoney(row.balance, account.currency)}
                 </Text>

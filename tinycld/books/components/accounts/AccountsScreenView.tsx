@@ -8,7 +8,9 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { AccountRow } from '../../hooks/useAccountsQuery'
 import type { useAccountTree } from '../../hooks/useAccountTree'
 import type { VisibleRow } from '../../lib/account-tree'
+import { useAccountsPanelStore } from '../../stores/accounts-panel-store'
 import { AccountCard } from './AccountCard'
+import { AccountPanel } from './AccountPanel'
 import { AccountsEmptyState } from './AccountsEmptyState'
 import { AccountToolbar } from './AccountToolbar'
 import { AccountTree } from './AccountTree'
@@ -16,6 +18,7 @@ import { AccountTree } from './AccountTree'
 interface AccountsScreenViewProps {
     isReady: boolean
     isWide: boolean
+    isTablet?: boolean
     canWrite: boolean
     isError: boolean
     tree: ReturnType<typeof useAccountTree<AccountRow>>
@@ -67,9 +70,17 @@ interface AccountListProps {
     canToggle: boolean
     onToggle: (id: string) => void
     onOpen: (id: string) => void
+    selectedId: string
 }
 
-function AccountCards({ isVisible, rows, canToggle, onToggle, onOpen }: AccountListProps) {
+function AccountCards({
+    isVisible,
+    rows,
+    canToggle,
+    onToggle,
+    onOpen,
+    selectedId,
+}: AccountListProps) {
     if (!isVisible) return null
     const cards = rows.map(row => (
         <AccountCard
@@ -78,6 +89,7 @@ function AccountCards({ isVisible, rows, canToggle, onToggle, onOpen }: AccountL
             canToggle={canToggle}
             onToggle={onToggle}
             onOpen={onOpen}
+            selectedId={selectedId}
         />
     ))
     return <ScrollView className="flex-1">{cards}</ScrollView>
@@ -103,6 +115,7 @@ function AccountsLoading({ isVisible }: { isVisible: boolean }) {
 export function AccountsScreenView({
     isReady,
     isWide,
+    isTablet = false,
     canWrite,
     isError,
     tree,
@@ -111,6 +124,7 @@ export function AccountsScreenView({
     onRetry,
 }: AccountsScreenViewProps) {
     const { rows, sort, canToggle, onSort, toggleCollapsed } = tree
+    const selectedId = useAccountsPanelStore(s => (s.target?.mode === 'edit' ? s.target.id : ''))
     const isLoaded = isReady && !isError
     const isEmpty = isLoaded && rows.length === 0
     const showList = isLoaded && !isEmpty
@@ -118,42 +132,47 @@ export function AccountsScreenView({
     const hasHiddenInactive = !tree.isEmpty && !tree.showInactive && !hasFilters
 
     return (
-        <View className="flex-1 bg-background">
-            <ScreenHeader isPhoneWriter={canWrite && !isWide} onNew={onNew} />
-            <AccountsError isVisible={isError} onRetry={onRetry} />
-            <AccountsLoading isVisible={!isReady && !isError} />
-            <ToolbarSlot
-                isVisible={isLoaded && !tree.isEmpty}
-                tree={tree}
-                canWrite={canWrite}
-                isWide={isWide}
-                onNew={onNew}
-            />
-            <EmptySlot
-                isVisible={isEmpty}
-                hasFilters={hasFilters}
-                hasHiddenInactive={hasHiddenInactive}
-                canWrite={canWrite}
-                onNew={onNew}
-                onClear={tree.clearFilters}
-                onShowInactive={() => tree.setShowInactive(true)}
-            />
-            <WideTable
-                isVisible={showList && isWide}
-                rows={rows}
-                sort={sort}
-                canToggle={canToggle}
-                onSort={onSort}
-                onToggle={toggleCollapsed}
-                onOpen={onOpen}
-            />
-            <AccountCards
-                isVisible={showList && !isWide}
-                rows={rows}
-                canToggle={canToggle}
-                onToggle={toggleCollapsed}
-                onOpen={onOpen}
-            />
+        <View className="flex-1 flex-row bg-background">
+            <View className="min-w-0 flex-1">
+                <ScreenHeader isPhoneWriter={canWrite && !isWide} onNew={onNew} />
+                <AccountsError isVisible={isError} onRetry={onRetry} />
+                <AccountsLoading isVisible={!isReady && !isError} />
+                <ToolbarSlot
+                    isVisible={isLoaded && !tree.isEmpty}
+                    tree={tree}
+                    canWrite={canWrite}
+                    isWide={isWide}
+                    onNew={onNew}
+                />
+                <EmptySlot
+                    isVisible={isEmpty}
+                    hasFilters={hasFilters}
+                    hasHiddenInactive={hasHiddenInactive}
+                    canWrite={canWrite}
+                    onNew={onNew}
+                    onClear={tree.clearFilters}
+                    onShowInactive={() => tree.setShowInactive(true)}
+                />
+                <WideTable
+                    isVisible={showList && isWide}
+                    rows={rows}
+                    sort={sort}
+                    canToggle={canToggle}
+                    onSort={onSort}
+                    onToggle={toggleCollapsed}
+                    onOpen={onOpen}
+                    selectedId={selectedId}
+                />
+                <AccountCards
+                    isVisible={showList && !isWide}
+                    rows={rows}
+                    canToggle={canToggle}
+                    onToggle={toggleCollapsed}
+                    onOpen={onOpen}
+                    selectedId={selectedId}
+                />
+            </View>
+            <AccountPanel isWide={isWide} isTablet={isTablet} />
         </View>
     )
 }
@@ -179,7 +198,16 @@ type WideTableProps = AccountListProps & {
     onSort: ReturnType<typeof useAccountTree<AccountRow>>['onSort']
 }
 
-function WideTable({ isVisible, rows, sort, canToggle, onSort, onToggle, onOpen }: WideTableProps) {
+function WideTable({
+    isVisible,
+    rows,
+    sort,
+    canToggle,
+    onSort,
+    onToggle,
+    onOpen,
+    selectedId,
+}: WideTableProps) {
     if (!isVisible) return null
     return (
         <AccountTree
@@ -189,6 +217,7 @@ function WideTable({ isVisible, rows, sort, canToggle, onSort, onToggle, onOpen 
             onSort={onSort}
             onToggle={onToggle}
             onOpen={onOpen}
+            selectedId={selectedId}
         />
     )
 }

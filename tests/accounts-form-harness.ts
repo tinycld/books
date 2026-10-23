@@ -1,0 +1,182 @@
+// Shared setup for the account form and panel tests. The mocked
+// `@tinycld/core/lib/pocketbase` module in each test file serves `useStore`
+// from this registry, so every hook and component under test is the real one
+// and reads and writes real TanStack DB local-only collections.
+import { BasicIndex, createCollection, localOnlyCollectionOptions } from '@tanstack/db'
+import { ACCOUNTS, BALANCES } from '../tinycld/books/lib/chart-of-accounts-fixture'
+import type {
+    BooksAccess,
+    BooksAccountBalances,
+    BooksAccounts,
+    BooksJournalLines,
+} from '../tinycld/books/types'
+
+export const ME = 'u1'
+
+type Level = 'read_only' | 'bookkeeper' | 'admin'
+
+const state = {
+    registry: {} as Record<string, unknown>,
+    refusal: null as unknown,
+    gate: null as Promise<void> | null,
+}
+
+// Holds every accounts write open until the returned function is called, so a
+// test can look at the panel and the hook while a save is still in flight.
+export function holdWrites() {
+    let release = () => {}
+    state.gate = new Promise<void>(resolve => {
+        release = resolve
+    })
+    return () => release()
+}
+
+export function useStoreStub(...names: string[]) {
+    return names.map(name => state.registry[name])
+}
+
+let counter = 0
+const indexed = { autoIndex: 'eager' as const, defaultIndexType: BasicIndex }
+
+function local<T extends { id: string }>(name: string, initialData: T[]) {
+    counter += 1
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `${name}-${counter}`,
+            getKey: (row: T) => row.id,
+            initialData,
+            ...indexed,
+        })
+    )
+}
+
+// The accounts collection can be told to refuse a write with the error shape
+// PocketBase rejects with, so a test can see how a server refusal is handled.
+// Passing the handlers to the local-only options (not wrapping them afterwards)
+// is what makes a write go through them instead of completing at once.
+function accountsCollection() {
+    counter += 1
+    const refuseWhenAsked = async () => {
+        if (state.gate) await state.gate
+        if (state.refusal) throw state.refusal
+    }
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `books_accounts-${counter}`,
+            getKey: (row: BooksAccounts) => row.id,
+            initialData: ACCOUNTS,
+            onInsert: refuseWhenAsked,
+            onUpdate: refuseWhenAsked,
+            ...indexed,
+        })
+    )
+}
+
+function neverReady<T extends { id: string }>() {
+    counter += 1
+    return createCollection({
+        id: `never-ready-${counter}`,
+        getKey: (row: T) => row.id,
+        sync: { sync: () => {} },
+    })
+}
+
+function erroredCollection<T extends { id: string }>() {
+    counter += 1
+    return createCollection({
+        id: `errored-${counter}`,
+        getKey: (row: T) => row.id,
+        sync: {
+            // Fails after the subscription is set up, as a failed fetch would.
+            sync: ({ collection }) => {
+                queueMicrotask(() => collection._lifecycle.markError(new Error('load failed')))
+            },
+        },
+    })
+}
+
+function journalLine(account: string, position: number): BooksJournalLines {
+    return {
+        id: `line_${account}_${position}`,
+        entry: 'entry_1',
+        account,
+        debit: 100,
+        credit: 0,
+        memo: '',
+        position,
+        posted: true,
+        date: '2026-09-01',
+        currency: 'USD',
+        created: '2026-01-01 00:00:00.000Z',
+        updated: '2026-01-01 00:00:00.000Z',
+    }
+}
+
+function accountsCollectionFor(opts: { accountsNeverReady?: boolean; accountsErrored?: boolean }) {
+    if (opts.accountsErrored) return erroredCollection<BooksAccounts>()
+    if (opts.accountsNeverReady) return neverReady<BooksAccounts>()
+    return accountsCollection()
+}
+
+export function seedBooks(
+    opts: {
+        level?: Level
+        linesOn?: Record<string, number>
+        refusal?: unknown
+        // A journal-lines collection that never finishes loading, so the usage
+        // query stays not ready.
+        linesNeverReady?: boolean
+        // An accounts collection that never finishes loading, so the accounts
+        // query stays not ready.
+        accountsNeverReady?: boolean
+        // An accounts collection whose sync fails, so the accounts query errors.
+        accountsErrored?: boolean
+    } = {}
+) {
+    const level = opts.level ?? 'bookkeeper'
+    const lines = Object.entries(opts.linesOn ?? {}).flatMap(([account, count]) =>
+        Array.from({ length: count }, (_, i) => journalLine(account, i))
+    )
+    const access: BooksAccess = {
+        id: 'access_1',
+        user: ME,
+        level,
+        can_read: true,
+        can_write: level !== 'read_only',
+        is_admin: level === 'admin',
+    }
+    state.refusal = opts.refusal ?? null
+    state.gate = null
+    state.registry = {
+        books_accounts: accountsCollectionFor(opts),
+        books_account_balances: local<BooksAccountBalances>('books_account_balances', BALANCES),
+        books_journal_lines: opts.linesNeverReady
+            ? neverReady<BooksJournalLines>()
+            : local<BooksJournalLines>('books_journal_lines', lines),
+        books_access: local<BooksAccess>('books_access', [access]),
+    }
+}
+
+export function accountsStore() {
+    return state.registry.books_accounts as ReturnType<typeof accountsCollection>
+}
+
+export function storedAccounts(): BooksAccounts[] {
+    return accountsStore().toArray
+}
+
+// Shaped like the PocketBase SDK's ClientResponseError: an Error whose
+// `response.data` maps field names to messages. TanStack DB re-wraps anything
+// that is not an Error, so a plain object would lose the field map.
+export function serverRefusal(field: string, message: string) {
+    return Object.assign(new Error(message), { response: { data: { [field]: { message } } } })
+}
+
+// Shaped like the refusal the real server sends for a rule that belongs to no
+// field (a depth or inactive-parent rule): a message and an empty data map.
+export function messageRefusal(message: string) {
+    return Object.assign(new Error(message), {
+        status: 400,
+        response: { message, data: {} },
+    })
+}

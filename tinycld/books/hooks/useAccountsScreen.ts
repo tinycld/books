@@ -9,7 +9,8 @@ export function useAccountsScreen() {
     const { data, isReady, isError, retry } = useAccountsQuery()
     const tree = useAccountTree(data ?? [])
     const access = useBooksAccess()
-    const isWide = useBreakpoint() !== 'mobile'
+    const breakpoint = useBreakpoint()
+    const isWide = breakpoint !== 'mobile'
     const onNew = useAccountsPanelStore(s => s.openNew)
     const onOpen = useAccountsPanelStore(s => s.openEdit)
     return {
@@ -17,6 +18,7 @@ export function useAccountsScreen() {
         isReady,
         isError,
         isWide,
+        isTablet: breakpoint === 'tablet',
         tree,
         onOpen,
         onNew,
