@@ -1,4 +1,4 @@
-import { log } from '@tinycld/core/lib/logger'
+import { warnOnce } from './warn-once'
 
 // Amounts are integer cents in memory and storage. PocketBase stores them as
 // float64, which is exact only up to 2^53-1, so nothing above that is accepted.
@@ -16,20 +16,12 @@ export function dollarsToCents(dollars: number): number {
 
 // Amounts are always shown with 2 decimals; currencies with other minor-unit
 // sizes (JPY, KWD) are out of scope for books.
-const warnedCurrencies = new Set<string>()
-
 // Cannot collide with a currency code: codes never contain a NUL.
 const nonFiniteKey = '\0non-finite'
 
-function warnOnce(currency: string, message: string, extra: Record<string, unknown>) {
-    if (warnedCurrencies.has(currency)) return
-    warnedCurrencies.add(currency)
-    log.warn('books.money', message, extra)
-}
-
 export function formatMoney(cents: number, currency: string): string {
     if (!Number.isFinite(cents)) {
-        warnOnce(nonFiniteKey, 'non-finite amount', { cents })
+        warnOnce(nonFiniteKey, 'books.money', 'non-finite amount', { cents })
         return '\u2014'
     }
     // A value that rounds to zero would otherwise render as "-$0.00".
@@ -37,7 +29,7 @@ export function formatMoney(cents: number, currency: string): string {
     try {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(dollars)
     } catch (err) {
-        warnOnce(currency, 'invalid currency code', { currency, err })
+        warnOnce(`currency:${currency}`, 'books.money', 'invalid currency code', { currency, err })
         const plain = new Intl.NumberFormat('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
