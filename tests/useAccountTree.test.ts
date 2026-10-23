@@ -95,25 +95,14 @@ describe('useAccountTree', () => {
             hook.result.current.setGroup('expense')
             hook.result.current.setShowInactive(true)
         })
-        expect(hook.result.current.hasFilters).toBe(true)
         act(() => hook.result.current.clearFilters())
         expect(hook.result.current.query).toBe('')
         expect(hook.result.current.group).toBe('')
         expect(hook.result.current.showInactive).toBe(false)
-        expect(hook.result.current.hasFilters).toBe(false)
     })
 
-    it('hasFilters is true for each filter alone', () => {
-        const hook = setup()
-        expect(hook.result.current.hasFilters).toBe(false)
-        act(() => hook.result.current.setQuery('x'))
-        expect(hook.result.current.hasFilters).toBe(true)
-        act(() => hook.result.current.clearFilters())
-        act(() => hook.result.current.setGroup('income'))
-        expect(hook.result.current.hasFilters).toBe(true)
-        act(() => hook.result.current.clearFilters())
-        act(() => hook.result.current.setShowInactive(true))
-        expect(hook.result.current.hasFilters).toBe(true)
+    it('does not expose hasFilters; the view defines its own', () => {
+        expect('hasFilters' in setup().result.current).toBe(false)
     })
 
     it('isEmpty is true for no accounts and false otherwise', () => {
@@ -140,7 +129,6 @@ describe('useAccountTree', () => {
         const row = hook.result.current.rows.find(r => r.node.account.id === 'acct_exp_0001')
         expect(row?.hasChildren).toBe(true)
         expect(row?.isCollapsed).toBe(true)
-        expect(hook.result.current.hasFilters).toBe(false)
     })
 
     it('removes the caret while a real query is set', () => {
@@ -156,5 +144,103 @@ describe('useAccountTree', () => {
         act(() => hook.result.current.setQuery('rent'))
         expect(hook.result.current.canToggle).toBe(false)
         expect(ids(hook)).toContain('acct_exp_0007')
+    })
+
+    it('hasParents is true when any account has children', () => {
+        expect(setup().result.current.hasParents).toBe(true)
+    })
+
+    it('hasParents is false for a flat chart', () => {
+        const flat = fixtureRows().map(row => ({ ...row, parent: '' }))
+        expect(renderHook(() => useAccountTree(flat)).result.current.hasParents).toBe(false)
+    })
+
+    it('hasParents is false for no accounts', () => {
+        expect(renderHook(() => useAccountTree([])).result.current.hasParents).toBe(false)
+    })
+})
+
+describe('useAccountTree hasParents and areAllCollapsed follow the visible parents', () => {
+    // The fixture's income group has a parent; flatten it so only expense and the
+    // other groups keep parents.
+    const noIncomeParents = () =>
+        fixtureRows().map(row =>
+            accountTypeDef(row.type)?.group === 'income' ? { ...row, parent: '' } : row
+        )
+
+    const parentsOf = (group: string) =>
+        noIncomeParents().filter(r => accountTypeDef(r.type)?.group === group && r.parent !== '')
+
+    it('the fixture setup has no income parents and some expense parents', () => {
+        expect(parentsOf('income')).toHaveLength(0)
+        expect(parentsOf('expense').length).toBeGreaterThan(0)
+    })
+
+    it('hasParents is false when the group filter hides every parent', () => {
+        const hook = renderHook(() => useAccountTree(noIncomeParents()))
+        expect(hook.result.current.hasParents).toBe(true)
+        act(() => hook.result.current.setGroup('income'))
+        expect(hook.result.current.hasParents).toBe(false)
+    })
+
+    it('hasParents is true when the group filter keeps a parent', () => {
+        const hook = renderHook(() => useAccountTree(noIncomeParents()))
+        act(() => hook.result.current.setGroup('expense'))
+        expect(hook.result.current.hasParents).toBe(true)
+    })
+
+    it('areAllCollapsed is false for a group with no parents, never vacuously true', () => {
+        const hook = renderHook(() => useAccountTree(noIncomeParents()))
+        act(() => hook.result.current.setGroup('income'))
+        expect(hook.result.current.areAllCollapsed).toBe(false)
+    })
+
+    it('areAllCollapsed is true when every visible parent is collapsed, hidden-group parents expanded', () => {
+        const hook = renderHook(() => useAccountTree(noIncomeParents()))
+        act(() => hook.result.current.setGroup('expense'))
+        const expenseParents = new Set(parentsOf('expense').map(r => r.parent))
+        expect(expenseParents.size).toBeGreaterThan(0)
+        act(() => {
+            for (const id of expenseParents) hook.result.current.toggleCollapsed(id)
+        })
+        expect(hook.result.current.areAllCollapsed).toBe(true)
+    })
+
+    it('areAllCollapsed is false while one visible parent stays expanded', () => {
+        const hook = renderHook(() => useAccountTree(noIncomeParents()))
+        act(() => hook.result.current.setGroup('expense'))
+        const [first] = [...new Set(parentsOf('expense').map(r => r.parent))]
+        act(() => hook.result.current.toggleCollapsed(first))
+        expect(hook.result.current.areAllCollapsed).toBe(false)
+    })
+
+    it('toggleAllCollapsed under a group filter makes areAllCollapsed true', () => {
+        const hook = renderHook(() => useAccountTree(noIncomeParents()))
+        act(() => hook.result.current.setGroup('expense'))
+        act(() => hook.result.current.toggleAllCollapsed())
+        expect(hook.result.current.areAllCollapsed).toBe(true)
+    })
+
+    describe('inactive-only parents', () => {
+        // A single parent that is inactive, with one inactive child, plus a flat active account.
+        const base = fixtureRows()
+        const template = base.find(r => r.id === 'acct_exp_0010') as (typeof base)[number]
+        const rows = [
+            { ...template, id: 'p_inactive', parent: '', inactive: true },
+            { ...template, id: 'c_inactive', parent: 'p_inactive', inactive: true },
+            { ...template, id: 'flat_active', parent: '', inactive: false },
+        ]
+
+        it('ignores them while showInactive is off', () => {
+            const hook = renderHook(() => useAccountTree(rows))
+            expect(hook.result.current.hasParents).toBe(false)
+            expect(hook.result.current.areAllCollapsed).toBe(false)
+        })
+
+        it('counts them once showInactive is on', () => {
+            const hook = renderHook(() => useAccountTree(rows))
+            act(() => hook.result.current.setShowInactive(true))
+            expect(hook.result.current.hasParents).toBe(true)
+        })
     })
 })

@@ -18,7 +18,15 @@
   - three-step import progress → expressible (core components)
 
 ## Deferrals
-(none yet)
+- **agreed:** checkpoint 3 gate 2 captures an `empty` shot (no accounts) beside `filtered` and `no-match`.
+  **built:** `filtered-*` and `no-match-*` are captured; the empty state is covered by tests/accounts-empty-state.test.tsx and the AccountsScreenView tests (zero accounts, wide and phone).
+  **reason:** missing dependency
+  **blocker evidence:** the only UI path to reach zero accounts is Delete (and Make inactive plus Show inactive off), which is checkpoint 5 (`docs/plans/chart-of-accounts-checkpoints.md` "Checkpoint 5 — Row menu, delete, batch inactive"); the seeded collaborator sees all nine accounts; a raw PocketBase write is banned (project CLAUDE.md "Never bypass pbtsdb"); no `Delete` control exists in tinycld/books/components/accounts at this commit (grep).
+  **impact:** the empty state's appearance is not reviewed by the design critic until checkpoint 5.
+  **unblock:** checkpoint 5 adds an `empty` shot to its gate-2 capture (UI-driven delete of every account) and the critic reviews it there.
+  **tracked in:** checkpoint 5 of docs/plans/chart-of-accounts-checkpoints.md (add the empty shot to its capture manifest)
+  **found by:** implementer (self-declared)
+  **checkpoint:** 3
 
 ## Rebuttals
 (none yet)
@@ -65,3 +73,14 @@
 - design notes (not acted on): none after round 4 pending.
 - NEEDS HUMAN (core, not changed): core/components/workspace/WorkspaceLayout.tsx:31 returns a different layout tree on mobile vs tablet/desktop, so crossing the 768/1024 breakpoint remounts every screen (lost sort/collapse/filter state, live queries restart, ~6s spinner on phone). Fix is a core change (one shared tree, vary chrome only): needs human sign-off.
 - gate 2 round 4: Detail type flexGrow tuned 1→2 (Name:Detail 3:2) after critic4 BLOCKING (Detail truncated while Name had slack); verified in the 1280 capture, no truncation in the fixture. NOTEs not acted on: phone card indent step 20 vs reference 16 (shared with the table by design); fixture shots do not show collapsed/negative/inactive/deep states (unit tests cover them).
+
+## Checkpoint 3 — Toolbar, filters, empty states
+- test writer: tests/account-toolbar.test.tsx, tests/accounts-empty-state.test.tsx; red: both fail at import (AccountToolbar, AccountsEmptyState missing); untestable: none
+- implementer: DONE. New AccountToolbar.tsx, AccountsEmptyState.tsx; AccountsScreenView mounts them; useAccountTree gained hasParents/visible-parent logic, hasFilters removed; phone filters in core Popover (sheet on mobile) after reviewer B/A flagged the inline panel; Show inactive is a switch-role Pressable (checked state) — core Switch not forwarded under the test stub.
+- test disputes: 2 — tests asserted `container.contains(chip) === false` for overlay content, but OverlayProvider's host sits inside the RTL container; settled for the implementer; a fresh test writer rewrote them to assert the chips are not descendants of the toolbar row.
+- gate 1: pnpm exec tinycld-pkg check green (24 files, 350 tests); full e2e green; capture ok.
+- gate 2: round 1 BLOCKING (no active group-chip shot) → added `filtered-group` and `filters-open` shots; round 2 BLOCKING (toggle-all unmounted while searching, toolbar jumped) → stays mounted but disabled (also when no visible parents); reviewer A final: disabled style now via core Button `isDisabled` (visibly dimmed in filtered-1280).
+- gate 3 A/B: empty message from "accounts exist" not hasFilters; all-inactive case offers a Show inactive action (Clear filters would be a no-op); toggle-all disabled instead of hidden; hasParents/areAllCollapsed follow visible parents; dead tree.hasFilters removed; weak/vacuous toolbar tests strengthened. Phone toolbar keeps Expand/Collapse all and Import: the approved reference shows them on phone, the spec text says "search field and a filter button" — conflict recorded; shown at the eval gate. Reviewer A noted two New account buttons on phone with zero accounts (header + empty state) — spec lists both; surfaced for the human.
+- design notes (not acted on): phone sheet chips 32px tall vs 44pt target; sheet stays open after a chip tap; Show inactive switch looks like the group chips inside the sheet; backdrop does not dim the bottom tab bar (core Sheet/shell layering); New account is in the toolbar row 2 at 1280 (plan) vs the header in the reference; BALANCE header ~4px left of values; no-match block hugs the toolbar instead of centering.
+- known test gap (low): no test that toggleAllCollapsed under a group filter leaves hidden-group parents expanded.
+- deferral recorded above (empty shot → checkpoint 5), now tracked in the checkpoint 5 plan text.

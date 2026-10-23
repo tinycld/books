@@ -252,6 +252,8 @@ Review mode: C (unattended).
 
 **Gates:** 1 · 2 (reference: `populated-*` for the checked row and menu cell, `panel-open-*`; built URL: `/a/books/accounts`) · 3
 
+**Gate 2 also captures the `empty` state** (reference: `empty-*`) deferred from checkpoint 3 (ledger Deferrals): the capture drives the UI through the Delete confirm dialog for every account (a leaf-first loop) so no raw PocketBase write is used, then shoots the empty state at 390 and 1280, light and dark.
+
 **Spec:**
 - "The row menu has: Edit, Add sub-account, Make inactive or Make active, Delete. A read-only user has no menu and no New account button. Writers are bookkeeper and admin (`useBooksAccess().canWrite`)."
 - "Batch: a checkbox column selects rows. "Batch actions" has one action, "Make inactive". It is disabled when no row is selected. Selecting a parent does not select its children."
