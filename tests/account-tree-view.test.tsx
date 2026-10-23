@@ -2,7 +2,12 @@
 import { fireEvent, render, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AccountCard } from '../tinycld/books/components/accounts/AccountCard'
-import { DETAIL_CELL_STYLE, NAME_CELL_STYLE } from '../tinycld/books/components/accounts/AccountRow'
+import {
+    BALANCE_CELL_STYLE,
+    DETAIL_CELL_STYLE,
+    NAME_CELL_STYLE,
+    TYPE_CELL_STYLE,
+} from '../tinycld/books/components/accounts/AccountRow'
 import { AccountTree } from '../tinycld/books/components/accounts/AccountTree'
 import { GroupChip } from '../tinycld/books/components/accounts/GroupChip'
 import {
@@ -21,7 +26,7 @@ function visibleRows(filters: Partial<TreeFilters> = {}) {
     return flattenAccountTree(buildAccountTree(fixtureRows(), defaultSort), { ...open, ...filters })
 }
 
-function renderTree(filters: Partial<TreeFilters> = {}) {
+function renderTree(filters: Partial<TreeFilters> = {}, selectedId = '') {
     const handlers = { onSort: vi.fn(), onToggle: vi.fn(), onOpen: vi.fn() }
     const rows = visibleRows(filters)
     const view = render(
@@ -29,6 +34,7 @@ function renderTree(filters: Partial<TreeFilters> = {}) {
             rows={rows}
             sort={{ key: null, direction: 'asc' }}
             canToggle={true}
+            selectedId={selectedId}
             {...handlers}
         />
     )
@@ -245,6 +251,58 @@ describe('AccountTree column flex', () => {
         expect(Number.parseFloat(detail.style.flexBasis)).toBe(DETAIL_CELL_STYLE.flexBasis)
     })
 
+    it('shrinks the column minimums so every column fits beside the 380px inline drawer at 1280', () => {
+        expect(NAME_CELL_STYLE.minWidth).toBe(120)
+        expect(TYPE_CELL_STYLE.minWidth).toBe(80)
+        expect(DETAIL_CELL_STYLE.minWidth).toBe(72)
+    })
+
+    it('exports a non-shrinking Balance cell style at least 104 wide', () => {
+        expect(BALANCE_CELL_STYLE.width).toBeGreaterThanOrEqual(104)
+        expect(BALANCE_CELL_STYLE.minWidth).toBeGreaterThanOrEqual(104)
+        expect(BALANCE_CELL_STYLE.flexShrink).toBe(0)
+    })
+
+    it.each([
+        ['header', headerCells],
+        ['row', rowCells],
+    ])('applies the Balance cell style to the %s Balance cell', (_label, cellsOf) => {
+        const balance = cellsOf(renderTree().container)[BALANCE_CELL]
+        expect(Number.parseFloat(balance.style.minWidth)).toBeGreaterThanOrEqual(104)
+        expect(Number.parseFloat(balance.style.flexShrink)).toBe(0)
+    })
+
+    it.each([
+        ['header', headerCells],
+        ['row', rowCells],
+    ])('applies the shrunk Name and Type minimums to the %s cells', (_label, cellsOf) => {
+        const cells = cellsOf(renderTree().container)
+        expect(Number.parseFloat(cells[NAME_CELL].style.minWidth)).toBe(120)
+        expect(Number.parseFloat(cells[TYPE_CELL].style.minWidth)).toBe(80)
+    })
+
+    it.each([
+        ['header', headerCells],
+        ['row', rowCells],
+    ])('wraps the %s in a horizontal ScrollView as a safety net', (_label, cellsOf) => {
+        const cell = cellsOf(renderTree().container)[NAME_CELL]
+        expect(cell.closest('rn-scrollview[horizontal]')).not.toBeNull()
+    })
+
+    it.each([
+        ['header', headerCells],
+        ['row', rowCells],
+    ])('carries the Detail type min width on the %s cell', (_label, cellsOf) => {
+        const detail = cellsOf(renderTree().container)[DETAIL_CELL]
+        expect(Number.parseFloat(detail.style.minWidth)).toBeGreaterThanOrEqual(72)
+    })
+
+    it('truncates the Detail type text to one line with an ellipsis', () => {
+        const detail = rowCells(renderTree().container)[DETAIL_CELL]
+        const text = detail.querySelector('[numberoflines]')
+        expect(text?.getAttribute('numberoflines')).toBe('1')
+    })
+
     it('keeps the Type and Balance columns from growing', () => {
         const grows = rowGrows(renderTree().container)
         expect(grows[TYPE_CELL]).toBe(0)
@@ -258,6 +316,7 @@ function renderSorted(sort: SortState) {
             rows={visibleRows()}
             sort={sort}
             canToggle={true}
+            selectedId=""
             onSort={vi.fn()}
             onToggle={vi.fn()}
             onOpen={vi.fn()}
@@ -304,6 +363,179 @@ describe('AccountTree sort indicator', () => {
             expect(headerText(view, 'Detail type')).not.toMatch(/[↑↓]/)
             view.unmount()
         }
+    })
+})
+
+// The test renderer keeps accessibilityState and style as object props, so read
+// the React props directly.
+function propsOf(el: Element | null) {
+    const key = el && Object.keys(el).find(k => k.startsWith('__reactProps$'))
+    return (key ? (el as unknown as Record<string, unknown>)[key] : {}) as {
+        accessibilityState?: { selected?: boolean }
+        'aria-sort'?: string
+        contentContainerStyle?: Record<string, unknown>
+        stickyHeaderIndices?: number[]
+        style?: Record<string, unknown> | Record<string, unknown>[]
+    }
+}
+
+function flatStyle(el: Element | null): Record<string, unknown> {
+    const style = propsOf(el).style
+    return Object.assign({}, ...(Array.isArray(style) ? style : [style ?? {}]))
+}
+
+function sortHeader(container: HTMLElement, label: string): HTMLElement {
+    return container.querySelector(`[accessibilitylabel="Sort by ${label}"]`) as HTMLElement
+}
+
+// The column header wrapper carries the role and aria-sort; the Pressable only
+// carries the button role.
+function columnHeaderOf(el: HTMLElement): HTMLElement | null {
+    return el.closest('[role="columnheader"]') as HTMLElement | null
+}
+
+function ariaSortOf(el: HTMLElement) {
+    const header = columnHeaderOf(el)
+    if (!header) return undefined
+    return propsOf(header)['aria-sort'] ?? header.getAttribute('aria-sort')
+}
+
+describe('AccountTree sort header accessibility', () => {
+    it('selects and aria-sorts only the Name header with the default sort', () => {
+        const { container } = renderSorted({ key: null, direction: 'asc' })
+        expect(propsOf(sortHeader(container, 'Name')).accessibilityState?.selected).toBe(true)
+        expect(propsOf(sortHeader(container, 'Type')).accessibilityState?.selected).not.toBe(true)
+        expect(propsOf(sortHeader(container, 'Balance')).accessibilityState?.selected).not.toBe(
+            true
+        )
+        expect(ariaSortOf(sortHeader(container, 'Name'))).toBe('ascending')
+        expect(ariaSortOf(sortHeader(container, 'Type'))).toBe('none')
+        expect(ariaSortOf(sortHeader(container, 'Balance'))).toBe('none')
+    })
+
+    it('reports descending on the active Balance header and none elsewhere', () => {
+        const { container } = renderSorted({ key: 'balance', direction: 'desc' })
+        expect(propsOf(sortHeader(container, 'Balance')).accessibilityState?.selected).toBe(true)
+        expect(propsOf(sortHeader(container, 'Name')).accessibilityState?.selected).not.toBe(true)
+        expect(ariaSortOf(sortHeader(container, 'Balance'))).toBe('descending')
+        expect(ariaSortOf(sortHeader(container, 'Name'))).toBe('none')
+        expect(ariaSortOf(sortHeader(container, 'Type'))).toBe('none')
+    })
+
+    it('reports ascending on an active Type header', () => {
+        const { container } = renderSorted({ key: 'type', direction: 'asc' })
+        expect(propsOf(sortHeader(container, 'Type')).accessibilityState?.selected).toBe(true)
+        expect(ariaSortOf(sortHeader(container, 'Type'))).toBe('ascending')
+    })
+
+    it.each([
+        'Name',
+        'Type',
+        'Balance',
+    ])('gives the %s header a touch target of at least 44 high', label => {
+        const { container } = renderSorted({ key: null, direction: 'asc' })
+        const header = sortHeader(container, label)
+        const fromProps = Number(flatStyle(header).minHeight ?? 0)
+        const fromDom = Number.parseFloat(header.style.minHeight || '0')
+        expect(Math.max(fromProps, fromDom)).toBeGreaterThanOrEqual(44)
+    })
+
+    it.each([
+        'Name',
+        'Type',
+        'Balance',
+    ])('puts the %s Pressable inside a columnheader and keeps it a button without aria-sort', label => {
+        const { container } = renderSorted({ key: null, direction: 'asc' })
+        const header = sortHeader(container, label)
+        expect(columnHeaderOf(header)).not.toBeNull()
+        expect(columnHeaderOf(header)).not.toBe(header)
+        expect(header.getAttribute('accessibilityrole')).toBe('button')
+        expect(header.getAttribute('aria-sort')).toBeNull()
+        expect(propsOf(header)['aria-sort']).toBeUndefined()
+    })
+
+    it('renders one columnheader per column, four in all', () => {
+        const { container } = renderSorted({ key: null, direction: 'asc' })
+        expect(container.querySelectorAll('[role="columnheader"]')).toHaveLength(4)
+    })
+
+    it('makes the Detail type header a columnheader with aria-sort none and no pressable', () => {
+        const { container, getByText } = renderSorted({ key: 'balance', direction: 'desc' })
+        const header = getByText('Detail type').closest('[role="columnheader"]') as HTMLElement
+        expect(header).not.toBeNull()
+        expect(propsOf(header)['aria-sort'] ?? header.getAttribute('aria-sort')).toBe('none')
+        expect(header.querySelector('[accessibilityrole="button"]')).toBeNull()
+        expect(container.querySelector('[accessibilitylabel="Sort by Detail type"]')).toBeNull()
+    })
+
+    it('gives the Detail type header no pressable and no sort state', () => {
+        const { container, getByText } = renderSorted({ key: null, direction: 'asc' })
+        expect(getByText('Detail type').closest('[accessibilityrole="button"]')).toBeNull()
+        expect(container.querySelector('[accessibilitylabel="Sort by Detail type"]')).toBeNull()
+    })
+})
+
+describe('AccountTree layout containers', () => {
+    it('gives the horizontal scroll content a width of 100% and a minWidth of 540', () => {
+        const { container } = renderTree()
+        const horizontal = container.querySelector('rn-scrollview[horizontal]')
+        expect(horizontal).not.toBeNull()
+        const content = propsOf(horizontal).contentContainerStyle
+        expect(content?.width).toBe('100%')
+        expect(content?.minWidth).toBe(540)
+    })
+
+    it('makes the header the sticky first child of the inner vertical ScrollView', () => {
+        const { container } = renderTree()
+        const horizontal = container.querySelector('rn-scrollview[horizontal]') as HTMLElement
+        const inner = Array.from(horizontal.querySelectorAll('rn-scrollview')).find(
+            el => !el.hasAttribute('horizontal')
+        )
+        expect(inner).toBeDefined()
+        expect(propsOf(inner ?? null).stickyHeaderIndices).toEqual([0])
+    })
+})
+
+describe('AccountTree selected row', () => {
+    function bgClasses(el: Element | null) {
+        return classOf(el)
+            .split(/\s+/)
+            .filter(c => /^bg-/.test(c))
+    }
+
+    it('selects and tints only the row of selectedId', () => {
+        const { container } = renderTree({}, 'acct_bank_0002')
+        const selected = byTestId(container, 'account-row-acct_bank_0002')
+        const other = byTestId(container, 'account-row-acct_bank_0001')
+        expect(propsOf(selected).accessibilityState?.selected).toBe(true)
+        expect(propsOf(other).accessibilityState?.selected).not.toBe(true)
+        expect(bgClasses(selected).some(c => c !== 'bg-background')).toBe(true)
+        expect(bgClasses(other).every(c => c === 'bg-background')).toBe(true)
+    })
+
+    it('selects and tints no row when selectedId is empty', () => {
+        const { container } = renderTree({}, '')
+        const rowEls = container.querySelectorAll(
+            '[testID^="account-row-"], [testid^="account-row-"]'
+        )
+        expect(rowEls.length).toBeGreaterThan(1)
+        for (const el of Array.from(rowEls)) {
+            expect(propsOf(el).accessibilityState?.selected).not.toBe(true)
+            expect(bgClasses(el).every(c => c === 'bg-background')).toBe(true)
+        }
+    })
+
+    it('selects and tints only the card of selectedId', () => {
+        const selected = renderCard('acct_bank_0002', {}, 'acct_bank_0002')
+        const selectedEl = byTestId(selected.container, 'account-card-acct_bank_0002')
+        expect(propsOf(selectedEl).accessibilityState?.selected).toBe(true)
+        expect(bgClasses(selectedEl).some(c => c !== 'bg-background')).toBe(true)
+        selected.unmount()
+
+        const other = renderCard('acct_bank_0002', {}, 'acct_bank_0001')
+        const otherEl = byTestId(other.container, 'account-card-acct_bank_0002')
+        expect(propsOf(otherEl).accessibilityState?.selected).not.toBe(true)
+        expect(bgClasses(otherEl).every(c => c === 'bg-background')).toBe(true)
     })
 })
 
@@ -358,11 +590,13 @@ describe('GroupChip', () => {
     })
 })
 
-function renderCard(id: string, filters: Partial<TreeFilters> = {}) {
+function renderCard(id: string, filters: Partial<TreeFilters> = {}, selectedId = '') {
     const row = visibleRows(filters).find(r => r.node.account.id === id)
     if (!row) throw new Error(`no row ${id}`)
     const handlers = { onToggle: vi.fn(), onOpen: vi.fn() }
-    const view = render(<AccountCard row={row} canToggle={true} {...handlers} />)
+    const view = render(
+        <AccountCard row={row} canToggle={true} selectedId={selectedId} {...handlers} />
+    )
     return { ...view, row, ...handlers }
 }
 

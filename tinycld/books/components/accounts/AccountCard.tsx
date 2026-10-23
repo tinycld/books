@@ -11,19 +11,23 @@ interface AccountCardProps {
     canToggle: boolean
     onToggle: (id: string) => void
     onOpen: (id: string) => void
+    selectedId: string
 }
 
-export function AccountCard({ row, canToggle, onToggle, onOpen }: AccountCardProps) {
+export function AccountCard({ row, canToggle, onToggle, onOpen, selectedId }: AccountCardProps) {
     const { account, depth } = row.node
     const { typeLabel, detailLabel } = accountDisplay(account.type, account.detail_type)
     const dim = account.inactive ? 'opacity-60' : ''
+    const isSelected = selectedId !== '' && selectedId === account.id
+    const bg = isSelected ? 'bg-accent' : 'bg-background'
 
     return (
         <Pressable
             testID={`account-card-${account.id}`}
             accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
             onPress={() => onOpen(account.id)}
-            className={`flex-row items-center border-b border-border bg-background px-4 ${dim}`}
+            className={`flex-row items-center border-b border-border ${bg} px-4 ${dim}`}
             style={{ minHeight: 64 }}
         >
             <View
