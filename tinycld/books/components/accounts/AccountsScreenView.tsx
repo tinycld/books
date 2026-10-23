@@ -9,6 +9,8 @@ import type { AccountRow } from '../../hooks/useAccountsQuery'
 import type { useAccountTree } from '../../hooks/useAccountTree'
 import type { VisibleRow } from '../../lib/account-tree'
 import { AccountCard } from './AccountCard'
+import { AccountsEmptyState } from './AccountsEmptyState'
+import { AccountToolbar } from './AccountToolbar'
 import { AccountTree } from './AccountTree'
 
 interface AccountsScreenViewProps {
@@ -109,13 +111,33 @@ export function AccountsScreenView({
     onRetry,
 }: AccountsScreenViewProps) {
     const { rows, sort, canToggle, onSort, toggleCollapsed } = tree
-    const showList = isReady && !isError
+    const isLoaded = isReady && !isError
+    const isEmpty = isLoaded && rows.length === 0
+    const showList = isLoaded && !isEmpty
+    const hasFilters = tree.query.trim() !== '' || tree.group !== ''
+    const hasHiddenInactive = !tree.isEmpty && !tree.showInactive && !hasFilters
 
     return (
         <View className="flex-1 bg-background">
             <ScreenHeader isPhoneWriter={canWrite && !isWide} onNew={onNew} />
             <AccountsError isVisible={isError} onRetry={onRetry} />
             <AccountsLoading isVisible={!isReady && !isError} />
+            <ToolbarSlot
+                isVisible={isLoaded && !tree.isEmpty}
+                tree={tree}
+                canWrite={canWrite}
+                isWide={isWide}
+                onNew={onNew}
+            />
+            <EmptySlot
+                isVisible={isEmpty}
+                hasFilters={hasFilters}
+                hasHiddenInactive={hasHiddenInactive}
+                canWrite={canWrite}
+                onNew={onNew}
+                onClear={tree.clearFilters}
+                onShowInactive={() => tree.setShowInactive(true)}
+            />
             <WideTable
                 isVisible={showList && isWide}
                 rows={rows}
@@ -134,6 +156,22 @@ export function AccountsScreenView({
             />
         </View>
     )
+}
+
+function ToolbarSlot({
+    isVisible,
+    ...props
+}: { isVisible: boolean } & Parameters<typeof AccountToolbar>[0]) {
+    if (!isVisible) return null
+    return <AccountToolbar {...props} />
+}
+
+function EmptySlot({
+    isVisible,
+    ...props
+}: { isVisible: boolean } & Parameters<typeof AccountsEmptyState>[0]) {
+    if (!isVisible) return null
+    return <AccountsEmptyState {...props} />
 }
 
 type WideTableProps = AccountListProps & {

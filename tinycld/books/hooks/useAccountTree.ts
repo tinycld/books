@@ -4,12 +4,28 @@ import {
     defaultSort,
     flattenAccountTree,
     nextSort,
-    parentIds,
     type SortKey,
     type SortState,
     type TreeAccount,
+    type TreeNode,
 } from '../lib/account-tree'
-import type { AccountGroup } from '../lib/account-types'
+import { type AccountGroup, accountTypeDef } from '../lib/account-types'
+
+// Parents the group and inactive filters leave on screen; an excluded parent hides its subtree.
+function visibleParentIds<T extends TreeAccount>(
+    nodes: TreeNode<T>[],
+    filters: { group: AccountGroup | ''; showInactive: boolean }
+): string[] {
+    return nodes.flatMap(node => {
+        const { account } = node
+        if (account.inactive && !filters.showInactive) return []
+        if (filters.group !== '' && accountTypeDef(account.type)?.group !== filters.group) return []
+        return [
+            ...(node.children.length > 0 ? [account.id] : []),
+            ...visibleParentIds(node.children, filters),
+        ]
+    })
+}
 
 // Collapse, filter and sort state is local to the screen and resets on reload.
 export function useAccountTree<T extends TreeAccount>(accounts: readonly T[]) {
@@ -21,13 +37,15 @@ export function useAccountTree<T extends TreeAccount>(accounts: readonly T[]) {
 
     const tree = buildAccountTree(accounts, sort)
     const rows = flattenAccountTree(tree, { collapsed, query, group, showInactive, sort })
-    const allParentIds = parentIds(tree)
+    const allParentIds = visibleParentIds(tree, { group, showInactive })
     const areAllCollapsed = allParentIds.length > 0 && allParentIds.every(id => collapsed.has(id))
 
     const toggleCollapsed = (id: string) => {
-        const next = new Set(collapsed)
-        if (!next.delete(id)) next.add(id)
-        setCollapsed(next)
+        setCollapsed(current => {
+            const next = new Set(current)
+            if (!next.delete(id)) next.add(id)
+            return next
+        })
     }
 
     const toggleAllCollapsed = () => {
@@ -44,8 +62,8 @@ export function useAccountTree<T extends TreeAccount>(accounts: readonly T[]) {
         rows,
         // Search flattens ancestors into view, so a caret would not match what shows.
         canToggle: query.trim() === '',
+        hasParents: allParentIds.length > 0,
         isEmpty: accounts.length === 0,
-        hasFilters: query.trim() !== '' || group !== '' || showInactive,
         query,
         setQuery,
         group,
