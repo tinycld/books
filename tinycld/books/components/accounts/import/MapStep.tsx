@@ -1,9 +1,7 @@
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { type FieldErrors, FormErrorSummary } from '@tinycld/core/ui/form'
-import { Menu } from '@tinycld/core/ui/menu'
-import { ChevronDown } from 'lucide-react-native'
-import { Pressable, Text, View } from 'react-native'
+import { PickMenu } from '@tinycld/core/ui/pick-menu'
+import { Text, View } from 'react-native'
 import { type ColumnMap, IMPORT_FIELDS, type ImportField } from '../../../lib/account-import'
 
 interface MapStepProps {
@@ -28,44 +26,6 @@ interface FieldRowProps {
     header: string[]
     selected: number | null
     setColumn: MapStepProps['setColumn']
-}
-
-interface ColumnPickerProps {
-    label: string
-    current: string
-    items: { id: string; label: string; isSelected: boolean; onSelect: () => void }[]
-    testID: string
-}
-
-// Core's PickMenu chip is under 44pt tall, so the trigger is built here.
-function ColumnPicker({ label, current, items, testID }: ColumnPickerProps) {
-    const muted = useThemeColor('muted-foreground')
-    const rows = items.map(item => (
-        <Menu.Item
-            key={item.id}
-            label={item.label}
-            isSelected={item.isSelected}
-            onSelect={item.onSelect}
-            testID={`${testID}-${item.id}`}
-        />
-    ))
-    const trigger = (
-        <Pressable
-            testID={testID}
-            accessibilityRole="button"
-            accessibilityLabel={`Column for ${label}: ${current}`}
-            className="min-w-40 flex-row items-center justify-between gap-2 rounded-md border border-border px-3"
-            style={{ minHeight: 44 }}
-        >
-            <Text className="text-sm text-foreground">{current}</Text>
-            <ChevronDown size={14} color={muted} />
-        </Pressable>
-    )
-    return (
-        <Menu title={`Column for ${label}`} trigger={trigger}>
-            {rows}
-        </Menu>
-    )
 }
 
 function RequiredTag({ isVisible }: { isVisible: boolean }) {
@@ -99,10 +59,11 @@ function FieldRow({ field, label, required, header, selected, setColumn }: Field
                 <Text className="text-sm font-medium text-foreground">{label}</Text>
                 <RequiredTag isVisible={required} />
             </View>
-            <ColumnPicker
-                label={label}
-                current={current}
+            <PickMenu
+                label={current}
+                purpose={`Column for ${label}`}
                 items={items}
+                size="touch"
                 testID={`account-import-map-${field}-pick`}
             />
         </View>

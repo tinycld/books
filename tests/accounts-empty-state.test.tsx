@@ -14,7 +14,12 @@ import { viewProps } from './accounts-view-props'
 // onNew, onClear, onShowInactive }). hasFilters means a query or group is active;
 // hasHiddenInactive means accounts exist but all are hidden as inactive.
 function renderEmpty(
-    props: { hasFilters?: boolean; hasHiddenInactive?: boolean; canWrite?: boolean } = {}
+    props: {
+        hasFilters?: boolean
+        hasHiddenInactive?: boolean
+        canWrite?: boolean
+        isWide?: boolean
+    } = {}
 ) {
     const onNew = vi.fn()
     const onClear = vi.fn()
@@ -24,6 +29,7 @@ function renderEmpty(
             hasFilters={props.hasFilters ?? false}
             hasHiddenInactive={props.hasHiddenInactive ?? false}
             canWrite={props.canWrite ?? true}
+            isWide={props.isWide ?? true}
             onNew={onNew}
             onClear={onClear}
             onShowInactive={onShowInactive}
@@ -54,6 +60,12 @@ describe('AccountsEmptyState without filters', () => {
         const { getByText, onNew } = renderEmpty()
         fireEvent.click(getByText('New account'))
         expect(onNew).toHaveBeenCalledTimes(1)
+    })
+
+    it('on a phone the empty state omits New account, which the header carries', () => {
+        const { getByText, queryByText } = renderEmpty({ isWide: false })
+        expect(getByText('Import from CSV')).toBeTruthy()
+        expect(queryByText('New account')).toBeNull()
     })
 
     it('a read-only user sees the message with no button and no link', () => {
@@ -196,19 +208,24 @@ describe('AccountsScreenView empty message follows whether accounts exist', () =
         expect(byTestId(container, 'account-empty-import')).toBeNull()
     })
 
-    it.each([
-        true,
-        false,
-    ])('the empty state New account button calls onNew for a writer (wide=%s)', isWide => {
+    it('the empty state New account button calls onNew for a writer on a wide screen', () => {
         const tree = renderHook(() => useAccountTree(fixtureRows().slice(0, 0))).result.current
         const onNew = vi.fn()
-        const { container } = renderView(tree, isWide, { onNew })
+        const { container } = renderView(tree, true, { onNew })
         const empty = byTestId(container, 'accounts-empty') as HTMLElement
         const button = Array.from(empty.querySelectorAll('*')).find(
             el => el.children.length === 0 && el.textContent === 'New account'
         ) as HTMLElement
         fireEvent.click(button)
         expect(onNew).toHaveBeenCalledTimes(1)
+    })
+
+    it('on a phone the screen shows exactly one New account button, in the header', () => {
+        const tree = renderHook(() => useAccountTree(fixtureRows().slice(0, 0))).result.current
+        const { container, getAllByText } = renderView(tree, false)
+        const empty = byTestId(container, 'accounts-empty') as HTMLElement
+        expect(getAllByText('New account')).toHaveLength(1)
+        expect(empty.textContent).not.toContain('New account')
     })
 })
 

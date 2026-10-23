@@ -196,6 +196,7 @@ export function AccountsScreenView({
                     hasFilters={hasFilters}
                     hasHiddenInactive={hasHiddenInactive}
                     canWrite={canWrite}
+                    isWide={isWide}
                     onNew={onNew}
                     onClear={tree.clearFilters}
                     onShowInactive={() => tree.setShowInactive(true)}
