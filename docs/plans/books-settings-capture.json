@@ -1,0 +1,83 @@
+{
+    "outDir": "books-settings-reference",
+    "shots": [
+        {
+            "name": "list-company",
+            "url": "/a/books/helix-mockup?state=populated",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "company-long",
+            "url": "/a/books/helix-mockup?state=long&section=company",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "accounting",
+            "url": "/a/books/helix-mockup?state=populated&section=accounting",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "accounting-past-open",
+            "url": "/a/books/helix-mockup?state=populated&section=accounting&past=open",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "accounting-empty",
+            "url": "/a/books/helix-mockup?state=empty&section=accounting",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "numbering",
+            "url": "/a/books/helix-mockup?state=populated&section=numbering",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "numbering-empty",
+            "url": "/a/books/helix-mockup?state=empty&section=numbering",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "access",
+            "url": "/a/books/helix-mockup?state=populated&section=access",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "access-limited",
+            "url": "/a/books/helix-mockup?state=limited&section=access",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "access-no-match",
+            "url": "/a/books/helix-mockup?state=populated&section=access&search=zzz",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "non-admin-list",
+            "url": "/a/books/helix-mockup?state=non-admin",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "non-admin-company",
+            "url": "/a/books/helix-mockup?state=non-admin&section=company",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        },
+        {
+            "name": "non-admin-accounting",
+            "url": "/a/books/helix-mockup?state=non-admin&section=accounting",
+            "fullPage": true,
+            "ready": "settings-mockup"
+        }
+    ]
+}
