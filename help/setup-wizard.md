@@ -24,7 +24,7 @@ To change an earlier answer, choose Back. Your answers stay as you typed them.
 
 ## Starter chart
 
-This part lists the accounts that Books will create, grouped as Assets, Liabilities, Equity, Income and Expenses, with a count for each group. To create them, choose Create followed by the number of accounts, for example Create 34 accounts. While it works, Books shows how many accounts it has made. You can change, make inactive or delete any account later in the [Chart of Accounts](help://books:chart-of-accounts).
+This part lists the accounts that Books will create, grouped as Assets, Liabilities, Equity, Income and Expenses. To create them, choose Create followed by the number of accounts, for example Create 34 accounts. While it works, Books shows how many accounts it has made. You can change, make inactive or delete any account later in the [Chart of Accounts](help://books:chart-of-accounts).
 
 If you want to build your own chart, choose Start with an empty chart. Books saves your business name and fiscal year and creates no accounts. You can then add accounts one by one or import a file.
 
