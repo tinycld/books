@@ -1,8 +1,8 @@
-import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { useRecord } from '@tinycld/core/lib/use-record'
 import { useMemo } from 'react'
 import {
     anyActivityQuery,
@@ -41,18 +41,10 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
     })
     const fiscalMonth = fiscalStartMonth(settingsQuery.data?.[0])
     const range = resolveRange(rangeInput, fiscalMonth, settingsQuery.isReady)
-    // The account has its own live query rather than useRecord because the
-    // screen needs this query's error state.
-    const accountQuery = useLiveQuery({
-        query: query =>
-            range
-                ? query
-                      .from({ account: accountsCollection })
-                      .where(({ account }) => eq(account.id, accountId))
-                      .findOne()
-                : undefined,
-        queryKey: ['books.register.account', accountId, range === null],
-    })
+    const { record: account, isLoading: isAccountLoading } = useRecord(
+        accountsCollection,
+        accountId
+    )
     const linesQuery = useLiveQuery({
         query: query =>
             range
@@ -107,7 +99,6 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
         void recoverLiveQueries({
             queries: [
                 settingsQuery,
-                accountQuery,
                 linesQuery,
                 openingQuery,
                 subAccountResult,
@@ -127,15 +118,13 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
 
     return {
         range,
-        account: accountQuery.data,
+        account,
         lines,
         priorTotals,
         hasSubAccounts: (subAccountResult.data?.length ?? 0) > 0,
         hasAnyActivity: (activityQuery.data?.length ?? 0) > 0,
-        isReady:
-            range !== null && accountQuery.isReady && linesQuery.isReady && openingQuery.isReady,
+        isReady: range !== null && !isAccountLoading && linesQuery.isReady && openingQuery.isReady,
         isError: [
-            accountQuery,
             linesQuery,
             openingQuery,
             subAccountResult,
