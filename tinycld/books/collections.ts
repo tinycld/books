@@ -27,12 +27,15 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
-    // Created before entries so the entry's back-relation can name it.
-    // posted, date and currency are stamped when the entry posts.
+    // Created before entries so the entry's back-relation can name it; `entry`
+    // is added once the entries exist (Object.assign, because typing the key
+    // would make the two collections' types refer to each other). posted, date and currency are stamped
+    // when the entry posts.
+    const lineRelations: { account: typeof books_accounts } = { account: books_accounts }
     const books_journal_lines = newCollection('books_journal_lines', {
         omitOnInsert: ['created', 'updated', 'posted', 'date', 'currency'] as const,
         ...onDemand,
-        relations: { account: books_accounts },
+        relations: lineRelations,
         collectionOptions: indexed,
     })
 
@@ -62,6 +65,8 @@ export function registerCollections(
         },
         collectionOptions: indexed,
     })
+
+    Object.assign(lineRelations, { entry: books_journal_entries })
 
     // Server-maintained; reports read these instead of summing lines.
     const books_account_balances = newCollection('books_account_balances', {

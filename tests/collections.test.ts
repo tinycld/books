@@ -40,8 +40,10 @@ describe('registerCollections', () => {
 
     it('declares the relations the ledger screens read', () => {
         const { calls } = register()
+        // Spike outcome (a): the lines reach their entry through a relation.
         expect(calls.get('books_journal_lines')?.relations).toEqual({
             account: { name: 'books_accounts' },
+            entry: { name: 'books_journal_entries' },
         })
         expect(calls.get('books_journal_entries')?.relations).toEqual({
             books_journal_lines_via_entry: { name: 'books_journal_lines' },
