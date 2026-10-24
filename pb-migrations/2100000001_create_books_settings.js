@@ -2,7 +2,9 @@
 // Books settings, document number sequences and close-date overrides.
 //
 // books_settings holds one row (id bookssettings01): the close date, the fiscal
-// year start month and the currency. v0 keeps one currency; the column exists
+// year start month, the currency, the business name, the ownership choice
+// (owners or corporation; empty until the setup wizard saves it, and read later
+// by tax settings) and whether the setup wizard has run. v0 keeps one currency; the column exists
 // so multi-currency needs no migration, and it is pinned against edits because
 // changing it under existing entries would misstate every amount.
 //
@@ -52,6 +54,9 @@ migrate(
                     max: 12,
                 },
                 { name: 'currency', type: 'text', required: true, pattern: '^[A-Z]{3}$' },
+                { name: 'business_name', type: 'text', max: 200 },
+                { name: 'ownership', type: 'select', maxSelect: 1, values: ['owners', 'corporation'] },
+                { name: 'setup_completed', type: 'bool' },
                 ...AUTODATES,
             ],
         })
@@ -61,6 +66,9 @@ migrate(
         row.set('close_date', '')
         row.set('fiscal_year_start_month', 1)
         row.set('currency', 'USD')
+        row.set('business_name', '')
+        row.set('ownership', '')
+        row.set('setup_completed', false)
         app.save(row)
 
         const sequences = new Collection({

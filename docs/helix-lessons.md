@@ -1,0 +1,1 @@
+- A preview of items to create shows no per-group counts or count chips; the create button carries the total — setup-wizard, human, eval p1-setup-wizard
