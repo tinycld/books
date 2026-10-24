@@ -1,16 +1,71 @@
 {
     "outDir": "setup-wizard-reference",
     "shots": [
-        { "name": "business", "url": "/a/books/helix-mockup?state=business", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "business-long-name", "url": "/a/books/helix-mockup?state=business-long", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "ownership", "url": "/a/books/helix-mockup?state=ownership", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "ownership-corporation", "url": "/a/books/helix-mockup?state=ownership-corporation", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "chart", "url": "/a/books/helix-mockup?state=chart", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "chart-corporation", "url": "/a/books/helix-mockup?state=chart-corporation", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "creating", "url": "/a/books/helix-mockup?state=creating", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "done", "url": "/a/books/helix-mockup?state=done", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "error", "url": "/a/books/helix-mockup?state=error", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "populated", "url": "/a/books/helix-mockup?state=populated", "fullPage": true, "ready": "setup-step-books.accounting" },
-        { "name": "non-admin", "url": "/a/books/helix-mockup?state=non-admin", "fullPage": true, "ready": "books-setup-non-admin" }
+        {
+            "name": "business",
+            "url": "/a/books/helix-mockup?state=business",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "business-long-name",
+            "url": "/a/books/helix-mockup?state=business-long",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "ownership",
+            "url": "/a/books/helix-mockup?state=ownership",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "ownership-corporation",
+            "url": "/a/books/helix-mockup?state=ownership-corporation",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "chart",
+            "url": "/a/books/helix-mockup?state=chart",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "chart-corporation",
+            "url": "/a/books/helix-mockup?state=chart-corporation",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "creating",
+            "url": "/a/books/helix-mockup?state=creating",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "done",
+            "url": "/a/books/helix-mockup?state=done",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "fullPage": true,
+            "ready": "setup-step-books.accounting"
+        },
+        {
+            "name": "non-admin",
+            "url": "/a/books/helix-mockup?state=non-admin",
+            "fullPage": true,
+            "ready": "books-setup-non-admin"
+        }
     ]
 }
