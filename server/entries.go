@@ -21,7 +21,7 @@ const (
 )
 
 // draftEditable are the entry fields a person edits on a draft. Everything
-// else is set by Books (number, totals, who and when) or fixed when the entry
+// else is set by Books (number, total, who and when) or fixed when the entry
 // is created (type, origin, the entry it reverses or replaces).
 var draftEditable = map[string]bool{
 	"date": true, "memo": true, "auto_reverse_on": true, "status": true, "posted_by": true,
@@ -76,6 +76,8 @@ func registerEntryHooks(app core.App) {
 }
 
 // postingFields are the fields Books fills when it posts or voids an entry.
+// total is also Books-owned on a draft: Books restates it on every draft line
+// write (see restateDraftTotal) and stamps it again at post.
 // The create rule refuses them over REST; checkNewEntry refuses them for a Go
 // caller too, so a draft never starts with a number, a poster or an override.
 // created_by and currency are not here: Books stamps them on create.
@@ -150,6 +152,10 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 		if err != nil {
 			return err
 		}
+		changed, err = withoutRestatedTotal(tx, stored, next, changed)
+		if err != nil {
+			return err
+		}
 		return refuseServerFields(changed)
 	case from == statusDraft && to == statusPosted:
 		if err := checkDraftEdit(stored, next); err != nil {
@@ -175,9 +181,17 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 }
 
 // checkDraftEdit refuses a change to a field Books sets, with no unlink
-// allowance: posting is never PocketBase unlinking a deleted user.
+// allowance: posting is never PocketBase unlinking a deleted user. total is
+// not checked: a record loaded before the last line write carries a stale
+// one, and posting overwrites it with the validated sum.
 func checkDraftEdit(stored, next *core.Record) error {
-	return refuseServerFields(changedFields(stored, next, draftEditable))
+	var changed []string
+	for _, name := range changedFields(stored, next, draftEditable) {
+		if name != "total" {
+			changed = append(changed, name)
+		}
+	}
+	return refuseServerFields(changed)
 }
 
 func refuseServerFields(changed []string) error {

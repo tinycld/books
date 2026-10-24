@@ -171,6 +171,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
         parent: '',
     })
     await pb.collection('books_accounts').update(petty.id, { inactive: true })
+    // The server ships an empty prefix; the list shows numbers as "JE-n", so every seeded post takes it.
+    await pb.collection('books_doc_sequences').update('booksseqjournal', { prefix: 'JE-' })
     for (const entry of ENTRIES) {
         const created = await pb.collection('books_journal_entries').create({
             date: `${year}-${entry.day}`,
