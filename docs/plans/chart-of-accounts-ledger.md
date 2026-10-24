@@ -35,7 +35,12 @@
 (none yet)
 
 ## Out-of-plan changes
-(none yet)
+- core WorkspaceLayout/MobileLayout restructured to one tree for all breakpoints (human-approved); new unit test and e2e specs workspace-breakpoint and mobile-drawer; testIDs on MobileDrawer.
+- core PickMenu gained `size="touch"`; core SelectInput/Toggle gained `onValueChange` (earlier, ae63b5b).
+- core SelectInput renamed ButtonGroup; new dropdown SelectInput; callers updated in calendar, boards and mail (behaviour unchanged).
+- core Sheet: start position re-seeded for the resting edge; more top padding for top-sheet titles (pre-existing bug the human asked to fix).
+- shared test stubs: lucide icons added; reanimated stub keeps one shared value per mount and records history.
+- Sub-account toggle replaced by a Parent account select (human decision at eval gate); isSubAccount removed.
 
 ## Phase notes
 - phase 1: intake in staging/p1-chart-of-accounts/intake.md; screenshots viewed once.
@@ -45,7 +50,7 @@
 - review mode switches: none
 
 ## Final review
-- eval: pending
+- eval: approved by human 2026-10-23 after one revise round (core WorkspaceLayout stable tree + mobile drawer e2e; PickMenu size=touch for the import column picker; single New account on the phone empty state; dropdown SelectInput replacing the sub-account toggle with a Parent account select; no nested row buttons; core SelectInput renamed ButtonGroup with callers in calendar, boards, mail; sheet slide-in side and top padding fix). Import resolver stays conservative (human decision). Done button stays back-then-replace. Native not run (human: can wait).
 - native: not executed in this run
 
 ## Checkpoint 1 — Money helper and tree logic
