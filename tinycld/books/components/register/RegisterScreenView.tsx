@@ -1,10 +1,16 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
+import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import type { RegisterScreenModel } from '../../hooks/useRegisterScreen'
+import { useRowWindow } from '../../hooks/useRowWindow'
+import { balanceTone } from '../../lib/register'
+import { EntryDrawer } from './EntryDrawer'
+import { CARD_HEIGHT, RegisterCard } from './RegisterCard'
 import { RegisterEmptyState } from './RegisterEmptyState'
 import { BackOnlyHeader, RegisterHeader } from './RegisterHeader'
-import { RegisterTable } from './RegisterTable'
+import { balanceText } from './RegisterRow'
+import { RegisterTable, type TableItem, tableItems } from './RegisterTable'
 
 function LoadingBody({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
@@ -47,8 +53,66 @@ function EmptyBody({ model }: { model: RegisterScreenModel }) {
     )
 }
 
-function TableBody({ model }: { model: RegisterScreenModel }) {
+function OpeningCard({ balance, currency }: { balance: number | null; currency: string }) {
+    return (
+        <View
+            testID="register-opening-card"
+            className="flex-row items-center justify-between gap-3 border-b border-border bg-background px-4"
+            style={{ height: CARD_HEIGHT }}
+        >
+            <Text className="text-sm italic text-muted-foreground">Opening balance</Text>
+            <Text className={`text-right text-sm font-medium ${balanceTone(balance)}`}>
+                {balanceText(balance, currency)}
+            </Text>
+        </View>
+    )
+}
+
+function CardItem({ item, model }: { item: TableItem; model: RegisterScreenModel }) {
+    if (item.kind === 'opening') {
+        return <OpeningCard balance={model.register.openingBalance} currency={model.currency} />
+    }
+    return (
+        <RegisterCard
+            row={item.row}
+            currency={model.currency}
+            onOpenEntry={model.onOpenEntry}
+            isSelected={item.row.entryId === model.selectedEntryId}
+        />
+    )
+}
+
+function CardList({ model }: { model: RegisterScreenModel }) {
+    const { register, order } = model
+    const items = tableItems(register.rows, register.showOpeningRow, order)
+    const viewHeight = useWindowHeight()
+    const rowWindow = useRowWindow({ total: items.length, rowHeight: CARD_HEIGHT, viewHeight })
+    const visible = items
+        .slice(rowWindow.first, rowWindow.last)
+        .map(item => (
+            <CardItem
+                key={item.kind === 'opening' ? 'opening' : item.row.id}
+                item={item}
+                model={model}
+            />
+        ))
+    return (
+        <ScrollView
+            testID="register-cards"
+            className="flex-1"
+            onScroll={rowWindow.onScroll}
+            scrollEventThrottle={16}
+        >
+            <View style={{ height: rowWindow.topSpace }} />
+            {visible}
+            <View style={{ height: rowWindow.bottomSpace }} />
+        </ScrollView>
+    )
+}
+
+function ListBody({ model }: { model: RegisterScreenModel }) {
     if (model.state !== 'ready') return null
+    if (!model.isWide) return <CardList model={model} />
     return (
         <View className="min-w-0 flex-1">
             <RegisterTable
@@ -81,12 +145,21 @@ function NotFound({ model }: { model: RegisterScreenModel }) {
 export function RegisterScreenView(model: RegisterScreenModel) {
     if (model.state === 'not-found') return <NotFound model={model} />
     return (
-        <View className="flex-1 bg-background">
-            <RegisterHeader model={model} />
-            <LoadingBody isVisible={model.state === 'loading'} />
-            <ErrorBody isVisible={model.state === 'error'} onRetry={model.onRetry} />
-            <EmptyBody model={model} />
-            <TableBody model={model} />
+        <View className="flex-1 flex-row bg-background">
+            <View className="min-w-0 flex-1">
+                <RegisterHeader model={model} />
+                <LoadingBody isVisible={model.state === 'loading'} />
+                <ErrorBody isVisible={model.state === 'error'} onRetry={model.onRetry} />
+                <EmptyBody model={model} />
+                <ListBody model={model} />
+            </View>
+            <EntryDrawer
+                detail={model.selectedEntry}
+                currency={model.currency}
+                isWide={model.isWide}
+                isTablet={model.isTablet}
+                onClose={model.onCloseEntry}
+            />
         </View>
     )
 }

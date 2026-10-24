@@ -265,6 +265,14 @@ async function seedRegisterEntries(pb: PocketBase, ctx: SeedContext, ids: Map<st
             ['equity', 0, 50000],
         ],
     })
+    await postEntry(pb, ctx, ids, {
+        date: fiscalStart,
+        memo: 'Register long memo '.repeat(12).trim(),
+        lines: [
+            ['checking', 100, 0],
+            ['equity', 0, 100],
+        ],
+    })
     const original = await postEntry(pb, ctx, ids, {
         date: today,
         memo: 'Register void original',

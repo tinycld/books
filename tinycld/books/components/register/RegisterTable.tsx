@@ -35,10 +35,10 @@ interface RegisterTableProps {
     selectedEntryId: string | null
 }
 
-type TableItem = { kind: 'opening' } | { kind: 'row'; row: RegisterLine }
+export type TableItem = { kind: 'opening' } | { kind: 'row'; row: RegisterLine }
 
 // The opening row is chronologically first: last when newest is on top.
-function tableItems(rows: RegisterLine[], showOpeningRow: boolean, order: RegisterOrder) {
+export function tableItems(rows: RegisterLine[], showOpeningRow: boolean, order: RegisterOrder) {
     const items: TableItem[] = rows.map(row => ({ kind: 'row', row }))
     if (!showOpeningRow) return items
     if (order === 'newest') items.push({ kind: 'opening' })

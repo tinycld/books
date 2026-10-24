@@ -1,8 +1,8 @@
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { Pressable, Text, View } from 'react-native'
-import { formatMoney } from '../../lib/money'
-import type { RegisterLine } from '../../lib/register'
+import { amountText, formatMoney } from '../../lib/money'
+import { balanceTone, type RegisterLine } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
 
 // Header and rows share these. Memo then Account take the free space; the amount columns never
@@ -22,21 +22,28 @@ export function balanceText(balance: number | null, currency: string) {
     return balance === null ? 'Too large' : formatMoney(balance, currency)
 }
 
-function amountText(cents: number, currency: string) {
-    return cents === 0 ? '' : formatMoney(cents, currency)
-}
-
 function VoidLabel({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
     return <Text className="ml-2 text-xs text-muted-foreground">Void</Text>
 }
 
-function OtherAccountName({ accountId }: { accountId: string | null }) {
+export function useAccountName(accountId: string | null) {
     const [accountsCollection] = useStore('books_accounts')
     const { record } = useRecord(accountsCollection, accountId)
+    return record?.name ?? ''
+}
+
+function OtherAccountName({
+    accountId,
+    className,
+}: {
+    accountId: string | null
+    className: string
+}) {
+    const name = useAccountName(accountId)
     return (
-        <Text numberOfLines={1} className="text-sm text-foreground">
-            {record?.name ?? ''}
+        <Text numberOfLines={1} className={className}>
+            {name}
         </Text>
     )
 }
@@ -49,7 +56,7 @@ function AccountCell({ row }: { row: RegisterLine }) {
             </Text>
         )
     }
-    return <OtherAccountName accountId={row.otherAccountId} />
+    return <OtherAccountName accountId={row.otherAccountId} className="text-sm text-foreground" />
 }
 
 interface RegisterRowProps {
@@ -107,7 +114,7 @@ export function RegisterRow({ row, currency, onOpenEntry, isSelected }: Register
                 </Text>
             </View>
             <View testID={cellId('balance')} className="items-end" style={BALANCE_CELL_STYLE}>
-                <Text className="text-right text-sm font-medium text-foreground">
+                <Text className={`text-right text-sm font-medium ${balanceTone(row.balance)}`}>
                     {balanceText(row.balance, currency)}
                 </Text>
             </View>

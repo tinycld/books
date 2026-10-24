@@ -28,10 +28,12 @@
 - cp4 critique NOTE: Opening/Ending balance labels are top-aligned in the header; reference bottom-aligns them.
 - cp4: OtherAccountName uses useRecord per windowed row (plan-mandated); ~30 live queries mounted; remounts after scroll may re-request an account not held in the store (not measured).
 - cp2 spike: outcome (a), see Checkpoint 2.
+- cp5 critique NOTEs: card line order 'account · type' vs reference 'type · account'; drawer title + Number field duplicate the number; opening card and long-memo card not in a capture; phone sheet is size md (checkpoint said lg).
 - cp3 critique NOTEs: empty-range state has only a heading + button (reference had "Pick a longer range to see earlier lines."); not-found has a single sentence (reference had a secondary line).
 
 ## Out-of-plan changes
 - cp2: tests/accounts-form-harness.ts (seedBooks `ledger` option; entries/settings stores; lineStore/balanceStore/settingsStore/entryStore accessors), tests/register-test-data.ts, tests/collections-real.test.ts — test support the plan's tests needed; no existing test weakened.
+- cp5: lib/money.ts, lib/register.ts, seed.ts, RegisterRow.tsx (useAccountName), RegisterTable.tsx (exports), evidence/cp5/*.
 - cp4: seed.ts account rename; components/register/RegisterHeader.tsx (back link muted).
 - cp3: hooks/useRegisterQuery.ts (cp2 code, Retry rebuild + settings query), hooks/useBackToChart.ts, deletion of hooks/useFiscalYearStartMonth.ts + tests/useFiscalYearStartMonth.test.ts, tests/e2e/account-register-helpers.ts + account-register-navigation.spec.ts, docs/plans/account-register-evidence/cp3/*.
 
@@ -81,6 +83,18 @@ Spike outcome also noted under Design notes.
 - gate 3 A: heading/cell gutter misalignment on classic scrollbars -> fixed (web-only scrollbar-gutter) + e2e; oldest-order running balance unchecked -> e2e added
 - gate 3 B: `window` shadowing -> rowWindow; .map in JSX -> WindowedRows; as ViewStyle casts -> web: classNames; back-link muted (+ icon colour)
 - fix review: reviewer A over fixes, 3 rounds: clean
+- reviewer-caught deferrals: none
+
+## Checkpoint 5
+- test writer: tests/e2e/account-register-drawer.spec.ts (17 tests: phone cards, bottom drawer, desktop inline, tablet overlay, keyboard, not-links, stale selection, range change, a11y names, long-memo truncation); tests/register.test.ts additions (entryNumberLabel, balanceTone); red for the right reason: yes. Untestable: tapping a card behind an open phone drawer (modal backdrop + focus trap) -> replacement tested on desktop inline only
+- implementer: RegisterCard.tsx, EntryDrawer.tsx, RegisterScreenView.tsx (flex-row, card list, OpeningCard, drawer slot), useRegisterScreen.ts (selectedEntry, onCloseEntry, clearing), RegisterRow.tsx (useAccountName), RegisterTable.tsx (tableItems export), lib/register.ts (entryNumberLabel, balanceTone), lib/money.ts (amountText), seed.ts (long-memo entry). DONE
+- test disputes: (1) drawer geometry read mid-slide (200ms) -> test wrong, expect.poll; (2) register-card-ref-* id collided with card selector -> test selector fixed, then id renamed register-ref-*; (3) inline drawer role: test expected dialog -> ruled in favour of semantics: inline = complementary, overlays = dialog
+- intermittent failure root-caused: phone drawer is modal (focus trap swallowed Enter); test changed, 6 clean runs
+- gate 1: pass (1006 unit, 54 e2e)
+- gate 2: BLOCKING "Draft" drawer title when a posted entry has no number -> entryNumberLabel ('—'); re-captured; fresh critic: 0 blocking. NOTES: card line order "account · type" vs reference "type · account"; Number field duplicates the title; opening-balance card and long-memo card are below the fold in the captures (not evidenced); phone sheet size 'md' (checkpoint text says 'lg': blank space fix)
+- gate 3 A: stale selection after leaving/returning (fixed: store cleared on unmount/onPreset/back), variable card heights (fixed height + truncation), a11y name, card separator typo; gate 3 B: shadowing/casts in test, duplicated amountText, text-danger for null balance, as const placement returns
+- Known limitations (not fixed): selection is not cleared if a selected line vanishes while the screen stays mounted (realtime void/delete); a screen kept mounted under a pushed stack screen is not cleared (no useFocusEffect); native not executed
+- fix review: reviewer A over each round: clean
 - reviewer-caught deferrals: none
 
 ## Final review
