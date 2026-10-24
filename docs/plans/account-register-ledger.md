@@ -21,13 +21,13 @@
 (none yet)
 
 ## Rebuttals
-(none yet)
+- cp2 reviewer B finding 4 (account via hand-rolled useLiveQuery instead of useRecord): rejected. Decisions block: "`isError` is true when any of the live queries the screen runs (account, lines, opening totals, sub-account, any-activity, settings) reports `isError`." `useRecord` exposes no `isError`, so the account query must be a direct useLiveQuery.
 
 ## Design notes
-(none yet)
+- cp2 spike: outcome (a), see Checkpoint 2.
 
 ## Out-of-plan changes
-(none yet)
+- cp2: tests/accounts-form-harness.ts (seedBooks `ledger` option; entries/settings stores; lineStore/balanceStore/settingsStore/entryStore accessors), tests/register-test-data.ts, tests/collections-real.test.ts — test support the plan's tests needed; no existing test weakened.
 
 ## Phase notes
 - phase 1-3 (design gate 2026-10-23): direction A picked (flat table, entry drawer); Q1-Q12 accepted as recommended; one change: date range defaults to This month. No platform-only items. No core extension.
@@ -43,6 +43,18 @@
 - gate 3 B: unknown origin + number gives "Journal entry of X" -> accepted+fixed
 - fix review: reviewer A pass over the fix diff: clean
 - reviewer-caught deferrals: none
+
+## Checkpoint 2
+- test writer: tests/register-query.test.ts, register-realtime.test.ts, useFiscalYearStartMonth.test.ts, collections.test.ts (edited), collections-real.test.ts, register-test-data.ts, accounts-form-harness.ts (edited); red for the right reason: yes; untestable: none
+- implementer: collections.ts, lib/register-query.ts, hooks/useRegisterQuery.ts, hooks/useFiscalYearStartMonth.ts; DONE. Spike outcome: (a) — `entry` relation added to the lines collection (Object.assign, because both typed forms fail tsc); proven against real pbtsdb in collections-real.test.ts. Self-declared: orderBy(id) before limit(1); account via direct useLiveQuery (useRecord has no isError); isError = any of 7 queries; isReady needs range; disabled queries return undefined from the query fn
+- test disputes: register-query.test.ts reversalOriginsQuery toEqual vs `$` props -> test wrong (checkpoint selects {id, number}); test writer fixed run()
+- gate 1: tests unedited: yes (except resolved dispute) · pass
+- gate 3 A: Object.assign relation unproven against real pbtsdb -> accepted, real-pbtsdb test added; reversesNumber assertion racy -> waitFor; balance-row test weak -> strengthened; lines not referentially stable -> memoised; originsQuery.isError missing -> added (no test can fail the origins query alone with local collections; noted)
+- gate 3 B: hand-declared LineRow, casts -> removed; test file renamed .tsx->.ts; harness widened (out-of-plan, below); account hand-rolled useLiveQuery vs useRecord -> rebutted; second query stitched by Map for reversesNumber -> accepted debt (plan mandates)
+- fix review: reviewer A passes over both fix diffs: clean
+- reviewer-caught deferrals: none. Retry has no test (no bullet; covered by e2e error test in cp3)
+
+Spike outcome also noted under Design notes.
 
 ## Final review
 - eval: (pending)
