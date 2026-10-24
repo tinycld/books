@@ -3,6 +3,7 @@ import { FormErrorSummary, TextAreaInput, TextInput } from '@tinycld/core/ui/for
 import { Text, View } from 'react-native'
 import { useBooksSettings } from '../../hooks/useBooksSettings'
 import { useSettingsForm } from '../../hooks/useSettingsForm'
+import { rootErrorOnly } from '../../lib/root-errors'
 import { type CompanyValues, companySchema, companyValues } from '../../lib/settings-schema'
 import type { BooksSettings } from '../../types'
 import { FieldNote, ReadOnlyRow, SectionCard } from './SectionCard'
@@ -38,6 +39,7 @@ function CompanyForm({ settings }: { settings: BooksSettings }) {
         toPatch: values => values,
     })
     const { control, formState } = form
+    const { errors, isSubmitted } = formState
     return (
         <SectionCard>
             <View className="gap-4">
@@ -79,7 +81,12 @@ function CompanyForm({ settings }: { settings: BooksSettings }) {
                 />
                 <CurrencyBlock />
                 <FieldNote text="Your logo and brand color are set in the organization settings" />
-                <FormErrorSummary errors={formState.errors} />
+                <FormErrorSummary
+                    testID="books-settings-company-errors"
+                    errors={rootErrorOnly(errors)}
+                    showFieldNames={false}
+                    isEnabled={isSubmitted}
+                />
                 <View className="flex-row">
                     <Button
                         testID="books-settings-save"

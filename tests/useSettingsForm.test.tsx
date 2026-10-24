@@ -20,6 +20,7 @@ import {
 import type { BooksSettings } from '../tinycld/books/types'
 import {
     holdWrites,
+    liftRefusal,
     messageRefusal,
     seedBooks,
     serverRefusal,
@@ -468,5 +469,130 @@ describe('useSettingsForm blocks saved while the company form is dirty', () => {
         expect(rendered.result.current.fiscal.isDirty).toBe(true)
         expect(savedRow().fiscal_year_start_month).toBe(3)
         expect(savedRow().phone).toBe(ROW.phone)
+    })
+})
+
+describe('useSettingsForm isSubmitted with values from the live row', () => {
+    async function renderTyped(seed?: Parameters<typeof seedBooks>[0]) {
+        seedBooks(seed ?? { level: 'admin', ledger: LEDGER })
+        const rendered = renderLiveCompany()
+        await waitFor(() => expect(settingsStore().get(ROW.id)).toBeDefined())
+        act(() => {
+            rendered.result.current.form.setValue('phone', '+1 555 000 9999', {
+                shouldDirty: true,
+            })
+        })
+        return rendered
+    }
+
+    async function settleAll() {
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 30))
+        })
+    }
+
+    it('stays submitted with the root error after a message-only refusal', async () => {
+        const rendered = await renderTyped({
+            level: 'admin',
+            ledger: LEDGER,
+            refuseSettings: messageRefusal(REFUSAL),
+        })
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.root?.message).toBe(REFUSAL)
+        )
+        await settleAll()
+        expect(rendered.result.current.form.formState.errors.root?.message).toBe(REFUSAL)
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(true)
+    })
+
+    it('stays submitted with the field error after a field-map refusal', async () => {
+        const rendered = await renderTyped({
+            level: 'admin',
+            ledger: LEDGER,
+            refuseSettings: serverRefusal('phone', 'Phone is not allowed'),
+        })
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.phone?.message).toBe(
+                'Phone is not allowed'
+            )
+        )
+        await settleAll()
+        expect(rendered.result.current.form.formState.errors.phone?.message).toBe(
+            'Phone is not allowed'
+        )
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(true)
+    })
+
+    it('is submitted after a zod validation failure', async () => {
+        const rendered = await renderTyped()
+        act(() => {
+            rendered.result.current.form.setValue('business_name', '   ', { shouldDirty: true })
+        })
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.business_name).toBeDefined()
+        )
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(true)
+    })
+
+    it('is not submitted and has no errors after a successful save', async () => {
+        const rendered = await renderTyped()
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() => expect(savedRow().phone).toBe('+1 555 000 9999'))
+        await waitFor(() => expect(rendered.result.current.isDirty).toBe(false))
+        await settleAll()
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(false)
+        expect(rendered.result.current.form.formState.errors).toEqual({})
+    })
+
+    it('shows the error again, submitted, when a retry after a refusal fails again', async () => {
+        const rendered = await renderTyped({
+            level: 'admin',
+            ledger: LEDGER,
+            refuseSettings: messageRefusal(REFUSAL),
+        })
+        act(() => rendered.result.current.submit())
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.root?.message).toBe(REFUSAL)
+        )
+        await settleAll()
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(false))
+        await settleAll()
+        expect(rendered.result.current.form.formState.errors.root?.message).toBe(REFUSAL)
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(true)
+    })
+
+    it('is not submitted after a retry that succeeds once the refusal lifts', async () => {
+        const rendered = await renderTyped({
+            level: 'admin',
+            ledger: LEDGER,
+            refuseSettings: messageRefusal(REFUSAL),
+        })
+        act(() => rendered.result.current.submit())
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.root?.message).toBe(REFUSAL)
+        )
+        await settleAll()
+
+        liftRefusal()
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() => expect(savedRow().phone).toBe('+1 555 000 9999'))
+        await waitFor(() => expect(rendered.result.current.isDirty).toBe(false))
+        await settleAll()
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(false)
     })
 })

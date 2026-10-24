@@ -21,7 +21,7 @@ export function useSettingsForm<V extends FieldValues>({ schema, values, toPatch
     const form = useForm<V>({
         resolver: zodResolver(schema),
         values,
-        resetOptions: { keepDirtyValues: true, keepErrors: true },
+        resetOptions: { keepDirtyValues: true, keepErrors: true, keepIsSubmitted: true },
     })
     const { setError, getValues, reset, setValue } = form
 
@@ -40,7 +40,7 @@ export function useSettingsForm<V extends FieldValues>({ schema, values, toPatch
         onSuccess: (_result, parsed) => {
             inFlight.current = false
             addToast({ title: 'Saved.', variant: 'success', duration: 3000 })
-            reset(parsed)
+            reset(parsed, { keepIsSubmitted: false, keepErrors: false })
         },
         onError: (error: unknown, attempted: V) => {
             inFlight.current = false
