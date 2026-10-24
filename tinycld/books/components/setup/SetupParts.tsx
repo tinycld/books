@@ -152,16 +152,6 @@ function OwnershipPart({ parts }: { parts: Parts }) {
     )
 }
 
-function GroupCounts({ groups }: { groups: Parts['groups'] }) {
-    const chips = groups.map(group => (
-        <View key={group.key} className="mr-5 flex-row gap-1.5">
-            <Text className="text-sm text-foreground">{group.label}</Text>
-            <Text className="text-sm text-muted-foreground">{group.count}</Text>
-        </View>
-    ))
-    return <View className="mb-3 flex-row flex-wrap">{chips}</View>
-}
-
 function ChartGroup({ group }: { group: Parts['groups'][number] }) {
     const lines = group.accounts.map(account => (
         <Text key={account.key} className="py-1.5 text-sm text-foreground" numberOfLines={1}>
@@ -170,9 +160,8 @@ function ChartGroup({ group }: { group: Parts['groups'][number] }) {
     ))
     return (
         <View>
-            <View className="flex-row justify-between border-b border-border pb-1.5">
+            <View className="border-b border-border pb-1.5">
                 <Text className="text-sm font-semibold text-foreground">{group.label}</Text>
-                <Text className="text-sm text-muted-foreground">{group.count}</Text>
             </View>
             {lines}
         </View>
@@ -215,7 +204,6 @@ function ChartPart({ parts }: { parts: Parts }) {
                     title="Your starter chart"
                     lead={`${accountCountLabel(parts.chartCount)}. You can change any of them later.`}
                 />
-                <GroupCounts groups={parts.groups} />
                 <ChartPreview groups={parts.groups} />
             </View>
             <View className="flex-row items-center justify-between">

@@ -118,5 +118,5 @@
 - commit: see git log
 
 ## Final review
-- eval: 
+- eval: revised -> remove the per-group counts and the group-count row above the preview (human: "they are just confusing"); fix commit: see git log
 - native: not executed in this run

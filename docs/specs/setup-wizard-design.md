@@ -13,7 +13,7 @@ Books opens `/a/books/setup` from a card at the top of the Lists hub while setup
 - The step shows a progress label ("Part n of 3") and three parts, one per screen: Business, Ownership, Starter chart.
 - Business: Legal business name (required, max 200) and Fiscal year starts in (month select, default January). The currency line reads "US dollars (USD)" and is not editable.
 - Ownership: "How is the business owned?" with two cards: "One owner or partners" (equity accounts Owner's equity, Owner's contributions, Owner's draws) and "Corporation" (Common stock, Paid-in capital, Retained earnings). The choice only decides those equity accounts.
-- Starter chart: shows the accounts to be created, grouped Assets, Liabilities, Equity, Income, Expenses, with a count per group. The list is read-only. Back returns to Ownership.
+- Starter chart: shows the accounts to be created, grouped Assets, Liabilities, Equity, Income, Expenses, with no count on any group heading and no row of group counts above the list. The list is read-only. Back returns to Ownership.
 - Create runs one batch: the settings row first (business name and fiscal year), then parent accounts, then sub-accounts, then the settings row again to mark setup done. Progress shows "Creating accounts n of N", where N is the whole chart and accounts that already exist count as done.
 - A failure stops the batch, names the account that was refused with the server's message, and offers Try again. Try again skips accounts that already exist (matched by number) and continues.
 - Done screen: "Your books are ready" with the account count, and two actions: Open Chart of Accounts, Enter opening balances (shown only when that screen is available).
