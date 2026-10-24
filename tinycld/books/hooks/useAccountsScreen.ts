@@ -1,4 +1,6 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { router } from 'expo-router'
 import { useState } from 'react'
 import { canWriteAccounts } from '../lib/account-access'
 import { useAccountsPanelStore } from '../stores/accounts-panel-store'
@@ -10,6 +12,7 @@ import { useBooksAccess } from './useBooksAccess'
 
 export type AccountMenuHandlers = {
     onEdit(id: string): void
+    onViewRegister(id: string): void
     onAddSub(id: string): void
     onToggleInactive(row: AccountRow): void
     onDelete(id: string): void
@@ -30,6 +33,7 @@ export function useAccountsScreen() {
     const tree = useAccountTree(accounts)
     const access = useBooksAccess()
     const breakpoint = useBreakpoint()
+    const orgHref = useOrgHref()
     const isWide = breakpoint !== 'mobile'
     const onNew = useAccountsPanelStore(s => s.openNew)
     const onOpen = useAccountsPanelStore(s => s.openEdit)
@@ -41,6 +45,7 @@ export function useAccountsScreen() {
 
     const menu: AccountMenuHandlers = {
         onEdit: onOpen,
+        onViewRegister: (id: string) => router.push(orgHref(`books/accounts/${id}`)),
         onAddSub: openSubAccount,
         onToggleInactive: row => {
             void actions.setInactive([row.id], !row.inactive)

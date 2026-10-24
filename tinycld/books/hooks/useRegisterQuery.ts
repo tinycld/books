@@ -2,7 +2,7 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { reloadCollections } from '../lib/accounts-query'
 import {
     anyActivityQuery,
@@ -11,18 +11,38 @@ import {
     reversalOriginsQuery,
     subAccountQuery,
 } from '../lib/register-query'
-import type { RegisterRange } from '../lib/register-range'
+import { fiscalStartMonth, type RegisterRange } from '../lib/register-range'
 import type { BooksAccounts } from '../types'
 
 export type RegisterAccount = BooksAccounts
 
-export function useRegisterQuery(accountId: string, range: RegisterRange | null) {
+// A function receives the fiscal year start month, so the range waits for the settings query this hook runs.
+export type RegisterRangeInput =
+    | RegisterRange
+    | null
+    | ((fiscalYearStartMonth: number) => RegisterRange)
+
+function resolveRange(input: RegisterRangeInput, month: number, isSettingsReady: boolean) {
+    if (typeof input !== 'function') return input
+    return isSettingsReady ? input(month) : null
+}
+
+export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInput) {
     const [accountsCollection, linesCollection, entriesCollection, balancesCollection] = useStore(
         'books_accounts',
         'books_journal_lines',
         'books_journal_entries',
         'books_account_balances'
     )
+    // A live query that failed stays failed, so a retry also rebuilds the queries by changing their key.
+    const [attempt, setAttempt] = useState(0)
+    const [settingsCollection] = useStore('books_settings')
+    const settingsQuery = useLiveQuery({
+        query: query => query.from({ settings: settingsCollection }),
+        queryKey: ['books.register.settings', attempt],
+    })
+    const fiscalMonth = fiscalStartMonth(settingsQuery.data?.[0])
+    const range = resolveRange(rangeInput, fiscalMonth, settingsQuery.isReady)
     // The account has its own live query rather than useRecord because the
     // screen needs this query's error state.
     const accountQuery = useLiveQuery({
@@ -33,28 +53,28 @@ export function useRegisterQuery(accountId: string, range: RegisterRange | null)
                       .where(({ account }) => eq(account.id, accountId))
                       .findOne()
                 : undefined,
-        queryKey: ['books.register.account', accountId, range === null],
+        queryKey: ['books.register.account', accountId, range === null, attempt],
     })
     const linesQuery = useLiveQuery({
         query: query =>
             range
                 ? registerLinesQuery(linesCollection, entriesCollection, accountId, range)(query)
                 : undefined,
-        queryKey: ['books.register.lines', accountId, range?.start, range?.end],
+        queryKey: ['books.register.lines', accountId, range?.start, range?.end, attempt],
     })
     const openingQuery = useLiveQuery({
         query: query =>
             range ? openingTotalsQuery(balancesCollection, accountId, range)(query) : undefined,
-        queryKey: ['books.register.opening', accountId, range?.start],
+        queryKey: ['books.register.opening', accountId, range?.start, attempt],
     })
     const subAccountResult = useLiveQuery({
         query: query => (range ? subAccountQuery(accountsCollection, accountId)(query) : undefined),
-        queryKey: ['books.register.sub-account', accountId, range === null],
+        queryKey: ['books.register.sub-account', accountId, range === null, attempt],
     })
     const activityQuery = useLiveQuery({
         query: query =>
             range ? anyActivityQuery(balancesCollection, accountId)(query) : undefined,
-        queryKey: ['books.register.activity', accountId, range === null],
+        queryKey: ['books.register.activity', accountId, range === null, attempt],
     })
 
     const originIds = [
@@ -67,10 +87,8 @@ export function useRegisterQuery(accountId: string, range: RegisterRange | null)
             originIds.length > 0
                 ? reversalOriginsQuery(entriesCollection, originIds)(query)
                 : undefined,
-        queryKey: ['books.register.origins', ...originIds],
+        queryKey: ['books.register.origins', attempt, ...originIds],
     })
-    const [settingsCollection] = useStore('books_settings')
-    const settingsQuery = useLiveQuery(query => query.from({ settings: settingsCollection }))
 
     const originRows = originsQuery.data
     const lineRows = linesQuery.data
@@ -88,6 +106,7 @@ export function useRegisterQuery(accountId: string, range: RegisterRange | null)
     }
 
     const retry = () => {
+        setAttempt(n => n + 1)
         void reloadCollections(
             [accountsCollection, linesCollection, entriesCollection, balancesCollection],
             err => log.error('books.register', err)
@@ -95,6 +114,7 @@ export function useRegisterQuery(accountId: string, range: RegisterRange | null)
     }
 
     return {
+        range,
         account: accountQuery.data,
         lines,
         priorTotals,

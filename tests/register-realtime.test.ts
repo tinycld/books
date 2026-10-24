@@ -2,7 +2,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRegisterQuery } from '../tinycld/books/hooks/useRegisterQuery'
-import { REGISTER_ACCOUNT_ID } from '../tinycld/books/lib/account-register-fixture'
+import { REGISTER_ACCOUNT_ID, SETTINGS } from '../tinycld/books/lib/account-register-fixture'
 import { balanceStore, entryStore, lineStore, seedBooks } from './accounts-form-harness'
 import { BALANCES, RANGE, registerLine, SEED_ENTRIES, SEED_LINES } from './register-test-data'
 import { silenceConsole } from './silence-log'
@@ -148,5 +148,34 @@ describe('useRegisterQuery errors', () => {
         })
         await waitFor(() => expect(hook.result.current.isError).toBe(true))
         expect(reported).toHaveBeenCalledWith(expect.stringContaining('[Live Query Error]'))
+    })
+})
+
+describe('useRegisterQuery fiscal year start month', () => {
+    async function monthsSeen(settings: (typeof SETTINGS)[]) {
+        seedBooks({
+            ledger: { lines: SEED_LINES, entries: SEED_ENTRIES, balances: [...BALANCES], settings },
+        })
+        const months: number[] = []
+        const hook = renderHook(() =>
+            useRegisterQuery(REGISTER_ACCOUNT_ID, month => {
+                months.push(month)
+                return RANGE
+            })
+        )
+        await waitFor(() => expect(hook.result.current.isReady).toBe(true))
+        return months
+    }
+
+    it('gives the range month 1 when no settings row exists', async () => {
+        const months = await monthsSeen([])
+        expect(months.length).toBeGreaterThan(0)
+        expect(new Set(months)).toEqual(new Set([1]))
+    })
+
+    it('gives the range the month from the settings row', async () => {
+        const months = await monthsSeen([{ ...SETTINGS, fiscal_year_start_month: 9 }])
+        expect(months.length).toBeGreaterThan(0)
+        expect(new Set(months)).toEqual(new Set([9]))
     })
 })
