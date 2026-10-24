@@ -156,13 +156,12 @@
 - gate 1: tests unedited: yes except the dispute above · pass (check exit 0; full e2e 114 passed 1 skipped); shots captured
 - gate 2: invalid shots: none · blocking: none · notes in cp4/critique.md (line table rules full-bleed vs reference inset; Dr/Cr marker styling; Reversed-by is a link row, reference shows a labeled detail)
 - gate 3 A: accepted+fixed: viewState gated on lines and accounts ready (false "In balance" with no lines), missing account placeholder + log.warn, stamp text without leading comma (stampText), screen branches on viewState. Gate 3 B: no blockers; out-of-plan changes recorded below.
-- fix review: not run as a separate pass; the fix diff is small and covered by the new red-then-green tests and a full e2e run.
+- fix review: fresh reviewer A over commit 29c9a76; accepted+fixed in a follow-up commit: observer test missing account/stamp/link-pop-in flags, linked entries and user lookups now gate viewState, date assertions pattern-only (no midnight/month flake), stampText unparseable date; low items rebutted (useEffect is log-only). Full results in the follow-up commit.
 - reviewer-caught deferrals: see Deferrals below
 
 ### Cp4 rebuttals / deferrals
-- **router.replace for linked-entry links** (plan says push): kept; push leaves two entry screens mounted on web. Consequence: browser Back after Reversed by / Reverses goes to the list, not the previous entry. Checkpoints 8 and 9 must not assume a stack entry after following a link. User to confirm.
-- **Back from an entry opened via the register drawer** lands on the entries list (label "Journal entries"), not the register. Deferred.
-- **Reversed-by shown for a draft or void reversal**: possible only after checkpoint 8 creates such states; revisit there.
+- **router.replace for linked-entry links** (plan says push): kept; push leaves two entry screens mounted on web. Consequence: browser Back after Reversed by / Reverses goes to the list, not the previous entry. Checkpoints 8 and 9 must not assume a stack entry after following a link. User confirmed.
+- **Back via register drawer** and **Reversed-by for draft/void reversal**: not deferred. Neither blocker was a missing dependency or a human decision, so both were built in the follow-up commit (useBackToEntries returns label and action from the previous route: Register or Journal entries; reversalSummary counts only a posted reversal, matching the server rule).
 - **Reference differences** (Reversed-by labeled detail, Dr/Cr marker weight, inset table rules): NOTE only.
 - **useBackToEntries relies on route name 'entries/index'**: falls back to replace if wrong; covered by the back-navigation test.
 

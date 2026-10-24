@@ -8,7 +8,7 @@ import { useEntryDetail } from '../../hooks/useEntryDetail'
 function NotFound() {
     return (
         <View testID="entry-not-found" className="flex-1 gap-2 bg-background px-4 pt-2">
-            <EntryBackLink label="Journal entries" />
+            <EntryBackLink />
             <Text className="text-base text-foreground">This entry does not exist</Text>
         </View>
     )

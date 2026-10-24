@@ -78,14 +78,6 @@ async function openEntry(page: Page, memo: string) {
 const ACCOUNT_LABELS = { checking: '1000 Business Checking', equity: "3000 Owner's Equity" }
 const SEED_POSTER = 'Test User'
 
-function shortDate(date: Date): string {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function escapeRegExp(text: string): string {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 function hasScrollableAncestor(locator: Locator): Promise<boolean> {
     return locator.evaluate(el => {
         for (let node = el.parentElement; node; node = node.parentElement) {
@@ -123,12 +115,14 @@ for (const [sizeName, size] of SIZES) {
             await openEntries(page)
 
             // A MutationObserver sees every intermediate render, which polling would miss.
-            await page.evaluate(() => {
+            await page.evaluate(poster => {
                 const seen = {
                     notFound: false,
                     zeroTotal: false,
                     balanceWithoutLines: false,
                     bodyWithoutLines: false,
+                    blankOrUnknownAccount: false,
+                    stampWithoutName: false,
                 }
                 const text = (id: string) =>
                     document.querySelector(`[data-testid="${id}"]`)?.textContent?.trim()
@@ -143,6 +137,15 @@ for (const [sizeName, size] of SIZES) {
                     if (has('entry-balance-status') && !has('entry-line-0'))
                         seen.balanceWithoutLines = true
                     if (has('entry-read-only') && !has('entry-line-0')) seen.bodyWithoutLines = true
+                    for (const el of document.querySelectorAll(
+                        '[data-testid^="entry-line-account-"]'
+                    )) {
+                        const label = el.textContent?.trim() ?? ''
+                        if (label === '' || label === 'Unknown account')
+                            seen.blankOrUnknownAccount = true
+                    }
+                    const stamp = text('entry-detail-posted-by')
+                    if (stamp && !stamp.includes(poster)) seen.stampWithoutName = true
                 }
                 new MutationObserver(check).observe(document.body, {
                     subtree: true,
@@ -151,7 +154,7 @@ for (const [sizeName, size] of SIZES) {
                     attributes: true,
                 })
                 Object.assign(window, { __entrySeen: seen })
-            })
+            }, SEED_POSTER)
 
             await entryRow(page, ENTRIES_SEED.posted).click()
             await expect(page.getByTestId('entry-not-found')).toHaveCount(0)
@@ -174,7 +177,59 @@ for (const [sizeName, size] of SIZES) {
                 zeroTotal: false,
                 balanceWithoutLines: false,
                 bodyWithoutLines: false,
+                blankOrUnknownAccount: false,
+                stampWithoutName: false,
             })
+        })
+
+        test('opening a reversed entry: the reversed-by link is never missing early', async ({
+            page,
+        }) => {
+            await start(page, size)
+            await openEntries(page)
+            await page.evaluate(() => {
+                const seen = { bodyWithoutReversedLink: false }
+                new MutationObserver(() => {
+                    const has = (id: string) => !!document.querySelector(`[data-testid="${id}"]`)
+                    if (has('entry-read-only') && !has('entry-link-reversed-by'))
+                        seen.bodyWithoutReversedLink = true
+                }).observe(document.body, { subtree: true, childList: true, attributes: true })
+                Object.assign(window, { __entrySeen: seen })
+            })
+            await entryRow(page, ENTRIES_SEED.reversed).click()
+            await expect(page.getByTestId('entry-link-reversed-by')).toBeVisible()
+            const seen = await page.evaluate(
+                () => (window as unknown as { __entrySeen: Record<string, boolean> }).__entrySeen
+            )
+            expect(seen).toEqual({ bodyWithoutReversedLink: false })
+        })
+
+        test('opening an auto-reverse entry: the date never reads "None" first', async ({
+            page,
+        }) => {
+            await start(page, size)
+            await openEntries(page)
+            await page.evaluate(() => {
+                const seen = { notWillReverse: false }
+                new MutationObserver(() => {
+                    const value = document
+                        .querySelector('[data-testid="entry-auto-reverse"]')
+                        ?.textContent?.trim()
+                    if (value !== undefined && !value.startsWith('Will reverse on'))
+                        seen.notWillReverse = true
+                }).observe(document.body, {
+                    subtree: true,
+                    childList: true,
+                    characterData: true,
+                })
+                Object.assign(window, { __entrySeen: seen })
+            })
+            await entryRow(page, ENTRIES_SEED.auto).click()
+            await expect(page.getByTestId('entry-auto-reverse')).toContainText('Will reverse on')
+            const seen = await page.evaluate(
+                () => (window as unknown as { __entrySeen: Record<string, boolean> }).__entrySeen
+            )
+            expect(seen).toEqual({ notWillReverse: false })
         })
 
         test('back: returns to the list and pops browser history', async ({ page }) => {
@@ -264,10 +319,8 @@ for (const [sizeName, size] of SIZES) {
             await start(page, size)
             await openEntry(page, ENTRIES_SEED.auto)
 
-            const now = new Date()
-            const nextMonth = shortDate(new Date(now.getFullYear(), now.getMonth() + 1, 1))
-            await expect(page.getByTestId('entry-auto-reverse')).toContainText(
-                `Will reverse on ${nextMonth}`
+            await expect(page.getByTestId('entry-auto-reverse')).toHaveText(
+                /^Will reverse on [A-Z][a-z]{2} \d{1,2}, \d{4}$/
             )
         })
 
@@ -276,9 +329,8 @@ for (const [sizeName, size] of SIZES) {
             await openEntry(page, ENTRIES_SEED.posted)
 
             const posted = page.getByTestId('entry-read-only').getByText(/posted by/i)
-            const today = escapeRegExp(shortDate(new Date()))
             await expect(posted.first()).toContainText(
-                new RegExp(`${SEED_POSTER}, ${today}, \\d{1,2}:\\d{2}`)
+                new RegExp(`${SEED_POSTER}, [A-Z][a-z]{2} \\d{1,2}, \\d{4}, \\d{1,2}:\\d{2}`)
             )
         })
 
@@ -320,10 +372,18 @@ for (const [sizeName, size] of SIZES) {
             await page.getByTestId('register-drawer-open-entry').click()
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
 
-            // Back goes to the entries list, not the register it was opened from. A later
-            // goBack then returns toward the register; that history is not asserted here.
+            // Back returns to the register the entry was opened from, labelled for it.
+            const entryUrl = page.url()
+            await expect(page.getByTestId('entry-back')).toHaveText('Register')
             await page.getByTestId('entry-back').click()
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
+            await expect(page.getByTestId('register-title')).toBeVisible()
+            await expect(page.getByTestId('entry-read-only')).toHaveCount(0)
+            await expect(page.getByTestId('entries-screen')).toHaveCount(0)
+
+            // Back pops the entry off history; it must not reopen on goBack.
+            await page.goBack()
+            await expect(page).not.toHaveURL(entryUrl)
+            await expect(page.getByTestId('entry-read-only')).toHaveCount(0)
         })
     })
 }

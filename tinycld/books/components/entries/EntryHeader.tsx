@@ -5,9 +5,9 @@ import { Pressable, Text, View } from 'react-native'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { formatMoney } from '../../lib/money'
 
-export function EntryBackLink({ label }: { label: string }) {
+export function EntryBackLink() {
     const color = useThemeColor('muted-foreground')
-    const onBack = useBackToEntries()
+    const { label, onBack } = useBackToEntries()
     return (
         <Pressable
             testID="entry-back"
@@ -23,7 +23,6 @@ export function EntryBackLink({ label }: { label: string }) {
 }
 
 interface EntryHeaderProps {
-    backLabel: string
     title: string
     badge: ReactNode
     bigTotal: number
@@ -31,17 +30,10 @@ interface EntryHeaderProps {
     menu?: ReactNode
 }
 
-export function EntryHeader({
-    backLabel,
-    title,
-    badge,
-    bigTotal,
-    currency,
-    menu,
-}: EntryHeaderProps) {
+export function EntryHeader({ title, badge, bigTotal, currency, menu }: EntryHeaderProps) {
     return (
         <View className="gap-1 border-b border-border px-4 pb-3 pt-2">
-            <EntryBackLink label={backLabel} />
+            <EntryBackLink />
             <View className="flex-row items-end justify-between gap-3">
                 <View className="min-w-0 flex-1 flex-row flex-wrap items-center gap-2">
                     <Text testID="entry-title" className="text-2xl font-semibold text-foreground">
