@@ -8,6 +8,7 @@ import type {
     BooksAccess,
     BooksAccountBalances,
     BooksAccounts,
+    BooksDocSequences,
     BooksJournalEntries,
     BooksJournalLines,
     BooksSettings,
@@ -31,8 +32,10 @@ const state = {
     refuseSettings: null as unknown,
     // Refuses every settings write after the first `after` ones that reached the handler.
     refuseSettingsAfter: null as { after: number; error: unknown } | null,
+    // Refuses every doc sequence write with this error.
+    refuseSequences: null as unknown,
     settingsEntered: 0,
-    // Every write that reached a handler, in order: `account:<id>` or `settings:<id>`.
+    // Every write that reached a handler, in order: `account:<id>`, `settings:<id>` or `sequence:<id>`.
     log: [] as string[],
     // Writes waiting for `stepWrites().next()`; null when writes are not stepped.
     steps: null as (() => void)[] | null,
@@ -110,6 +113,7 @@ export function liftRefusal() {
     state.refusalFor = {}
     state.refuseSettings = null
     state.refuseSettingsAfter = null
+    state.refuseSequences = null
 }
 
 export function useStoreStub(...names: string[]) {
@@ -198,6 +202,33 @@ function settingsCollection(initialData: BooksSettings[]) {
     )
 }
 
+// The doc sequences collection runs its writes through handlers too, logged as
+// `sequence:<id>`, so a test can count them and refuse them.
+function sequencesCollection(initialData: BooksDocSequences[]) {
+    counter += 1
+    const refuseWhenAsked = async ({
+        transaction,
+    }: {
+        transaction: { mutations: ReadonlyArray<{ key: unknown }> }
+    }) => {
+        state.log.push(...transaction.mutations.map(m => `sequence:${String(m.key)}`))
+        if (state.gate) await state.gate
+        await waitForStep()
+        if (state.refuseSequences) throw state.refuseSequences
+    }
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `books_doc_sequences-${counter}`,
+            getKey: (row: BooksDocSequences) => row.id,
+            initialData,
+            onInsert: refuseWhenAsked,
+            onUpdate: refuseWhenAsked,
+            onDelete: refuseWhenAsked,
+            ...indexed,
+        })
+    )
+}
+
 function neverReady<T extends { id: string }>() {
     counter += 1
     return createCollection({
@@ -277,6 +308,15 @@ function settingsCollectionFor(
     return settingsCollection(rows)
 }
 
+function sequencesCollectionFor(
+    opts: { sequencesNeverReady?: boolean; sequencesFailsOnce?: boolean },
+    rows: BooksDocSequences[]
+) {
+    if (opts.sequencesNeverReady) return neverReady<BooksDocSequences>()
+    if (opts.sequencesFailsOnce) return failsOnceCollection<BooksDocSequences>(rows)
+    return sequencesCollection(rows)
+}
+
 export function seedBooks(
     opts: {
         level?: Level
@@ -288,6 +328,10 @@ export function seedBooks(
         refuseAfter?: { after: number; error: unknown }
         // Refuses every write to the settings row with this error.
         refuseSettings?: unknown
+        // Refuses every write to a doc sequence row with this error.
+        refuseSequences?: unknown
+        // The doc sequence rows to seed; none by default.
+        sequences?: BooksDocSequences[]
         // A journal-lines collection that never finishes loading, so the usage
         // query stays not ready.
         linesNeverReady?: boolean
@@ -302,6 +346,10 @@ export function seedBooks(
         settingsNeverReady?: boolean
         // A settings collection whose first load fails and whose reload succeeds.
         settingsFailsOnce?: boolean
+        // A doc sequences collection that never finishes loading.
+        sequencesNeverReady?: boolean
+        // A doc sequences collection whose first load fails and whose reload succeeds.
+        sequencesFailsOnce?: boolean
         // An access collection that never finishes loading, so the Books level stays unknown.
         accessNeverReady?: boolean
         // Replaces the journal lines, entries, balances and settings rows, for the register tests.
@@ -329,6 +377,7 @@ export function seedBooks(
     state.refusalFor = opts.refusalFor ?? {}
     state.refuseAfter = opts.refuseAfter ?? null
     state.refuseSettings = opts.refuseSettings ?? null
+    state.refuseSequences = opts.refuseSequences ?? null
     state.log = []
     state.entered = []
     state.requested = []
@@ -350,6 +399,7 @@ export function seedBooks(
             opts.ledger?.entries ?? []
         ),
         books_settings: settingsCollectionFor(opts, opts.ledger?.settings ?? []),
+        books_doc_sequences: sequencesCollectionFor(opts, opts.sequences ?? []),
         books_access: opts.accessNeverReady
             ? neverReady<BooksAccess>()
             : local<BooksAccess>('books_access', [access]),
@@ -375,6 +425,10 @@ export function balanceStore() {
 
 export function settingsStore() {
     return state.registry.books_settings as ReturnType<typeof settingsCollection>
+}
+
+export function sequencesStore() {
+    return state.registry.books_doc_sequences as ReturnType<typeof sequencesCollection>
 }
 
 export function storedAccounts(): BooksAccounts[] {

@@ -30,6 +30,10 @@
   **rebutted because:** the checkpoint's Interfaces block gives the signature with `userId`; checkpoint 5 builds the writes with it.
 - **finding:** reviewer A, checkpoint 2: `expiryFrom` silently falls back to 24h on an unknown `lasts`
   **rebutted because:** the `LastsFor` type blocks it at compile time and `overrideSchema` enforces it at runtime (reviewer: "Acceptable").
+- **finding:** reviewer A and fix review, checkpoint 3: `reset(parsed)` on success drops anything typed while the save is pending
+  **rebutted because:** the spec's save rule is "Save success: a toast "Saved." and the form resets to the saved values."; Save is the only submit path and the form is not edited during the short write.
+- **finding:** reviewer B, checkpoint 3: each form/card opens its own `useBooksSettings` live query
+  **rebutted because:** all share the queryKey `['books','settings']`, so one request serves them (reviewer: "acceptable because of the shared queryKey").
 
 ## Design notes
 (none yet)
@@ -45,6 +49,17 @@
 - phase 3: direction B (section list and detail) picked at the design gate; open questions 1-7 accepted with the recommended answers (see spec)
 - phase 4: plan reviewed by a fresh subagent; missing/narrowed and name findings fixed; test gaps (non-admin views, access flow) moved to e2e with a collaborator user; override history classified by expires_at only; spec wording 'as needed' changed to 'when the change requires it' (plan-check tripped on the phrase); fixture not seeded (fake user ids, setup_completed would hide the setup card); review mode C
 - review mode switches: none
+
+## Checkpoint 3
+- test writer: tests/useSettingsForm.test.tsx, useSequenceForm.test.tsx, harness tests/accounts-form-harness.ts (additive options); red (missing modules); untestable: none
+- implementer: DONE; hooks useBooksSettings, useSettingsForm, useDocSequences, useSequenceForm, lib/refusal.ts (messageOnlyRefusal moved), useAccountForm import
+- test disputes: 2 (fiscal-year/close-date tests compared the store row including $ metadata with toEqual); the checkpoint's "only that field changes" is unaffected, test wrong; fresh test writer added a $-key-stripping helper
+- self-declared differences: schema typed z.ZodType<V,V>; toast variant success/3000ms; sequences ordered by doc_type
+- gate 1: tests unedited: yes (after dispute) · pass (1212 tests)
+- gate 3 A: optimistic rollback wipes typed values/errors (real bug): accepted, fixed with resetOptions + re-dirty; same-tick double submit: accepted, fixed with inFlight ref; useDocSequences ordering/error/retry untested and independent block saves: accepted, tests added; sequence hook missed the re-dirty and inFlight release on a throwing onError: accepted, fixed
+- gate 3 B: direct react-hook-form/zod type imports: accepted, fixed
+- fix review: reviewer A over the fix diffs: two passes; remaining low items rebutted
+- harness change (tests/accounts-form-harness.ts) is test infrastructure named by the checkpoint
 
 ## Final review
 - eval: pending
