@@ -127,9 +127,13 @@ function segmentCount(text: string): number {
 // Known limitation: the segment-count prune treats every ':' as a path separator, so
 // mutually dependent rows whose names hold ':' can still resolve differently from an
 // exhaustive search. Those shapes are not made exact on purpose.
+export type ResolveStats = { scanned: number; lookups: number }
+
+// `stats`, when given, counts the work done so tests can bound it without a clock.
 export function resolveRows(
     rows: readonly RowInput[],
-    existing: readonly ExistingAccount[]
+    existing: readonly ExistingAccount[],
+    stats?: ResolveStats
 ): ResolvedRow[] {
     const index = indexExisting(existing)
     const fileByName = new Map<string, number[]>()
@@ -207,6 +211,7 @@ export function resolveRows(
     ): number | null {
         let lowest = -1
         for (const j of indexes) {
+            if (stats) stats.scanned++
             if (j === self) continue
             const done = resolved[j]
             if (done ? !accept(done) : !couldMatch(j)) continue
@@ -247,6 +252,7 @@ export function resolveRows(
 
     // The full path is tried first; a bare name is the fallback.
     function lookup(i: number): { pending: number } | { link: ParentLink } {
+        if (stats) stats.lookups++
         const text = rows[i].parentRaw
         if (text === '') return { link: { kind: 'none' } }
         const wanted = foldName(text)
