@@ -40,9 +40,20 @@
   **rebutted because:** the spec says "on confirm sets `expires_at` to now" and Data lists `.update` (`expires_at` to now); a server-stamped revoke is a different design. Shown under Design notes.
 - **finding:** reviewer, checkpoint 4: the diff adds no tests for the guards, ended-row refusal and tick
   **rebutted because:** tests/useCloseOverrides.test.tsx and useMyCloseOverride.test.tsx hold them (per-operation guards, ended-row refusal, expiry while mounted, stale clock).
+- **finding:** reviewer B, checkpoint 5: `mutationFn` is an async function wrapping `performMutations`, not a generator
+  **rebutted because:** CLAUDE.md: "Use `performMutations` from the same module to await Transactions inside a plain async function." The reload after a part-way failure needs an awaited step the generator form cannot give.
+- **finding:** reviewer A and B, checkpoint 5: a user with no materialized `users` row gets orgRole 'guest' and an empty name
+  **rebutted because:** the level comes from the books_access view (owners and admins resolve to admin there); a missing users row means a deleted user, and the spec requires only that the row still appears.
+- **finding:** reviewer B, checkpoint 5: two live queries per row
+  **rebutted because:** the checkpoint's Do step 2 specifies "two small `useLiveQuery` reads for this person"; the user list is 1 to 50 staff (spec).
+- **finding:** reviewer A, checkpoint 5: per-person Set guard keyed by person id
+  **rebutted because:** harmless and tested ("two people don't block each other").
+- **finding:** fix review, checkpoint 5: after a reload-only failure, if person.level moves away and returns to `from`, the stale error and chosen level show again (ABA)
+  **rebutted because:** needs a failed reload plus two changes by another admin before the next reload; the error clears on the next change.
 
 ## Design notes
 - cp 4 · migration 2100000001: `books_close_overrides` listRule/viewRule are READ, so any user who can read Books can list every override and its reason through the API; the spec reads only the caller's own rows on the client. Tightening the rule is a design decision for the human.
+- cp 5 · hooks: `useAccessList` reads the viewer's own role from its own scoped users query, not `useCurrentRole()`, so `retryLoad` can restart it.
 - cp 4 · revoke: expiry is stamped from the client clock (spec); a client clock behind the server delays the effect of a revoke.
 (none yet)
 
@@ -78,6 +89,16 @@
 - gate 3 A: shared inFlight, expiry computed late, no live expiry, stale revoke, queryKey, unstable identity: accepted, fixed; later rounds: early ok:true on duplicate, stale tick clock: accepted, fixed; grant key missing `lasts`: accepted, fixed
 - gate 3 B: flatten outside .select() rebutted/explained; shared formatter accepted, fixed; migration list rule: Design notes
 - fix review: three reviewer-A passes; clean at the end
+
+## Checkpoint 5
+- test writer: tests/useAccessList.test.tsx, useAccessMutation.test.tsx, harness extended; red (missing modules); untestable: none; four later review rounds added tests
+- implementer: DONE; hooks useAccessList, useAccessMutation
+- test disputes: none
+- self-declared differences: async mutationFn with performMutations; viewerOrgRole from a scoped users query
+- gate 1: pass (1294 tests)
+- gate 3 A: readiness guard missing (duplicate core/admin rows): accepted, fixed; reload after partial failure (orchestrator decision): fixed; refusal reporting, reload failure message, no-op same level, non-refusal logging, chosen-level sticking, stale same-level guard: accepted, fixed
+- gate 3 B: same readiness finding; default onError noise: accepted, fixed; generator form, user-less rows, per-row queries: rebutted
+- fix review: four reviewer-A passes; last one clean apart from the ABA note (rebutted)
 
 ## Final review
 - eval: pending
