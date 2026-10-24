@@ -26,6 +26,14 @@
 ## Design notes
 cp 0 · server/reversal.go: the same-origin rule also refuses editing a posted reversal or auto_reversal entry (a correction can only be manual or opening). The spec requires 'a correction must have the same origin as the entry it replaces'; the Journal Entries unit (p1-journal-entries) must not offer Edit on those.
 
+cp 2 · core EmptyState link and outline Retry button are low contrast (light and dark; core components, same in the reference)
+cp 2 · error banner is a square full-bleed band, the reference is a rounded card; its top border doubles the header divider
+cp 2 · memo field is a custom input (core TextInput cannot show a derived default); a core `displayValue` prop needs core sign-off
+cp 2 · help icon (16px + hitSlop) and the toolbar link (32px) are under 44pt on phone
+cp 2 · the help icon points at books:opening-balances, which checkpoint 7 adds
+cp 2 · loading and read-only states have no screenshots
+cp 3+ · carry-over: `OpeningBalancesHeader` lost its `backTo` prop (checkpoint 6 adds only `subtitleLine`); a late query error unmounts the form, checkpoint 5 must keep a mounted form alive over it
+
 ## Out-of-plan changes
 cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collection` fields so a failing access read shows the error state instead of loading forever.
 
