@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/account-register-checkpoints.md
 - reference: docs/plans/account-register-reference/
 - evidence: docs/plans/account-register-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen)
 - capture manifest: docs/plans/account-register-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -107,7 +107,7 @@ Spike outcome also noted under Design notes.
 - reviewer-caught deferrals: none
 
 ## Final review
-- eval: (pending)
+- eval: approved 2026-10-24 (human; changes at the gate: core recoverLiveQueries replaces the attempt counter, account via useRecord, chart Retry on the helper)
 - native: not executed in this run
 
 - Out of plan (eval gate, human-directed): core `lib/recover-live-queries.ts` (+ unit test) on core branch `books/p1-account-register`; `useRegisterQuery` retry uses it. Core PR must merge before the books PR. Test written by the implementer, not a separate agent; the cp3 Retry e2e is the independent proof.
