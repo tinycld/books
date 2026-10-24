@@ -22,7 +22,7 @@
 
 ## Rebuttals
 - cp3 reviewer B finding 1 (useState `attempt` counter in useRegisterQuery): accepted after the gate. Retry now uses core's `recoverLiveQueries` (clean up queries, then sources, then preload; TanStack/db#923) and the counter is gone. A reviewer A finding 5 (text-danger on negative balances): rejected. Spec says only "A negative balance shows a minus sign"; the approved reference mockup renders them in text-danger and the colour does not replace the minus sign.
-- cp2 reviewer B finding 4 (account via hand-rolled useLiveQuery instead of useRecord): rejected. Decisions block: "`isError` is true when any of the live queries the screen runs (account, lines, opening totals, sub-account, any-activity, settings) reports `isError`." `useRecord` exposes no `isError`, so the account query must be a direct useLiveQuery.
+- cp2 reviewer B finding 4 (account via hand-rolled useLiveQuery instead of useRecord): accepted after the gate, human-directed. The account now comes from `useRecord` and `isError` no longer includes it: the lines query's error covers the screen, and a failed account lookup alone shows not found. This changes the checkpoint-plan `isError` decision (docs/plans/account-register-checkpoints.md lines 24 and 119). The chart's `useAccountsQuery` Retry also moved to `recoverLiveQueries`; `reloadCollections` and its test were deleted as dead.
 
 ## Design notes
 - cp4 critique NOTE: Opening/Ending balance labels are top-aligned in the header; reference bottom-aligns them.
