@@ -26,12 +26,18 @@
 - **finding:** reviewer B, checkpoint 1: `OfflinePocketBase` hand-writes `send` and uses `as never` casts
   **rebutted because:** it fakes only the network layer of the real pbtsdb collections (the checkpoint says "with real pbtsdb collections"); no shared helper exists for an offline PocketBase (grep of tests/ finds none).
 
+- **finding:** reviewer A, checkpoint 2: `levelPlan` takes `userId` and never uses it
+  **rebutted because:** the checkpoint's Interfaces block gives the signature with `userId`; checkpoint 5 builds the writes with it.
+- **finding:** reviewer A, checkpoint 2: `expiryFrom` silently falls back to 24h on an unknown `lasts`
+  **rebutted because:** the `LastsFor` type blocks it at compile time and `overrideSchema` enforces it at runtime (reviewer: "Acceptable").
+
 ## Design notes
 (none yet)
 
 ## Out-of-plan changes
 - tests/collections-real.test.ts: the checkpoint's Files block names it as a Modify; the test writer added the cases (planned).
 - docs/plans/books-settings-checkpoints.md: the untestable Tests bullet removed (see Rebuttals).
+- tinycld/books/lib/books-settings-fixture.ts, tinycld/books/screens/helix-mockup.tsx (checkpoint 2 fix): redeclared types replaced by imports.
 - tinycld/books/lib/account-register-fixture.ts, tinycld/books/lib/setup-wizard-fixture.ts: five empty fields added; they are typed BooksSettings and tsc fails without them.
 
 ## Phase notes
@@ -54,3 +60,14 @@
 - gate 3 A: 5 findings. Plan-file edit and removed bullet: rebutted (see Rebuttals); two extra fixtures: recorded under Out-of-plan; `as never` casts and offline send ignoring non-id filters: rebutted; mockup untouched: tsc passes, no CompanyDetails import
 - gate 3 B: seed.ts comment length and migration header wrap: accepted, fixed; OfflinePocketBase: rebutted
 - fix review: comment-only edits to seed.ts and the migration header; no logic change, so no reviewer-A pass is needed
+
+## Checkpoint 2
+- test writer: tests/settings-schema.test.ts, doc-types.test.ts, access-levels.test.ts, overrides.test.ts, settings-sections.test.ts; red (missing modules); untestable: none; a fresh test writer later added 3 tests after review
+- implementer: DONE; five lib files created
+- test disputes: none
+- self-declared differences: preview of an invalid number returns the label only; formatExpiry swaps U+202F for a space; fiscalYearSchema takes a number
+- gate 1: tests unedited: yes · pass (1181 tests)
+- gate 2: n/a
+- gate 3 A: ownOverrideLine used the UTC day while formatExpiry used the viewer zone: accepted, fixed; nextNumberPreview printed 1e+24 for long numbers: accepted, fixed; TZ leak in overrides test: accepted, fixed by a fresh test writer; levelPlan unused userId: rebutted; expiryFrom default: rebutted
+- gate 3 B: same date finding; invisible U+202F literal: accepted, fixed; fixture redeclared OrgRole and BooksLevel: accepted, fixed (fixture and helix-mockup.tsx edited)
+- fix review: reviewer A over the fix diff: clean
