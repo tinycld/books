@@ -4,6 +4,7 @@ import {
     entryStatusText,
     entryTypeText,
     formatDateTime,
+    reversalSummary,
     reversesText,
     stampText,
 } from '../tinycld/books/lib/entry-display'
@@ -69,5 +70,62 @@ describe('stampText', () => {
 
     it('shows the name before the time', () => {
         expect(stampText('Alice', at)).toBe(`Alice, ${formatDateTime(at)}`)
+    })
+})
+
+describe('reversalSummary', () => {
+    const posted = { id: 'r1', number: 'JE-1051', status: 'posted', date: '2026-11-01' }
+
+    it('has nothing for an entry with no reversal and no auto-reverse date', () => {
+        expect(reversalSummary(undefined, '')).toEqual({
+            linkText: undefined,
+            autoReverseText: undefined,
+        })
+    })
+
+    it('links a posted reversal', () => {
+        expect(reversalSummary(posted, '').linkText).toBe('Reversed by JE-1051')
+    })
+
+    it('reads "Reversed on <date> by JE-n" when auto-reverse is set and the reversal is posted', () => {
+        expect(reversalSummary(posted, '2026-11-01')).toEqual({
+            linkText: 'Reversed by JE-1051',
+            autoReverseText: 'Reversed on Nov 1, 2026 by JE-1051',
+        })
+    })
+
+    it('reads "Will reverse on <date>" when auto-reverse is set and nothing is reversed', () => {
+        expect(reversalSummary(undefined, '2026-11-01')).toEqual({
+            linkText: undefined,
+            autoReverseText: 'Will reverse on Nov 1, 2026',
+        })
+    })
+
+    // The server counts only a posted reversal (postedReversalQuery); a draft has no number.
+    it('ignores a draft reversal', () => {
+        const draft = { id: 'r2', number: '', status: 'draft', date: '2026-11-01' }
+        expect(reversalSummary(draft, '2026-11-01')).toEqual({
+            linkText: undefined,
+            autoReverseText: 'Will reverse on Nov 1, 2026',
+        })
+    })
+
+    // A voided reversal leaves the original reversible again.
+    it('ignores a void reversal', () => {
+        const voided = { ...posted, status: 'void' }
+        expect(reversalSummary(voided, '')).toEqual({
+            linkText: undefined,
+            autoReverseText: undefined,
+        })
+        expect(reversalSummary(voided, '2026-11-01').autoReverseText).toBe(
+            'Will reverse on Nov 1, 2026'
+        )
+    })
+})
+
+describe('stampText with an unparseable stamp', () => {
+    it('returns an empty string, with no trailing comma', () => {
+        expect(stampText('Test User', 'not a date')).toBe('')
+        expect(stampText(undefined, 'not a date')).toBe('')
     })
 })

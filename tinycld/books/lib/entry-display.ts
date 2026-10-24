@@ -1,5 +1,6 @@
 import type { BooksJournalEntries } from '../types'
 import { ENTRY_TYPE_LABELS } from './entry-messages'
+import { formatDay } from './register-range'
 
 type EntryStatus = BooksJournalEntries['status']
 type EntryOrigin = BooksJournalEntries['origin']
@@ -42,7 +43,27 @@ export function formatDateTime(stamp: string): string {
 }
 
 export function stampText(userName: string | undefined, at: string): string {
-    if (at === '') return ''
     const when = formatDateTime(at)
+    if (when === '') return ''
     return userName ? `${userName}, ${when}` : when
+}
+
+interface ReversalRow {
+    id: string
+    number: string
+    status: string
+    date: string
+}
+
+// Only a posted reversal counts: the server ignores a draft, and a void one frees the entry to be reversed again.
+export function reversalSummary(reversedBy: ReversalRow | undefined, autoReverseOn: string) {
+    const posted = reversedBy?.status === 'posted' ? reversedBy : undefined
+    const linkText = posted ? `Reversed by ${posted.number}` : undefined
+    let autoReverseText: string | undefined
+    if (autoReverseOn) {
+        autoReverseText = posted
+            ? `Reversed on ${formatDay(posted.date)} by ${posted.number}`
+            : `Will reverse on ${formatDay(autoReverseOn)}`
+    }
+    return { linkText, autoReverseText }
 }

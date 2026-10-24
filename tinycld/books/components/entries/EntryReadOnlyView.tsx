@@ -1,12 +1,10 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
-import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useRecord } from '@tinycld/core/lib/use-record'
 import { router } from 'expo-router'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
-import { entryNumberText, stampText } from '../../lib/entry-display'
+import { entryNumberText, reversalSummary, stampText } from '../../lib/entry-display'
 import { sumLines } from '../../lib/entry-lines'
 import { formatDay } from '../../lib/register-range'
 import { EntryHeader } from './EntryHeader'
@@ -41,20 +39,19 @@ function Detail({
 function Stamp({
     id,
     label,
-    userId,
+    userName,
     at,
 }: {
     id: string
     label: string
-    userId: string
+    userName: string | undefined
     at: string
 }) {
-    const [usersCollection] = useStore('users')
-    const { record: user } = useRecord(usersCollection, userId)
-    if (at === '') return null
+    const text = stampText(userName, at)
+    if (text === '') return null
     return (
         <Detail id={id} label={label}>
-            {stampText(user?.name, at)}
+            {text}
         </Detail>
     )
 }
@@ -74,17 +71,9 @@ function EntryLink({ id, text, entryId }: { id: string; text: string; entryId: s
     )
 }
 
-function autoReverseText(detail: ReadyEntryDetail): string {
-    const { entry, reversedBy } = detail
-    if (!entry.auto_reverse_on) return 'None'
-    if (reversedBy?.status === 'posted') {
-        return `Reversed on ${formatDay(reversedBy.date)} by ${reversedBy.number}`
-    }
-    return `Will reverse on ${formatDay(entry.auto_reverse_on)}`
-}
-
 function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
     const { entry, reversesEntry, reversedBy, replacesEntry } = detail
+    const { linkText } = reversalSummary(reversedBy, entry.auto_reverse_on)
     const links: ReactNode[] = []
     if (entry.reverses) {
         links.push(
@@ -96,13 +85,13 @@ function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
             />
         )
     }
-    if (reversedBy) {
+    if (reversedBy && linkText) {
         links.push(
             <EntryLink
                 key="reversed-by"
                 id="entry-link-reversed-by"
                 entryId={reversedBy.id}
-                text={`Reversed by ${reversedBy.number}`}
+                text={linkText}
             />
         )
     }
@@ -121,6 +110,8 @@ function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
 
 function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
     const { entry } = detail
+    const autoReverseText =
+        reversalSummary(detail.reversedBy, entry.auto_reverse_on).autoReverseText ?? 'None'
     return (
         <View className="gap-3">
             <View className="flex-row flex-wrap gap-x-6 gap-y-3">
@@ -128,18 +119,18 @@ function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
                     {formatDay(entry.date)}
                 </Detail>
                 <Detail id="auto-reverse" label="Auto-reverse on" valueId="entry-auto-reverse">
-                    {autoReverseText(detail)}
+                    {autoReverseText}
                 </Detail>
                 <Stamp
                     id="posted-by"
                     label="Posted by"
-                    userId={entry.posted_by}
+                    userName={detail.postedByName}
                     at={entry.posted_at}
                 />
                 <Stamp
                     id="voided-by"
                     label="Voided by"
-                    userId={entry.voided_by}
+                    userName={detail.voidedByName}
                     at={entry.voided_at}
                 />
             </View>
@@ -178,7 +169,6 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
     return (
         <View testID="entry-read-only" className="min-w-0 flex-1 bg-background">
             <EntryHeader
-                backLabel="Journal entries"
                 title={title}
                 badge={<EntryStatusBadge status={entry.status} />}
                 bigTotal={entry.total}

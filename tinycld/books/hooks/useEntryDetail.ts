@@ -7,10 +7,11 @@ import { useEffect } from 'react'
 import { useBooksAccess } from './useBooksAccess'
 
 export function useEntryDetail(entryId: string) {
-    const [entriesCollection, linesCollection, accountsCollection] = useStore(
+    const [entriesCollection, linesCollection, accountsCollection, usersCollection] = useStore(
         'books_journal_entries',
         'books_journal_lines',
-        'books_accounts'
+        'books_accounts',
+        'users'
     )
     const access = useBooksAccess()
     const { record: entry, isLoading } = useRecord(entriesCollection, entryId)
@@ -26,15 +27,29 @@ export function useEntryDetail(entryId: string) {
         query: query => query.from({ account: accountsCollection }),
         queryKey: ['books.entry.accounts'],
     })
-    const { data: linked = [] } = useLiveQuery({
+    const { data: linked = [], isReady: linkedReady } = useLiveQuery({
         query: query =>
             query
                 .from({ e: entriesCollection })
                 .where(({ e }) => or(eq(e.reverses, entryId), eq(e.replaces, entryId))),
         queryKey: ['books.entry.linked', entryId],
     })
-    const { record: reversesEntry } = useRecord(entriesCollection, entry?.reverses)
-    const { record: replacesEntry } = useRecord(entriesCollection, entry?.replaces)
+    const { record: reversesEntry, isLoading: reversesLoading } = useRecord(
+        entriesCollection,
+        entry?.reverses
+    )
+    const { record: replacesEntry, isLoading: replacesLoading } = useRecord(
+        entriesCollection,
+        entry?.replaces
+    )
+    const { record: postedBy, isLoading: postedByLoading } = useRecord(
+        usersCollection,
+        entry?.posted_by
+    )
+    const { record: voidedBy, isLoading: voidedByLoading } = useRecord(
+        usersCollection,
+        entry?.voided_by
+    )
 
     const accountNames = new Map(
         accounts.map(account => [account.id, `${account.number} ${account.name}`.trim()])
@@ -51,17 +66,23 @@ export function useEntryDetail(entryId: string) {
     }, [missingKey])
     for (const id of missingAccountIds) accountNames.set(id, 'Unknown account')
 
+    const reversals = linked.filter(row => row.reverses === entryId)
+
     const detail = {
         lines,
         accountNames,
-        reversedBy: linked.find(row => row.reverses === entryId),
+        // A posted reversal is the one that counts; a draft or void one may sit beside it.
+        reversedBy: reversals.find(row => row.status === 'posted') ?? reversals[0],
         replacedBy: linked.find(row => row.replaces === entryId),
         reversesEntry,
         replacesEntry,
+        postedByName: postedBy?.name,
+        voidedByName: voidedBy?.name,
         canWrite: access.canWrite,
         currency: entry?.currency ?? 'USD',
     }
-    if (isLoading || !linesReady || !accountsReady) {
+    const relatedLoading = reversesLoading || replacesLoading || postedByLoading || voidedByLoading
+    if (isLoading || !linesReady || !accountsReady || !linkedReady || relatedLoading) {
         return { ...detail, viewState: 'loading' as const, entry: undefined, isEditable: false }
     }
     if (!entry) {
