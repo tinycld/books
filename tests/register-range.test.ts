@@ -3,6 +3,7 @@ import {
     defaultRangePreset,
     fiscalStartMonth,
     formatDay,
+    isOtherPresetSelected,
     monthStartOf,
     periodOf,
     RANGE_PRESETS,
@@ -120,5 +121,20 @@ describe('day helpers', () => {
 
     it('formatDay', () => {
         expect(formatDay('2026-10-23')).toBe('Oct 23, 2026')
+    })
+})
+
+describe('isOtherPresetSelected', () => {
+    it('is false for this-fiscal-year', () => {
+        expect(isOtherPresetSelected('this-fiscal-year')).toBe(false)
+    })
+
+    it.each([
+        'this-month',
+        'last-month',
+        'this-quarter',
+        'last-fiscal-year',
+    ] as const)('is true for %s', preset => {
+        expect(isOtherPresetSelected(preset)).toBe(true)
     })
 })

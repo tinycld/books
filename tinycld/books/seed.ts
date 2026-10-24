@@ -137,6 +137,17 @@ const ENTRIES: SeedEntry[] = [
     },
 ]
 
+function isoDay(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+// The first day of the latest month on or before today whose month number is the fiscal start.
+function fiscalYearStart(today: Date, startMonth: number): string {
+    const year = today.getMonth() + 1 >= startMonth ? today.getFullYear() : today.getFullYear() - 1
+    return isoDay(new Date(year, startMonth - 1, 1))
+}
+
 export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<void> {
     const year = new Date().getFullYear()
     const ids = new Map<string, string>()
@@ -183,4 +194,92 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
                 .update(created.id, { status: 'posted', posted_by: ctx.user.id })
         }
     }
+    await seedRegisterEntries(pb, ctx, ids)
+}
+
+interface PostInput {
+    date: string
+    memo: string
+    lines: SeedLine[]
+    replaces?: string
+}
+
+async function postEntry(
+    pb: PocketBase,
+    ctx: SeedContext,
+    ids: Map<string, string>,
+    input: PostInput
+): Promise<string> {
+    const created = await pb.collection('books_journal_entries').create({
+        date: input.date,
+        memo: input.memo,
+        status: 'draft',
+        doc_type: 'journal',
+        origin: 'manual',
+        created_by: ctx.user.id,
+        ...(input.replaces ? { replaces: input.replaces } : {}),
+    })
+    for (const [position, [key, debit, credit]] of input.lines.entries()) {
+        await pb.collection('books_journal_lines').create({
+            entry: created.id,
+            account: ids.get(key),
+            debit,
+            credit,
+            position,
+        })
+    }
+    await pb
+        .collection('books_journal_entries')
+        .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+    return created.id
+}
+
+// Dated relative to today so the register has rows in This month and This fiscal year on any date.
+async function seedRegisterEntries(pb: PocketBase, ctx: SeedContext, ids: Map<string, string>) {
+    const now = new Date()
+    const today = isoDay(now)
+    const settings = (await pb.collection('books_settings').getFullList({ perPage: 1 }))[0]
+    const fiscalStart = fiscalYearStart(now, settings?.fiscal_year_start_month ?? 1)
+    await postEntry(pb, ctx, ids, {
+        date: today,
+        memo: 'Register sale',
+        lines: [
+            ['checking', 125000, 0],
+            ['receivable', 0, 125000],
+        ],
+    })
+    await postEntry(pb, ctx, ids, {
+        date: today,
+        memo: 'Register split payment',
+        lines: [
+            ['checking', 0, 30000],
+            ['rent', 20000, 0],
+            ['software', 10000, 0],
+        ],
+    })
+    await postEntry(pb, ctx, ids, {
+        date: fiscalStart,
+        memo: 'Register fiscal year start',
+        lines: [
+            ['checking', 50000, 0],
+            ['equity', 0, 50000],
+        ],
+    })
+    const original = await postEntry(pb, ctx, ids, {
+        date: today,
+        memo: 'Register void original',
+        lines: [
+            ['checking', 40000, 0],
+            ['receivable', 0, 40000],
+        ],
+    })
+    await postEntry(pb, ctx, ids, {
+        date: today,
+        memo: 'Register corrected',
+        replaces: original,
+        lines: [
+            ['checking', 45000, 0],
+            ['receivable', 0, 45000],
+        ],
+    })
 }

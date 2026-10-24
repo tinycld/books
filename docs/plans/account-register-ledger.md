@@ -21,13 +21,16 @@
 (none yet)
 
 ## Rebuttals
+- cp3 reviewer B finding 1 (useState `attempt` counter in useRegisterQuery) and A finding 5 (text-danger on negative balances): rejected. The counter is hook-local synchronous state; the live query stays in error after `collection.reload()` and only a changed queryKey rebuilds it, proven by the Retry e2e failing without it. Negative balances: spec says only "A negative balance shows a minus sign"; the approved reference mockup renders them in text-danger and the colour does not replace the minus sign.
 - cp2 reviewer B finding 4 (account via hand-rolled useLiveQuery instead of useRecord): rejected. Decisions block: "`isError` is true when any of the live queries the screen runs (account, lines, opening totals, sub-account, any-activity, settings) reports `isError`." `useRecord` exposes no `isError`, so the account query must be a direct useLiveQuery.
 
 ## Design notes
 - cp2 spike: outcome (a), see Checkpoint 2.
+- cp3 critique NOTEs: empty-range state has only a heading + button (reference had "Pick a longer range to see earlier lines."); not-found has a single sentence (reference had a secondary line).
 
 ## Out-of-plan changes
 - cp2: tests/accounts-form-harness.ts (seedBooks `ledger` option; entries/settings stores; lineStore/balanceStore/settingsStore/entryStore accessors), tests/register-test-data.ts, tests/collections-real.test.ts — test support the plan's tests needed; no existing test weakened.
+- cp3: hooks/useRegisterQuery.ts (cp2 code, Retry rebuild + settings query), hooks/useBackToChart.ts, deletion of hooks/useFiscalYearStartMonth.ts + tests/useFiscalYearStartMonth.test.ts, tests/e2e/account-register-helpers.ts + account-register-navigation.spec.ts, docs/plans/account-register-evidence/cp3/*.
 
 ## Phase notes
 - phase 1-3 (design gate 2026-10-23): direction A picked (flat table, entry drawer); Q1-Q12 accepted as recommended; one change: date range defaults to This month. No platform-only items. No core extension.
@@ -55,6 +58,17 @@
 - reviewer-caught deferrals: none. Retry has no test (no bullet; covered by e2e error test in cp3)
 
 Spike outcome also noted under Design notes.
+
+## Checkpoint 3
+- test writer: tests/register-state.test.ts, register-store.test.ts, e2e/account-register-states.spec.ts, e2e/account-register-navigation.spec.ts, e2e/account-register-helpers.ts, edits to shell-nav/account-menu/account-menu-panel/accounts-view-props tests; red for the right reason: yes
+- implementer: route screens/accounts/[id].tsx, hooks/useRegisterScreen.ts, lib/register-state.ts, stores/register-store.ts, components/register/*, entry points (row menu + panel), seed.ts entries, hooks/useBackToChart.ts; DONE. Self-declared: hooks/useRegisterQuery.ts (cp2 code) got a useState `attempt` counter in every queryKey so Retry rebuilds a failed live query (e2e Retry fails without it); header shows balances/range/New only in ready/empty/empty-range; testIDs on View wrappers for loading/error; useRegisterQuery owns the single settings query and hook useFiscalYearStartMonth was deleted (dead) with its test (fiscal month asserted in register-realtime.test.ts)
+- test disputes: (1) error e2e used route.abort(); pbtsdb retries network failures forever ("Reconnecting…") and only 4xx errors -> test now fulfills 400 (checkpoint text says only that the error state shows on a failed load); (2) openChart helper raced; fixed
+- gate 1: tests unedited: yes (except resolved disputes) · pass (1004 unit, 27 e2e)
+- gate 2: invalid shots: none · blocking: F1 'through <date>' under Opening instead of Ending balance -> fixed, e2e added, re-captured, fresh critic: 0 blocking · notes: 1 theme (empty-range has no explanation line; not-found has no secondary line), listed under Design notes
+- gate 3 A: ownBalance('') false warn while account missing -> fixed; Retry could not clear failed settings query -> fixed; back-link history handling + empty account number -> fixed (useBackToChart, e2e back x2 + number-less account e2e); isOtherPresetSelected inline -> extracted + unit test; text-danger on negative figures -> rebutted
+- gate 3 B: complex JSX expr in AccountPanel -> fixed; onViewRegister in Placement -> moved; useState attempt counter -> rebutted (see Rebuttals)
+- fix review: reviewer A pass over the fix diff: findings (back link untested, dead hook) fixed
+- reviewer-caught deferrals: none
 
 ## Final review
 - eval: (pending)

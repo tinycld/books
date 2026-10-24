@@ -78,6 +78,9 @@ const COLUMNS: readonly { column: NewAction['column']; heading: string }[] = [
     { column: 'other', heading: 'Other' },
 ]
 
+export const isNewActionAvailable = (id: string, actions: readonly NewAction[] = NEW_ACTIONS) =>
+    actions.find(action => action.id === id)?.available ?? false
+
 export function availableOnly<T extends { available: boolean }>(entries: readonly T[]): T[] {
     return entries.filter(entry => entry.available)
 }

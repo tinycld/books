@@ -36,6 +36,7 @@ export function AccountRowMenu({ row, menu, isDisabled }: AccountRowMenuProps) {
                 }
             >
                 <Menu.Item label="Edit" onSelect={() => menu.onEdit(row.id)} />
+                <Menu.Item label="View register" onSelect={() => menu.onViewRegister(row.id)} />
                 <Menu.Item label="Add sub-account" onSelect={() => menu.onAddSub(row.id)} />
                 <Menu.Item
                     label={row.inactive ? 'Make active' : 'Make inactive'}

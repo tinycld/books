@@ -15,6 +15,8 @@ export const RANGE_PRESETS: readonly { id: RangePreset; label: string }[] = [
     { id: 'last-fiscal-year', label: 'Last fiscal year' },
 ]
 
+export const isOtherPresetSelected = (preset: RangePreset) => preset !== 'this-fiscal-year'
+
 export const defaultRangePreset: RangePreset = 'this-month'
 
 export type RegisterRange = { start: string; end: string }

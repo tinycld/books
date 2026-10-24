@@ -98,6 +98,14 @@ describe.each([
         expect(target()).toMatchObject({ mode: 'edit', id: ID })
     })
 
+    it('View register fires onViewRegister with the id and opens no panel', () => {
+        const { container, menu } = renderScreen(isWide)
+        openMenu(container)
+        fireEvent.click(screen.getByText('View register'))
+        expect(menu.onViewRegister).toHaveBeenCalledWith(ID)
+        expect(target()).toBeNull()
+    })
+
     it('pressing the menu trigger opens no panel', () => {
         const { container } = renderScreen(isWide)
         openMenu(container)
@@ -108,6 +116,28 @@ describe.each([
         const { container } = renderScreen(isWide)
         fireEvent.click(byTestId(container, `account-select-${ID}`) as HTMLElement)
         expect(target()).toBeNull()
+    })
+})
+
+describe.each([
+    ['writer', 'bookkeeper'],
+    ['read-only user', 'read_only'],
+] as const)('the edit panel View register button for a %s', (_name, level) => {
+    beforeEach(() => {
+        seedBooks({ level })
+        act(() => useAccountsPanelStore.setState({ target: null }))
+    })
+
+    it('calls onViewRegister with the account id', async () => {
+        const { menu } = renderScreen(true)
+        act(() => useAccountsPanelStore.getState().openEdit(ID))
+        const button = await waitFor(() => {
+            const el = byTestId(document.body, 'account-panel-view-register')
+            expect(el).not.toBeNull()
+            return el as HTMLElement
+        })
+        fireEvent.click(button)
+        expect(menu.onViewRegister).toHaveBeenCalledWith(ID)
     })
 })
 

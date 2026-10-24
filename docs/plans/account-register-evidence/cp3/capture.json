@@ -1,0 +1,36 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/accounts",
+            "ready": "register-balance-through",
+            "openAccount": "Business Checking"
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/accounts",
+            "ready": "register-empty",
+            "openAccount": "Design Tools"
+        },
+        {
+            "name": "empty-range",
+            "url": "/a/books/accounts",
+            "ready": "register-empty-range",
+            "openAccount": "Business Checking",
+            "range": "Last fiscal year"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/accounts",
+            "ready": "register-error",
+            "openAccount": "Business Checking",
+            "failJournalLines": true
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/accounts/doesnotexist0000",
+            "ready": "register-not-found"
+        }
+    ]
+}
