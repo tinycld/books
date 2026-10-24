@@ -100,7 +100,7 @@ Review mode: C (unattended).
   - `type OpeningBand = { group: OpeningGroup; title: string; caption: string; rows: OpeningRow[] }`
   - `findOpeningEquityAccount(accounts: readonly OpeningAccount[]): OpeningAccount | undefined` (type `equity`, detail type `opening_balance_equity`, active)
   - `pickOpeningBands(accounts: readonly OpeningAccount[], savedAccountIds: ReadonlySet<string>): OpeningBand[]` (always three bands, in order Assets, Liabilities, Equity)
-  - `maxLineAmount = 1_000_000_000_000_000`, `maxOpeningLines = 1000`
+  - `maxLineAmount = 1_000_000_000_000_000`, `maxOpeningAmounts = 999`
   - `type OpeningLine = { account: string; debit: number; credit: number }`
   - `type OpeningBuild = { lines: OpeningLine[]; balancing: { side: 'debit' | 'credit'; amount: number } | null; totals: { assets: number; liabilities: number; equity: number; balancing: number; equityWithBalancing: number }; problem: null | 'too-large' | 'too-many-lines' }` where `totals.balancing` is the Opening Balance Equity amount as a credit-positive number (negative when the balancing line is a debit) and `equityWithBalancing = equity + balancing`
   - `buildOpening(accounts: readonly OpeningAccount[], cents: Readonly<Record<string, number>>): OpeningBuild`
@@ -130,7 +130,7 @@ Review mode: C (unattended).
 
 **Do:**
 1. Create `lib/opening-balances.ts`. Build the tree with `buildAccountTree` over the active-or-saved balance-sheet accounts (map each to a `TreeAccount` with `debit_total: 0`, `credit_total: 0`), keep the group by `accountTypeDef(type)?.group`, and flatten each band depth-first with `depth` from the node. Do not use `flattenAccountTree` (it filters inactive rows and adds collapse state).
-2. `buildOpening` works in integer cents; before adding `x` to a running sum `s`, check `x > maxStoredAmount - s` (never after the sum is already inexact). A line over `maxLineAmount` is `'too-large'`. Count lines as non-zero amounts plus one for a balancing line; above `maxOpeningLines` is `'too-many-lines'`. Totals are in each band's own sign (assets as debit balances, liabilities and equity as credit balances).
+2. `buildOpening` works in integer cents; before adding `x` to a running sum `s`, check `x > maxStoredAmount - s` (never after the sum is already inexact). A line over `maxLineAmount` is `'too-large'`. Count non-zero amounts only (the balancing line is not counted); above `maxOpeningAmounts` is `'too-many-lines'`. A balancing amount above `maxLineAmount` is `'too-large'`. Totals are in each band's own sign (assets as debit balances, liabilities and equity as credit balances).
 3. `diffLines` matches by `account`. Positions are the index in `next`. An `update` is emitted only when debit, credit or position changed.
 4. `openingScreenState` order: `error`, then `loading`, then `no-access`, then `empty-chart`, then a draft, then a posted entry (with `isEditing` giving `replace`), else `new`.
 5. `amountError`: `parseMoney` non-null gives `null`; `parseMoney` null with text matching `^-?\$?[\d,]+(\.\d{1,2})?$` and digits only after stripping separators gives `Amount is too large`; anything else gives the syntax message. `isRealDay` checks the pattern `^\d{4}-\d{2}-\d{2}$`, month 1 to 12 and day 1 to the month's length (lookup table with the leap-year rule; no `Date` object).

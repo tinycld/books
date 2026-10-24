@@ -47,6 +47,19 @@ cp 0 · server/reversal.go: the same-origin rule also refuses editing a posted r
 - reviewer-caught deferrals: none
 - commit: see git log
 
+## Checkpoint 1
+- test writer: tests/opening-balances.test.ts, tests/opening-balances-schema.test.ts, tests/opening-balances-messages.test.ts; red for the right reason: yes (missing modules of this checkpoint); untestable: none
+- implementer: lib/opening-balances.ts, lib/opening-balances-schema.ts, lib/opening-balances-messages.ts; DONE
+- test disputes: none
+- self-declared differences: tooManyAmountsMessage wording; previewFor fallback id for the balancing row; lines in band tree order; equity+balancing overflow flag; amountsFromLines skips net-zero lines; diffLines keeps the first of duplicate lines; screen state ignores other statuses; equity preview total uses equityWithBalancing
+- gate 1: tests unedited: yes · pass after fixes
+- gate 2: n/a
+- gate 3 A (correctness): accepted+fixed: amountError "too large" only for well-formed text (isWellFormedMoney in money.ts); balancing amount above 10^15 is too-large; cap is above 999 amounts, balancing line not counted; amountsFromLines takes the first line per account like diffLines; test gaps (isRealDay century, state order, void entry); rebutted: multiple drafts/posted (server guard allows one live opening entry plus one draft replacement), void original shows `new` (the screen queries non-void rows only), memo length by UTF-16 units (never looser than the server's rune count)
+- gate 3 B (conformance): accepted+fixed: types derived from the schema (z.infer, const array), presetDate parameter derived, test magic index removed, nested ternary removed
+- fix review: two doc lines in the plan named maxOpeningLines; fixed
+- reviewer-caught deferrals: none
+- commit: see git log
+
 ## Final review
 - eval:
 - native: not executed in this run
