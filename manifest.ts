@@ -10,6 +10,9 @@ const manifest = {
         order: 30,
         shortcut: 'k',
     },
+    setupSteps: [
+        { id: 'accounting', label: 'Accounting', module: 'setup/accounting', order: 'a1V' },
+    ],
     help: { directory: 'help' },
     sidebar: { component: 'sidebar' },
     provider: { component: 'provider' },
