@@ -120,3 +120,30 @@
 - gate 3 B: accepted+fixed: FAB padding gate; out-of-plan files recorded. Rebutted: range signature, placeholder color
 - fix review: three reviewer-A passes over fix diffs; findings fixed (fn.where only when searching, queryKey completeness, useMemo slice); rest in Rebuttals
 - reviewer-caught deferrals: client-side search (verified missing upstream: pbtsdb has no ilike pushdown)
+
+## Checkpoint 3
+- test writer: tests/entry-display.test.ts, entries-ui-store.test.ts, row-window.test.ts, entries-view-state.test.ts, entries-keep-rows.test.ts, tests/e2e/journal-entries-list-table.spec.ts; fix round added server/draft_total_test.go and keepRows/entry-display/e2e cases; red for the right reason: yes (9 red before the fix round implementer)
+- implementer: components/entries/{EntryTable,EntryRow,EntryCard,EntryStatusBadge}.tsx, lib/entry-display.ts, EntriesScreenView, useEntriesScreen, useEntriesQuery, entries-query keepRows; DONE
+- test disputes: (1) keepRows test "drops the old rows when not ready under a different key" expected `next` to be `prev`, which conflicts with "never returns for a later A"; test was wrong, now expects `next` undefined (edited by the coordinator, WeakSet workaround removed). 
+- self-declared differences: EntryStatusBadge entryId optional (testID entries-status-<id>); ReversesNumber reads the reversed entry through useLiveQuery(findOne) to tell loading from missing (useRecord cannot), log-only useEffect warns when missing; reversesText shows "Reverses …" until the number is known
+- gate 1: tests unedited: yes except the dispute above · pass (check exit 0, 1174 tests; go test ./... ok; full e2e 91 passed 1 skipped); shots recaptured
+- gate 2: three critic passes (critique.md); blocking: heading offset (fixed), draft Total $0.00 (fixed, see Out-of-plan); notes in critique.md
+- gate 3 A: accepted+fixed: stale rows A-B-A, limit shrink, badge signature, "Reverses entry" fallback, render-phase setState convergence, draft total, missing Go tests (stale record save, forged total on post, clamp, reversal draft, cascade delete, requireNothingPosted baseline)
+- fix review: findings low only; rebutted below
+- reviewer-caught deferrals: none kept
+
+### Cp3 rebuttals
+- **finding:** fix-review A, missing reversed record shows "Reverses …" forever, suggest distinct text
+  **rebutted because:** a missing reversed entry is a data fault; it is logged with log.warn and the spec text is "Reverses JE-n"; a second label has no spec basis. Low.
+- **finding:** reviewer A, scroll-to-grow wiring and realtime during grow load untested (D2, D4)
+  **rebutted because:** checkpoint 3 states windowing is not asserted in e2e (seed has fewer rows than a window); pure tests cover the store, rowWindowBounds, keepRows and entriesViewState; a useEntriesQuery hook test needs mocks of useStore/useLiveQuery (CLAUDE.md bans mocking our own code), so keepRows convergence is tested purely.
+- **finding:** fix-review A, per-line-write re-read of all lines (O(n) per write)
+  **rebutted because:** max 1000 lines, single write connection; fine now.
+
+### Cp3 out-of-plan changes
+- server/entries.go, server/lines.go, server/immutability.go, pb-migrations/2100000002_create_books_ledger.js (comment only), server/posting_test.go, auto_reverse_test.go, race_test.go, server/draft_total_test.go: USER-APPROVED Go change (plan said no Go change). `total` is no longer post-only: Books restates entries.total = sum of line debits on every draft line create/update/delete; a draft-to-draft save may carry only that value; posting still validates and overwrites it. Reason: drafts showed $0.00 in the list. Existing posting tests now expect the draft debit sum instead of 0.
+- tinycld/books/hooks/useRowWindow.ts: upper clamp so a shrinking list never shows an empty window.
+- tinycld/books/seed.ts: JE- prefix update moved before the first entries loop (seeded register entries get JE- numbers). Draft totals come from the server hooks (seed writes through REST).
+- tinycld/books/stores/entries-ui-store.ts: `growRowLimit(from)` idempotent for a scroll burst.
+- docs/plans/journal-entries-checkpoints.md: note under checkpoint 3 about the Go change.
+- docs/plans/journal-entries-evidence/cp3/: capture.json, shots, critique.md.

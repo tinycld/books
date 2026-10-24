@@ -85,7 +85,7 @@ func registerImmutabilityGuards(app core.App) {
 	})
 	app.OnRecordCreate("books_journal_lines").BindFunc(lineGuard)
 	app.OnRecordUpdate("books_journal_lines").BindFunc(func(e *core.RecordEvent) error {
-		return serialized(e, func(tx core.App) error {
+		return serializedLine(e, func(tx core.App) error {
 			stored, err := tx.FindRecordById("books_journal_lines", e.Record.Id)
 			if err != nil {
 				return err
@@ -100,7 +100,7 @@ func registerImmutabilityGuards(app core.App) {
 }
 
 func lineGuard(e *core.RecordEvent) error {
-	return serialized(e, func(tx core.App) error {
+	return serializedLine(e, func(tx core.App) error {
 		return requireDraftEntry(tx, e.Record)
 	})
 }

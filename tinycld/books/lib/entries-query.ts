@@ -57,3 +57,76 @@ export function entryMatchesSearch(
     if (term === '') return true
     return [entry.number, entry.memo].some(text => text.toLowerCase().includes(term))
 }
+
+export type EntriesViewState = 'loading' | 'error' | 'empty' | 'no-match' | 'ready'
+
+export function entriesViewState(input: {
+    isReady: boolean
+    isError: boolean
+    hasRows: boolean
+    isFilterActive: boolean
+    keepsRows: boolean
+}): EntriesViewState {
+    if (input.isError) return 'error'
+    // A later page loading over rows already shown must not unmount the list and lose its scroll position.
+    if (!input.isReady) return input.keepsRows && input.hasRows ? 'ready' : 'loading'
+    if (input.hasRows) return 'ready'
+    return input.isFilterActive ? 'no-match' : 'empty'
+}
+
+export function entriesFilterKey(input: {
+    status: EntriesStatusFilter
+    search: string
+    rangeStart?: string
+    rangeEnd?: string
+}): string {
+    return JSON.stringify([
+        input.status,
+        input.search,
+        input.rangeStart ?? null,
+        input.rangeEnd ?? null,
+    ])
+}
+
+export interface KeptRows<T> {
+    key: string
+    rows: T[]
+    limit?: number
+}
+
+// One shared empty list keeps the kept value stable across renders, so the caller can compare by reference.
+const NO_ROWS: never[] = []
+
+function sameRows<T>(a: T[], b: T[]) {
+    return a.length === b.length && a.every((row, i) => row === b[i])
+}
+
+// Rows of the last ready query stay on screen while a query under the same filter key loads, but
+// only when the new query asks for at least as many rows. A kept value is replaced only when its
+// contents differ, so a caller comparing by reference converges even if `rows` is a new array each render.
+export function keepRows<T>(
+    prev: KeptRows<T> | undefined,
+    now: { isReady: boolean; key: string; rows: T[] | undefined; limit?: number }
+): { next: KeptRows<T> | undefined; rows: T[] | undefined; keepsRows: boolean } {
+    if (now.isReady) {
+        const rows = now.rows ?? NO_ROWS
+        const same =
+            prev && prev.key === now.key && prev.limit === now.limit && sameRows(prev.rows, rows)
+        return {
+            next: same ? prev : { key: now.key, rows, limit: now.limit },
+            rows: now.rows,
+            keepsRows: false,
+        }
+    }
+    if (!prev) {
+        return { next: prev, rows: now.rows, keepsRows: false }
+    }
+    if (prev.key !== now.key) {
+        return { next: undefined, rows: now.rows, keepsRows: false }
+    }
+    const canKeep = now.limit === undefined || prev.limit === undefined || now.limit >= prev.limit
+    if (canKeep) {
+        return { next: prev, rows: prev.rows, keepsRows: true }
+    }
+    return { next: prev, rows: now.rows, keepsRows: false }
+}

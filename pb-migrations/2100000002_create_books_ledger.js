@@ -17,7 +17,9 @@
 //
 // MONEY is integer minor units (onlyInt), at most 10^15 per line. Go refuses a
 // post whose entry total or account-month balance would pass 2^53-1, the
-// largest integer a number field (float64) stores exactly. currency is optional
+// largest integer a number field (float64) stores exactly. total is Books-owned:
+// Books restates it as the sum of the debits on every draft line write, and
+// stamps it again at post. currency is optional
 // in the schema because Go stamps it from books_settings on create.
 //
 // DATES are YYYY-MM-DD text: an accounting date is a calendar day with no time

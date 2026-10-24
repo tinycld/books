@@ -1,0 +1,4 @@
+{
+    "outDir": ".",
+    "shots": [{ "name": "list", "url": "/a/books/entries", "ready": "entries-screen" }]
+}

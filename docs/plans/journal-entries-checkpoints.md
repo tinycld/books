@@ -124,6 +124,8 @@ Review mode: C (unattended).
 
 ### Checkpoint 3 — List table, cards, row window
 
+Note: the draft total stamping (Go: `server/lines.go` restates `entries.total` as the sum of debits on draft line writes) is a user-approved Go change; the "no Go change" in the header does not cover it.
+
 **Delivers:** the entries table on wide screens and the card list on phones, with type and status labels, ordering, row window, and press-to-open.
 
 **Files:**

@@ -311,7 +311,7 @@ func TestPost_RefusedPostLeavesTheLinesUnstamped(t *testing.T) {
 			t.Errorf("a refused post stamped a line: %v", l.PublicExport())
 		}
 	}
-	if got := reload(t, env.app, "books_journal_entries", bad.Id); got.GetString("number") != "" || got.GetInt("total") != 0 {
+	if got := reload(t, env.app, "books_journal_entries", bad.Id); got.GetString("number") != "" || got.GetInt("total") != 100 {
 		t.Errorf("a refused post numbered the entry: %v", got.PublicExport())
 	}
 }
@@ -326,10 +326,11 @@ func TestFormatMinor(t *testing.T) {
 
 // requireNothingPosted checks that a refused post left no trace: the entry is
 // a draft with no number, its lines are unstamped, and no number was used.
-func requireNothingPosted(t testing.TB, app core.App, entryID string) {
+// wantTotal is the draft total captured before the post attempt.
+func requireNothingPosted(t testing.TB, app core.App, entryID string, wantTotal int) {
 	t.Helper()
 	entry := reload(t, app, "books_journal_entries", entryID)
-	if entry.GetString("status") != statusDraft || entry.GetString("number") != "" || entry.GetInt("total") != 0 {
+	if entry.GetString("status") != statusDraft || entry.GetString("number") != "" || entry.GetInt("total") != wantTotal {
 		t.Errorf("entry after a refused post: %v", entry.PublicExport())
 	}
 	if n := reload(t, app, "books_doc_sequences", "booksseqjournal").GetInt("next_number"); n != 1 {
@@ -377,9 +378,10 @@ func TestPost_TotalOverTheStoredLimitIsRefused(t *testing.T) {
 	env := newLedgerEnv(t)
 	// Ten lines of 10^15 a side: each line is allowed, the total is not.
 	entry := env.bigSale(t, repeat(10, maxAmount)...)
+	before := draftTotal(t, env, entry.Id)
 	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),
 		"largest amount Books can store (90071992547409.91)")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, before)
 	if d, c := balanceOf(t, env.app, env.checking, "2026-05"); d != 0 || c != 0 {
 		t.Errorf("a refused post moved a balance: %d/%d", d, c)
 	}
@@ -391,9 +393,10 @@ func TestPost_BalanceRowOverTheStoredLimitIsRefused(t *testing.T) {
 		"account": env.checking.Id, "period": "2026-05", "debit_total": maxStoredAmount - 50, "currency": "USD",
 	})
 	entry := env.sale(t, "2026-05-01", 100)
+	before := draftTotal(t, env, entry.Id)
 	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),
 		"Checking for 2026-05 past the largest amount Books can store (90071992547409.91)")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, before)
 	if d, c := balanceOf(t, env.app, env.checking, "2026-05"); d != maxStoredAmount-50 || c != 0 {
 		t.Errorf("checking = %d/%d, want the seeded row unchanged", d, c)
 	}
@@ -423,8 +426,9 @@ func TestPost_ServerFieldsChangedWhilePostingAreRefused(t *testing.T) {
 	entry := reload(t, env.app, "books_journal_entries", env.sale(t, "2026-05-01", 100).Id)
 	entry.Set("status", statusPosted)
 	entry.Set("created_by", env.users.admin.Id)
+	before := draftTotal(t, env, entry.Id)
 	requireRefused(t, env.app.Save(entry), "Books sets these fields itself: created_by")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, before)
 }
 
 // These rows cannot be made through the hooks, which refuse them on create;
@@ -457,8 +461,9 @@ func TestPost_RowsTheHooksWouldRefuseAreCaughtAtPosting(t *testing.T) {
 			if _, err := env.app.DB().NewQuery(sql).Bind(params).Execute(); err != nil {
 				t.Fatal(err)
 			}
+			before := draftTotal(t, env, entry.Id)
 			requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""), tc.want)
-			requireNothingPosted(t, env.app, entry.Id)
+			requireNothingPosted(t, env.app, entry.Id, before)
 		})
 	}
 }
@@ -470,8 +475,9 @@ func TestPost_AFailureAfterTheWritesRollsThemBack(t *testing.T) {
 	// after the posting writes, refuses it.
 	entry.Set("memo", strings.Repeat("x", 5000))
 	entry.Set("status", statusPosted)
+	before := draftTotal(t, env, entry.Id)
 	requireRefused(t, env.app.Save(entry), "memo")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, before)
 	if d, c := balanceOf(t, env.app, env.checking, "2026-05"); d != 0 || c != 0 {
 		t.Errorf("a rolled-back post moved a balance: %d/%d", d, c)
 	}
