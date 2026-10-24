@@ -103,16 +103,6 @@ export function groupStarterChart(accounts: readonly StarterAccount[]) {
     })
 }
 
-// Corporation equity numbers differ from the owners ones so that the accounts
-// already created tell a half-done book's ownership.
-export function inferOwnership(existingNumbers: ReadonlySet<string>): Ownership {
-    const ownerNumbers = new Set(EQUITY.owners.map(item => item.number))
-    const isCorporation = EQUITY.corporation.some(
-        item => !ownerNumbers.has(item.number) && existingNumbers.has(item.number)
-    )
-    return isCorporation ? 'corporation' : 'owners'
-}
-
 function equitySummary(ownership: Ownership): string {
     return EQUITY[ownership].map(item => item.name).join(', ')
 }

@@ -41,6 +41,7 @@ const values: SetupValues = {
     fiscal_year_start_month: 4,
     ownership: 'owners',
 }
+const corporationValues: SetupValues = { ...values, ownership: 'corporation' }
 const chartSize = starterChart('owners').length
 const parentCount = planChart('owners', new Map())[0].length
 
@@ -51,6 +52,7 @@ function blankSettings(): BooksSettings {
         fiscal_year_start_month: 1,
         currency: 'USD',
         business_name: '',
+        ownership: '',
         setup_completed: false,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
@@ -105,10 +107,14 @@ async function renderEmptyBook(seed: Seed = {}, refuseAfter?: Refusal) {
 
 type Rendered = Awaited<ReturnType<typeof renderEmptyBook>>['rendered']
 
-async function run(rendered: Rendered, action: 'create' | 'skipChart') {
+async function run(
+    rendered: Rendered,
+    action: 'create' | 'skipChart',
+    input: SetupValues = values
+) {
     let outcome: Awaited<ReturnType<Rendered['result']['current']['create']>> | undefined
     await act(async () => {
-        outcome = await rendered.result.current[action](values)
+        outcome = await rendered.result.current[action](input)
     })
     return outcome
 }
@@ -147,18 +153,19 @@ describe('useBooksSetup create', () => {
     it('writes the settings row first, then every account, then the settings row last', async () => {
         const { rendered, baseline } = await renderEmptyBook()
 
-        const outcome = await run(rendered, 'create')
+        const outcome = await run(rendered, 'create', corporationValues)
 
         expect(outcome).toEqual({ ok: true, created: chartSize })
         const rows = storedAccounts()
         expect(rows.map(row => row.number).sort()).toEqual(
-            starterChart('owners')
+            starterChart('corporation')
                 .map(item => item.number)
                 .sort()
         )
         expect(settingsRow()).toMatchObject({
             business_name: 'Acme Plumbing',
             fiscal_year_start_month: 4,
+            ownership: 'corporation',
             setup_completed: true,
         })
 
@@ -181,7 +188,7 @@ describe('useBooksSetup create', () => {
 
         let pending: Promise<unknown> = Promise.resolve()
         act(() => {
-            pending = rendered.result.current.create(values)
+            pending = rendered.result.current.create(corporationValues)
         })
         try {
             for (let written = 1; written <= total; written += 1) {
@@ -193,12 +200,16 @@ describe('useBooksSetup create', () => {
                     expect(settingsRow()).toMatchObject({
                         business_name: 'Acme Plumbing',
                         fiscal_year_start_month: 4,
+                        ownership: 'corporation',
                         setup_completed: false,
                     })
                 }
                 if (written === total) {
                     expect(writeLog()[baseline + total - 1]).toBe(`settings:${SETTINGS_ID}`)
-                    expect(settingsRow()?.setup_completed).toBe(true)
+                    expect(settingsRow()).toMatchObject({
+                        ownership: 'corporation',
+                        setup_completed: true,
+                    })
                 }
                 await act(async () => {
                     steps.next()
@@ -336,7 +347,7 @@ describe('useBooksSetup create', () => {
         })
         expect(rendered.result.current.isResuming).toBe(false)
 
-        const outcome = await run(rendered, 'create')
+        const outcome = await run(rendered, 'create', corporationValues)
 
         expect(outcome).toEqual({ ok: true, created: 0 })
         expect(writeLog().slice(baseline)).toEqual([`settings:${SETTINGS_ID}`])
@@ -344,6 +355,7 @@ describe('useBooksSetup create', () => {
         expect(settingsRow()).toMatchObject({
             business_name: 'Acme Plumbing',
             fiscal_year_start_month: 4,
+            ownership: 'corporation',
             setup_completed: true,
         })
     })
@@ -460,17 +472,42 @@ describe('useBooksSetup create', () => {
     })
 })
 
+describe('useBooksSetup ownership', () => {
+    it('is empty before setup saves it and exposes the saved value afterwards', async () => {
+        const { rendered } = await renderEmptyBook()
+        expect(rendered.result.current.ownership || undefined).toBeUndefined()
+
+        await run(rendered, 'create', corporationValues)
+
+        await waitFor(() => expect(rendered.result.current.ownership).toBe('corporation'))
+    })
+
+    it('exposes the value saved by an earlier attempt after a remount', async () => {
+        const { rendered } = await renderEmptyBook(
+            {},
+            { after: 3, error: messageRefusal('Number 1100 is taken') }
+        )
+        await run(rendered, 'create', corporationValues)
+        rendered.unmount()
+
+        const again = renderSetup()
+
+        await waitFor(() => expect(again.result.current.ownership).toBe('corporation'))
+    })
+})
+
 describe('useBooksSetup skipChart', () => {
     it('writes only the settings row and inserts no account', async () => {
         const { rendered, baseline } = await renderEmptyBook()
 
-        const outcome = await run(rendered, 'skipChart')
+        const outcome = await run(rendered, 'skipChart', corporationValues)
 
         expect(outcome).toEqual({ ok: true, created: 0 })
         expect(writeLog().slice(baseline)).toEqual([`settings:${SETTINGS_ID}`])
         expect(storedAccounts()).toHaveLength(0)
         expect(settingsRow()).toMatchObject({
             business_name: 'Acme Plumbing',
+            ownership: 'corporation',
             setup_completed: true,
         })
     })

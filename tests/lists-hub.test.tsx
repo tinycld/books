@@ -33,6 +33,7 @@ function settingsRow(done: boolean): BooksSettings {
         fiscal_year_start_month: 1,
         currency: 'USD',
         business_name: done ? 'Acme' : '',
+        ownership: '',
         setup_completed: done,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
