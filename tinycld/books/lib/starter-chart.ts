@@ -1,3 +1,4 @@
+import type { BooksAccounts } from '../types'
 import { ACCOUNT_TYPES, type AccountGroup } from './account-types'
 
 export type Ownership = 'owners' | 'corporation'
@@ -6,7 +7,7 @@ export interface StarterAccount {
     key: string
     number: string
     name: string
-    type: string
+    type: BooksAccounts['type']
     detail_type: string
     parent?: string
 }
@@ -33,7 +34,7 @@ const GROUP_KEY: Record<AccountGroup, (typeof STARTER_GROUPS)[number]['key']> = 
 function account(
     number: string,
     name: string,
-    type: string,
+    type: BooksAccounts['type'],
     detail_type: string,
     parent?: string
 ): StarterAccount {

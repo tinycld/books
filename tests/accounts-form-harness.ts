@@ -27,12 +27,66 @@ const state = {
     entered: [] as string[],
     // Refuses every write after the first `after` ones that reached the handler.
     refuseAfter: null as { after: number; error: unknown } | null,
+    // Refuses every settings write with this error.
+    refuseSettings: null as unknown,
+    // Refuses every settings write after the first `after` ones that reached the handler.
+    refuseSettingsAfter: null as { after: number; error: unknown } | null,
+    settingsEntered: 0,
+    // Every write that reached a handler, in order: `account:<id>` or `settings:<id>`.
+    log: [] as string[],
+    // Writes waiting for `stepWrites().next()`; null when writes are not stepped.
+    steps: null as (() => void)[] | null,
     // Names passed to useStore, in order, so a test can see which collections a hook reads.
     requested: [] as string[],
 }
 
 export function requestedStores() {
     return [...state.requested]
+}
+
+export function writeLog() {
+    return [...state.log]
+}
+
+// Forgets the writes seen so far, so a position given to `refuseAfter` counts
+// only the writes a test makes after its own setup (seeding, emptying the chart).
+export function resetWriteCounts() {
+    state.entered = []
+    state.log = []
+}
+
+// Lets the next `after` account writes through and refuses each later one. Unlike
+// the `refuseAfter` seed option, the count starts now, so it ignores the writes
+// a test made while setting up.
+// Lets the next `after` settings writes through and refuses each later one, so a
+// test can refuse only the closing write.
+export function refuseSettingsAfterNow(after: number, error: unknown) {
+    state.settingsEntered = 0
+    state.refuseSettingsAfter = { after, error }
+}
+
+export function refuseAfterNow(after: number, error: unknown) {
+    resetWriteCounts()
+    state.refuseAfter = { after, error }
+}
+
+// Makes every account and settings write wait until `next()` lets exactly one
+// continue, so a test can look at the world between any two writes.
+export function stepWrites() {
+    const waiting: (() => void)[] = []
+    state.steps = waiting
+    return {
+        next: () => waiting.shift()?.(),
+        stop: () => {
+            state.steps = null
+            for (const resume of waiting.splice(0)) resume()
+        },
+    }
+}
+
+async function waitForStep() {
+    const steps = state.steps
+    if (steps) await new Promise<void>(resume => steps.push(resume))
 }
 
 export function enteredWrites() {
@@ -54,6 +108,8 @@ export function liftRefusal() {
     state.refusal = null
     state.refuseAfter = null
     state.refusalFor = {}
+    state.refuseSettings = null
+    state.refuseSettingsAfter = null
 }
 
 export function useStoreStub(...names: string[]) {
@@ -89,7 +145,9 @@ function accountsCollection() {
     }) => {
         const keys = transaction.mutations.map(m => String(m.key))
         state.entered.push(...keys)
+        state.log.push(...keys.map(key => `account:${key}`))
         if (state.gate) await state.gate
+        await waitForStep()
         if (state.refuseAfter && state.entered.length > state.refuseAfter.after) {
             throw state.refuseAfter.error
         }
@@ -102,6 +160,36 @@ function accountsCollection() {
             id: `books_accounts-${counter}`,
             getKey: (row: BooksAccounts) => row.id,
             initialData: ACCOUNTS,
+            onInsert: refuseWhenAsked,
+            onUpdate: refuseWhenAsked,
+            onDelete: refuseWhenAsked,
+            ...indexed,
+        })
+    )
+}
+
+// Like the accounts collection, the settings collection runs its writes through
+// handlers so a test can see their order and refuse them.
+function settingsCollection(initialData: BooksSettings[]) {
+    counter += 1
+    const refuseWhenAsked = async ({
+        transaction,
+    }: {
+        transaction: { mutations: ReadonlyArray<{ key: unknown }> }
+    }) => {
+        state.log.push(...transaction.mutations.map(m => `settings:${String(m.key)}`))
+        if (state.gate) await state.gate
+        await waitForStep()
+        if (state.refuseSettings) throw state.refuseSettings
+        state.settingsEntered += 1
+        const late = state.refuseSettingsAfter
+        if (late && state.settingsEntered > late.after) throw late.error
+    }
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `books_settings-${counter}`,
+            getKey: (row: BooksSettings) => row.id,
+            initialData,
             onInsert: refuseWhenAsked,
             onUpdate: refuseWhenAsked,
             onDelete: refuseWhenAsked,
@@ -165,6 +253,8 @@ export function seedBooks(
         refusalFor?: Record<string, unknown>
         // Lets the first `after` writes through and refuses each later one.
         refuseAfter?: { after: number; error: unknown }
+        // Refuses every write to the settings row with this error.
+        refuseSettings?: unknown
         // A journal-lines collection that never finishes loading, so the usage
         // query stays not ready.
         linesNeverReady?: boolean
@@ -199,9 +289,12 @@ export function seedBooks(
     state.refusal = opts.refusal ?? null
     state.refusalFor = opts.refusalFor ?? {}
     state.refuseAfter = opts.refuseAfter ?? null
+    state.refuseSettings = opts.refuseSettings ?? null
+    state.log = []
     state.entered = []
     state.requested = []
     state.gate = null
+    state.steps = null
     state.registry = {
         books_accounts: accountsCollectionFor(opts),
         books_account_balances: opts.balancesNeverReady
@@ -217,7 +310,7 @@ export function seedBooks(
             'books_journal_entries',
             opts.ledger?.entries ?? []
         ),
-        books_settings: local<BooksSettings>('books_settings', opts.ledger?.settings ?? []),
+        books_settings: settingsCollection(opts.ledger?.settings ?? []),
         books_access: local<BooksAccess>('books_access', [access]),
     }
 }
@@ -240,7 +333,7 @@ export function balanceStore() {
 }
 
 export function settingsStore() {
-    return state.registry.books_settings as ReturnType<typeof local<BooksSettings>>
+    return state.registry.books_settings as ReturnType<typeof settingsCollection>
 }
 
 export function storedAccounts(): BooksAccounts[] {

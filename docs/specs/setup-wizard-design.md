@@ -14,11 +14,11 @@ Books opens `/a/books/setup` from a card at the top of the Lists hub while setup
 - Business: Legal business name (required, max 200) and Fiscal year starts in (month select, default January). The currency line reads "US dollars (USD)" and is not editable.
 - Ownership: "How is the business owned?" with two cards: "One owner or partners" (equity accounts Owner's equity, Owner's contributions, Owner's draws) and "Corporation" (Common stock, Paid-in capital, Retained earnings). The choice only decides those equity accounts.
 - Starter chart: shows the accounts to be created, grouped Assets, Liabilities, Equity, Income, Expenses, with a count per group. The list is read-only. Back returns to Ownership.
-- Create runs one batch: parent accounts first, then sub-accounts, then the settings row (business name, fiscal year, setup done). Progress shows "Creating accounts n of N".
+- Create runs one batch: the settings row first (business name and fiscal year), then parent accounts, then sub-accounts, then the settings row again to mark setup done. Progress shows "Creating accounts n of N", where N is the whole chart and accounts that already exist count as done.
 - A failure stops the batch, names the account that was refused with the server's message, and offers Try again. Try again skips accounts that already exist (matched by number) and continues.
 - Done screen: "Your books are ready" with the account count, and two actions: Open Chart of Accounts, Enter opening balances (shown only when that screen is available).
 - Skip: "Start with an empty chart" on the Starter chart screen sets only the settings row, so the admin can build or import a chart.
-- A chart that already has accounts when the step opens: the Starter chart screen is replaced by "This book already has N accounts. We will not add the starter chart." Create saves only the settings.
+- A chart that already has accounts when the step opens: the Starter chart screen is replaced by "This book already has N accounts. We will not add the starter chart." Create saves only the settings. A book whose settings hold a business name but are not marked done is a batch left half done: it shows the Starter chart screen, and Create resumes it, skipping accounts that already exist.
 - The step is done when `books_settings.setup_completed` is true (`useIsStepDone`). It is visible only to Books admins (`useIsStepVisible`).
 - Empty, loading, error: loading shows a skeleton card; a settings load failure shows a Retry through `recoverLiveQueries`.
 - Phone: one column, Back and Next under the form. Wide: a centered card, 640 wide.

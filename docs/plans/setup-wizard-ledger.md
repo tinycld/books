@@ -20,6 +20,14 @@
 (none yet)
 
 ## Rebuttals
+- **finding:** cp2 fix review 2 — remount during a run lets a second batch start
+  **rebutted because:** `pb-migrations/2100000002_create_books_ledger.js` has `CREATE UNIQUE INDEX idx_books_accounts_number ON books_accounts (number) WHERE number != ''`, so a second batch's insert of a number the first batch also inserts is refused, not duplicated; the cost is a spurious error, which Try again resumes.
+- **finding:** cp2 fix review 2 — non-step errors are labelled `Business settings`
+  **rebutted because:** the only code that can throw there is the pure `planChart`/`starterChart`, which are unit-tested; a programmer error, not a user-reachable path.
+- **finding:** cp2 fix review 2 — stale snapshot on an immediate retry
+  **rebutted because:** `execute` calls `setProgress(null)` in `finally`, which re-renders before the error part can offer Try again.
+- **finding:** cp2 fix review 2 — resume can add starter accounts to a custom chart / ownership change between attempts mixes equity sets
+  **rebutted because:** the spec bullet reads "A book whose settings hold a business name but are not marked done is a batch left half done: it shows the Starter chart screen, and Create resumes it, skipping accounts that already exist." Recorded as a known limit: ownership is not persisted, and the error part has no Back, so it can only change after a remount.
 - **finding:** cp1 reviewer B 4 / reviewer A 4 — `type: item.type as BooksAccounts['type']` cast in the fixture; `StarterAccount.type` is a plain `string`
   **rebutted because:** the checkpoint's Interfaces block says `StarterAccount { key: string; number: string; name: string; type: string; detail_type: string; parent?: string }`, and `tests/starter-chart.test.ts` fails if a type or detail key is not in `ACCOUNT_TYPES`.
 - **finding:** cp1 reviewer B 5 — `CHART_GROUPS`/`GROUP_OF_TYPE` in the fixture duplicate `STARTER_GROUPS`
@@ -47,6 +55,19 @@
 - gate 3 A (correctness): tests weak (depth cycle guard, shape/counts) accepted, fixed by fresh test writer; z.number vs select string noted for cp3
 - gate 3 B (conformance): out-of-plan files recorded; two rebuttals (see Rebuttals)
 - fix review: n/a (test-only fixes)
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 2
+- test writer: tests/setup-plan.test.ts, tests/useBooksSetup.test.tsx, harness additions (`refuseSettings`, `refuseAfterNow`, `stepWrites`, `resetWriteCounts`, `refuseSettingsAfterNow`, `writeLog`); red for the right reason: yes; untestable: none
+- implementer: planChart + useBooksSetup; DONE after one fix round
+- test disputes: 1 — retry's first-settings-write assertion; upheld (an unchanged draft is a no-op in TanStack DB), fresh writer fixed the test
+- self-declared differences: async mutationFn with performMutations instead of a generator (plan text updated); StarterAccount.type narrowed to BooksAccounts['type']
+- gate 1: tests unedited: yes (all test changes by fresh writers) · pass (1065 tests, tsc, biome)
+- gate 2: n/a
+- gate 3 A (correctness): remount lost resume flag (also found by B) -> accepted; fixed by marker-first settings write and `isResuming` from the live settings row (spec bullets "Create runs one batch" and "A chart that already has accounts" and plan updated); not-ready/missing-settings/double-press -> accepted, fixed (`busy`); weak ordering/offset tests -> accepted, fresh writer
+- gate 3 B (conformance): same findings; `parentOf` rebuilt, silent root parent fallback, cast -> accepted, fixed
+- fix review: pass 1 found duplicate error reporting (core default onError) -> accepted, fixed with an empty onError + notify.emit tests; pass 2 over that fix: nothing found
 - reviewer-caught deferrals: none
 - commit: see git log
 
