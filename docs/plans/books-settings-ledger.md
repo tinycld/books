@@ -34,8 +34,16 @@
   **rebutted because:** the spec's save rule is "Save success: a toast "Saved." and the form resets to the saved values."; Save is the only submit path and the form is not edited during the short write.
 - **finding:** reviewer B, checkpoint 3: each form/card opens its own `useBooksSettings` live query
   **rebutted because:** all share the queryKey `['books','settings']`, so one request serves them (reviewer: "acceptable because of the shared queryKey").
+- **finding:** reviewer fix pass, checkpoint 4: the grantable list may omit org owners and admins
+  **rebutted because:** pb-migrations/2100000000_create_books_access.js: "books_access computes the level per user in SQL with the same resolution as" the server, so owners and admins have a row at level admin.
+- **finding:** fix review, checkpoint 4: revoke time is the client's clock, so a client clock behind the server leaves a revoked row active on the server for the skew
+  **rebutted because:** the spec says "on confirm sets `expires_at` to now" and Data lists `.update` (`expires_at` to now); a server-stamped revoke is a different design. Shown under Design notes.
+- **finding:** reviewer, checkpoint 4: the diff adds no tests for the guards, ended-row refusal and tick
+  **rebutted because:** tests/useCloseOverrides.test.tsx and useMyCloseOverride.test.tsx hold them (per-operation guards, ended-row refusal, expiry while mounted, stale clock).
 
 ## Design notes
+- cp 4 · migration 2100000001: `books_close_overrides` listRule/viewRule are READ, so any user who can read Books can list every override and its reason through the API; the spec reads only the caller's own rows on the client. Tightening the rule is a design decision for the human.
+- cp 4 · revoke: expiry is stamped from the client clock (spec); a client clock behind the server delays the effect of a revoke.
 (none yet)
 
 ## Out-of-plan changes
@@ -60,6 +68,16 @@
 - gate 3 B: direct react-hook-form/zod type imports: accepted, fixed
 - fix review: reviewer A over the fix diffs: two passes; remaining low items rebutted
 - harness change (tests/accounts-form-harness.ts) is test infrastructure named by the checkpoint
+
+## Checkpoint 4
+- test writer: tests/useCloseOverrides.test.tsx, useMyCloseOverride.test.tsx, harness extended; red (missing modules); untestable: none; three later review rounds added 17 tests
+- implementer: DONE; hooks useCloseOverrides, useMyCloseOverride, useClockTick; lib/overrides.ts (toPocketBaseTime, parseExpiry exported)
+- test disputes: none
+- self-declared differences: names flattened in a memo (tsc blocks materialize() reads in .select()); error messages via messageOnlyRefusal/errorToString
+- gate 1: pass (1251 tests)
+- gate 3 A: shared inFlight, expiry computed late, no live expiry, stale revoke, queryKey, unstable identity: accepted, fixed; later rounds: early ok:true on duplicate, stale tick clock: accepted, fixed; grant key missing `lasts`: accepted, fixed
+- gate 3 B: flatten outside .select() rebutted/explained; shared formatter accepted, fixed; migration list rule: Design notes
+- fix review: three reviewer-A passes; clean at the end
 
 ## Final review
 - eval: pending

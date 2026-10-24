@@ -26,13 +26,17 @@ export function splitOverrides<T extends { expires_at: string }>(
 }
 
 // PocketBase datetimes are "YYYY-MM-DD HH:mm:ss.SSSZ"; the space blocks Date parsing in some engines.
-function parseExpiry(expiresAt: string): number {
+export function parseExpiry(expiresAt: string): number {
     return new Date(expiresAt.replace(' ', 'T')).getTime()
+}
+
+export function toPocketBaseTime(date: Date): string {
+    return date.toISOString().replace('T', ' ')
 }
 
 export function expiryFrom(lasts: LastsFor, now: Date): string {
     const option = LASTS_FOR_OPTIONS.find(o => o.value === lasts) ?? LASTS_FOR_OPTIONS[0]
-    return new Date(now.getTime() + option.ms).toISOString().replace('T', ' ')
+    return toPocketBaseTime(new Date(now.getTime() + option.ms))
 }
 
 export function formatExpiry(expiresAt: string): string {
