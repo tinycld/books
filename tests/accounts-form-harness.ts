@@ -494,18 +494,30 @@ function accountsCollectionFor(opts: { accountsNeverReady?: boolean; accountsErr
 }
 
 function settingsCollectionFor(
-    opts: { settingsNeverReady?: boolean; settingsFailsOnce?: boolean },
+    opts: {
+        settingsNeverReady?: boolean
+        settingsFailsOnce?: boolean
+        settingsErrored?: boolean
+    },
     rows: BooksSettings[]
 ) {
+    if (opts.settingsErrored) return erroredCollection<BooksSettings>()
     if (opts.settingsNeverReady) return neverReady<BooksSettings>()
     if (opts.settingsFailsOnce) return failsOnceCollection<BooksSettings>(rows)
     return settingsCollection(rows)
 }
 
 function sequencesCollectionFor(
-    opts: { sequencesNeverReady?: boolean; sequencesFailsOnce?: boolean },
+    opts: {
+        sequencesNeverReady?: boolean
+        sequencesFailsOnce?: boolean
+        // A doc sequences collection whose sync fails, so the sequences query errors.
+        sequencesErrored?: boolean
+        sequencesErrored?: boolean
+    },
     rows: BooksDocSequences[]
 ) {
+    if (opts.sequencesErrored) return erroredCollection<BooksDocSequences>()
     if (opts.sequencesNeverReady) return neverReady<BooksDocSequences>()
     if (opts.sequencesFailsOnce) return failsOnceCollection<BooksDocSequences>(rows)
     return sequencesCollection(rows)
@@ -550,6 +562,8 @@ export function seedBooks(
         settingsNeverReady?: boolean
         // A settings collection whose first load fails and whose reload succeeds.
         settingsFailsOnce?: boolean
+        // A settings collection whose sync fails, so the settings query errors.
+        settingsErrored?: boolean
         // Refuses every write to a close override row with this error.
         refuseOverrides?: unknown
         // The close override rows to seed; none by default.

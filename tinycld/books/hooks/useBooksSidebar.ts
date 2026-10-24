@@ -12,10 +12,11 @@ export function useBooksSidebar(entries: readonly SidebarEntry[] = SIDEBAR_ENTRI
     const { pathname } = useUrl()
     const isAccountingOpen = useBooksUIStore(s => s.isAccountingOpen)
     const toggleAccounting = useBooksUIStore(s => s.toggleAccounting)
-    const { top, accounting } = sidebarSections(availableOnly(entries))
+    const { top, accounting, end } = sidebarSections(availableOnly(entries))
 
     return {
         top,
+        end,
         accounting,
         visibleAccounting: isAccountingOpen ? accounting : [],
         hasAccounting: accounting.length > 0,

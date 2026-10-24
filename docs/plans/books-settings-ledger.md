@@ -50,8 +50,18 @@
   **rebutted because:** harmless and tested ("two people don't block each other").
 - **finding:** fix review, checkpoint 5: after a reload-only failure, if person.level moves away and returns to `from`, the stale error and chosen level show again (ABA)
   **rebutted because:** needs a failed reload plus two changes by another admin before the next reload; the error clears on the next change.
+- **finding:** reviewers and critic, checkpoint 6: the section list shows only Company (Accounting, Numbering, Access missing), critic BLOCKING in round 1
+  **rebutted because:** the checkpoint's Delivers line: "the Company section in its read-only and edit forms", and Interfaces: "`SectionBody({ section, isAdmin })` (a `Record<SectionId, ComponentType>` lookup; later checkpoints add their entry)"; checkpoint 2 holds `SETTINGS_SECTIONS` at `company` only "as specified". Checkpoints 7 to 10 add the other rows. Round 2 critic dropped the finding.
+- **finding:** reviewer A, checkpoint 6: `openSection` uses router.replace on wide, not push as the plan's Do step says
+  **rebutted because:** a wide rail click that pushes puts each section in the history and a browser Back from the list loops; replace is the review's fix. Recorded as a deviation from the plan text.
+- **finding:** reviewer A, checkpoint 6: whitespace-only typing makes the form dirty and Save writes an identical trimmed value
+  **rebutted because:** harmless (the saved row does not change); trimming is done by the schema as the review asked.
 
 ## Design notes
+- cp 6 · list-company-1280: the Settings sidebar entry sits directly under Chart of Accounts with no gap or divider, so it reads as part of Accounting.
+- cp 6 · company-long-390: the Business address textarea shows four lines and slices the fifth; fixing it needs core's TextAreaInput to grow with content (a core change, not made here).
+- cp 6 · non-admin-list-390: a long company name clamps to two lines in the list row (the reference keeps summaries on one line).
+- cp 6 · Currency: the line and its note read as a sentence plus a muted note, not as a right-aligned row like the other read-only rows.
 - cp 4 · migration 2100000001: `books_close_overrides` listRule/viewRule are READ, so any user who can read Books can list every override and its reason through the API; the spec reads only the caller's own rows on the client. Tightening the rule is a design decision for the human.
 - cp 5 · hooks: `useAccessList` reads the viewer's own role from its own scoped users query, not `useCurrentRole()`, so `retryLoad` can restart it.
 - cp 4 · revoke: expiry is stamped from the client clock (spec); a client clock behind the server delays the effect of a revoke.
@@ -99,6 +109,17 @@
 - gate 3 A: readiness guard missing (duplicate core/admin rows): accepted, fixed; reload after partial failure (orchestrator decision): fixed; refusal reporting, reload failure message, no-op same level, non-refusal logging, chosen-level sticking, stale same-level guard: accepted, fixed
 - gate 3 B: same readiness finding; default onError noise: accepted, fixed; generator form, user-less rows, per-row queries: rebutted
 - fix review: four reviewer-A passes; last one clean apart from the ABA note (rebutted)
+
+## Checkpoint 6
+- test writer: tests/shell-nav.test.ts, books-sidebar.test.tsx (sidebar entry, 22 tests); e2e for the screens is checkpoint 10 per the plan; later rounds added tests/useSettingsShell.test.tsx (real hooks via the harness), books-sidebar-render.test.tsx, settings-schema trimming tests
+- implementer: DONE; routes screens/settings/index.tsx and [section].tsx, components/settings/{SettingsShell,SectionList,SectionBody,SectionCard,CompanySection}.tsx, hooks/useSettingsShell.ts, lib/shell-nav.ts, hooks/useBooksSidebar.ts, sidebar.tsx
+- test disputes: 1 (the already-open test rendered a section that does not exist yet); test fixed
+- self-declared differences: sectionFromParam export; SectionList component; part=error when the settings row is missing
+- gate 1: pass (1313 tests; full package e2e 62 passed, 1 skipped, the capture spec)
+- gate 2: round 1 had one INVALID shot (company-long, no long values: capture spec could not type) fixed at the source with UI-driven actions; round 1 BLOCKING (only Company in the list) rebutted; round 2: no BLOCKING, NOTEs under Design notes
+- gate 3 A: dirty form remounts across breakpoints, push history loop, route index vs [section] remount, sequences error blocking: accepted, fixed; B: label-string ternary, non-admin form built, trimming, Currency block: accepted, fixed
+- core edit by the implementer (TextAreaInput) reverted: a core change needs its own PR and sign-off
+- fix review: reviewer A over the fix diff; one finding accepted (open-section no-op), rest rebutted
 
 ## Final review
 - eval: pending

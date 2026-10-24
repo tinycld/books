@@ -44,6 +44,32 @@ describe('companySchema', () => {
         expect(parsed.business_name).toBe('Acme')
     })
 
+    it.each([
+        'tax_id',
+        'address',
+        'phone',
+    ] as const)('trims %s and turns a whitespace-only value into an empty string', field => {
+        expect(companySchema.parse({ ...company, [field]: '  12-3456789  ' })[field]).toBe(
+            '12-3456789'
+        )
+        expect(companySchema.parse({ ...company, [field]: '   ' })[field]).toBe('')
+    })
+
+    it('trims email and website before checking them, and keeps the existing messages', () => {
+        const parsed = companySchema.parse({
+            ...company,
+            email: '  a@b.co  ',
+            website: '  https://acme.test  ',
+        })
+        expect(parsed.email).toBe('a@b.co')
+        expect(parsed.website).toBe('https://acme.test')
+        expect(companySchema.parse({ ...company, email: '   ', website: '   ' }).email).toBe('')
+        const bad = companySchema.safeParse({ ...company, email: ' nope ', website: ' ftp://x ' })
+        const messages = bad.success ? [] : bad.error.issues.map(i => i.message)
+        expect(messages).toContain('Enter a valid email address')
+        expect(messages).toContain('Enter a web address that starts with http:// or https://')
+    })
+
     it('bounds tax id, address and phone', () => {
         expect(failsOn('tax_id', 't'.repeat(21))).toBe(true)
         expect(passesOn('tax_id', 't'.repeat(20))).toBe(true)
