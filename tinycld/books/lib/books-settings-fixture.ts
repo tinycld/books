@@ -4,21 +4,9 @@ import type { BooksCloseOverrides, BooksDocSequences, BooksSettings } from '../t
 
 const STAMP = '2026-10-01 00:00:00.000Z'
 
-// Mirrors the five fields the settings checkpoint adds to books_settings
-// (tax_id, address, phone, email, website). Until that migration edit
-// regenerates the schema, the checkpoint that adds them replaces this
-// interface with the generated BooksSettings fields.
-export interface CompanyDetails {
-    tax_id: string
-    address: string
-    phone: string
-    email: string
-    website: string
-}
+export type SettingsRow = BooksSettings
 
-export type SettingsRow = BooksSettings & CompanyDetails
-
-export const COMPANY_SETTINGS: SettingsRow = {
+export const COMPANY_SETTINGS = {
     id: 'bookssettings01',
     close_date: '2026-09-30',
     fiscal_year_start_month: 1,
@@ -33,17 +21,17 @@ export const COMPANY_SETTINGS: SettingsRow = {
     website: 'https://www.hartwell.example',
     created: STAMP,
     updated: STAMP,
-}
+} satisfies BooksSettings
 
-export const LONG_COMPANY_SETTINGS: SettingsRow = {
+export const LONG_COMPANY_SETTINGS = {
     ...COMPANY_SETTINGS,
     business_name:
         'Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated',
     website: 'https://www.hartwell-regional-industrial-supply.example/about-us/accounting-contact',
-}
+} satisfies BooksSettings
 
 // A fresh book: no close date, only the required name filled in.
-export const EMPTY_SETTINGS: SettingsRow = {
+export const EMPTY_SETTINGS = {
     ...COMPANY_SETTINGS,
     close_date: '',
     tax_id: '',
@@ -51,7 +39,7 @@ export const EMPTY_SETTINGS: SettingsRow = {
     phone: '',
     email: '',
     website: '',
-}
+} satisfies BooksSettings
 
 export const SEQUENCES: BooksDocSequences[] = [
     {

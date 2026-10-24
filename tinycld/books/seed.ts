@@ -149,6 +149,9 @@ function fiscalYearStart(today: Date, startMonth: number): string {
 }
 
 export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<void> {
+    // The settings row is not seeded from the fixture: it holds fake user ids and
+    // setup_completed: true, which would hide the setup card the setup e2e opens.
+    // The settings e2e fills the company fields through the UI.
     // The settings row keeps setup_completed false, so the seeded book (which already has accounts) shows the wizard's populated-book path.
     const year = new Date().getFullYear()
     const ids = new Map<string, string>()
