@@ -42,6 +42,7 @@ function blankSettings(): BooksSettings {
         fiscal_year_start_month: 1,
         currency: 'USD',
         business_name: '',
+        ownership: '',
         setup_completed: false,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
@@ -252,12 +253,22 @@ function settingsWith(fields: Partial<BooksSettings>): BooksSettings {
 
 // A batch that stopped part way: the name is saved, the done mark is not, and
 // only some starter accounts exist.
-async function renderHalfDone(ownership: 'owners' | 'corporation', next?: () => void) {
+async function renderHalfDone(
+    ownership: 'owners' | 'corporation',
+    next?: () => void,
+    saved: BooksSettings['ownership'] = ownership
+) {
     seedBooks({
         level: 'admin',
         ledger: {
             ...seedLedger,
-            settings: [settingsWith({ business_name: 'Acme Corp', fiscal_year_start_month: 4 })],
+            settings: [
+                settingsWith({
+                    business_name: 'Acme Corp',
+                    fiscal_year_start_month: 4,
+                    ownership: saved,
+                }),
+            ],
         },
     })
     await emptyAccounts()
@@ -272,7 +283,7 @@ async function renderHalfDone(ownership: 'owners' | 'corporation', next?: () => 
 }
 
 describe('useSetupParts on a half-done book', () => {
-    it('opens on chart with the saved name, month and the inferred corporation choice', async () => {
+    it('opens on chart with the saved name, month and the saved corporation choice', async () => {
         const rendered = await renderHalfDone('corporation')
 
         expect(rendered.result.current.part).toBe('chart')
@@ -281,7 +292,7 @@ describe('useSetupParts on a half-done book', () => {
         expect(String(rendered.result.current.form.getValues('fiscal_year_start_month'))).toBe('4')
     })
 
-    it('opens on chart with owners for a book holding owner equity accounts', async () => {
+    it('opens on chart with owners when the saved ownership is owners', async () => {
         const rendered = await renderHalfDone('owners')
 
         expect(rendered.result.current.part).toBe('chart')
@@ -306,6 +317,19 @@ describe('useSetupParts on a half-done book', () => {
         expect(enteredWrites()).toHaveLength(starterChart('corporation').length - before)
     })
 
+    it('presets owners for a half-done book whose saved ownership is empty', async () => {
+        const rendered = await renderHalfDone('corporation', undefined, '')
+
+        expect(rendered.result.current.part).toBe('chart')
+        expect(rendered.result.current.ownership).toBe('owners')
+    })
+
+    it('presets the saved ownership even when the equity accounts say otherwise', async () => {
+        const rendered = await renderHalfDone('owners', undefined, 'corporation')
+
+        await waitFor(() => expect(rendered.result.current.ownership).toBe('corporation'))
+    })
+
     it('offers no skip while resuming and offers it on a fresh empty book', async () => {
         const resuming = await renderHalfDone('owners')
         expect(resuming.result.current.canSkip).toBe(false)
@@ -327,6 +351,7 @@ describe('useSetupParts second fix round', () => {
         })
         await waitFor(() => expect(first.result.current.part).toBe('error'))
         expect(storedAccounts()).toHaveLength(1)
+        expect(settingsStore().get(SETTINGS_ID)?.ownership).toBe('corporation')
         first.unmount()
         liftRefusal()
         resetWriteCounts()

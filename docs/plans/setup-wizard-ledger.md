@@ -120,3 +120,5 @@
 ## Final review
 - eval: revised -> remove the per-group counts and the group-count row above the preview (human: "they are just confusing"); fix commit: see git log
 - native: not executed in this run
+
+- eval (second revise): human asked to store the ownership choice in `books_settings.ownership` for later tax settings; inference by equity account numbers replaced.

@@ -5,12 +5,7 @@ import { useRef, useState } from 'react'
 import { accountCountLabel } from '../lib/setup-copy'
 import { type SetupValues, setupSchema } from '../lib/setup-schema'
 import { availableOnly, LIST_ENTRIES, SIDEBAR_ENTRIES } from '../lib/shell-nav'
-import {
-    groupStarterChart,
-    inferOwnership,
-    type Ownership,
-    starterChart,
-} from '../lib/starter-chart'
+import { groupStarterChart, type Ownership, starterChart } from '../lib/starter-chart'
 import { useBooksAccess } from './useBooksAccess'
 import { type SetupOutcome, useBooksSetup } from './useBooksSetup'
 
@@ -71,15 +66,11 @@ export function useSetupParts(next?: () => void) {
     const [failure, setFailure] = useState<Failure | null>(null)
 
     const { settings } = setup
-    // A half-done book's equity accounts say which choice it was created with.
-    const savedOwnership = setup.isResuming
-        ? inferOwnership(setup.existingNumbers)
-        : DEFAULT_OWNERSHIP
     const saved = settings
         ? {
               business_name: settings.business_name,
               fiscal_year_start_month: String(settings.fiscal_year_start_month),
-              ownership: savedOwnership,
+              ownership: setup.ownership || DEFAULT_OWNERSHIP,
           }
         : undefined
     const form = useForm<SetupFormValues>({

@@ -95,6 +95,7 @@ export function useBooksSetup() {
                         if (fields.fiscal_year_start_month !== undefined) {
                             draft.fiscal_year_start_month = fields.fiscal_year_start_month
                         }
+                        if (fields.ownership !== undefined) draft.ownership = fields.ownership
                         if (fields.done) draft.setup_completed = true
                     })
                 )
@@ -110,6 +111,7 @@ export function useBooksSetup() {
             await updateSettings({
                 business_name: values.business_name,
                 fiscal_year_start_month: values.fiscal_year_start_month,
+                ownership: values.ownership,
             })
             for (const item of levels.flat()) {
                 const parent = item.parent ? ids.get(item.parent) : ''
@@ -168,6 +170,7 @@ export function useBooksSetup() {
 
     return {
         settings,
+        ownership: settings?.ownership,
         isReady,
         hasLoadError: settingsQuery.isError || accountsQuery.isError,
         retryLoad,

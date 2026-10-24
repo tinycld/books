@@ -15,6 +15,8 @@ export const FRESH_SETTINGS: BooksSettings = {
     fiscal_year_start_month: 1,
     currency: 'USD',
     business_name: '',
+    // PocketBase stores an unset select as '', which the generated type omits.
+    ownership: '' as BooksSettings['ownership'],
     setup_completed: false,
     created: '2026-10-01 00:00:00.000Z',
     updated: '2026-10-01 00:00:00.000Z',
@@ -24,6 +26,7 @@ export const DONE_SETTINGS: BooksSettings = {
     ...FRESH_SETTINGS,
     fiscal_year_start_month: 7,
     business_name: 'Small Business Builders, LLC',
+    ownership: 'owners',
     setup_completed: true,
 }
 
