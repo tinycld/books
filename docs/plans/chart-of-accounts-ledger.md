@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/chart-of-accounts-checkpoints.md
 - reference: docs/plans/chart-of-accounts-reference/
 - evidence: docs/plans/chart-of-accounts-evidence/cp<N>/
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs)
 - capture manifest: docs/plans/chart-of-accounts-capture.json
 - review mode: C — none (unattended)
 - core extension: none
