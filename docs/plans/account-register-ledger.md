@@ -34,6 +34,16 @@
 - phase 4: plan review (fresh subagent) found narrowed/untested bullets, date-dependent e2e, name clashes, placeholders; all fixed in the plan (6 checkpoints). Spec reconciliation: Type cell shows "Reversal of <number>" (reversal) and "Void reversal of <number>" (void reversal). "This quarter" is the fiscal quarter (spec silent). Retry reloads every collection the screen reads (4, incl. an any-activity balance read). Seeded e2e rows are dated relative to today. Known gaps: no read-only-user e2e (seed has no read-only Books member; covered by newEntryVisible + account-menu-panel test).
 - review mode switches: none
 
+## Checkpoint 1
+- test writer: tests/register.test.ts, tests/register-range.test.ts; red for the right reason: yes (modules missing); untestable: none
+- implementer: lib/register.ts, lib/register-range.ts; DONE. Self-declared: unknown origin falls back to "Journal entry"; unknown status returns raw string; lines after range.end skipped before the balance walk (same result); overflow before first row nulls opening/ending
+- test disputes: none
+- gate 1: tests unedited: yes · pass
+- gate 3 A: numeric position compare (spec says string compare; numeric is correct, pinned by new test); prior-totals overflow not checked -> accepted+fixed; test-strength gaps (folded overflow, draft before range start, entryDetail fields/sort, position 2 vs 10, fiscalStartMonth 1.5, quarter boundary) -> accepted, tests added
+- gate 3 B: unknown origin + number gives "Journal entry of X" -> accepted+fixed
+- fix review: reviewer A pass over the fix diff: clean
+- reviewer-caught deferrals: none
+
 ## Final review
 - eval: (pending)
 - native: not executed in this run
