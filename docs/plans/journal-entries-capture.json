@@ -1,0 +1,15 @@
+{
+    "outDir": "journal-entries-reference",
+    "shots": [
+        { "name": "list", "url": "/a/books/helix-mockup?state=list", "ready": "entries-list" },
+        { "name": "list-empty", "url": "/a/books/helix-mockup?state=list-empty", "ready": "entries-empty" },
+        { "name": "list-no-match", "url": "/a/books/helix-mockup?state=list-no-match", "ready": "entries-no-match" },
+        { "name": "new", "url": "/a/books/helix-mockup?state=new", "ready": "entry-form" },
+        { "name": "new-unbalanced", "url": "/a/books/helix-mockup?state=new-unbalanced", "ready": "entry-form" },
+        { "name": "new-lines", "url": "/a/books/helix-mockup?state=new&view=lines", "ready": "entry-form" },
+        { "name": "new-unbalanced-lines", "url": "/a/books/helix-mockup?state=new-unbalanced&view=lines", "ready": "entry-form" },
+        { "name": "posted", "url": "/a/books/helix-mockup?state=posted", "ready": "entry-read-only" },
+        { "name": "void", "url": "/a/books/helix-mockup?state=void", "ready": "entry-read-only" },
+        { "name": "reverse", "url": "/a/books/helix-mockup?state=reverse", "ready": "reverse-dialog" }
+    ]
+}
