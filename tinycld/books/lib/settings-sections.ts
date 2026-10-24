@@ -9,6 +9,7 @@ export type SettingsSection = { id: SectionId; label: string; adminOnly: boolean
 export const SETTINGS_SECTIONS: SettingsSection[] = [
     { id: 'company', label: 'Company', adminOnly: false },
     { id: 'accounting', label: 'Accounting', adminOnly: false },
+    { id: 'numbering', label: 'Numbering', adminOnly: false },
 ]
 
 export function visibleSections(isAdmin: boolean): SettingsSection[] {

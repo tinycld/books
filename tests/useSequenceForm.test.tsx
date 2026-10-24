@@ -235,6 +235,86 @@ describe('useSequenceForm with the sequence from the live query', () => {
     })
 })
 
+describe('useSequenceForm submitted state with the sequence from the live query', () => {
+    async function renderRefused(refusal: unknown) {
+        seedBooks({ level: 'admin', sequences: [SEQ], refuseSequences: refusal })
+        const rendered = renderLiveSequence()
+        await waitFor(() => expect(sequencesStore().get(SEQ.id)).toBeDefined())
+        return rendered
+    }
+
+    async function settle() {
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 30))
+        })
+    }
+
+    it('keeps isSubmitted and the next_number error after a field-map refusal', async () => {
+        const rendered = await renderRefused(serverRefusal('next_number', REFUSAL))
+        type(rendered, 'next_number', '500')
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.next_number?.message).toBe(REFUSAL)
+        )
+        await settle()
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(true)
+        expect(rendered.result.current.form.formState.errors.next_number?.message).toBe(REFUSAL)
+    })
+
+    it('keeps isSubmitted after a zod failure', async () => {
+        const rendered = await renderRefused(null)
+        type(rendered, 'prefix', 'A_1')
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.prefix?.message).toBeDefined()
+        )
+        await settle()
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(true)
+    })
+
+    it('clears isSubmitted and the errors after a successful save', async () => {
+        const rendered = await renderRefused(null)
+        type(rendered, 'next_number', '2001')
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() => expect(sequencesStore().get(SEQ.id)?.next_number).toBe(2001))
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(false))
+        await settle()
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(false)
+        expect(rendered.result.current.form.formState.errors).toEqual({})
+    })
+
+    it('shows the new error again when a retry is refused', async () => {
+        const rendered = await renderRefused(messageRefusal(REFUSAL))
+        type(rendered, 'next_number', '500')
+        act(() => rendered.result.current.submit())
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.next_number?.message).toBe(REFUSAL)
+        )
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(false))
+
+        liftRefusal()
+        seedBooks({
+            level: 'admin',
+            sequences: [SEQ],
+            refuseSequences: serverRefusal('next_number', 'Second refusal'),
+        })
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.next_number?.message).toBe(
+                'Second refusal'
+            )
+        )
+        expect(rendered.result.current.form.formState.isSubmitted).toBe(true)
+    })
+})
+
 describe('useDocSequences', () => {
     const SECOND = { ...SEQ, id: 'booksseq0000002', doc_type: 'invoice', prefix: 'INV-' }
     const THIRD = { ...SEQ, id: 'booksseq0000003', doc_type: 'bill', prefix: 'BILL-' }

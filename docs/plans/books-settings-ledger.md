@@ -77,8 +77,15 @@
   **rebutted because:** the checkpoint's interface names `UseFormReturn<OverrideValues>`, but core's `@tinycld/core/ui/form` exports no `UseFormReturn`; a derived type is the codebase rule ("Derive row types from the query").
 - **finding:** reviewer A, checkpoint 8: a failed revoke gives only a 5 s toast; no in-flight indicator on the row
   **rebutted because:** the spec defines no failure state for Revoke; the optimistic update rolls the row back (tested).
+- **finding:** reviewer B, checkpoint 9: tests/settings-sections-numbering.test.ts and the hooks/useSequenceForm.ts change are outside the Files block
+  **rebutted because:** the hook change fixes the same isSubmitted reset found in checkpoint 7 (FormErrorSummary is gated on isSubmitted) and is now covered by tests/useSequenceForm.test.tsx; the registry test pins the new section entry. Both recorded under Out-of-plan.
+- **finding:** reviewer A, checkpoint 9: Prefix lacks autoCapitalize/autoCorrect props
+  **rebutted because:** not in the spec's Numbering bullets; a native nicety that core's TextInput may not forward.
 
 ## Design notes
+- cp 9 · numbering-invalid: the preview joins the rejected prefix ('A_12001'), so it can read as valid; the Prefix error lacks a trailing period unlike the server refusal (the text is asserted in the schema tests).
+- cp 9 · errors add their own bottom margin: the gap from error text to the preview is larger than from inputs to the preview.
+- cp 9 · the empty Numbering state cannot be produced through the UI, so it has no screenshot.
 - cp 8 · grant dialog: the Reason textarea shows a browser resize grip (also in the phone sheet); the dialog title sits directly above the Person label with no gap.
 - cp 8 · revoke-confirm (dark): the destructive Revoke button is a muted rose, so it reads as disabled next to a full-strength primary elsewhere.
 - cp 8 · no-close-date: the 'Set a close date to grant overrides.' message is body size with a paragraph gap; the reference sets it as small muted helper text.
@@ -97,6 +104,7 @@
 (none yet)
 
 ## Out-of-plan changes
+- cp 9 · hooks/useSequenceForm.ts (keepIsSubmitted), tests/settings-sections-numbering.test.ts, SectionCard title weight (affects all settings cards).
 - tests/collections-real.test.ts: the checkpoint's Files block names it as a Modify; the test writer added the cases (planned).
 - docs/plans/books-settings-checkpoints.md: the untestable Tests bullet removed (see Rebuttals).
 - tinycld/books/lib/books-settings-fixture.ts, tinycld/books/screens/helix-mockup.tsx (checkpoint 2 fix): redeclared types replaced by imports.
@@ -167,6 +175,14 @@
 - gate 2: no INVALID, no BLOCKING; NOTEs under Design notes; the checkpoint 7 deferral is resolved by the non-admin-accounting-override shot
 - gate 3 A: loading/error states missing, grant form not reset on close, dead props, settings load state missing from part, cancel during submit leaving a stale refusal: accepted, fixed; B: dead isSheet, inline label ternary: accepted, fixed; the extra unit-test file, derived form type, custom dialog: rebutted
 - fix review: three reviewer-A passes
+
+## Checkpoint 9
+- test writer: tests/settings-sections-numbering.test.ts (registry entry); components are checkpoint 10 e2e; later tests/useSequenceForm.test.tsx isSubmitted cases
+- implementer: DONE; components/settings/{NumberingSection,SequenceCard}.tsx, registry, SectionBody
+- gate 1: pass (1374 tests; full e2e 62 passed, 1 skipped)
+- gate 2: round 1 BLOCKING: card title hierarchy and wide side-by-side layout, fixed; round 2: no BLOCKING
+- gate 3 A/B: dead loading branch, JSX ternary, dead summary: fixed; isSubmitted tests added; rest rebutted
+- fix review: one reviewer-A pass, clean
 
 ## Final review
 - eval: pending
