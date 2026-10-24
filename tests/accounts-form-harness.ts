@@ -523,6 +523,20 @@ function sequencesCollectionFor(
     return sequencesCollection(rows)
 }
 
+function overridesCollectionFor(
+    opts: {
+        overridesNeverReady?: boolean
+        overridesFailsOnce?: boolean
+        overridesErrored?: boolean
+    },
+    rows: BooksCloseOverrides[]
+) {
+    if (opts.overridesErrored) return erroredCollection<BooksCloseOverrides>()
+    if (opts.overridesNeverReady) return neverReady<BooksCloseOverrides>()
+    if (opts.overridesFailsOnce) return failsOnceCollection<BooksCloseOverrides>(rows)
+    return overridesCollection(rows)
+}
+
 function usersCollectionFor(
     opts: { usersNeverReady?: boolean; usersFailsOnce?: boolean; usersErrored?: boolean },
     rows: SeedUser[]
@@ -566,6 +580,12 @@ export function seedBooks(
         settingsErrored?: boolean
         // Refuses every write to a close override row with this error.
         refuseOverrides?: unknown
+        // A close overrides collection that never finishes loading.
+        overridesNeverReady?: boolean
+        // A close overrides collection whose first load fails and whose reload succeeds.
+        overridesFailsOnce?: boolean
+        // A close overrides collection whose sync fails, so its query errors.
+        overridesErrored?: boolean
         // The close override rows to seed; none by default.
         overrides?: BooksCloseOverrides[]
         // The users the overrides and access rows point at; none by default.
@@ -682,7 +702,7 @@ export function seedBooks(
                 errored: opts.adminsErrored,
             }
         ),
-        books_close_overrides: overridesCollection(opts.overrides ?? []),
+        books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
     }
 }
