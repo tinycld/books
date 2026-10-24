@@ -1,6 +1,9 @@
 // Synthetic data for the settings helix reference route and, later, the seed.
 // Typed against the generated record types so tsc checks every field.
+
 import type { BooksCloseOverrides, BooksDocSequences, BooksSettings } from '../types'
+import type { BooksLevel } from './access'
+import type { OrgRole } from './access-levels'
 
 const STAMP = '2026-10-01 00:00:00.000Z'
 
@@ -122,15 +125,12 @@ export const OVERRIDES: OverrideRow[] = [
 // The signed-in person's own active override, for the read-only line.
 export const OWN_OVERRIDE = OVERRIDES[0]
 
-export type BooksLevelValue = 'none' | 'read_only' | 'bookkeeper' | 'admin'
-export type OrgRole = 'owner' | 'admin' | 'member' | 'guest'
-
 export interface AccessPerson {
     id: string
     name: string
     email: string
     orgRole: OrgRole
-    level: BooksLevelValue
+    level: BooksLevel
 }
 
 // The signed-in person: an org owner by default; the limited view signs in as
