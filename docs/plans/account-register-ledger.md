@@ -21,7 +21,7 @@
 (none yet)
 
 ## Rebuttals
-- cp3 reviewer B finding 1 (useState `attempt` counter in useRegisterQuery) and A finding 5 (text-danger on negative balances): rejected. The counter is hook-local synchronous state; the live query stays in error after `collection.reload()` and only a changed queryKey rebuilds it, proven by the Retry e2e failing without it. Negative balances: spec says only "A negative balance shows a minus sign"; the approved reference mockup renders them in text-danger and the colour does not replace the minus sign.
+- cp3 reviewer B finding 1 (useState `attempt` counter in useRegisterQuery): accepted after the gate. Retry now uses core's `recoverLiveQueries` (clean up queries, then sources, then preload; TanStack/db#923) and the counter is gone. A reviewer A finding 5 (text-danger on negative balances): rejected. Spec says only "A negative balance shows a minus sign"; the approved reference mockup renders them in text-danger and the colour does not replace the minus sign.
 - cp2 reviewer B finding 4 (account via hand-rolled useLiveQuery instead of useRecord): rejected. Decisions block: "`isError` is true when any of the live queries the screen runs (account, lines, opening totals, sub-account, any-activity, settings) reports `isError`." `useRecord` exposes no `isError`, so the account query must be a direct useLiveQuery.
 
 ## Design notes
@@ -109,3 +109,5 @@ Spike outcome also noted under Design notes.
 ## Final review
 - eval: (pending)
 - native: not executed in this run
+
+- Out of plan (eval gate, human-directed): core `lib/recover-live-queries.ts` (+ unit test) on core branch `books/p1-account-register`; `useRegisterQuery` retry uses it. Core PR must merge before the books PR. Test written by the implementer, not a separate agent; the cp3 Retry e2e is the independent proof.

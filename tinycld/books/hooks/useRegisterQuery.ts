@@ -2,8 +2,8 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useMemo, useState } from 'react'
-import { reloadCollections } from '../lib/accounts-query'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { useMemo } from 'react'
 import {
     anyActivityQuery,
     openingTotalsQuery,
@@ -34,12 +34,10 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
         'books_journal_entries',
         'books_account_balances'
     )
-    // A live query that failed stays failed, so a retry also rebuilds the queries by changing their key.
-    const [attempt, setAttempt] = useState(0)
     const [settingsCollection] = useStore('books_settings')
     const settingsQuery = useLiveQuery({
         query: query => query.from({ settings: settingsCollection }),
-        queryKey: ['books.register.settings', attempt],
+        queryKey: ['books.register.settings'],
     })
     const fiscalMonth = fiscalStartMonth(settingsQuery.data?.[0])
     const range = resolveRange(rangeInput, fiscalMonth, settingsQuery.isReady)
@@ -53,28 +51,28 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
                       .where(({ account }) => eq(account.id, accountId))
                       .findOne()
                 : undefined,
-        queryKey: ['books.register.account', accountId, range === null, attempt],
+        queryKey: ['books.register.account', accountId, range === null],
     })
     const linesQuery = useLiveQuery({
         query: query =>
             range
                 ? registerLinesQuery(linesCollection, entriesCollection, accountId, range)(query)
                 : undefined,
-        queryKey: ['books.register.lines', accountId, range?.start, range?.end, attempt],
+        queryKey: ['books.register.lines', accountId, range?.start, range?.end],
     })
     const openingQuery = useLiveQuery({
         query: query =>
             range ? openingTotalsQuery(balancesCollection, accountId, range)(query) : undefined,
-        queryKey: ['books.register.opening', accountId, range?.start, attempt],
+        queryKey: ['books.register.opening', accountId, range?.start],
     })
     const subAccountResult = useLiveQuery({
         query: query => (range ? subAccountQuery(accountsCollection, accountId)(query) : undefined),
-        queryKey: ['books.register.sub-account', accountId, range === null, attempt],
+        queryKey: ['books.register.sub-account', accountId, range === null],
     })
     const activityQuery = useLiveQuery({
         query: query =>
             range ? anyActivityQuery(balancesCollection, accountId)(query) : undefined,
-        queryKey: ['books.register.activity', accountId, range === null, attempt],
+        queryKey: ['books.register.activity', accountId, range === null],
     })
 
     const originIds = [
@@ -87,7 +85,7 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
             originIds.length > 0
                 ? reversalOriginsQuery(entriesCollection, originIds)(query)
                 : undefined,
-        queryKey: ['books.register.origins', attempt, ...originIds],
+        queryKey: ['books.register.origins', ...originIds],
     })
 
     const originRows = originsQuery.data
@@ -106,11 +104,25 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
     }
 
     const retry = () => {
-        setAttempt(n => n + 1)
-        void reloadCollections(
-            [accountsCollection, linesCollection, entriesCollection, balancesCollection],
-            err => log.error('books.register', err)
-        )
+        void recoverLiveQueries({
+            queries: [
+                settingsQuery,
+                accountQuery,
+                linesQuery,
+                openingQuery,
+                subAccountResult,
+                activityQuery,
+                originsQuery,
+            ].map(q => q.collection),
+            sources: [
+                settingsCollection,
+                accountsCollection,
+                linesCollection,
+                entriesCollection,
+                balancesCollection,
+            ],
+            onError: err => log.error('books.register', err),
+        })
     }
 
     return {
