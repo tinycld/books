@@ -179,18 +179,12 @@ export const DRAFT_AMOUNTS: Record<string, number> = {
     acct_eq_00001: 1000000,
 }
 
-// Local mirror of the opening entry: the generated type has no `opening_balance`
-// origin until the ledger migration checkpoint adds it. That checkpoint replaces
-// this interface with `BooksJournalEntries`.
 export type OpeningEntrySeed = Pick<
     BooksJournalEntries,
-    'id' | 'date' | 'memo' | 'status' | 'number' | 'posted_at' | 'replaces'
-> & {
-    origin: 'opening_balance'
-    postedByName: string
-}
+    'id' | 'date' | 'memo' | 'status' | 'number' | 'posted_at' | 'replaces' | 'origin'
+> & { postedByName: string }
 
-export const POSTED_ENTRY: OpeningEntrySeed = {
+export const POSTED_ENTRY = {
     id: 'entry_open_001',
     date: OPENING_DATE,
     memo: 'Opening balances as of Dec 31, 2025',
@@ -200,4 +194,4 @@ export const POSTED_ENTRY: OpeningEntrySeed = {
     replaces: '',
     origin: 'opening_balance',
     postedByName: 'Ann Lee',
-}
+} satisfies OpeningEntrySeed

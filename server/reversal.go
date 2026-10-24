@@ -190,6 +190,13 @@ func voidReplaced(tx core.App, corrected *core.Record, now time.Time) (*core.Rec
 	if original.GetString("doc_type") != corrected.GetString("doc_type") {
 		return nil, refuse("A correction must have the same document type as the entry it replaces.")
 	}
+	if original.GetString("origin") != corrected.GetString("origin") {
+		if original.GetString("origin") == originOpeningBalance || corrected.GetString("origin") == originOpeningBalance {
+			return nil, refuse("An opening balance entry can be edited only on the Opening balances screen.")
+		}
+		// Defensive: checkNewEntry refuses reverses+replaces together, so only a direct DB state reaches this.
+		return nil, refuse("A correction must have the same origin as the entry it replaces.")
+	}
 	original.Set("status", statusVoid)
 	original.Set("voided_by", corrected.GetString("posted_by"))
 	if err := tx.Save(original); err != nil {
