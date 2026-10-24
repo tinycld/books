@@ -77,3 +77,28 @@ export async function openRegister(page: Page, accountName: string) {
     await openChart(page)
     await chooseViewRegister(page, accountName)
 }
+
+// Returns the element's box once it has held still for several frames. A sheet, drawer or panel
+// scales in on mount, so a box read straight after `toBeVisible` can be mid-transform (a 44px
+// minHeight reads as 43.9999). Waiting for a stable rect is deterministic; a tolerance is not.
+export async function settledBox(locator: Locator) {
+    await locator.evaluate(
+        el =>
+            new Promise<void>(resolve => {
+                let last = ''
+                let still = 0
+                let frames = 0
+                const tick = () => {
+                    const box = el.getBoundingClientRect()
+                    const key = [box.x, box.y, box.width, box.height].join()
+                    still = key === last ? still + 1 : 0
+                    last = key
+                    frames += 1
+                    if (still >= 8 || frames > 240) resolve()
+                    else requestAnimationFrame(tick)
+                }
+                tick()
+            })
+    )
+    return locator.boundingBox()
+}

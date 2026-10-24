@@ -48,7 +48,7 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         icon: FileText,
         href: 'books/entries',
         group: 'accounting',
-        available: false,
+        available: true,
     },
 ]
 
@@ -58,7 +58,7 @@ export const NEW_ACTIONS: NewAction[] = [
         label: 'Journal entry',
         href: 'books/entries/new',
         column: 'other',
-        available: false,
+        available: true,
     },
 ]
 
@@ -68,6 +68,13 @@ export const LIST_ENTRIES: ListEntry[] = [
         label: 'Accounts',
         description: 'Chart of accounts',
         href: 'books/accounts',
+        available: true,
+    },
+    {
+        id: 'entries',
+        label: 'Journal entries',
+        description: 'Manual entries',
+        href: 'books/entries',
         available: true,
     },
 ]
