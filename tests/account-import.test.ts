@@ -8,6 +8,11 @@ import {
     importExampleCsv,
     orderForInsert,
 } from '../tinycld/books/lib/account-import'
+import {
+    type ResolveStats,
+    type RowInput,
+    resolveRows,
+} from '../tinycld/books/lib/account-import-resolve'
 import { parseCsv } from '../tinycld/books/lib/csv'
 
 // Column order used by every row below.
@@ -924,12 +929,9 @@ describe('buildImportPreview: parent candidates on the resolver stack', () => {
         expect(dep[3]).toMatchObject({ status: 'error', reason: 'parent row has an error' })
     })
 
-    it('resolves 2000 self-named rows with self parents in under 1500 ms, none ready', () => {
+    it('resolves 2000 self-named rows with self parents with bounded work, none ready', () => {
         const rows = Array.from({ length: 2000 }, () => row({ name: 'A', parent: 'A' }))
-        const start = performance.now()
         const result = preview(rows)
-        const elapsed = performance.now() - start
-        expect(elapsed).toBeLessThan(1500)
         expect(result).toHaveLength(2000)
         expect(result.every(r => r.status === 'error')).toBe(true)
         expect(
@@ -942,6 +944,33 @@ describe('buildImportPreview: parent candidates on the resolver stack', () => {
                 ].includes(r.reason ?? '')
             )
         ).toBe(true)
+    })
+})
+
+describe('resolveRows: work on self-named rows with self parents', () => {
+    const selfNamed = (n: number): RowInput[] =>
+        Array.from({ length: n }, () => ({
+            name: 'A',
+            typeKey: 'expense',
+            parentRaw: 'A',
+            fieldError: null,
+        }))
+
+    function work(n: number): ResolveStats {
+        const stats = { scanned: 0, lookups: 0 }
+        resolveRows(selfNamed(n), [], stats)
+        return stats
+    }
+
+    it('looks each row up a constant number of times and scans at most quadratically', () => {
+        const small = work(500)
+        const large = work(2000)
+        expect(small.lookups).toBeLessThanOrEqual(3 * 500)
+        expect(large.lookups).toBeLessThanOrEqual(3 * 2000)
+        // Measured: 3.5 * n^2 scans (the cycle pass compares every same-named row).
+        expect(large.scanned).toBeLessThanOrEqual(5 * 2000 * 2000)
+        // 4x the rows may cost about 16x the scans, never the exponential or worse.
+        expect(large.scanned / small.scanned).toBeLessThanOrEqual(20)
     })
 })
 
