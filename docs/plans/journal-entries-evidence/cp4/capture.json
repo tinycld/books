@@ -1,0 +1,20 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only"
+        },
+        {
+            "name": "void",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "pressText": "Entries seed voided",
+            "afterReady": "entry-read-only",
+            "schemes": ["light"]
+        }
+    ]
+}

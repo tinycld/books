@@ -1,3 +1,4 @@
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useRecord } from '@tinycld/core/lib/use-record'
@@ -9,11 +10,13 @@ import {
     DrawerContent,
     DrawerHeader,
 } from '@tinycld/core/ui/drawer'
+import { router } from 'expo-router'
 import { X } from 'lucide-react-native'
-import { Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { amountText } from '../../lib/money'
 import { type EntryDetail, entryNumberLabel } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
+import { useRegisterStore } from '../../stores/register-store'
 
 interface Placement {
     isWide: boolean
@@ -124,6 +127,25 @@ function EntryFields({ detail, currency }: { detail: EntryDetail | null; currenc
     )
 }
 
+function OpenEntryLink({ onClose }: { onClose: () => void }) {
+    const orgHref = useOrgHref()
+    const entryId = useRegisterStore(s => s.selected?.entryId)
+    if (!entryId) return null
+    return (
+        <Pressable
+            testID="register-drawer-open-entry"
+            accessibilityRole="link"
+            onPress={() => {
+                onClose()
+                router.push(orgHref(`books/entries/${entryId}`))
+            }}
+            style={{ minHeight: 44, justifyContent: 'center' }}
+        >
+            <Text className="text-sm font-medium text-primary">Open entry</Text>
+        </Pressable>
+    )
+}
+
 interface EntryDrawerProps extends Placement {
     detail: EntryDetail | null
     currency: string
@@ -153,6 +175,7 @@ export function EntryDrawer({ detail, currency, onClose, ...placement }: EntryDr
                     </DrawerCloseButton>
                 </DrawerHeader>
                 <DrawerBody style={{ flexShrink: 1 }}>
+                    <OpenEntryLink onClose={onClose} />
                     <EntryFields detail={detail} currency={currency} />
                 </DrawerBody>
             </DrawerContent>

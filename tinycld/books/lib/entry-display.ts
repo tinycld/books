@@ -27,3 +27,22 @@ export function entryTypeText(origin: EntryOrigin): string {
 export function reversesText(number: string | undefined): string {
     return number ? `Reverses ${number}` : 'Reverses …'
 }
+
+// Stamps are stored as UTC "YYYY-MM-DD HH:MM:SS.sssZ"; the reader sees them in local time.
+export function formatDateTime(stamp: string): string {
+    const when = new Date(stamp.replace(' ', 'T'))
+    if (Number.isNaN(when.getTime())) return ''
+    return when.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    })
+}
+
+export function stampText(userName: string | undefined, at: string): string {
+    if (at === '') return ''
+    const when = formatDateTime(at)
+    return userName ? `${userName}, ${when}` : when
+}

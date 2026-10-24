@@ -147,3 +147,28 @@
 - tinycld/books/stores/entries-ui-store.ts: `growRowLimit(from)` idempotent for a scroll burst.
 - docs/plans/journal-entries-checkpoints.md: note under checkpoint 3 about the Go change.
 - docs/plans/journal-entries-evidence/cp3/: capture.json, shots, critique.md.
+
+## Checkpoint 4
+- test writer: tests/e2e/journal-entries-read-only.spec.ts (19 tests, red: missing screen); fix round added premature-state MutationObserver test, back-navigation test, tightened account/date/poster assertions, stampText unit cases in tests/entry-display.test.ts
+- implementer: screens/entries/[id].tsx, components/entries/{EntryReadOnlyView,EntryLineTable,EntryLineCard,EntryTotals,EntryHeader}.tsx, hooks/useEntryDetail.ts, EntryDrawer "Open entry" link; DONE
+- test disputes: (1) "reversed" spec opened the first row containing "Entries seed reversed", which is the newer reversal row ("Reversal of Entries seed reversed"); test was wrong; coordinator added `.filter({ hasNotText: 'Reversal of' })` to openEntry.
+- self-declared differences: EntryLineCard takes `index`; link rows use router.replace (push left two entry screens mounted on web, duplicate testids); each detail row is one Text with a nested value Text; useEntryDetail returns a union (ReadyEntryDetail narrows); account label built inline (no shared helper exists); EntryBackLink export; Dr/Cr marker on phone cards
+- gate 1: tests unedited: yes except the dispute above · pass (check exit 0; full e2e 114 passed 1 skipped); shots captured
+- gate 2: invalid shots: none · blocking: none · notes in cp4/critique.md (line table rules full-bleed vs reference inset; Dr/Cr marker styling; Reversed-by is a link row, reference shows a labeled detail)
+- gate 3 A: accepted+fixed: viewState gated on lines and accounts ready (false "In balance" with no lines), missing account placeholder + log.warn, stamp text without leading comma (stampText), screen branches on viewState. Gate 3 B: no blockers; out-of-plan changes recorded below.
+- fix review: not run as a separate pass; the fix diff is small and covered by the new red-then-green tests and a full e2e run.
+- reviewer-caught deferrals: see Deferrals below
+
+### Cp4 rebuttals / deferrals
+- **router.replace for linked-entry links** (plan says push): kept; push leaves two entry screens mounted on web. Consequence: browser Back after Reversed by / Reverses goes to the list, not the previous entry. Checkpoints 8 and 9 must not assume a stack entry after following a link. User to confirm.
+- **Back from an entry opened via the register drawer** lands on the entries list (label "Journal entries"), not the register. Deferred.
+- **Reversed-by shown for a draft or void reversal**: possible only after checkpoint 8 creates such states; revisit there.
+- **Reference differences** (Reversed-by labeled detail, Dr/Cr marker weight, inset table rules): NOTE only.
+- **useBackToEntries relies on route name 'entries/index'**: falls back to replace if wrong; covered by the back-navigation test.
+
+### Cp4 out-of-plan changes
+- hooks/useBackToEntries.ts (new), EntryBackLink export in EntryHeader.tsx, formatDateTime and stampText in lib/entry-display.ts, `entry-detail-*`/`entry-lines`/`entry-auto-reverse` extra test ids, EntryLineCard `index` prop.
+- tests/e2e/journal-entries-read-only.spec.ts adds a "This fiscal year" range step in the register-link test.
+- tests/e2e/helix-capture.spec.ts (git-excluded scratch tool) gained `pressText` and `afterReady` shot fields.
+- docs/plans/journal-entries-evidence/cp4/: capture.json, shots, critique.md.
+
