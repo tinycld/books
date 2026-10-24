@@ -7,6 +7,7 @@ import { FISCAL_MONTHS } from '../../lib/setup-schema'
 import type { BooksSettings } from '../../types'
 import { CloseBooksBlock } from './CloseBooksBlock'
 import { FiscalYearForm } from './FiscalYearForm'
+import { OverridesPanel } from './OverridesPanel'
 import { ReadOnlyRow, SectionCard } from './SectionCard'
 
 function OwnOverrideLine({ isVisible }: { isVisible: boolean }) {
@@ -38,12 +39,15 @@ function AccountingReadOnly({ settings }: { settings: BooksSettings }) {
 
 function AccountingForms() {
     return (
-        <SectionCard>
-            <View className="gap-4">
-                <FiscalYearForm />
-                <CloseBooksBlock />
-            </View>
-        </SectionCard>
+        <View className="gap-4">
+            <SectionCard>
+                <View className="gap-4">
+                    <FiscalYearForm />
+                    <CloseBooksBlock />
+                </View>
+            </SectionCard>
+            <OverridesPanel />
+        </View>
     )
 }
 

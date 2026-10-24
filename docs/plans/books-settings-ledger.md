@@ -18,6 +18,7 @@
   - Role choice carries a description → expressible (SelectInput + description line)
 
 ## Deferrals
+(none open) Resolved: checkpoint 7's non-admin override line was captured at checkpoint 8 (evidence/cp8/non-admin-accounting-override-*), granted through the UI; unit tests cover it and checkpoint 10's e2e test 6 asserts it. Original entry:
 - **agreed:** checkpoint 7 Delivers: "the read-only view with the caller's own override line"; spec: "Under Accounting a line states the caller's own override"
   **built:** the line is built (`ownOverrideLine` in lib/overrides.ts, `books-settings-own-override` in the read-only Accounting view, driven by `useMyCloseOverride`) and unit-tested, but the non-admin gate-2 screenshot shows no line
   **reason:** missing dependency
@@ -70,8 +71,18 @@
   **rebutted because:** low risk; the server re-validates the write.
 - **finding:** reviewer A and B, checkpoint 7: the fiscal-year form uses a local numeric MonthSelect; the typing-during-save reset keeps Save disabled
   **rebutted because:** a save is a single round trip; the next keystroke re-dirties the form.
+- **finding:** reviewer B, checkpoint 8: tests/useOverridesPanel.test.tsx is not in the Files block
+  **rebutted because:** the form and revoke state are a tricky hook (grant form with optimistic refusal, cancel during submit, load states); CLAUDE.md allows a unit test for such a hook; panel rendering stays e2e (checkpoint 10).
+- **finding:** reviewer B, checkpoint 8: GrantOverrideDialog and OverridesPanel type the form via `ReturnType<typeof useOverridesPanel>`
+  **rebutted because:** the checkpoint's interface names `UseFormReturn<OverrideValues>`, but core's `@tinycld/core/ui/form` exports no `UseFormReturn`; a derived type is the codebase rule ("Derive row types from the query").
+- **finding:** reviewer A, checkpoint 8: a failed revoke gives only a 5 s toast; no in-flight indicator on the row
+  **rebutted because:** the spec defines no failure state for Revoke; the optimistic update rolls the row back (tested).
 
 ## Design notes
+- cp 8 · grant dialog: the Reason textarea shows a browser resize grip (also in the phone sheet); the dialog title sits directly above the Person label with no gap.
+- cp 8 · revoke-confirm (dark): the destructive Revoke button is a muted rose, so it reads as disabled next to a full-strength primary elsewhere.
+- cp 8 · no-close-date: the 'Set a close date to grant overrides.' message is body size with a paragraph gap; the reference sets it as small muted helper text.
+- cp 8 · mobile tab bar: only 'More' is drawn for the collaborator at 390 in the non-admin shots ('Books' tab absent).
 - cp 7 · Close block: "Save close date" sits inside the bordered block; the reference draws it below the block in the same column as the fiscal Save.
 - cp 7 · Reopen dialog: the date breaks across lines in the body text; a non-breaking space would keep it together. At 390 the sheet shows both an X and a Cancel.
 - cp 7 · Accounting: the gap above the fiscal Save equals the gap below it, so Save reads less like part of the fiscal group.
@@ -147,6 +158,15 @@
 - gate 2: no INVALID after the capture fixes; BLOCKING: duplicate error + raw key (fixed), missing override line (deferral, see Deferrals); NOTEs under Design notes
 - gate 3 A: BLOCKING FormErrorSummary never rendered (isEnabled default false): fixed in Company, fiscal and close forms; then isSubmitted reset by the optimistic update hid refusals: fixed with keepIsSubmitted; B: MonthSelect/ReopenDialog rebutted; month field error render: fixed
 - fix review: four reviewer-A passes
+
+## Checkpoint 8
+- test writer: tests/useOverridesPanel.test.tsx (hook-level; the checkpoint lists only the checkpoint 10 e2e); red (missing module); untestable: none
+- implementer: DONE; hooks/useOverridesPanel.ts, components/settings/{OverridesPanel,OverrideRow,GrantOverrideDialog}.tsx, AccountingSection.tsx
+- self-declared differences: RevokeDialog and GrantOverrideDialog on core Dialog (sheet on phone from Dialog itself); extra test ids; toast on revoke failure
+- gate 1: pass (1368 tests; full e2e 62 passed, 1 skipped)
+- gate 2: no INVALID, no BLOCKING; NOTEs under Design notes; the checkpoint 7 deferral is resolved by the non-admin-accounting-override shot
+- gate 3 A: loading/error states missing, grant form not reset on close, dead props, settings load state missing from part, cancel during submit leaving a stale refusal: accepted, fixed; B: dead isSheet, inline label ternary: accepted, fixed; the extra unit-test file, derived form type, custom dialog: rebutted
+- fix review: three reviewer-A passes
 
 ## Final review
 - eval: pending
