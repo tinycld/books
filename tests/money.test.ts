@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+    amountText,
     dollarsToCents,
     formatMoney,
     maxStoredAmount,
@@ -14,6 +15,18 @@ describe('money', () => {
 
     it('shows a leading minus for a negative amount', () => {
         expect(formatMoney(-5, 'USD').startsWith('-')).toBe(true)
+    })
+
+    it('formats the largest safe amount exactly', () => {
+        expect(formatMoney(9007199254740991, 'USD')).toBe('$90,071,992,547,409.91')
+    })
+
+    it('formats a negative amount with its minus sign', () => {
+        expect(formatMoney(-123456, 'USD')).toBe('-$1,234.56')
+    })
+
+    it('round-trips maxStoredAmount through amountText and parseMoney', () => {
+        expect(parseMoney(amountText(maxStoredAmount, 'USD'))).toBe(maxStoredAmount)
     })
 
     it('rounds half away from zero', () => {
@@ -170,5 +183,48 @@ describe('parseMoney edge pins', () => {
 
     it('trims tabs and newlines', () => {
         expect(parseMoney('\t5\n')).toBe(500)
+    })
+})
+
+describe('parseMoney currency prefixes', () => {
+    it.each([
+        ['$5', 500],
+        ['\u20ac5', 500],
+        ['\u00a35', 500],
+        ['CA$5', 500],
+        ['USD$5', 500],
+        ['-\u20ac5', -500],
+    ])('parses %j', (text, cents) => {
+        expect(parseMoney(text)).toBe(cents)
+    })
+
+    it.each(['$$5', 'USD5', '\u20ac-5', 'ABC\u20ac5', 'US$ 5'])('rejects %j', text => {
+        expect(parseMoney(text)).toBeNull()
+    })
+})
+
+describe('formatMoney always shows two decimals', () => {
+    const twoDecimals = (currency: string) =>
+        new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(1234.56)
+
+    it('shows 2 decimals for JPY', () => {
+        expect(formatMoney(123456, 'JPY')).toBe(twoDecimals('JPY'))
+    })
+
+    it('shows 2 decimals for KWD', () => {
+        expect(formatMoney(123456, 'KWD')).toBe(twoDecimals('KWD'))
+    })
+
+    it('round-trips JPY through amountText and parseMoney', () => {
+        expect(parseMoney(amountText(123456, 'JPY'))).toBe(123456)
+    })
+
+    it('keeps the plain-number fallback for an invalid currency code', () => {
+        expect(formatMoney(123456, 'NOPE!')).toContain('1,234.56')
     })
 })

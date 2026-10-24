@@ -1,4 +1,4 @@
-// Synthetic journal entries for the helix reference route and, later, the seed.
+// Synthetic journal entries for the helix reference route.
 // Typed against the generated record types so tsc checks every field.
 // Amounts are integer minor units (cents).
 import type { BooksJournalEntries, BooksJournalLines } from '../types'
@@ -229,3 +229,73 @@ export const MEMO_LONG =
 // The reverse dialog's server refusal (closed-through message).
 export const CLOSED_BOOKS_MESSAGE =
     'The books are closed through 09/30/2026. Ask a Books admin for a close-date override to post on 09/30/2026.'
+
+// Memos of the entries `seed.ts` posts through the server (dated today).
+export const ENTRIES_SEED = {
+    draft: 'Entries seed draft',
+    posted: 'Entries seed posted',
+    reversed: 'Entries seed reversed',
+    voided: 'Entries seed voided',
+    auto: 'Entries seed auto reverse',
+} as const
+
+export type JournalSeedEntry = Pick<BooksJournalEntries, 'memo'> & {
+    key: keyof typeof ENTRIES_SEED
+    state: 'draft' | 'posted' | 'reversed' | 'voided'
+    autoReverse: boolean
+    // [account key from seed.ts, debit cents, credit cents]
+    lines: [string, number, number][]
+}
+
+export const JOURNAL_SEED = [
+    {
+        key: 'draft',
+        memo: ENTRIES_SEED.draft,
+        state: 'draft',
+        autoReverse: false,
+        lines: [
+            ['rent', 25000, 0],
+            ['checking', 0, 25000],
+        ],
+    },
+    {
+        key: 'posted',
+        memo: ENTRIES_SEED.posted,
+        state: 'posted',
+        autoReverse: false,
+        lines: [
+            ['checking', 80000, 0],
+            ['equity', 0, 80000],
+        ],
+    },
+    {
+        key: 'reversed',
+        memo: ENTRIES_SEED.reversed,
+        state: 'reversed',
+        autoReverse: false,
+        lines: [
+            ['software', 12000, 0],
+            ['checking', 0, 12000],
+        ],
+    },
+    {
+        key: 'voided',
+        memo: ENTRIES_SEED.voided,
+        state: 'voided',
+        autoReverse: false,
+        lines: [
+            ['receivable', 15000, 0],
+            ['equity', 0, 15000],
+        ],
+    },
+    {
+        key: 'auto',
+        memo: ENTRIES_SEED.auto,
+        state: 'posted',
+        autoReverse: true,
+        lines: [
+            ['rent', 30000, 0],
+            ['checking', 0, 30000],
+        ],
+    },
+] satisfies readonly JournalSeedEntry[]

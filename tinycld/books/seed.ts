@@ -1,4 +1,5 @@
 import type PocketBase from 'pocketbase'
+import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
 // the seeded user. Entries are posted through the same update the app makes,
@@ -195,6 +196,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
         }
     }
     await seedRegisterEntries(pb, ctx, ids)
+    await seedJournalEntries(pb, ctx, ids)
 }
 
 interface PostInput {
@@ -290,4 +292,53 @@ async function seedRegisterEntries(pb: PocketBase, ctx: SeedContext, ids: Map<st
             ['receivable', 0, 45000],
         ],
     })
+}
+
+// One entry per lifecycle state, dated today so the list's fiscal-year range shows them on any date.
+async function seedJournalEntries(pb: PocketBase, ctx: SeedContext, ids: Map<string, string>) {
+    const now = new Date()
+    const today = isoDay(now)
+    const nextMonth = isoDay(new Date(now.getFullYear(), now.getMonth() + 1, 1))
+    for (const seedEntry of JOURNAL_SEED) {
+        const created = await pb.collection('books_journal_entries').create({
+            date: today,
+            memo: seedEntry.memo,
+            status: 'draft',
+            doc_type: 'journal',
+            origin: 'manual',
+            created_by: ctx.user.id,
+            ...(seedEntry.autoReverse ? { auto_reverse_on: nextMonth } : {}),
+        })
+        for (const [position, [key, debit, credit]] of seedEntry.lines.entries()) {
+            await pb.collection('books_journal_lines').create({
+                entry: created.id,
+                account: ids.get(key),
+                debit,
+                credit,
+                position,
+            })
+        }
+        if (seedEntry.state === 'draft') continue
+        await pb
+            .collection('books_journal_entries')
+            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+        if (seedEntry.state === 'reversed') {
+            // The server writes the mirrored lines when the reversal posts.
+            const reversal = await pb.collection('books_journal_entries').create({
+                date: today,
+                memo: `Reversal of ${seedEntry.memo}`,
+                status: 'draft',
+                doc_type: 'journal',
+                origin: 'reversal',
+                reverses: created.id,
+                created_by: ctx.user.id,
+            })
+            await pb
+                .collection('books_journal_entries')
+                .update(reversal.id, { status: 'posted', posted_by: ctx.user.id })
+        }
+        if (seedEntry.state === 'voided') {
+            await pb.collection('books_journal_entries').update(created.id, { status: 'void' })
+        }
+    }
 }
