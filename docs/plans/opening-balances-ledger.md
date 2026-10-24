@@ -34,7 +34,16 @@ cp 2 · the help icon points at books:opening-balances, which checkpoint 7 adds
 cp 2 · loading and read-only states have no screenshots
 cp 3+ · carry-over: `OpeningBalancesHeader` lost its `backTo` prop (checkpoint 6 adds only `subtitleLine`); a late query error unmounts the form, checkpoint 5 must keep a mounted form alive over it
 
+cp 3 · the amount input shows `14,500.00` with no `$`, the reference mockup shows `$48,250.00`; kept: the plan's tests and interfaces (`centsToText`) specify the no-symbol form
+cp 3 · every amount input has a muted `±` glyph (the sign toggle); not in the reference
+cp 3 · the sticky band bar duplicates the first band header at scroll 0
+cp 3 · on wide the in-flow amount error sits in the Account cell, far from its input
+cp 3 · the in-flow error replaces the Inactive label on wide while it shows
+cp 3 · the windowing logic is covered by unit tests only, the seed chart fits one screen and no e2e scrolls
+cp 3 · KNOWN BUG, NOT OURS: when a `books_accounts` read answers 400, the app re-requests it in a tight loop (160-350 requests in about 1.4s) instead of staying in the error state. It happens on the existing Chart of Accounts screen too, so the cause is in the shared load path (pbtsdb or @tanstack/db: a failed initial subset load is re-issued). Needs a separate look in pbtsdb/core; not changed here.
+
 ## Out-of-plan changes
+cp 3 · tests/e2e/account-register-entry.spec.ts (earlier unit): box read replaced by offsetHeight; hooks/useRowWindow.ts additive options; opening-grid-style.ts new.
 cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collection` fields so a failing access read shows the error state instead of loading forever.
 
 ## Phase notes
@@ -79,6 +88,20 @@ cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collectio
 - gate 3 B (conformance): accepted+fixed: stale/removed `backTo` and redundant useBackToChart parameter reverted; `text-muted` token check (same value, switched to text-muted-foreground). rebutted/noted: hand-written annotations are cp1 types derived from generated types; help icon and toolbar link touch targets under 44 (core HelpIcon has no hitSlop; link copies ImportLink); help icon points at a topic checkpoint 7 adds
 - fix review: reviewer A over the fix diff found the shared-sources problem (fixed); the last edit (two sources removed) is the reviewer's own recommendation, verified by check and the full e2e
 - out-of-plan changes: hooks/useBooksAccess.ts (additive isError, collection); useBackToChart.ts was changed and reverted
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 3
+- test writer: appended the `opening-balances: account grid and amounts` describe to tests/e2e/opening-balances.spec.ts and helpers; red for the right reason: yes (15 of 16 runs red at the missing grid; bullet 6 passes vacuously until checkpoint 5, as planned); untestable: none
+- implementer: MoneyInput, OpeningAccountTable/Row/Card/SectionBand, opening-grid-style.ts, lib/opening-window.ts, useRowWindow `heights`/`onLeadingLayout`, form hook (cents, build, items, focusNext); BLOCKED once on a test dispute (below), then DONE through three fix rounds
+- test disputes: two desktop tests used `getByText('Detail type')` page-wide; the Chart of Accounts stays mounted behind Opening balances and also shows it. Checkpoint says nothing about unmounting the chart; test wrong; fixed by a fresh test writer (locators scoped to `opening-balances-screen`, other locators audited)
+- self-declared differences: sticky band bar uses firstVisible (first item below the bar) and shows title+subtotal only; overscan 6; `useController` defaultValue ''; sign toggle no-op on blank/unparsable; item heights band 48 / row 56 (wide) and band 48 / card 124 (phone) instead of one uniform height (the uniform height made phone band headers a 125px slab); amount error renders in flow (name cell on wide, helper slot on phone) instead of floating; the error replaces the helper/Inactive label on wide while it shows
+- gate 1: tests unedited: yes · pass (check 1129 tests; full e2e 96 passed, 1 skipped)
+- gate 2: invalid shots: none · blocking: found and fixed (phone band slab; floating error covering the Liabilities subtotal; typed rows below the fold in the 390 capture) · notes: listed under Design notes
+- gate 3 A (correctness): accepted+fixed: offset ignored the block above the rows (now measured by the leading block's height; first fix measured y, which web onLayout does not update on position-only changes: found by the fix review); error hidden behind the next row (error moved in flow); sticky band hidden at scroll 0 (always visible); memoized cents/build/items and stable ref callbacks; submit-time zod errors shown; sign toggle guard; weak tests (vacuous sticky and error assertions, `ids[...]` undefined checks, window math pinned by unit tests). noted, not changed: windowing is exercised only by unit tests (the seed chart fits one screen); Inactive label hidden on wide while an error shows; error must stay within two lines in the 140pt Account cell (both current messages do)
+- gate 3 B (conformance): accepted+fixed: a11y labels per account, duplicate INDENT and breakpoint calls, sticky mechanism comment. noted: custom MoneyInput over core TextInput (blur formatting, sign toggle, ref registry)
+- fix review: three passes; each found and fixed a real problem (stale offset, error placement); last pass clean
+- out-of-plan changes: opening-grid-style.ts (avoids a Table/Row import cycle; re-exported from the table); hooks/useRowWindow.ts (additive `heights`, `onLeadingLayout`, `firstVisible`); tests/e2e/account-register-entry.spec.ts (an earlier unit's test read a button box mid-animation, 43.99994 vs 44: now measures `offsetHeight`, the layout height an animation transform does not change)
 - reviewer-caught deferrals: none
 - commit: see git log
 
