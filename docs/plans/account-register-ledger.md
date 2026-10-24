@@ -25,11 +25,14 @@
 - cp2 reviewer B finding 4 (account via hand-rolled useLiveQuery instead of useRecord): rejected. Decisions block: "`isError` is true when any of the live queries the screen runs (account, lines, opening totals, sub-account, any-activity, settings) reports `isError`." `useRecord` exposes no `isError`, so the account query must be a direct useLiveQuery.
 
 ## Design notes
+- cp4 critique NOTE: Opening/Ending balance labels are top-aligned in the header; reference bottom-aligns them.
+- cp4: OtherAccountName uses useRecord per windowed row (plan-mandated); ~30 live queries mounted; remounts after scroll may re-request an account not held in the store (not measured).
 - cp2 spike: outcome (a), see Checkpoint 2.
 - cp3 critique NOTEs: empty-range state has only a heading + button (reference had "Pick a longer range to see earlier lines."); not-found has a single sentence (reference had a secondary line).
 
 ## Out-of-plan changes
 - cp2: tests/accounts-form-harness.ts (seedBooks `ledger` option; entries/settings stores; lineStore/balanceStore/settingsStore/entryStore accessors), tests/register-test-data.ts, tests/collections-real.test.ts — test support the plan's tests needed; no existing test weakened.
+- cp4: seed.ts account rename; components/register/RegisterHeader.tsx (back link muted).
 - cp3: hooks/useRegisterQuery.ts (cp2 code, Retry rebuild + settings query), hooks/useBackToChart.ts, deletion of hooks/useFiscalYearStartMonth.ts + tests/useFiscalYearStartMonth.test.ts, tests/e2e/account-register-helpers.ts + account-register-navigation.spec.ts, docs/plans/account-register-evidence/cp3/*.
 
 ## Phase notes
@@ -68,6 +71,16 @@ Spike outcome also noted under Design notes.
 - gate 3 A: ownBalance('') false warn while account missing -> fixed; Retry could not clear failed settings query -> fixed; back-link history handling + empty account number -> fixed (useBackToChart, e2e back x2 + number-less account e2e); isOtherPresetSelected inline -> extracted + unit test; text-danger on negative figures -> rebutted
 - gate 3 B: complex JSX expr in AccountPanel -> fixed; onViewRegister in Placement -> moved; useState attempt counter -> rebutted (see Rebuttals)
 - fix review: reviewer A pass over the fix diff: findings (back link untested, dead hook) fixed
+- reviewer-caught deferrals: none
+
+## Checkpoint 4
+- test writer: tests/e2e/account-register-table.spec.ts (9 tests, desktop); red for the right reason: yes (register-table missing). UNTESTABLE (seed limits): blank Ref no., negative running balance, zero-opening-no-rows (covered by unit tests in cp1)
+- implementer: components/register/RegisterTable.tsx, RegisterRow.tsx, RegisterScreenView.tsx (table in ready state), seed.ts (account renamed 'Accounts Receivable' -> 'Accounts receivable' to match the spec/type label). Self-declared: opening row is a plain View; single-line entries show an empty Account cell; table items = rows + opening item windowed together
+- gate 1: pass (1004 unit, 37 e2e)
+- gate 2: BLOCKING at 1280 Balance column clipped (content-sized horizontal scroller) -> fixed (stateless contentContainerStyle width 100% + minWidth 900), e2e added (fits at 1280, headings align with cells incl. forced classic scrollbars at 1280x520); re-captured; fresh critic: 0 blocking. NOTE: Opening/Ending balance labels top-aligned vs reference bottom-aligned
+- gate 3 A: heading/cell gutter misalignment on classic scrollbars -> fixed (web-only scrollbar-gutter) + e2e; oldest-order running balance unchecked -> e2e added
+- gate 3 B: `window` shadowing -> rowWindow; .map in JSX -> WindowedRows; as ViewStyle casts -> web: classNames; back-link muted (+ icon colour)
+- fix review: reviewer A over fixes, 3 rounds: clean
 - reviewer-caught deferrals: none
 
 ## Final review

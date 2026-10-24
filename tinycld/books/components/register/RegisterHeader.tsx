@@ -10,7 +10,7 @@ import { accountDisplay } from '../accounts/account-display'
 import { RegisterRangeSelect } from './RegisterRangeSelect'
 
 function BackLink({ onBack }: { onBack: () => void }) {
-    const color = useThemeColor('foreground')
+    const color = useThemeColor('muted-foreground')
     return (
         <Pressable
             testID="register-back"
@@ -20,7 +20,7 @@ function BackLink({ onBack }: { onBack: () => void }) {
             style={{ minHeight: 44 }}
         >
             <ArrowLeft size={16} color={color} />
-            <Text className="text-sm text-foreground">Chart of Accounts</Text>
+            <Text className="text-sm text-muted-foreground">Chart of Accounts</Text>
         </Pressable>
     )
 }
