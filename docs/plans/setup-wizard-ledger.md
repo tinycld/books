@@ -20,6 +20,12 @@
 (none yet)
 
 ## Rebuttals
+- **finding:** cp4 reviewer B — `await month.click()` clicks the middle of a radiogroup and should be deleted
+  **rebutted because:** `tinycld/core/ui/form/SelectInput.tsx` renders a `Pressable` trigger that opens a popover Menu; the `books-setup-month-<n>` items exist only while it is open. Removing the click made the test fail at the `books-setup-month-7` click.
+- **finding:** cp4 reviewer B — assert selection with `aria-checked`
+  **rebutted because:** react-native-web does not emit `aria-checked` for `ChoiceCard`; the first draft failed on it.
+- **finding:** cp4 reviewer A — nothing tests that the help text matches the screen strings
+  **rebutted because:** the checkpoint's help test list reads: "the topic `setup-wizard` has `title` and `summary` frontmatter and every `help://books:<id>` link in its body ... names an existing file `help/<id>.md`". Help prose is reviewed with the feature by the reviewers.
 - **finding:** cp3 reviewer B — `useSetupParts` has a second `useState` (`failure`) and a second form schema next to `setupSchema`
   **rebutted because:** `failure` holds the outcome `create` returned, which `useBooksSetup` does not expose; the checkpoint Do step 1 says "hold the current part in `useState` (local UI state that no other component reads)". `setupFormSchema` exists only because a SelectInput hands back a string while `setupSchema.fiscal_year_start_month` is a number; it carries a comment and `tests/setup-parts.test.tsx` covers the conversion.
 - **finding:** cp3 reviewer A/B — `tests/accounts-form-harness.ts` uses the private `collection._lifecycle.markError`
@@ -95,6 +101,19 @@
 - gate 3 A (correctness): double press moved part off creating; error without failure; ownership lost on remount; skip offered while resuming; dead end on a resumed book with no accounts; misleading non-admin message on a completed book; plural copy -> all accepted and fixed; stale snapshot, remount-during-run, mixed ownership after remount -> rebutted/limits (see Rebuttals)
 - gate 3 B (conformance): nested ScrollView in chart preview -> fixed; isVisible always true -> fixed; second schema/two useState -> rebutted; navigation in component -> fixed; fixed sleeps in tests -> replaced; skip label -> fixed; harness `_lifecycle.markError` -> rebutted
 - fix review: pass after each of three rounds; round 3: nothing found
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 4
+- test writer: tests/e2e/setup-wizard.spec.ts (one test), tests/help-setup-wizard.test.ts; e2e passed on first run (no new UI), proven able to fail; help test red (no file); untestable: none
+- implementer: help/setup-wizard.md (written by the driver after the test writer; no UI code in this checkpoint)
+- test disputes: none
+- self-declared differences: e2e returns to 1280 wide and opens Chart of Accounts to reach the Lists hub (phone layout has no Lists nav item); selected card asserted by the `border-primary` class (react-native-web does not emit aria-checked for it); phone layout asserted by card geometry through `expect.poll`
+- gate 1: pass (57 files unit, full e2e 62 passed)
+- gate 2: n/a
+- gate 3 A (correctness): help text broader than the built behavior (Back/Skip when resuming, settings failure, populated notice only when not half done, opening balances, non-admin wording) -> accepted, fixed; phone layout unasserted, weak last assertion, geometry race -> accepted, fixed by fresh test writers
+- gate 3 B (conformance): month.click flake claim -> rebutted (see Rebuttals); aria-checked suggestion -> rebutted; help drift test -> not added (see Rebuttals)
+- fix review: pass 1 over help and e2e edits found 4 help inaccuracies and the geometry race, all fixed; the last help-text edits use the reviewer's own wording and were not re-reviewed
 - reviewer-caught deferrals: none
 - commit: see git log
 
