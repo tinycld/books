@@ -1,0 +1,20 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/accounts",
+            "ready": "register-opening-row,register-opening-card",
+            "openAccount": "Business Checking",
+            "range": "This fiscal year"
+        },
+        {
+            "name": "populated-drawer",
+            "url": "/a/books/accounts",
+            "ready": "register-opening-row,register-opening-card",
+            "openAccount": "Business Checking",
+            "range": "This fiscal year",
+            "openEntryMemo": "Register split payment"
+        }
+    ]
+}

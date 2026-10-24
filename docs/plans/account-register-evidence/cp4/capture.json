@@ -1,0 +1,12 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/accounts",
+            "ready": "register-table",
+            "openAccount": "Business Checking",
+            "range": "This fiscal year"
+        }
+    ]
+}

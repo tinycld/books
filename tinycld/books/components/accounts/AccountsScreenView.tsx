@@ -228,7 +228,11 @@ export function AccountsScreenView({
                     menu={menu}
                 />
             </View>
-            <AccountPanel isWide={isWide} isTablet={isTablet} />
+            <AccountPanel
+                isWide={isWide}
+                isTablet={isTablet}
+                onViewRegister={menu.onViewRegister}
+            />
             <DeleteAccountDialog account={deleteTarget} actions={actions} onClose={cancelDelete} />
         </View>
     )

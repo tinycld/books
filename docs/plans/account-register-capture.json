@@ -1,0 +1,35 @@
+{
+    "outDir": "account-register-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "register-opening-row"
+        },
+        {
+            "name": "populated-drawer",
+            "url": "/a/books/helix-mockup?state=populated&drawer=open",
+            "ready": "register-entry-drawer"
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "register-empty"
+        },
+        {
+            "name": "empty-range",
+            "url": "/a/books/helix-mockup?state=empty-range",
+            "ready": "register-empty-range"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "register-error"
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "register-not-found"
+        }
+    ]
+}

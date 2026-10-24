@@ -8,7 +8,9 @@ import type {
     BooksAccess,
     BooksAccountBalances,
     BooksAccounts,
+    BooksJournalEntries,
     BooksJournalLines,
+    BooksSettings,
 } from '../tinycld/books/types'
 
 export const ME = 'u1'
@@ -173,6 +175,13 @@ export function seedBooks(
         accountsErrored?: boolean
         // A balances collection that never finishes loading.
         balancesNeverReady?: boolean
+        // Replaces the journal lines, entries, balances and settings rows, for the register tests.
+        ledger?: {
+            lines: BooksJournalLines[]
+            entries: BooksJournalEntries[]
+            balances: BooksAccountBalances[]
+            settings?: BooksSettings[]
+        }
     } = {}
 ) {
     const level = opts.level ?? 'bookkeeper'
@@ -197,16 +206,41 @@ export function seedBooks(
         books_accounts: accountsCollectionFor(opts),
         books_account_balances: opts.balancesNeverReady
             ? neverReady<BooksAccountBalances>()
-            : local<BooksAccountBalances>('books_account_balances', BALANCES),
+            : local<BooksAccountBalances>(
+                  'books_account_balances',
+                  opts.ledger?.balances ?? BALANCES
+              ),
         books_journal_lines: opts.linesNeverReady
             ? neverReady<BooksJournalLines>()
-            : local<BooksJournalLines>('books_journal_lines', lines),
+            : local<BooksJournalLines>('books_journal_lines', opts.ledger?.lines ?? lines),
+        books_journal_entries: local<BooksJournalEntries>(
+            'books_journal_entries',
+            opts.ledger?.entries ?? []
+        ),
+        books_settings: local<BooksSettings>('books_settings', opts.ledger?.settings ?? []),
         books_access: local<BooksAccess>('books_access', [access]),
     }
 }
 
 export function accountsStore() {
     return state.registry.books_accounts as ReturnType<typeof accountsCollection>
+}
+
+// Seeded collections a register test writes to after the first render.
+export function lineStore() {
+    return state.registry.books_journal_lines as ReturnType<typeof local<BooksJournalLines>>
+}
+
+export function entryStore() {
+    return state.registry.books_journal_entries as ReturnType<typeof local<BooksJournalEntries>>
+}
+
+export function balanceStore() {
+    return state.registry.books_account_balances as ReturnType<typeof local<BooksAccountBalances>>
+}
+
+export function settingsStore() {
+    return state.registry.books_settings as ReturnType<typeof local<BooksSettings>>
 }
 
 export function storedAccounts(): BooksAccounts[] {

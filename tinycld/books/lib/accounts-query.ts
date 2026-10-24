@@ -48,15 +48,3 @@ export function accountsWithBalances<
             }))
     }
 }
-
-// Promise.allSettled keeps one failing collection from hiding the other's reload; a
-// failure is reported through onError because reload() has no caller that can handle it.
-export async function reloadCollections(
-    collections: { reload(): Promise<void> }[],
-    onError: (err: unknown) => void
-): Promise<void> {
-    const results = await Promise.allSettled(collections.map(c => c.reload()))
-    for (const result of results) {
-        if (result.status === 'rejected') onError(result.reason)
-    }
-}

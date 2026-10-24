@@ -49,9 +49,15 @@ function renderMenu(id = ROW_ID) {
 }
 
 describe('AccountRowMenu', () => {
-    it('lists Edit, Add sub-account, Make inactive and Delete for an active row', () => {
+    it('lists Edit, View register, Add sub-account, Make inactive and Delete for an active row', () => {
         renderMenu()
-        for (const label of ['Edit', 'Add sub-account', 'Make inactive', 'Delete']) {
+        for (const label of [
+            'Edit',
+            'View register',
+            'Add sub-account',
+            'Make inactive',
+            'Delete',
+        ]) {
             expect(screen.getByText(label)).toBeTruthy()
         }
         expect(screen.queryByText('Make active')).toBeNull()
@@ -61,6 +67,13 @@ describe('AccountRowMenu', () => {
         const { menu } = renderMenu()
         fireEvent.click(screen.getByText('Edit'))
         expect(menu.onEdit).toHaveBeenCalledWith(ROW_ID)
+    })
+
+    it('pressing View register calls menu.onViewRegister with the id and not onEdit', () => {
+        const { menu } = renderMenu()
+        fireEvent.click(screen.getByText('View register'))
+        expect(menu.onViewRegister).toHaveBeenCalledWith(ROW_ID)
+        expect(menu.onEdit).not.toHaveBeenCalled()
     })
 
     it('pressing Add sub-account calls menu.onAddSub with the id', () => {
@@ -534,10 +547,14 @@ describe('AccountToolbar Batch actions while working and on phone', () => {
 // stops them. Without that wrapper the click on a menu item reaches the row's
 // onPress and calls onOpen, and an Enter keydown on the focused item reaches the
 // row's key handling, so every case below fails if the wrapper is removed.
-type Item = { label: string; handler: 'onEdit' | 'onAddSub' | 'onToggleInactive' | 'onDelete' }
+type Item = {
+    label: string
+    handler: 'onEdit' | 'onViewRegister' | 'onAddSub' | 'onToggleInactive' | 'onDelete'
+}
 
 const ITEMS: Item[] = [
     { label: 'Edit', handler: 'onEdit' },
+    { label: 'View register', handler: 'onViewRegister' },
     { label: 'Add sub-account', handler: 'onAddSub' },
     { label: 'Make inactive', handler: 'onToggleInactive' },
     { label: 'Delete', handler: 'onDelete' },

@@ -4,7 +4,13 @@ import { vi } from 'vitest'
 import type { AccountRow } from '../tinycld/books/hooks/useAccountsQuery'
 
 export function menuHandlers() {
-    return { onEdit: vi.fn(), onAddSub: vi.fn(), onToggleInactive: vi.fn(), onDelete: vi.fn() }
+    return {
+        onEdit: vi.fn(),
+        onViewRegister: vi.fn(),
+        onAddSub: vi.fn(),
+        onToggleInactive: vi.fn(),
+        onDelete: vi.fn(),
+    }
 }
 
 export function listProps(over: { canWrite?: boolean; isWorking?: boolean } = {}) {

@@ -4,6 +4,7 @@ import { accessFromRow } from '../tinycld/books/lib/access'
 import {
     availableOnly,
     isActivePath,
+    isNewActionAvailable,
     LIST_ENTRIES,
     NEW_ACTIONS,
     type NewAction,
@@ -158,5 +159,22 @@ describe('isActivePath', () => {
 
     it('does not match a path with a query string (pathname only is expected)', () => {
         expect(isActivePath('/a/books/lists?x=1', lists)).toBe(false)
+    })
+})
+
+describe('isNewActionAvailable', () => {
+    it('is false for journal-entry with the real NEW_ACTIONS today', () => {
+        expect(isNewActionAvailable('journal-entry')).toBe(false)
+    })
+
+    it('is true for a passed list where the action is available', () => {
+        expect(
+            isNewActionAvailable('journal-entry', [action('journal-entry', 'other', true)])
+        ).toBe(true)
+    })
+
+    it('is false for an unknown id', () => {
+        expect(isNewActionAvailable('nope', [action('journal-entry', 'other', true)])).toBe(false)
+        expect(isNewActionAvailable('nope')).toBe(false)
     })
 })

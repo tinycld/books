@@ -13,6 +13,8 @@ Each account shows its number, name, type, detail type and balance. A sub-accoun
 
 To find an account, type part of its name or number in the search box. To narrow the list to one kind of account, use the group chips. To re-sort, press the Name, Type or Balance heading. Press it again to reverse the order. Inactive accounts are hidden until you turn on Show inactive.
 
+To see the transactions of one account, open its menu and choose View register. See [Account register](help://books:account-register).
+
 ## Add or edit an account
 
 To add an account, choose New account. Enter a name, choose the type and the detail type, and choose Save. To keep adding accounts, choose Save and new. To make an account a sub-account, choose its Parent account. Leave Parent account on None (top level) for a top-level account. A sub-account has the same type as its parent. Accounts can nest up to 5 levels.
