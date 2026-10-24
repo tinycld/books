@@ -28,7 +28,7 @@ const ACCOUNTS: SeedAccount[] = [
     },
     {
         key: 'receivable',
-        name: 'Accounts Receivable',
+        name: 'Accounts receivable',
         number: '1100',
         type: 'accounts_receivable',
         detail_type: 'accounts_receivable',

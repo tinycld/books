@@ -4,6 +4,7 @@ import { Text, View } from 'react-native'
 import type { RegisterScreenModel } from '../../hooks/useRegisterScreen'
 import { RegisterEmptyState } from './RegisterEmptyState'
 import { BackOnlyHeader, RegisterHeader } from './RegisterHeader'
+import { RegisterTable } from './RegisterTable'
 
 function LoadingBody({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
@@ -46,6 +47,24 @@ function EmptyBody({ model }: { model: RegisterScreenModel }) {
     )
 }
 
+function TableBody({ model }: { model: RegisterScreenModel }) {
+    if (model.state !== 'ready') return null
+    return (
+        <View className="min-w-0 flex-1">
+            <RegisterTable
+                rows={model.register.rows}
+                showOpeningRow={model.register.showOpeningRow}
+                openingBalance={model.register.openingBalance}
+                currency={model.currency}
+                order={model.order}
+                onToggleOrder={model.onToggleOrder}
+                onOpenEntry={model.onOpenEntry}
+                selectedEntryId={model.selectedEntryId}
+            />
+        </View>
+    )
+}
+
 function NotFound({ model }: { model: RegisterScreenModel }) {
     return (
         <View className="flex-1 bg-background">
@@ -67,6 +86,7 @@ export function RegisterScreenView(model: RegisterScreenModel) {
             <LoadingBody isVisible={model.state === 'loading'} />
             <ErrorBody isVisible={model.state === 'error'} onRetry={model.onRetry} />
             <EmptyBody model={model} />
+            <TableBody model={model} />
         </View>
     )
 }
