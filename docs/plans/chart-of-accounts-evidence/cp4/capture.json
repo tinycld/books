@@ -1,0 +1,60 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "panel-open",
+            "steps": [
+                {
+                    "clickRow": "Business Checking"
+                },
+                {
+                    "waitFor": "account-panel"
+                }
+            ],
+            "url": "/a/books/accounts",
+            "ready": "account-search"
+        },
+        {
+            "name": "panel-new",
+            "steps": [
+                {
+                    "click": "account-new-header",
+                    "onlyIf": "phone"
+                },
+                {
+                    "click": "account-new-toolbar",
+                    "onlyIf": "wide"
+                },
+                {
+                    "waitFor": "account-panel"
+                }
+            ],
+            "url": "/a/books/accounts",
+            "ready": "account-search"
+        },
+        {
+            "name": "panel-subaccount",
+            "steps": [
+                {
+                    "click": "account-new-header",
+                    "onlyIf": "phone"
+                },
+                {
+                    "click": "account-new-toolbar",
+                    "onlyIf": "wide"
+                },
+                {
+                    "waitFor": "account-panel"
+                },
+                {
+                    "clickLabel": "Bank"
+                },
+                {
+                    "click": "isSubAccount"
+                }
+            ],
+            "url": "/a/books/accounts",
+            "ready": "account-search"
+        }
+    ]
+}

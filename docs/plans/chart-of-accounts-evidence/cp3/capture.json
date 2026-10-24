@@ -1,0 +1,60 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/accounts",
+            "ready": "account-search"
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "fill": "account-search",
+                    "value": "design"
+                }
+            ]
+        },
+        {
+            "name": "no-match",
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "steps": [
+                {
+                    "fill": "account-search",
+                    "value": "zzzzqq"
+                }
+            ]
+        },
+        {
+            "name": "filtered-group",
+            "steps": [
+                {
+                    "click": "account-filter-button",
+                    "onlyIf": "phone"
+                },
+                {
+                    "click": "account-filter-expense"
+                }
+            ],
+            "url": "/a/books/accounts",
+            "ready": "account-search"
+        },
+        {
+            "name": "filters-open",
+            "widths": [390],
+            "steps": [
+                {
+                    "click": "account-filter-button"
+                },
+                {
+                    "waitFor": "account-filter-expense"
+                }
+            ],
+            "url": "/a/books/accounts",
+            "ready": "account-search"
+        }
+    ]
+}

@@ -1,0 +1,4 @@
+{
+    "outDir": ".",
+    "shots": [{ "name": "populated", "url": "/a/books/accounts" }]
+}
