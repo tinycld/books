@@ -27,7 +27,7 @@
 cp 0 · server/reversal.go: the same-origin rule also refuses editing a posted reversal or auto_reversal entry (a correction can only be manual or opening). The spec requires 'a correction must have the same origin as the entry it replaces'; the Journal Entries unit (p1-journal-entries) must not offer Edit on those.
 
 ## Out-of-plan changes
-(none yet)
+cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collection` fields so a failing access read shows the error state instead of loading forever.
 
 ## Phase notes
 - phase 1-3 (design gate): direction A picked (grid + preview rail); Q1-Q7 accepted as recommended.
@@ -57,6 +57,20 @@ cp 0 · server/reversal.go: the same-origin rule also refuses editing a posted r
 - gate 3 A (correctness): accepted+fixed: amountError "too large" only for well-formed text (isWellFormedMoney in money.ts); balancing amount above 10^15 is too-large; cap is above 999 amounts, balancing line not counted; amountsFromLines takes the first line per account like diffLines; test gaps (isRealDay century, state order, void entry); rebutted: multiple drafts/posted (server guard allows one live opening entry plus one draft replacement), void original shows `new` (the screen queries non-void rows only), memo length by UTF-16 units (never looser than the server's rune count)
 - gate 3 B (conformance): accepted+fixed: types derived from the schema (z.infer, const array), presetDate parameter derived, test magic index removed, nested ternary removed
 - fix review: two doc lines in the plan named maxOpeningLines; fixed
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 2
+- test writer: tests/e2e/opening-balances.spec.ts, tests/e2e/opening-balances-helpers.ts; red for the right reason: yes (all 14 failed at the missing Chart of Accounts link; tests 1-6 assertions not reached until the link existed, noted); untestable: none
+- implementer: screen route, useOpeningBalancesScreen/Form hooks, five opening-balances components, AccountToolbar link, capture manifest and evidence; BLOCKED on two test disputes (below), otherwise DONE
+- test disputes: (1) empty-chart test clicked through to the chart while the empty-list route was still active, so the chart rendered its own empty state without the search box; the checkpoint says only that the link opens the Chart of Accounts; test wrong, fixed by a fresh test writer (asserts `accounts-empty` and `opening-empty` hidden). (2) read-only test raced its own route handler at test end (`route.fetch: Target page closed`, ~20%); fixed at the test with `page.unrouteAll({ behavior: 'ignoreErrors' })` on tests 3-6 (Playwright's documented teardown), no timeout change
+- self-declared differences: hook takes `isEditing`; `not(eq(status,'void'))` because @tanstack/db has no `ne`; isReady also waits for access.isReady; memo is a custom useController input (core TextInput cannot show a derived default; a core `displayValue` prop would need core sign-off); helper rendered with its own testID; useWatch for helper/memo; form hook also returns onPresetChange/onDateChange
+- gate 1: tests unedited: yes · pass (check 1112 tests; full e2e 77 passed, 1 skipped)
+- gate 2: invalid shots: none (loading and read-only have no shots; the reference set has none either) · blocking: none · notes: 6, listed under Design notes
+- gate 3 A (correctness): accepted+fixed: books_access error now surfaced (useBooksAccess returns isError, collection) and added to retry queries; ready query with no settings row is the `error` state (migration 2100000001 inserts the row, delete rule null); memo error line role=alert/testID; onPresetChange has no fallback; shouldDirty on date change; added a read-only link-visible assertion; users source in retry was accepted then removed by the fix review (shared collections must stay out of recoverLiveQueries sources). rebutted: whitespace-only memo snaps back to the default (spec: empty memo means untouched; cp1 `effectiveMemo` and the e2e pin it); close-date change live re-validation (no screen changes it); read-only checks of `opening-save`/`opening-post` are vacuous until checkpoint 5 (commented in the test, re-asserted there)
+- gate 3 B (conformance): accepted+fixed: stale/removed `backTo` and redundant useBackToChart parameter reverted; `text-muted` token check (same value, switched to text-muted-foreground). rebutted/noted: hand-written annotations are cp1 types derived from generated types; help icon and toolbar link touch targets under 44 (core HelpIcon has no hitSlop; link copies ImportLink); help icon points at a topic checkpoint 7 adds
+- fix review: reviewer A over the fix diff found the shared-sources problem (fixed); the last edit (two sources removed) is the reviewer's own recommendation, verified by check and the full e2e
+- out-of-plan changes: hooks/useBooksAccess.ts (additive isError, collection); useBackToChart.ts was changed and reverted
 - reviewer-caught deferrals: none
 - commit: see git log
 
