@@ -28,6 +28,7 @@
 - cp4 critique NOTE: Opening/Ending balance labels are top-aligned in the header; reference bottom-aligns them.
 - cp4: OtherAccountName uses useRecord per windowed row (plan-mandated); ~30 live queries mounted; remounts after scroll may re-request an account not held in the store (not measured).
 - cp2 spike: outcome (a), see Checkpoint 2.
+- cp6 critique NOTEs: card pitch 96pt vs reference ~73pt; drawer close X sits ~19px inside the content right edge (reference aligns); four drawer fields overflow the lines table edge by ~5px (Number field duplicates the title).
 - cp5 critique NOTEs: card line order 'account · type' vs reference 'type · account'; drawer title + Number field duplicate the number; opening card and long-memo card not in a capture; phone sheet is size md (checkpoint said lg).
 - cp3 critique NOTEs: empty-range state has only a heading + button (reference had "Pick a longer range to see earlier lines."); not-found has a single sentence (reference had a secondary line).
 
@@ -95,6 +96,14 @@ Spike outcome also noted under Design notes.
 - gate 3 A: stale selection after leaving/returning (fixed: store cleared on unmount/onPreset/back), variable card heights (fixed height + truncation), a11y name, card separator typo; gate 3 B: shadowing/casts in test, duplicated amountText, text-danger for null balance, as const placement returns
 - Known limitations (not fixed): selection is not cleared if a selected line vanishes while the screen stays mounted (realtime void/delete); a screen kept mounted under a pushed stack screen is not cleared (no useFocusEffect); native not executed
 - fix review: reviewer A over each round: clean
+- reviewer-caught deferrals: none
+
+## Checkpoint 6
+- test writer: tests/help-account-register.test.ts, tests/e2e/account-register-entry.spec.ts (menu flow, panel flow, back, parent note, phone drawer; desktop + phone); red for the right reason: help unit test (file missing); the e2e flows passed from the start because cp3-5 built them (regression guard). UNTESTABLE: read-only user (no read-only Books member in the seed; unit tests cover newEntryVisible)
+- implementer: help/account-register.md, help link in help/chart-of-accounts.md. DONE. Self-declared: dropped 'Show/Hide inactive' and detailed retry text
+- gate 1: pass (1020 unit, 61 e2e)
+- gate 2: fresh critic over the finished screen: 0 blocking; NOTEs: card pitch 96pt vs reference ~73 (5 cards above the fold vs 7), drawer close button ~19px inside the content edge, four drawer fields push 'Posted' ~5px past the lines table edge, plus carried cp5 notes
+- gate 3 A: help text false for default view (Opening balance row position), wrong reason for Ending balance difference, Show this fiscal year unconditional, empty-state New button omitted -> accepted+fixed, tests tightened; weak e2e panel-absent assertion -> moved after register-back; gate 3 B: nothing blocking (spec header wording fixed, cp6 evidence staged)
 - reviewer-caught deferrals: none
 
 ## Final review
