@@ -1,0 +1,36 @@
+import { Text, View } from 'react-native'
+import type { LineTotals } from '../../lib/entry-lines'
+import { formatMoney } from '../../lib/money'
+
+interface EntryTotalsProps {
+    totals: LineTotals
+    currency: string
+}
+
+export function EntryTotals({ totals, currency }: EntryTotalsProps) {
+    return (
+        <View
+            testID="entry-totals"
+            className="flex-row flex-wrap items-center justify-end gap-x-6 gap-y-1 border-t border-border bg-surface-secondary px-4 py-2"
+        >
+            <View className="flex-row gap-1">
+                <Text className="text-sm text-muted-foreground">Debits</Text>
+                <Text testID="entry-total-debits" className="text-sm font-semibold text-foreground">
+                    {formatMoney(totals.debits, currency)}
+                </Text>
+            </View>
+            <View className="flex-row gap-1">
+                <Text className="text-sm text-muted-foreground">Credits</Text>
+                <Text
+                    testID="entry-total-credits"
+                    className="text-sm font-semibold text-foreground"
+                >
+                    {formatMoney(totals.credits, currency)}
+                </Text>
+            </View>
+            <Text testID="entry-balance-status" className="text-sm font-semibold text-success">
+                In balance
+            </Text>
+        </View>
+    )
+}

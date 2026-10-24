@@ -3,7 +3,9 @@ import {
     entryNumberText,
     entryStatusText,
     entryTypeText,
+    formatDateTime,
     reversesText,
+    stampText,
 } from '../tinycld/books/lib/entry-display'
 
 describe('entryNumberText', () => {
@@ -48,5 +50,24 @@ describe('reversesText', () => {
 
     it('does not claim a number for an empty one', () => {
         expect(reversesText('')).toBe('Reverses …')
+    })
+})
+
+describe('stampText', () => {
+    const at = '2026-10-21 15:30:00.000Z'
+
+    it('is empty when there is no time', () => {
+        expect(stampText('Alice', '')).toBe('')
+        expect(stampText(undefined, '')).toBe('')
+    })
+
+    it('shows the time alone when the name is missing or empty', () => {
+        expect(stampText(undefined, at)).toBe(formatDateTime(at))
+        expect(stampText('', at)).toBe(formatDateTime(at))
+        expect(stampText(undefined, at)).toMatch(/^[A-Z][a-z]{2} \d{1,2}, \d{4}/)
+    })
+
+    it('shows the name before the time', () => {
+        expect(stampText('Alice', at)).toBe(`Alice, ${formatDateTime(at)}`)
     })
 })
