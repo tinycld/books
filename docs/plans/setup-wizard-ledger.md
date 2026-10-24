@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/setup-wizard-checkpoints.md
 - reference: docs/plans/setup-wizard-reference/
 - evidence: docs/plans/setup-wizard-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen)
 - capture manifest: docs/plans/setup-wizard-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -118,7 +118,7 @@
 - commit: see git log
 
 ## Final review
-- eval: revised -> remove the per-group counts and the group-count row above the preview (human: "they are just confusing"); fix commit: see git log
+- eval: approved (after two revises) · revised -> remove the per-group counts and the group-count row above the preview (human: "they are just confusing"); fix commit: see git log
 - native: not executed in this run
 
 - eval (second revise): human asked to store the ownership choice in `books_settings.ownership` for later tax settings; inference by equity account numbers replaced.
