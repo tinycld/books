@@ -8,7 +8,7 @@ interface SectionCardProps {
 
 function CardTitle({ title }: { title: string | undefined }) {
     if (!title) return null
-    return <Text className="mb-3 text-sm font-semibold text-foreground">{title}</Text>
+    return <Text className="mb-3 text-base font-bold text-foreground">{title}</Text>
 }
 
 export function SectionCard({ title, children }: SectionCardProps) {

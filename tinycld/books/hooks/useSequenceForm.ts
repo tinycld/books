@@ -22,7 +22,7 @@ export function useSequenceForm(sequence: BooksDocSequences) {
         resolver: zodResolver(sequenceSchema),
         defaultValues: values,
         values,
-        resetOptions: { keepDirtyValues: true, keepErrors: true },
+        resetOptions: { keepDirtyValues: true, keepErrors: true, keepIsSubmitted: true },
     })
     const { setError, getValues, reset, control, setValue } = form
     const live = useWatch({ control })
@@ -41,7 +41,7 @@ export function useSequenceForm(sequence: BooksDocSequences) {
         onSuccess: (_result, parsed) => {
             inFlight.current = false
             addToast({ title: 'Saved.', variant: 'success', duration: 3000 })
-            reset(parsed)
+            reset(parsed, { keepIsSubmitted: false, keepErrors: false })
         },
         onError: (error: unknown, attempted: SequenceValues) => {
             inFlight.current = false

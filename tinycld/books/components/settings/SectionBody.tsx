@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import type { SectionId } from '../../lib/settings-sections'
 import { AccountingSection } from './AccountingSection'
 import { CompanySection } from './CompanySection'
+import { NumberingSection } from './NumberingSection'
 
 interface SectionBodyProps {
     section: SectionId
@@ -11,6 +12,7 @@ interface SectionBodyProps {
 const BODIES: Partial<Record<SectionId, ComponentType<{ isAdmin: boolean }>>> = {
     company: CompanySection,
     accounting: AccountingSection,
+    numbering: NumberingSection,
 }
 
 export function SectionBody({ section, isAdmin }: SectionBodyProps) {
