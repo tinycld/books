@@ -17,7 +17,7 @@ export type SetupOutcome =
     | { ok: false; failedAccount: string; message: string }
     | { ok: false; busy: true }
 
-const SETTINGS_LABEL = 'Business settings'
+export const SETTINGS_LABEL = 'Business settings'
 
 type Progress = { done: number; total: number }
 
@@ -172,6 +172,7 @@ export function useBooksSetup() {
         hasLoadError: settingsQuery.isError || accountsQuery.isError,
         retryLoad,
         accountCount,
+        existingNumbers: new Set((accounts ?? []).map(a => a.number)),
         isAdmin: access.isAdmin,
         isResuming,
         create: (values: SetupValues) => execute(values, true),

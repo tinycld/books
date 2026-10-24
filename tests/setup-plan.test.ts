@@ -55,4 +55,18 @@ describe('planChart', () => {
         expect(planned).toContain('1010')
         expect(planned).toContain('1020')
     })
+
+    it.each([
+        ['owners', "Owner's equity"],
+        ['corporation', 'Common stock'],
+    ] as const)('plans the %s-specific equity account first, equity ahead of other level-0 accounts', (ownership, firstName) => {
+        const levels = planChart(ownership, none)
+
+        expect(levels[0][0].name).toBe(firstName)
+        const types = levels[0].map(item => item.type)
+        const lastEquity = types.lastIndexOf('equity')
+        const firstOther = types.findIndex(type => type !== 'equity')
+        expect(lastEquity).toBeGreaterThanOrEqual(0)
+        expect(lastEquity).toBeLessThan(firstOther)
+    })
 })

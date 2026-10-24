@@ -221,6 +221,30 @@ function erroredCollection<T extends { id: string }>() {
     })
 }
 
+// Fails its first load, as a rejected fetch would, then serves `rows` once the
+// collection is cleaned up and subscribed again, so a test can see a retry recover.
+function failsOnceCollection<T extends { id: string }>(rows: T[]) {
+    counter += 1
+    let attempts = 0
+    return createCollection({
+        id: `fails-once-${counter}`,
+        getKey: (row: T) => row.id,
+        sync: {
+            sync: ({ collection, begin, write, commit, markReady }) => {
+                attempts += 1
+                if (attempts === 1) {
+                    queueMicrotask(() => collection._lifecycle.markError(new Error('load failed')))
+                    return
+                }
+                begin()
+                for (const value of rows) write({ type: 'insert', value })
+                commit()
+                markReady()
+            },
+        },
+    })
+}
+
 function journalLine(account: string, position: number): BooksJournalLines {
     return {
         id: `line_${account}_${position}`,
@@ -244,6 +268,15 @@ function accountsCollectionFor(opts: { accountsNeverReady?: boolean; accountsErr
     return accountsCollection()
 }
 
+function settingsCollectionFor(
+    opts: { settingsNeverReady?: boolean; settingsFailsOnce?: boolean },
+    rows: BooksSettings[]
+) {
+    if (opts.settingsNeverReady) return neverReady<BooksSettings>()
+    if (opts.settingsFailsOnce) return failsOnceCollection<BooksSettings>(rows)
+    return settingsCollection(rows)
+}
+
 export function seedBooks(
     opts: {
         level?: Level
@@ -265,6 +298,12 @@ export function seedBooks(
         accountsErrored?: boolean
         // A balances collection that never finishes loading.
         balancesNeverReady?: boolean
+        // A settings collection that never finishes loading.
+        settingsNeverReady?: boolean
+        // A settings collection whose first load fails and whose reload succeeds.
+        settingsFailsOnce?: boolean
+        // An access collection that never finishes loading, so the Books level stays unknown.
+        accessNeverReady?: boolean
         // Replaces the journal lines, entries, balances and settings rows, for the register tests.
         ledger?: {
             lines: BooksJournalLines[]
@@ -310,8 +349,10 @@ export function seedBooks(
             'books_journal_entries',
             opts.ledger?.entries ?? []
         ),
-        books_settings: settingsCollection(opts.ledger?.settings ?? []),
-        books_access: local<BooksAccess>('books_access', [access]),
+        books_settings: settingsCollectionFor(opts, opts.ledger?.settings ?? []),
+        books_access: opts.accessNeverReady
+            ? neverReady<BooksAccess>()
+            : local<BooksAccess>('books_access', [access]),
     }
 }
 
