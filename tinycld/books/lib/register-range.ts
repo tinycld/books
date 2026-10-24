@@ -79,6 +79,10 @@ export function monthStartOf(day: string): string {
     return firstDayOf(monthIndexOf(day))
 }
 
+export function nextMonthStart(day: string): string {
+    return firstDayOf(monthIndexOf(day) + 1)
+}
+
 export function periodOf(day: string): string {
     return monthStartOf(day).slice(0, 7)
 }

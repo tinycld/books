@@ -19,28 +19,50 @@ export function dollarsToCents(dollars: number): number {
 // Cannot collide with a currency code: codes never contain a NUL.
 const nonFiniteKey = '\0non-finite'
 
+// cents / 100 as a float loses the last cent near 2^53, so a whole number of
+// cents is formatted from its digits. Intl supplies only the currency layout
+// (symbol, sign, separators) through formatToParts of a sample value; the digit
+// groups are built here, so nothing depends on Intl accepting bigint or
+// decimal strings (Hermes support for those is not assumed).
+function formatCents(format: Intl.NumberFormat, cents: number): string {
+    if (!Number.isSafeInteger(cents)) return format.format(cents / 100)
+    const magnitude = Math.abs(cents)
+    const whole = String(Math.floor(magnitude / 100)).replace(/\B(?=(\d{3})+$)/g, ',')
+    const fraction = String(magnitude % 100).padStart(2, '0')
+    return format
+        .formatToParts(cents < 0 ? -1 : 1)
+        .map(part => {
+            if (part.type === 'integer') return whole
+            if (part.type === 'fraction') return fraction
+            return part.value
+        })
+        .join('')
+}
+
 export function formatMoney(cents: number, currency: string): string {
     if (!Number.isFinite(cents)) {
         warnOnce(nonFiniteKey, 'books.money', 'non-finite amount', { cents })
         return '\u2014'
     }
     // A value that rounds to zero would otherwise render as "-$0.00".
-    const dollars = Math.abs(cents) < 0.5 ? 0 : cents / 100
+    const amount = Math.abs(cents) < 0.5 ? 0 : cents
+    const digits = { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+    let currencyFormat: Intl.NumberFormat | undefined
     try {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(dollars)
+        currencyFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency, ...digits })
     } catch (err) {
         warnOnce(`currency:${currency}`, 'books.money', 'invalid currency code', { currency, err })
-        const plain = new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        }).format(dollars)
-        return currency === '' ? plain : `${plain} ${currency}`
     }
+    if (currencyFormat) return formatCents(currencyFormat, amount)
+    const plain = formatCents(new Intl.NumberFormat('en-US', digits), amount)
+    return currency === '' ? plain : `${plain} ${currency}`
 }
 
-// One optional "$" directly after the sign. Commas are valid only as thousands
-// groups, and the first group cannot start with zero.
-const moneyPattern = /^(-?)\$?([1-9]\d{0,2}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?$/
+// One optional currency symbol ("$", "\u20ac", "CA$") directly after the sign.
+// Commas are valid only as thousands groups, and the first group cannot start
+// with zero.
+const moneyPattern =
+    /^(-?)(?:[A-Z]{1,3}\$|[$€£¥₹₩₽₺฿₫₪₱])?([1-9]\d{0,2}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?$/
 
 export function parseMoney(text: string): number | null {
     const match = moneyPattern.exec(text.trim())

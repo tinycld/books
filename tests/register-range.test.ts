@@ -5,6 +5,7 @@ import {
     formatDay,
     isOtherPresetSelected,
     monthStartOf,
+    nextMonthStart,
     periodOf,
     RANGE_PRESETS,
     rangeForPreset,
@@ -136,5 +137,17 @@ describe('isOtherPresetSelected', () => {
         'last-fiscal-year',
     ] as const)('is true for %s', preset => {
         expect(isOtherPresetSelected(preset)).toBe(true)
+    })
+})
+
+describe('nextMonthStart', () => {
+    it.each([
+        ['2026-10-15', '2026-11-01'],
+        ['2026-10-31', '2026-11-01'],
+        ['2026-12-15', '2027-01-01'],
+        ['2026-12-31', '2027-01-01'],
+        ['2026-01-31', '2026-02-01'],
+    ])('%s -> %s', (day, expected) => {
+        expect(nextMonthStart(day)).toBe(expected)
     })
 })
