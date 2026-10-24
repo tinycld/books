@@ -84,8 +84,9 @@ for (const [sizeName, size] of SIZES) {
 
             const button = page.getByTestId('account-panel-view-register')
             await expect(button).toBeVisible()
-            const box = await button.boundingBox()
-            expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
+            // Layout height: unlike boundingBox, it ignores the panel's entry transform.
+            const layoutHeight = await button.evaluate(el => (el as HTMLElement).offsetHeight)
+            expect(layoutHeight).toBeGreaterThanOrEqual(44)
 
             await button.click()
             await expectRegisterOpen(page, 'Business Checking')
