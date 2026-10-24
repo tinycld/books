@@ -168,6 +168,14 @@ export function buildRegister<L extends RegisterSourceLine>(input: {
     }
 }
 
+export function balanceTone(balance: number | null): string {
+    return balance === null ? 'text-danger' : 'text-foreground'
+}
+
+export function entryNumberLabel(number: string): string {
+    return number === '' ? '—' : number
+}
+
 export function entryDetail(line: RegisterSourceLine, accountId: string): EntryDetail | null {
     const entry = line.entryRecord
     if (!entry) return null

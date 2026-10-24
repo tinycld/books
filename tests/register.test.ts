@@ -8,9 +8,11 @@ import {
 } from '../tinycld/books/lib/account-register-fixture'
 import { maxStoredAmount } from '../tinycld/books/lib/money'
 import {
+    balanceTone,
     buildRegister,
     defaultOrder,
     entryDetail,
+    entryNumberLabel,
     entryTypeLabel,
     type RegisterEntry,
     type RegisterSourceLine,
@@ -478,5 +480,19 @@ describe('order', () => {
         expect(defaultOrder).toBe('newest')
         expect(toggleOrder('newest')).toBe('oldest')
         expect(toggleOrder('oldest')).toBe('newest')
+    })
+})
+
+describe('entryNumberLabel', () => {
+    it('shows a dash for an entry with no number and the number otherwise', () => {
+        expect(entryNumberLabel('')).toBe('\u2014')
+        expect(entryNumberLabel('JE-1040')).toBe('JE-1040')
+    })
+})
+
+describe('balanceTone', () => {
+    it('marks an unavailable balance as an error and a number as normal text', () => {
+        expect(balanceTone(null)).toBe('text-danger')
+        expect(balanceTone(12345)).toBe('text-foreground')
     })
 })

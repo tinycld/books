@@ -51,3 +51,8 @@ export function parseMoney(text: string): number | null {
     if (cents > BigInt(maxStoredAmount)) return null
     return sign === '-' && cents !== 0n ? -Number(cents) : Number(cents)
 }
+
+// A zero side of a line shows nothing, so a debit-only line has a blank credit cell.
+export function amountText(cents: number, currency: string): string {
+    return cents === 0 ? '' : formatMoney(cents, currency)
+}

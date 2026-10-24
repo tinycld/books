@@ -1,10 +1,11 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
     buildRegister,
     defaultOrder,
+    entryDetail,
     type Register,
     type RegisterOrder,
     toggleOrder,
@@ -45,6 +46,14 @@ export function useRegisterScreen(accountId: string) {
     const onBack = useBackToChart()
     const selected = useRegisterStore(s => s.selected)
     const openEntry = useRegisterStore(s => s.openEntry)
+    // Leaving the register (back, history, another account) drops its selection, so a later visit starts closed.
+    useEffect(
+        () => () => {
+            const { selected: current, close } = useRegisterStore.getState()
+            if (current?.accountId === accountId) close()
+        },
+        [accountId]
+    )
 
     const { account } = query
     const register = account
@@ -56,6 +65,9 @@ export function useRegisterScreen(accountId: string) {
               order,
           })
         : EMPTY_REGISTER
+    const selectedEntryId = selected?.accountId === accountId ? selected.entryId : null
+    const selectedLine = register.rows.find(row => row.entryId === selectedEntryId)
+    const selectedEntry = selectedLine ? entryDetail(selectedLine.source, accountId) : null
     const state = registerViewState({
         isReady: query.isReady,
         isError: query.isError,
@@ -76,7 +88,10 @@ export function useRegisterScreen(accountId: string) {
         preset,
         isOtherPresetSelected: isOtherPresetSelected(preset),
         range,
-        onPreset: setPreset,
+        onPreset: (next: RangePreset) => {
+            useRegisterStore.getState().close()
+            setPreset(next)
+        },
         order,
         onToggleOrder: () => setOrder(toggleOrder),
         hasSubAccounts: query.hasSubAccounts,
@@ -88,7 +103,9 @@ export function useRegisterScreen(accountId: string) {
         onNewEntry: () => router.push(newEntryHref),
         onRetry: query.retry,
         onBack,
-        selectedEntryId: selected?.accountId === accountId ? selected.entryId : null,
+        selectedEntryId,
+        selectedEntry,
+        onCloseEntry: useRegisterStore.getState().close,
         onOpenEntry: (entryId: string) => openEntry(accountId, entryId),
         isWide: breakpoint !== 'mobile',
         isTablet: breakpoint === 'tablet',
