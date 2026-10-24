@@ -20,5 +20,12 @@ export function planChart(
         const depth = depthOf(item)
         levels[depth] = [...(levels[depth] ?? []), item]
     }
-    return levels
+    // Equity goes first, and a stable sort keeps the ownership-specific account
+    // ahead of the rest: after a remount `inferOwnership` reads whichever
+    // accounts the first successful insert left behind.
+    return levels.map(level => [...level].sort((a, b) => equityRank(a) - equityRank(b)))
+}
+
+function equityRank(item: StarterAccount): number {
+    return item.type === 'equity' ? 0 : 1
 }

@@ -1,0 +1,6 @@
+{
+    "shots": ["business", "business-long-name", "ownership", "populated", "done"],
+    "widths": [390, 1280],
+    "schemes": ["light", "dark"],
+    "note": "Driven through the real UI (login, navigateToPackage books, setup card). The fresh-chart, creating, error and non-admin states cannot be driven in e2e because the seeded book already has accounts and no non-admin Books user is seeded."
+}

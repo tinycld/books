@@ -66,9 +66,9 @@ const EQUITY: Record<Ownership, StarterAccount[]> = {
         account('3200', "Owner's draws", 'equity', 'owner_draws'),
     ],
     corporation: [
-        account('3000', 'Common stock', 'equity', 'common_stock'),
-        account('3100', 'Paid-in capital', 'equity', 'paid_in_capital'),
-        account('3200', 'Retained earnings', 'equity', 'retained_earnings'),
+        account('3300', 'Common stock', 'equity', 'common_stock'),
+        account('3400', 'Paid-in capital', 'equity', 'paid_in_capital'),
+        account('3500', 'Retained earnings', 'equity', 'retained_earnings'),
     ],
 }
 
@@ -101,6 +101,16 @@ export function groupStarterChart(accounts: readonly StarterAccount[]) {
         const inGroup = accounts.filter(item => groupOfType.get(item.type) === group.key)
         return { key: group.key, label: group.label, accounts: inGroup, count: inGroup.length }
     })
+}
+
+// Corporation equity numbers differ from the owners ones so that the accounts
+// already created tell a half-done book's ownership.
+export function inferOwnership(existingNumbers: ReadonlySet<string>): Ownership {
+    const ownerNumbers = new Set(EQUITY.owners.map(item => item.number))
+    const isCorporation = EQUITY.corporation.some(
+        item => !ownerNumbers.has(item.number) && existingNumbers.has(item.number)
+    )
+    return isCorporation ? 'corporation' : 'owners'
 }
 
 function equitySummary(ownership: Ownership): string {

@@ -20,6 +20,14 @@
 (none yet)
 
 ## Rebuttals
+- **finding:** cp3 reviewer B — `useSetupParts` has a second `useState` (`failure`) and a second form schema next to `setupSchema`
+  **rebutted because:** `failure` holds the outcome `create` returned, which `useBooksSetup` does not expose; the checkpoint Do step 1 says "hold the current part in `useState` (local UI state that no other component reads)". `setupFormSchema` exists only because a SelectInput hands back a string while `setupSchema.fiscal_year_start_month` is a number; it carries a comment and `tests/setup-parts.test.tsx` covers the conversion.
+- **finding:** cp3 reviewer A/B — `tests/accounts-form-harness.ts` uses the private `collection._lifecycle.markError`
+  **rebutted because:** no public TanStack DB API puts a collection into the error state; the helper is test-only and `tests/setup-parts.test.tsx` fails loudly if the internal changes.
+- **finding:** cp3 reviewer B — `hooks/useSetupCompleted.ts` duplicates a settings live query
+  **rebutted because:** it keeps `useListsHub` from loading `useBooksSetup`'s accounts query on every Lists hub render; recorded under Out-of-plan changes.
+- **finding:** cp3 fix review — `next?.()` can throw inside the submit handler
+  **rebutted because:** `next` is core's wizard continuation, whose contract (`tinycld/docs/packages.md`, "Module contract") is to be called after the step saves; a throw there is core's to report.
 - **finding:** cp2 fix review 2 — remount during a run lets a second batch start
   **rebutted because:** `pb-migrations/2100000002_create_books_ledger.js` has `CREATE UNIQUE INDEX idx_books_accounts_number ON books_accounts (number) WHERE number != ''`, so a second batch's insert of a number the first batch also inserts is refused, not duplicated; the cost is a spurious error, which Try again resumes.
 - **finding:** cp2 fix review 2 — non-step errors are labelled `Business settings`
@@ -34,7 +42,13 @@
   **rebutted because:** the checkpoint Do step 4 says "keep ... `CHART_GROUPS` and `GROUP_OF_TYPE`".
 
 ## Design notes
-(none yet)
+- cp3 · ownership: lead-to-cards gap (~50-60px) larger than other gaps (`gap-6` stacked on the heading margin) — NOTE
+- cp3 · ownership, populated 1280: lead text wraps early and orphans its last word ("same.", "chart.") — NOTE
+- cp3 · ownership, populated: Back sits in the body, Next in the footer, so they read as two rows — NOTE
+- cp3 · populated: empty band between lead and Back where a preview would sit — NOTE
+- cp3 · all non-done shots: core shell header "1 of 1" (and "ORGANIZATION SETUP" on /a/books/setup) beside the body's "Part n of 3" — two counters; critic suggested hiding the shell header on the Books route — NOTE
+- cp3 · business-long-name: the focus ring is the browser default blue (core TextInput), not the teal accent — NOTE
+- cp3 · ownership 390: card detail wraps leaving "draws" alone on the last line — NOTE
 
 ## Out-of-plan changes
 - cp1: `docs/plans/setup-wizard-capture.json` (biome format only, needed for a green check); `tinycld/books/lib/account-register-fixture.ts` (`SETTINGS` gained `business_name`/`setup_completed`, forced by the new generated type); `tinycld/books/seed.ts` (comment line the plan's Do step 5 asked for; Files block omitted it)
@@ -68,6 +82,19 @@
 - gate 3 A (correctness): remount lost resume flag (also found by B) -> accepted; fixed by marker-first settings write and `isResuming` from the live settings row (spec bullets "Create runs one batch" and "A chart that already has accounts" and plan updated); not-ready/missing-settings/double-press -> accepted, fixed (`busy`); weak ordering/offset tests -> accepted, fresh writer
 - gate 3 B (conformance): same findings; `parentOf` rebuilt, silent root parent fallback, cast -> accepted, fixed
 - fix review: pass 1 found duplicate error reporting (core default onError) -> accepted, fixed with an empty onError + notify.emit tests; pass 2 over that fix: nothing found
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 3
+- test writer: tests/manifest.test.ts, tests/setup-parts.test.tsx, tests/setup-step-hooks.test.tsx, tests/lists-hub.test.tsx (+ harness options `settingsNeverReady`, `settingsFailsOnce`, `accessNeverReady`); red for the right reason: yes (verified against throwaway stubs); untestable: none
+- implementer: setup step, parts, hooks, route, hub card, manifest/exports; DONE after three fix rounds
+- test disputes: none
+- self-declared differences: Next/Create/Finish use core's `setup-continue` testID; month held as string and converted at submit (`toSetupValues`); `hooks/useSetupCompleted.ts` and `hooks/useSetupCard.ts` added; "Part n of 3" label; error heading shows the account name only; `canSkip`, `canGoBack`, `inferOwnership`, `accountCountLabel`, `chartCountNote` added by review rounds
+- gate 1: tests unedited: yes (all test changes by fresh writers) · pass (57 files, 1124 tests, tsc, biome; full e2e 61 passed)
+- gate 2: invalid shots: none · blocking: none · notes: 7 listed under Design notes. Coverage limit: only business, business-long-name, ownership, populated and done could be driven in e2e (the seeded book has accounts and no non-admin Books user); the fresh chart, creating, error, non-admin and Lists-hub card states have reference shots only
+- gate 3 A (correctness): double press moved part off creating; error without failure; ownership lost on remount; skip offered while resuming; dead end on a resumed book with no accounts; misleading non-admin message on a completed book; plural copy -> all accepted and fixed; stale snapshot, remount-during-run, mixed ownership after remount -> rebutted/limits (see Rebuttals)
+- gate 3 B (conformance): nested ScrollView in chart preview -> fixed; isVisible always true -> fixed; second schema/two useState -> rebutted; navigation in component -> fixed; fixed sleeps in tests -> replaced; skip label -> fixed; harness `_lifecycle.markError` -> rebutted
+- fix review: pass after each of three rounds; round 3: nothing found
 - reviewer-caught deferrals: none
 - commit: see git log
 

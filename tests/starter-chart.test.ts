@@ -3,6 +3,7 @@ import { ACCOUNT_TYPES } from '../tinycld/books/lib/account-types'
 import { FISCAL_MONTHS } from '../tinycld/books/lib/setup-schema'
 import {
     groupStarterChart,
+    inferOwnership,
     OWNERSHIP_CHOICES,
     type Ownership,
     starterChart,
@@ -153,5 +154,32 @@ describe('choices and months', () => {
         expect(FISCAL_MONTHS).toHaveLength(12)
         expect(FISCAL_MONTHS[0]).toBe('January')
         expect(FISCAL_MONTHS[11]).toBe('December')
+    })
+})
+
+describe('inferOwnership', () => {
+    function equityNumbers(ownership: Ownership) {
+        return starterChart(ownership)
+            .filter(account => account.type === 'equity')
+            .map(account => account.number)
+    }
+    const ownerNumbers = new Set(equityNumbers('owners'))
+    const corporationOnly = equityNumbers('corporation').filter(number => !ownerNumbers.has(number))
+
+    // A number-only test can tell the charts apart only when the corporation
+    // equity accounts have numbers the owners chart does not use.
+    it('has corporation equity numbers that the owners chart does not use', () => {
+        expect(corporationOnly.length).toBeGreaterThan(0)
+    })
+
+    it('returns corporation when an existing number belongs to a corporation-only account', () => {
+        expect(inferOwnership(new Set(corporationOnly))).toBe('corporation')
+        expect(inferOwnership(new Set(['1000', ...corporationOnly]))).toBe('corporation')
+    })
+
+    it('returns owners for owner equity numbers, for no equity numbers and for no accounts', () => {
+        expect(inferOwnership(new Set(equityNumbers('owners')))).toBe('owners')
+        expect(inferOwnership(new Set(['1000', '4000']))).toBe('owners')
+        expect(inferOwnership(new Set())).toBe('owners')
     })
 })
