@@ -10,15 +10,17 @@ export const companySchema = z.object({
         .trim()
         .min(1, 'Enter the legal business name')
         .max(200, 'Use 200 characters or fewer'),
-    tax_id: z.string().max(20, 'Use 20 characters or fewer'),
-    address: z.string().max(500, 'Use 500 characters or fewer'),
-    phone: z.string().max(40, 'Use 40 characters or fewer'),
+    tax_id: z.string().trim().max(20, 'Use 20 characters or fewer'),
+    address: z.string().trim().max(500, 'Use 500 characters or fewer'),
+    phone: z.string().trim().max(40, 'Use 40 characters or fewer'),
     email: z
         .string()
+        .trim()
         .max(200, 'Use 200 characters or fewer')
         .refine(v => v === '' || emailCheck.safeParse(v).success, 'Enter a valid email address'),
     website: z
         .string()
+        .trim()
         .max(200, 'Use 200 characters or fewer')
         .refine(
             v => v === '' || /^https?:\/\/\S+$/.test(v),

@@ -89,4 +89,16 @@ describe('useBooksSidebar', () => {
         expect(result.current.hasAccounting).toBe(false)
         expect(result.current.visibleAccounting).toEqual([])
     })
+
+    it.each([
+        '/a/books/settings',
+        '/a/books/settings/company',
+    ])('exposes settings in end and marks only it active on %s', pathname => {
+        url.pathname = pathname
+        const { result } = renderHook(() => useBooksSidebar(allAvailable))
+        expect(result.current.end.map(e => e.id)).toEqual(['settings'])
+        expect(result.current.top.map(e => e.id)).not.toContain('settings')
+        const active = allAvailable.filter(e => result.current.isActive(e)).map(e => e.id)
+        expect(active).toEqual(['settings'])
+    })
 })
