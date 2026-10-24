@@ -116,6 +116,7 @@ function PanelFooter(props: FooterProps) {
 }
 
 interface BodyProps extends Placement {
+    onViewRegister(id: string): void
     target: PanelTarget
     accounts: AccountRow[]
     isReady: boolean
@@ -130,12 +131,34 @@ function MissingNotice({ isVisible }: { isVisible: boolean }) {
     )
 }
 
-function AccountPanelBody({ target, accounts, isReady, ...placement }: BodyProps) {
+function ViewRegisterButton({
+    accountId,
+    onViewRegister,
+}: {
+    accountId: string | null
+    onViewRegister: (id: string) => void
+}) {
+    if (accountId === null) return null
+    return (
+        <Button
+            testID="account-panel-view-register"
+            variant="outline"
+            className="mb-3 self-start"
+            style={{ minHeight: 44 }}
+            onPress={() => onViewRegister(accountId)}
+        >
+            <ButtonText>View register</ButtonText>
+        </Button>
+    )
+}
+
+function AccountPanelBody({ target, accounts, isReady, onViewRegister, ...placement }: BodyProps) {
     const close = useAccountsPanelStore(s => s.close)
     const closeColor = useThemeColor('foreground')
     const account = useAccountForm(target, accounts, isReady)
     const { form, isReadOnly, isEditing, isMissing, isSaving, save, saveAndNew } = account
     const { errors, isSubmitted } = form.formState
+    const registerId = target.mode === 'edit' && !isMissing ? target.id : null
 
     return (
         <Drawer isOpen onClose={close} {...placementProps(placement)}>
@@ -156,6 +179,7 @@ function AccountPanelBody({ target, accounts, isReady, ...placement }: BodyProps
                         isEnabled={isSubmitted}
                     />
                     <MissingNotice isVisible={isMissing} />
+                    <ViewRegisterButton accountId={registerId} onViewRegister={onViewRegister} />
                     <AccountPanelFields account={account} accounts={accounts} />
                 </DrawerBody>
                 <PanelFooter
@@ -207,7 +231,9 @@ function LoadError({ isWide, isTablet }: Placement) {
 // if it failed, and the body (with its "no longer exists" notice) once it is
 // ready without the row. After the row has appeared the body stays mounted, so
 // typed input survives the row being deleted elsewhere.
-function OpenAccountPanel({ target, ...placement }: Placement & { target: PanelTarget }) {
+type PanelProps = Placement & { onViewRegister(id: string): void }
+
+function OpenAccountPanel({ target, ...placement }: PanelProps & { target: PanelTarget }) {
     const { data, isReady, isError } = useAccountsQuery()
     const accounts = data ?? []
     const [appeared, setAppeared] = useState(false)
@@ -219,7 +245,7 @@ function OpenAccountPanel({ target, ...placement }: Placement & { target: PanelT
     return <AccountPanelBody target={target} accounts={accounts} isReady={isReady} {...placement} />
 }
 
-export function AccountPanel(placement: Placement) {
+export function AccountPanel(placement: PanelProps) {
     const target = useAccountsPanelStore(s => s.target)
     if (!target) return null
     // seq changes on every open, so re-opening the same target remounts a fresh form.
