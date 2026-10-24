@@ -3,11 +3,13 @@
 // from this registry, so every hook and component under test is the real one
 // and reads and writes real TanStack DB local-only collections.
 import { BasicIndex, createCollection, localOnlyCollectionOptions } from '@tanstack/db'
+import type { OrgPkgAccess } from '@tinycld/core/types/pbSchema'
 import { ACCOUNTS, BALANCES } from '../tinycld/books/lib/chart-of-accounts-fixture'
 import type {
     BooksAccess,
     BooksAccountBalances,
     BooksAccounts,
+    BooksAdmins,
     BooksCloseOverrides,
     BooksDocSequences,
     BooksJournalEntries,
@@ -40,6 +42,17 @@ const state = {
     // Ids of every close override delete that reached the handler.
     overrideDeletes: [] as string[],
     settingsEntered: 0,
+    // Refuses every org_pkg_access or books_admins write after the first `after` ones that reached a handler.
+    refuseAccess: null as { after: number; error: unknown } | null,
+    accessEntered: 0,
+    accessInFlight: 0,
+    accessMaxInFlight: 0,
+    // Releases the core and admin reads held by holdCoreRead / holdAdminRead.
+    releaseReads: [] as (() => void)[],
+    // Makes books_access.reload() wait until released.
+    reloadGate: null as Promise<void> | null,
+    // Makes books_access.reload() reject with this error.
+    reloadError: null as unknown,
     // Every write that reached a handler, in order: `account:<id>`, `settings:<id>` or `sequence:<id>`.
     log: [] as string[],
     // Writes waiting for `stepWrites().next()`; null when writes are not stepped.
@@ -97,6 +110,31 @@ async function waitForStep() {
     if (steps) await new Promise<void>(resume => steps.push(resume))
 }
 
+// Most org_pkg_access / books_admins writes that were inside a handler at the same moment.
+export function maxAccessWritesInFlight() {
+    return state.accessMaxInFlight
+}
+
+// Holds books_access.reload() open until the returned function is called.
+export function holdReload() {
+    let release = () => {}
+    state.reloadGate = new Promise<void>(resolve => {
+        release = resolve
+    })
+    return () => release()
+}
+
+// Makes books_access.reload() reject with this error until liftRefusal().
+export function failReload(error: unknown) {
+    state.reloadError = error
+}
+
+// Lets the org_pkg_access and books_admins reads that were seeded with holdCoreRead /
+// holdAdminRead finish loading, with their seeded rows.
+export function releaseAccessReads() {
+    for (const release of state.releaseReads.splice(0)) release()
+}
+
 export function enteredWrites() {
     return [...state.entered]
 }
@@ -120,6 +158,8 @@ export function liftRefusal() {
     state.refuseSettingsAfter = null
     state.refuseSequences = null
     state.refuseOverrides = null
+    state.refuseAccess = null
+    state.reloadError = null
 }
 
 export function useStoreStub(...names: string[]) {
@@ -265,10 +305,122 @@ function overridesCollection(initialData: BooksCloseOverrides[]) {
     )
 }
 
+type AccessMutation = {
+    key: unknown
+    type: string
+    modified: Record<string, unknown>
+    changes: Record<string, unknown>
+}
+
+async function runAccessWrite(entries: string[]) {
+    state.log.push(...entries)
+    state.accessInFlight += 1
+    state.accessMaxInFlight = Math.max(state.accessMaxInFlight, state.accessInFlight)
+    try {
+        if (state.gate) await state.gate
+        await waitForStep()
+        state.accessEntered += 1
+        const refuse = state.refuseAccess
+        if (refuse && state.accessEntered > refuse.after) throw refuse.error
+    } finally {
+        state.accessInFlight -= 1
+    }
+}
+
+// Logged as `core:insert:<user>:<pkg>:<access>` or `core:update:<id>:<access>`.
+function describeCoreWrite(m: AccessMutation) {
+    if (m.type === 'insert') {
+        return `core:insert:${m.modified.user}:${m.modified.pkg}:${m.modified.access}`
+    }
+    return `core:${m.type}:${String(m.key)}:${m.changes.access ?? m.modified.access}`
+}
+
+// Logged as `admin:insert:<user>` or `admin:delete:<id>`.
+function describeAdminWrite(m: AccessMutation) {
+    return m.type === 'insert'
+        ? `admin:insert:${m.modified.user}`
+        : `admin:${m.type}:${String(m.key)}`
+}
+
+function accessWriteCollection<T extends { id: string }>(
+    name: string,
+    initialData: T[],
+    describe: (m: AccessMutation) => string
+) {
+    counter += 1
+    const handler = async ({ transaction }: { transaction: { mutations: AccessMutation[] } }) =>
+        runAccessWrite(transaction.mutations.map(describe))
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `${name}-${counter}`,
+            getKey: (row: T) => row.id,
+            initialData,
+            onInsert: handler,
+            onUpdate: handler,
+            onDelete: handler,
+            ...indexed,
+        })
+    )
+}
+
+// books_access is a view without realtime, so the screen calls reload(); the stub logs
+// it as `access:reload` so a test can see it ran after the writes.
+function accessViewCollection(rows: BooksAccess[]) {
+    const collection = local<BooksAccess>('books_access', rows)
+    const reload = async () => {
+        state.log.push('access:reload')
+        if (state.reloadGate) await state.reloadGate
+        if (state.reloadError) throw state.reloadError
+    }
+    return Object.assign(collection, { reload })
+}
+
+// Like accessWriteCollection, but its first load waits for releaseAccessReads(), so a test
+// can act while the hook's own read of the row is not ready yet.
+function heldAccessCollection<T extends { id: string }>(
+    name: string,
+    rows: T[],
+    describe: (m: AccessMutation) => string
+) {
+    counter += 1
+    const handler = async ({ transaction }: { transaction: { mutations: AccessMutation[] } }) =>
+        runAccessWrite(transaction.mutations.map(describe))
+    return createCollection({
+        id: `${name}-held-${counter}`,
+        getKey: (row: T) => row.id,
+        onInsert: handler,
+        onUpdate: handler,
+        onDelete: handler,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseReads.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
+}
+
+function accessReadCollection<T extends { id: string }>(
+    name: string,
+    rows: T[],
+    describe: (m: AccessMutation) => string,
+    mode: { held?: boolean; neverReady?: boolean; errored?: boolean }
+) {
+    if (mode.errored) return erroredCollection<T>()
+    if (mode.neverReady) return neverReady<T>()
+    if (mode.held) return heldAccessCollection<T>(name, rows, describe)
+    return accessWriteCollection<T>(name, rows, describe)
+}
+
 export interface SeedUser {
     id: string
     name: string
     email: string
+    role?: 'owner' | 'admin' | 'member' | 'guest'
 }
 
 function neverReady<T extends { id: string }>() {
@@ -359,6 +511,16 @@ function sequencesCollectionFor(
     return sequencesCollection(rows)
 }
 
+function usersCollectionFor(
+    opts: { usersNeverReady?: boolean; usersFailsOnce?: boolean; usersErrored?: boolean },
+    rows: SeedUser[]
+) {
+    if (opts.usersErrored) return erroredCollection<SeedUser>()
+    if (opts.usersNeverReady) return neverReady<SeedUser>()
+    if (opts.usersFailsOnce) return failsOnceCollection<SeedUser>(rows)
+    return local<SeedUser>('users', rows)
+}
+
 export function seedBooks(
     opts: {
         level?: Level
@@ -396,6 +558,30 @@ export function seedBooks(
         users?: SeedUser[]
         // Replaces the signed-in user's single access row with these rows.
         accessRows?: BooksAccess[]
+        // The org_pkg_access rows to seed; none by default.
+        coreAccess?: OrgPkgAccess[]
+        // The books_admins rows to seed; none by default.
+        bookAdmins?: BooksAdmins[]
+        // Lets the first `after` org_pkg_access / books_admins writes through and refuses each later one.
+        refuseAccess?: { after: number; error: unknown }
+        // The org_pkg_access read never finishes loading.
+        coreAccessNeverReady?: boolean
+        // The org_pkg_access read fails.
+        coreAccessErrored?: boolean
+        // The org_pkg_access read waits for releaseAccessReads().
+        holdCoreRead?: boolean
+        // The books_admins read never finishes loading.
+        adminsNeverReady?: boolean
+        // The books_admins read fails.
+        adminsErrored?: boolean
+        // The books_admins read waits for releaseAccessReads().
+        holdAdminRead?: boolean
+        // The users read never finishes loading.
+        usersNeverReady?: boolean
+        // The users read fails once, then loads after a retry.
+        usersFailsOnce?: boolean
+        // The users read fails.
+        usersErrored?: boolean
         // A doc sequences collection that never finishes loading.
         sequencesNeverReady?: boolean
         // A doc sequences collection whose first load fails and whose reload succeeds.
@@ -429,6 +615,13 @@ export function seedBooks(
     state.refuseSettings = opts.refuseSettings ?? null
     state.refuseSequences = opts.refuseSequences ?? null
     state.refuseOverrides = opts.refuseOverrides ?? null
+    state.refuseAccess = opts.refuseAccess ?? null
+    state.accessEntered = 0
+    state.accessInFlight = 0
+    state.accessMaxInFlight = 0
+    state.reloadGate = null
+    state.reloadError = null
+    state.releaseReads = []
     state.overrideDeletes = []
     state.log = []
     state.entered = []
@@ -454,9 +647,29 @@ export function seedBooks(
         books_doc_sequences: sequencesCollectionFor(opts, opts.sequences ?? []),
         books_access: opts.accessNeverReady
             ? neverReady<BooksAccess>()
-            : local<BooksAccess>('books_access', opts.accessRows ?? [access]),
+            : accessViewCollection(opts.accessRows ?? [access]),
+        org_pkg_access: accessReadCollection<OrgPkgAccess>(
+            'org_pkg_access',
+            opts.coreAccess ?? [],
+            describeCoreWrite,
+            {
+                held: opts.holdCoreRead,
+                neverReady: opts.coreAccessNeverReady,
+                errored: opts.coreAccessErrored,
+            }
+        ),
+        books_admins: accessReadCollection<BooksAdmins>(
+            'books_admins',
+            opts.bookAdmins ?? [],
+            describeAdminWrite,
+            {
+                held: opts.holdAdminRead,
+                neverReady: opts.adminsNeverReady,
+                errored: opts.adminsErrored,
+            }
+        ),
         books_close_overrides: overridesCollection(opts.overrides ?? []),
-        users: local<SeedUser>('users', opts.users ?? []),
+        users: usersCollectionFor(opts, opts.users ?? []),
     }
 }
 
@@ -487,6 +700,22 @@ export function sequencesStore() {
 
 export function overridesStore() {
     return state.registry.books_close_overrides as ReturnType<typeof overridesCollection>
+}
+
+export function accessStore() {
+    return state.registry.books_access as ReturnType<typeof accessViewCollection>
+}
+
+export function adminsStore() {
+    return state.registry.books_admins as ReturnType<typeof accessWriteCollection<BooksAdmins>>
+}
+
+export function usersStore() {
+    return state.registry.users as ReturnType<typeof local<SeedUser>>
+}
+
+export function coreAccessStore() {
+    return state.registry.org_pkg_access as ReturnType<typeof accessWriteCollection<OrgPkgAccess>>
 }
 
 export function overrideDeletes() {
