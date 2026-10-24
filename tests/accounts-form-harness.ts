@@ -8,6 +8,7 @@ import type {
     BooksAccess,
     BooksAccountBalances,
     BooksAccounts,
+    BooksCloseOverrides,
     BooksDocSequences,
     BooksJournalEntries,
     BooksJournalLines,
@@ -34,6 +35,10 @@ const state = {
     refuseSettingsAfter: null as { after: number; error: unknown } | null,
     // Refuses every doc sequence write with this error.
     refuseSequences: null as unknown,
+    // Refuses every close override write with this error.
+    refuseOverrides: null as unknown,
+    // Ids of every close override delete that reached the handler.
+    overrideDeletes: [] as string[],
     settingsEntered: 0,
     // Every write that reached a handler, in order: `account:<id>`, `settings:<id>` or `sequence:<id>`.
     log: [] as string[],
@@ -114,6 +119,7 @@ export function liftRefusal() {
     state.refuseSettings = null
     state.refuseSettingsAfter = null
     state.refuseSequences = null
+    state.refuseOverrides = null
 }
 
 export function useStoreStub(...names: string[]) {
@@ -227,6 +233,42 @@ function sequencesCollection(initialData: BooksDocSequences[]) {
             ...indexed,
         })
     )
+}
+
+// The close overrides collection logs its writes as `override:<id>` and records
+// every delete, so a test can prove an override is never deleted.
+function overridesCollection(initialData: BooksCloseOverrides[]) {
+    counter += 1
+    const refuseWhenAsked = async ({
+        transaction,
+    }: {
+        transaction: { mutations: ReadonlyArray<{ key: unknown; type: string }> }
+    }) => {
+        state.log.push(...transaction.mutations.map(m => `override:${String(m.key)}`))
+        state.overrideDeletes.push(
+            ...transaction.mutations.filter(m => m.type === 'delete').map(m => String(m.key))
+        )
+        if (state.gate) await state.gate
+        await waitForStep()
+        if (state.refuseOverrides) throw state.refuseOverrides
+    }
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `books_close_overrides-${counter}`,
+            getKey: (row: BooksCloseOverrides) => row.id,
+            initialData,
+            onInsert: refuseWhenAsked,
+            onUpdate: refuseWhenAsked,
+            onDelete: refuseWhenAsked,
+            ...indexed,
+        })
+    )
+}
+
+export interface SeedUser {
+    id: string
+    name: string
+    email: string
 }
 
 function neverReady<T extends { id: string }>() {
@@ -346,6 +388,14 @@ export function seedBooks(
         settingsNeverReady?: boolean
         // A settings collection whose first load fails and whose reload succeeds.
         settingsFailsOnce?: boolean
+        // Refuses every write to a close override row with this error.
+        refuseOverrides?: unknown
+        // The close override rows to seed; none by default.
+        overrides?: BooksCloseOverrides[]
+        // The users the overrides and access rows point at; none by default.
+        users?: SeedUser[]
+        // Replaces the signed-in user's single access row with these rows.
+        accessRows?: BooksAccess[]
         // A doc sequences collection that never finishes loading.
         sequencesNeverReady?: boolean
         // A doc sequences collection whose first load fails and whose reload succeeds.
@@ -378,6 +428,8 @@ export function seedBooks(
     state.refuseAfter = opts.refuseAfter ?? null
     state.refuseSettings = opts.refuseSettings ?? null
     state.refuseSequences = opts.refuseSequences ?? null
+    state.refuseOverrides = opts.refuseOverrides ?? null
+    state.overrideDeletes = []
     state.log = []
     state.entered = []
     state.requested = []
@@ -402,7 +454,9 @@ export function seedBooks(
         books_doc_sequences: sequencesCollectionFor(opts, opts.sequences ?? []),
         books_access: opts.accessNeverReady
             ? neverReady<BooksAccess>()
-            : local<BooksAccess>('books_access', [access]),
+            : local<BooksAccess>('books_access', opts.accessRows ?? [access]),
+        books_close_overrides: overridesCollection(opts.overrides ?? []),
+        users: local<SeedUser>('users', opts.users ?? []),
     }
 }
 
@@ -429,6 +483,14 @@ export function settingsStore() {
 
 export function sequencesStore() {
     return state.registry.books_doc_sequences as ReturnType<typeof sequencesCollection>
+}
+
+export function overridesStore() {
+    return state.registry.books_close_overrides as ReturnType<typeof overridesCollection>
+}
+
+export function overrideDeletes() {
+    return [...state.overrideDeletes]
 }
 
 export function storedAccounts(): BooksAccounts[] {
