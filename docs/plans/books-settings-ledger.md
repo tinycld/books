@@ -18,7 +18,15 @@
   - Role choice carries a description → expressible (SelectInput + description line)
 
 ## Deferrals
-(none yet)
+- **agreed:** checkpoint 7 Delivers: "the read-only view with the caller's own override line"; spec: "Under Accounting a line states the caller's own override"
+  **built:** the line is built (`ownOverrideLine` in lib/overrides.ts, `books-settings-own-override` in the read-only Accounting view, driven by `useMyCloseOverride`) and unit-tested, but the non-admin gate-2 screenshot shows no line
+  **reason:** missing dependency
+  **blocker evidence:** an override can only be created through the UI by the overrides panel (checkpoint 8, `GrantOverrideDialog`); `grep -r GrantOverrideDialog books/tinycld` finds nothing at this checkpoint; raw PocketBase writes are banned by CLAUDE.md
+  **impact:** the capture does not show the line; behavior is covered by useMyCloseOverride.test.tsx and ownOverrideLine tests, not yet by a screenshot or e2e
+  **unblock:** checkpoint 8 lands the grant panel; the checkpoint 8 capture re-takes non-admin-accounting with a granted override, and checkpoint 10's e2e test 6 asserts the line
+  **tracked in:** checkpoint 8 (capture) and checkpoint 10 (e2e test 6)
+  **found by:** design critic
+  **checkpoint:** 7
 
 ## Rebuttals
 - **finding:** reviewer A and B, checkpoint 1: the "books_settings row carries the five new string fields" test bullet was removed from the plan (DEFERRAL)
@@ -56,8 +64,18 @@
   **rebutted because:** a wide rail click that pushes puts each section in the history and a browser Back from the list loops; replace is the review's fix. Recorded as a deviation from the plan text.
 - **finding:** reviewer A, checkpoint 6: whitespace-only typing makes the form dirty and Save writes an identical trimmed value
   **rebutted because:** harmless (the saved row does not change); trimming is done by the schema as the review asked.
+- **finding:** reviewer B, checkpoint 7: local MonthSelect (useController + Menu) re-implements core SelectInput; ReopenDialog uses core Dialog instead of ConfirmDialog
+  **rebutted because:** `fiscalYearSchema` (checkpoint 2, tested) takes a numeric month and SelectInput compares string values; ConfirmDialog has no testID on its buttons and the checkpoint requires `books-settings-reopen-confirm` and `-cancel`; the fix would be a core PR (not made). Why-comments are in both files.
+- **finding:** reviewer A, checkpoint 7: `oldDate` in the reopen dialog is captured at submit time and can go stale if another admin changes the close date
+  **rebutted because:** low risk; the server re-validates the write.
+- **finding:** reviewer A and B, checkpoint 7: the fiscal-year form uses a local numeric MonthSelect; the typing-during-save reset keeps Save disabled
+  **rebutted because:** a save is a single round trip; the next keystroke re-dirties the form.
 
 ## Design notes
+- cp 7 · Close block: "Save close date" sits inside the bordered block; the reference draws it below the block in the same column as the fiscal Save.
+- cp 7 · Reopen dialog: the date breaks across lines in the body text; a non-breaking space would keep it together. At 390 the sheet shows both an X and a Cancel.
+- cp 7 · Accounting: the gap above the fiscal Save equals the gap below it, so Save reads less like part of the fiscal group.
+- cp 7 · core request: `ConfirmDialog` takes no `testID` for its buttons; core `SelectInput` compares string option values (numeric options never show as selected); `TextAreaInput` does not grow.
 - cp 6 · list-company-1280: the Settings sidebar entry sits directly under Chart of Accounts with no gap or divider, so it reads as part of Accounting.
 - cp 6 · company-long-390: the Business address textarea shows four lines and slices the fifth; fixing it needs core's TextAreaInput to grow with content (a core change, not made here).
 - cp 6 · non-admin-list-390: a long company name clamps to two lines in the list row (the reference keeps summaries on one line).
@@ -120,6 +138,15 @@
 - gate 3 A: dirty form remounts across breakpoints, push history loop, route index vs [section] remount, sequences error blocking: accepted, fixed; B: label-string ternary, non-admin form built, trimming, Currency block: accepted, fixed
 - core edit by the implementer (TextAreaInput) reverted: a core change needs its own PR and sign-off
 - fix review: reviewer A over the fix diff; one finding accepted (open-section no-op), rest rebutted
+
+## Checkpoint 7
+- test writer: tests/useCloseBooks.test.tsx (15 tests), later additions for isSubmitted in useSettingsForm/useCloseBooks tests; red (missing module); untestable: none; one import dispute (test used three harness helpers it did not import)
+- implementer: DONE; hooks/useCloseBooks.ts, components/settings/{AccountingSection,FiscalYearForm,CloseBooksBlock,ReopenDialog}.tsx, lib/root-errors.ts; sections registry and SectionBody
+- self-declared differences: ReopenDialog on core Dialog; local MonthSelect; own-override line only with a close date
+- gate 1: pass (1341 tests; full e2e 62 passed, 1 skipped)
+- gate 2: no INVALID after the capture fixes; BLOCKING: duplicate error + raw key (fixed), missing override line (deferral, see Deferrals); NOTEs under Design notes
+- gate 3 A: BLOCKING FormErrorSummary never rendered (isEnabled default false): fixed in Company, fiscal and close forms; then isSubmitted reset by the optimistic update hid refusals: fixed with keepIsSubmitted; B: MonthSelect/ReopenDialog rebutted; month field error render: fixed
+- fix review: four reviewer-A passes
 
 ## Final review
 - eval: pending
