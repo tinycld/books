@@ -29,6 +29,7 @@ function settings(done: boolean): BooksSettings {
         business_name: done ? 'Acme' : '',
         ownership: '',
         setup_completed: done,
+        setup_started: done,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }

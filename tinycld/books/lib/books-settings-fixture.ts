@@ -16,6 +16,7 @@ export const COMPANY_SETTINGS = {
     currency: 'USD',
     business_name: 'Hartwell Supply Co.',
     ownership: 'corporation',
+    setup_started: true,
     setup_completed: true,
     tax_id: '12-3456789',
     address: '3540 E Broad St, Suite 210\nMansfield, TX 76063',

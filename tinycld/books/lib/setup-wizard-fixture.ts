@@ -22,6 +22,7 @@ export const FRESH_SETTINGS: BooksSettings = {
     phone: '',
     email: '',
     website: '',
+    setup_started: false,
     setup_completed: false,
     created: '2026-10-01 00:00:00.000Z',
     updated: '2026-10-01 00:00:00.000Z',
@@ -32,6 +33,7 @@ export const DONE_SETTINGS: BooksSettings = {
     fiscal_year_start_month: 7,
     business_name: 'Small Business Builders, LLC',
     ownership: 'owners',
+    setup_started: true,
     setup_completed: true,
 }
 

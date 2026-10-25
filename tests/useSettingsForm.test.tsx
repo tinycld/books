@@ -125,6 +125,21 @@ describe('useSettingsForm company block', () => {
         })
     })
 
+    it('never writes setup_started when the company form saves a new name', async () => {
+        seedBooks({
+            level: 'admin',
+            ledger: { ...LEDGER, settings: [{ ...ROW, setup_started: false }] },
+        })
+        const rendered = renderCompany()
+        edit(rendered, 'business_name', 'Renamed Co.')
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() => expect(savedRow().business_name).toBe('Renamed Co.'))
+        expect(savedRow().setup_started).toBe(false)
+        expect(Object.keys(companyValuesNow)).not.toContain('setup_started')
+    })
+
     it('blocks a blank business name with the schema message and writes nothing', async () => {
         const rendered = renderCompany()
         edit(rendered, 'business_name', '   ')
