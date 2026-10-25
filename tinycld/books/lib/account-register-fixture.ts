@@ -37,6 +37,12 @@ export const SETTINGS = {
     business_name: '',
     // PocketBase stores an unset select as '', which the generated type omits.
     ownership: '' as BooksSettings['ownership'],
+    tax_id: '',
+    address: '',
+    phone: '',
+    email: '',
+    website: '',
+    setup_started: false,
     setup_completed: false,
     created: '2026-01-01 00:00:00.000Z',
     updated: '2026-01-01 00:00:00.000Z',

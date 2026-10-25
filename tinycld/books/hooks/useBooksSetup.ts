@@ -63,8 +63,8 @@ export function useBooksSetup() {
     const accounts = accountsQuery.data
     const accountCount = accountsQuery.isReady ? accounts?.length : undefined
     const isReady = settingsQuery.isReady && accountsQuery.isReady && access.isReady
-    // A business name without the done mark is a batch left half done.
-    const isResuming = !!settings && !settings.setup_completed && settings.business_name !== ''
+    // The wizard marks a batch begun; a name saved from Settings does not count.
+    const isResuming = !!settings && !settings.setup_completed && settings.setup_started
 
     const run = useMutation({
         // `execute` turns a failure into the returned outcome and logs it; core's
@@ -89,6 +89,7 @@ export function useBooksSetup() {
             const updateSettings = (fields: Partial<SetupValues> & { done?: true }) =>
                 step(SETTINGS_LABEL, () =>
                     settingsCollection.update(settings.id, draft => {
+                        draft.setup_started = true
                         if (fields.business_name !== undefined) {
                             draft.business_name = fields.business_name
                         }
