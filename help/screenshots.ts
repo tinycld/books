@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
+import type { ScreenshotPlan } from '@tinycld/package-scripts/help-screenshots'
 
 // Only screens that are not obvious get a picture. The navigation overview,
 // settings and the setup wizard are self-explanatory or run once.
@@ -71,4 +72,4 @@ export default {
             target: '[data-testid="register-table"]',
         },
     ],
-}
+} satisfies ScreenshotPlan
