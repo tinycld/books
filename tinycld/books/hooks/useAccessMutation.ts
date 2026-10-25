@@ -40,7 +40,7 @@ export function useAccessMutation(person: Person) {
     const inFlight = useRef(new Set<string>())
 
     const mutation = useMutation({
-        mutationFn: async ({ writes, from }: Change) => {
+        mutationFn: async ({ writes, from, level }: Change) => {
             let failure: { error: unknown } | null = null
             try {
                 await performMutations(function* () {
@@ -67,13 +67,23 @@ export function useAccessMutation(person: Person) {
                 failure = { error }
             }
             // books_access has no realtime, so it reloads whether the writes finished or stopped part-way.
+            // A reload cut short by a concurrent sync run resolves with no data, so after a successful write
+            // the refreshed row must show the new level; one more reload covers a cut-short first attempt.
             let reloadFailure: unknown = null
             try {
                 await accessCollection.reload()
+                if (!failure && accessCollection.get(person.id)?.level !== level) {
+                    await accessCollection.reload()
+                    if (accessCollection.get(person.id)?.level !== level) {
+                        reloadFailure = new Error(
+                            'books_access reload did not return the saved level'
+                        )
+                    }
+                }
             } catch (error) {
-                log.error('books.access', error)
                 reloadFailure = error
             }
+            if (reloadFailure) log.error('books.access', reloadFailure)
             if (failure) throw failure.error
             return { reloadFailed: reloadFailure !== null, from }
         },
