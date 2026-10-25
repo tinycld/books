@@ -14,6 +14,7 @@ import { EntryForm } from './EntryForm'
 import { EntryBackLink, EntryHeader, EntryHeaderMenu } from './EntryHeader'
 import { EntryReadOnlyView } from './EntryReadOnlyView'
 import { EntryStatusBadge } from './EntryStatusBadge'
+import { ReplaceHeader } from './ReplaceHeader'
 
 function NotFound() {
     return (
@@ -57,6 +58,8 @@ interface HeldDraft {
     entryId: string
     currency: string
     initialValues: ReadyEntryDetail['initialValues']
+    // Set on a saved replacement draft: the number of the posted entry it replaces.
+    replacesNumber?: string
 }
 
 interface DraftScreenProps {
@@ -73,7 +76,7 @@ interface DraftScreenProps {
 // form is seeded once: later changes from other sessions never reach `saved`, so a Save
 // cannot delete a line the form never showed.
 function DraftScreen({ held, flipped, onSaveBusyChange, onDeleteBusyChange }: DraftScreenProps) {
-    const { entryId, currency, initialValues } = held
+    const { entryId, currency, initialValues, replacesNumber } = held
     const orgHref = useOrgHref()
     const { onBack } = useBackToEntries()
     const del = useDeleteDraft(entryId, onDeleteBusyChange)
@@ -84,17 +87,30 @@ function DraftScreen({ held, flipped, onSaveBusyChange, onDeleteBusyChange }: Dr
     }
     // The hidden form keeps its state but not its header, so the read-only view's
     // header is the only one on screen.
-    const header = (totals: LineTotals) =>
-        flipped ? null : (
+    const header = (totals: LineTotals) => {
+        if (flipped) return null
+        const menu = <EntryHeaderMenu isVisible onDeleteDraft={del.open} />
+        if (replacesNumber) {
+            return (
+                <ReplaceHeader
+                    originalNumber={replacesNumber}
+                    totals={totals}
+                    currency={currency}
+                    menu={menu}
+                />
+            )
+        }
+        return (
             <EntryHeader
                 title="Journal entry"
                 badge={<EntryStatusBadge status="draft" />}
                 bigTotal={totals.bigTotal}
                 isTooLarge={totals.isTooLarge}
                 currency={currency}
-                menu={<EntryHeaderMenu isVisible onDeleteDraft={del.open} />}
+                menu={menu}
             />
         )
+    }
     return (
         <>
             <View className="flex-1" style={flipped ? { display: 'none' } : undefined}>
@@ -103,6 +119,7 @@ function DraftScreen({ held, flipped, onSaveBusyChange, onDeleteBusyChange }: Dr
                     saved={initialValues.lines}
                     entryId={entryId}
                     currency={currency}
+                    journalNumber={replacesNumber}
                     onSaved={onSaved}
                     onCancel={onBack}
                     onBusyChange={onSaveBusyChange}
@@ -142,6 +159,7 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
             entryId: detail.entry.id,
             currency: detail.currency,
             initialValues: detail.initialValues,
+            replacesNumber: detail.replacesEntry?.number,
         })
     }
     const isReady = detail.viewState === 'ready'

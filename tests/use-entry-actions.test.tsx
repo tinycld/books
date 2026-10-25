@@ -14,6 +14,7 @@ import {
     lineStore,
     messageRefusal,
     refuseAfterMore,
+    refuseNthWrite,
     seedBooks,
 } from './accounts-form-harness'
 import { silenceLog } from './silence-log'
@@ -190,5 +191,123 @@ describe('useEntryActions.deleteDraft', () => {
 
         expect(lineIds()).toEqual(['b1'])
         expect(entryIds()).toEqual(['je_b'])
+    })
+})
+
+// reverse and voidEntry write the entry row itself. The reversal's lines are written by the
+// server when the post succeeds, so the local store never gains lines here.
+
+const REASON = 'Books are closed through 2026-09-30.'
+
+function postedEntry(id: string): BooksJournalEntries {
+    return { ...entryRow(id), status: 'posted', number: 'JE-1046', sequence: 1046 }
+}
+
+function seedPosted() {
+    seedBooks({
+        ledger: {
+            entries: [postedEntry('je_a'), entryRow('je_b')],
+            lines: [lineRow('a1', 'je_a', 0), lineRow('a2', 'je_a', 1)],
+            balances: [],
+            settings: [SETTINGS],
+        },
+    })
+}
+
+const values = { date: '2026-11-01', memo: 'Reversal of JE-1046' }
+const row = (id: string) => entryStore().toArray.find(e => e.id === id)
+
+describe('useEntryActions.reverse', () => {
+    beforeEach(seedPosted)
+
+    it('inserts a reversal draft with the dialog values and no lines, posts it, and resolves to its id', async () => {
+        const hook = await render('je_a')
+        let newId = ''
+        await act(async () => {
+            newId = await hook.result.current.reverse(values)
+        })
+
+        expect(newId).not.toBe('')
+        expect(newId).not.toBe('je_a')
+        expect(enteredWrites()).toEqual([newId, newId])
+        const created = row(newId)
+        expect(created).toMatchObject({
+            origin: 'reversal',
+            reverses: 'je_a',
+            date: values.date,
+            memo: values.memo,
+            doc_type: 'journal',
+            auto_reverse_on: '',
+            status: 'posted',
+        })
+        expect(lineIds()).toEqual(['a1', 'a2'])
+        expect(row('je_a')?.status).toBe('posted')
+    })
+
+    it('deletes the reversal draft when the post is refused and rejects with the server message', async () => {
+        const hook = await render('je_a')
+        // The insert (write 1) passes; the status update to posted (write 2) is refused.
+        refuseNthWrite(2, messageRefusal(REASON))
+        await act(async () => {
+            await expect(hook.result.current.reverse(values)).rejects.toThrow(REASON)
+        })
+
+        const order = enteredWrites()
+        expect(order).toHaveLength(3)
+        expect(new Set(order).size).toBe(1)
+        expect(entryIds()).toEqual(['je_a', 'je_b'])
+        expect(row('je_a')?.status).toBe('posted')
+        expect(leftTheScreen()).toBe(false)
+    })
+
+    it('rejects with the original refusal, not the cleanup error, when the draft delete is also refused', async () => {
+        const hook = await render('je_a')
+        // The insert (write 1) passes; the post (write 2) and the cleanup delete (write 3) are refused.
+        refuseNthWrite(2, messageRefusal(REASON))
+        refuseNthWrite(3, messageRefusal('Delete is locked.'))
+        await act(async () => {
+            await expect(hook.result.current.reverse(values)).rejects.toThrow(REASON)
+        })
+    })
+
+    it('keeps no reversal when the insert itself is refused', async () => {
+        const hook = await render('je_a')
+        refuseNthWrite(1, messageRefusal(REASON))
+        await act(async () => {
+            await expect(hook.result.current.reverse(values)).rejects.toThrow(REASON)
+        })
+        expect(entryIds()).toEqual(['je_a', 'je_b'])
+    })
+})
+
+describe('useEntryActions.voidEntry', () => {
+    beforeEach(seedPosted)
+
+    it('sets the entry status to void and touches nothing else', async () => {
+        const hook = await render('je_a')
+        await act(async () => {
+            await hook.result.current.voidEntry()
+        })
+
+        expect(enteredWrites()).toEqual(['je_a'])
+        expect(row('je_a')?.status).toBe('void')
+        expect(row('je_b')?.status).toBe('draft')
+        expect(entryIds()).toEqual(['je_a', 'je_b'])
+        expect(lineIds()).toEqual(['a1', 'a2'])
+    })
+
+    it('leaves the entry unchanged and rejects with the message when the void is refused', async () => {
+        const hook = await render('je_a')
+        refuseAfterMore(0, messageRefusal(REASON))
+        await act(async () => {
+            await expect(hook.result.current.voidEntry()).rejects.toThrow(REASON)
+        })
+        expect(row('je_a')?.status).toBe('posted')
+
+        liftRefusal()
+        await act(async () => {
+            await hook.result.current.voidEntry()
+        })
+        expect(row('je_a')?.status).toBe('void')
     })
 })

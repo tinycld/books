@@ -15,6 +15,8 @@ interface EntrySubmitProps {
     // The draft being edited and its saved lines; a new entry has neither.
     entryId?: string | null
     saved?: readonly EntryFormLine[]
+    // The posted entry a new draft replaces.
+    replaces?: string
     onSaved(id: string, outcome: SaveOutcome): void
     onCancel(): void
     // Tells the screen a save is running, so it keeps this form mounted while a post's
@@ -59,6 +61,7 @@ export function useEntrySubmit({
     currency,
     entryId = null,
     saved = [],
+    replaces,
     onSaved,
     onCancel,
     onBusyChange,
@@ -74,6 +77,7 @@ export function useEntrySubmit({
     const { saveDraft, post, isPending } = useEntrySave({
         entryId,
         saved,
+        replaces,
         currency,
         // The typed values stay; the written line ids join them so the next save updates
         // those rows instead of inserting the added lines again.

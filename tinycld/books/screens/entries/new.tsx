@@ -2,15 +2,18 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
+import { useState } from 'react'
 import { Text, View } from 'react-native'
 import { EntryForm } from '../../components/entries/EntryForm'
 import { EntryBackLink, EntryHeader } from '../../components/entries/EntryHeader'
 import { EntryStatusBadge } from '../../components/entries/EntryStatusBadge'
+import { ReplaceHeader } from '../../components/entries/ReplaceHeader'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
+import { useEntryDetail } from '../../hooks/useEntryDetail'
 import type { SaveOutcome } from '../../hooks/useEntrySubmit'
-import { newEntryDefaults } from '../../lib/entry-schema'
+import { type EntryFormValues, newEntryDefaults } from '../../lib/entry-schema'
 import { todayIso } from '../../lib/register-range'
 import { warnOnce } from '../../lib/warn-once'
 
@@ -65,9 +68,73 @@ function NewEntryScreen() {
     )
 }
 
+function OriginalNotFound() {
+    return (
+        <View testID="entry-not-found" className="flex-1 gap-2 bg-background px-4 pt-2">
+            <EntryBackLink />
+            <Text className="text-base text-foreground">This entry cannot be edited</Text>
+        </View>
+    )
+}
+
+interface HeldOriginal {
+    number: string
+    currency: string
+    initial: EntryFormValues
+}
+
+// The original is voided by the post while this screen is still up, so what the form
+// starts from is taken once; a later change to the original must not unmount it.
+function ReplaceForm({ replaces }: { replaces: string }) {
+    const detail = useEntryDetail(replaces)
+    const onSaved = useAfterSave()
+    const { onBack } = useBackToEntries()
+    const [held, setHeld] = useState<HeldOriginal | null>(null)
+    if (
+        !held &&
+        detail.viewState === 'ready' &&
+        detail.entry.status === 'posted' &&
+        detail.entry.origin !== 'void_reversal'
+    ) {
+        setHeld({
+            number: detail.entry.number,
+            currency: detail.currency,
+            // A blank id makes each copied line an insert on the new draft.
+            initial: {
+                ...detail.initialValues,
+                lines: detail.initialValues.lines.map(line => ({ ...line, id: '' })),
+            },
+        })
+    }
+    if (held) {
+        return (
+            <EntryForm
+                key={replaces}
+                initial={held.initial}
+                currency={held.currency}
+                replaces={replaces}
+                journalNumber={held.number}
+                onSaved={onSaved}
+                onCancel={onBack}
+                header={totals => (
+                    <ReplaceHeader
+                        originalNumber={held.number}
+                        totals={totals}
+                        currency={held.currency}
+                    />
+                )}
+            />
+        )
+    }
+    if (detail.viewState === 'loading') return <LoadingState />
+    return <OriginalNotFound />
+}
+
 export default function NewEntryRoute() {
     const access = useBooksAccess()
+    const { replaces } = useLocalSearchParams<{ replaces?: string }>()
     if (!access.isReady) return <LoadingState />
     if (!access.canWrite) return <NoAccess />
+    if (replaces) return <ReplaceForm key={replaces} replaces={replaces} />
     return <NewEntryScreen />
 }

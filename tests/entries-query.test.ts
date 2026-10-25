@@ -160,6 +160,22 @@ describe('entryMatchesSearch', () => {
         expect(entryMatchesSearch({ number: '', memo: '' }, term)).toBe(true)
     })
 
+    it('does not throw for an optimistic row with no number, and still matches its memo', () => {
+        const optimistic = { number: undefined, memo: 'Wages accrual' } as unknown as Parameters<
+            typeof entryMatchesSearch
+        >[0]
+        expect(entryMatchesSearch(optimistic, 'wages')).toBe(true)
+        expect(entryMatchesSearch(optimistic, 'je-1')).toBe(false)
+    })
+
+    it('does not throw for a row with no memo, and still matches its number', () => {
+        const noMemo = { number: 'JE-7', memo: undefined } as unknown as Parameters<
+            typeof entryMatchesSearch
+        >[0]
+        expect(entryMatchesSearch(noMemo, 'je-7')).toBe(true)
+        expect(entryMatchesSearch(noMemo, 'wages')).toBe(false)
+    })
+
     it('matches % and _ literally', () => {
         expect(entryMatchesSearch({ number: 'JE-1', memo: 'Bonus 50%' }, '50%')).toBe(true)
         expect(entryMatchesSearch({ number: 'JE-2', memo: 'Bonus 500' }, '50%')).toBe(false)

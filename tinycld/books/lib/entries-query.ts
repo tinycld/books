@@ -55,7 +55,9 @@ export function entryMatchesSearch(
 ): boolean {
     const term = searchTerm(search).toLowerCase()
     if (term === '') return true
-    return [entry.number, entry.memo].some(text => text.toLowerCase().includes(term))
+    // An optimistic insert has no server-assigned number until the server answers, whatever
+    // the row type says, and the list stays mounted under a screen that inserts entries.
+    return [entry.number, entry.memo].some(text => (text ?? '').toLowerCase().includes(term))
 }
 
 export type EntriesViewState = 'loading' | 'error' | 'empty' | 'no-match' | 'ready'

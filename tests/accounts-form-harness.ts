@@ -57,6 +57,8 @@ const state = {
     log: [] as string[],
     // Writes waiting for `stepWrites().next()`; null when writes are not stepped.
     steps: null as (() => void)[] | null,
+    // Refuses only the write at this position in `entered`, once, so a later write passes.
+    refuseAt: [] as { at: number; error: unknown }[],
     // Names passed to useStore, in order, so a test can see which collections a hook reads.
     requested: [] as string[],
 }
@@ -153,6 +155,7 @@ export function holdWrites() {
 export function liftRefusal() {
     state.refusal = null
     state.refuseAfter = null
+    state.refuseAt = []
     state.refusalFor = {}
     state.refuseSettings = null
     state.refuseSettingsAfter = null
@@ -166,6 +169,12 @@ export function liftRefusal() {
 // fail a later attempt without replacing the stores.
 export function refuseAfterMore(more: number, error: unknown) {
     state.refuseAfter = { after: state.entered.length + more, error }
+}
+
+// Refuses only the `nth` further write (1 is the next one) and lets every other write pass, so a
+// test can fail one step of a sequence and still see the cleanup write after it succeed.
+export function refuseNthWrite(nth: number, error: unknown) {
+    state.refuseAt.push({ at: state.entered.length + nth, error })
 }
 
 export function useStoreStub(...names: string[]) {
@@ -201,6 +210,8 @@ async function refuseSharedWrite({
     state.entered.push(...keys)
     if (state.gate) await state.gate
     await waitForStep()
+    const refusedAt = state.refuseAt.find(refusal => refusal.at === state.entered.length)
+    if (refusedAt) throw refusedAt.error
     if (state.refuseAfter && state.entered.length > state.refuseAfter.after) {
         throw state.refuseAfter.error
     }
@@ -726,6 +737,7 @@ export function seedBooks(
     state.releaseReads = []
     state.overrideDeletes = []
     state.log = []
+    state.refuseAt = []
     state.entered = []
     state.requested = []
     state.gate = null

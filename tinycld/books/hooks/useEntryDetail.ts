@@ -82,7 +82,10 @@ export function useEntryDetail(entryId: string) {
         canWrite: access.canWrite,
         currency: entry?.currency ?? 'USD',
     }
-    const relatedLoading = reversesLoading || replacesLoading || postedByLoading || voidedByLoading
+    // A replacement draft's header names the original, so it is not ready before that row is.
+    const awaitsOriginal = entry?.status === 'draft' && !!entry.replaces && !replacesEntry
+    const relatedLoading =
+        awaitsOriginal || reversesLoading || replacesLoading || postedByLoading || voidedByLoading
     // A writer must not see the read-only view while the access row is still loading.
     if (
         isLoading ||

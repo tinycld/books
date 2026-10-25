@@ -8,7 +8,14 @@ function Cell({ isWide, children }: { isWide: boolean; children: React.ReactNode
     return <View className={isWide ? 'min-w-0 flex-1' : ''}>{children}</View>
 }
 
-export function EntryHeaderFields({ isWide }: { isWide: boolean }) {
+export function EntryHeaderFields({
+    isWide,
+    journalNumber,
+}: {
+    isWide: boolean
+    // Set when editing a posted entry: the replacement keeps the original's number.
+    journalNumber?: string
+}) {
     const { control } = useFormContext<EntryFormValues>()
     const { onEdit } = useClearStaleErrors()
     return (
@@ -32,7 +39,7 @@ export function EntryHeaderFields({ isWide }: { isWide: boolean }) {
                             style={{ minHeight: 44 }}
                         >
                             <Text testID="entry-number" className="text-sm text-muted-foreground">
-                                Assigned when posted
+                                {journalNumber || 'Assigned when posted'}
                             </Text>
                         </View>
                     </View>

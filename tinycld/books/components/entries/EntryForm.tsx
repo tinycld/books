@@ -22,6 +22,8 @@ interface EntryFormProps {
     // Set when editing a saved draft; `saved` is that draft's rows.
     entryId?: string | null
     saved?: readonly EntryFormLine[]
+    replaces?: string
+    journalNumber?: string
     header(totals: LineTotals): React.ReactNode
     onSaved(id: string, outcome: SaveOutcome): void
     onCancel(): void
@@ -113,6 +115,8 @@ export function EntryForm({
     currency,
     entryId,
     saved,
+    replaces,
+    journalNumber,
     header,
     onSaved,
     onCancel,
@@ -126,6 +130,7 @@ export function EntryForm({
         currency,
         entryId,
         saved,
+        replaces,
         onSaved,
         onCancel,
         onBusyChange,
@@ -148,7 +153,7 @@ export function EntryForm({
                     <EntryErrorSummary />
                     <ScrollView className="flex-1" contentContainerClassName="gap-4 py-4">
                         <View className="px-4">
-                            <EntryHeaderFields isWide={isWide} />
+                            <EntryHeaderFields isWide={isWide} journalNumber={journalNumber} />
                         </View>
                         <Lines
                             isWide={isWide}
