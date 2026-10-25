@@ -35,6 +35,7 @@ describe('ENTRY_TYPE_LABELS', () => {
             reversal: 'Reversal',
             auto_reversal: 'Auto reversal',
             void_reversal: 'Void reversal',
+            opening_balance: 'Opening balance',
         })
     })
 })

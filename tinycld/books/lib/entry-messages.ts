@@ -20,4 +20,5 @@ export const ENTRY_TYPE_LABELS: Record<BooksJournalEntries['origin'], string> = 
     reversal: 'Reversal',
     void_reversal: 'Void reversal',
     auto_reversal: 'Auto reversal',
+    opening_balance: 'Opening balance',
 }
