@@ -81,8 +81,10 @@ export function useEntryActions(entryId: string) {
         onError: () => {},
     })
 
-    const deleteDraft = async () => {
+    // The list stays where it is after a delete (`stayPut`); the draft screen leaves.
+    const deleteDraft = async ({ stayPut = false }: { stayPut?: boolean } = {}) => {
         await deleteDraftMutation.mutateAsync()
+        if (stayPut) return
         // Popping back to the list the draft was opened from keeps one copy of it in the
         // stack; with no history (a deep link, a reload) the list replaces the draft.
         if (router.canGoBack()) router.back()
