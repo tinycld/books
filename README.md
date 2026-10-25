@@ -35,6 +35,14 @@ Help topics show screenshots from `help/images/`. The images are committed.
 pnpm exec tinycld-pkg help:screenshots [--topic <topic-id>]
 ```
 
+The command starts its own servers on a freshly seeded database, so the images
+show seed data only. Ports `E2E_PORT` and `E2E_PORT_2` (default 7200 and 7201)
+must be free: a server already listening there is reused with whatever data it
+holds. For a lane-style run, set them, for example
+`E2E_PORT=7210 E2E_PORT_2=7211 pnpm exec tinycld-pkg help:screenshots`. Do not
+run other specs first against a reused server. Seeded dates are relative to
+today, so a regeneration shifts the dates in the images.
+
 The command writes `<name>.png` (light) and `<name>.dark.png` (dark). To add a
 topic image, add an entry to `help/screenshots.ts`, run the command, and add
 `![alt text](images/<name>.png)` to the topic. Then run `pnpm run packages:generate`

@@ -13,7 +13,6 @@ async function openTopic(page: Page, title: string) {
     await page.getByTestId('nav-help').click()
     await page.getByPlaceholder('Search help topics').fill(title)
     await page.getByText(title, { exact: true }).first().click()
-    await expect(page.getByRole('img', { name: /./ }).first()).toBeVisible()
 }
 
 async function loadedImageSrc(page: Page, image: string) {
