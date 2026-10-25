@@ -1,2 +1,3 @@
 - List the helpers a screen needs (navigation back target, stamp/date formatting, test ids) in the plan at design time; the implementer otherwise adds them out of plan. — journal-entries, retro, p1-journal-entries
 - E2E tests that need a seeded list row open it through the search box (entries-search), not by scrolling a windowed list; other specs add rows dated today and push seeded rows out of view. — journal-entries, retro, p1-journal-entries
+- Give every new e2e spec a unique memo on the rows it creates and find them through `entries-search`; treat any assumption about shared state (default list contents, shared counters) as a test-isolation bug in review. — journal-entries, retro, p1-journal-entries

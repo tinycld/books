@@ -41,7 +41,7 @@ To sort, press the Date heading. Press it again to reverse the order. The newest
 
 ## See an entry
 
-To see an entry, press its row. A drawer opens with the entry, its status, its memo and all its lines. The line for this account is highlighted. The drawer is read only. To close it, press the close button.
+To see an entry, press its row. A drawer opens with the entry, its status, its memo and all its lines. The line for this account is highlighted. The drawer is read only. To close it, press the close button. To open the full entry, choose Open entry in the drawer. See [Journal entries](help://books:journal-entries).
 
 ## Parent accounts
 

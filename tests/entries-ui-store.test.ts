@@ -10,6 +10,7 @@ beforeEach(() => {
         search: '',
         range: DEFAULT_ENTRIES_RANGE,
         rowLimit: 100,
+        dialog: null,
     })
 })
 
@@ -58,5 +59,32 @@ describe('row limit reset', () => {
     it('clearFilters resets it', () => {
         store().clearFilters()
         expect(store().rowLimit).toBe(100)
+    })
+})
+
+describe('dialog', () => {
+    it('openDialog sets the target and closeDialog clears it', () => {
+        store().openDialog('void', 'e1')
+        expect(store().dialog).toEqual({ kind: 'void', entryId: 'e1' })
+        store().closeDialog()
+        expect(store().dialog).toBeNull()
+    })
+
+    it('closeDialog(target) clears the dialog only when it is that target', () => {
+        store().openDialog('reverse', 'e2')
+        store().closeDialog({ kind: 'void', entryId: 'e1' })
+        expect(store().dialog).toEqual({ kind: 'reverse', entryId: 'e2' })
+        store().closeDialog({ kind: 'void', entryId: 'e2' })
+        expect(store().dialog).toEqual({ kind: 'reverse', entryId: 'e2' })
+        store().closeDialog({ kind: 'reverse', entryId: 'e1' })
+        expect(store().dialog).toEqual({ kind: 'reverse', entryId: 'e2' })
+        store().closeDialog({ kind: 'reverse', entryId: 'e2' })
+        expect(store().dialog).toBeNull()
+    })
+
+    it('closeDialog() without a target clears unconditionally', () => {
+        store().openDialog('delete', 'e3')
+        store().closeDialog()
+        expect(store().dialog).toBeNull()
     })
 })

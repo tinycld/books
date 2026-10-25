@@ -8,6 +8,8 @@ import { ROW_OVERSCAN, useRowWindow } from '../../hooks/useRowWindow'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { ENTRY_CARD_HEIGHT, EntryCard } from './EntryCard'
 import { EntryEmptyState } from './EntryEmptyState'
+import { EntryListDialogs } from './EntryListDialogs'
+import { EntryRowMenu } from './EntryRowMenu'
 import { EntryTable } from './EntryTable'
 import { EntryToolbar } from './EntryToolbar'
 
@@ -39,8 +41,24 @@ function ErrorBody({ isVisible, onRetry }: { isVisible: boolean; onRetry: () => 
     )
 }
 
+// The menu is drawn only for a row the list holds; the row asks by id.
+function rowMenuFor(model: EntriesScreenModel) {
+    return (entryId: string) => {
+        const entry = model.entriesById.get(entryId)
+        if (!entry) return null
+        return (
+            <EntryRowMenu
+                entry={entry}
+                actions={model.menuActions(entryId)}
+                onAction={action => model.onMenuAction(action, entryId)}
+            />
+        )
+    }
+}
+
 function CardList({ model }: { model: EntriesScreenModel }) {
     const fabClearanceStyle = useFabClearanceStyle()
+    const rowMenu = rowMenuFor(model)
     const viewHeight = useWindowHeight()
     const rowWindow = useRowWindow({
         total: model.entries.length,
@@ -55,6 +73,7 @@ function CardList({ model }: { model: EntriesScreenModel }) {
                 entry={entry}
                 currency={model.currency}
                 onOpenEntry={model.onOpenEntry}
+                rowMenu={rowMenu}
             />
         ))
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -88,6 +107,7 @@ function ListBody({ isVisible, model }: { isVisible: boolean; model: EntriesScre
                 currency={model.currency}
                 onOpenEntry={model.onOpenEntry}
                 onNearEnd={model.onNearEnd}
+                rowMenu={rowMenuFor(model)}
             />
         </View>
     )
@@ -115,6 +135,7 @@ export function EntriesScreenView({ model }: { model: EntriesScreenModel }) {
                 onClearFilters={model.onClearFilters}
             />
             <ListBody isVisible={viewState === 'ready'} model={model} />
+            <EntryListDialogs />
         </View>
     )
 }
