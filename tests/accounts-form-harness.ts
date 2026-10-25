@@ -57,6 +57,8 @@ const state = {
     log: [] as string[],
     // Writes waiting for `stepWrites().next()`; null when writes are not stepped.
     steps: null as (() => void)[] | null,
+    // Refuses only the write at this position in `entered`, once, so a later write passes.
+    refuseAt: [] as { at: number; error: unknown }[],
     // Names passed to useStore, in order, so a test can see which collections a hook reads.
     requested: [] as string[],
 }
@@ -153,6 +155,7 @@ export function holdWrites() {
 export function liftRefusal() {
     state.refusal = null
     state.refuseAfter = null
+    state.refuseAt = []
     state.refusalFor = {}
     state.refuseSettings = null
     state.refuseSettingsAfter = null
@@ -160,6 +163,18 @@ export function liftRefusal() {
     state.refuseOverrides = null
     state.refuseAccess = null
     state.reloadError = null
+}
+
+// Starts refusing once `more` further writes have reached the handler, so a test can
+// fail a later attempt without replacing the stores.
+export function refuseAfterMore(more: number, error: unknown) {
+    state.refuseAfter = { after: state.entered.length + more, error }
+}
+
+// Refuses only the `nth` further write (1 is the next one) and lets every other write pass, so a
+// test can fail one step of a sequence and still see the cleanup write after it succeed.
+export function refuseNthWrite(nth: number, error: unknown) {
+    state.refuseAt.push({ at: state.entered.length + nth, error })
 }
 
 export function useStoreStub(...names: string[]) {
@@ -182,28 +197,34 @@ function local<T extends { id: string }>(name: string, initialData: T[]) {
     )
 }
 
-// The accounts collection can be told to refuse a write with the error shape
-// PocketBase rejects with, so a test can see how a server refusal is handled.
-// Passing the handlers to the local-only options (not wrapping them afterwards)
-// is what makes a write go through them instead of completing at once.
+// A write handler that can be told to refuse with the error shape PocketBase
+// rejects with, so a test can see how a server refusal is handled. Passing the
+// handlers to the local-only options (not wrapping them afterwards) is what makes
+// a write go through them instead of completing at once.
+async function refuseSharedWrite({
+    transaction,
+}: {
+    transaction: { mutations: ReadonlyArray<{ key: unknown }> }
+}) {
+    const keys = transaction.mutations.map(m => String(m.key))
+    state.entered.push(...keys)
+    if (state.gate) await state.gate
+    await waitForStep()
+    const refusedAt = state.refuseAt.find(refusal => refusal.at === state.entered.length)
+    if (refusedAt) throw refusedAt.error
+    if (state.refuseAfter && state.entered.length > state.refuseAfter.after) {
+        throw state.refuseAfter.error
+    }
+    const refusedKey = keys.find(key => key in state.refusalFor)
+    if (refusedKey !== undefined) throw state.refusalFor[refusedKey]
+    if (state.refusal) throw state.refusal
+}
+
 function accountsCollection() {
     counter += 1
-    const refuseWhenAsked = async ({
-        transaction,
-    }: {
-        transaction: { mutations: ReadonlyArray<{ key: unknown }> }
-    }) => {
-        const keys = transaction.mutations.map(m => String(m.key))
-        state.entered.push(...keys)
-        state.log.push(...keys.map(key => `account:${key}`))
-        if (state.gate) await state.gate
-        await waitForStep()
-        if (state.refuseAfter && state.entered.length > state.refuseAfter.after) {
-            throw state.refuseAfter.error
-        }
-        const refusedKey = keys.find(key => key in state.refusalFor)
-        if (refusedKey !== undefined) throw state.refusalFor[refusedKey]
-        if (state.refusal) throw state.refusal
+    const refuseWhenAsked = async (args: Parameters<typeof refuseSharedWrite>[0]) => {
+        state.log.push(...args.transaction.mutations.map(m => `account:${String(m.key)}`))
+        await refuseSharedWrite(args)
     }
     return createCollection(
         localOnlyCollectionOptions({
@@ -213,6 +234,24 @@ function accountsCollection() {
             onInsert: refuseWhenAsked,
             onUpdate: refuseWhenAsked,
             onDelete: refuseWhenAsked,
+            ...indexed,
+        })
+    )
+}
+
+// Entries and lines go through the same handler as accounts, so a save test can
+// hold, count or refuse their writes. Only a test that asks for a refusal, a
+// hold or a count sees a difference.
+function guarded<T extends { id: string }>(name: string, initialData: T[]) {
+    counter += 1
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `${name}-${counter}`,
+            getKey: (row: T) => row.id,
+            initialData,
+            onInsert: refuseSharedWrite,
+            onUpdate: refuseSharedWrite,
+            onDelete: refuseSharedWrite,
             ...indexed,
         })
     )
@@ -698,6 +737,7 @@ export function seedBooks(
     state.releaseReads = []
     state.overrideDeletes = []
     state.log = []
+    state.refuseAt = []
     state.entered = []
     state.requested = []
     state.gate = null
@@ -712,8 +752,8 @@ export function seedBooks(
               ),
         books_journal_lines: opts.linesNeverReady
             ? neverReady<BooksJournalLines>()
-            : local<BooksJournalLines>('books_journal_lines', opts.ledger?.lines ?? lines),
-        books_journal_entries: local<BooksJournalEntries>(
+            : guarded<BooksJournalLines>('books_journal_lines', opts.ledger?.lines ?? lines),
+        books_journal_entries: guarded<BooksJournalEntries>(
             'books_journal_entries',
             opts.ledger?.entries ?? []
         ),
@@ -753,11 +793,11 @@ export function accountsStore() {
 
 // Seeded collections a register test writes to after the first render.
 export function lineStore() {
-    return state.registry.books_journal_lines as ReturnType<typeof local<BooksJournalLines>>
+    return state.registry.books_journal_lines as ReturnType<typeof guarded<BooksJournalLines>>
 }
 
 export function entryStore() {
-    return state.registry.books_journal_entries as ReturnType<typeof local<BooksJournalEntries>>
+    return state.registry.books_journal_entries as ReturnType<typeof guarded<BooksJournalEntries>>
 }
 
 export function balanceStore() {

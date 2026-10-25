@@ -8,6 +8,7 @@ import {
     openChart,
     openRegister,
     PHONE,
+    settledBox,
 } from './account-register-helpers'
 
 // Journal entry creation has no UI until `p1-journal-entries`, so the register
@@ -76,7 +77,7 @@ async function createAccount(page: Page, name: string) {
 
 for (const [sizeName, size] of SIZES) {
     test.describe(`account-register: header and states (${sizeName})`, () => {
-        test('header shows the title, balances and range, and no New button', async ({ page }) => {
+        test('header shows the title, balances and range, and the New button', async ({ page }) => {
             await start(page, size)
             await openRegister(page, 'Business Checking')
 
@@ -103,9 +104,9 @@ for (const [sizeName, size] of SIZES) {
             expect(overlapX(through, opening)).toBe(0)
 
             await expect(page.getByTestId('register-back')).toBeVisible()
-            const back = await page.getByTestId('register-back').boundingBox()
+            const back = await settledBox(page.getByTestId('register-back'))
             expect(back?.height ?? 0).toBeGreaterThanOrEqual(44)
-            await expect(page.getByTestId('register-new-entry')).toHaveCount(0)
+            await expect(page.getByTestId('register-new-entry')).toBeVisible()
             await expect(page.getByTestId('register-parent-note')).toHaveCount(0)
             await expect(page.getByTestId('register-inactive')).toHaveCount(0)
             expect(await hasScrollingAncestor(page, 'register-title')).toBe(false)
@@ -156,8 +157,9 @@ for (const [sizeName, size] of SIZES) {
             await openRegister(page, 'Design Tools')
             const empty = page.getByTestId('register-empty')
             await expect(empty).toContainText('No transactions yet')
-            await expect(empty).toContainText('Transactions appear here once journal entries')
-            await expect(page.getByTestId('register-new-entry')).toHaveCount(0)
+            await expect(empty.getByText('New journal entry')).toBeVisible()
+            await expect(empty).not.toContainText('Transactions appear here once journal entries')
+            await expect(page.getByTestId('register-new-entry')).toBeVisible()
         })
 
         test('shows the loading state while journal lines are held', async ({ page }) => {
@@ -190,7 +192,7 @@ for (const [sizeName, size] of SIZES) {
                 .getByRole('alert')
                 .filter({ hasText: 'Could not load this register' })
             await expect(alert).toBeVisible()
-            const retry = await page.getByTestId('register-retry').boundingBox()
+            const retry = await settledBox(page.getByTestId('register-retry'))
             expect(retry?.height ?? 0).toBeGreaterThanOrEqual(44)
 
             await page.unroute(JOURNAL_LINES)

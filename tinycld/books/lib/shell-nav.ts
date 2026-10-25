@@ -48,7 +48,7 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         icon: FileText,
         href: 'books/entries',
         group: 'accounting',
-        available: false,
+        available: true,
     },
     {
         id: 'settings',
@@ -66,7 +66,7 @@ export const NEW_ACTIONS: NewAction[] = [
         label: 'Journal entry',
         href: 'books/entries/new',
         column: 'other',
-        available: false,
+        available: true,
     },
 ]
 
@@ -76,6 +76,13 @@ export const LIST_ENTRIES: ListEntry[] = [
         label: 'Accounts',
         description: 'Chart of accounts',
         href: 'books/accounts',
+        available: true,
+    },
+    {
+        id: 'entries',
+        label: 'Journal entries',
+        description: 'Manual entries',
+        href: 'books/entries',
         available: true,
     },
 ]
@@ -119,4 +126,10 @@ export function sidebarSections(entries: readonly SidebarEntry[]) {
 
 export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
+}
+
+// The entry form and the entry view own the bottom of the phone screen, so the
+// New button stays off them. `/entries` alone is the list, which keeps it.
+export function hidesNewFab(pathname: string): boolean {
+    return /\/books\/entries\/[^/]+\/?$/.test(pathname)
 }

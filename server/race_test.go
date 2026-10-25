@@ -62,7 +62,7 @@ func TestRace_ALineAddedWhileTheEntryPosts(t *testing.T) {
 		"entry": entry.Id, "account": env.rent.Id, "debit": 50,
 	})
 	requireRefused(t, posted(), "out of balance by 0.50")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, 150) // the racing line write restates 100 + 50
 	requireNoDrift(t, env.app)
 }
 
@@ -85,7 +85,7 @@ func TestRace_ALineDeletedWhileTheEntryPosts(t *testing.T) {
 		t.Fatalf("delete a draft line: %v", err)
 	}
 	requireRefused(t, posted(), "out of balance by 0.40")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, 100)
 	requireNoDrift(t, env.app)
 }
 
@@ -98,7 +98,7 @@ func TestRace_ALineChangedWhileTheEntryPosts(t *testing.T) {
 		t.Fatalf("change a draft line: %v", err)
 	}
 	requireRefused(t, posted(), "out of balance by 0.50")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, 150)
 	requireNoDrift(t, env.app)
 }
 

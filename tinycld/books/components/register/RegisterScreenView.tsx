@@ -4,6 +4,7 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ScrollView, Text, View } from 'react-native'
 import type { RegisterScreenModel } from '../../hooks/useRegisterScreen'
 import { useRowWindow } from '../../hooks/useRowWindow'
+import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { balanceTone } from '../../lib/register'
 import { EntryDrawer } from './EntryDrawer'
 import { CARD_HEIGHT, RegisterCard } from './RegisterCard'
@@ -84,6 +85,7 @@ function CardItem({ item, model }: { item: TableItem; model: RegisterScreenModel
 
 function CardList({ model }: { model: RegisterScreenModel }) {
     const { register, order } = model
+    const fabClearanceStyle = useFabClearanceStyle()
     const items = tableItems(register.rows, register.showOpeningRow, order)
     const viewHeight = useWindowHeight()
     const rowWindow = useRowWindow({ total: items.length, rowHeight: CARD_HEIGHT, viewHeight })
@@ -100,6 +102,7 @@ function CardList({ model }: { model: RegisterScreenModel }) {
         <ScrollView
             testID="register-cards"
             className="flex-1"
+            contentContainerStyle={fabClearanceStyle}
             onScroll={rowWindow.onScroll}
             scrollEventThrottle={16}
         >

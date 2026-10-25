@@ -1,0 +1,18 @@
+{
+    "outDir": ".",
+    "shots": [
+        { "name": "list", "url": "/a/books/entries", "ready": "entries-screen" },
+        {
+            "name": "list-empty",
+            "url": "/a/books/entries",
+            "ready": "entries-empty",
+            "emptyList": true
+        },
+        {
+            "name": "list-no-match",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "search": "zzzz-no-such"
+        }
+    ]
+}

@@ -1,10 +1,31 @@
 import { useRef, useState } from 'react'
 import { indexAt, itemTop, windowRange } from '../lib/opening-window'
 
-const OVERSCAN = 6
+export const ROW_OVERSCAN = 6
 
 type ScrollEvent = { nativeEvent: { contentOffset: { y: number } } }
 type LayoutEvent = { nativeEvent: { layout: { height: number } } }
+
+export function rowWindowBounds({
+    firstVisible,
+    total,
+    rowHeight,
+    viewHeight,
+}: {
+    firstVisible: number
+    total: number
+    rowHeight: number
+    viewHeight: number
+}) {
+    const visibleCount = Math.ceil(viewHeight / rowHeight)
+    // The upper clamp keeps the window from going empty when the list shrinks under a stale scroll position.
+    const first = Math.min(
+        Math.max(0, firstVisible - ROW_OVERSCAN),
+        Math.max(0, total - visibleCount)
+    )
+    const last = Math.min(total, first + visibleCount + ROW_OVERSCAN * 2)
+    return { first, last, topSpace: first * rowHeight, bottomSpace: (total - last) * rowHeight }
+}
 
 type RowWindowOptions = { total: number; viewHeight: number } & (
     | { rowHeight: number; heights?: undefined }
@@ -34,7 +55,7 @@ export function useRowWindow(options: RowWindowOptions) {
             scrollY: itemTop(heights, firstVisible),
             offset: 0,
             viewHeight,
-            overscan: OVERSCAN,
+            overscan: ROW_OVERSCAN,
         })
         return {
             ...range,
@@ -49,15 +70,9 @@ export function useRowWindow(options: RowWindowOptions) {
     }
 
     const height = rowHeight ?? 1
-    const visibleCount = Math.ceil(viewHeight / height)
-    const first = Math.min(Math.max(0, firstVisible - OVERSCAN), total)
-    const last = Math.min(total, first + visibleCount + OVERSCAN * 2)
     return {
         firstVisible,
-        first,
-        last,
-        topSpace: first * height,
-        bottomSpace: (total - last) * height,
+        ...rowWindowBounds({ firstVisible, total, rowHeight: height, viewHeight }),
         onScroll: (event: ScrollEvent) =>
             setFirstVisible(Math.floor(event.nativeEvent.contentOffset.y / height)),
         onLeadingLayout: () => {},

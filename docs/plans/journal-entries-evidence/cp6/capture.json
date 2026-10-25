@@ -1,0 +1,51 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new-unbalanced",
+            "url": "/a/books/entries/new",
+            "ready": "entry-screen",
+            "steps": [
+                {
+                    "fill": "entry-date",
+                    "value": "2026-10-31"
+                },
+                {
+                    "fill": "entry-auto-reverse",
+                    "value": "2026-11-01"
+                },
+                {
+                    "fill": "entry-memo",
+                    "value": "Accrue October wages"
+                },
+                {
+                    "account": 0,
+                    "label": "1000 Business Checking"
+                },
+                {
+                    "fill": "entry-line-debit-0",
+                    "value": "$400.00"
+                },
+                {
+                    "fill": "entry-line-memo-0",
+                    "value": "Office computers and van"
+                },
+                {
+                    "account": 1,
+                    "label": "3000 Owner's Equity"
+                },
+                {
+                    "fill": "entry-line-credit-1",
+                    "value": "$350.00"
+                },
+                {
+                    "fill": "entry-line-memo-1",
+                    "value": "Office computers and van"
+                },
+                {
+                    "press": "entry-post"
+                }
+            ]
+        }
+    ]
+}

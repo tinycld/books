@@ -11,6 +11,7 @@ import type { AccountRow } from '../../hooks/useAccountsQuery'
 import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
 import type { useAccountTree } from '../../hooks/useAccountTree'
 import type { VisibleRow } from '../../lib/account-tree'
+import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { useAccountsPanelStore } from '../../stores/accounts-panel-store'
 import { AccountCard } from './AccountCard'
 import { AccountPanel } from './AccountPanel'
@@ -106,6 +107,7 @@ function AccountCards({
     selection,
     menu,
 }: AccountListProps) {
+    const fabClearanceStyle = useFabClearanceStyle()
     if (!isVisible) return null
     const cards = rows.map(row => (
         <AccountCard
@@ -122,7 +124,11 @@ function AccountCards({
             menu={menu}
         />
     ))
-    return <ScrollView className="flex-1">{cards}</ScrollView>
+    return (
+        <ScrollView className="flex-1" contentContainerStyle={fabClearanceStyle}>
+            {cards}
+        </ScrollView>
+    )
 }
 
 function AccountsError({ isVisible, onRetry }: { isVisible: boolean; onRetry: () => void }) {

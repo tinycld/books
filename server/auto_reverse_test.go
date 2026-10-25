@@ -253,9 +253,10 @@ func TestPost_AutoReverseDateInTheClosedPeriodIsRefused(t *testing.T) {
 	if err := env.app.Save(e); err != nil {
 		t.Fatal(err)
 	}
+	before := draftTotal(t, env, e.Id)
 	requireRefused(t, setStatus(env.app, e.Id, statusPosted, env.users.bookkeeper.Id),
 		"closed through 2026-06-30, so the auto-reverse date must be after it")
-	requireNothingPosted(t, env.app, e.Id)
+	requireNothingPosted(t, env.app, e.Id, before)
 
 	e = reload(t, env.app, "books_journal_entries", e.Id)
 	e.Set("auto_reverse_on", "2026-07-01")
