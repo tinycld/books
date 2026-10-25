@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react-native'
-import { BookOpen, FileText, List } from 'lucide-react-native'
+import { BookOpen, FileText, List, Settings } from 'lucide-react-native'
 import type { BooksAccessState } from './access'
 
 export interface SidebarEntry {
@@ -7,7 +7,7 @@ export interface SidebarEntry {
     label: string
     icon: LucideIcon
     href: string
-    group?: 'accounting'
+    group?: 'accounting' | 'settings'
     available: boolean
 }
 
@@ -49,6 +49,14 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         href: 'books/entries',
         group: 'accounting',
         available: false,
+    },
+    {
+        id: 'settings',
+        label: 'Settings',
+        icon: Settings,
+        href: 'books/settings',
+        group: 'settings',
+        available: true,
     },
 ]
 
@@ -103,8 +111,9 @@ export function newMenuForAccess(
 
 export function sidebarSections(entries: readonly SidebarEntry[]) {
     return {
-        top: entries.filter(entry => entry.group !== 'accounting'),
+        top: entries.filter(entry => entry.group === undefined),
         accounting: entries.filter(entry => entry.group === 'accounting'),
+        end: entries.filter(entry => entry.group === 'settings'),
     }
 }
 
