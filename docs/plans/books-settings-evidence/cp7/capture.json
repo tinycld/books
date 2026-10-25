@@ -1,0 +1,123 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "accounting-empty",
+            "actions": [
+                {
+                    "waitFor": "books-settings-close-toggle"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "accounting",
+            "actions": [
+                {
+                    "waitFor": "books-settings-fiscal-month"
+                },
+                {
+                    "click": "books-settings-fiscal-month"
+                },
+                {
+                    "click": "books-settings-fiscal-month-7"
+                },
+                {
+                    "click": "books-settings-fiscal-save"
+                },
+                {
+                    "waitFor": "Saved."
+                },
+                {
+                    "waitForHidden": "Saved."
+                },
+                {
+                    "click": "books-settings-close-toggle"
+                },
+                {
+                    "waitFor": "books-settings-close-date"
+                },
+                {
+                    "fill": "books-settings-close-date",
+                    "value": "2026-09-30"
+                },
+                {
+                    "click": "books-settings-close-save"
+                },
+                {
+                    "waitFor": "Saved."
+                },
+                {
+                    "waitForHidden": "Saved."
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "accounting-reopen",
+            "actions": [
+                {
+                    "waitFor": "books-settings-close-date"
+                },
+                {
+                    "fill": "books-settings-close-date",
+                    "value": "2026-06-30"
+                },
+                {
+                    "click": "books-settings-close-save"
+                },
+                {
+                    "waitFor": "Reopen closed periods?"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "opaque": "books-settings-reopen-confirm"
+        },
+        {
+            "name": "accounting-error",
+            "actions": [
+                {
+                    "waitFor": "books-settings-close-date"
+                },
+                {
+                    "fill": "books-settings-close-date",
+                    "value": "2026-02-30"
+                },
+                {
+                    "click": "books-settings-close-save"
+                },
+                {
+                    "waitFor": "Enter a real date as YYYY-MM-DD"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "non-admin-accounting",
+            "user": "collaborator",
+            "actions": [
+                {
+                    "waitFor": "Fiscal year starts in"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        }
+    ]
+}

@@ -1,0 +1,281 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "overrides-empty",
+            "actions": [
+                {
+                    "click": "books-settings-close-toggle"
+                },
+                {
+                    "waitFor": "books-settings-close-date"
+                },
+                {
+                    "fill": "books-settings-close-date",
+                    "value": "2026-09-30"
+                },
+                {
+                    "click": "books-settings-close-save"
+                },
+                {
+                    "waitFor": "Saved."
+                },
+                {
+                    "waitForHidden": "Saved."
+                },
+                {
+                    "waitFor": "No one can post into the closed period."
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "grant-dialog",
+            "actions": [
+                {
+                    "click": "books-settings-grant"
+                },
+                {
+                    "waitFor": "books-settings-grant-dialog"
+                },
+                {
+                    "click": "books-settings-grant-user"
+                },
+                {
+                    "clickText": "Collaborator Tester"
+                },
+                {
+                    "fill": "books-settings-grant-reason",
+                    "value": "Quarter-end adjustments"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "opaque": "books-settings-grant-dialog"
+        },
+        {
+            "name": "grant-error",
+            "actions": [
+                {
+                    "click": "books-settings-grant"
+                },
+                {
+                    "waitFor": "books-settings-grant-dialog"
+                },
+                {
+                    "click": "books-settings-grant-user"
+                },
+                {
+                    "clickText": "Collaborator Tester"
+                },
+                {
+                    "fill": "books-settings-grant-reason",
+                    "value": "ab"
+                },
+                {
+                    "click": "books-settings-grant-submit"
+                },
+                {
+                    "waitFor": "Enter a reason of at least 3 characters"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "opaque": "books-settings-grant-dialog"
+        },
+        {
+            "name": "overrides-active",
+            "actions": [
+                {
+                    "click": "books-settings-grant"
+                },
+                {
+                    "waitFor": "books-settings-grant-dialog"
+                },
+                {
+                    "click": "books-settings-grant-user"
+                },
+                {
+                    "clickText": "Collaborator Tester"
+                },
+                {
+                    "fill": "books-settings-grant-reason",
+                    "value": "Quarter-end adjustments"
+                },
+                {
+                    "click": "books-settings-grant-submit"
+                },
+                {
+                    "waitForHidden": "Grant override"
+                },
+                {
+                    "waitFor": "Quarter-end adjustments"
+                },
+                {
+                    "waitFor": "Expires"
+                },
+                {
+                    "pause": 800
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "opaque": "books-settings-overrides"
+        },
+        {
+            "name": "revoke-confirm",
+            "actions": [
+                {
+                    "waitFor": "Quarter-end adjustments"
+                },
+                {
+                    "clickPrefix": "books-settings-revoke-"
+                },
+                {
+                    "waitFor": "books-settings-revoke-confirm"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "opaque": "books-settings-revoke-confirm"
+        },
+        {
+            "name": "overrides-past-open",
+            "actions": [
+                {
+                    "waitFor": "Quarter-end adjustments"
+                },
+                {
+                    "clickPrefix": "books-settings-revoke-"
+                },
+                {
+                    "click": "books-settings-revoke-confirm"
+                },
+                {
+                    "waitFor": "books-settings-history-toggle"
+                },
+                {
+                    "click": "books-settings-history-toggle"
+                },
+                {
+                    "waitFor": "Ended"
+                },
+                {
+                    "pause": 800
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "no-close-date",
+            "actions": [
+                {
+                    "click": "books-settings-close-toggle"
+                },
+                {
+                    "click": "books-settings-close-save"
+                },
+                {
+                    "click": "books-settings-reopen-confirm"
+                },
+                {
+                    "waitFor": "Saved."
+                },
+                {
+                    "waitForHidden": "Saved."
+                },
+                {
+                    "waitFor": "Set a close date to grant overrides."
+                },
+                {
+                    "pause": 800
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "override-setup-collaborator",
+            "actions": [
+                {
+                    "click": "books-settings-close-toggle"
+                },
+                {
+                    "waitFor": "books-settings-close-date"
+                },
+                {
+                    "fill": "books-settings-close-date",
+                    "value": "2026-09-30"
+                },
+                {
+                    "click": "books-settings-close-save"
+                },
+                {
+                    "waitFor": "Saved."
+                },
+                {
+                    "waitForHidden": "Saved."
+                },
+                {
+                    "click": "books-settings-grant"
+                },
+                {
+                    "click": "books-settings-grant-user"
+                },
+                {
+                    "clickText": "Collaborator Tester"
+                },
+                {
+                    "fill": "books-settings-grant-reason",
+                    "value": "Audit support"
+                },
+                {
+                    "click": "books-settings-grant-submit"
+                },
+                {
+                    "waitForHidden": "Grant override"
+                },
+                {
+                    "waitFor": "Audit support"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "widths": [1280],
+            "schemes": ["light"]
+        },
+        {
+            "name": "non-admin-accounting-override",
+            "actions": [
+                {
+                    "waitFor": "You can post into the closed period until"
+                }
+            ],
+            "url": "/a/books/settings/accounting",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "user": "collaborator"
+        }
+    ]
+}

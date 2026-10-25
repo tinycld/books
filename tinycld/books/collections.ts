@@ -91,7 +91,7 @@ export function registerCollections(
     const books_close_overrides = newCollection('books_close_overrides', {
         omitOnInsert: ['created', 'updated', 'granted_by'] as const,
         ...onDemand,
-        relations: { user: coreStores.users },
+        relations: { user: coreStores.users, granted_by: coreStores.users },
         collectionOptions: indexed,
     })
 
@@ -106,6 +106,7 @@ export function registerCollections(
     // reaches an open app on its next reload or foreground.
     const books_access = newCollection('books_access', {
         ...onDemand,
+        relations: { user: coreStores.users },
         collectionOptions: indexed,
     })
 

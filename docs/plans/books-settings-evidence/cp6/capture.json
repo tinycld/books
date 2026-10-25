@@ -1,0 +1,111 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "list-company",
+            "url": "/a/books/settings",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "actions": [
+                {
+                    "waitFor": "books-settings-company-business-name"
+                },
+                {
+                    "fill": "books-settings-company-business-name",
+                    "value": "Acme Bookkeeping LLC"
+                },
+                {
+                    "fill": "books-settings-company-tax-id",
+                    "value": "12-3456789"
+                },
+                {
+                    "fill": "books-settings-company-address",
+                    "value": "100 Main Street\nSpringfield, OR 97477"
+                },
+                {
+                    "fill": "books-settings-company-phone",
+                    "value": "(555) 010-1234"
+                },
+                {
+                    "fill": "books-settings-company-email",
+                    "value": "billing@acme.example.com"
+                },
+                {
+                    "fill": "books-settings-company-website",
+                    "value": "https://acme.example.com"
+                },
+                {
+                    "click": "books-settings-save"
+                },
+                {
+                    "waitFor": "Saved."
+                },
+                {
+                    "waitForHidden": "Saved."
+                }
+            ]
+        },
+        {
+            "name": "company-long",
+            "url": "/a/books/settings/company",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "actions": [
+                {
+                    "waitFor": "books-settings-company-business-name"
+                },
+                {
+                    "fill": "books-settings-company-business-name",
+                    "value": "Northwind Traders International Holdings & Consolidated Wholesale Distribution Partners, Limited Liability Company of the Greater Pacific Northwest Region and Affiliated Subsidiaries Worldwide In"
+                },
+                {
+                    "fill": "books-settings-company-tax-id",
+                    "value": "12-3456789 / 98-7654"
+                },
+                {
+                    "fill": "books-settings-company-address",
+                    "value": "1200 Extraordinarily Long Boulevard, Building C, Suite 4500, Floor 45\nThe Greater Metropolitan Industrial Park and Distribution Campus\nSpringfield, Oregon 97477, United States of America"
+                },
+                {
+                    "fill": "books-settings-company-phone",
+                    "value": "+1 (555) 010-9999 ext. 123456"
+                },
+                {
+                    "fill": "books-settings-company-email",
+                    "value": "accounts.payable.department.notifications@northwind-international-holdings.example.com"
+                },
+                {
+                    "fill": "books-settings-company-website",
+                    "value": "https://www.northwind-international-holdings-consolidated-wholesale.example.com/about/our-company"
+                },
+                {
+                    "click": "books-settings-save"
+                },
+                {
+                    "waitFor": "Saved."
+                },
+                {
+                    "waitForHidden": "Saved."
+                }
+            ]
+        },
+        {
+            "name": "non-admin-list",
+            "url": "/a/books/settings",
+            "user": "collaborator",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "non-admin-company",
+            "url": "/a/books/settings/company",
+            "user": "collaborator",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        }
+    ]
+}
