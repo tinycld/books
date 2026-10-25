@@ -28,6 +28,25 @@
   **found by:** implementer (self-declared, after reviewer A found the case bug)
   **checkpoint:** 2
 
+- **agreed:** checkpoint 2 and checkpoint 8 tests keep a green full e2e: `account-register-states.spec.ts:204` ('shows not found after the account is deleted elsewhere', phone) must pass.
+  **built:** unchanged. The test is intermittently red on phone in the full run (1 failure in the cp8 run, 1 in 30 repeats of the spec); the Chart of Accounts live query ends in the error state ('Could not load accounts', Retry) after `register-back`.
+  **reason:** decision and root cause outside Books that only the user can make; the user chose a separate investigation.
+  **blocker evidence:** console shows `[Live Query Error] Subset demand 'lazy-demand-77' failed: Load subset operation was aborted before its result became visible` on both pages at the delete; read from @tanstack/db 0.12.1: subset-demand-controller releaseSegment abort, collection-config-builder failDemand with no abort check, pbtsdb 2.0.3 `stopped()` at chunk-CB2ZRIRS.js:1572-1575. NOT PROVEN as the cause: instrumenting the error constructor showed both abort sites fire routinely in passing runs (58 passing pages: 1523 live-query-cleanup and 1311 stopped() constructions), and over about 340 further instrumented runs no abort ever put a live query in error; the captured errors were 24 "Source collection 'books_accounts' was manually cleaned up while live query ... depends on it" and 12 "Initial subset load failed" (ClientResponseError 400). The instrumentation may have changed timing (1 failure in 30 before, none in about 300 after).
+  **impact:** the cp8 full e2e is not green because of this test and the one below; the test is skipped by user decision only if it is still red in the final full run (the skip must be removed when the investigation finishes).
+  **unblock:** capture the error that actually enters the live query error state in a failing run, then fix in core or Books, or upstream in pbtsdb/@tanstack/db (related open PR TanStack/db#2231; no upstream issue found; latest @tanstack/db 0.15.2 unchanged in this area). core `recoverLiveQueries` only runs on a manual Retry.
+  **tracked in:** /Users/nas/code/tinycld/docs/plans/auto-helix/handoffs/books-aborted-subset-live-query-error.md
+  **found by:** cp8 full e2e run (implementer), diagnosed by a trace-instrumentation agent
+  **checkpoint:** 8
+
+- **agreed:** checkpoint 8 test bullet 5: after a void, the register of an account keeps the original and its reversal, in an already-open register (live).
+  **built:** the feature as planned. The test `journal-entries-actions.spec.ts:618` ('register: a posted entry shows, a draft does not, and a void keeps both lines', phone) was red once in a later narrow run: the register row 'Void of JE-n' was missing in an open register.
+  **reason:** decision and root cause outside Books that only the user can make; the user chose a separate investigation.
+  **blocker evidence:** from the trace: the row exists in the database (the reversal entry's two lines are posted, dated today, on the register account), the register lines query (`account=… && posted=true && date range`, newest first) made no new request after the void and its ending balance did not change, so the line never reached that query; the subscription topic was still registered. UNPROVEN mechanism: `writeReversalLines` (server/reversal.go) creates the void lines posted=false and `stampPosted` (server/posting.go:84-86) flips them to posted=true with a date in one transaction, so the register filter sees them only as an update that enters the filter; nothing in the repo says the PocketBase fork emits an event when a row enters a subscription filter (it emits a delete when a row leaves). The trace has no SSE bodies. `account-register-states.spec.ts:20-21` says live post in an open register is covered only by a unit test.
+  **impact:** a post, void or reverse done in another session may not appear in an already-open register until it reloads; the test stays as written (never reload or drop the live assertion).
+  **unblock:** capture the realtime broadcast for books_journal_lines during a void, or a Go test of the fork's subscription filter on a draft-to-posted update; then a fork change (fork/core sign-off) or a server change so the lines are created already posted=true with a date.
+  **tracked in:** /Users/nas/code/tinycld/docs/plans/auto-helix/handoffs/books-register-misses-void-lines-in-open-register.md
+  **found by:** cp8 narrow run (test writer), diagnosed from artifacts
+  **checkpoint:** 8
 
 ## Rebuttals
 - **finding:** reviewer B, cp1, capture.json (out-of-plan): "unstage it"
@@ -272,4 +291,28 @@
 - tests/e2e/journal-entries-helpers.ts (openEntriesList rewrite, holdRequests, settleFrames, createDraftEntry waits for the saved title), journal-entries-read-only.spec.ts (clickEntryRow), journal-entries-list-states.spec.ts and journal-entries-list-table.spec.ts (showSeededEntries; realtime abort in the empty-list test), tests/e2e/journal-entries-header-nav.spec.ts (new).
 - tests/e2e/helix-capture.spec.ts (git-excluded scratch): typeSearch, finalReady, menuItem, waitText.
 - docs/plans/journal-entries-evidence/cp7/: capture.json, shots, critique.md.
+
+## Checkpoint 8
+- test writer: tests/e2e/journal-entries-actions.spec.ts (edit, reverse, void; both sizes), tests/use-entry-actions.test.tsx (reverse, voidEntry), tests/entries-query.test.ts (undefined number), tests/e2e/books-sidebar-navigation.spec.ts (user-requested guard: expo-router 57.0.25 NAVIGATE reuses a same-named top route while PUSH appends; expo/expo issue 35212 describes the v4 behaviour), harness refuseNthWrite
+- implementer: components/entries/{ReverseDialog,VoidDialog,EntryReadOnlyActions,ReplaceHeader,RefusalSummary}.tsx, hooks/useReadOnlyActions.ts, useEntryActions (reverse, voidEntry), EntryReadOnlyView, new.tsx (ReplaceForm); DONE
+- test disputes: (1) the cp7 draft-edit specs asserted `entry-actions` count 0 on a posted view; the plan gives `entry-actions` to both bars (plan conflict), assertions changed to the draft actions being absent. (2) register drawer test (cp4) opened Business Checking's windowed register, which other specs fill: switched to Accounts receivable (the seed's other leg). (3) phone `openChart` landed on an entry screen after a route restore: helper handles it. (4) the near-maximum amount in the reverse-after-leave test: reversal default date is next month, outside the list range: test sets the date to today.
+- self-declared differences: Edit and Reverse navigate with router.replace (push left two entry screens); dialogs use Dialog (ConfirmDialog has no testIDs); errors via setError('root.server') and RefusalSummary; useReadOnlyActions holds the dialog state above the unmounting part; `isReversed` = posted reversal only (matches the server); a saved replacement draft keeps 'Edit JE-n', the number and the note (ReplaceHeader); a reverse that finishes after the user left does not navigate
+- gate 1: pass after fixes; check exit 0 (1748 tests), typecheck exit 0; full e2e green except the two named tests above in the runs where they failed (see Deferrals); the cp8 full e2e is NOT green because of those two named tests
+- gate 2: no INVALID shots, no BLOCKING; NOTEs in cp8/critique.md (Journal no. shown as JE-n on Edit: fixed; Close control on wide: fixed)
+- gate 3 A/B: accepted+fixed: isReversed posted rule, ReverseDialog close while pending, reverse cleanup delete masking the original refusal, entryMatchesSearch undefined fields, key={replaces}, saved replacement draft identity, navigation hijack after leaving. Fix-review: one fresh reviewer A pass over the first fix round (findings fixed); the second round (replacement header, hijack guard) had no separate review pass of its own.
+- reviewer-caught deferrals: the two named above
+
+### Cp8 rebuttals
+- **finding:** reviewer B, dialog logic (confirmReverse, confirmVoid, voidError) lives in useReadOnlyActions and is not reusable from the cp9 list menu
+  **rebutted because:** the plan assigns the reuse to checkpoint 9; recorded as the cp9 refactor input (a hook keyed by entry id).
+- **finding:** reviewer B, deleteDraft ends with router.back() so it is unsafe from the list
+  **rebutted because:** navigation after a delete is a caller concern; cp9 passes its own.
+- **finding:** reviewer B, wide action order is Void, Reverse, Edit while the spec text says Edit, Reverse, Void
+  **rebutted because:** it matches the posted-1280 reference image; entry-edit also carries a testid on wide.
+- **finding:** reviewer A, a reload or tab close between the reversal draft insert and its post leaves an orphan draft reversal
+  **rebutted because:** the server counts only posted reversals; the orphan is harmless to the rule and shows in the list.
+
+### Cp8 out-of-plan changes
+- components/entries/RefusalSummary.tsx, hooks/useReadOnlyActions.ts, components/entries/ReplaceHeader.tsx (new); EntryForm and useEntrySubmit `replaces`/`journalNumber` passthrough; lib/entries-query.ts `(text ?? '')`; tests/e2e/account-register-helpers.ts openChart; tests/accounts-form-harness.ts refuseNthWrite; tests/e2e/books-sidebar-navigation.spec.ts (user-requested, moved out of journal-entries-header-nav.spec.ts); docs/plans/journal-entries-checkpoints.md use-entry-actions test file name `.tsx`.
+- docs/plans/journal-entries-evidence/cp8/: capture.json, shots, critique.md. Handoff files for the two deferrals in /Users/nas/code/tinycld/docs/plans/auto-helix/handoffs/.
 
