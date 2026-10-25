@@ -45,7 +45,8 @@ function presetOf(date: string, fiscalStartMonth: number): OpeningPreset {
 }
 
 function defaultValues(screen: OpeningScreen, fiscalStartMonth: number): OpeningFormValues {
-    if (screen.state.kind === 'draft') {
+    // A replace seeds from the posted entry exactly as a draft seeds from itself.
+    if (screen.state.kind === 'draft' || screen.state.kind === 'replace') {
         const { date, memo } = screen.state.entry
         const amounts = amountsFromLines(
             screen.accounts,
@@ -61,7 +62,6 @@ function defaultValues(screen: OpeningScreen, fiscalStartMonth: number): Opening
             amounts,
         }
     }
-    // The replace state starts blank here; checkpoint 7 seeds it from the posted lines.
     const date = presetDate('last-fiscal-year', todayIso(), fiscalStartMonth)
     return { preset: 'last-fiscal-year', date, memo: '', amounts: {} }
 }
@@ -78,6 +78,18 @@ export function gridItems(
         { kind: 'band', band, subtotal: totals[band.group] },
         ...band.rows.map((row): GridItem => ({ kind: 'row', row, group: band.group })),
     ])
+}
+
+// Before the first save the posted entry is replaced under its own number; once a
+// draft exists the posted balances stay until it is posted.
+function noticeText(postedNumber: string, draftReplacesNumber: string) {
+    if (postedNumber !== '') {
+        return `Posting this replaces ${postedNumber} under the same number. The original is voided.`
+    }
+    if (draftReplacesNumber !== '') {
+        return `Posting this replaces ${draftReplacesNumber}. The posted balances stay until you post.`
+    }
+    return ''
 }
 
 export function useOpeningBalancesForm(screen: OpeningScreen) {
@@ -161,6 +173,7 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
     const setPostPending = useOpeningPostStore(s => s.setPostPending)
     const [entriesCollection] = useStore('books_journal_entries')
     const draft = screen.state.kind === 'draft' ? screen.state.entry : null
+    const replacing = screen.state.kind === 'replace' ? screen.state.entry : null
     const { record: replaced } = useRecord(entriesCollection, draft?.replaces)
     // A press during a write returns before React has re-rendered the buttons as
     // disabled, so only a ref can drop the second of two presses in one tick.
@@ -247,9 +260,14 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
             clearErrors('root')
             const entryId = await saveAndReturnId()
             if (entryId === null) return false
+            // Back unmounted the form during the save: the user left, so post nothing.
+            if (!isMounted.current) return false
             setPostPending(true)
             try {
                 await postMutation.mutateAsync(entryId)
+                // Leaving edit mode while the post hold is still up: otherwise the
+                // posted replacement would show the replace form again for a render.
+                screen.backToPosted()
             } catch (error) {
                 // A refusal after the user left the screen has no form to show it on.
                 const cause = error instanceof LineWriteError ? error.cause : error
@@ -320,8 +338,9 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         hasSummaryErrors: Object.keys(summaryErrors).length > 0,
         rootRef,
         hasDraft: draft !== null,
-        replacedNumber: replaced?.number ?? '',
-        hasReplaces: (draft?.replaces ?? '') !== '',
+        noticeText: noticeText(replacing?.number ?? '', replaced?.number ?? ''),
+        isReplacing: replacing !== null,
+        backToPosted: screen.backToPosted,
     }
 }
 

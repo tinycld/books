@@ -1,7 +1,6 @@
 import { useWindowWidth } from '@tinycld/core/components/workspace/useBreakpoint'
-import { type Href, router } from 'expo-router'
 import { type ReactNode, useMemo } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import { formatMoney } from '../../lib/money'
 import {
     amountsFromLines,
@@ -46,7 +45,6 @@ interface OpeningPostedViewProps {
     savedLines: SavedLine[]
     equityAccountId: string
     currency: string
-    entryHref: Href | null
 }
 
 function rowOf(row: OpeningBand['rows'][number], cents: number): PostedRow {
@@ -189,23 +187,6 @@ function PostedBandSection({
     )
 }
 
-function ViewEntryLink({ href, isVisible }: { href: Href | null; isVisible: boolean }) {
-    if (!isVisible || href === null) return null
-    return (
-        <View className="px-4 pt-3">
-            <Pressable
-                testID="opening-view-entry"
-                accessibilityRole="link"
-                onPress={() => router.push(href)}
-                className="self-start justify-center"
-                style={{ minHeight: 44 }}
-            >
-                <Text className="text-sm font-medium text-primary">View journal entry</Text>
-            </Pressable>
-        </View>
-    )
-}
-
 // Computed here, not in the screen hook, so only the posted and read-only views pay
 // for it; the form reads its own amounts.
 function usePostedBands({ bands, accounts, savedLines, equityAccountId }: OpeningPostedViewProps) {
@@ -226,7 +207,7 @@ function PostedBody({ isWide, children }: { isWide: boolean; children: ReactNode
 }
 
 export function OpeningPostedView(props: OpeningPostedViewProps) {
-    const { currency, entryHref } = props
+    const { currency } = props
     const isWide = isWideWindow(useWindowWidth())
     const { build, items } = usePostedBands(props)
     const sections = items.map(item => (
@@ -235,7 +216,6 @@ export function OpeningPostedView(props: OpeningPostedViewProps) {
     return (
         <View testID="opening-posted" className="min-h-0 flex-1">
             <ScrollView className="min-h-0 flex-1">
-                <ViewEntryLink href={entryHref} isVisible={entryHref !== null} />
                 <PostedBody isWide={isWide}>
                     <ColumnHeader isVisible={isWide} />
                     {sections}

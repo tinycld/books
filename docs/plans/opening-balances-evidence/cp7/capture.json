@@ -1,0 +1,15 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "posted",
+            "url": "/a/books/opening-balances",
+            "ready": "opening-posted-line"
+        },
+        {
+            "name": "replace",
+            "url": "/a/books/opening-balances?edit=1",
+            "ready": "opening-edit-back"
+        }
+    ]
+}

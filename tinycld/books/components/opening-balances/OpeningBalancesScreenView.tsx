@@ -7,6 +7,7 @@ import { postedLine } from '../../lib/opening-balances'
 import { OpeningBalancesHeader, type OpeningStatusBadge } from './OpeningBalancesHeader'
 import { OpeningEmptyState } from './OpeningEmptyState'
 import { OpeningFormScreen } from './OpeningFormScreen'
+import { OpeningPostedActions } from './OpeningPostedActions'
 import { OpeningPostedView } from './OpeningPostedView'
 
 const EXPLANATION =
@@ -78,7 +79,6 @@ function PostedBody({ screen, isVisible }: { screen: OpeningScreen; isVisible: b
             savedLines={screen.savedLines}
             equityAccountId={screen.equityAccount?.id ?? ''}
             currency={screen.settings?.currency ?? 'USD'}
-            entryHref={screen.entryHref}
         />
     )
 }
@@ -123,6 +123,14 @@ export function OpeningBalancesScreenView({ screen }: { screen: OpeningScreen })
                 subtitle={subtitleOf(screen)}
                 subtitleTestID={isPosted ? 'opening-posted-line' : undefined}
                 statusBadge={badgeFor(screen)}
+                actions={
+                    <OpeningPostedActions
+                        isVisible={isPostedView(screen)}
+                        entryHref={screen.entryHref}
+                        canWrite={screen.canWrite}
+                        onEdit={screen.edit}
+                    />
+                }
             />
             <LoadingBody isVisible={kind === 'loading'} />
             <ErrorBody isVisible={kind === 'error' || screen.hasLateError} onRetry={screen.retry} />

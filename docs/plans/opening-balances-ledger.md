@@ -60,6 +60,13 @@ cp 6 · the posted line shows the plain document number (the seeded prefix is em
 cp 6 · if a post is refused after the user left the screen, only a log.warn records it
 cp 6 · 'View journal entry' is hidden: Journal Entries is not available (`SIDEBAR_ENTRIES` entries.available is false); its link test must become a positive one when it ships
 
+cp 7 · replace form on phone: the date block and memo still fill the grid area at open (only the first band header shows before scrolling), the Preview bar, totals strip and action bar take the rest: a more compact date block on phone would give cards; needs a product decision
+cp 7 · the sticky band bar and the in-list band header both show 'Assets' at scroll 0 (decision since checkpoint 3); the critic called it blocking on the replace form
+cp 7 · the Posted badge stays while editing a replacement; the notice carries the meaning
+cp 7 · the replace notice reads 'Posting this replaces <number> under the same number. The original is voided.' with the plain number; the spec's JE-1046 is an example
+cp 7 · the strict disabled state of Back during a replace post is unobservable (it unmounts at once when the optimistic draft appears)
+cp 7 · offer due: add the Opening balances help topic to the website docs (CLAUDE.md)
+
 ## Out-of-plan changes
 cp 3 · tests/e2e/account-register-entry.spec.ts (earlier unit): box read replaced by offsetHeight; hooks/useRowWindow.ts additive options; opening-grid-style.ts new.
 cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collection` fields so a failing access read shows the error state instead of loading forever.
@@ -164,6 +171,20 @@ cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collectio
 - gate 3 B (conformance): accepted+fixed: dead props, nested ternary, `.map()` in returns
 - fix review: three passes; each found a real issue; last pass clean
 - out-of-plan changes: hooks/useOpeningDraftWrites.ts (`saveDraft` returns the id, `postEntry`); OpeningFormScreen (post wiring; the Files block omitted it); `lib/opening-balances.ts` (`localDayOf`, `postedLine`); `opening-grid-style.ts` (`isWideWindow`); `OpeningAccountTable` (exports `ColumnHeader`)
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 7
+- test writer: appended the `opening-balances: replace a posted entry` describe, extended tests/register.test.ts, created tests/help-opening-balances.test.ts; red for the right reason: yes (12 e2e red; the register and help unit tests red); untestable: the Journal Entries hand-off has no e2e (no screen; Go-tested in checkpoint 0); the strict `toBeDisabled` on Back during a replace post (the optimistic draft insert turns the state to draft and Back unmounts at once: asserted as absent-or-never-enabled)
+- implementer: `replace` seeding, `edit`/`backToPosted`, Edit balances, register label, help topic and links; DONE with two test disputes and two fix rounds
+- test disputes: (1) the phone run of the replace-size loop asserted the form seeded 5,000.00 while the desktop run had already replaced the entry with 6,000: the phone run now expects 6,000.00; (2) the phone register filter matched the voided original too: the live row and the Void rows are now counted apart (the register legitimately lists the voided originals)
+- self-declared differences: the entries query orders by created DESC so the newest posted entry is picked when there is no draft (fixes a flash of the original's figures after a replacement post); a successful post calls backToPosted so the route's `edit=1` does not re-enter the replace state; Back is a row (not an action-bar button) with no unsaved-changes confirm; the help text describes the real ± sign button; Edit balances is a filled primary button in the header's actions area (the reference), wrapping below the title on phone
+- gate 1: tests unedited: yes · pass (check 1148 tests; full e2e 165 passed, 9 skipped)
+- gate 2: invalid shots: none · blocking found and fixed: Edit balances placement and style (the reference has a primary button in the header); the replace form on phone had no visible card at open (Back row and notice now scroll with the date block) · notes: Design notes
+- gate 3 A (correctness): accepted+fixed: the help text claimed there is no sign button (there is the ± button); Back during a write; the replacement flash (newest posted entry); help More-menu and ± wording. noted: after Save draft in the replace state the screen is a draft and Back disappears; `post` stops after the save if the form was left mid-save and leaves the saved draft; `edit=1` stays in the URL after a refused post
+- gate 3 B (conformance): all clean; the help test widened (any dotted hostname-like token, link targets must exist, no 'no sign button', mentions ± and the More menu)
+- fix review: clean
+- out-of-plan changes: OpeningBalancesScreenView and the header (actions slot), new OpeningPostedActions.tsx; the entries query order
 - reviewer-caught deferrals: none
 - commit: see git log
 

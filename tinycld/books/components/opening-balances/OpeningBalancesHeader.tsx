@@ -1,6 +1,7 @@
 import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { ArrowLeft } from 'lucide-react-native'
+import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useBackToChart } from '../../hooks/useBackToChart'
 
@@ -14,6 +15,7 @@ interface OpeningBalancesHeaderProps {
     subtitle: { lead: string; tail: string }
     subtitleTestID?: string
     statusBadge?: OpeningStatusBadge
+    actions?: ReactNode
 }
 
 function StatusBadge({ badge }: { badge: OpeningStatusBadge | undefined }) {
@@ -61,22 +63,28 @@ export function OpeningBalancesHeader({
     subtitle,
     subtitleTestID,
     statusBadge,
+    actions,
 }: OpeningBalancesHeaderProps) {
     return (
         <View className="gap-1 border-b border-border px-4 pb-3 pt-2">
             <BackLink />
-            <View className="flex-row items-center gap-2">
-                <Text className="text-2xl font-semibold text-foreground">{title}</Text>
-                <StatusBadge badge={statusBadge} />
-                <View testID="opening-help">
-                    <HelpIcon topic="books:opening-balances" />
+            <View className="flex-row flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <View className="min-w-0 gap-1" style={{ flexGrow: 1, flexBasis: 280 }}>
+                    <View className="flex-row items-center gap-2">
+                        <Text className="text-2xl font-semibold text-foreground">{title}</Text>
+                        <StatusBadge badge={statusBadge} />
+                        <View testID="opening-help">
+                            <HelpIcon topic="books:opening-balances" />
+                        </View>
+                    </View>
+                    <View testID={subtitleTestID} className="flex-row flex-wrap">
+                        <Text className="text-sm text-muted-foreground">
+                            {subtitle.tail === '' ? subtitle.lead : `${subtitle.lead} `}
+                        </Text>
+                        <SubtitleTail tail={subtitle.tail} />
+                    </View>
                 </View>
-            </View>
-            <View testID={subtitleTestID} className="flex-row flex-wrap">
-                <Text className="text-sm text-muted-foreground">
-                    {subtitle.tail === '' ? subtitle.lead : `${subtitle.lead} `}
-                </Text>
-                <SubtitleTail tail={subtitle.tail} />
+                {actions}
             </View>
         </View>
     )

@@ -496,3 +496,10 @@ describe('balanceTone', () => {
         expect(balanceTone(12345)).toBe('text-foreground')
     })
 })
+
+describe('entryTypeLabel for opening balances', () => {
+    it('names an opening entry and leaves a manual entry unchanged', () => {
+        expect(entryTypeLabel('opening_balance', '')).toBe('Opening balances')
+        expect(entryTypeLabel('manual', '')).toBe('Journal entry')
+    })
+})

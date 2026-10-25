@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { accountItem, openChart } from './account-register-helpers'
+import { accountItem, openChart, openRegister } from './account-register-helpers'
 import {
     confirmDiscard,
     DESKTOP,
@@ -1696,4 +1696,248 @@ test.describe('opening-balances: post and posted view', () => {
         await expect(screenOf(page).getByText('Edit balances')).toHaveCount(0)
         await page.unrouteAll({ behavior: 'ignoreErrors' })
     })
+})
+
+// Checkpoint 7 (replace a posted entry, register label, help). These tests rely
+// on the entry the "post and posted view" describe left posted (file order, one
+// worker, a fresh database per run). Tests (1), (2) and (4) leave the original
+// entry untouched and run first, because they assert its original figures (5,000
+// and 1,200); test (3) then replaces it (6,000 at desktop, 7,000 at phone, which
+// seeds from the 6,000), and (5) and (6) do not depend on the figures. Each test ends with the replacement
+// posted or its draft discarded. The Journal Entries hand-off is Go-tested in
+// checkpoint 0 and has no e2e, because Journal Entries has no screen yet.
+
+async function openPosted(page: Page, size: { width: number; height: number }) {
+    await start(page, size)
+    await openChart(page)
+    const ids = await idsFromChart(page)
+    await openFromChart(page)
+    await expect(page.getByTestId('opening-status-badge')).toHaveText('Posted')
+    await expect(editBalances(page)).toBeVisible()
+    return ids
+}
+
+function editBalances(page: Page) {
+    return page.getByTestId('opening-edit-balances')
+}
+
+// The posted header line starts with the entry number (the seeded prefix is
+// empty, so it is plain digits), followed by " · ".
+async function postedNumber(page: Page) {
+    const line = page.getByTestId('opening-posted-line')
+    await expect(line).toBeVisible()
+    const match = /^((?:[A-Za-z]+-)?\d+) ·/.exec(await line.innerText())
+    if (!match) throw new Error('the posted line does not start with an entry number')
+    return match[1]
+}
+
+// "Edit balances" is a filled primary button in the header's right actions
+// area: above the first band, right of centre on a wide screen, below the
+// title when the actions wrap on a phone.
+async function expectEditButtonInHeader(page: Page) {
+    const screen = screenOf(page)
+    const button = editBalances(page)
+    const box = await button.boundingBox()
+    const screenBox = await screen.boundingBox()
+    const bandBox = await page.getByTestId('opening-band-asset').boundingBox()
+    const titleBox = await screen
+        .getByText('Opening balances', { exact: true })
+        .first()
+        .boundingBox()
+    if (!box || !screenBox || !bandBox || !titleBox) throw new Error('missing layout boxes')
+    expect(box.y + box.height).toBeLessThanOrEqual(bandBox.y)
+    if (isPhone(page)) {
+        expect(box.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height)
+    } else {
+        expect(box.x + box.width).toBeGreaterThan(screenBox.x + screenBox.width / 2)
+    }
+    const background = await button.evaluate(el => getComputedStyle(el).backgroundColor)
+    expect(background).not.toBe('rgba(0, 0, 0, 0)')
+    const screenBackground = await screen.evaluate(el => getComputedStyle(el).backgroundColor)
+    expect(background).not.toBe(screenBackground)
+}
+
+function replaceNotice(number: string) {
+    return `Posting this replaces ${number} under the same number. The original is voided.`
+}
+
+function draftNotice(number: string) {
+    return `Posting this replaces ${number}. The posted balances stay until you post.`
+}
+
+async function openReplaceForm(
+    page: Page,
+    ids: Record<string, string>,
+    seededOfficeEquipment = '5,000.00'
+) {
+    await editBalances(page).click()
+    await expect(page.getByTestId('opening-edit-back')).toBeVisible()
+    await expect(page.getByTestId('opening-status-badge')).toBeVisible()
+    await expectAmount(page, ids['Office Equipment'], seededOfficeEquipment)
+}
+
+test.describe('opening-balances: replace a posted entry', () => {
+    bothSizes(
+        '(1) Edit balances opens the form seeded from the posted lines with the replace notice and writes nothing',
+        async (page, size) => {
+            const ids = await openPosted(page, size)
+            const number = await postedNumber(page)
+            const writes = trackWrites(page)
+
+            await expectEditButtonInHeader(page)
+            await openReplaceForm(page, ids)
+            await expectAmount(page, ids['Company Card'], '1,200.00')
+            await expect(page.getByTestId('opening-notice')).toBeVisible()
+            await expect(page.getByTestId('opening-notice')).toHaveText(replaceNotice(number))
+            await expect(editBalances(page)).toHaveCount(0)
+
+            await leaveToChart(page)
+            await openFromChart(page)
+            await expectPostedView(page, ids)
+            expect(await postedNumber(page)).toBe(number)
+            expect(writes.count()).toBe(0)
+        }
+    )
+
+    bothSizes('(2) Back returns to the posted view', async (page, size) => {
+        const ids = await openPosted(page, size)
+        const number = await postedNumber(page)
+
+        await openReplaceForm(page, ids)
+        await page.getByTestId('opening-edit-back').click()
+
+        await expectPostedView(page, ids)
+        await expect(editBalances(page)).toBeVisible()
+        await expect(page.getByTestId('opening-edit-back')).toHaveCount(0)
+        await expect(page.getByTestId('opening-notice')).toHaveCount(0)
+        expect(await postedNumber(page)).toBe(number)
+    })
+
+    bothSizes(
+        '(4) Save draft keeps a replacing draft that wins over the posted entry until it is discarded',
+        async (page, size) => {
+            const ids = await openPosted(page, size)
+            const number = await postedNumber(page)
+            const writes = trackWrites(page)
+
+            await openReplaceForm(page, ids)
+            await saveAndSettle(page, writes)
+            await expect(page.getByTestId('opening-notice')).toHaveText(draftNotice(number))
+
+            await reopen(page)
+            await expect(page.getByTestId('opening-status-badge')).toHaveText('Draft')
+            await expect(page.getByTestId('opening-notice')).toHaveText(draftNotice(number))
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expect(editBalances(page)).toHaveCount(0)
+
+            await openDiscardDialog(page)
+            await confirmDiscard(page)
+            await reopen(page)
+            await expectPostedView(page, ids)
+            expect(await postedNumber(page)).toBe(number)
+        }
+    )
+
+    for (const [sizeName, size, typed, shown, seeded] of [
+        ['desktop', DESKTOP, '6,000', '$6,000.00', '5,000.00'],
+        // The form seeds from the entry the desktop run left posted at 6,000.
+        ['phone', PHONE, '7,000', '$7,000.00', '6,000.00'],
+    ] as const) {
+        test(`(3) changing Office Equipment and pressing Post replaces the entry under the same number (${sizeName})`, async ({
+            page,
+        }) => {
+            const ids = await openPosted(page, size)
+            const number = await postedNumber(page)
+
+            await openReplaceForm(page, ids, seeded)
+            await type(page, ids['Office Equipment'], typed)
+
+            // Hold the draft POST so the write stays in flight: Back must not be
+            // usable meanwhile. The draft row is inserted optimistically, which
+            // moves the screen out of the replace state, so Back is either
+            // already gone or disabled; it is never enabled. Releasing the
+            // route completes the post.
+            let release: () => void = () => {}
+            const held = new Promise<void>(resolve => {
+                release = resolve
+            })
+            await page.route(ENTRY_WRITES, async route => {
+                if (route.request().method() === 'POST') {
+                    await held
+                }
+                await route.continue()
+            })
+            await postButton(page).click()
+            await expect(saveButton(page)).toHaveText('Saving...')
+            const back = page.getByTestId('opening-edit-back')
+            await expect
+                .poll(async () => (await back.count()) === 0 || (await back.isDisabled()))
+                .toBe(true)
+            release()
+            await page.unrouteAll({ behavior: 'wait' })
+
+            await expect(editBalances(page)).toBeVisible()
+            await expect(page.getByTestId('opening-status-badge')).toHaveText('Posted')
+            await expect(postButton(page)).toHaveCount(0)
+            await expect(page.getByTestId('opening-total-assets')).toHaveText(shown)
+            await expect(figureRowOf(page, 'Office Equipment')).toContainText(shown)
+            await expect(figureRowOf(page, 'Company Card')).toContainText('$1,200.00')
+            expect(await postedNumber(page)).toBe(number)
+
+            await reopen(page)
+            await expect(page.getByTestId('opening-status-badge')).toHaveText('Posted')
+            await expect(page.getByTestId('opening-total-assets')).toHaveText(shown)
+            expect(await postedNumber(page)).toBe(number)
+        })
+    }
+
+    bothSizes(
+        '(5) the register names the opening entry "Opening balances" in the Type column',
+        async (page, size) => {
+            await start(page, size)
+            await openRegister(page, 'Office Equipment')
+            await page.getByTestId('register-range').click()
+            await page.getByRole('menuitem', { name: 'Last fiscal year', exact: true }).click()
+            await expect(page.getByTestId('register-range')).toContainText('Last fiscal year')
+
+            if (isPhone(page)) {
+                // The entry's memo can read the same, so match the card's detail
+                // line, where the type label follows " · ". Each earlier
+                // replacement (desktop, then phone) voided its predecessor, and
+                // both voided entries stay listed, marked Void.
+                const cards = page.locator('[data-testid^="register-card-"]')
+                const live = cards.filter({ hasText: /· Opening balances(?! · Void)/ })
+                await expect(live).toHaveCount(1)
+                await expect(live).toBeVisible()
+                await expect(cards.filter({ hasText: /· Opening balances · Void/ })).toHaveCount(2)
+                return
+            }
+            // The type cell holds the label and a separate Void marker.
+            const types = page.locator('[data-testid^="register-cell-type-"]')
+            const live = types.filter({ hasText: /^Opening balances$/ })
+            await expect(live).toHaveCount(1)
+            await expect(live).toBeVisible()
+            await expect(types.filter({ hasText: /^Opening balances\s*Void$/ })).toHaveCount(2)
+        }
+    )
+
+    bothSizes(
+        '(6) the header help icon opens the Opening balances help topic',
+        async (page, size) => {
+            await start(page, size)
+            await openChart(page)
+            await openFromChart(page)
+            await expect(page.getByTestId('opening-status-badge')).toHaveText('Posted')
+            const titles = page.getByText('Opening balances', { exact: true })
+            const before = await titles.count()
+            await expect(page.getByText('Save draft')).toHaveCount(0)
+
+            await page.getByTestId('opening-help').getByRole('button').click()
+
+            // The drawer adds its own title next to the screen's title, and the
+            // topic body names the Save draft action the posted view lacks.
+            await expect.poll(() => titles.count()).toBeGreaterThan(before)
+            await expect(page.getByText('Save draft').first()).toBeVisible()
+        }
+    )
 })
