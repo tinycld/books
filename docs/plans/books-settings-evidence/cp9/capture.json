@@ -1,0 +1,59 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "numbering",
+            "actions": [
+                { "waitFor": "books-settings-seq-journal" },
+                { "fill": "books-settings-seq-journal-prefix", "value": "JV-" },
+                { "fill": "books-settings-seq-journal-next", "value": "2001" },
+                { "click": "books-settings-seq-journal-save" },
+                { "waitFor": "Saved." },
+                { "waitForHidden": "Saved." },
+                { "waitFor": "Next entry: JV-2001" }
+            ],
+            "url": "/a/books/settings/numbering",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "numbering-refusal",
+            "actions": [
+                { "waitFor": "books-settings-seq-journal" },
+                { "fill": "books-settings-seq-journal-next", "value": "1" },
+                { "click": "books-settings-seq-journal-save" },
+                { "waitFor": "are already used" },
+                { "pause": 500 }
+            ],
+            "url": "/a/books/settings/numbering",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "numbering-invalid",
+            "actions": [
+                { "waitFor": "books-settings-seq-journal" },
+                { "fill": "books-settings-seq-journal-prefix", "value": "A_1" },
+                { "click": "books-settings-seq-journal-save" },
+                { "pause": 500 }
+            ],
+            "url": "/a/books/settings/numbering",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "non-admin-numbering",
+            "actions": [{ "waitFor": "books-settings-seq-journal" }],
+            "url": "/a/books/settings/numbering",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings",
+            "user": "collaborator"
+        }
+    ]
+}

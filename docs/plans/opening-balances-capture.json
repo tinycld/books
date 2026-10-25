@@ -1,0 +1,35 @@
+{
+    "outDir": "opening-balances-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "helix-mockup"
+        },
+        {
+            "name": "preview-open",
+            "url": "/a/books/helix-mockup?state=preview-open",
+            "ready": "helix-mockup"
+        },
+        {
+            "name": "blank",
+            "url": "/a/books/helix-mockup?state=blank",
+            "ready": "helix-mockup"
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "helix-mockup"
+        },
+        {
+            "name": "empty-chart",
+            "url": "/a/books/helix-mockup?state=empty-chart",
+            "ready": "helix-mockup"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "helix-mockup"
+        }
+    ]
+}

@@ -15,7 +15,8 @@
         "./sidebar": "./tinycld/books/sidebar.tsx",
         "./provider": "./tinycld/books/provider.tsx",
         "./hooks/*": "./tinycld/books/hooks/*.ts",
-        "./components/*": "./tinycld/books/components/*.tsx"
+        "./components/*": "./tinycld/books/components/*.tsx",
+        "./setup/*": "./tinycld/books/setup/*.tsx"
     },
     "scripts": {
         "typecheck": "tinycld-pkg typecheck",

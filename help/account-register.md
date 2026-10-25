@@ -7,6 +7,8 @@ order: 25
 
 The register lists the transactions of one account, oldest to newest or the other way round, with a running balance.
 
+![The register of Business Checking: one row per posted transaction with debit, credit and running balance columns.](images/account-register-1.png)
+
 ## Open a register
 
 To open a register, go to [Chart of Accounts](help://books:chart-of-accounts). Open the menu on an account row and choose View register. You need bookkeeper access to see this menu. With any access level, you can press the row to open the account panel and choose the View register button. To go back, choose Chart of Accounts at the top of the register.

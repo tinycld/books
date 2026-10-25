@@ -1,0 +1,7 @@
+- A preview of items to create shows no per-group counts or count chips; the create button carries the total — setup-wizard, human, eval p1-setup-wizard
+- FormErrorSummary renders nothing unless isEnabled (gate it on formState.isSubmitted and keep isSubmitted across values-driven resets with keepIsSubmitted); show field errors inline and only server refusals in the summary, and assert the message on screen in e2e — books-settings, retro, p1-settings
+- A form whose values come from a live row needs resetOptions keepDirtyValues, keepErrors and keepIsSubmitted, or an optimistic write that the server refuses resets the form and wipes the user's input — books-settings, retro, p1-settings
+- E2E: before clicking a select or menu that the screen disables while loading, wait for it to be enabled in the helper; a pass on rerun does not prove there is no race — help-screenshots, retro, p1-help-screenshots
+- RN-web onLayout fires only on size changes, never on position changes: measure a size that changes with the offset — opening-balances, retro, p1-opening-balances
+- State set from an async callback is not synchronous: a flag that must exist before an optimistic update needs a store set before the mutation — opening-balances, retro, p1-opening-balances
+- A watched Record form field needs defaultValue: '' — opening-balances, retro, p1-opening-balances

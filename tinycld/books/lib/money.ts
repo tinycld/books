@@ -122,6 +122,11 @@ function matchMoney(text: string, currency?: string): RegExpExecArray | null {
     return null
 }
 
+// Lets callers tell malformed text from a well-formed amount over the stored maximum.
+export function isWellFormedMoney(text: string, currency?: string): boolean {
+    return matchMoney(text.trim(), currency) !== null
+}
+
 export function parseMoney(text: string, currency?: string): number | null {
     const match = matchMoney(text.trim(), currency)
     if (!match) return null

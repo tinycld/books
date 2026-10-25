@@ -9,6 +9,7 @@ import { typeLockMessage } from '../lib/account-messages'
 import { type AccountFormValues, accountFormSchema } from '../lib/account-schema'
 import { parentChoices } from '../lib/account-tree'
 import { accountTypeDef } from '../lib/account-types'
+import { messageOnlyRefusal } from '../lib/refusal'
 import { type PanelTarget, useAccountsPanelStore } from '../stores/accounts-panel-store'
 import type { BooksAccounts } from '../types'
 import type { AccountRow } from './useAccountsQuery'
@@ -59,17 +60,6 @@ function isRetargeted(started: PanelTarget | null) {
 }
 
 const USAGE_PENDING_HINT = 'Checking whether this account is used...'
-
-// A refusal for a rule that belongs to no field (depth, inactive parent) comes
-// with a message and an empty field map.
-function messageOnlyRefusal(error: unknown): string | null {
-    const response = (error as { response?: { message?: unknown; data?: unknown } } | null)
-        ?.response
-    if (!response || typeof response.message !== 'string' || response.message === '') return null
-    const data = response.data
-    const hasFields = typeof data === 'object' && data !== null && Object.keys(data).length > 0
-    return hasFields ? null : response.message
-}
 
 function typeLockHint(usage: ReturnType<typeof useAccountUsage>) {
     return usage.isReady ? typeLockMessage(usage) : USAGE_PENDING_HINT

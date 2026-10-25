@@ -7,7 +7,6 @@ import {
     isPhone,
     openChart,
     PHONE,
-    settledBox,
 } from './account-register-helpers'
 
 // Entry points into the register from the Chart of Accounts. Journal entry
@@ -84,8 +83,10 @@ for (const [sizeName, size] of SIZES) {
 
             const button = page.getByTestId('account-panel-view-register')
             await expect(button).toBeVisible()
-            const box = await settledBox(button)
-            expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
+            // Layout height, not boundingBox: the drawer slides in, and a box read mid-slide
+            // lands on a fractional pixel (43.9999) although the layout height is 44.
+            const height = await button.evaluate(node => (node as HTMLElement).offsetHeight)
+            expect(height).toBeGreaterThanOrEqual(44)
 
             await button.click()
             await expectRegisterOpen(page, 'Business Checking')
