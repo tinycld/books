@@ -18,8 +18,7 @@ import {
 // going back) is driven through the UI; only the pre-existing ledger state is
 // seeded. The spec writes nothing. It does not cover a read-only user: the
 // seed has no read-only e2e user (unit tests cover newEntryVisible), so the
-// absence of `register-new-entry` is checked for the default writer only
-// while the registry action is unavailable. All data is read through the UI.
+// New button is checked for the default writer only. All data is read through the UI.
 
 const SIZES = [
     ['desktop', DESKTOP],
@@ -66,7 +65,7 @@ for (const [sizeName, size] of SIZES) {
             await page.getByRole('menuitem', { name: 'This fiscal year', exact: true }).click()
             await expect(page.getByTestId('register-range')).toContainText('This fiscal year')
             await expect(page.locator(ITEMS).first()).toBeVisible()
-            await expect(page.getByTestId('register-new-entry')).toHaveCount(0)
+            await expect(page.getByTestId('register-new-entry')).toBeVisible()
             if (isPhone(page)) {
                 await expect(page.locator('[data-testid^="register-card-"]').first()).toBeVisible()
                 await expect(page.locator('[data-testid^="register-row-"]')).toHaveCount(0)

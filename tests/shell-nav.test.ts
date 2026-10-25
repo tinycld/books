@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import {
     availableOnly,
+    hidesNewFab,
     isActivePath,
     isNewActionAvailable,
     LIST_ENTRIES,
@@ -37,24 +38,30 @@ describe('registries', () => {
         expect(availableOnly(items).map(i => i.id)).toEqual(['a', 'c', 'e'])
     })
 
-    it('SIDEBAR_ENTRIES has Lists and Chart of Accounts available and Journal Entries unavailable', () => {
+    it('SIDEBAR_ENTRIES has Lists and Chart of Accounts and Journal Entries available', () => {
         const byHref = (href: string) => SIDEBAR_ENTRIES.find(e => e.href === href)
         expect(byHref('books/lists')?.available).toBe(true)
         expect(byHref('books/accounts')?.available).toBe(true)
         expect(byHref('books/accounts')?.group).toBe('accounting')
-        expect(byHref('books/entries')?.available).toBe(false)
+        expect(byHref('books/entries')?.available).toBe(true)
         expect(byHref('books/entries')?.group).toBe('accounting')
     })
 
-    it('NEW_ACTIONS has an unavailable Journal entry action in the other column', () => {
+    it('NEW_ACTIONS has an available Journal entry action in the other column', () => {
         const journal = NEW_ACTIONS.find(a => a.href === 'books/entries/new')
         expect(journal?.column).toBe('other')
-        expect(journal?.available).toBe(false)
+        expect(journal?.available).toBe(true)
     })
 
     it('LIST_ENTRIES has an available Accounts entry', () => {
         const accounts = LIST_ENTRIES.find(e => e.href === 'books/accounts')
         expect(accounts?.available).toBe(true)
+    })
+
+    it('LIST_ENTRIES has an available Journal entries card', () => {
+        const entries = LIST_ENTRIES.find(e => e.href === 'books/entries')
+        expect(entries?.id).toBe('entries')
+        expect(entries?.available).toBe(true)
     })
 })
 
@@ -186,8 +193,8 @@ describe('isActivePath', () => {
 })
 
 describe('isNewActionAvailable', () => {
-    it('is false for journal-entry with the real NEW_ACTIONS today', () => {
-        expect(isNewActionAvailable('journal-entry')).toBe(false)
+    it('is true for journal-entry with the real NEW_ACTIONS', () => {
+        expect(isNewActionAvailable('journal-entry')).toBe(true)
     })
 
     it('is true for a passed list where the action is available', () => {
@@ -199,5 +206,25 @@ describe('isNewActionAvailable', () => {
     it('is false for an unknown id', () => {
         expect(isNewActionAvailable('nope', [action('journal-entry', 'other', true)])).toBe(false)
         expect(isNewActionAvailable('nope')).toBe(false)
+    })
+})
+
+describe('hidesNewFab', () => {
+    it.each([
+        '/a/acme/books/entries',
+        '/a/acme/books/entries/',
+        '/a/entries/books',
+        '/a/acme/books/accounts',
+    ])('keeps the New button on %s', path => {
+        expect(hidesNewFab(path)).toBe(false)
+    })
+
+    it.each([
+        '/a/acme/books/entries/new',
+        '/a/acme/books/entries/new/',
+        '/a/acme/books/entries/abc123',
+        '/a/acme/books/entries/abc123/',
+    ])('hides the New button on %s', path => {
+        expect(hidesNewFab(path)).toBe(true)
     })
 })

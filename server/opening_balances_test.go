@@ -169,7 +169,7 @@ func TestOpening_AClosedPeriodRefusesTheDate(t *testing.T) {
 	setCloseDate(t, env.app, "2025-12-31")
 	entry := env.opening(t, "2025-12-31", "", 5000)
 	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, env.users.bookkeeper.Id), "closed through 2025-12-31")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, 5000)
 }
 
 // (7)
@@ -198,7 +198,7 @@ func TestOpening_ALineAboveMaxAmountIsRefused(t *testing.T) {
 	if len(lines) != 2 {
 		t.Errorf("lines for the entry = %d, want the original 2", len(lines))
 	}
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, 5000)
 }
 
 // (8)
@@ -277,7 +277,7 @@ func TestOpening_TotalOverTheStoredLimitIsRefused(t *testing.T) {
 	entry := mkOpening(t, env.app, "2025-12-31", "", lines...)
 	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),
 		"largest amount Books can store (90071992547409.91)")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, maxStoredAmount)
 	if d, c := balanceOf(t, env.app, env.checking, "2025-12"); d != 0 || c != 0 {
 		t.Errorf("a refused post moved a balance: %d/%d", d, c)
 	}
@@ -292,7 +292,7 @@ func TestOpening_BalanceRowOverTheStoredLimitIsRefused(t *testing.T) {
 	entry := env.opening(t, "2025-12-31", "", 100)
 	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),
 		"Checking for 2025-12 past the largest amount Books can store (90071992547409.91)")
-	requireNothingPosted(t, env.app, entry.Id)
+	requireNothingPosted(t, env.app, entry.Id, 100)
 	if d, c := balanceOf(t, env.app, env.checking, "2025-12"); d != maxStoredAmount-50 || c != 0 {
 		t.Errorf("checking = %d/%d, want the seeded row unchanged", d, c)
 	}
