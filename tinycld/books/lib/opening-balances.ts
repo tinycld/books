@@ -398,3 +398,27 @@ export function openingScreenState(input: {
     if (posted) return { kind: input.isEditing ? 'replace' : 'posted', entry: posted }
     return { kind: 'new' }
 }
+
+// A PocketBase datetime ('YYYY-MM-DD HH:mm:ss.SSSZ', UTC) as the viewer's local
+// calendar day, 'YYYY-MM-DD'. Empty when the text is not a datetime.
+export function localDayOf(postedAt: string): string {
+    const moment = new Date(postedAt.replace(' ', 'T'))
+    if (Number.isNaN(moment.getTime())) return ''
+    const pad = (value: number) => String(value).padStart(2, '0')
+    return `${moment.getFullYear()}-${pad(moment.getMonth() + 1)}-${pad(moment.getDate())}`
+}
+
+// The posted entry's header line, built from the parts that are present, in two
+// pieces: the tail ("on Oct 24, 2025") is shown unbreakable so the year never wraps
+// alone onto a second line.
+export function postedLine(parts: {
+    number: string
+    date: string
+    postedBy: string
+    postedAt: string
+}): { lead: string; tail: string } {
+    const postedDay = dayLabel(localDayOf(parts.postedAt))
+    const by = `posted by ${parts.postedBy || 'an unknown user'}`
+    const lead = [parts.number, dayLabel(parts.date), by].filter(Boolean).join(' · ')
+    return { lead, tail: postedDay ? `on ${postedDay}` : '' }
+}

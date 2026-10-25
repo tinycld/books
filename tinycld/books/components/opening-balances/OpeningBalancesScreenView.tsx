@@ -3,9 +3,11 @@ import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Text, View } from 'react-native'
 import type { OpeningScreen } from '../../hooks/useOpeningBalancesScreen'
+import { postedLine } from '../../lib/opening-balances'
 import { OpeningBalancesHeader, type OpeningStatusBadge } from './OpeningBalancesHeader'
 import { OpeningEmptyState } from './OpeningEmptyState'
 import { OpeningFormScreen } from './OpeningFormScreen'
+import { OpeningPostedView } from './OpeningPostedView'
 
 const EXPLANATION =
     'Enter what each account held at the end of your starting date. Books posts one journal entry and balances it with Opening Balance Equity.'
@@ -65,22 +67,69 @@ function FormBody({ screen }: { screen: OpeningScreen }) {
 }
 
 const DRAFT_BADGE: OpeningStatusBadge = { label: 'Draft', tone: 'draft' }
+const POSTED_BADGE: OpeningStatusBadge = { label: 'Posted', tone: 'posted' }
+
+function PostedBody({ screen, isVisible }: { screen: OpeningScreen; isVisible: boolean }) {
+    if (!isVisible) return null
+    return (
+        <OpeningPostedView
+            bands={screen.bands}
+            accounts={screen.accounts}
+            savedLines={screen.savedLines}
+            equityAccountId={screen.equityAccount?.id ?? ''}
+            currency={screen.settings?.currency ?? 'USD'}
+            entryHref={screen.entryHref}
+        />
+    )
+}
+
+function isPostedEntry(screen: OpeningScreen) {
+    return 'entry' in screen.state && screen.state.entry.status === 'posted'
+}
+
+// The posted view stands in for the form when the entry is posted, and for a user who
+// cannot write (they see a draft as text too).
+function isPostedView(screen: OpeningScreen) {
+    const { kind } = screen.state
+    const hasEntry = kind === 'draft' || kind === 'posted' || kind === 'replace'
+    return hasEntry && (kind === 'posted' || !screen.canWrite)
+}
+
+function badgeFor(screen: OpeningScreen): OpeningStatusBadge | undefined {
+    if (isPostedEntry(screen)) return POSTED_BADGE
+    if (isPostedView(screen)) return DRAFT_BADGE
+    if (screen.state.kind === 'draft' && screen.formKey !== null) return DRAFT_BADGE
+    return undefined
+}
+
+function subtitleOf(screen: OpeningScreen) {
+    const { entry } = screen
+    if (!entry || !isPostedEntry(screen)) return { lead: EXPLANATION, tail: '' }
+    return postedLine({
+        number: entry.number,
+        date: entry.date,
+        postedBy: screen.postedBy,
+        postedAt: screen.postedAt,
+    })
+}
 
 export function OpeningBalancesScreenView({ screen }: { screen: OpeningScreen }) {
-    const kind = screen.state.kind
-    const hasDraft = kind === 'draft' && screen.formKey !== null
+    const { kind } = screen.state
+    const isPosted = isPostedEntry(screen)
     return (
         <View testID="opening-balances-screen" className="flex-1 bg-background">
             <OpeningBalancesHeader
                 title="Opening balances"
-                subtitleLine={EXPLANATION}
-                statusBadge={hasDraft ? DRAFT_BADGE : undefined}
+                subtitle={subtitleOf(screen)}
+                subtitleTestID={isPosted ? 'opening-posted-line' : undefined}
+                statusBadge={badgeFor(screen)}
             />
             <LoadingBody isVisible={kind === 'loading'} />
             <ErrorBody isVisible={kind === 'error' || screen.hasLateError} onRetry={screen.retry} />
             <NoAccessBody isVisible={kind === 'no-access'} />
             <OpeningEmptyState isVisible={kind === 'empty-chart'} />
             <NoEntryBody isVisible={kind === 'new' && !screen.canWrite} />
+            <PostedBody screen={screen} isVisible={isPostedView(screen)} />
             <FormBody screen={screen} />
         </View>
     )

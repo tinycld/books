@@ -88,7 +88,8 @@ export function useOpeningDraftWrites(screen: OpeningScreen) {
         return newId
     }
 
-    const saveDraft = async (values: OpeningFormValues) => {
+    // Resolves to the id of the entry the lines were saved into.
+    const saveDraft = async (values: OpeningFormValues): Promise<string> => {
         const build = buildOpening(screen.accounts, centsFromAmounts(values.amounts))
         const lineAccount = build.balancing ? await balancingAccountId() : ''
         const nextLines = [...build.lines, ...balancingLine(build, lineAccount)]
@@ -141,7 +142,7 @@ export function useOpeningDraftWrites(screen: OpeningScreen) {
                 writing = null
                 for (const id of diff.remove) yield linesCollection.delete(id)
             })
-            return
+            return draft.id
         }
 
         const entryId = newRecordId()
@@ -169,6 +170,15 @@ export function useOpeningDraftWrites(screen: OpeningScreen) {
                 })
             }
         })
+        return entryId
+    }
+
+    const postEntry = async (entryId: string) => {
+        await performMutations(function* () {
+            yield entriesCollection.update(entryId, d => {
+                d.status = 'posted'
+            })
+        })
     }
 
     const discardDraft = async () => {
@@ -179,5 +189,5 @@ export function useOpeningDraftWrites(screen: OpeningScreen) {
         })
     }
 
-    return { saveDraft, discardDraft }
+    return { saveDraft, postEntry, discardDraft }
 }

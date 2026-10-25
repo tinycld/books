@@ -1389,3 +1389,311 @@ test.describe('opening-balances: save draft and discard', () => {
         }
     )
 })
+
+// Checkpoint 6 (post and posted view). The REAL post happens once, in test (3):
+// an opening entry is permanent, the e2e database is shared by this file in
+// order, so every test that needs a draft or a form runs before it, and the
+// read-only test (5) runs after it. The header badge is `opening-status-badge`
+// (text Draft or Posted). "View journal entry" (`opening-view-entry`) is
+// asserted absent because SIDEBAR_ENTRIES marks `entries` as unavailable in
+// lib/shell-nav.ts; when Journal Entries ships, this assertion must become a
+// link test.
+
+function postButton(page: Page) {
+    return page.getByTestId('opening-post')
+}
+
+// The nearest ancestor of an account's name that also holds a figure is the
+// account's row or card, whatever the layout.
+function figureRowOf(page: Page, name: string) {
+    return screenOf(page)
+        .getByText(name, { exact: true })
+        .locator('xpath=ancestor::*[.//text()[contains(., "$")]][1]')
+}
+
+async function expectPostedView(page: Page, ids: Record<string, string>) {
+    const screen = screenOf(page)
+    await expect(screen).toBeVisible()
+    await expect(screen.getByText('Opening balances', { exact: true })).toBeVisible()
+    await expect(page.getByTestId('opening-status-badge')).toBeVisible()
+    await expect(page.getByTestId('opening-status-badge')).toHaveText('Posted')
+    await expect(page.getByTestId('opening-posted-line')).toBeVisible()
+    await expect(page.getByTestId('opening-posted-line')).toHaveText(
+        /(?:[A-Za-z]+-)?\d+ · [A-Z][a-z]{2} \d{1,2}, \d{4} · posted by .+ on [A-Z][a-z]{2} \d{1,2}, \d{4}/
+    )
+
+    // Amounts are text: no input of any kind in the screen.
+    await expect(screen.locator('input, textarea')).toHaveCount(0)
+    for (const group of GROUPS) {
+        await expect(page.getByTestId(`opening-band-${group}`)).toBeVisible()
+    }
+    // Only the two non-zero accounts are listed.
+    await expect(figureRowOf(page, 'Office Equipment')).toContainText('$5,000.00')
+    await expect(figureRowOf(page, 'Company Card')).toContainText('$1,200.00')
+    for (const name of ['Business Checking', 'Accounts receivable', "Owner's Equity"]) {
+        await expect(screen.getByText(name, { exact: true })).toHaveCount(0)
+        await expect(page.getByTestId(`opening-amount-${ids[name]}`)).toHaveCount(0)
+    }
+    await expect(figureRowOf(page, 'Opening Balance Equity')).toContainText('$3,800.00')
+
+    await expect(page.getByTestId('opening-total-assets')).toHaveText('$5,000.00')
+    await expect(page.getByTestId('opening-total-liabilities')).toHaveText('$1,200.00')
+    await expect(page.getByTestId('opening-total-equity')).toHaveText('$3,800.00')
+    await expect(page.getByText('Equity (including Opening Balance Equity)')).toBeVisible()
+
+    // No preview, no action bar, no form controls.
+    await expect(page.getByTestId('opening-preview')).toHaveCount(0)
+    await expect(page.getByTestId('opening-preview-toggle')).toHaveCount(0)
+    await expect(page.getByTestId('opening-actions')).toHaveCount(0)
+    await expect(page.getByTestId('opening-save')).toHaveCount(0)
+    await expect(postButton(page)).toHaveCount(0)
+    await expect(page.getByTestId('opening-date')).toHaveCount(0)
+    await expect(page.getByTestId('opening-view-entry')).toHaveCount(0)
+    await expect(screen.getByText('View journal entry')).toHaveCount(0)
+}
+
+function postedRow(page: Page, id: string) {
+    return page.getByTestId(`opening-posted-row-${id}`)
+}
+
+async function expectPostedTable(page: Page, ids: Record<string, string>) {
+    const screen = screenOf(page)
+    for (const label of ['Account', 'Detail type', 'Amount']) {
+        await expect(screen.getByText(label, { exact: true })).toBeVisible()
+    }
+    await expect(postedRow(page, ids['Office Equipment'])).toContainText('Machinery and equipment')
+    await expect(postedRow(page, ids['Company Card'])).toContainText('Credit card')
+    await expect(postedRow(page, 'balancing')).toHaveText(/^Opening Balance Equity\s*\$3,800\.00$/)
+}
+
+async function expectPostedCards(page: Page, ids: Record<string, string>) {
+    const screen = screenOf(page)
+    await expect(screen.getByText('Detail type', { exact: true })).toHaveCount(0)
+    for (const [name, typeLabel] of [
+        ['Office Equipment', 'Fixed asset'],
+        ['Company Card', 'Credit card'],
+    ]) {
+        const card = postedRow(page, ids[name])
+        await expect(card).toBeVisible()
+        const nameBox = await card.getByText(name, { exact: true }).boundingBox()
+        const typeBox = await card.getByText(typeLabel, { exact: true }).boundingBox()
+        expect(typeBox?.y ?? 0).toBeGreaterThanOrEqual((nameBox?.y ?? 0) + (nameBox?.height ?? 0))
+    }
+    await expectCardAmountsFlushRight(page, [
+        ids['Office Equipment'],
+        ids['Company Card'],
+        'balancing',
+    ])
+    await expectTailOnOneLine(page)
+    await expect(postedRow(page, 'balancing')).toHaveText(/^Opening Balance Equity\s*\$3,800\.00$/)
+}
+
+// The amount sits on the card's right side: its right edge is within the card padding
+// (8px) plus border of the card's right edge, and it starts past the card's left third,
+// so a left-aligned amount fails both.
+async function expectCardAmountsFlushRight(page: Page, rowIds: string[]) {
+    for (const id of rowIds) {
+        const card = postedRow(page, id)
+        const cardBox = await card.boundingBox()
+        const amountBox = await card.getByText(/^\$[\d,]+\.\d{2}$/).boundingBox()
+        if (!cardBox || !amountBox) throw new Error(`no boxes for posted card ${id}`)
+        expect(amountBox.x + amountBox.width).toBeGreaterThanOrEqual(cardBox.x + cardBox.width - 24)
+        expect(amountBox.x + amountBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width)
+        expect(amountBox.x).toBeGreaterThan(cardBox.x + cardBox.width / 3)
+    }
+}
+
+// 'on <date>' is one nowrap unit: its box is one text line tall, so the year never
+// wraps onto a line of its own.
+async function expectTailOnOneLine(page: Page) {
+    const tail = page.getByTestId('opening-posted-line').getByText(/^on [A-Z][a-z]{2} \d/)
+    await expect(tail).toBeVisible()
+    const { height, lineHeight } = await tail.evaluate(el => {
+        const style = getComputedStyle(el)
+        const parsed = Number.parseFloat(style.lineHeight)
+        const fallback = Number.parseFloat(style.fontSize) * 1.5
+        return {
+            height: el.getBoundingClientRect().height,
+            lineHeight: Number.isNaN(parsed) ? fallback : parsed,
+        }
+    })
+    expect(height).toBeLessThan(lineHeight * 1.6)
+}
+
+function todayLabel() {
+    const now = new Date()
+    return dayText(`${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`)
+}
+
+test.describe('opening-balances: post and posted view', () => {
+    bothSizes(
+        '(1) Post is disabled until an amount is typed and while a figure is Too large',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            await expect(postButton(page)).toBeVisible()
+            await expect(postButton(page)).toHaveText('Post')
+            await expect(postButton(page)).toBeDisabled()
+
+            await type(page, ids['Office Equipment'], '5,000')
+            await expect(postButton(page)).toBeEnabled()
+
+            await type(page, ids['Office Equipment'], '20,000,000,000,000')
+            await expect(page.getByTestId('opening-totals-problem')).toContainText('Too large')
+            await expect(postButton(page)).toBeDisabled()
+
+            await type(page, ids['Office Equipment'], '')
+            await expect(postButton(page)).toBeDisabled()
+            await leaveToChart(page)
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(2) a refused post shows the message, stays on the form and keeps the saved draft',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            await page.route(`${ENTRY_WRITES}/*`, async route => {
+                const request = route.request()
+                if (request.method() !== 'PATCH' || request.postDataJSON()?.status !== 'posted') {
+                    await route.continue()
+                    return
+                }
+                await route.fulfill({
+                    status: 400,
+                    body: JSON.stringify({
+                        message: 'Books are closed through Mar 31, 2025.',
+                        data: {},
+                    }),
+                })
+            })
+            await type(page, ids['Office Equipment'], '5,000')
+            await postButton(page).click()
+
+            const summary = page.getByTestId('opening-error-summary')
+            await expect(summary).toBeVisible()
+            await expect(summary).toContainText('Books are closed through Mar 31, 2025.')
+            await expect(screenOf(page)).toBeVisible()
+            await expect(postButton(page)).toHaveText('Post')
+            await expect(postButton(page)).toBeEnabled()
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expect(page.getByTestId('opening-status-badge')).toHaveText('Draft')
+            await page.unrouteAll({ behavior: 'wait' })
+
+            await reopen(page)
+            await expect(page.getByTestId('opening-status-badge')).toHaveText('Draft')
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await discardExistingDraft(page)
+        }
+    )
+
+    test('(3) Post shows Posting..., then the read-only posted view', async ({ page }) => {
+        const ids = await begin(page, DESKTOP)
+        let release: () => void = () => {}
+        const held = new Promise<void>(resolve => {
+            release = resolve
+        })
+        await page.route(`${ENTRY_WRITES}/*`, async route => {
+            const request = route.request()
+            if (request.method() === 'PATCH' && request.postDataJSON()?.status === 'posted') {
+                await held
+            }
+            await route.continue()
+        })
+        await type(page, ids['Office Equipment'], '5,000')
+        await type(page, ids['Company Card'], '1,200')
+        await postButton(page).click()
+
+        await expect(postButton(page)).toHaveText('Posting...')
+        await expect(postButton(page)).toBeDisabled()
+        await expect(saveButton(page)).toBeDisabled()
+        release()
+        await expect(page.getByTestId('opening-status-badge')).toHaveText('Posted')
+        await page.unrouteAll({ behavior: 'wait' })
+
+        await expectPostedView(page, ids)
+        await expectPostedTable(page, ids)
+        const line = page.getByTestId('opening-posted-line')
+        await expect(line).toHaveText(/ on [A-Z][a-z]{2} \d{1,2}, \d{4}$/)
+        await expect(line).toContainText(`on ${todayLabel()}`)
+    })
+
+    test('(4) the posted view at phone size, and when re-opened from the chart', async ({
+        page,
+    }) => {
+        await start(page, PHONE)
+        await openChart(page)
+        const ids = await idsFromChart(page)
+        await openFromChart(page)
+        await expectPostedView(page, ids)
+        await expectPostedCards(page, ids)
+
+        await leaveToChart(page)
+        await openFromChart(page)
+        await expectPostedView(page, ids)
+        await expectPostedCards(page, ids)
+        await expect(page.getByTestId('opening-totals')).toBeVisible()
+    })
+
+    test('(4b) the posted view switches between the table and cards when the window is resized', async ({
+        page,
+    }) => {
+        await start(page, DESKTOP)
+        await openChart(page)
+        const ids = await idsFromChart(page)
+        await openFromChart(page)
+        await expectPostedTable(page, ids)
+
+        await page.setViewportSize(PHONE)
+        await expectPostedCards(page, ids)
+        await expectPostedView(page, ids)
+
+        await page.setViewportSize(DESKTOP)
+        await expectPostedTable(page, ids)
+        await expectPostedView(page, ids)
+    })
+
+    test('(4c) at a narrow wide window the Amount column is reachable in the horizontal scroller', async ({
+        page,
+    }) => {
+        await start(page, { width: 800, height: 800 })
+        await openChart(page)
+        const ids = await idsFromChart(page)
+        await openFromChart(page)
+        await expectPostedView(page, ids)
+
+        const header = screenOf(page).getByText('Amount', { exact: true })
+        await header.scrollIntoViewIfNeeded()
+        await expect(header).toBeVisible()
+        const figure = postedRow(page, ids['Office Equipment']).getByText('$5,000.00')
+        await figure.scrollIntoViewIfNeeded()
+        await expect(figure).toBeVisible()
+        const box = await figure.boundingBox()
+        if (!box) throw new Error('no box for the Office Equipment amount')
+        expect(box.x).toBeGreaterThanOrEqual(0)
+        expect(box.x + box.width).toBeLessThanOrEqual(800)
+    })
+
+    test('(5) a read-only user sees the posted entry as text with no actions', async ({ page }) => {
+        await start(page, DESKTOP)
+        await openChart(page)
+        const ids = await idsFromChart(page)
+        await page.route(ACCESS, async route => {
+            const response = await route.fetch()
+            const body = await response.json()
+            const items = (body.items ?? []).map((item: Record<string, unknown>) => ({
+                ...item,
+                level: 'read_only',
+                can_read: true,
+                can_write: false,
+            }))
+            await route.fulfill({ response, json: { ...body, items } })
+        })
+        await page.reload()
+        await openFromChart(page)
+
+        await expectPostedView(page, ids)
+        await expect(page.getByRole('button', { name: 'Edit balances' })).toHaveCount(0)
+        await expect(screenOf(page).getByText('Edit balances')).toHaveCount(0)
+        await page.unrouteAll({ behavior: 'ignoreErrors' })
+    })
+})
