@@ -105,10 +105,7 @@ async function levelOf(row: Locator): Promise<Level> {
 async function chooseLevel(page: Page, email: string, level: Level) {
     const row = accessRow(page, email)
     const userId = await userIdOf(row)
-    const select = id(page, `books-settings-access-level-${userId}`)
-    // The select stays disabled until the row's access data has loaded, and a click on it then opens nothing.
-    await expect(select).toBeEnabled()
-    await select.click()
+    await id(page, `books-settings-access-level-${userId}`).click()
     await id(page, `books-settings-access-level-${userId}-${level}`).click()
     await expect(chipOf(page, userId)).toHaveText(LABELS[level])
     await expect(id(page, `books-settings-access-level-${userId}`)).toBeEnabled()
