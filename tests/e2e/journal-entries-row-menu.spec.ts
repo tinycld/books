@@ -611,11 +611,10 @@ for (const [sizeName, size] of SIZES) {
 
             await expect(page.getByText('Journal entries', { exact: true }).first()).toBeVisible()
             await page.getByText('Moving around Books', { exact: true }).first().click()
-            await expect(page.getByText(/journal entries/i).first()).toBeVisible()
-            await page
-                .getByText(/journal entries/i)
-                .first()
-                .click()
+            // A role query: the hub list behind the topic also says "Journal entries" as plain text.
+            const link = page.getByRole('link').filter({ hasText: 'Journal entries' })
+            await expect(link).toBeVisible()
+            await link.click()
 
             await expect(page.getByText('Journal entries', { exact: true }).first()).toBeVisible()
             await expect(page.getByText(/Post & new/i).first()).toBeVisible()
