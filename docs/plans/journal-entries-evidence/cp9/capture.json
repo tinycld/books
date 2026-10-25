@@ -1,0 +1,52 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "name": "row-menu",
+            "steps": [{ "waitText": "Entries seed posted" }, { "rowMenu": "Entries seed posted" }],
+            "schemes": ["light", "dark"],
+            "widths": [1280],
+            "finalReady": "entries-menu-open"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "name": "row-menu",
+            "steps": [{ "waitText": "Entries seed posted" }, { "rowMenu": "Entries seed posted" }],
+            "schemes": ["light"],
+            "widths": [390],
+            "finalReady": "entries-menu-open"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "name": "row-reverse",
+            "steps": [
+                { "waitText": "Entries seed posted" },
+                { "rowMenu": "Entries seed posted" },
+                { "menuItem": "Reverse" }
+            ],
+            "schemes": ["light"],
+            "widths": [1280],
+            "finalReady": "reverse-dialog"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "name": "help",
+            "steps": [
+                { "press": "nav-help" },
+                { "placeholder": "Search help topics", "value": "Journal entries" },
+                { "text": "Journal entries" },
+                { "waitText": "Create an entry" }
+            ],
+            "schemes": ["light"],
+            "widths": [1280]
+        }
+    ]
+}

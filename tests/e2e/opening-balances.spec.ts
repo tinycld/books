@@ -1392,10 +1392,8 @@ test.describe('opening-balances: save draft and discard', () => {
 // an opening entry is permanent, the e2e database is shared by this file in
 // order, so every test that needs a draft or a form runs before it, and the
 // read-only test (5) runs after it. The header badge is `opening-status-badge`
-// (text Draft or Posted). "View journal entry" (`opening-view-entry`) is
-// asserted absent because SIDEBAR_ENTRIES marks `entries` as unavailable in
-// lib/shell-nav.ts; when Journal Entries ships, this assertion must become a
-// link test.
+// (text Draft or Posted). "View journal entry" (`opening-view-entry`) is the
+// link to the posted entry, shown now that Journal Entries has shipped.
 
 function postButton(page: Page) {
     return page.getByTestId('opening-post')
@@ -1446,8 +1444,7 @@ async function expectPostedView(page: Page, ids: Record<string, string>) {
     await expect(page.getByTestId('opening-save')).toHaveCount(0)
     await expect(postButton(page)).toHaveCount(0)
     await expect(page.getByTestId('opening-date')).toHaveCount(0)
-    await expect(page.getByTestId('opening-view-entry')).toHaveCount(0)
-    await expect(screen.getByText('View journal entry')).toHaveCount(0)
+    await expect(page.getByTestId('opening-view-entry')).toHaveText('View journal entry')
 }
 
 function postedRow(page: Page, id: string) {
