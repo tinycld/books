@@ -122,19 +122,39 @@ export function useOpeningBalancesScreen(isEditing = false) {
     // A query error flips the state to 'error', which sets formKey to null and
     // unmounts the form, so a late error discards what the user typed. Checkpoint 5
     // keeps a mounted form alive over a late error; until then retry remounts it.
+    //
+    // Only a failed query is rebuilt, with its own source. Cleaning a healthy
+    // query is not harmless: TanStack DB's hook can keep serving the rows it held
+    // before the rebuild (its collection is full, `data` stays empty), and the
+    // settings row then reads as missing. books_access and users are read
+    // app-wide (sidebar, New menu), so they are never a source here.
     const retry = () => {
+        const failed = [
+            { collection: access.collection, isFailed: access.isError, source: undefined },
+            {
+                collection: accountsQuery.collection,
+                isFailed: accountsQuery.isError,
+                source: accountsCollection,
+            },
+            {
+                collection: entriesQuery.collection,
+                isFailed: entriesQuery.isError,
+                source: entriesCollection,
+            },
+            {
+                collection: linesQuery.collection,
+                isFailed: linesQuery.isError,
+                source: linesCollection,
+            },
+            {
+                collection: settingsQuery.collection,
+                isFailed: settingsQuery.isError || settingsMissing,
+                source: settingsCollection,
+            },
+        ].filter(item => item.isFailed)
         void recoverLiveQueries({
-            queries: [
-                access.collection,
-                accountsQuery.collection,
-                entriesQuery.collection,
-                linesQuery.collection,
-                settingsQuery.collection,
-            ],
-            // Sources lose their rows until the queries reload them, so only the
-            // collections this screen owns the reading of: books_access and users
-            // are read app-wide (sidebar, New menu) and stay out.
-            sources: [accountsCollection, entriesCollection, linesCollection, settingsCollection],
+            queries: failed.map(item => item.collection),
+            sources: failed.flatMap(item => (item.source ? [item.source] : [])),
             onError: err => log.error('books.opening-balances', err),
         })
     }

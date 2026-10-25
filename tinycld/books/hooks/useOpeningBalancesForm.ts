@@ -10,7 +10,9 @@ import {
     type OpeningGroup,
     type OpeningRow,
     presetDate,
+    previewFor,
 } from '../lib/opening-balances'
+import { problemMessage } from '../lib/opening-balances-messages'
 import {
     type OpeningFormValues,
     type OpeningPreset,
@@ -69,6 +71,9 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
     const amounts = useWatch({ control: form.control, name: 'amounts' })
     const cents = useMemo(() => centsFromAmounts(amounts), [amounts])
     const build = useMemo(() => buildOpening(screen.accounts, cents), [screen.accounts, cents])
+    const preview = useMemo(() => previewFor(screen.accounts, cents), [screen.accounts, cents])
+    const isBlocked = build.problem !== null
+    const blockMessage = problemMessage(build.problem)
     const items = useMemo(
         () =>
             gridItems(screen.bands, {
@@ -112,6 +117,11 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         form,
         cents,
         build,
+        date,
+        preview,
+        hasAmounts: build.lines.length > 0,
+        isBlocked,
+        blockMessage,
         items,
         focusNext,
         registerInput,

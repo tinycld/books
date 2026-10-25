@@ -42,6 +42,12 @@ cp 3 · the in-flow error replaces the Inactive label on wide while it shows
 cp 3 · the windowing logic is covered by unit tests only, the seed chart fits one screen and no e2e scrolls
 cp 3 · KNOWN BUG, NOT OURS: when a `books_accounts` read answers 400, the app re-requests it in a tight loop (160-350 requests in about 1.4s) instead of staying in the error state. It happens on the existing Chart of Accounts screen too, so the cause is in the shared load path (pbtsdb or @tanstack/db: a failed initial subset load is re-issued). Needs a separate look in pbtsdb/core; not changed here.
 
+cp 4 · with the preview open on phone and tablet both regions are small (grid about two rows, preview about 35% of the body); on very short windows (844x390 landscape, 390x500) the open preview has almost no height and the screen header takes much of the height. Hiding the header on short windows needs product sign-off
+cp 4 · the date block remounts when the window height crosses 600 (a soft keyboard opening on a tablet could do that): values are kept, focus may be lost
+cp 4 · the 'Too large' state of the totals strip and the preview problem text are asserted by e2e but not in any screenshot
+cp 4 · the local APP_CHROME_WIDTH uses a copy of the 260px sidebar width (core's SIDEBAR_WIDTH_DESKTOP is not exported): it drifts silently if core changes it; exporting it needs a core PR
+cp 4 · KNOWN BUG, NOT OURS: after a failed query is cleaned up and rebuilt, the @tanstack/react-db hook (0.5.5) can keep stale `data` for a healthy query that was cleaned and reloaded (a ready query with collection.size 1 and data undefined). It made Retry flaky until retry stopped cleaning healthy queries. Any screen that cleans a healthy query can hit it. Needs an upstream look (live-query-observer getSnapshot revision check).
+
 ## Out-of-plan changes
 cp 3 · tests/e2e/account-register-entry.spec.ts (earlier unit): box read replaced by offsetHeight; hooks/useRowWindow.ts additive options; opening-grid-style.ts new.
 cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collection` fields so a failing access read shows the error state instead of loading forever.
@@ -102,6 +108,21 @@ cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collectio
 - gate 3 B (conformance): accepted+fixed: a11y labels per account, duplicate INDENT and breakpoint calls, sticky mechanism comment. noted: custom MoneyInput over core TextInput (blur formatting, sign toggle, ref registry)
 - fix review: three passes; each found and fixed a real problem (stale offset, error placement); last pass clean
 - out-of-plan changes: opening-grid-style.ts (avoids a Table/Row import cycle; re-exported from the table); hooks/useRowWindow.ts (additive `heights`, `onLeadingLayout`, `firstVisible`); tests/e2e/account-register-entry.spec.ts (an earlier unit's test read a button box mid-animation, 43.99994 vs 44: now measures `offsetHeight`, the layout height an animation transform does not change)
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 4
+- test writer: appended the `opening-balances: preview and totals` describe; red for the right reason: yes (16 runs red at the missing preview/totals); untestable: none (the desktop 'rail stays in view while the body scrolls' claim is not provable with the seed chart; the tests assert only what can fail)
+- implementer: OpeningPreview, OpeningPreviewDisclosure, OpeningTotals, OpeningFormScreen (header/body/footer, rail on wide, disclosure below), form hook `preview/hasAmounts/isBlocked/blockMessage/date`; DONE through three fix rounds
+- test disputes: none against the implementer; the writer's 'toggle keeps its position when opened' over-reached the spec ("opens in place") and was replaced by assertions that the open preview is inside the viewport above the totals strip
+- self-declared differences: `aria-expanded` plus `accessibilityState`; the rail is a non-scrolling sibling instead of `web:sticky`; phone/tablet body is a stateless flex column (grid flex-1, toggle with top border, open preview in its own ScrollView capped at 35% of the body) instead of an outer ScrollView; the toggle row has no Preview chip (the chip is in the preview body); `opening-preview-total-assets` is the Assets section total; rail only at window width >= 1244 (table 560 + rail 360 + app chrome 324), below it the disclosure layout; on windows shorter than 600 the date block moves into the grid's scroll area
+- gate 1: tests unedited: yes · pass (check 1129 tests; full e2e 121 passed, 1 skipped)
+- gate 2: invalid shots: two (tablet collapsed identical to open; many-amounts without grid rows) fixed and re-captured · blocking: none in any round · notes: listed under Design notes
+- gate 3 A (correctness): accepted+fixed: preview showed wrong figures in the success tone when blocked (now problem text, no figures); nested vertical scrollers and a measured-height useState on phone (replaced by a stateless flex column); tablet widths 768-1099 had the Amount column off screen (rail threshold derived from named widths); header ternaries; subtitle 'As of ' for invalid dates; dead isBlocked/blockMessage; short windows clipped the grid and open preview (grid min floor removed, date block into the scroller); short-window and settings-retry e2e added. rebutted: capping preview rows (rail scrolls; 999 amounts is the hard limit); hasAmounts kept for checkpoint 5
+- gate 3 B (conformance): accepted+fixed: ternaries in the return, inline styles, balancing-row heuristic, window-size sources unified, shared TABLE_MIN_WIDTH
+- retry rewrite (found by a flaky checkpoint 2 test): retry rebuilt healthy queries; after cleaning a healthy settings query the TanStack DB hook kept stale `data`, leaving the screen on `error` after Retry (about 4 of 60 runs) and, via the books_access query, the no-access state. Retry now rebuilds only queries that failed (+ their own source); 40 of 40 runs pass
+- fix review: three passes; each found a real issue; last pass clean except notes
+- out-of-plan changes: lib/opening-balances-messages.ts `problemMessage`; OpeningAccountTable TABLE_MIN_WIDTH 640 to 560 (exported); useOpeningBalancesScreen retry rewrite
 - reviewer-caught deferrals: none
 - commit: see git log
 

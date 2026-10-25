@@ -17,3 +17,9 @@ export const tooManyAmountsMessage =
     'Too many amounts. Enter 999 or fewer, because the balancing line counts as one.'
 
 export const tooLargeLabel = 'Too large'
+
+export function problemMessage(problem: 'too-large' | 'too-many-lines' | null): string | null {
+    if (problem === 'too-large') return tooLargeLabel
+    if (problem === 'too-many-lines') return tooManyAmountsMessage
+    return null
+}
