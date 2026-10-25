@@ -206,7 +206,7 @@
 - fix review: seven reviewer-A passes
 
 ## Final review
-- eval: pending
+- eval: approved (human: approve, with retro memory M1 dropped; lessons, memories M2 and M3, and process items applied)
 - native: not executed in this run
 
 ## Checkpoint 1
