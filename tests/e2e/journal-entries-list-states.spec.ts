@@ -16,6 +16,7 @@ import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 // `newEntryVisible` unit test and the pure access tests, not here.
 
 const JOURNAL_ENTRIES = '**/api/collections/books_journal_entries/records*'
+const REALTIME = '**/api/realtime*'
 const SIZES = [
     ['desktop', DESKTOP],
     ['phone', PHONE],
@@ -54,6 +55,13 @@ async function openEntries(page: Page) {
     await expect(page.getByTestId('entries-screen')).toBeVisible()
 }
 
+// Other specs add entries dated today to the shared database, and the list sorts newest first,
+// so the seeded rows sink below the rows a phone mounts (the list renders a window). Every seed memo
+// starts with this text, and search reads the whole collection, so it keeps them on screen at any volume.
+async function showSeededEntries(page: Page) {
+    await page.getByTestId('entries-search').fill('Entries seed')
+}
+
 async function expectMemos(page: Page, memos: string[], count: number) {
     for (const memo of memos) {
         await expect(page.getByText(memo, { exact: true })).toHaveCount(count)
@@ -84,6 +92,7 @@ for (const [sizeName, size] of SIZES) {
             await start(page, size)
             await openEntries(page)
             await expect(page).toHaveURL(/\/a\/books\/entries$/)
+            await showSeededEntries(page)
             await expectMemos(page, ALL_MEMOS, 1)
 
             if (isPhone(page)) {
@@ -118,6 +127,7 @@ for (const [sizeName, size] of SIZES) {
         }) => {
             await start(page, size)
             await openEntries(page)
+            await showSeededEntries(page)
             await expectMemos(page, ALL_MEMOS, 1)
 
             await page.getByTestId('entries-chip-draft').click()
@@ -146,6 +156,7 @@ for (const [sizeName, size] of SIZES) {
             await page.getByTestId('entries-clear-filters').click()
             await expect(search).toHaveValue('')
             await expect(page.getByTestId('entries-no-match')).toHaveCount(0)
+            await showSeededEntries(page)
             await expectMemos(page, ALL_MEMOS, 1)
         })
 
@@ -172,6 +183,7 @@ for (const [sizeName, size] of SIZES) {
             await page.unroute(JOURNAL_ENTRIES)
             await page.getByTestId('entries-retry').click()
             await expect(error).toHaveCount(0)
+            await showSeededEntries(page)
             await expectMemos(page, ALL_MEMOS, 1)
         })
 
@@ -182,6 +194,7 @@ for (const [sizeName, size] of SIZES) {
             await openEntries(page)
             await expect(page.getByTestId('entries-range')).toContainText('This fiscal year')
 
+            await showSeededEntries(page)
             await chooseRange(page, 'All dates')
             await expectMemos(page, ALL_MEMOS, 1)
 
@@ -192,11 +205,15 @@ for (const [sizeName, size] of SIZES) {
 
             await page.getByTestId('entries-clear-filters').click()
             await expect(page.getByTestId('entries-range')).toContainText('This fiscal year')
+            await showSeededEntries(page)
             await expectMemos(page, ALL_MEMOS, 1)
         })
 
         test('an empty list response shows the none state with a New button', async ({ page }) => {
             await start(page, size)
+            // Specs running in parallel create entries in this database, and the realtime stream
+            // would file those rows into the list under the faked empty response.
+            await page.route(REALTIME, route => route.abort())
             await page.route(JOURNAL_ENTRIES, route =>
                 route.fulfill({
                     status: 200,

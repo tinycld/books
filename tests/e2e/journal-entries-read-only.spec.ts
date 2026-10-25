@@ -68,9 +68,16 @@ function entryRow(page: Page, memo: string): Locator {
         .first()
 }
 
+// The list is windowed and newest first, so once other specs have created many
+// entries a seeded one may sit outside the rendered rows; search finds it.
+async function clickEntryRow(page: Page, memo: string) {
+    await page.getByTestId('entries-search').fill(memo)
+    await entryRow(page, memo).click()
+}
+
 async function openEntry(page: Page, memo: string) {
     await openEntries(page)
-    await entryRow(page, memo).click()
+    await clickEntryRow(page, memo)
     await expect(page.getByTestId('entry-read-only')).toBeVisible()
 }
 
@@ -156,7 +163,7 @@ for (const [sizeName, size] of SIZES) {
                 Object.assign(window, { __entrySeen: seen })
             }, SEED_POSTER)
 
-            await entryRow(page, ENTRIES_SEED.posted).click()
+            await clickEntryRow(page, ENTRIES_SEED.posted)
             await expect(page.getByTestId('entry-not-found')).toHaveCount(0)
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
             await expect(page.getByTestId('entry-line-0')).toBeVisible()
@@ -196,7 +203,7 @@ for (const [sizeName, size] of SIZES) {
                 }).observe(document.body, { subtree: true, childList: true, attributes: true })
                 Object.assign(window, { __entrySeen: seen })
             })
-            await entryRow(page, ENTRIES_SEED.reversed).click()
+            await clickEntryRow(page, ENTRIES_SEED.reversed)
             await expect(page.getByTestId('entry-link-reversed-by')).toBeVisible()
             const seen = await page.evaluate(
                 () => (window as unknown as { __entrySeen: Record<string, boolean> }).__entrySeen
@@ -224,7 +231,7 @@ for (const [sizeName, size] of SIZES) {
                 })
                 Object.assign(window, { __entrySeen: seen })
             })
-            await entryRow(page, ENTRIES_SEED.auto).click()
+            await clickEntryRow(page, ENTRIES_SEED.auto)
             await expect(page.getByTestId('entry-auto-reverse')).toContainText('Will reverse on')
             const seen = await page.evaluate(
                 () => (window as unknown as { __entrySeen: Record<string, boolean> }).__entrySeen

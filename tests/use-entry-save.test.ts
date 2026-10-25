@@ -277,6 +277,50 @@ describe('useEntrySave: existing draft', () => {
     })
 })
 
+describe('useEntrySave: existing draft, saved twice on one mount', () => {
+    beforeEach(() => {
+        seedBooks({
+            ledger: {
+                lines: SAVED_ROWS,
+                entries: [savedEntry],
+                balances: [],
+                settings: [SETTINGS],
+            },
+        })
+    })
+
+    it('the second save writes no insert and no delete for the line the first one added', async () => {
+        // The `saved` prop stays as the form was seeded, and the form still sends the
+        // added line with a blank id, as it does after a save.
+        const hook = renderSave({ entryId: 'je_draft', saved: SAVED_FORM })
+        const next = values([
+            ...SAVED_FORM,
+            line({ account: EQUITY, credit: '1.00', memo: 'added' }),
+        ])
+        let firstId = ''
+        await act(async () => {
+            firstId = await hook.result.current.saveDraft(next)
+        })
+        const idsAfterFirst = lines().map(l => l.id)
+        expect(idsAfterFirst).toHaveLength(4)
+        const writesAfterFirst = enteredWrites().length
+
+        let secondId = ''
+        await act(async () => {
+            secondId = await hook.result.current.saveDraft(next)
+        })
+
+        expect(secondId).toBe(firstId)
+        expect(entries()).toHaveLength(1)
+        expect(lines().map(l => l.id)).toEqual(idsAfterFirst)
+        const secondWrites = enteredWrites().slice(writesAfterFirst)
+        expect(secondWrites.filter(id => !idsAfterFirst.includes(id) && id !== 'je_draft')).toEqual(
+            []
+        )
+        expect(lines().filter(l => l.memo === 'added')).toHaveLength(1)
+    })
+})
+
 describe('useEntrySave: refusals', () => {
     it('keeps the first line when the second line insert is refused, and a retry updates the same entry', async () => {
         const message = 'Line 2: account Old is inactive.'

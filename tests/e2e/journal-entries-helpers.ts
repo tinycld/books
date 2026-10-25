@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page, type Request } from '@playwright/test'
 import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 
 // Shared by the journal-entries e2e specs. Entries are made by driving the form,
@@ -30,25 +30,30 @@ export const ACCOUNT_LABELS = {
 
 // From the Books landing (desktop sidebar, phone Lists hub) to the entries list.
 export async function openEntriesList(page: Page) {
-    if (isPhone(page)) {
-        // A fresh page may reopen Books at its last route instead of the hub.
-        const hubCard = page.getByTestId('books-list-card-entries')
-        const entries = page.getByTestId('entries-screen')
-        const back = page.getByTestId('entry-back')
-        await hubCard.or(entries).or(back).first().waitFor()
-        if (await back.isVisible()) {
-            await back.click()
-            await hubCard.or(entries).first().waitFor()
-        }
-        if (!(await entries.isVisible())) await hubCard.click()
-    } else {
-        const item = page.getByTestId('books-nav-entries')
-        const toggle = page.getByTestId('books-nav-accounting-toggle')
-        await toggle.waitFor({ state: 'attached' })
-        if (!(await item.isVisible())) await toggle.click()
-        await item.click()
+    // A fresh page may reopen Books at its last route (the list, or an entry),
+    // and pressing the nav item over either would stack a second screen.
+    const entries = page.getByTestId('entries-screen')
+    const back = page.getByTestId('entry-back')
+    const listCard = page.getByTestId('books-list-card-entries')
+    const navItem = isPhone(page) ? listCard : page.getByTestId('books-nav-entries')
+    const toggle = page.getByTestId('books-nav-accounting-toggle')
+    // Wait on a screen, never on the desktop sidebar toggle: it shows on every Books route,
+    // so it cannot say which screen a lazy route is about to mount. The Lists hub keeps its
+    // cards mounted but hidden on desktop, so there its attached card is the landing signal.
+    await expect(entries.or(back).or(listCard).first()).toBeAttached()
+    if (!(await listCard.count())) await expect(entries.or(back).first()).toBeVisible()
+    if (await entries.isVisible()) return
+    if (await back.isVisible()) {
+        await back.click()
+        await expect(entries).toBeVisible()
+        return
     }
-    await expect(page.getByTestId('entries-screen')).toBeVisible()
+    if (!isPhone(page)) {
+        await expect(toggle).toBeVisible()
+        if (!(await navItem.isVisible())) await toggle.click()
+    }
+    await navItem.click()
+    await expect(entries).toBeVisible()
 }
 
 // Books must already be open (login + navigateToPackage). Presses New journal
@@ -99,5 +104,52 @@ export async function createDraftEntry(page: Page, entry: EntryInput): Promise<v
     await openNewEntry(page)
     await fillEntry(page, entry)
     await page.getByTestId('entry-save-draft').click()
+    // The new-entry form shows the same Draft badge, so only the saved draft's own title (the
+    // new screen is replaced by `entries/<id>`) says the save finished and the form remounted.
+    await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
     await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+}
+
+export type HeldRequests = {
+    // Resolves once the first matching request is held.
+    firstHeld: Promise<void>
+    // Matching requests that reached the route, held or released.
+    count(): number
+    release(): void
+}
+
+// Holds every request that matches `matches` until `release()`, then lets it through
+// to the real server. Used to look at the screen while a write is still in flight.
+export async function holdRequests(
+    page: Page,
+    url: string,
+    matches: (request: Request) => boolean
+): Promise<HeldRequests> {
+    let release = () => {}
+    const gate = new Promise<void>(resolve => {
+        release = resolve
+    })
+    let arrived = () => {}
+    const firstHeld = new Promise<void>(resolve => {
+        arrived = resolve
+    })
+    let count = 0
+    await page.route(url, async route => {
+        if (!matches(route.request())) return route.continue()
+        count += 1
+        arrived()
+        await gate
+        return route.continue()
+    })
+    return { firstHeld, count: () => count, release }
+}
+
+// Two frames let a navigation queued in a request continuation run before a negative check.
+export function settleFrames(page: Page) {
+    return page.evaluate(
+        () =>
+            new Promise<void>(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+            )
+    )
 }

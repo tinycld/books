@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { DESKTOP, isPhone, PHONE, settledBox } from './account-register-helpers'
+import { ACCOUNT_LABELS, createDraftEntry } from './journal-entries-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -55,6 +56,13 @@ async function openEntries(page: Page) {
     await expect(page.getByTestId('entries-screen')).toBeVisible()
 }
 
+// Other specs add entries dated today to the shared database, and the list sorts newest first, so
+// the seeded rows sink below the rows the list mounts (it renders a window). Every seed memo starts
+// with this text, and search reads the whole collection, so it keeps them on screen at any volume.
+async function showSeededEntries(page: Page) {
+    await page.getByTestId('entries-search').fill('Entries seed')
+}
+
 function item(page: Page, memo: string): Locator {
     return page.locator(isPhone(page) ? CARDS : ROWS).filter({ hasText: memo })
 }
@@ -83,6 +91,7 @@ for (const [sizeName, size] of SIZES) {
         }) => {
             await start(page, size)
             await openEntries(page)
+            await showSeededEntries(page)
 
             const draft = item(page, ENTRIES_SEED.draft)
             const posted = item(page, ENTRIES_SEED.posted)
@@ -124,6 +133,7 @@ for (const [sizeName, size] of SIZES) {
         test('order: entry dates never increase down the list', async ({ page }) => {
             await start(page, size)
             await openEntries(page)
+            await showSeededEntries(page)
 
             const items = page.locator(isPhone(page) ? CARDS : ROWS)
             await expect(item(page, ENTRIES_SEED.posted)).toHaveCount(1)
@@ -145,6 +155,7 @@ for (const [sizeName, size] of SIZES) {
         test('press: a click opens entries/[id]', async ({ page }) => {
             await start(page, size)
             await openEntries(page)
+            await showSeededEntries(page)
 
             const posted = item(page, ENTRIES_SEED.posted)
             const id = await idOf(posted)
@@ -183,6 +194,7 @@ test.describe('journal-entries: list rows (desktop table)', () => {
     }) => {
         await start(page, DESKTOP)
         await openEntries(page)
+        await showSeededEntries(page)
         await expect(item(page, ENTRIES_SEED.posted)).toHaveCount(1)
 
         const rows = page.locator(ROWS)
@@ -216,6 +228,7 @@ test.describe('journal-entries: list rows (desktop table)', () => {
     }) => {
         await start(page, DESKTOP)
         await openEntries(page)
+        await showSeededEntries(page)
         await expect(item(page, ENTRIES_SEED.posted)).toHaveCount(1)
 
         const heading = page.getByTestId('entries-table').getByText('Date', { exact: true }).first()
@@ -256,6 +269,7 @@ test.describe('journal-entries: list rows (desktop table)', () => {
         test(`press: focusing a row and pressing ${key} opens entries/[id]`, async ({ page }) => {
             await start(page, DESKTOP)
             await openEntries(page)
+            await showSeededEntries(page)
 
             const posted = item(page, ENTRIES_SEED.posted)
             const id = await idOf(posted)
@@ -270,6 +284,7 @@ test.describe('journal-entries: list rows (desktop table)', () => {
     }) => {
         await start(page, DESKTOP)
         await openEntries(page)
+        await showSeededEntries(page)
 
         const posted = item(page, ENTRIES_SEED.posted)
         const number = (await cell(page, 'number', await idOf(posted)).innerText()).trim()
@@ -285,6 +300,7 @@ test.describe('journal-entries: list rows (phone cards)', () => {
     test('cards replace the table and show the Total under the memo', async ({ page }) => {
         await start(page, PHONE)
         await openEntries(page)
+        await showSeededEntries(page)
 
         await expect(page.getByTestId('entries-table')).toHaveCount(0)
         const card = item(page, ENTRIES_SEED.posted)
@@ -302,6 +318,7 @@ test.describe('journal-entries: list rows (phone cards)', () => {
     }) => {
         await start(page, PHONE)
         await openEntries(page)
+        await showSeededEntries(page)
 
         const text = await item(page, ENTRIES_SEED.posted).innerText()
         const number = text.match(/JE-\d+/)?.[0]
@@ -310,5 +327,63 @@ test.describe('journal-entries: list rows (phone cards)', () => {
         await page.getByTestId('entries-search').fill((number ?? '').toLowerCase())
         await expect(item(page, ENTRIES_SEED.posted)).toHaveCount(1)
         await expect(item(page, ENTRIES_SEED.draft)).toHaveCount(0)
+    })
+})
+
+// The list mounts one page of rows (100) and loads the next page near the end. Another spec's
+// entries can fill the shared database, so the first test reads the new entry's own position and
+// the second checks growth only when the database holds a full page.
+const FIRST_ROWS = 10
+const PAGE_SIZE = 100
+
+for (const [sizeName, size] of SIZES) {
+    test.describe(`journal-entries: default list (${sizeName})`, () => {
+        test('a new entry dated today is among the first rows without searching', async ({
+            page,
+        }) => {
+            await start(page, size)
+            const memo = `Default list ${sizeName} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+            await createDraftEntry(page, {
+                memo,
+                amount: '$10.00',
+                debitAccount: ACCOUNT_LABELS.checking,
+                creditAccount: ACCOUNT_LABELS.equity,
+            })
+            await page.getByTestId('entry-back').click()
+            await expect(page.getByTestId('entries-screen')).toBeVisible()
+
+            const selector = isPhone(page) ? CARDS : ROWS
+            await expect
+                .poll(async () => {
+                    const texts = await page
+                        .locator(selector)
+                        .evaluateAll(
+                            (els, count) => els.slice(0, count).map(el => el.textContent ?? ''),
+                            FIRST_ROWS
+                        )
+                    return texts.some(text => text.includes(memo))
+                })
+                .toBe(true)
+        })
+    })
+}
+
+test.describe('journal-entries: default list paging (phone)', () => {
+    test('scrolling to the end of a full page loads more entries', async ({ page }) => {
+        await start(page, PHONE)
+        await openEntries(page)
+        const scroller = page.getByTestId('entries-cards')
+        await expect(page.locator(CARDS).first()).toBeVisible()
+
+        const cardHeight = (await boxOf(page.locator(CARDS).first())).height
+        const height = () => scroller.evaluate(el => el.scrollHeight)
+        const before = await height()
+        const loaded = Math.round(before / cardHeight)
+        if (loaded < PAGE_SIZE) return
+
+        await scroller.evaluate(el => {
+            el.scrollTop = el.scrollHeight
+        })
+        await expect.poll(height).toBeGreaterThan(before)
     })
 })

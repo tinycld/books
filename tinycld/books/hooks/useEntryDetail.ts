@@ -4,6 +4,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { useEffect } from 'react'
+import { entryInitialValues } from '../lib/entry-initial'
 import { useBooksAccess } from './useBooksAccess'
 
 export function useEntryDetail(entryId: string) {
@@ -82,7 +83,15 @@ export function useEntryDetail(entryId: string) {
         currency: entry?.currency ?? 'USD',
     }
     const relatedLoading = reversesLoading || replacesLoading || postedByLoading || voidedByLoading
-    if (isLoading || !linesReady || !accountsReady || !linkedReady || relatedLoading) {
+    // A writer must not see the read-only view while the access row is still loading.
+    if (
+        isLoading ||
+        !access.isReady ||
+        !linesReady ||
+        !accountsReady ||
+        !linkedReady ||
+        relatedLoading
+    ) {
         return { ...detail, viewState: 'loading' as const, entry: undefined, isEditable: false }
     }
     if (!entry) {
@@ -92,6 +101,7 @@ export function useEntryDetail(entryId: string) {
         ...detail,
         viewState: 'ready' as const,
         entry,
+        initialValues: entryInitialValues(entry, lines, detail.currency),
         isEditable: entry.status === 'draft' && access.canWrite,
     }
 }
