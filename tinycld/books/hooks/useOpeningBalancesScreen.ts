@@ -4,6 +4,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { router } from 'expo-router'
 import { materialize } from 'pbtsdb'
 import { useMemo, useState } from 'react'
 import {
@@ -62,7 +63,7 @@ export function useOpeningBalancesScreen(isEditing = false) {
                 .from({ entry: entriesCollection })
                 .where(({ entry }) => eq(entry.origin, 'opening_balance'))
                 .where(({ entry }) => not(eq(entry.status, 'void')))
-                .orderBy(({ entry }) => entry.created)
+                .orderBy(({ entry }) => entry.created, 'desc')
                 .limit(ENTRY_LIMIT)
                 .select(({ entry }) => ({
                     id: entry.id,
@@ -82,6 +83,8 @@ export function useOpeningBalancesScreen(isEditing = false) {
         queryKey: ['books.opening.entries'],
     })
     const entries = entriesQuery.data ?? []
+    // Newest first: while a replacement and its original are both posted (the server
+    // voids the original after the replacement's post), the newest is the one to show.
     const entry = entries.find(row => row.status === 'draft') ?? entries[0]
     const entryId = entry?.id ?? null
 
@@ -207,7 +210,12 @@ export function useOpeningBalancesScreen(isEditing = false) {
         })
     }
 
+    const edit = () => router.setParams({ edit: '1' })
+    const backToPosted = () => router.setParams({ edit: undefined })
+
     return {
+        edit,
+        backToPosted,
         state,
         access,
         canWrite,

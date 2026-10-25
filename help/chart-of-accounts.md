@@ -46,3 +46,5 @@ If the server refuses a row, the import stops. The page shows how many rows were
 Imported balances are not supported.
 
 See also [Moving around Books](help://books:navigating-books).
+
+To enter the balances your accounts held on your starting date, see [Opening balances](help://books:opening-balances).

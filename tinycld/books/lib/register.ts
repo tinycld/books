@@ -74,6 +74,7 @@ const originLabels: Record<string, string> = {
     reversal: 'Reversal',
     void_reversal: 'Void reversal',
     auto_reversal: 'Auto reversal',
+    opening_balance: 'Opening balances',
 }
 
 const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])

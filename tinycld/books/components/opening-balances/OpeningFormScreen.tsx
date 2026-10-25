@@ -1,9 +1,11 @@
 import { railWidth } from '@tinycld/core/components/workspace/rail-width'
 import { useWindowHeight, useWindowWidth } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
+import { ArrowLeft } from 'lucide-react-native'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useOpeningBalancesForm } from '../../hooks/useOpeningBalancesForm'
 import type { OpeningScreen } from '../../hooks/useOpeningBalancesScreen'
 import { DiscardDraftDialog } from './DiscardDraftDialog'
@@ -107,9 +109,29 @@ function Notice({ model, isVisible }: { model: Model; isVisible: boolean }) {
             testID="opening-notice"
             className="border-b border-border bg-surface-secondary px-4 py-2"
         >
-            <Text className="text-sm text-foreground">
-                {`Posting this replaces ${model.replacedNumber}. The posted balances stay until you post.`}
-            </Text>
+            <Text className="text-sm text-foreground">{model.noticeText}</Text>
+        </View>
+    )
+}
+
+function BackToPosted({ model, isVisible }: { model: Model; isVisible: boolean }) {
+    const color = useThemeColor('muted-foreground')
+    if (!isVisible) return null
+    const isBusy = model.isSaving || model.isPosting
+    return (
+        <View className="px-4">
+            <Pressable
+                testID="opening-edit-back"
+                accessibilityRole="button"
+                onPress={model.backToPosted}
+                disabled={isBusy}
+                accessibilityState={{ disabled: isBusy }}
+                className="flex-row items-center gap-1 self-start"
+                style={{ minHeight: 44 }}
+            >
+                <ArrowLeft size={16} color={color} />
+                <Text className="text-sm text-muted-foreground">Back to posted balances</Text>
+            </Pressable>
         </View>
     )
 }
@@ -137,12 +159,22 @@ export function OpeningFormScreen({ screen }: { screen: OpeningScreen }) {
     const isWide = isWideWindow(width)
     const hasRail = width >= RAIL_MIN_WIDTH
     const isDateFixed = isWide && !isShort
-    const leading = isDateFixed ? null : <OpeningDateFields model={model} />
+    const hasNotice = model.noticeText !== ''
+    // Where the date block scrolls with the grid, the Back row and the notice scroll
+    // with it, so the cards are on screen when the form opens.
+    const leading = isDateFixed ? null : (
+        <View>
+            <BackToPosted model={model} isVisible={model.isReplacing} />
+            <Notice model={model} isVisible={hasNotice} />
+            <OpeningDateFields model={model} />
+        </View>
+    )
     const isStale = screen.hasLateError || screen.isRefreshing
     const currency = screen.settings?.currency ?? 'USD'
     return (
         <View ref={model.rootRef} className="min-h-0 flex-1">
-            <Notice model={model} isVisible={model.hasReplaces && model.replacedNumber !== ''} />
+            <BackToPosted model={model} isVisible={isDateFixed && model.isReplacing} />
+            <Notice model={model} isVisible={isDateFixed && hasNotice} />
             <Summary model={model} isVisible={model.hasSummaryErrors} />
             <DateBlock model={model} isVisible={isDateFixed} />
             <Body
