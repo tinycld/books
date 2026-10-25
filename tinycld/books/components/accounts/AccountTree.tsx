@@ -165,7 +165,12 @@ export function AccountTree({
         />
     ))
     return (
-        <ScrollView horizontal className="flex-1" contentContainerStyle={TABLE_CONTENT_STYLE}>
+        <ScrollView
+            horizontal
+            testID="account-table"
+            className="flex-1"
+            contentContainerStyle={TABLE_CONTENT_STYLE}
+        >
             <ScrollView className="flex-1" stickyHeaderIndices={[0]}>
                 <TableHeader sort={sort} onSort={onSort} />
                 {items}
