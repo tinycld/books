@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/opening-balances-checkpoints.md
 - reference: docs/plans/opening-balances-reference/
 - evidence: docs/plans/opening-balances-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs)
 - capture manifest: docs/plans/opening-balances-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -189,5 +189,5 @@ cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collectio
 - commit: see git log
 
 ## Final review
-- eval:
+- eval: approved
 - native: not executed in this run
