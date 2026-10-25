@@ -1,8 +1,10 @@
 import { FAB } from '@tinycld/core/components/FAB'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useUrl } from '@tinycld/core/lib/use-url'
 import { Plus } from 'lucide-react-native'
 import { useState } from 'react'
 import { useNewMenu } from '../hooks/useNewMenu'
+import { hidesNewFab } from '../lib/shell-nav'
 import { NewMenu } from './NewMenu'
 
 type NewMenuState = ReturnType<typeof useNewMenu>
@@ -42,6 +44,13 @@ function NewFabGate({ isVisible, columns, onSelect }: NewFabGateProps) {
 export function NewFab() {
     const isMobile = useBreakpoint() === 'mobile'
     const { isVisible, columns, open } = useNewMenu()
+    const isOnEntry = hidesNewFab(useUrl().pathname)
 
-    return <NewFabGate isVisible={isMobile && isVisible} columns={columns} onSelect={open} />
+    return (
+        <NewFabGate
+            isVisible={isMobile && isVisible && !isOnEntry}
+            columns={columns}
+            onSelect={open}
+        />
+    )
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import {
     availableOnly,
+    hidesNewFab,
     isActivePath,
     isNewActionAvailable,
     LIST_ENTRIES,
@@ -182,5 +183,25 @@ describe('isNewActionAvailable', () => {
     it('is false for an unknown id', () => {
         expect(isNewActionAvailable('nope', [action('journal-entry', 'other', true)])).toBe(false)
         expect(isNewActionAvailable('nope')).toBe(false)
+    })
+})
+
+describe('hidesNewFab', () => {
+    it.each([
+        '/a/acme/books/entries',
+        '/a/acme/books/entries/',
+        '/a/entries/books',
+        '/a/acme/books/accounts',
+    ])('keeps the New button on %s', path => {
+        expect(hidesNewFab(path)).toBe(false)
+    })
+
+    it.each([
+        '/a/acme/books/entries/new',
+        '/a/acme/books/entries/new/',
+        '/a/acme/books/entries/abc123',
+        '/a/acme/books/entries/abc123/',
+    ])('hides the New button on %s', path => {
+        expect(hidesNewFab(path)).toBe(true)
     })
 })

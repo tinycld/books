@@ -164,7 +164,11 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
     const number = entryNumberText(entry)
     const title = entry.number ? `Journal entry ${number}` : 'Journal entry'
     const totals = sumLines(
-        detail.lines.map(line => ({ debit: centsText(line.debit), credit: centsText(line.credit) }))
+        detail.lines.map(line => ({
+            debit: centsText(line.debit),
+            credit: centsText(line.credit),
+        })),
+        currency
     )
     return (
         <View testID="entry-read-only" className="min-w-0 flex-1 bg-background">

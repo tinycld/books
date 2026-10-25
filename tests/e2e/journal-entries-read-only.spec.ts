@@ -420,3 +420,19 @@ test.describe('journal-entries: read-only view (desktop line table)', () => {
         }
     })
 })
+
+test.describe('journal-entries: read-only view (phone New button)', () => {
+    test('the New button is hidden on the read-only entry', async ({ page }) => {
+        await start(page, PHONE)
+        await openEntry(page, ENTRIES_SEED.posted)
+        await expect(page.getByLabel('New', { exact: true })).toHaveCount(0)
+    })
+
+    test('the New button shows again on the entries list after returning', async ({ page }) => {
+        await start(page, PHONE)
+        await openEntry(page, ENTRIES_SEED.posted)
+        await page.getByTestId('entry-back').click()
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+        await expect(page.getByLabel('New', { exact: true })).toBeVisible()
+    })
+})

@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react-native'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
+import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
 
 export function EntryBackLink() {
@@ -26,11 +27,20 @@ interface EntryHeaderProps {
     title: string
     badge: ReactNode
     bigTotal: number
+    isTooLarge?: boolean
     currency: string
     menu?: ReactNode
 }
 
-export function EntryHeader({ title, badge, bigTotal, currency, menu }: EntryHeaderProps) {
+export function EntryHeader({
+    title,
+    badge,
+    bigTotal,
+    isTooLarge = false,
+    currency,
+    menu,
+}: EntryHeaderProps) {
+    const totalText = isTooLarge ? TOO_LARGE_TEXT : formatMoney(bigTotal, currency)
     return (
         <View className="gap-1 border-b border-border px-4 pb-3 pt-2">
             <EntryBackLink />
@@ -42,7 +52,7 @@ export function EntryHeader({ title, badge, bigTotal, currency, menu }: EntryHea
                     <View testID="entry-badge">{badge}</View>
                 </View>
                 <Text testID="entry-big-total" className="text-2xl font-semibold text-foreground">
-                    {formatMoney(bigTotal, currency)}
+                    {totalText}
                 </Text>
                 {menu}
             </View>
