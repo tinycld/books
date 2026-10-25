@@ -171,3 +171,37 @@
 - tests/e2e/helix-capture.spec.ts (git-excluded scratch tool) gained `pressText` and `afterReady` shot fields.
 - docs/plans/journal-entries-evidence/cp4/: capture.json, shots, critique.md.
 
+## Checkpoint 5
+- test writer: tests/e2e/journal-entries-form.spec.ts, journal-entries-helpers.ts (red: missing screen); fix rounds added swap-identity, negative, too-large, FAB, focus-after-Enter e2e; vitest account-options, money-round-trip (every Intl currency), useEntryForm key tests, line-focus, shell-nav hidesNewFab, entry-lines negatives
+- implementer: screens/entries/new.tsx, components/entries/{EntryForm,EntryHeaderFields,EntryEditableLineTable,EntryLineRow,AmountCell,EntryEditableLineCard}.tsx, hooks/{useEntryForm,useAccountOptions}.ts, EntryTotals states; DONE
+- test disputes: (1) tests assumed core SelectInput is an inline radiogroup (read from a stale core copy); the workspace core SelectInput is a dropdown. Implementer first used ButtonGroup; rejected (spec: core SelectInput, no core change; matches references). Tests rewritten by a fresh test writer for the dropdown. (2) phone "line menu moves and deletes lines": swap keeps rows mounted so core Sheet stayed in the DOM 300 ms and two "Delete line" items matched; fixed in LineMenu (`key={index}` on Menu), test left as written.
+- self-declared differences: AmountCell takes { side, index, currency } (name derived); useEntryForm takes { initial, currency }, returns modeRef; FormProvider/useFormContext added; EntryForm header slot is (totals) => ReactNode and actions optional; menu items Move up/down disabled at the ends; "Check the amounts" totals state for unparseable text; useFieldArray keyName 'key' so saved line id is kept for cp7; focus registry lib/line-focus.ts (Enter chain; Enter in last memo adds a line and focuses its account; native account focus falls back to Debit because a Pressable cannot take focus)
+- gate 1: tests unedited: yes · pass (check exit 0, 1711 tests; typecheck exit 0; full e2e 148 passed 2 skipped); shots captured
+- gate 2: no INVALID shots; critic raised one BLOCKING: reference unbalanced shots show a red alert "Debits and credits must be equal before this entry can be posted"; this is the post-attempt error summary, built in checkpoint 6 (FormErrorSummary on a failed Post), not a cp5 deliverable. NOTEs in cp5/critique.md (reference starts with 3 lines, build 2 per plan; full-bleed line rules; column widths; FAB over the form, fixed below)
+- gate 3 A/B: accepted+fixed: Move up/down via swap (row identity), active children of inactive parents in the picker, parseMoney round trip for every currency and currency-aware parsing, settings gating with no silent USD flash, negative amounts, Too large not shown as $0.00, FAB hidden on entries/new and entries/[id], native keyboard chain, lazy focus registry, hidesNewFab anchored on books segment
+- fix review: two fresh reviewer A passes over fix diffs; findings fixed as above; rebutted below
+- reviewer-caught deferrals: none kept
+
+### Cp5 rebuttals
+- **finding:** reviewer A, typing 0 in Debit clears Credit and blur empties both
+  **rebutted because:** plan Do 3 says a non-blank value clears the other side; edge case with no spec basis.
+- **finding:** reviewer A, useWatch on lines re-renders the whole form per keystroke
+  **rebutted because:** plan Do 2 specifies `totals = sumLines(useWatch(...))` in the hook; 200 lines max; no measured problem.
+- **finding:** reviewer A, indent appears in the SelectInput trigger for a nested selected account
+  **rebutted because:** a fix needs a core SelectInput change (label vs option indent); plan says no core change. Cosmetic.
+- **finding:** reviewer A, per-line errors do not shift on swap / maxLines refusal not rendered
+  **rebutted because:** errors are rendered by checkpoint 6 (FormErrorSummary, line errors); swap now moves field state.
+- **finding:** reviewer A, `key={index}` on Menu loses web keyboard focus on the trigger after Move up/down
+  **rebutted because:** pointer and touch are unaffected; the key is needed to drop the closing sheet; revisit in the accessibility pass if reported.
+- **finding:** reviewer B, cp6 Files block does not list EntryLineRow, EntryEditableLineCard, EntryEditableLineTable but line errors need them
+  **action:** cp6 will amend its Files block in the cp6 ledger entry.
+
+### Cp5 out-of-plan changes
+- tinycld/books/lib/{account-options,line-focus}.ts (new), tests/useEntryForm.test.ts, account-options.test.ts, money-round-trip.test.ts, line-focus.test.ts (new).
+- tinycld/books/components/NewFab.tsx and lib/shell-nav.ts (`hidesNewFab`): FAB hidden on entries/new and entries/[id] (it covered the Credit field and Add line on phone).
+- tinycld/books/lib/money.ts: parseMoney(text, currency?) is currency-aware and round-trips every Intl currency (cp1 bug found in cp5); lib/entry-schema.ts: buildSchemas(currency) factory; lib/entry-lines.ts: currency threaded through sumLines/formatAmountOnBlur, negatives clamped, TOO_LARGE_TEXT.
+- EntryHeader isTooLarge prop; EntryReadOnlyView passes currency to sumLines.
+- tests/e2e/journal-entries-read-only.spec.ts: phone assertions for FAB hidden on the entry view and visible on the list after back.
+- tests/e2e/helix-capture.spec.ts (git-excluded scratch): `steps` and `scrollTo` shot fields.
+- docs/plans/journal-entries-evidence/cp5/: capture.json, shots, critique.md.
+

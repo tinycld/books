@@ -118,3 +118,9 @@ export function sidebarSections(entries: readonly SidebarEntry[]) {
 export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
 }
+
+// The entry form and the entry view own the bottom of the phone screen, so the
+// New button stays off them. `/entries` alone is the list, which keeps it.
+export function hidesNewFab(pathname: string): boolean {
+    return /\/books\/entries\/[^/]+\/?$/.test(pathname)
+}

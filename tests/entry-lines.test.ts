@@ -49,6 +49,49 @@ describe('sumLines', () => {
         expect(totals.isBalanced).toBe(true)
     })
 
+    it('flags a negative amount as invalid and never balanced', () => {
+        const totals = sumLines([
+            { debit: '-5', credit: '' },
+            { debit: '', credit: '-5' },
+        ])
+        expect(totals.hasInvalid).toBe(true)
+        expect(totals.isBalanced).toBe(false)
+    })
+
+    it('keeps a negative side out of the sums', () => {
+        const totals = sumLines([
+            { debit: '-5', credit: '' },
+            { debit: '', credit: '-9' },
+        ])
+        expect(totals.hasInvalid).toBe(true)
+        expect(totals.debits).toBeGreaterThanOrEqual(0)
+        expect(totals.credits).toBeGreaterThanOrEqual(0)
+        expect(totals.bigTotal).toBeGreaterThanOrEqual(0)
+    })
+
+    it('flags another currency as invalid when a currency is given', () => {
+        const totals = sumLines([{ debit: '12 EUR', credit: '' }], 'USD')
+        expect(totals.hasInvalid).toBe(true)
+        expect(totals.isBalanced).toBe(false)
+    })
+
+    it('treats a side exactly at maxStoredAmount as not too large', () => {
+        const totals = sumLines([
+            { debit: amountText(maxStoredAmount - 1, 'USD'), credit: '' },
+            { debit: '0.01', credit: '' },
+        ])
+        expect(totals.isTooLarge).toBe(false)
+        expect(totals.debits).toBe(maxStoredAmount)
+    })
+
+    it('treats a side one cent above maxStoredAmount as too large', () => {
+        const totals = sumLines([
+            { debit: amountText(maxStoredAmount - 1, 'USD'), credit: '' },
+            { debit: '0.02', credit: '' },
+        ])
+        expect(totals.isTooLarge).toBe(true)
+    })
+
     it('flags a side above maxStoredAmount as too large', () => {
         const totals = sumLines([
             { debit: amountText(maxStoredAmount, 'USD'), credit: '' },

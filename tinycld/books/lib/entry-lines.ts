@@ -2,6 +2,9 @@ import { amountText, maxStoredAmount, parseMoney } from './money'
 
 export const maxLines = 200
 
+// Shown in place of an amount that cannot be stored.
+export const TOO_LARGE_TEXT = 'Too large'
+
 // `id` is the saved line id, or '' for a line that is not saved yet.
 export type EntryFormLine = {
     id: string
@@ -21,21 +24,26 @@ export type LineTotals = {
     bigTotal: number
 }
 
-export function parseAmountText(text: string): number | null {
+export function parseAmountText(text: string, currency?: string): number | null {
     if (text.trim() === '') return 0
-    return parseMoney(text)
+    return parseMoney(text, currency)
 }
 
-export function sumLines(lines: readonly Pick<EntryFormLine, 'debit' | 'credit'>[]): LineTotals {
+export function sumLines(
+    lines: readonly Pick<EntryFormLine, 'debit' | 'credit'>[],
+    currency?: string
+): LineTotals {
     let debits = 0n
     let credits = 0n
     let hasInvalid = false
     for (const line of lines) {
-        const debit = parseAmountText(line.debit)
-        const credit = parseAmountText(line.credit)
-        if (debit === null || credit === null) hasInvalid = true
-        debits += BigInt(debit ?? 0)
-        credits += BigInt(credit ?? 0)
+        const debit = parseAmountText(line.debit, currency)
+        const credit = parseAmountText(line.credit, currency)
+        // An entry side is never negative; a minus sign is a typing mistake, and a
+        // negative side stays out of the sums so no total goes below zero.
+        if (debit === null || credit === null || debit < 0 || credit < 0) hasInvalid = true
+        debits += BigInt(Math.max(debit ?? 0, 0))
+        credits += BigInt(Math.max(credit ?? 0, 0))
     }
     const limit = BigInt(maxStoredAmount)
     const isTooLarge = debits > limit || credits > limit
@@ -80,7 +88,7 @@ export function shouldClearOtherSide(text: string): boolean {
 }
 
 export function formatAmountOnBlur(text: string, currency: string): string {
-    const cents = parseAmountText(text)
+    const cents = parseAmountText(text, currency)
     if (cents === null) return text
     return amountText(cents, currency)
 }
