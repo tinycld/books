@@ -24,6 +24,22 @@ cd tinycld
 pnpm run dev
 ```
 
+## Regenerating help images
+
+Help topics show screenshots from `help/images/`. The images are committed.
+`help/screenshots.ts` lists, per topic, the shots to take: a name
+(`<topic-id>-<n>`), a `setup` that drives the UI to the screen, and an optional
+`target` selector. To regenerate them, run from this directory:
+
+```sh
+pnpm exec tinycld-pkg help:screenshots [--topic <topic-id>]
+```
+
+The command writes `<name>.png` (light) and `<name>.dark.png` (dark). To add a
+topic image, add an entry to `help/screenshots.ts`, run the command, and add
+`![alt text](images/<name>.png)` to the topic. Then run `pnpm run packages:generate`
+in the app shell.
+
 ## Checks
 
 All checks run **scoped to this member** through `tinycld-pkg`, which reuses the
