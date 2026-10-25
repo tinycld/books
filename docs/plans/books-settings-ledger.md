@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/books-settings-checkpoints.md
 - reference: docs/plans/books-settings-reference/
 - evidence: docs/plans/books-settings-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts~~ — removed by finish.mjs --screen
 - capture manifest: docs/plans/books-settings-capture.json
 - review mode: C — none (unattended)
 - core extension: none
