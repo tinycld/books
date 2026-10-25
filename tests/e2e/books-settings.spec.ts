@@ -570,6 +570,35 @@ test.describe('books-settings: Settings screens', () => {
         })
     }
 
+    // Regression: books_access has no realtime, so the mutation reloads it. A reload that was cut short
+    // used to resolve with no data, and the old level came back after leaving and re-entering the section.
+    // The delay holds the unfiltered list request long enough for that to happen every run.
+    test('Access: a slow list refresh still shows the saved level after leaving and re-entering', async ({
+        page,
+    }) => {
+        await page.route(
+            /\/api\/collections\/books_access\/records\?(?!.*filter=)/,
+            async route => {
+                await new Promise(resolve => setTimeout(resolve, 1500))
+                await route.continue().catch(() => undefined)
+            }
+        )
+        await openSettings(page)
+        const collaborator = await signInAsCollaborator(page)
+        await collaborator.close()
+        await openRailSection(page, 'access')
+        const row = accessRow(page, TEST_COLLABORATOR_EMAIL)
+        await expect(row).toBeVisible()
+        const started = await levelOf(row)
+        const target: Level = started === 'read_only' ? 'bookkeeper' : 'read_only'
+
+        try {
+            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, target)
+        } finally {
+            await runRestores([() => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started)])
+        }
+    })
+
     for (const readerLevel of ['read_only', 'bookkeeper'] as const) {
         test(`Access: a ${readerLevel} reader sees read-only Settings`, async ({ page }) => {
             await openSettings(page)
