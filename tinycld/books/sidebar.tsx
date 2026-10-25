@@ -87,7 +87,7 @@ export default function BooksSidebar() {
             icon={entry.icon}
             isActive={isActive(entry)}
             closesDrawer
-            onPress={() => router.push(orgHref(entry.href))}
+            onPress={() => router.navigate(orgHref(entry.href))}
             testID={`books-nav-${entry.id}`}
         />
     )

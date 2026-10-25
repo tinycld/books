@@ -1,7 +1,7 @@
 import { extractValidationErrors } from '@tinycld/core/lib/errors'
 import { log } from '@tinycld/core/lib/logger'
 import { useEffect, useRef, useState } from 'react'
-import { isBlankLine } from '../lib/entry-lines'
+import { type EntryFormLine, isBlankLine } from '../lib/entry-lines'
 import { parseLineRefusal } from '../lib/entry-messages'
 import type { EntryFormValues } from '../lib/entry-schema'
 import type { useEntryForm } from './useEntryForm'
@@ -12,8 +12,14 @@ export type SaveOutcome = 'draft' | 'post' | 'post-new'
 interface EntrySubmitProps {
     entryForm: ReturnType<typeof useEntryForm>
     currency: string
+    // The draft being edited and its saved lines; a new entry has neither.
+    entryId?: string | null
+    saved?: readonly EntryFormLine[]
     onSaved(id: string, outcome: SaveOutcome): void
     onCancel(): void
+    // Tells the screen a save is running, so it keeps this form mounted while a post's
+    // optimistic status change is not yet confirmed.
+    onBusyChange?(isBusy: boolean): void
 }
 
 type Refusal = { message?: unknown }
@@ -36,22 +42,65 @@ function formIndexOfLine(lines: EntryFormValues['lines'], lineNumber: number) {
     return -1
 }
 
-export function useEntrySubmit({ entryForm, currency, onSaved, onCancel }: EntrySubmitProps) {
+// The typed content of the form, without the ids a save writes.
+function editSnapshot(values: EntryFormValues) {
+    const { date, memo, autoReverseOn } = values
+    const lines = values.lines.map(({ account, debit, credit, memo: lineMemo }) => [
+        account,
+        debit,
+        credit,
+        lineMemo,
+    ])
+    return JSON.stringify({ date, memo, autoReverseOn, lines })
+}
+
+export function useEntrySubmit({
+    entryForm,
+    currency,
+    entryId = null,
+    saved = [],
+    onSaved,
+    onCancel,
+    onBusyChange,
+}: EntrySubmitProps) {
     const { form, modeRef, isDirty } = entryForm
-    const { setError, handleSubmit, reset } = form
+    const { setError, setValue, handleSubmit, reset, getValues } = form
+    // Field keys of the lines as they were at the last submit, and the keys now: a line is
+    // found again by its key, since its index moves when a line is removed during the save.
+    const submittedKeys = useRef<string[]>([])
+    const currentKeys = useRef<string[]>([])
+    // What the user had typed at submit, until the save's baseline reset replaces it.
+    const submittedSnapshot = useRef<string | null>(null)
     const { saveDraft, post, isPending } = useEntrySave({
-        entryId: null,
-        saved: [],
+        entryId,
+        saved,
         currency,
-        onDraftSaved: values =>
-            reset(values, { keepValues: true, keepErrors: true, keepIsSubmitted: true }),
+        // The typed values stay; the written line ids join them so the next save updates
+        // those rows instead of inserting the added lines again.
+        onDraftSaved: values => {
+            // The ids go in first so the reset does not count them as edits. A line removed
+            // since the submit has no key left, so it gets none.
+            const lineCount = getValues('lines').length
+            for (const [index, line] of values.lines.entries()) {
+                const current = currentKeys.current.indexOf(submittedKeys.current[index])
+                if (line.id && current >= 0 && current < lineCount) {
+                    setValue(`lines.${current}.id`, line.id)
+                }
+            }
+            reset(values, { keepValues: true, keepErrors: true, keepIsSubmitted: true })
+            submittedSnapshot.current = null
+        },
     })
     const [isDiscardOpen, setDiscardOpen] = useState(false)
     const isBusy = useRef(false)
     const isLive = useRef(true)
     const left = useRef(false)
-    // `isLive` only ends with the screen; `left` ends the pull back to a screen the user
-    // left, and a later edit or submit starts over.
+    // `isLive` ends with any unmount: the form stays mounted while a post is unconfirmed, so
+    // an unmount is the user leaving or the confirmed flip, and neither may navigate on.
+    // `left` ends the pull back to a screen the user left, and a later submit starts over.
+    useEffect(() => {
+        currentKeys.current = entryForm.fields.map(field => field.key)
+    })
     useEffect(() => {
         isLive.current = true
         return () => {
@@ -90,8 +139,11 @@ export function useEntrySubmit({ entryForm, currency, onSaved, onCancel }: Entry
     const submit = (mode: 'draft' | 'post', outcome: SaveOutcome) => async () => {
         if (isBusy.current) return
         isBusy.current = true
+        onBusyChange?.(true)
         left.current = false
         modeRef.current = mode
+        submittedKeys.current = entryForm.fields.map(field => field.key)
+        submittedSnapshot.current = editSnapshot(getValues())
         try {
             await handleSubmit(async values => {
                 try {
@@ -104,7 +156,15 @@ export function useEntrySubmit({ entryForm, currency, onSaved, onCancel }: Entry
             })()
         } finally {
             isBusy.current = false
+            submittedSnapshot.current = null
+            onBusyChange?.(false)
         }
+    }
+
+    const hasUnsavedEdits = () => {
+        const submitted = submittedSnapshot.current
+        if (submitted === null) return isDirty
+        return editSnapshot(getValues()) !== submitted
     }
 
     const leave = () => {
@@ -118,7 +178,9 @@ export function useEntrySubmit({ entryForm, currency, onSaved, onCancel }: Entry
         saveDraft: submit('draft', 'draft'),
         post: submit('post', 'post'),
         postAndNew: submit('post', 'post-new'),
-        cancel: () => (isDirty ? setDiscardOpen(true) : leave()),
+        // The edits a save in flight is writing need no prompt, but text typed after the
+        // submit is not part of it.
+        cancel: () => (hasUnsavedEdits() ? setDiscardOpen(true) : leave()),
         keepEditing: () => setDiscardOpen(false),
         discard: () => {
             setDiscardOpen(false)

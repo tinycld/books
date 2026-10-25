@@ -5,6 +5,7 @@ import { useRef } from 'react'
 import {
     dropBlankLines,
     type EntryFormLine,
+    isBlankLine,
     parseAmountText,
     planLineWrites,
 } from '../lib/entry-lines'
@@ -28,6 +29,20 @@ type Stored = {
     // Id of the line written for each non-blank form index. The form sends a new line with a
     // blank id every time, so a retry finds the row it already wrote through its position.
     assigned: Map<number, string>
+}
+
+// The form's lines with the ids the save wrote. Blank lines were not saved and stay blank.
+function withWrittenIds(values: EntryFormValues, writtenIds: readonly string[]) {
+    let next = 0
+    return {
+        ...values,
+        lines: values.lines.map(line => {
+            if (isBlankLine(line)) return line
+            const id = writtenIds[next] || line.id
+            next += 1
+            return { ...line, id }
+        }),
+    }
 }
 
 const emptyStored = (): Stored => ({ entryId: null, saved: [], assigned: new Map() })
@@ -63,10 +78,14 @@ export function useEntrySave({ entryId, saved, replaces, currency, onDraftSaved 
                 : { entryId, saved: [...saved], assigned: new Map() }
             stored.current = work
 
-            const lines = typed.map((line, index) => ({
-                ...line,
-                id: line.id || work.assigned.get(index) || '',
-            }))
+            // A blank line adopts the id written for its position, unless the form already
+            // carries that id on another line (it was reset with the written ids).
+            const carried = new Set(typed.map(line => line.id).filter(Boolean))
+            const lines = typed.map((line, index) => {
+                const assigned = work.assigned.get(index)
+                const adopted = assigned && !carried.has(assigned) ? assigned : ''
+                return { ...line, id: line.id || adopted }
+            })
             const lineFields = (line: EntryFormLine) => ({
                 entry: id,
                 account: line.account,
@@ -120,7 +139,12 @@ export function useEntrySave({ entryId, saved, replaces, currency, onDraftSaved 
                     if (gone.has(lineId)) work.assigned.delete(index)
                 }
             }
-            onDraftSaved?.(values)
+            onDraftSaved?.(
+                withWrittenIds(
+                    values,
+                    lines.map((line, index) => line.id || work.assigned.get(index) || '')
+                )
+            )
 
             if (mode === 'post') {
                 yield entriesCollection.update(id, draft => {
@@ -128,7 +152,9 @@ export function useEntrySave({ entryId, saved, replaces, currency, onDraftSaved 
                 })
             }
             finished.current = work
-            stored.current = emptyStored()
+            // An existing draft stays on screen after a save, so the next save resumes from
+            // what this one wrote. A new entry moves on to its own screen.
+            stored.current = entryId === null ? emptyStored() : work
             return id
         },
         // The caller awaits the rejection and puts the refusal on its form.

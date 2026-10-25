@@ -232,3 +232,44 @@
 - docs/plans/journal-entries-checkpoints.md: cp6 Files block gained EntryLineRow, EntryEditableLineCard, EntryEditableLineTable.
 - docs/plans/journal-entries-evidence/cp6/: capture.json, shots, critique.md.
 
+## Checkpoint 7
+- test writer: tests/e2e/journal-entries-draft-edit.spec.ts, tests/entry-initial.test.ts, tests/use-entry-actions.test.tsx (red: missing form on the draft, missing menu); fix rounds added refused post/delete, back guard, leave-mid-save, save twice, stale lines, header at 390, deleted elsewhere, plus tests/e2e/journal-entries-header-nav.spec.ts (header geometry, 44pt menu, sidebar stacking proof, openEntriesList loop)
+- implementer: components/entries/{EntryScreenSwitch,DeleteDraftDialog,EntryLeaveContext}.tsx, hooks/useEntryActions.ts, lib/entry-initial.ts, edits to EntryForm, EntryHeader, useEntryDetail, useEntrySubmit, useEntrySave, [id].tsx; DONE
+- test disputes and named root causes of every failure seen in this checkpoint:
+  1. draft-edit realtime test (desktop+phone) timed out: helper `openListOnSecondPage` recursed without clicking (a fresh page reopens Books at the remembered draft route); then `openEntriesList` pressed the nav item over an open entry and stacked a second list. Test helper bug; `openEntriesList` rewritten.
+  2. read-only phone tests (4) and later list-states (5) and list-table (several) phone/desktop tests: the list is newest-first and windowed (about 15 rows mounted on phone); entries created by other specs are dated today, so the seeded rows sink out of the mounted window as suite volume grows (cp7 added about a dozen entry-creating tests). Test isolation flaw, product correct; seeded rows are now found through `entries-search` ("Entries seed"; read-only spec uses clickEntryRow).
+  3. draft-edit phone edit persistence, refused post, back with unsaved edits, refused delete (desktop+phone): `createDraftEntry` waited for `entry-badge == Draft`, which the new-entry form also shows, so it returned before `router.replace` to the saved draft and the test typed into the form being replaced; refused-delete test asserted `entries-screen` count 0 although the list stays mounted under the draft. Both test bugs, fixed in the helper (waits for `entry-title == Journal entry`) and the test (URL check).
+  4. list-states "empty list response" (phone): realtime pushed rows other workers had created into the faked empty list; the test now aborts the realtime request.
+  5. save-post "server refusal" phone, intermittent: root cause from trace of an identical failure (draft-edit run 2026-10-25T12-19-54): after `setViewportSize` to phone the old desktop layout was still in the DOM for a few frames, the helper's attached-wait resolved on its stale `books-nav-entries`/toggle element, the entry screen's lazy chunk had not mounted, and the helper then clicked `books-list-card-entries`, which never exists. Helper race, fixed with web-first visible waits in `openEntriesList` (no sleeps). Fix argued from the trace, not reproduced.
+  6. draft-edit "deleted from another page shows entry-not-found", intermittent (desktop): a second `entries-screen` stacked when the sidebar item was pressed while the list was already on top. Proven with a deterministic repro (desktop, press books-nav-entries with the list on top): `router.push` gives 2 `entries-screen`, `router.navigate` gives 1 (expo-router 57.0.25: build/global-state/router.js:58-59,68-69 and react-navigation/routers/StackRouter.js:177-198, NAVIGATE reuses a same-named route on top, PUSH always appends; same JS reducer on web and native). Product fix in sidebar.tsx (push -> navigate), out-of-plan.
+  7. header-nav spec: near-maximum amount $99,999,999,999,999.99 exceeds the per-line maximum (server maxAmount 1e15 cents = $10T), the amount field correctly rejects it; test amount changed to $10,000,000,000,000.00. Sidebar-from-an-entry test removed: navigate only dedups a route that is on top, so an entry above the list still gets a second list pushed over it; making the list singular (dangerouslySingular) changes browser history semantics and was reverted. Left as is (see Deferrals/notes).
+  8. "database is locked (SQLITE_BUSY)" at e2e startup and global-setup 400s: stale e2e servers still bound to ports 7200/7201 from an interrupted run; environment, not code (ports are checked free before each run).
+  9. cp1 baseline: tests/use-entry-save.test.ts Props lacked `currency` (cp6 carry-over); handled in cp6.
+- self-declared differences: form key is `entry.id` only (the plan's `${id}:${updated}` would remount mid-failure and drop the refusal); the draft screen stays mounted while a save or post is in flight and flips to read-only only when confirmed; `saved` is frozen to the seeded rows; deleteDraft ends with router.back() when canGoBack() else replace; DeleteDraftDialog has an extra errorMessage prop; EntryHeaderMenu inside the back-link row on mobile and in the title row on wide; useEntryActions has its own lines query (waits for them); EntryForm/useEntrySubmit take optional entryId/saved; header title is `shrink`, total `shrink-0` so a large total drops under the title on phone
+- user decisions: none new
+- gate 1: tests unedited: yes except the helper/spec fixes above · pass (check exit 0; typecheck exit 0; full e2e 243 passed 2 skipped); shots captured
+- gate 2: no INVALID shots; 390 header with the More menu pushed the badge to a second row (header 130 px vs 100 px): fixed by compacting; critique in cp7/critique.md
+- gate 3 A/B: accepted+fixed: refused post of an open draft is visible, Post & new not pulling the user back after leaving, delete not flashing not-found and keeping the refusal in the dialog, stale `saved` overwriting other sessions' lines, second Save churn, back-link discard guard, writer read-only flash, delete dialog while pending, deleted-elsewhere ghost form, separate busy flags, dirty-after-submit prompt, ghost line when a line is removed mid-save, 390 header overflow, 44pt More button, entry-initial tie order, openEntriesList stale waits
+- fix review: four fresh reviewer A passes over fix diffs; findings fixed as above; rebutted below
+- reviewer-caught deferrals: none kept
+
+### Cp7 rebuttals
+- **finding:** reviewer A, a post that never confirms (hung PATCH) leaves Save/Post disabled forever
+  **rebutted because:** the write gate (useWritesAvailable) covers offline; a hung request has no recovery path without an optimistic rollback design; not in the spec.
+- **finding:** reviewer A, DraftScreen unmounts if the model blinks to loading while the screen is unfocused
+  **rebutted because:** no concrete trigger found (focus and loading do not coincide on the paths traced).
+- **finding:** reviewer A, delete leaves isBusy true after success; useState for the dialog message
+  **rebutted because:** the screen leaves on success; dialog-local state is allowed by CLAUDE.md (modal toggle).
+- **finding:** reviewer A, silent loss of typed values when a draft is posted/voided elsewhere
+  **rebutted because:** spec: the screen switches to the read-only view; a notice has no spec basis.
+- **finding:** reviewer A, the sidebar from an entry still stacks a second list
+  **rebutted because:** pre-existing push-stack behaviour of Books navigation; a singular list changes history semantics; out of cp7 scope. Noted for the final review.
+- **finding:** reviewer B, EntryHeaderMenu named cp7-specific, use-entry-actions test file is .tsx while cp8 names .ts
+  **action:** cp8 ledger entry generalises the menu and uses the .tsx name.
+
+### Cp7 out-of-plan changes
+- tinycld/books/sidebar.tsx: sidebar items use router.navigate instead of router.push (proof in failure 6). tinycld/books/lib/entry-initial.ts and tests/entry-initial.test.ts (new), components/entries/EntryLeaveContext.ts (new), EntryHeaderMenu in EntryHeader.tsx.
+- tests/e2e/journal-entries-helpers.ts (openEntriesList rewrite, holdRequests, settleFrames, createDraftEntry waits for the saved title), journal-entries-read-only.spec.ts (clickEntryRow), journal-entries-list-states.spec.ts and journal-entries-list-table.spec.ts (showSeededEntries; realtime abort in the empty-list test), tests/e2e/journal-entries-header-nav.spec.ts (new).
+- tests/e2e/helix-capture.spec.ts (git-excluded scratch): typeSearch, finalReady, menuItem, waitText.
+- docs/plans/journal-entries-evidence/cp7/: capture.json, shots, critique.md.
+
