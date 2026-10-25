@@ -21,7 +21,7 @@ function action(id: string, column: NewAction['column'], available: boolean): Ne
     return { id, label: id, href: `books/${id}`, column, available }
 }
 
-function entry(id: string, available: boolean, group?: 'accounting'): SidebarEntry {
+function entry(id: string, available: boolean, group?: 'accounting' | 'settings'): SidebarEntry {
     return { id, label: id, icon, href: `books/${id}`, group, available }
 }
 
@@ -55,6 +55,29 @@ describe('registries', () => {
     it('LIST_ENTRIES has an available Accounts entry', () => {
         const accounts = LIST_ENTRIES.find(e => e.href === 'books/accounts')
         expect(accounts?.available).toBe(true)
+    })
+})
+
+describe('settings sidebar entry', () => {
+    const settings = SIDEBAR_ENTRIES.find(e => e.id === 'settings')
+
+    it('is available with href books/settings in the settings group', () => {
+        expect(settings?.available).toBe(true)
+        expect(settings?.href).toBe('books/settings')
+        expect(settings?.group).toBe('settings')
+    })
+
+    it('sidebarSections puts it in end and not in top or accounting', () => {
+        const sections = sidebarSections(availableOnly(SIDEBAR_ENTRIES))
+        expect(sections.end.map(e => e.id)).toEqual(['settings'])
+        expect(sections.top.map(e => e.id)).not.toContain('settings')
+        expect(sections.accounting.map(e => e.id)).not.toContain('settings')
+    })
+
+    it('stays last in the rendered order', () => {
+        const { top, accounting, end } = sidebarSections(availableOnly(SIDEBAR_ENTRIES))
+        const rendered = [...top, ...accounting, ...end]
+        expect(rendered[rendered.length - 1]?.id).toBe('settings')
     })
 })
 
