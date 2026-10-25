@@ -199,7 +199,8 @@ export type OpeningPreview = {
 }
 
 const balancingFallbackId = 'opening-balance-equity'
-const balancingFallbackLabel = 'Opening Balance Equity'
+export const OPENING_BALANCE_EQUITY_NAME = 'Opening Balance Equity'
+const balancingFallbackLabel = OPENING_BALANCE_EQUITY_NAME
 
 export function previewFor(
     accounts: readonly OpeningAccount[],

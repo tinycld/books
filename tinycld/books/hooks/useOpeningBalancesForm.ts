@@ -1,31 +1,66 @@
-import { useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
-import { useCallback, useMemo, useRef } from 'react'
-import type { TextInput } from 'react-native'
+import { handleMutationErrorsWithForm } from '@tinycld/core/lib/errors'
+import { log } from '@tinycld/core/lib/logger'
+import { useMutation } from '@tinycld/core/lib/mutations'
+import { useStore } from '@tinycld/core/lib/pocketbase'
+import { useRecord } from '@tinycld/core/lib/use-record'
+import { type FieldErrors, useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import type { TextInput, View } from 'react-native'
 import {
+    amountsFromLines,
     buildOpening,
     centsFromAmounts,
     dayLabel,
     effectiveMemo,
+    memoFor,
     type OpeningBand,
     type OpeningGroup,
     type OpeningRow,
     presetDate,
     previewFor,
 } from '../lib/opening-balances'
-import { problemMessage } from '../lib/opening-balances-messages'
+import {
+    lineRefusalMessage,
+    problemMessage,
+    refusalMessage,
+    refusalNamesFormFields,
+} from '../lib/opening-balances-messages'
 import {
     type OpeningFormValues,
     type OpeningPreset,
     openingFormSchema,
 } from '../lib/opening-balances-schema'
 import { todayIso } from '../lib/register-range'
+import { useBackToChart } from './useBackToChart'
 import type { OpeningScreen } from './useOpeningBalancesScreen'
+import { LineWriteError, useOpeningDraftWrites } from './useOpeningDraftWrites'
+
+// The date picker's preset that produces this date today, else a custom date.
+function presetOf(date: string, fiscalStartMonth: number): OpeningPreset {
+    const today = todayIso()
+    if (date === presetDate('last-fiscal-year', today, fiscalStartMonth)) return 'last-fiscal-year'
+    if (date === presetDate('last-month', today, fiscalStartMonth)) return 'last-month'
+    return 'custom'
+}
 
 function defaultValues(screen: OpeningScreen, fiscalStartMonth: number): OpeningFormValues {
     if (screen.state.kind === 'draft') {
         const { date, memo } = screen.state.entry
-        return { preset: 'custom', date, memo, amounts: {} }
+        const amounts = amountsFromLines(
+            screen.accounts,
+            screen.savedLines,
+            screen.equityAccount?.id ?? ''
+        )
+        // A blank memo is stored as the date's default text; seeding it blank again
+        // keeps the memo following the date.
+        return {
+            preset: presetOf(date, fiscalStartMonth),
+            date,
+            memo: memo === memoFor(date) ? '' : memo,
+            amounts,
+        }
     }
+    // The replace state starts blank here; checkpoint 7 seeds it from the posted lines.
     const date = presetDate('last-fiscal-year', todayIso(), fiscalStartMonth)
     return { preset: 'last-fiscal-year', date, memo: '', amounts: {} }
 }
@@ -52,6 +87,11 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         resolver: zodResolver(openingFormSchema(closeDate)),
         defaultValues: defaultValues(screen, fiscalStartMonth),
     })
+    const { setError, getValues, handleSubmit, reset, clearErrors } = form
+    const { isDirty, errors } = form.formState
+    // Amount errors show beside their input in the grid; the summary carries the rest.
+    const { amounts: _amounts, ...rest } = errors
+    const summaryErrors: FieldErrors<OpeningFormValues> = rest
     const [date, memo] = useWatch({ control: form.control, name: ['date', 'memo'] })
     const label = dayLabel(date)
 
@@ -113,6 +153,107 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         else inputs.current.get(accountId)?.blur()
     }
 
+    const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false)
+    const [isDiscardOpen, setIsDiscardOpen] = useState(false)
+    const goBack = useBackToChart()
+    const writes = useOpeningDraftWrites(screen)
+    const [entriesCollection] = useStore('books_journal_entries')
+    const draft = screen.state.kind === 'draft' ? screen.state.entry : null
+    const { record: replaced } = useRecord(entriesCollection, draft?.replaces)
+    // A press during a write returns before React has re-rendered the buttons as
+    // disabled, so only a ref can drop the second of two presses in one tick.
+    const isWriting = useRef(false)
+
+    // Set when the form leaves the tree, so a finished discard does not navigate on.
+    const isMounted = useRef(true)
+    const rootRef = useCallback((node: View | null) => {
+        isMounted.current = node !== null
+    }, [])
+
+    const routeFieldErrors = handleMutationErrorsWithForm({ setError, getValues })
+    const onWriteError = (error: unknown) => {
+        if (error instanceof LineWriteError) {
+            const message = lineRefusalMessage(error.cause)
+            if (message) {
+                setError(`amounts.${error.accountId}`, { type: 'server', message })
+                return
+            }
+            onWriteError(error.cause)
+            return
+        }
+        const message = refusalMessage(error)
+        const formFields = Object.keys(getValues())
+        // A refusal that names the form's own fields goes to those fields; any other
+        // refusal is a root message, and a failure with no message (the network) is a toast.
+        if (message === null || refusalNamesFormFields(error, formFields)) routeFieldErrors(error)
+        else setError('root', { type: 'server', message })
+    }
+    const saveMutation = useMutation({
+        mutationFn: writes.saveDraft,
+        onError: onWriteError,
+    })
+    const discardMutation = useMutation({
+        mutationFn: writes.discardDraft,
+        onError: onWriteError,
+    })
+
+    // Resolves to whether the write completed; a refusal has already been put on the form.
+    const guarded = async (run: () => Promise<boolean>) => {
+        if (isWriting.current) return false
+        isWriting.current = true
+        try {
+            return await run()
+        } catch (error) {
+            // A refusal is already on the form through the mutation's onError.
+            const cause = error instanceof LineWriteError ? error.cause : error
+            if (lineRefusalMessage(cause) === null) log.error('books.opening-balances', error)
+            return false
+        } finally {
+            isWriting.current = false
+        }
+    }
+    // While a query is failed or reloading, the saved lines are not trustworthy and a
+    // save would diff against them.
+    const isStale = screen.hasLateError || screen.isRefreshing
+    const save = () =>
+        guarded(async () => {
+            // The spec disables Save draft and Post on a too-large figure ("blocks Save
+            // draft and Post"), so the button state and this guard both read isBlocked,
+            // although CLAUDE.md bans a canSubmit derived from field values. Post calls
+            // save directly and must not slip past the disabled button.
+            if (isStale || isBlocked) return false
+            let isDone = false
+            await handleSubmit(async values => {
+                await saveMutation.mutateAsync(values)
+                // A save that turns a new form into a draft keeps formKey, so the form is
+                // not re-seeded. The submitted values become the clean baseline and the
+                // current ones stay, so a figure typed during the save is still dirty.
+                reset(values, { keepValues: true })
+                isDone = true
+            })()
+            return isDone
+        })
+    const discard = () =>
+        guarded(async () => {
+            clearErrors('root')
+            try {
+                await discardMutation.mutateAsync()
+            } finally {
+                // On a refusal the error shows in the summary, which the open dialog hides.
+                setIsDiscardOpen(false)
+            }
+            if (isMounted.current) goBack()
+            return true
+        })
+    const cancel = () => {
+        if (isDirty) setIsCancelConfirmOpen(true)
+        else goBack()
+    }
+    const confirmCancel = () => {
+        setIsCancelConfirmOpen(false)
+        goBack()
+    }
+
     return {
         form,
         cents,
@@ -131,6 +272,24 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         closeDate,
         onPresetChange,
         onDateChange,
+        save,
+        discard,
+        cancel,
+        isSaving: saveMutation.isPending,
+        isDiscarding: discardMutation.isPending,
+        isDirty,
+        isCancelConfirmOpen,
+        closeCancelConfirm: () => setIsCancelConfirmOpen(false),
+        confirmCancel,
+        isDiscardOpen,
+        openDiscard: () => setIsDiscardOpen(true),
+        closeDiscard: () => setIsDiscardOpen(false),
+        summaryErrors,
+        hasSummaryErrors: Object.keys(summaryErrors).length > 0,
+        rootRef,
+        hasDraft: draft !== null,
+        replacedNumber: replaced?.number ?? '',
+        hasReplaces: (draft?.replaces ?? '') !== '',
     }
 }
 

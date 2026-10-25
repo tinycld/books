@@ -1,13 +1,23 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { openChart } from './account-register-helpers'
+import { accountItem, openChart } from './account-register-helpers'
 import {
+    confirmDiscard,
     DESKTOP,
     dayText,
+    dialogCancelButton,
+    discardChangesTitle,
+    discardDraftTitle,
+    discardExistingDraft,
+    discardTrigger,
     GRID_NAMES,
+    idsFromChart,
     isPhone,
     lastFiscalYearEnd,
     lastMonthEnd,
+    leaveToChart,
+    openDiscardDialog,
+    openFromChart,
     openOpeningBalances,
     openWithIds,
     PHONE,
@@ -845,4 +855,537 @@ test.describe('opening-balances: preview and totals', () => {
         expect(content.y).toBeGreaterThanOrEqual(0)
         expect(content.y + content.height).toBeLessThanOrEqual(tablet.height + 0.5)
     })
+})
+
+// Checkpoint 5 (save draft and discard). The tests of this block run in the
+// order of the checkpoint, before any post (the opening entry is permanent once
+// posted), and the e2e database is shared by every test in the file, so each
+// test starts and ends through `discardExistingDraft`. Opening Balance Equity
+// persists after the first successful save, so the chart is asserted to list
+// exactly one, never "created in this test". Desktop and phone variants of a
+// test run one after the other, and the refusals come first because they must
+// happen before the first successful save.
+//
+// Not testable here (11): the "Inactive" label. The seed has no inactive
+// balance-sheet account and tests may not create one with a raw write; it is
+// covered by `pickOpeningBands` in checkpoint 1's unit tests.
+//
+// Also not observable through the UI: that clearing every amount removes the
+// stored balancing line (test 6). The re-opened form and preview are empty
+// either way; the line diff itself is unit-tested in checkpoint 1.
+
+const ENTRY_WRITES = '**/api/collections/books_journal_entries/records'
+const LINE_WRITES = '**/api/collections/books_journal_lines/records'
+const ACCOUNT_WRITES = '**/api/collections/books_accounts/records'
+
+function trackWrites(page: Page) {
+    let count = 0
+    page.on('request', request => {
+        if (request.method() !== 'GET' && request.url().includes('/api/collections/books_')) {
+            count += 1
+        }
+    })
+    return { count: () => count }
+}
+
+// Fulfils POSTs to a collection with a PocketBase-style 400; other methods pass.
+async function refusePosts(page: Page, url: string, body: object) {
+    await page.route(url, async route => {
+        if (route.request().method() !== 'POST') {
+            await route.continue()
+            return
+        }
+        await route.fulfill({ status: 400, body: JSON.stringify(body) })
+    })
+}
+
+function saveButton(page: Page) {
+    return page.getByTestId('opening-save')
+}
+
+// A save is done when a write went out and the label is back to "Save draft".
+async function saveAndSettle(page: Page, writes: { count: () => number }) {
+    const before = writes.count()
+    await saveButton(page).click()
+    await expect.poll(() => writes.count()).toBeGreaterThan(before)
+    await expect(saveButton(page)).toHaveText('Save draft')
+    await expect(saveButton(page)).toBeEnabled()
+}
+
+async function begin(page: Page, size: { width: number; height: number }) {
+    await start(page, size)
+    await discardExistingDraft(page)
+    const ids = await idsFromChart(page)
+    await openFromChart(page)
+    return ids
+}
+
+async function reopen(page: Page) {
+    await leaveToChart(page)
+    await openFromChart(page)
+}
+
+async function expectAmount(page: Page, id: string, text: string) {
+    await expect(amount(page, id)).toBeVisible()
+    await expect(amount(page, id)).toHaveValue(text)
+}
+
+async function expectOneEquityAccount(page: Page) {
+    await leaveToChart(page)
+    await expect(accountItem(page, 'Opening Balance Equity')).toHaveCount(1)
+}
+
+function bothSizes(
+    name: string,
+    run: (page: Page, size: { width: number; height: number }) => Promise<void>
+) {
+    for (const [sizeName, size] of SIZES) {
+        test(`${name} (${sizeName})`, async ({ page }) => {
+            await run(page, size)
+        })
+    }
+}
+
+test.describe('opening-balances: save draft and discard', () => {
+    bothSizes(
+        '(1) a refused account insert shows the message, creates no draft and keeps the form',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await refusePosts(page, ACCOUNT_WRITES, {
+                message: 'Account refused',
+                data: {},
+            })
+            await type(page, ids['Office Equipment'], '10,000')
+
+            await saveAndSettle(page, writes)
+            await expect(page.getByTestId('opening-error-summary')).toBeVisible()
+            await expect(page.getByTestId('opening-error-summary')).toContainText('Account refused')
+            await expect(screenOf(page)).toBeVisible()
+            await expectAmount(page, ids['Office Equipment'], '10,000.00')
+            await page.unrouteAll({ behavior: 'wait' })
+
+            await reopen(page)
+            await expectAmount(page, ids['Office Equipment'], '')
+            await expect(discardTrigger(page)).toHaveCount(0)
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(2) a refused line insert leaves a draft without lines that a normal save repairs',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await refusePosts(page, LINE_WRITES, { message: 'Lines refused', data: {} })
+            await type(page, ids['Office Equipment'], '5,000')
+            await type(page, ids['Company Card'], '1,200')
+
+            await saveAndSettle(page, writes)
+            // A refusal of a typed account's line belongs under that account's amount.
+            const lineError = page.getByTestId(`opening-amount-error-${ids['Office Equipment']}`)
+            await expect(lineError).toBeVisible()
+            await expect(lineError).toContainText('Lines refused')
+            await expect(page.getByTestId('opening-error-summary')).toBeHidden()
+            await page.unrouteAll({ behavior: 'wait' })
+
+            await reopen(page)
+            await expect(discardTrigger(page)).toBeVisible()
+            await expectAmount(page, ids['Office Equipment'], '')
+            await expectAmount(page, ids['Company Card'], '')
+
+            await type(page, ids['Office Equipment'], '5,000')
+            await type(page, ids['Company Card'], '1,200')
+            await saveAndSettle(page, writes)
+            await expect(page.getByTestId('opening-error-summary')).toHaveCount(0)
+
+            await reopen(page)
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expectAmount(page, ids['Company Card'], '1,200.00')
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(3) a refused date shows the server message under the date field',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await refusePosts(page, ENTRY_WRITES, {
+                message: 'Validation failed',
+                data: { date: { code: 'validation_invalid', message: 'Pick another date' } },
+            })
+            await type(page, ids['Office Equipment'], '5,000')
+
+            await saveAndSettle(page, writes)
+            // The summary may repeat a field error, so the first match is the
+            // one the person reads; the field error itself is a role=alert.
+            const message = screenOf(page).getByText('Pick another date').first()
+            await expect(message).toBeVisible()
+            await expect(screenOf(page)).toBeVisible()
+            // The refused entry write rolls its optimistic draft back; wait for
+            // that so the cleanup below does not race it.
+            await expect(discardTrigger(page)).toHaveCount(0)
+            await page.unrouteAll({ behavior: 'wait' })
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(2b) a refusal of the balancing line is a root message in the summary and keeps the amounts',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            // Two typed amounts make two typed lines; the balancing line is written
+            // last, so it is the third line POST.
+            let linePosts = 0
+            await page.route(LINE_WRITES, async route => {
+                if (route.request().method() !== 'POST') {
+                    await route.continue()
+                    return
+                }
+                linePosts += 1
+                if (linePosts < 3) {
+                    await route.continue()
+                    return
+                }
+                await route.fulfill({
+                    status: 400,
+                    body: JSON.stringify({
+                        message: 'Line refused',
+                        data: { account: { code: 'validation_invalid', message: 'Bad account' } },
+                    }),
+                })
+            })
+            await type(page, ids['Office Equipment'], '5,000')
+            await type(page, ids['Company Card'], '1,200')
+
+            await saveAndSettle(page, writes)
+            const summary = page.getByTestId('opening-error-summary')
+            await expect(summary).toBeVisible()
+            await expect(summary).toContainText('Line refused')
+            await expect(
+                page.getByTestId(`opening-amount-error-${ids['Office Equipment']}`)
+            ).toHaveCount(0)
+            await expect(
+                page.getByTestId(`opening-amount-error-${ids['Company Card']}`)
+            ).toHaveCount(0)
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expectAmount(page, ids['Company Card'], '1,200.00')
+            expect(linePosts).toBe(3)
+            await page.unrouteAll({ behavior: 'wait' })
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(3b) a refused memo shows the server message under the memo field',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await refusePosts(page, ENTRY_WRITES, {
+                message: 'Validation failed',
+                data: { memo: { code: 'validation_invalid', message: 'Memo refused' } },
+            })
+            await type(page, ids['Office Equipment'], '5,000')
+
+            await saveAndSettle(page, writes)
+            const memoError = page.getByTestId('opening-memo-error')
+            await expect(memoError).toBeVisible()
+            await expect(memoError).toContainText('Memo refused')
+            await expect(screenOf(page)).toBeVisible()
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expect(discardTrigger(page)).toHaveCount(0)
+            await page.unrouteAll({ behavior: 'wait' })
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(9b) a refused discard keeps the draft and shows the message in the summary',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await type(page, ids['Office Equipment'], '5,000')
+            await saveAndSettle(page, writes)
+            await reopen(page)
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+
+            await page.route(`${ENTRY_WRITES}/*`, async route => {
+                if (route.request().method() !== 'DELETE') {
+                    await route.continue()
+                    return
+                }
+                await route.fulfill({
+                    status: 400,
+                    body: JSON.stringify({ message: 'Discard refused', data: {} }),
+                })
+            })
+            await openDiscardDialog(page)
+            await confirmDiscard(page)
+            const summary = page.getByTestId('opening-error-summary')
+            await expect(summary).toBeVisible()
+            await expect(summary).toContainText('Discard refused')
+            await expect(discardDraftTitle(page)).toHaveCount(0)
+            await expect(screenOf(page)).toBeVisible()
+            await expect(discardTrigger(page)).toBeVisible()
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+
+            await page.unrouteAll({ behavior: 'wait' })
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(4) the first save shows Saving..., stays on the form and ignores a double press',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            let entryPosts = 0
+            let release: () => void = () => {}
+            const held = new Promise<void>(resolve => {
+                release = resolve
+            })
+            await page.route(ENTRY_WRITES, async route => {
+                if (route.request().method() !== 'POST') {
+                    await route.continue()
+                    return
+                }
+                entryPosts += 1
+                if (entryPosts === 1) await held
+                await route.continue()
+            })
+            await type(page, ids['Office Equipment'], '5,000')
+            await type(page, ids['Company Card'], '1,200')
+
+            // Two clicks in one tick: the button has not re-rendered as disabled
+            // between them, so only the ref guard can drop the second.
+            await saveButton(page).evaluate(el => {
+                el.click()
+                el.click()
+            })
+            await expect(saveButton(page)).toHaveText('Saving...')
+            await expect(saveButton(page)).toBeDisabled()
+            await expect(screenOf(page)).toBeVisible()
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expectAmount(page, ids['Company Card'], '1,200.00')
+
+            release()
+            await expect.poll(() => writes.count()).toBeGreaterThan(0)
+            await expect(saveButton(page)).toHaveText('Save draft')
+            await expect(saveButton(page)).toBeEnabled()
+            expect(entryPosts).toBe(1)
+            await page.unrouteAll({ behavior: 'wait' })
+
+            await reopen(page)
+            await expect(discardTrigger(page)).toBeVisible()
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expectOneEquityAccount(page)
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(5) re-opening seeds the form from the draft and a second save adds no equity account',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await page.getByTestId('opening-date').fill('2025-06-01')
+            await page.getByTestId('opening-memo').fill('Converted from the old books')
+            await type(page, ids['Office Equipment'], '5,000')
+            await type(page, ids['Company Card'], '1,200')
+            await saveAndSettle(page, writes)
+
+            await reopen(page)
+            await expect(page.getByTestId('opening-status-badge')).toBeVisible()
+            await expect(page.getByTestId('opening-status-badge')).toHaveText('Draft')
+            await expect(page.getByTestId('opening-date')).toHaveValue('2025-06-01')
+            await expect(page.getByTestId('opening-memo')).toHaveValue(
+                'Converted from the old books'
+            )
+            await expectAmount(page, ids['Office Equipment'], '5,000.00')
+            await expectAmount(page, ids['Company Card'], '1,200.00')
+            if (isPhone(page)) {
+                await page.getByTestId('opening-more').click()
+                await expect(
+                    page.getByRole('menuitem', { name: 'Discard draft', exact: true })
+                ).toBeVisible()
+                await page.keyboard.press('Escape')
+            } else {
+                await expect(page.getByTestId('opening-discard')).toBeVisible()
+            }
+
+            await type(page, ids['Company Card'], '1,300')
+            await saveAndSettle(page, writes)
+            await reopen(page)
+            await expectAmount(page, ids['Company Card'], '1,300.00')
+            await expectOneEquityAccount(page)
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(5b) a draft saved with the default date and a blank memo re-opens following the date',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            const defaultDate = lastFiscalYearEnd()
+            await type(page, ids['Office Equipment'], '5,000')
+            await saveAndSettle(page, writes)
+
+            await reopen(page)
+            await expect(page.getByTestId('opening-date')).toHaveValue(defaultDate)
+            await expect(page.getByTestId('opening-preset')).toContainText(
+                'End of last fiscal year'
+            )
+            await expect(page.getByTestId('opening-memo')).toHaveValue(
+                `Opening balances as of ${dayText(defaultDate)}`
+            )
+
+            await page.getByTestId('opening-date').fill('2025-06-01')
+            await expect(page.getByTestId('opening-memo')).toHaveValue(
+                `Opening balances as of ${dayText('2025-06-01')}`
+            )
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes(
+        '(6) editing changes, clears and adds figures; clearing all leaves a draft with no lines',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await type(page, ids['Office Equipment'], '5,000')
+            await type(page, ids['Company Card'], '1,200')
+            await saveAndSettle(page, writes)
+
+            await type(page, ids['Office Equipment'], '6,000')
+            await type(page, ids['Company Card'], '')
+            await type(page, ids["Owner's Equity"], '700')
+            await saveAndSettle(page, writes)
+            await reopen(page)
+            await expectAmount(page, ids['Office Equipment'], '6,000.00')
+            await expectAmount(page, ids['Company Card'], '')
+            await expectAmount(page, ids["Owner's Equity"], '700.00')
+
+            await type(page, ids['Office Equipment'], '')
+            await type(page, ids["Owner's Equity"], '')
+            await saveAndSettle(page, writes)
+            await reopen(page)
+            await expect(discardTrigger(page)).toBeVisible()
+            await expectAmount(page, ids['Office Equipment'], '')
+            await expectAmount(page, ids["Owner's Equity"], '')
+            await openPreview(page)
+            await expect(page.getByTestId('opening-preview-empty')).toBeVisible()
+            await discardExistingDraft(page)
+        }
+    )
+
+    bothSizes('(7) a form that was never saved has no Discard draft', async (page, size) => {
+        await begin(page, size)
+        await expect(saveButton(page)).toBeVisible()
+        await expect(page.getByTestId('opening-status-badge')).toHaveCount(0)
+        await expect(page.getByTestId('opening-discard')).toHaveCount(0)
+        await expect(page.getByTestId('opening-more')).toHaveCount(0)
+        await expect(screenOf(page).getByText('Discard draft')).toHaveCount(0)
+    })
+
+    bothSizes('(8) Cancel asks only when there are unsaved changes', async (page, size) => {
+        const ids = await begin(page, size)
+        const writes = trackWrites(page)
+        const screen = screenOf(page)
+        const dialog = discardChangesTitle(page)
+
+        // No changes: back without a dialog.
+        await page.getByTestId('opening-cancel').click()
+        await expect(screen).toBeHidden()
+        await expect(dialog).toHaveCount(0)
+        await openFromChart(page)
+
+        // Unsaved changes: the dialog opens; its cancel keeps the form.
+        await type(page, ids['Office Equipment'], '100')
+        await page.getByTestId('opening-cancel').click()
+        await expect(dialog).toBeVisible()
+        await dialogCancelButton(page).click()
+        await expect(dialog).toHaveCount(0)
+        await expect(screen).toBeVisible()
+        await expectAmount(page, ids['Office Equipment'], '100.00')
+
+        // Its confirm leaves to the Chart of Accounts.
+        await page.getByTestId('opening-cancel').click()
+        await page.getByRole('button', { name: 'Discard changes', exact: true }).click()
+        await expect(screen).toBeHidden()
+        await expect(page.getByTestId('account-search')).toBeVisible()
+        await openFromChart(page)
+        await expectAmount(page, ids['Office Equipment'], '')
+
+        // Right after a successful save the form is clean: no prompt.
+        await type(page, ids['Office Equipment'], '5,000')
+        await saveAndSettle(page, writes)
+        await page.getByTestId('opening-cancel').click()
+        await expect(screen).toBeHidden()
+        await expect(dialog).toHaveCount(0)
+        await discardExistingDraft(page)
+    })
+
+    bothSizes('(9) Discard draft deletes the draft after a confirmation', async (page, size) => {
+        const ids = await begin(page, size)
+        const writes = trackWrites(page)
+        await type(page, ids['Office Equipment'], '5,000')
+        await saveAndSettle(page, writes)
+        await reopen(page)
+        await expectAmount(page, ids['Office Equipment'], '5,000.00')
+
+        const dialog = discardDraftTitle(page)
+        await openDiscardDialog(page)
+        await dialogCancelButton(page).click()
+        await expect(dialog).toHaveCount(0)
+        await expect(discardTrigger(page)).toBeVisible()
+        await expectAmount(page, ids['Office Equipment'], '5,000.00')
+
+        await openDiscardDialog(page)
+        await confirmDiscard(page)
+        await expect(discardTrigger(page)).toHaveCount(0)
+        await leaveToChart(page)
+        await openFromChart(page)
+        await expectAmount(page, ids['Office Equipment'], '')
+        await expect(discardTrigger(page)).toHaveCount(0)
+        await discardExistingDraft(page)
+    })
+
+    bothSizes(
+        '(10) Save draft is disabled and sends nothing for a Too large figure',
+        async (page, size) => {
+            const ids = await begin(page, size)
+            const writes = trackWrites(page)
+            await type(page, ids['Office Equipment'], '20,000,000,000,000')
+            await expect(page.getByTestId('opening-totals-problem')).toContainText('Too large')
+            await expect(saveButton(page)).toBeVisible()
+            await expect(saveButton(page)).toBeDisabled()
+
+            // Counted from the moment of the press; a POST to the entries
+            // collection is the first request a save would send.
+            let entryPosts = 0
+            page.on('request', request => {
+                if (
+                    request.method() === 'POST' &&
+                    request.url().includes('/books_journal_entries')
+                ) {
+                    entryPosts += 1
+                }
+            })
+            await saveButton(page).click({ force: true })
+            await amount(page, ids['Office Equipment']).focus()
+            await page.keyboard.press('Enter')
+
+            // Leaving and re-opening lets any pending work settle: a draft that
+            // exists now would show its Discard trigger.
+            await reopen(page)
+            await expect(discardTrigger(page)).toHaveCount(0)
+            await expectAmount(page, ids['Office Equipment'], '')
+            expect(entryPosts).toBe(0)
+            expect(writes.count()).toBe(0)
+            await discardExistingDraft(page)
+        }
+    )
 })

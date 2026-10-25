@@ -48,6 +48,11 @@ cp 4 · the 'Too large' state of the totals strip and the preview problem text a
 cp 4 · the local APP_CHROME_WIDTH uses a copy of the 260px sidebar width (core's SIDEBAR_WIDTH_DESKTOP is not exported): it drifts silently if core changes it; exporting it needs a core PR
 cp 4 · KNOWN BUG, NOT OURS: after a failed query is cleaned up and rebuilt, the @tanstack/react-db hook (0.5.5) can keep stale `data` for a healthy query that was cleaned and reloaded (a ready query with collection.size 1 and data undefined). It made Retry flaky until retry stopped cleaning healthy queries. Any screen that cleans a healthy query can hit it. Needs an upstream look (live-query-observer getSnapshot revision check).
 
+cp 5 · the Draft badge is a neutral outlined chip (the reference's); the Posted tone is success
+cp 5 · the late-error carry-over (form stays mounted, typed values kept) has no e2e (cannot be triggered deterministically on web)
+cp 5 · CORE FINDING, not changed: on phones core's `Dialog` renders a `Sheet` with no `dialog` role (and no aria-modal), so assistive tech does not see a dialog; the proposed fix (an optional `role` prop on Sheet set by Dialog) is in the scratchpad; needs a core PR
+cp 5 · CLAUDE.md bans a canSubmit boolean derived from field values, the spec mandates Save and Post disabled on a too-large figure: kept as the spec says plus a guard inside `save`; a zod root refine over `buildOpening` would be the rule-conforming alternative
+
 ## Out-of-plan changes
 cp 3 · tests/e2e/account-register-entry.spec.ts (earlier unit): box read replaced by offsetHeight; hooks/useRowWindow.ts additive options; opening-grid-style.ts new.
 cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collection` fields so a failing access read shows the error state instead of loading forever.
@@ -123,6 +128,21 @@ cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collectio
 - retry rewrite (found by a flaky checkpoint 2 test): retry rebuilt healthy queries; after cleaning a healthy settings query the TanStack DB hook kept stale `data`, leaving the screen on `error` after Retry (about 4 of 60 runs) and, via the books_access query, the no-access state. Retry now rebuilds only queries that failed (+ their own source); 40 of 40 runs pass
 - fix review: three passes; each found a real issue; last pass clean except notes
 - out-of-plan changes: lib/opening-balances-messages.ts `problemMessage`; OpeningAccountTable TABLE_MIN_WIDTH 640 to 560 (exported); useOpeningBalancesScreen retry rewrite
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 5
+- test writer: appended the `opening-balances: save draft and discard` describe and helpers; red for the right reason: yes (20 runs red at the missing action bar); untestable: the stored balancing line's removal is not observable in the UI (the reopened form and preview are empty either way: pinned by `diffLines` in checkpoint 1); the late-error carry-over (a mounted form keeps typed values over a late query error) could not be triggered deterministically through the UI on web (core's resume reload is native-only; the only other trigger is a realtime change, which needs a data write the rules ban): untested by e2e
+- implementer: useOpeningBalancesForm save/discard/cancel and dialogs, hooks/useOpeningDraftWrites.ts, OpeningActionBar, DiscardDraftDialog, notice, summary, Draft status badge; DONE through three fix rounds
+- test disputes: none against the implementer; the tests located confirm dialogs with `getByRole('dialog')`, but core's Dialog renders a Sheet without a dialog role on phones: tests now locate dialogs by title text
+- self-declared differences: Opening Balance Equity is created only when a balancing line is needed (the plan's literal text would add an unused account on an empty save); Cancel and Discard go through useBackToChart; after a confirmed discard the screen goes back to the chart; Post renders with the enable rules but has no handler until checkpoint 6; a replace-state save inserts a new draft with `replaces` set and never touches the posted lines (seeding the amounts from the posted lines is checkpoint 7)
+- gate 1: tests unedited: yes · pass (check 1129 tests; full e2e 144 passed, 7 skipped; the skips are the scratch capture specs)
+- gate 2: invalid shots: none · blocking: found and fixed (missing Draft badge) · notes: Draft badge tone (now neutral outlined)
+- gate 3 A (correctness): accepted+fixed: `reset(getValues())` made in-flight edits the clean baseline (now reset with the submitted payload and keepValues); failed discard hid its error behind the dialog; line refusals shown under the offending amount; refusals naming non-form fields are root messages; `save` refuses when blocked; bare catch now logs unexpected errors only; Opening Balance Equity recovery keeps the original error; memo and preset follow the date on reopen; the form stays mounted through transient states (state held with the documented set-during-render pattern, no ref written in render); positions from a Map. noted: hand-rolled `isBlocked` disable (CLAUDE.md bans a canSubmit derived from field values; the spec mandates blocking Save and Post on a too-large figure; kept, with the `save` guard and a comment)
+- gate 3 B (conformance): accepted+fixed: isVisible pattern for notice and summary, field errors moved into the hook, unused removal
+- core change attempted and reverted: the implementer added `role="dialog"` to core's Sheet/Dialog so phone dialogs expose it; reverted (no core change approved); the proposed diff is kept in the scratchpad (`cp5-core-proposal.diff`). Core's phone Dialog has no dialog role: an accessibility gap worth a core PR
+- fix review: three passes; last pass found two cosmetic items (fixed)
+- out-of-plan changes: hooks/useOpeningDraftWrites.ts (new, write logic split out); hooks/useOpeningBalancesScreen.ts and OpeningBalancesScreenView.tsx (late error keeps the mounted form, `isRefreshing`, `hasLateError`); lib/opening-balances.ts (export `OPENING_BALANCE_EQUITY_NAME`); lib/opening-balances-messages.ts (`refusalMessage`, `lineRefusalMessage`, `refusalNamesFormFields`); OpeningBalancesHeader `statusBadge` and `OpeningStatusBadge`; scratch capture spec `helix-states` now skips unless HELIX_STATES=1 (it saved drafts into the shared e2e database and broke the refusal tests)
 - reviewer-caught deferrals: none
 - commit: see git log
 

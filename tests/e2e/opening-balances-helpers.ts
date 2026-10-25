@@ -74,3 +74,97 @@ export async function openWithIds(
 function isPhoneSize(page: Page) {
     return (page.viewportSize()?.width ?? 1280) < 700
 }
+
+// Checkpoint 5 helpers. The draft actions (see OpeningActionBar): wide shows the
+// `opening-discard` button; a phone shows the `opening-more` menu, which exists
+// only for a saved draft and holds a "Discard draft" item. Both open the same
+// confirm dialog, whose confirm button reads "Discard draft".
+export function discardTrigger(page: Page) {
+    return page.getByTestId(isPhoneSize(page) ? 'opening-more' : 'opening-discard')
+}
+
+export async function openDiscardDialog(page: Page) {
+    if (isPhoneSize(page)) {
+        await page.getByTestId('opening-more').click()
+        await page.getByRole('menuitem', { name: 'Discard draft', exact: true }).click()
+    } else {
+        await page.getByTestId('opening-discard').click()
+    }
+    await expect(discardDraftTitle(page)).toBeVisible()
+}
+
+// Confirm dialogs are located by their visible title, which exists on both the
+// wide dialog and the phone sheet (only the wide one carries a dialog role).
+export function discardDraftTitle(page: Page) {
+    return page.getByText('Discard this draft?', { exact: true })
+}
+
+export function discardChangesTitle(page: Page) {
+    return page.getByText('Discard changes?', { exact: true })
+}
+
+// The screen's own Cancel button stays mounted behind the dialog, so the
+// dialog's Cancel is the one that is not the screen's.
+export function dialogCancelButton(page: Page) {
+    return page
+        .getByRole('button', { name: 'Cancel', exact: true })
+        .and(page.locator(':not([data-testid="opening-cancel"])'))
+}
+
+export async function confirmDiscard(page: Page) {
+    await page
+        .getByRole('button', { name: 'Discard draft', exact: true })
+        .and(page.locator(':not([data-testid="opening-discard"])'))
+        .click()
+    await expect(discardDraftTitle(page)).toHaveCount(0)
+}
+
+// Leaves the Opening balances screen for the Chart of Accounts through the
+// header back link (no unsaved-changes prompt) unless the screen is already gone.
+export async function leaveToChart(page: Page) {
+    const screen = page.getByTestId('opening-balances-screen')
+    if (await screen.isVisible()) await page.getByTestId('opening-back').click()
+    await expect(screen).toBeHidden()
+    await expect(page.getByTestId('account-search')).toBeVisible()
+}
+
+// Account ids by name from the Chart of Accounts, which must be open. A missing
+// name throws, so an absence assertion on an id cannot pass vacuously.
+export async function idsFromChart(page: Page, names: readonly string[] = GRID_NAMES) {
+    const prefix = isPhoneSize(page) ? 'account-card-' : 'account-row-'
+    const ids: Record<string, string> = {}
+    for (const name of names) {
+        const item = page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name })
+        if ((await item.count()) === 0) {
+            throw new Error(`Chart of Accounts has no row for "${name}"`)
+        }
+        const testId = await item.first().getAttribute('data-testid')
+        ids[name] = (testId ?? '').slice(prefix.length)
+    }
+    return ids
+}
+
+export async function openFromChart(page: Page) {
+    await page.getByTestId('account-opening-balances-link').click()
+    await expect(page.getByTestId('opening-balances-screen')).toBeVisible()
+}
+
+// Brings the draft state to "none" and leaves the Chart of Accounts open: opens
+// the screen if it is not open, discards a saved draft through the dialog, and
+// goes back to the chart. The opening entry is permanent once posted, so the
+// tests of this checkpoint all run before any post and end through this helper.
+export async function discardExistingDraft(page: Page) {
+    const screen = page.getByTestId('opening-balances-screen')
+    if (!(await screen.isVisible())) {
+        if (await page.getByTestId('account-search').isVisible()) await openFromChart(page)
+        else await openOpeningBalances(page)
+    }
+    await expect(page.getByTestId('opening-body')).toBeVisible()
+    const trigger = discardTrigger(page)
+    if (await trigger.isVisible()) {
+        await openDiscardDialog(page)
+        await confirmDiscard(page)
+        await expect(trigger).toHaveCount(0)
+    }
+    await leaveToChart(page)
+}
