@@ -2,8 +2,9 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { SelectInput } from '@tinycld/core/ui/form'
 import { Menu } from '@tinycld/core/ui/menu'
 import { EllipsisVertical } from 'lucide-react-native'
-import { useFormContext } from 'react-hook-form'
+import { useFormContext, useFormState } from 'react-hook-form'
 import { Platform, Pressable, Text, View } from 'react-native'
+import { useClearStaleErrors } from '../../hooks/useClearStaleErrors'
 import type { EntryFormValues } from '../../lib/entry-schema'
 import type { FocusNode, LineColumn } from '../../lib/line-focus'
 import { AmountCell, MemoCell } from './AmountCell'
@@ -53,6 +54,7 @@ export function AccountPick({
     actions,
 }: Pick<LineProps, 'index' | 'options' | 'actions'>) {
     const { control } = useFormContext<EntryFormValues>()
+    const { onEdit } = useClearStaleErrors()
     const register = actions.register(index, 'account')
     const setRef = (node: View | null) =>
         register(node ? accountFocusNode(node, index, actions) : null)
@@ -64,6 +66,7 @@ export function AccountPick({
                 label={`Line ${index + 1} account`}
                 hideLabel
                 hideError
+                onValueChange={onEdit}
                 options={options}
                 placeholder="Choose account"
                 testID={`entry-line-account-${index}`}
@@ -113,11 +116,50 @@ export function LineMenu({
     )
 }
 
+// Field errors and a server refusal of this line sit under it, where the eye already is.
+export function LineError({ index }: { index: number }) {
+    const { control } = useFormContext<EntryFormValues>()
+    const { errors } = useFormState({ control })
+    const line = errors.lines?.[index]
+    const messages = [
+        line?.account?.message,
+        line?.debit?.message,
+        line?.credit?.message,
+        errors.root?.[`line${index}`]?.message,
+    ].filter((message): message is string => typeof message === 'string' && message !== '')
+    if (messages.length === 0) return null
+    const texts = messages.map(message => (
+        <Text key={message} className="text-xs text-destructive">
+            {message}
+        </Text>
+    ))
+    return (
+        <View testID={`entry-line-error-${index}`} className="gap-0.5 px-1 pb-1">
+            {texts}
+        </View>
+    )
+}
+
 export function EntryLineRow({ index, lineCount, currency, options, actions }: LineProps) {
+    return (
+        <View className="border-b border-border">
+            <LineFields
+                index={index}
+                lineCount={lineCount}
+                currency={currency}
+                options={options}
+                actions={actions}
+            />
+            <LineError index={index} />
+        </View>
+    )
+}
+
+function LineFields({ index, lineCount, currency, options, actions }: LineProps) {
     return (
         <View
             testID={`entry-line-${index}`}
-            className="flex-row items-start gap-2 border-b border-border px-2 py-1"
+            className="flex-row items-start gap-2 px-2 py-1"
             style={{ minHeight: 52 }}
         >
             <View style={LINE_COLUMNS.index} className="items-center justify-center">

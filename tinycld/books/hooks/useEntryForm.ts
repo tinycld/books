@@ -3,6 +3,7 @@ import { useRef } from 'react'
 import { sumLines } from '../lib/entry-lines'
 import { type EntryFormValues, emptyLine, entryResolver } from '../lib/entry-schema'
 import { createFocusRegistry, type LineColumn, nextCell } from '../lib/line-focus'
+import { staleErrorClearers } from './useClearStaleErrors'
 
 export function useEntryForm({
     initial,
@@ -28,7 +29,12 @@ export function useEntryForm({
     const focus = focusRef.current
     const totals = sumLines(useWatch({ control, name: 'lines' }), currency)
 
-    const move = (index: number, direction: -1 | 1) => swap(index, index + direction)
+    const { onAmountEdit } = staleErrorClearers(form)
+    // Adding, removing or moving a line changes what an error was about.
+    const move = (index: number, direction: -1 | 1) => {
+        swap(index, index + direction)
+        onAmountEdit()
+    }
 
     const submit = (index: number, column: LineColumn) => {
         const next = nextCell(index, column)
@@ -44,8 +50,14 @@ export function useEntryForm({
         fields,
         totals,
         modeRef,
-        addLine: () => append(emptyLine()),
-        removeLine: (index: number) => remove(index),
+        addLine: () => {
+            append(emptyLine())
+            onAmountEdit()
+        },
+        removeLine: (index: number) => {
+            remove(index)
+            onAmountEdit()
+        },
         moveLineUp: (index: number) => move(index, -1),
         moveLineDown: (index: number) => move(index, 1),
         isDirty: form.formState.isDirty,

@@ -2,6 +2,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { useController, useFormContext } from 'react-hook-form'
 import { Platform } from 'react-native'
+import { useClearStaleErrors } from '../../hooks/useClearStaleErrors'
 import { formatAmountOnBlur, shouldClearOtherSide } from '../../lib/entry-lines'
 import type { EntryFormValues } from '../../lib/entry-schema'
 import type { LineActions } from './EntryLineRow'
@@ -68,12 +69,14 @@ interface AmountCellProps {
 
 export function AmountCell({ side, index, currency, actions }: AmountCellProps) {
     const { setValue } = useFormContext<EntryFormValues>()
+    const { onAmountEdit } = useClearStaleErrors()
     const other = side === 'debit' ? 'credit' : 'debit'
     // The sibling is cleared in the change event itself, never from a watch or an effect.
     const clearOther = (text: string) => {
         if (shouldClearOtherSide(text)) {
             setValue(`lines.${index}.${other}`, '', { shouldDirty: true })
         }
+        onAmountEdit()
     }
     return (
         <CellInput
@@ -95,6 +98,7 @@ interface MemoCellProps {
 }
 
 export function MemoCell({ index, actions }: MemoCellProps) {
+    const { onEdit } = useClearStaleErrors()
     return (
         <CellInput
             index={index}
@@ -102,6 +106,7 @@ export function MemoCell({ index, actions }: MemoCellProps) {
             label={`Line ${index + 1} memo`}
             placeholder="Line memo"
             isRight={false}
+            onChangeText={onEdit}
             actions={actions}
         />
     )

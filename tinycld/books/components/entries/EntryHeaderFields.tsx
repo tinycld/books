@@ -1,6 +1,7 @@
 import { TextAreaInput, TextInput } from '@tinycld/core/ui/form'
 import { useFormContext } from 'react-hook-form'
 import { Text, View } from 'react-native'
+import { useClearStaleErrors } from '../../hooks/useClearStaleErrors'
 import type { EntryFormValues } from '../../lib/entry-schema'
 
 function Cell({ isWide, children }: { isWide: boolean; children: React.ReactNode }) {
@@ -9,6 +10,7 @@ function Cell({ isWide, children }: { isWide: boolean; children: React.ReactNode
 
 export function EntryHeaderFields({ isWide }: { isWide: boolean }) {
     const { control } = useFormContext<EntryFormValues>()
+    const { onEdit } = useClearStaleErrors()
     return (
         <View>
             <View className={isWide ? 'flex-row gap-3' : ''}>
@@ -19,6 +21,7 @@ export function EntryHeaderFields({ isWide }: { isWide: boolean }) {
                         label="Date"
                         hint="YYYY-MM-DD"
                         testID="entry-date"
+                        onValueChange={onEdit}
                     />
                 </Cell>
                 <Cell isWide={isWide}>
@@ -41,10 +44,17 @@ export function EntryHeaderFields({ isWide }: { isWide: boolean }) {
                         label="Auto-reverse on"
                         hint="Posts a reversing entry on this date"
                         testID="entry-auto-reverse"
+                        onValueChange={onEdit}
                     />
                 </Cell>
             </View>
-            <TextAreaInput name="memo" control={control} label="Memo" testID="entry-memo" />
+            <TextAreaInput
+                name="memo"
+                control={control}
+                label="Memo"
+                testID="entry-memo"
+                onChange={onEdit}
+            />
         </View>
     )
 }

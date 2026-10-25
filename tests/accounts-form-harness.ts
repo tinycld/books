@@ -56,6 +56,12 @@ export function liftRefusal() {
     state.refusalFor = {}
 }
 
+// Starts refusing once `more` further writes have reached the handler, so a test can
+// fail a later attempt without replacing the stores.
+export function refuseAfterMore(more: number, error: unknown) {
+    state.refuseAfter = { after: state.entered.length + more, error }
+}
+
 export function useStoreStub(...names: string[]) {
     state.requested.push(...names)
     return names.map(name => state.registry[name])
@@ -76,32 +82,51 @@ function local<T extends { id: string }>(name: string, initialData: T[]) {
     )
 }
 
-// The accounts collection can be told to refuse a write with the error shape
-// PocketBase rejects with, so a test can see how a server refusal is handled.
-// Passing the handlers to the local-only options (not wrapping them afterwards)
-// is what makes a write go through them instead of completing at once.
+// A write handler that can be told to refuse with the error shape PocketBase
+// rejects with, so a test can see how a server refusal is handled. Passing the
+// handlers to the local-only options (not wrapping them afterwards) is what makes
+// a write go through them instead of completing at once.
+async function refuseWhenAsked({
+    transaction,
+}: {
+    transaction: { mutations: ReadonlyArray<{ key: unknown }> }
+}) {
+    const keys = transaction.mutations.map(m => String(m.key))
+    state.entered.push(...keys)
+    if (state.gate) await state.gate
+    if (state.refuseAfter && state.entered.length > state.refuseAfter.after) {
+        throw state.refuseAfter.error
+    }
+    const refusedKey = keys.find(key => key in state.refusalFor)
+    if (refusedKey !== undefined) throw state.refusalFor[refusedKey]
+    if (state.refusal) throw state.refusal
+}
+
 function accountsCollection() {
     counter += 1
-    const refuseWhenAsked = async ({
-        transaction,
-    }: {
-        transaction: { mutations: ReadonlyArray<{ key: unknown }> }
-    }) => {
-        const keys = transaction.mutations.map(m => String(m.key))
-        state.entered.push(...keys)
-        if (state.gate) await state.gate
-        if (state.refuseAfter && state.entered.length > state.refuseAfter.after) {
-            throw state.refuseAfter.error
-        }
-        const refusedKey = keys.find(key => key in state.refusalFor)
-        if (refusedKey !== undefined) throw state.refusalFor[refusedKey]
-        if (state.refusal) throw state.refusal
-    }
     return createCollection(
         localOnlyCollectionOptions({
             id: `books_accounts-${counter}`,
             getKey: (row: BooksAccounts) => row.id,
             initialData: ACCOUNTS,
+            onInsert: refuseWhenAsked,
+            onUpdate: refuseWhenAsked,
+            onDelete: refuseWhenAsked,
+            ...indexed,
+        })
+    )
+}
+
+// Entries and lines go through the same handler as accounts, so a save test can
+// hold, count or refuse their writes. Only a test that asks for a refusal, a
+// hold or a count sees a difference.
+function guarded<T extends { id: string }>(name: string, initialData: T[]) {
+    counter += 1
+    return createCollection(
+        localOnlyCollectionOptions({
+            id: `${name}-${counter}`,
+            getKey: (row: T) => row.id,
+            initialData,
             onInsert: refuseWhenAsked,
             onUpdate: refuseWhenAsked,
             onDelete: refuseWhenAsked,
@@ -212,8 +237,8 @@ export function seedBooks(
               ),
         books_journal_lines: opts.linesNeverReady
             ? neverReady<BooksJournalLines>()
-            : local<BooksJournalLines>('books_journal_lines', opts.ledger?.lines ?? lines),
-        books_journal_entries: local<BooksJournalEntries>(
+            : guarded<BooksJournalLines>('books_journal_lines', opts.ledger?.lines ?? lines),
+        books_journal_entries: guarded<BooksJournalEntries>(
             'books_journal_entries',
             opts.ledger?.entries ?? []
         ),
@@ -228,11 +253,11 @@ export function accountsStore() {
 
 // Seeded collections a register test writes to after the first render.
 export function lineStore() {
-    return state.registry.books_journal_lines as ReturnType<typeof local<BooksJournalLines>>
+    return state.registry.books_journal_lines as ReturnType<typeof guarded<BooksJournalLines>>
 }
 
 export function entryStore() {
-    return state.registry.books_journal_entries as ReturnType<typeof local<BooksJournalEntries>>
+    return state.registry.books_journal_entries as ReturnType<typeof guarded<BooksJournalEntries>>
 }
 
 export function balanceStore() {

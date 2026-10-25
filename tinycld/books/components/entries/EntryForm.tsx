@@ -1,10 +1,14 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { FormProvider } from 'react-hook-form'
+import { FormErrorSummary } from '@tinycld/core/ui/form'
+import { type FieldErrors, FormProvider, useFormContext, useFormState } from 'react-hook-form'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useAccountOptions } from '../../hooks/useAccountOptions'
 import { useEntryForm } from '../../hooks/useEntryForm'
+import { type SaveOutcome, useEntrySubmit } from '../../hooks/useEntrySubmit'
 import type { LineTotals } from '../../lib/entry-lines'
 import type { EntryFormValues } from '../../lib/entry-schema'
+import { DiscardDialog } from './DiscardDialog'
+import { EntryActionBar } from './EntryActionBar'
 import { EntryEditableLineCard } from './EntryEditableLineCard'
 import { EntryEditableLineTable } from './EntryEditableLineTable'
 import { EntryHeaderFields } from './EntryHeaderFields'
@@ -15,7 +19,8 @@ interface EntryFormProps {
     initial: EntryFormValues
     currency: string
     header(totals: LineTotals): React.ReactNode
-    actions?: React.ReactNode
+    onSaved(id: string, outcome: SaveOutcome): void
+    onCancel(): void
 }
 
 interface LinesProps {
@@ -50,6 +55,40 @@ function Lines({ isWide, lineIds, currency, options, actions }: LinesProps) {
     return <View className="gap-2 px-4">{cards}</View>
 }
 
+// Only what belongs to no single field is summarized; field errors sit on their field or
+// under their line.
+function formLevelMessages(errors: FieldErrors<EntryFormValues>): string[] {
+    const refusals = Object.values(errors.root ?? {}).map(value =>
+        typeof value === 'object' ? value.message : undefined
+    )
+    return [errors.lines?.root?.message, ...refusals].filter(
+        (message): message is string => typeof message === 'string' && message !== ''
+    )
+}
+
+function EntryErrorSummary() {
+    const { control } = useFormContext<EntryFormValues>()
+    const { errors } = useFormState({ control })
+    const formLevel: FieldErrors = Object.fromEntries(
+        formLevelMessages(errors).map((message, index) => [
+            `entry${index}`,
+            { type: 'server', message },
+        ])
+    )
+    return (
+        <View className="px-4 pt-3">
+            <FormErrorSummary
+                errors={formLevel}
+                isEnabled
+                showFieldNames={false}
+                title={null}
+                variant="destructive"
+                testID="entry-error-summary"
+            />
+        </View>
+    )
+}
+
 function AddLineButton({ onPress }: { onPress: () => void }) {
     return (
         <Pressable
@@ -64,10 +103,11 @@ function AddLineButton({ onPress }: { onPress: () => void }) {
     )
 }
 
-export function EntryForm({ initial, currency, header, actions }: EntryFormProps) {
+export function EntryForm({ initial, currency, header, onSaved, onCancel }: EntryFormProps) {
     const isWide = useBreakpoint() !== 'mobile'
     const entryForm = useEntryForm({ initial, currency })
     const { options } = useAccountOptions()
+    const submit = useEntrySubmit({ entryForm, currency, onSaved, onCancel })
     const lineActions: LineActions = {
         onAdd: entryForm.addLine,
         onRemove: entryForm.removeLine,
@@ -82,6 +122,7 @@ export function EntryForm({ initial, currency, header, actions }: EntryFormProps
         <FormProvider {...entryForm.form}>
             <View testID="entry-screen" className="min-w-0 flex-1 bg-background">
                 {header(entryForm.totals)}
+                <EntryErrorSummary />
                 <ScrollView className="flex-1" contentContainerClassName="gap-4 py-4">
                     <View className="px-4">
                         <EntryHeaderFields isWide={isWide} />
@@ -96,7 +137,19 @@ export function EntryForm({ initial, currency, header, actions }: EntryFormProps
                     <AddLineButton onPress={entryForm.addLine} />
                 </ScrollView>
                 <EntryTotals totals={entryForm.totals} currency={currency} />
-                {actions}
+                <EntryActionBar
+                    isWide={isWide}
+                    isPending={submit.isPending}
+                    onCancel={submit.cancel}
+                    onSaveDraft={submit.saveDraft}
+                    onPost={submit.post}
+                    onPostAndNew={submit.postAndNew}
+                />
+                <DiscardDialog
+                    isVisible={submit.isDiscardOpen}
+                    onDiscard={submit.discard}
+                    onKeepEditing={submit.keepEditing}
+                />
             </View>
         </FormProvider>
     )

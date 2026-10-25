@@ -31,7 +31,16 @@ export const ACCOUNT_LABELS = {
 // From the Books landing (desktop sidebar, phone Lists hub) to the entries list.
 export async function openEntriesList(page: Page) {
     if (isPhone(page)) {
-        await page.getByTestId('books-list-card-entries').click()
+        // A fresh page may reopen Books at its last route instead of the hub.
+        const hubCard = page.getByTestId('books-list-card-entries')
+        const entries = page.getByTestId('entries-screen')
+        const back = page.getByTestId('entry-back')
+        await hubCard.or(entries).or(back).first().waitFor()
+        if (await back.isVisible()) {
+            await back.click()
+            await hubCard.or(entries).first().waitFor()
+        }
+        if (!(await entries.isVisible())) await hubCard.click()
     } else {
         const item = page.getByTestId('books-nav-entries')
         const toggle = page.getByTestId('books-nav-accounting-toggle')

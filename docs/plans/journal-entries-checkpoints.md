@@ -273,6 +273,7 @@ Note: the draft total stamping (Go: `server/lines.go` restates `entries.total` a
 - Create: `tinycld/books/hooks/useEntrySave.ts`
 - Modify: `tinycld/books/components/entries/EntryForm.tsx` (fill the `actions` slot, error summary, line errors)
 - Modify: `tinycld/books/hooks/useEntryForm.ts` (add `submit(mode)` wiring)
+- Modify: `tinycld/books/components/entries/EntryLineRow.tsx`, `EntryEditableLineCard.tsx`, `EntryEditableLineTable.tsx` (line error slot under each line: `entry-line-error-<k>`; amended after checkpoint 5 review)
 - Modify: `tinycld/books/screens/entries/new.tsx` (navigate after save)
 - Test: `tests/e2e/journal-entries-save-post.spec.ts` · `tests/use-entry-save.test.ts`
 

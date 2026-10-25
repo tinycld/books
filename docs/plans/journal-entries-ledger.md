@@ -205,3 +205,30 @@
 - tests/e2e/helix-capture.spec.ts (git-excluded scratch): `steps` and `scrollTo` shot fields.
 - docs/plans/journal-entries-evidence/cp5/: capture.json, shots, critique.md.
 
+## Checkpoint 6
+- test writer: tests/use-entry-save.test.ts, tests/use-entry-submit.test.ts, tests/e2e/journal-entries-save-post.spec.ts (red: missing hook and testids); harness change in tests/accounts-form-harness.ts (refusals on the entries and lines collections); tests/entry-schema.test.ts message updated; fix rounds added double-submit, stored-ref retry, stale errors, leave-mid-save, field-keyed refusal, cancel baseline, border colour
+- implementer: hooks/useEntrySave.ts, useEntrySubmit.ts, useClearStaleErrors.ts, components/entries/{EntryActionBar,DiscardDialog}.tsx, EntryForm, EntryLineRow, EntryEditableLineCard, screens/entries/new.tsx; DONE
+- test disputes: (1) phone "server refusal" test: the second page lands on entries/new (the package reopens at the last route) and waited for the hub card; the test writer changed openEntriesList to handle it. (2) tests/use-entry-save.test.ts Props lacked `currency` after it became required; coordinator added it with a default in the render wrapper.
+- self-declared differences: useEntryForm unchanged (submit wiring lives in hooks/useEntrySubmit.ts because tests/useEntryForm.test.ts renders it without providers); entryId ref lives in useEntrySave (`stored` ref with assigned line ids); currency required on useEntrySave; line inserts are sequential (the plan's own test needs the first line to stay when the second is refused); server line refusals use root.line<k>/root.server instead of lines.<k>.root; DiscardDialog uses Dialog (ConfirmDialog has no testIDs and 'Keep editing'); onDraftSaved resets the form baseline so Cancel after a saved draft needs no dialog
+- user decisions: (1) Post and Post & new stay enabled when unbalanced; the Post press triggers the error summary (reference shows them greyed). (2) Core FormErrorSummary gains optional `title` (null hides it) and `variant` ('destructive'); no local alert component.
+- gate 1: tests unedited: yes except the two disputes · pass (check exit 0, 1727 tests; typecheck exit 0; full e2e 184 passed 2 skipped); shots recaptured after the core change
+- gate 2: no INVALID shots; BLOCKING 1 (alert border colour) and 2 (alert title) fixed and verified in the second pass; Post/Post & new enabled is the user's decision; NOTE: 390 Post button 24 px narrower than the reference
+- gate 3 A: accepted+fixed: double submit, retry through the stored ref, existing-draft partial failure, navigation after leaving (isLive/left refs, log.warn when a refusal arrives after leaving), stale server errors and unbalanced banner cleared on edit, field-keyed refusals in the summary, Cancel after a saved draft, Post & new offline gate, post issued during an in-flight draft save. Gate 3 B: no blockers; out-of-plan changes recorded below
+- fix review: two fresh reviewer A passes over fix diffs; findings fixed as above; the fixed 750 ms sleep in the leave-mid-save test replaced by a response wait; rebutted below
+- reviewer-caught deferrals: none kept
+
+### Cp6 rebuttals
+- **finding:** reviewer A, trigger('lines') on each amount keystroke while the unbalanced banner shows surfaces per-line errors early
+  **rebutted because:** bounded cost; runs only while the banner exists; the banner must clear without a resubmit (reference shows it live).
+- **finding:** reviewer B, plan Do text says one parallel array of line inserts
+  **rebutted because:** the plan's own hook test requires the first line to stay when the second insert is refused; sequential inserts are the only way to get that.
+- **finding:** reviewer A, offline gate on phone Post & new not testable in e2e
+  **rebutted because:** needs a writes-unavailable state the harness cannot drive; the code uses the same useServerActionState as the other buttons.
+
+### Cp6 out-of-plan changes
+- CORE (user-approved, exclusive lane claim): tinycld/core/ui/form/FormErrorSummary.tsx gains optional `title` (null hides the title line) and `variant` ('soft' default, 'destructive'); defaults render as before. Core test core/ui/form/__tests__/form-error-summary.test.tsx +2. Core PR (not merged; merges only on user approval, before books depends on it): https://github.com/tinycld/tinycld/pull/374 (branch books/p1-journal-entries).
+- hooks/useEntrySubmit.ts, hooks/useClearStaleErrors.ts (new), EntryHeaderFields/AmountCell/EntryLineRow wiring for stale-error clearing; lib/entry-schema.ts unbalanced message is now 'Debits and credits must be equal before this entry can be posted.' (reference text) and tests/entry-schema.test.ts updated (cp1 test).
+- tests/accounts-form-harness.ts: refuseWhenAsked hoisted, guarded() collections, refuseAfterMore.
+- docs/plans/journal-entries-checkpoints.md: cp6 Files block gained EntryLineRow, EntryEditableLineCard, EntryEditableLineTable.
+- docs/plans/journal-entries-evidence/cp6/: capture.json, shots, critique.md.
+
