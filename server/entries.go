@@ -14,10 +14,11 @@ const (
 	statusPosted = "posted"
 	statusVoid   = "void"
 
-	originManual       = "manual"
-	originReversal     = "reversal"
-	originAutoReversal = "auto_reversal"
-	originVoidReversal = "void_reversal"
+	originManual         = "manual"
+	originReversal       = "reversal"
+	originAutoReversal   = "auto_reversal"
+	originVoidReversal   = "void_reversal"
+	originOpeningBalance = "opening_balance"
 )
 
 // draftEditable are the entry fields a person edits on a draft. Everything
@@ -47,16 +48,19 @@ func registerEntryHooks(app core.App) {
 		return e.Next()
 	})
 	app.OnRecordCreate("books_journal_entries").BindFunc(func(e *core.RecordEvent) error {
-		if err := checkNewEntry(e.Record); err != nil {
-			return err
-		}
-		if err := checkLinkedEntries(e.App, e.Record); err != nil {
-			return err
-		}
-		if err := stampCurrency(e.App, e.Record); err != nil {
-			return err
-		}
-		return e.Next()
+		// Serialized so two sessions cannot both pass the one-opening-entry guard.
+		return serialized(e, func(tx core.App) error {
+			if err := checkNewEntry(e.Record); err != nil {
+				return err
+			}
+			if err := checkOpeningEntry(tx, e.Record); err != nil {
+				return err
+			}
+			if err := checkLinkedEntries(tx, e.Record); err != nil {
+				return err
+			}
+			return stampCurrency(tx, e.Record)
+		})
 	})
 	// Every entry update runs in one transaction. Posting writes the lines,
 	// the balance rows and the number counter; a void also writes and posts
@@ -104,6 +108,10 @@ func checkNewEntry(r *core.Record) error {
 	case originManual:
 		if reverses {
 			return refuse("A manual entry cannot reverse another entry.")
+		}
+	case originOpeningBalance:
+		if reverses {
+			return refuse("An opening balance entry cannot reverse another entry.")
 		}
 	case originReversal, originAutoReversal, originVoidReversal:
 		if !reverses {

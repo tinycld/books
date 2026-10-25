@@ -174,6 +174,21 @@ function ImportLink({ isVisible }: { isVisible: boolean }) {
     )
 }
 
+function OpeningBalancesLink() {
+    const orgHref = useOrgHref()
+    return (
+        <Pressable
+            testID="account-opening-balances-link"
+            accessibilityRole="link"
+            onPress={() => router.push(orgHref('books/opening-balances'))}
+            className="items-center justify-center rounded-md border border-border bg-background px-3"
+            style={{ minHeight: 32 }}
+        >
+            <Text className="text-sm text-foreground">Opening balances</Text>
+        </Pressable>
+    )
+}
+
 function NewAccountButton({ isVisible, onNew }: { isVisible: boolean; onNew: () => void }) {
     if (!isVisible) return null
     return (
@@ -217,6 +232,7 @@ export function AccountToolbar({
             <View className="flex-row flex-wrap items-center gap-2">
                 <ToggleAllButton tree={tree} />
                 <ImportLink isVisible={canWrite} />
+                <OpeningBalancesLink />
                 <BatchSlot
                     isVisible={canWrite && isWide}
                     isIcon={false}

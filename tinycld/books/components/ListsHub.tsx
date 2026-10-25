@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useListsHub } from '../hooks/useListsHub'
 import { useFabClearanceStyle } from '../lib/fab-clearance'
 import type { ListEntry } from '../lib/shell-nav'
+import { SetupCard } from './SetupCard'
 
 interface ListsHubProps {
     entries?: readonly ListEntry[]
@@ -41,13 +42,14 @@ function EmptyHub({ isVisible }: { isVisible: boolean }) {
 }
 
 export function ListsHub({ entries }: ListsHubProps) {
-    const { cards, isEmpty, open } = useListsHub(entries)
+    const { cards, isEmpty, open, showSetupCard } = useListsHub(entries)
     const fabClearanceStyle = useFabClearanceStyle()
 
     return (
         <ScrollView className="flex-1 bg-background" contentContainerStyle={fabClearanceStyle}>
             <View className="gap-4 p-6">
                 <Text className="text-2xl font-semibold text-foreground">Lists</Text>
+                <SetupCard isVisible={showSetupCard} />
                 <View className="flex-row flex-wrap gap-3">
                     {cards.map(entry => (
                         <ListCard key={entry.id} entry={entry} onPress={open} />

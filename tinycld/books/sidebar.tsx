@@ -74,8 +74,15 @@ function SidebarNewButton({ isVisible, columns, onSelect }: SidebarNewButtonProp
 }
 
 export default function BooksSidebar() {
-    const { top, visibleAccounting, hasAccounting, isAccountingOpen, toggleAccounting, isActive } =
-        useBooksSidebar()
+    const {
+        top,
+        end,
+        visibleAccounting,
+        hasAccounting,
+        isAccountingOpen,
+        toggleAccounting,
+        isActive,
+    } = useBooksSidebar()
     const orgHref = useOrgHref()
     const { isVisible: hasNewActions, columns, open } = useNewMenu()
     const isMobile = useBreakpoint() === 'mobile'
@@ -106,6 +113,7 @@ export default function BooksSidebar() {
                 onToggle={toggleAccounting}
             />
             {visibleAccounting.map(renderItem)}
+            {end.map(renderItem)}
         </SidebarNav>
     )
 }

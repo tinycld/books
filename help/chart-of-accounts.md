@@ -7,6 +7,8 @@ order: 20
 
 The Chart of Accounts lists every account your books use. To open it, choose Chart of Accounts in the Accounting group of the sidebar, or choose the Accounts card on the Lists page.
 
+![The Chart of Accounts: a table of accounts with number, name, type, detail type and balance, and a menu on each row.](images/chart-of-accounts-1.png)
+
 ## Read the tree
 
 Each account shows its number, name, type, detail type and balance. A sub-account sits under its parent. To fold a parent, press the arrow next to it. A folded parent shows "incl. sub-accounts" and its balance includes the balances of all accounts under it.
@@ -46,3 +48,5 @@ If the server refuses a row, the import stops. The page shows how many rows were
 Imported balances are not supported.
 
 See also [Moving around Books](help://books:navigating-books).
+
+To enter the balances your accounts held on your starting date, see [Opening balances](help://books:opening-balances).

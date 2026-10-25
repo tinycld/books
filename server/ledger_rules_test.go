@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tests"
 
 	"tinycld.org/core/rlstest"
 )
@@ -85,7 +87,7 @@ func TestLedgerRules_CreateAccountByLevel(t *testing.T) {
 	}
 }
 
-// A client creates only drafts, of the two origins a person starts, and never
+// A client creates only drafts, of the three origins a person starts, and never
 // sets a field Books owns.
 func TestLedgerRules_EntryCreatePins(t *testing.T) {
 	const base = `"date":"2026-05-01","doc_type":"journal"`
@@ -93,14 +95,18 @@ func TestLedgerRules_EntryCreatePins(t *testing.T) {
 		name string
 		body string
 		want int
+		// after checks the stored row of a created entry.
+		after func(t testing.TB, app *tests.TestApp)
 	}{
-		{"a manual draft", `{` + base + `,"status":"draft","origin":"manual"}`, http.StatusOK},
-		{"created posted", `{` + base + `,"status":"posted","origin":"manual"}`, http.StatusBadRequest},
-		{"with a number", `{` + base + `,"status":"draft","origin":"manual","number":"7"}`, http.StatusBadRequest},
-		{"with a sequence", `{` + base + `,"status":"draft","origin":"manual","sequence":7}`, http.StatusBadRequest},
-		{"with posted_at", `{` + base + `,"status":"draft","origin":"manual","posted_at":"2026-05-01 00:00:00.000Z"}`, http.StatusBadRequest},
-		{"as a void reversal", `{` + base + `,"status":"draft","origin":"void_reversal"}`, http.StatusBadRequest},
-		{"as an auto reversal", `{` + base + `,"status":"draft","origin":"auto_reversal"}`, http.StatusBadRequest},
+		{"a manual draft", `{` + base + `,"status":"draft","origin":"manual"}`, http.StatusOK, nil},
+		{"created posted", `{` + base + `,"status":"posted","origin":"manual"}`, http.StatusBadRequest, nil},
+		{"with a number", `{` + base + `,"status":"draft","origin":"manual","number":"7"}`, http.StatusBadRequest, nil},
+		{"with a sequence", `{` + base + `,"status":"draft","origin":"manual","sequence":7}`, http.StatusBadRequest, nil},
+		{"with posted_at", `{` + base + `,"status":"draft","origin":"manual","posted_at":"2026-05-01 00:00:00.000Z"}`, http.StatusBadRequest, nil},
+		{"an opening balance draft", `{` + base + `,"status":"draft","origin":"opening_balance"}`, http.StatusOK, requireStoredOpeningDraft},
+		{"an opening balance draft with a number", `{` + base + `,"status":"draft","origin":"opening_balance","number":"7"}`, http.StatusBadRequest, nil},
+		{"as a void reversal", `{` + base + `,"status":"draft","origin":"void_reversal"}`, http.StatusBadRequest, nil},
+		{"as an auto reversal", `{` + base + `,"status":"draft","origin":"auto_reversal"}`, http.StatusBadRequest, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -112,8 +118,20 @@ func TestLedgerRules_EntryCreatePins(t *testing.T) {
 				token:  tokenFor(t, users.bookkeeper),
 				body:   tc.body,
 				want:   tc.want,
+				after:  tc.after,
 			}.run(t, app)
 		})
+	}
+}
+
+func requireStoredOpeningDraft(t testing.TB, app *tests.TestApp) {
+	t.Helper()
+	rows, err := app.FindAllRecords("books_journal_entries", dbx.NewExp("origin = 'opening_balance'"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].GetString("status") != "draft" {
+		t.Errorf("stored opening entries: %d, want one draft", len(rows))
 	}
 }
 
