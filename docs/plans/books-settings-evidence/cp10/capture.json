@@ -1,0 +1,113 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "access",
+            "actions": [
+                {
+                    "waitFor": "books-settings-access-search"
+                },
+                {
+                    "waitFor": "Organization owner"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "url": "/a/books/settings/access",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "access-level-changed",
+            "actions": [
+                {
+                    "waitFor": "books-settings-access-search"
+                },
+                {
+                    "waitFor": "Organization owner"
+                },
+                {
+                    "clickPrefix": "books-settings-access-level-"
+                },
+                {
+                    "clickSuffix": "-bookkeeper",
+                    "prefix": "books-settings-access-level-"
+                },
+                {
+                    "waitFor": "Can enter and post entries and manage accounts. Cannot change settings."
+                },
+                {
+                    "clickPrefix": "books-settings-access-level-"
+                },
+                {
+                    "clickSuffix": "-admin",
+                    "prefix": "books-settings-access-level-"
+                },
+                {
+                    "waitFor": "Everything a bookkeeper can do, plus settings, access, and close-date overrides."
+                },
+                {
+                    "pause": 1500
+                }
+            ],
+            "url": "/a/books/settings/access",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "access-no-match",
+            "actions": [
+                {
+                    "waitFor": "books-settings-access-search"
+                },
+                {
+                    "fill": "books-settings-access-search",
+                    "value": "zzzzqq"
+                },
+                {
+                    "waitFor": "No one matches zzzzqq."
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "url": "/a/books/settings/access",
+            "fullPage": true,
+            "height": 1300,
+            "ready": "books-settings"
+        },
+        {
+            "name": "zz-restore",
+            "actions": [
+                {
+                    "waitFor": "books-settings-access-search"
+                },
+                {
+                    "waitFor": "Organization owner"
+                },
+                {
+                    "clickPrefix": "books-settings-access-level-"
+                },
+                {
+                    "clickSuffix": "-bookkeeper",
+                    "prefix": "books-settings-access-level-"
+                },
+                {
+                    "waitFor": "Can enter and post entries and manage accounts. Cannot change settings."
+                },
+                {
+                    "pause": 1500
+                }
+            ],
+            "url": "/a/books/settings/access",
+            "widths": [1280],
+            "schemes": ["light"],
+            "ready": "books-settings"
+        }
+    ]
+}

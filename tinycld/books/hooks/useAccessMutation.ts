@@ -120,6 +120,7 @@ export function useAccessMutation(person: Person) {
     return {
         setLevel,
         isReady,
+        readFailed,
         shownLevel,
         isPending: mutation.isPending,
         error,

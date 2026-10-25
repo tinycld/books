@@ -5,7 +5,11 @@
 // year start month, the currency, the business name and its contact details
 // (tax_id, address, phone, email, website; all optional), the ownership choice
 // (owners or corporation; empty until the setup wizard saves it, and read later
-// by tax settings) and whether the setup wizard has run. v0 keeps one currency;
+// by tax settings), whether the setup wizard has begun a batch (setup_started)
+// and whether it has run (setup_completed). By convention only the setup wizard
+// (client code) writes setup_started; the update rule does not enforce this, since
+// only currency is pinned against admin edits. It marks a batch begun so a half-finished batch is detected without relying on
+// business_name, which the Settings Company form also saves. v0 keeps one currency;
 // the column exists so multi-currency needs no migration, and it is pinned
 // against edits because changing it under existing entries would misstate every
 // amount.
@@ -63,6 +67,7 @@ migrate(
                 { name: 'email', type: 'text', max: 200 },
                 { name: 'website', type: 'text', max: 200 },
                 { name: 'ownership', type: 'select', maxSelect: 1, values: ['owners', 'corporation'] },
+                { name: 'setup_started', type: 'bool' },
                 { name: 'setup_completed', type: 'bool' },
                 ...AUTODATES,
             ],
@@ -76,6 +81,7 @@ migrate(
         row.set('business_name', '')
         for (const f of ['tax_id', 'address', 'phone', 'email', 'website']) row.set(f, '')
         row.set('ownership', '')
+        row.set('setup_started', false)
         row.set('setup_completed', false)
         app.save(row)
 

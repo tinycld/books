@@ -34,6 +34,13 @@ function passesOn(field: string, value: string) {
     return companyIssues({ [field]: value }).filter(i => i.path[0] === field).length === 0
 }
 
+describe('companySchema output', () => {
+    it('carries only company fields, never setup_started', () => {
+        const parsed = companySchema.parse({ ...company, setup_started: true })
+        expect(Object.keys(parsed).sort()).toEqual(Object.keys(company).sort())
+    })
+})
+
 describe('companySchema', () => {
     it('rejects a blank or whitespace-only name, bounds it at 200, and trims it', () => {
         expect(failsOn('business_name', '')).toBe(true)

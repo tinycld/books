@@ -54,6 +54,7 @@ function blankSettings(): BooksSettings {
         business_name: '',
         ownership: '',
         setup_completed: false,
+        setup_started: false,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }
@@ -166,6 +167,7 @@ describe('useBooksSetup create', () => {
             business_name: 'Acme Plumbing',
             fiscal_year_start_month: 4,
             ownership: 'corporation',
+            setup_started: true,
             setup_completed: true,
         })
 
@@ -201,6 +203,7 @@ describe('useBooksSetup create', () => {
                         business_name: 'Acme Plumbing',
                         fiscal_year_start_month: 4,
                         ownership: 'corporation',
+                        setup_started: true,
                         setup_completed: false,
                     })
                 }
@@ -356,6 +359,7 @@ describe('useBooksSetup create', () => {
             business_name: 'Acme Plumbing',
             fiscal_year_start_month: 4,
             ownership: 'corporation',
+            setup_started: true,
             setup_completed: true,
         })
     })
@@ -496,6 +500,51 @@ describe('useBooksSetup ownership', () => {
     })
 })
 
+describe('useBooksSetup setup_started', () => {
+    it('is not resuming when the name is set but setup_started is false, as the Settings form leaves it', async () => {
+        const settings = { ...blankSettings(), business_name: 'Acme Plumbing' }
+        const { rendered } = await renderEmptyBook({
+            ledger: { lines: [], entries: [], balances: [], settings: [settings] },
+        })
+
+        expect(rendered.result.current.isResuming).toBe(false)
+    })
+
+    it('is resuming when setup_started is true and setup is not completed', async () => {
+        const settings = { ...blankSettings(), setup_started: true }
+        const { rendered } = await renderEmptyBook({
+            ledger: { lines: [], entries: [], balances: [], settings: [settings] },
+        })
+
+        expect(rendered.result.current.isResuming).toBe(true)
+    })
+
+    it('is not resuming when setup_completed is true even with setup_started true', async () => {
+        const settings = { ...blankSettings(), setup_started: true, setup_completed: true }
+        const { rendered } = await renderEmptyBook({
+            ledger: { lines: [], entries: [], balances: [], settings: [settings] },
+        })
+
+        expect(rendered.result.current.isResuming).toBe(false)
+    })
+
+    it('sets setup_started in the same first settings write as the business fields', async () => {
+        const { rendered, baseline } = await renderEmptyBook(
+            {},
+            { after: 1, error: messageRefusal('Number 1000 is taken') }
+        )
+
+        await run(rendered, 'create')
+
+        expect(writeLog()[baseline]).toBe(`settings:${SETTINGS_ID}`)
+        expect(settingsRow()).toMatchObject({
+            business_name: 'Acme Plumbing',
+            setup_started: true,
+            setup_completed: false,
+        })
+    })
+})
+
 describe('useBooksSetup skipChart', () => {
     it('writes only the settings row and inserts no account', async () => {
         const { rendered, baseline } = await renderEmptyBook()
@@ -508,6 +557,7 @@ describe('useBooksSetup skipChart', () => {
         expect(settingsRow()).toMatchObject({
             business_name: 'Acme Plumbing',
             ownership: 'corporation',
+            setup_started: true,
             setup_completed: true,
         })
     })

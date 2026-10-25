@@ -29,6 +29,10 @@ export const ACCESS_LEVELS: { value: BooksLevel; label: string; description: str
     },
 ]
 
+export function asBooksLevel(value: string | undefined): BooksLevel | undefined {
+    return ACCESS_LEVELS.find(l => l.value === value)?.value
+}
+
 export function levelDescription(level: BooksLevel): string {
     return ACCESS_LEVELS.find(l => l.value === level)?.description ?? ''
 }

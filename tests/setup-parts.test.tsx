@@ -44,6 +44,7 @@ function blankSettings(): BooksSettings {
         business_name: '',
         ownership: '',
         setup_completed: false,
+        setup_started: false,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }
@@ -177,6 +178,7 @@ describe('useSetupParts outcomes', () => {
         await waitFor(() => expect(rendered.result.current.part).toBe('done'))
         expect(settingsStore().get(SETTINGS_ID)?.fiscal_year_start_month).toBe(4)
         expect(settingsStore().get(SETTINGS_ID)?.setup_completed).toBe(true)
+        expect(settingsStore().get(SETTINGS_ID)?.setup_started).toBe(true)
     })
 
     it('shows error while accounts exist when a create fails after inserting one parent', async () => {
@@ -267,6 +269,7 @@ async function renderHalfDone(
                     business_name: 'Acme Corp',
                     fiscal_year_start_month: 4,
                     ownership: saved,
+                    setup_started: true,
                 }),
             ],
         },
@@ -281,6 +284,29 @@ async function renderHalfDone(
     await waitFor(() => expect(rendered.result.current.part).not.toBe('loading'))
     return rendered
 }
+
+describe('useSetupParts on a book named by the Settings form', () => {
+    it('starts at business with the saved name when setup_started is false', async () => {
+        seedBooks({
+            level: 'admin',
+            ledger: {
+                ...seedLedger,
+                settings: [
+                    settingsWith({ business_name: 'Acme Corp', fiscal_year_start_month: 4 }),
+                ],
+            },
+        })
+        await emptyAccounts()
+        const rendered = renderParts()
+        await waitFor(() => expect(rendered.result.current.part).toBe('business'))
+
+        expect(rendered.result.current.setup.isResuming).toBe(false)
+        await waitFor(() =>
+            expect(rendered.result.current.form.getValues('business_name')).toBe('Acme Corp')
+        )
+        expect(rendered.result.current.canGoBack).toBe(true)
+    })
+})
 
 describe('useSetupParts on a half-done book', () => {
     it('opens on chart with the saved name, month and the saved corporation choice', async () => {
@@ -390,7 +416,11 @@ describe('useSetupParts second fix round', () => {
             ledger: {
                 ...seedLedger,
                 settings: [
-                    settingsWith({ business_name: 'Acme Corp', fiscal_year_start_month: 4 }),
+                    settingsWith({
+                        business_name: 'Acme Corp',
+                        fiscal_year_start_month: 4,
+                        setup_started: true,
+                    }),
                 ],
             },
         })

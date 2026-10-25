@@ -81,8 +81,16 @@
   **rebutted because:** the hook change fixes the same isSubmitted reset found in checkpoint 7 (FormErrorSummary is gated on isSubmitted) and is now covered by tests/useSequenceForm.test.tsx; the registry test pins the new section entry. Both recorded under Out-of-plan.
 - **finding:** reviewer A, checkpoint 9: Prefix lacks autoCapitalize/autoCorrect props
   **rebutted because:** not in the spec's Numbering bullets; a native nicety that core's TextInput may not forward.
+- **finding:** reviewer A, checkpoint 10: `useAccessMutation` same-tick duplicate `setLevel` returns silently instead of the in-flight promise
+  **rebutted because:** the select is disabled while a change is pending (and until the reads are ready), so the UI cannot issue a duplicate; setLevel returns void by the checkpoint's interface.
+- **finding:** reviewer B and A, checkpoint 10: help/navigating-books.md and tests/help-settings.test.ts / books-settings.spec.ts extra tests are outside the Files block
+  **rebutted because:** the Settings sidebar entry needs a mention in the navigation help (CLAUDE.md in-app help rule); the extra e2e tests cover gaps earlier reviews found (validation messages on screen, dirty form across the breakpoint, history entries, sidebar entry, wizard not resuming after a Settings save).
+- **finding:** reviewer A, checkpoint 10: AccessRow `ReadError` also shows on locked rows
+  **rebutted because:** a failed read is still true for that row; harmless.
 
 ## Design notes
+- cp 10 · Access chip: outlined pill in light, filled in dark (weight differs slightly); avatar colors differ between capture runs; the search field focus ring is blue, not teal; chip and select repeat the same word; the control column is not aligned between locked and editable rows.
+- cp 10 · coverage gap: the Books-admin-who-is-not-an-org-owner/admin view (disabled select, 'Ask an organization owner or admin to change this.') needs a third user to reach through the UI; covered by the accessRowControl unit tests (checkpoint 2) only. Also the failed-write revert and the row error have no e2e (a server refusal cannot be forced through the UI).
 - cp 9 · numbering-invalid: the preview joins the rejected prefix ('A_12001'), so it can read as valid; the Prefix error lacks a trailing period unlike the server refusal (the text is asserted in the schema tests).
 - cp 9 · errors add their own bottom margin: the gap from error text to the preview is larger than from inputs to the preview.
 - cp 9 · the empty Numbering state cannot be produced through the UI, so it has no screenshot.
@@ -116,7 +124,8 @@
 - phase 4: plan reviewed by a fresh subagent; missing/narrowed and name findings fixed; test gaps (non-admin views, access flow) moved to e2e with a collaborator user; override history classified by expires_at only; spec wording 'as needed' changed to 'when the change requires it' (plan-check tripped on the phrase); fixture not seeded (fake user ids, setup_completed would hide the setup card); review mode C
 - review mode switches: none
 - STOP at checkpoint 10 gate 1 (full e2e): tests/e2e/setup-wizard.spec.ts:9 fails ('Part 3 of 3', expected 'Part 1 of 3'). Cause: hooks/useBooksSetup.ts:67 `isResuming = !!settings && !settings.setup_completed && settings.business_name !== ''` (spec setup-wizard-design.md: "A book whose settings hold a business name but are not marked done is a batch left half done"); the Company form added here can save a business name before the wizard has run, and the schema forbids restoring a blank name; the e2e DB is shared by 2 workers. This is a product conflict between two units, not only a test problem: a real user who edits Company details in Settings before finishing setup makes the wizard resume at Part 3. Options: (A) setup-wizard.spec starts at Part 3 and uses Back to reach Part 1 (changes the wizard spec, leaves the product conflict); (B) a dedicated 'setup started' marker field on books_settings (unreleased migration edited in place) set by the wizard and used by isResuming, so the Company form cannot trigger a resume (needs migration + hook + wizard tests; recommended); (C) detect resume from `ownership !== ''` (written by the wizard's Ownership step only; no migration; changes the half-finished semantics when only the Business step was saved); (D) run the wizard spec first: an ordering hack, rejected. Also fixed: account-register-entry.spec.ts phone test now reads offsetHeight (the button was measured mid drawer slide-in, 43.99993).
-- cp 10 state at the stop: Access section, help/settings.md, navigating-books.md edit, hardening of the settings e2e are in the tree uncommitted; design critic round 1 had two BLOCKING (row layout) fixed; round 2 critic, fix review, and the cp10 ledger entry are pending the decision.
+- RESOLVED by the human's decision B: books_settings.setup_started (bool, unreleased migration edited in place), written true by the wizard on every settings write, used by isResuming = settings && !setup_completed && setup_started; the Company form never writes it; docs/specs/setup-wizard-design.md reworded. All e2e tests that write the business name or complete setup now live in one spec file (tests/e2e/books-settings.spec.ts, last describes; setup-wizard.spec.ts removed) because Playwright parallelizes by file across 2 workers sharing one books_settings row.
+- (old) cp 10 state at the stop: Access section, help/settings.md, navigating-books.md edit, hardening of the settings e2e are in the tree uncommitted; design critic round 1 had two BLOCKING (row layout) fixed; round 2 critic, fix review, and the cp10 ledger entry are pending the decision.
 
 ## Checkpoint 3
 - test writer: tests/useSettingsForm.test.tsx, useSequenceForm.test.tsx, harness tests/accounts-form-harness.ts (additive options); red (missing modules); untestable: none
@@ -185,6 +194,16 @@
 - gate 2: round 1 BLOCKING: card title hierarchy and wide side-by-side layout, fixed; round 2: no BLOCKING
 - gate 3 A/B: dead loading branch, JSX ternary, dead summary: fixed; isSubmitted tests added; rest rebutted
 - fix review: one reviewer-A pass, clean
+
+## Checkpoint 10
+- test writer: tests/e2e/books-settings.spec.ts (the plan's tests plus gaps found in checkpoints 6 to 9) and tests/help-settings.test.ts; 7 of 10 e2e were green on built behavior, the Access ones red; later hardening (no bumped timeouts, saved-level waits, independent restores, split per viewport)
+- implementer: DONE; hooks/useAccessSection.ts, components/settings/{AccessSection,AccessRow}.tsx, lib registry, help/settings.md, help/navigating-books.md
+- test disputes: none
+- self-declared differences: Access row built on useForm per row; search via useForm+useWatch; disabled select lists all levels; extra test ids
+- gate 1: pass (1387 tests; Go ok; full e2e 81 passed, 1 skipped)
+- gate 2: round 1 BLOCKING (two-column row, lock text placement) fixed; round 2 BLOCKING (chip invisible in light) fixed; round 3: no BLOCKING
+- gate 3 A/B: select out of sync, empty text, JSX map, search state twice, cast, read-error silence, e2e flakiness: accepted, fixed; the cross-unit wizard conflict stopped the run (see Phase notes) and was fixed by option B; per-row queries and same-tick duplicate rebutted
+- fix review: seven reviewer-A passes
 
 ## Final review
 - eval: pending

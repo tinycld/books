@@ -10,6 +10,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     { id: 'company', label: 'Company', adminOnly: false },
     { id: 'accounting', label: 'Accounting', adminOnly: false },
     { id: 'numbering', label: 'Numbering', adminOnly: false },
+    { id: 'access', label: 'Access', adminOnly: true },
 ]
 
 export function visibleSections(isAdmin: boolean): SettingsSection[] {
