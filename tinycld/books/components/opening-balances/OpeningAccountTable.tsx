@@ -13,7 +13,7 @@ import { AMOUNT_STYLE, DETAIL_STYLE, NAME_STYLE, OPENING_ITEM_HEIGHT } from './o
 export { AMOUNT_STYLE, DETAIL_STYLE, NAME_STYLE, OPENING_ITEM_HEIGHT }
 
 // Below this width the table scrolls sideways; no column collapses to blank.
-const TABLE_MIN_WIDTH = 640
+export const TABLE_MIN_WIDTH = 560
 const STICKY_BAND_HEIGHT = 36
 
 type BandItem = Extract<GridItem, { kind: 'band' }>

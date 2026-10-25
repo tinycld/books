@@ -56,7 +56,7 @@ function MemoField({ model }: { model: OpeningForm }) {
 export function OpeningDateFields({ model }: { model: OpeningForm }) {
     const isWide = useBreakpoint() !== 'mobile'
     const { control } = model.form
-    const layout = isWide ? 'flex-row gap-4' : ''
+    const layout = isWide ? 'flex-row flex-wrap gap-x-4' : ''
     const presetWidth = isWide ? { width: 240 } : undefined
     const dateWidth = isWide ? { width: 220 } : undefined
     return (
@@ -84,7 +84,7 @@ export function OpeningDateFields({ model }: { model: OpeningForm }) {
                 />
                 <DateHelper text={model.dateHelper} />
             </View>
-            <View className="min-w-0 flex-1">
+            <View className="min-w-[260px] flex-1">
                 <MemoField model={model} />
             </View>
         </View>

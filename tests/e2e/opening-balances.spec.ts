@@ -26,6 +26,7 @@ import {
 // Nothing is written.
 
 const ACCOUNTS = '**/api/collections/books_accounts/records*'
+const SETTINGS = '**/api/collections/books_settings/records*'
 const ACCESS = '**/api/collections/books_access/records*'
 const SIZES = [
     ['desktop', DESKTOP],
@@ -194,6 +195,27 @@ for (const [sizeName, size] of SIZES) {
             // The failing query re-requests books_accounts in a tight loop, so
             // requests are in flight when the route is removed. 'wait' lets every
             // running handler finish, so no 400 is issued after Retry.
+            await page.unrouteAll({ behavior: 'wait' })
+            await page.getByTestId('opening-retry').click()
+            await expect(page.getByTestId('opening-date')).toBeVisible()
+            await expect(page.getByTestId('opening-error')).toHaveCount(0)
+        })
+
+        test('recovers on Retry after the settings read fails', async ({ page }) => {
+            await start(page, size)
+            await openOpeningBalances(page)
+            await page.route(SETTINGS, route =>
+                route.fulfill({ status: 400, contentType: 'application/json', body: '{}' })
+            )
+            await page.reload()
+
+            const alert = page
+                .getByRole('alert')
+                .filter({ hasText: 'Could not load opening balances' })
+            await expect(alert).toBeVisible()
+            await expect(page.getByTestId('opening-retry')).toBeVisible()
+
+            // 'wait' lets running handlers finish, so no 400 is issued after Retry.
             await page.unrouteAll({ behavior: 'wait' })
             await page.getByTestId('opening-retry').click()
             await expect(page.getByTestId('opening-date')).toBeVisible()
@@ -484,3 +506,343 @@ for (const [sizeName, size] of SIZES) {
         })
     })
 }
+
+// Checkpoint 4 (Balance Sheet preview and totals). Nothing is saved. Test ids
+// carrying a figure sit on the element that holds the text and the tone class
+// (`opening-preview-total-le`, `opening-preview-amount-<id>`,
+// `opening-total-*`), so `toHaveText` and `toHaveClass` read the same element.
+// Wide screens show the preview in a rail; on a phone it sits in a collapsed
+// disclosure that every preview test opens first, except the toggle test.
+
+async function openPreview(page: Page) {
+    if (!isPhone(page)) return
+    const toggle = page.getByTestId('opening-preview-toggle')
+    await expect(toggle).toBeVisible()
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+    await expect(page.getByTestId('opening-preview')).toBeVisible()
+}
+
+async function type(page: Page, id: string, text: string) {
+    await amount(page, id).fill(text)
+    await amount(page, id).blur()
+}
+
+async function boxOf(page: Page, testId: string) {
+    await expect(page.getByTestId(testId)).toBeVisible()
+    const box = await page.getByTestId(testId).boundingBox()
+    if (!box) throw new Error(`${testId} has no box`)
+    return box
+}
+
+async function scrollBody(page: Page) {
+    const body = await boxOf(page, 'opening-body')
+    await page.mouse.move(body.x + body.width / 2, body.y + body.height / 2)
+    await page.mouse.wheel(0, 600)
+    await page.waitForTimeout(250)
+}
+
+test.describe('opening-balances: preview and totals', () => {
+    for (const [sizeName, size] of SIZES) {
+        test.describe(sizeName, () => {
+            test('with no amount typed the preview shows the empty text and no balancing row', async ({
+                page,
+            }) => {
+                await start(page, size)
+                await openWithIds(page)
+                await openPreview(page)
+
+                await expect(page.getByTestId('opening-preview-empty')).toBeVisible()
+                await expect(page.getByTestId('opening-preview-empty')).toHaveText(
+                    'Type a balance to see the preview.'
+                )
+                await expect(page.getByTestId('opening-preview-obe')).toHaveCount(0)
+            })
+
+            test('typed amounts fill the preview and the balancing row reconciles it', async ({
+                page,
+            }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Office Equipment'], '5,000')
+                await type(page, ids['Company Card'], '1,200')
+                await openPreview(page)
+
+                const preview = page.getByTestId('opening-preview')
+                await expect(page.getByTestId('opening-preview-title')).toHaveText('Balance Sheet')
+                await expect(page.getByTestId('opening-preview-subtitle')).toHaveText(
+                    `As of Dec 31, ${new Date().getFullYear() - 1}`
+                )
+                await expect(page.getByTestId('opening-preview-chip')).toHaveText('Preview')
+                await expect(
+                    page.getByTestId(`opening-preview-row-${ids['Office Equipment']}`)
+                ).toContainText('Office Equipment')
+                await expect(
+                    page.getByTestId(`opening-preview-row-${ids['Company Card']}`)
+                ).toContainText('Company Card')
+                // The id was resolved above, so a missing row cannot pass this.
+                expect(ids['Business Checking']).toBeTruthy()
+                await expect(
+                    page.getByTestId(`opening-preview-row-${ids['Business Checking']}`)
+                ).toHaveCount(0)
+                await expect(preview.getByText('Business Checking')).toHaveCount(0)
+                await expect(page.getByTestId('opening-preview-empty')).toHaveCount(0)
+
+                const obe = page.getByTestId('opening-preview-obe')
+                await expect(obe).toBeVisible()
+                await expect(obe).toContainText('Opening Balance Equity')
+                await expect(obe).toContainText('$3,800.00')
+                await expect(page.getByTestId('opening-preview-total-assets')).toHaveText(
+                    '$5,000.00'
+                )
+                const total = page.getByTestId('opening-preview-total-le')
+                await expect(total).toHaveText('$5,000.00')
+                await expect(total).toHaveClass(/text-success/)
+            })
+
+            test('the totals strip shows assets, liabilities and equity', async ({ page }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Office Equipment'], '5,000')
+                await type(page, ids['Company Card'], '1,200')
+
+                const strip = page.getByTestId('opening-totals')
+                await expect(strip).toBeVisible()
+                await expect(strip).toContainText('Assets')
+                await expect(strip).toContainText('Liabilities')
+                await expect(strip).toContainText('Equity (including Opening Balance Equity)')
+                await expect(page.getByTestId('opening-total-assets')).toHaveText('$5,000.00')
+                await expect(page.getByTestId('opening-total-liabilities')).toHaveText('$1,200.00')
+                await expect(page.getByTestId('opening-total-equity')).toHaveText('$3,800.00')
+            })
+
+            test('a negative amount sits on the opposite side', async ({ page }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Company Card'], '-500')
+                await openPreview(page)
+
+                await expect(page.getByTestId('opening-total-liabilities')).toHaveText('-$500.00')
+                const row = page.getByTestId(`opening-preview-row-${ids['Company Card']}`)
+                await expect(row).toBeVisible()
+                const figure = page.getByTestId(`opening-preview-amount-${ids['Company Card']}`)
+                await expect(figure).toHaveText('-$500.00')
+                await expect(figure).toHaveClass(/text-destructive/)
+            })
+
+            test('the preview follows the date and the amounts', async ({ page }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Office Equipment'], '5,000')
+                await openPreview(page)
+                await expect(page.getByTestId('opening-preview-subtitle')).toHaveText(
+                    `As of Dec 31, ${new Date().getFullYear() - 1}`
+                )
+
+                await page.getByTestId('opening-date').fill('2025-06-01')
+                await expect(page.getByTestId('opening-preview-subtitle')).toHaveText(
+                    'As of Jun 1, 2025'
+                )
+
+                await type(page, ids['Office Equipment'], '')
+                await expect(page.getByTestId('opening-preview-empty')).toHaveText(
+                    'Type a balance to see the preview.'
+                )
+                await expect(page.getByTestId('opening-preview-obe')).toHaveCount(0)
+                await expect(
+                    page.getByTestId(`opening-preview-row-${ids['Office Equipment']}`)
+                ).toHaveCount(0)
+            })
+
+            // Proven: the rail sits right of the grid, inside the viewport, and does
+            // not move when the grid is wheeled. Not proven: that the rail stays in
+            // view while a long body scrolls; the rail is a non-scrolling sibling
+            // and the seed chart is too short to scroll the grid.
+            test('wide: the preview is a rail right of the grid; phone: a disclosure that opens in view', async ({
+                page,
+            }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Office Equipment'], '5,000')
+
+                const totals = page.getByTestId('opening-totals')
+                if (!isPhone(page)) {
+                    const grid = await boxOf(page, 'opening-grid')
+                    const rail = await boxOf(page, 'opening-preview')
+                    expect(rail.x).toBeGreaterThan(grid.x + grid.width - 0.5)
+                    expect(rail.x + rail.width).toBeLessThanOrEqual(size.width + 0.5)
+                    expect(rail.y).toBeGreaterThanOrEqual(0)
+                    expect(rail.y + rail.height).toBeLessThanOrEqual(size.height + 0.5)
+                    await scrollBody(page)
+                    const after = await boxOf(page, 'opening-preview')
+                    expect(Math.abs(after.y - rail.y)).toBeLessThan(1)
+                    expect(Math.abs(after.x - rail.x)).toBeLessThan(1)
+                    return
+                }
+                const toggle = page.getByTestId('opening-preview-toggle')
+                await expect(toggle).toBeVisible()
+                await expect(toggle).toContainText('Preview')
+                await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+                await expect(page.getByTestId('opening-preview')).toBeHidden()
+
+                await toggle.click()
+                await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+                const content = await boxOf(page, 'opening-preview')
+                const totalsBox = await boxOf(page, 'opening-totals')
+                expect(content.y).toBeGreaterThanOrEqual(0)
+                expect(content.y + content.height).toBeLessThanOrEqual(size.height + 0.5)
+                // Not clipped by or hidden behind the totals strip.
+                expect(content.y + content.height).toBeLessThanOrEqual(totalsBox.y + 0.5)
+                // The open preview must leave the grid usable.
+                const gridBox = await boxOf(page, 'opening-grid')
+                expect(gridBox.height).toBeGreaterThanOrEqual(200)
+                await expect(toggle).toBeVisible()
+                await expect(totals).toBeVisible()
+                await expect(page.getByTestId('opening-total-assets')).toHaveText('$5,000.00')
+                await expect(page.getByTestId('opening-total-liabilities')).toHaveText('$0.00')
+                await expect(page.getByTestId('opening-total-equity')).toHaveText('$5,000.00')
+            })
+
+            // Proven: the strip ends inside the viewport and keeps its box when the
+            // grid is wheeled. Not proven: that it stays put while a long body
+            // scrolls; the seed chart does not scroll the body.
+            test('the totals strip sits above the viewport bottom and does not move on wheel', async ({
+                page,
+            }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Office Equipment'], '5,000')
+                await openPreview(page)
+
+                const totals = page.getByTestId('opening-totals')
+                await expect(totals).toBeVisible()
+                const before = await boxOf(page, 'opening-totals')
+                expect(before.y + before.height).toBeLessThanOrEqual(size.height + 0.5)
+                await scrollBody(page)
+                const after = await boxOf(page, 'opening-totals')
+                expect(Math.abs(after.y - before.y)).toBeLessThan(1)
+                expect(Math.abs(after.height - before.height)).toBeLessThan(1)
+                expect(after.y + after.height).toBeLessThanOrEqual(size.height + 0.5)
+            })
+
+            test('an invalid date drops the preview subtitle until the date is valid again', async ({
+                page,
+            }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Office Equipment'], '5,000')
+                await openPreview(page)
+                const preview = page.getByTestId('opening-preview')
+                await expect(page.getByTestId('opening-preview-subtitle')).toBeVisible()
+
+                await page.getByTestId('opening-date').fill('2025-6-1')
+                await expect(page.getByTestId('opening-preview-subtitle')).toHaveCount(0)
+                await expect(preview.getByText('As of ')).toHaveCount(0)
+                await expect(page.getByTestId('opening-preview-title')).toHaveText('Balance Sheet')
+
+                await page.getByTestId('opening-date').fill('2025-06-01')
+                await expect(page.getByTestId('opening-preview-subtitle')).toHaveText(
+                    'As of Jun 1, 2025'
+                )
+            })
+
+            test('an oversized sum shows Too large in the destructive tone', async ({ page }) => {
+                await start(page, size)
+                const ids = await openWithIds(page)
+                await type(page, ids['Office Equipment'], '20,000,000,000,000')
+                await openPreview(page)
+
+                const previewProblem = page.getByTestId('opening-preview-problem')
+                await expect(previewProblem).toBeVisible()
+                await expect(previewProblem).toContainText('Too large')
+                await expect(previewProblem).toHaveClass(/text-destructive/)
+                // The problem replaces the figures, so no reconciled success total remains.
+                await expect(page.getByTestId('opening-preview-total-le')).toHaveCount(0)
+
+                const problem = page.getByTestId('opening-totals-problem')
+                await expect(problem).toBeVisible()
+                await expect(problem).toContainText('Too large')
+                await expect(problem).toHaveClass(/text-destructive/)
+                await expect(page.getByTestId('opening-total-assets')).toHaveCount(0)
+            })
+        })
+    }
+
+    // A short window must keep the grid usable while the preview is open: the
+    // open disclosure is capped at a share of the body, never the whole body.
+    test('short window, disclosure layout: the open preview is capped and the grid keeps room', async ({
+        page,
+    }) => {
+        await start(page, { width: 1000, height: 560 })
+        const ids = await openWithIds(page)
+        const input = amount(page, ids['Office Equipment'])
+        await input.scrollIntoViewIfNeeded()
+        await type(page, ids['Office Equipment'], '1,234.5')
+
+        const toggle = page.getByTestId('opening-preview-toggle')
+        await expect(toggle).toBeVisible()
+        await expect(page.getByTestId('opening-preview')).toHaveCount(0)
+        await toggle.click()
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+        const body = await boxOf(page, 'opening-body')
+        const grid = await boxOf(page, 'opening-grid')
+        const preview = await boxOf(page, 'opening-preview')
+        const totals = await boxOf(page, 'opening-totals')
+        expect(grid.height).toBeGreaterThan(60)
+        expect(preview.y + preview.height).toBeLessThanOrEqual(totals.y + 0.5)
+        expect(preview.height).toBeLessThanOrEqual(body.height * 0.4)
+
+        await input.scrollIntoViewIfNeeded()
+        await expect(input).toBeVisible()
+        await input.click({ trial: true })
+        await expect(page.getByTestId('opening-total-assets')).toHaveText('$1,234.50')
+        await expect(page.getByTestId('opening-total-liabilities')).toHaveText('$0.00')
+        await expect(page.getByTestId('opening-total-equity')).toHaveText('$1,234.50')
+    })
+
+    test('short window, rail layout: the rail, the grid and the totals all stay in view', async ({
+        page,
+    }) => {
+        await start(page, { width: 1280, height: 560 })
+        const ids = await openWithIds(page)
+        const input = amount(page, ids['Office Equipment'])
+        await input.scrollIntoViewIfNeeded()
+        await type(page, ids['Office Equipment'], '1,234.5')
+
+        await expect(page.getByTestId('opening-preview')).toBeVisible()
+        await expect(page.getByTestId('opening-grid')).toBeVisible()
+        await expect(page.getByTestId('opening-preview-toggle')).toHaveCount(0)
+        const grid = await boxOf(page, 'opening-grid')
+        expect(grid.height).toBeGreaterThan(60)
+
+        await input.scrollIntoViewIfNeeded()
+        await expect(input).toBeVisible()
+        await input.click({ trial: true })
+        await expect(page.getByTestId('opening-totals')).toBeVisible()
+        await expect(page.getByTestId('opening-total-assets')).toHaveText('$1,234.50')
+    })
+
+    test('tablet: amounts fit and the preview is a disclosure without a rail', async ({ page }) => {
+        const tablet = { width: 900, height: 800 }
+        await start(page, tablet)
+        const ids = await openWithIds(page)
+        await type(page, ids['Office Equipment'], '1,234.5')
+
+        const input = await boxOf(page, `opening-amount-${ids['Office Equipment']}`)
+        expect(input.x).toBeGreaterThanOrEqual(0)
+        expect(input.x + input.width).toBeLessThanOrEqual(tablet.width + 0.5)
+
+        const toggle = page.getByTestId('opening-preview-toggle')
+        await expect(toggle).toBeVisible()
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+        await expect(page.getByTestId('opening-preview')).toHaveCount(0)
+
+        await toggle.click()
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+        const content = await boxOf(page, 'opening-preview')
+        expect(content.x).toBeGreaterThanOrEqual(0)
+        expect(content.x + content.width).toBeLessThanOrEqual(tablet.width + 0.5)
+        expect(content.y).toBeGreaterThanOrEqual(0)
+        expect(content.y + content.height).toBeLessThanOrEqual(tablet.height + 0.5)
+    })
+})
