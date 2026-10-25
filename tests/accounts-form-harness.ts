@@ -363,6 +363,35 @@ function accessWriteCollection<T extends { id: string }>(
     )
 }
 
+// The real view computes each level from org_pkg_access and books_admins, so a reload after a
+// write shows the level those writes produced.
+function refreshLevelsFromWrites(collection: ReturnType<typeof local<BooksAccess>>) {
+    const core = (state.registry.org_pkg_access as { toArray: OrgPkgAccess[] }).toArray
+    const admins = (state.registry.books_admins as { toArray: BooksAdmins[] }).toArray
+    for (const row of core.filter(r => r.pkg === 'books')) {
+        const isAdmin = admins.some(a => a.user === row.user)
+        const level =
+            row.access === 'none'
+                ? 'none'
+                : row.access === 'readonly'
+                  ? 'read_only'
+                  : isAdmin
+                    ? 'admin'
+                    : 'bookkeeper'
+        const next = {
+            id: row.user,
+            user: row.user,
+            level,
+            can_read: level !== 'none',
+            can_write: level === 'bookkeeper' || level === 'admin',
+            is_admin: level === 'admin',
+        } satisfies BooksAccess
+        if (collection.has(row.user))
+            collection.update(row.user, draft => Object.assign(draft, next))
+        else collection.insert(next)
+    }
+}
+
 // books_access is a view without realtime, so the screen calls reload(); the stub logs
 // it as `access:reload` so a test can see it ran after the writes.
 function accessViewCollection(rows: BooksAccess[]) {
@@ -371,6 +400,7 @@ function accessViewCollection(rows: BooksAccess[]) {
         state.log.push('access:reload')
         if (state.reloadGate) await state.reloadGate
         if (state.reloadError) throw state.reloadError
+        refreshLevelsFromWrites(collection)
     }
     return Object.assign(collection, { reload })
 }
@@ -383,8 +413,13 @@ function heldAccessCollection<T extends { id: string }>(
     describe: (m: AccessMutation) => string
 ) {
     counter += 1
-    const handler = async ({ transaction }: { transaction: { mutations: AccessMutation[] } }) =>
-        runAccessWrite(transaction.mutations.map(describe))
+    // A synced collection drops its optimistic rows once the handler returns, so a write that
+    // succeeds must be applied to the synced rows for a later read to see it.
+    let applyWrite: ((m: AccessMutation) => void) | null = null
+    const handler = async ({ transaction }: { transaction: { mutations: AccessMutation[] } }) => {
+        await runAccessWrite(transaction.mutations.map(describe))
+        for (const m of transaction.mutations) applyWrite?.(m)
+    }
     return createCollection({
         id: `${name}-held-${counter}`,
         getKey: (row: T) => row.id,
@@ -393,6 +428,11 @@ function heldAccessCollection<T extends { id: string }>(
         onDelete: handler,
         sync: {
             sync: ({ begin, write, commit, markReady }) => {
+                applyWrite = m => {
+                    begin()
+                    write({ type: m.type, value: m.modified as T })
+                    commit()
+                }
                 state.releaseReads.push(() => {
                     begin()
                     for (const value of rows) write({ type: 'insert', value })
