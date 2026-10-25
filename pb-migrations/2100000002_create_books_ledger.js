@@ -12,8 +12,9 @@
 // posted, date and currency. Books sets them in Go. origin, doc_type, reverses
 // and replaces are fixed once the entry exists.
 //
-// A client creates only drafts, with origin manual or reversal. It edits only
-// drafts, or moves a posted entry to void. It deletes only drafts.
+// A client creates only drafts, with origin manual, reversal or
+// opening_balance. It edits only drafts, or moves a posted entry to void. It
+// deletes only drafts.
 //
 // MONEY is integer minor units (onlyInt), at most 10^15 per line. Go refuses a
 // post whose entry total or account-month balance would pass 2^53-1, the
@@ -127,7 +128,7 @@ migrate(
                         type: 'select',
                         required: true,
                         maxSelect: 1,
-                        values: ['manual', 'reversal', 'auto_reversal', 'void_reversal'],
+                        values: ['manual', 'reversal', 'auto_reversal', 'void_reversal', 'opening_balance'],
                     },
                     { name: 'number', type: 'text', max: 40 },
                     { name: 'sequence', type: 'number', onlyInt: true, min: 0 },
@@ -267,7 +268,7 @@ migrate(
             books_journal_entries: {
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && @request.body.status = "draft" && (@request.body.origin = "manual" || @request.body.origin = "reversal") && ${unset(...ENTRY_SERVER_FIELDS)}`,
+                createRule: `${WRITE} && @request.body.status = "draft" && (@request.body.origin = "manual" || @request.body.origin = "reversal" || @request.body.origin = "opening_balance") && ${unset(...ENTRY_SERVER_FIELDS)}`,
                 updateRule: `${WRITE} && ${unset(...ENTRY_SERVER_FIELDS, 'origin', 'doc_type', 'reverses', 'replaces')} && (status = "draft" || (status = "posted" && @request.body.status = "void"))`,
                 deleteRule: `${WRITE} && status = "draft"`,
             },
