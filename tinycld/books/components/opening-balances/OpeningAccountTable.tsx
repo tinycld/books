@@ -27,7 +27,7 @@ function HeadingText({ label, className = '' }: { label: string; className?: str
     return <Text className={`text-xs font-medium text-muted-foreground ${className}`}>{label}</Text>
 }
 
-function ColumnHeader({ isVisible }: { isVisible: boolean }) {
+export function ColumnHeader({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
     return (
         <View className="flex-row items-center gap-3 border-b border-border bg-background px-4 py-2">

@@ -1,0 +1,10 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "posted",
+            "url": "/a/books/opening-balances",
+            "ready": "opening-posted-line"
+        }
+    ]
+}

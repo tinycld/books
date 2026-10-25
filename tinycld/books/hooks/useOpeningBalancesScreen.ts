@@ -1,20 +1,23 @@
 import { eq, not } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { materialize } from 'pbtsdb'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
     findOpeningEquityAccount,
     type OpeningAccount,
-    type OpeningEntryRow,
     type OpeningScreenState,
     openingScreenState,
     pickOpeningBands,
     type SavedLine,
+    viewEntryHref,
 } from '../lib/opening-balances'
 import { fiscalStartMonth } from '../lib/register-range'
+import { SIDEBAR_ENTRIES } from '../lib/shell-nav'
+import { useOpeningPostStore } from '../stores/opening-post-store'
 import { useBooksAccess } from './useBooksAccess'
 
 // The opening entry is unique among live entries, so two rows would already be
@@ -47,6 +50,7 @@ export function useOpeningBalancesScreen(isEditing = false) {
     )
     const [usersCollection] = useStore('users')
     const access = useBooksAccess()
+    const orgHref = useOrgHref()
 
     const accountsQuery = useLiveQuery({
         query: query => query.from({ account: accountsCollection }),
@@ -77,7 +81,7 @@ export function useOpeningBalancesScreen(isEditing = false) {
                 })),
         queryKey: ['books.opening.entries'],
     })
-    const entries: OpeningEntryRow[] = entriesQuery.data ?? []
+    const entries = entriesQuery.data ?? []
     const entry = entries.find(row => row.status === 'draft') ?? entries[0]
     const entryId = entry?.id ?? null
 
@@ -111,8 +115,16 @@ export function useOpeningBalancesScreen(isEditing = false) {
         fiscalStartMonth: fiscalStartMonth(settingsRow),
         currency: settingsRow.currency,
     }
-    const savedAccountIds = new Set(savedLines.map(line => line.account))
-    const bands = pickOpeningBands(accounts, savedAccountIds)
+    const accountsData = accountsQuery.data
+    const linesData = linesQuery.data
+    const bands = useMemo(
+        () =>
+            pickOpeningBands(
+                accountsData ?? [],
+                new Set((linesData ?? []).map(line => line.account))
+            ),
+        [accountsData, linesData]
+    )
 
     // The books_settings row is created by the module's first migration and its
     // deleteRule is null, so a ready query with no row is a failure, not a default.
@@ -134,6 +146,9 @@ export function useOpeningBalancesScreen(isEditing = false) {
     })
     const canWrite = access.canWrite
 
+    const equityAccount = findOpeningEquityAccount(accounts)
+    const entryLink = entry ? viewEntryHref(SIDEBAR_ENTRIES, entry.id) : null
+
     // A form that is already shown outlives any transient loading or error state:
     // saving a new draft makes `entry` appear and re-keys the lines query, and
     // unmounting the form meanwhile would discard its errors and what was typed after
@@ -141,8 +156,12 @@ export function useOpeningBalancesScreen(isEditing = false) {
     // compared and set during render (React's documented pattern for state derived
     // from the previous render), by kind and entry id so it settles after one pass.
     const [shownState, setShownState] = useState<OpeningScreenState | null>(null)
+    // Posting updates the entry's status optimistically, so the store reads `posted`
+    // before the server has answered. The form stays up until the post settles, or a
+    // refusal would roll the entry back under a form that had already been replaced.
+    const isPostPending = useOpeningPostStore(s => s.isPostPending)
     const isTransient = loadedState.kind === 'loading' || loadedState.kind === 'error'
-    const isHeld = isTransient && shownState !== null
+    const isHeld = (isTransient || isPostPending) && shownState !== null
     const state = isHeld ? shownState : loadedState
     const isFormState = state.kind === 'new' || state.kind === 'draft' || state.kind === 'replace'
     const nextShown = isFormState && canWrite ? state : null
@@ -194,10 +213,13 @@ export function useOpeningBalancesScreen(isEditing = false) {
         canWrite,
         accounts,
         bands,
-        equityAccount: findOpeningEquityAccount(accounts),
+        equityAccount,
         settings,
         entry,
         savedLines,
+        postedBy: entry?.postedBy?.name ?? '',
+        postedAt: entry?.postedAt ?? '',
+        entryHref: entryLink === null ? null : orgHref(entryLink),
         retry,
         hasLateError,
         isRefreshing,

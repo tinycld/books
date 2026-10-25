@@ -53,6 +53,13 @@ cp 5 · the late-error carry-over (form stays mounted, typed values kept) has no
 cp 5 · CORE FINDING, not changed: on phones core's `Dialog` renders a `Sheet` with no `dialog` role (and no aria-modal), so assistive tech does not see a dialog; the proposed fix (an optional `role` prop on Sheet set by Dialog) is in the scratchpad; needs a core PR
 cp 5 · CLAUDE.md bans a canSubmit boolean derived from field values, the spec mandates Save and Post disabled on a too-large figure: kept as the spec says plus a guard inside `save`; a zod root refine over `buildOpening` would be the rule-conforming alternative
 
+cp 6 · the posted equity band subtotal includes the Opening Balance Equity row; the form's band subtotal excludes it
+cp 6 · the Opening Balance Equity row shows no detail type (wide) and no type label (phone)
+cp 6 · the read-only band captions keep their imperative wording ('Enter what each account holds')
+cp 6 · the posted line shows the plain document number (the seeded prefix is empty): `10 · Dec 31, 2025 · posted by ... on ...`
+cp 6 · if a post is refused after the user left the screen, only a log.warn records it
+cp 6 · 'View journal entry' is hidden: Journal Entries is not available (`SIDEBAR_ENTRIES` entries.available is false); its link test must become a positive one when it ships
+
 ## Out-of-plan changes
 cp 3 · tests/e2e/account-register-entry.spec.ts (earlier unit): box read replaced by offsetHeight; hooks/useRowWindow.ts additive options; opening-grid-style.ts new.
 cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collection` fields so a failing access read shows the error state instead of loading forever.
@@ -143,6 +150,20 @@ cp 2 · tinycld/books/hooks/useBooksAccess.ts: additive `isError` and `collectio
 - core change attempted and reverted: the implementer added `role="dialog"` to core's Sheet/Dialog so phone dialogs expose it; reverted (no core change approved); the proposed diff is kept in the scratchpad (`cp5-core-proposal.diff`). Core's phone Dialog has no dialog role: an accessibility gap worth a core PR
 - fix review: three passes; last pass found two cosmetic items (fixed)
 - out-of-plan changes: hooks/useOpeningDraftWrites.ts (new, write logic split out); hooks/useOpeningBalancesScreen.ts and OpeningBalancesScreenView.tsx (late error keeps the mounted form, `isRefreshing`, `hasLateError`); lib/opening-balances.ts (export `OPENING_BALANCE_EQUITY_NAME`); lib/opening-balances-messages.ts (`refusalMessage`, `lineRefusalMessage`, `refusalNamesFormFields`); OpeningBalancesHeader `statusBadge` and `OpeningStatusBadge`; scratch capture spec `helix-states` now skips unless HELIX_STATES=1 (it saved drafts into the shared e2e database and broke the refusal tests)
+- reviewer-caught deferrals: none
+- commit: see git log
+
+## Checkpoint 6
+- test writer: appended the `opening-balances: post and posted view` describe and helpers; red for the right reason: yes (4 of 5 red; test 1 already passed because checkpoint 5's bar disables Post: regression coverage); untestable: none
+- implementer: `post` (save, then the status update, one `isWriting` guard), `OpeningPostedView`, header badge/subtitle, screen hook posted fields, `stores/opening-post-store.ts`; DONE through three fix rounds
+- test disputes: the posted-line regex required a `JE-` prefix; the real seeded document-number prefix is empty (the spec's `JE-1046` is an example of an editable prefix). Ruling: test over-reached; the regex now takes an optional prefix. The implementer's `seed.ts` edit (setting the prefix to `JE-`) was rejected and reverted: it would change seeded settings on every demo/dev install just to satisfy a regex
+- self-declared differences: the badge id is `opening-status-badge` (checkpoint 5's component; the checkpoint text said `opening-posted-badge`); header takes `subtitle: { lead, tail }` and `subtitleTestID`; `OpeningPostedView` props are `{ bands, accounts, savedLines, equityAccountId, currency, entryHref }` (the `badge` and `canWrite` props in the Interfaces were dead and removed); posted equity band subtotal includes the Opening Balance Equity row; the posted view mirrors the grid (table header and detail types on wide, cards with a type label on phone)
+- gate 1: tests unedited: yes · pass (check 1138 tests; full e2e 153 passed, 8 skipped)
+- gate 2: invalid shots: none · blocking found and fixed: the posted bands dropped the Detail type column and the phone type label; phone card amounts were left-aligned (the reference right-aligns) · notes: listed under Design notes
+- gate 3 A (correctness): accepted+fixed: the optimistic status flip could unmount the form before the post-pending flag was set, losing a refused post's error summary (a useState set from an async callback is not synchronous; replaced by a Zustand store set before the mutation); posted date was the UTC day (now the local day via `localDayOf`); header line fallbacks; unlogged refusal after leaving the screen; memoized bands; read-only values only computed for the posted view. rebutted: a read-only user sees a draft over the posted entry (spec: a read-only user sees this view for a draft too; the draft always wins); lead/tail space on web (screenshots show the gap; existing text assertions rely on the literal space); warn plus error double log (a refusal with a message is not logged by `guarded`)
+- gate 3 B (conformance): accepted+fixed: dead props, nested ternary, `.map()` in returns
+- fix review: three passes; each found a real issue; last pass clean
+- out-of-plan changes: hooks/useOpeningDraftWrites.ts (`saveDraft` returns the id, `postEntry`); OpeningFormScreen (post wiring; the Files block omitted it); `lib/opening-balances.ts` (`localDayOf`, `postedLine`); `opening-grid-style.ts` (`isWideWindow`); `OpeningAccountTable` (exports `ColumnHeader`)
 - reviewer-caught deferrals: none
 - commit: see git log
 

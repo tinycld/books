@@ -31,6 +31,7 @@ import {
     openingFormSchema,
 } from '../lib/opening-balances-schema'
 import { todayIso } from '../lib/register-range'
+import { useOpeningPostStore } from '../stores/opening-post-store'
 import { useBackToChart } from './useBackToChart'
 import type { OpeningScreen } from './useOpeningBalancesScreen'
 import { LineWriteError, useOpeningDraftWrites } from './useOpeningDraftWrites'
@@ -157,6 +158,7 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
     const [isDiscardOpen, setIsDiscardOpen] = useState(false)
     const goBack = useBackToChart()
     const writes = useOpeningDraftWrites(screen)
+    const setPostPending = useOpeningPostStore(s => s.setPostPending)
     const [entriesCollection] = useStore('books_journal_entries')
     const draft = screen.state.kind === 'draft' ? screen.state.entry : null
     const { record: replaced } = useRecord(entriesCollection, draft?.replaces)
@@ -192,6 +194,10 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         mutationFn: writes.saveDraft,
         onError: onWriteError,
     })
+    const postMutation = useMutation({
+        mutationFn: writes.postEntry,
+        onError: onWriteError,
+    })
     const discardMutation = useMutation({
         mutationFn: writes.discardDraft,
         onError: onWriteError,
@@ -204,7 +210,9 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         try {
             return await run()
         } catch (error) {
-            // A refusal is already on the form through the mutation's onError.
+            // onWriteError shows every error that carries a server message (a refusal,
+            // with or without field errors); only the rest (a network failure, an
+            // unexpected throw) reaches the toast with no message, so only those are logged.
             const cause = error instanceof LineWriteError ? error.cause : error
             if (lineRefusalMessage(cause) === null) log.error('books.opening-balances', error)
             return false
@@ -215,23 +223,45 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
     // While a query is failed or reloading, the saved lines are not trustworthy and a
     // save would diff against them.
     const isStale = screen.hasLateError || screen.isRefreshing
-    const save = () =>
+    // Resolves to the saved entry's id, or null when nothing was saved. Runs inside a
+    // guarded write: Save and Post share it so each holds the one write guard.
+    const saveAndReturnId = async () => {
+        // The spec disables Save draft and Post on a too-large figure ("blocks Save
+        // draft and Post"), so the button state and this guard both read isBlocked,
+        // although CLAUDE.md bans a canSubmit derived from field values. Post calls
+        // this directly and must not slip past the disabled button.
+        if (isStale || isBlocked) return null
+        let savedId = null as string | null
+        await handleSubmit(async values => {
+            savedId = await saveMutation.mutateAsync(values)
+            // A save that turns a new form into a draft keeps formKey, so the form is
+            // not re-seeded. The submitted values become the clean baseline and the
+            // current ones stay, so a figure typed during the save is still dirty.
+            reset(values, { keepValues: true })
+        })()
+        return savedId
+    }
+    const save = () => guarded(async () => (await saveAndReturnId()) !== null)
+    const post = () =>
         guarded(async () => {
-            // The spec disables Save draft and Post on a too-large figure ("blocks Save
-            // draft and Post"), so the button state and this guard both read isBlocked,
-            // although CLAUDE.md bans a canSubmit derived from field values. Post calls
-            // save directly and must not slip past the disabled button.
-            if (isStale || isBlocked) return false
-            let isDone = false
-            await handleSubmit(async values => {
-                await saveMutation.mutateAsync(values)
-                // A save that turns a new form into a draft keeps formKey, so the form is
-                // not re-seeded. The submitted values become the clean baseline and the
-                // current ones stay, so a figure typed during the save is still dirty.
-                reset(values, { keepValues: true })
-                isDone = true
-            })()
-            return isDone
+            clearErrors('root')
+            const entryId = await saveAndReturnId()
+            if (entryId === null) return false
+            setPostPending(true)
+            try {
+                await postMutation.mutateAsync(entryId)
+            } catch (error) {
+                // A refusal after the user left the screen has no form to show it on.
+                const cause = error instanceof LineWriteError ? error.cause : error
+                const message = lineRefusalMessage(cause) ?? refusalMessage(cause)
+                if (!isMounted.current && message !== null) {
+                    log.warn('books.opening-balances', message)
+                }
+                throw error
+            } finally {
+                setPostPending(false)
+            }
+            return true
         })
     const discard = () =>
         guarded(async () => {
@@ -273,6 +303,8 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         onPresetChange,
         onDateChange,
         save,
+        post,
+        isPosting: postMutation.isPending,
         discard,
         cancel,
         isSaving: saveMutation.isPending,

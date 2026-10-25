@@ -13,6 +13,7 @@ import { OpeningDateFields } from './OpeningDateFields'
 import { OpeningPreview } from './OpeningPreview'
 import { OpeningPreviewDisclosure } from './OpeningPreviewDisclosure'
 import { OpeningTotals } from './OpeningTotals'
+import { isWideWindow } from './opening-grid-style'
 
 const PREVIEW_RAIL_WIDTH = 360
 // WorkspaceLayout docks a 260 sidebar on desktop (its SIDEBAR_WIDTH_DESKTOP is not
@@ -21,13 +22,9 @@ const PREVIEW_RAIL_WIDTH = 360
 const APP_CHROME_WIDTH = 260 + railWidth(0)
 // Below this window width the table and the rail do not fit side by side.
 const RAIL_MIN_WIDTH = TABLE_MIN_WIDTH + PREVIEW_RAIL_WIDTH + APP_CHROME_WIDTH
-const WIDE_MIN_WIDTH = 768
 // On a window this short (landscape phone, phone with the keyboard open) a fixed
 // date block would leave the grid almost no room, so it scrolls with the grid.
 const SHORT_WINDOW_HEIGHT = 600
-
-// Post is wired by the posting checkpoint; the button renders and enables now.
-const NOT_WIRED = () => {}
 
 type Model = ReturnType<typeof useOpeningBalancesForm>
 
@@ -137,7 +134,7 @@ export function OpeningFormScreen({ screen }: { screen: OpeningScreen }) {
     const model = useOpeningBalancesForm(screen)
     const width = useWindowWidth()
     const isShort = useWindowHeight() < SHORT_WINDOW_HEIGHT
-    const isWide = width >= WIDE_MIN_WIDTH
+    const isWide = isWideWindow(width)
     const hasRail = width >= RAIL_MIN_WIDTH
     const isDateFixed = isWide && !isShort
     const leading = isDateFixed ? null : <OpeningDateFields model={model} />
@@ -165,12 +162,12 @@ export function OpeningFormScreen({ screen }: { screen: OpeningScreen }) {
                 isWide={isWide}
                 hasDraft={model.hasDraft}
                 isSaving={model.isSaving}
-                isPosting={false}
+                isPosting={model.isPosting}
                 isBlocked={model.isBlocked || isStale}
                 hasAmounts={model.hasAmounts}
                 onCancel={model.cancel}
                 onSave={model.save}
-                onPost={NOT_WIRED}
+                onPost={model.post}
                 onDiscard={model.openDiscard}
             />
             <ConfirmDialog

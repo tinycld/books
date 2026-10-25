@@ -11,7 +11,8 @@ export interface OpeningStatusBadge {
 
 interface OpeningBalancesHeaderProps {
     title: string
-    subtitleLine: string
+    subtitle: { lead: string; tail: string }
+    subtitleTestID?: string
     statusBadge?: OpeningStatusBadge
 }
 
@@ -26,6 +27,15 @@ function StatusBadge({ badge }: { badge: OpeningStatusBadge | undefined }) {
         <View testID="opening-status-badge" className={`rounded-full px-2 py-0.5 ${tone}`}>
             <Text className={`text-xs font-medium ${text}`}>{badge.label}</Text>
         </View>
+    )
+}
+
+function SubtitleTail({ tail }: { tail: string }) {
+    if (tail === '') return null
+    return (
+        <Text numberOfLines={1} className="text-sm text-muted-foreground">
+            {tail}
+        </Text>
     )
 }
 
@@ -48,7 +58,8 @@ function BackLink() {
 
 export function OpeningBalancesHeader({
     title,
-    subtitleLine,
+    subtitle,
+    subtitleTestID,
     statusBadge,
 }: OpeningBalancesHeaderProps) {
     return (
@@ -61,7 +72,12 @@ export function OpeningBalancesHeader({
                     <HelpIcon topic="books:opening-balances" />
                 </View>
             </View>
-            <Text className="text-sm text-muted-foreground">{subtitleLine}</Text>
+            <View testID={subtitleTestID} className="flex-row flex-wrap">
+                <Text className="text-sm text-muted-foreground">
+                    {subtitle.tail === '' ? subtitle.lead : `${subtitle.lead} `}
+                </Text>
+                <SubtitleTail tail={subtitle.tail} />
+            </View>
         </View>
     )
 }

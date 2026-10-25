@@ -14,3 +14,10 @@ const INDENT = 16
 export function indentFor(depth: number) {
     return (depth - 1) * INDENT
 }
+
+// At and above this window width the grid is a table; below it, a card per account.
+const WIDE_MIN_WIDTH = 768
+
+export function isWideWindow(width: number) {
+    return width >= WIDE_MIN_WIDTH
+}
