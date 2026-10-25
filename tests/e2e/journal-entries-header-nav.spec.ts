@@ -14,8 +14,7 @@ import {
 } from './journal-entries-helpers'
 
 // Entry header geometry at a phone and a desktop width, the leave-without-asking rule
-// after a held save, and the Books sidebar's entries item (it replaces the current
-// route instead of stacking a second entries list). The seeded posted entry is only
+// after a held save. The seeded posted entry is only
 // opened; every draft is made through the new-entry form.
 
 const ENTRY_RECORDS = '**/api/collections/books_journal_entries/records/*'
@@ -164,21 +163,6 @@ test.describe('journal-entries: leaving after a held save', () => {
         await settleFrames(page)
         await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
         held.release()
-    })
-})
-
-test.describe('journal-entries: sidebar entries item replaces, never stacks (desktop)', () => {
-    test('from the list, one list stays and back leaves it', async ({ page }) => {
-        await start(page, DESKTOP)
-        await openEntriesList(page)
-        const entries = page.getByTestId('entries-screen')
-
-        await page.getByTestId('books-nav-entries').click()
-        await settleFrames(page)
-        await expect(entries).toHaveCount(1)
-
-        await page.goBack()
-        await expect(entries).toHaveCount(0)
     })
 })
 

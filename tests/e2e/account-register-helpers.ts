@@ -48,8 +48,24 @@ export async function openChart(page: Page) {
     const landing = isPhone(page)
         ? page.getByTestId('books-list-card-accounts')
         : page.getByTestId('books-nav-accounting-toggle')
-    // The shell may restore a register URL, so wait for either landing before branching.
-    await back.or(landing).first().waitFor({ state: 'attached' })
+    // A fresh page restores the last route (lastPackageHref), which can be an entry screen
+    // that has neither a register back link nor the hub card on a phone.
+    const entryBack = page.getByTestId('entry-back')
+    await entryBack.or(back).or(landing).first().waitFor({ state: 'attached' })
+    if (await entryBack.isVisible()) {
+        await entryBack.click()
+        const list = page.getByTestId('entries-screen')
+        await back.or(landing).or(list).first().waitFor({ state: 'attached' })
+        // On a phone the entries list has no way up to the Lists hub, and the tab bar restores
+        // the last route, so route to the hub in-app (no page load) the way the not-found spec does.
+        if (isPhone(page) && (await list.isVisible())) {
+            await page.evaluate(url => {
+                window.history.pushState({}, '', url)
+                window.dispatchEvent(new PopStateEvent('popstate'))
+            }, '/a/books/lists')
+            await landing.waitFor({ state: 'visible' })
+        }
+    }
     if (await back.isVisible()) {
         await back.click()
     } else if (isPhone(page)) {

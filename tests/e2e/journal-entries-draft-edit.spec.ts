@@ -175,7 +175,9 @@ for (const [sizeName, size] of SIZES) {
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
             await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
             await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-            await expect(page.getByTestId('entry-actions')).toHaveCount(0)
+            await expect(page.getByTestId('entry-save-draft')).toHaveCount(0)
+            await expect(page.getByTestId('entry-post')).toHaveCount(0)
+            await expect(page.getByTestId('entry-post-new')).toHaveCount(0)
 
             await backToList(page)
             await searchList(page, memo)
@@ -225,7 +227,9 @@ for (const [sizeName, size] of SIZES) {
             await expect(other.getByTestId('entry-read-only')).toBeVisible()
 
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
-            await expect(page.getByTestId('entry-actions')).toHaveCount(0)
+            await expect(page.getByTestId('entry-save-draft')).toHaveCount(0)
+            await expect(page.getByTestId('entry-post')).toHaveCount(0)
+            await expect(page.getByTestId('entry-post-new')).toHaveCount(0)
             await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
             await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
             await other.close()

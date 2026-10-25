@@ -4,14 +4,18 @@ import { router } from 'expo-router'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
+import { useReadOnlyActions } from '../../hooks/useReadOnlyActions'
 import { entryNumberText, reversalSummary, stampText } from '../../lib/entry-display'
 import { sumLines } from '../../lib/entry-lines'
 import { formatDay } from '../../lib/register-range'
 import { EntryHeader } from './EntryHeader'
 import { EntryLineCard } from './EntryLineCard'
 import { EntryLineTable } from './EntryLineTable'
+import { EntryReadOnlyActions } from './EntryReadOnlyActions'
 import { EntryStatusBadge } from './EntryStatusBadge'
 import { EntryTotals } from './EntryTotals'
+import { ReverseDialog } from './ReverseDialog'
+import { VoidDialog } from './VoidDialog'
 
 // The label and value are one Text so the row reads as one phrase ("Posted by Dana, Sep 30 4:12 PM").
 function Detail({
@@ -162,6 +166,7 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
     const isWide = useBreakpoint() !== 'mobile'
     const { entry, currency } = detail
     const number = entryNumberText(entry)
+    const actions = useReadOnlyActions(detail)
     const title = entry.number ? `Journal entry ${number}` : 'Journal entry'
     const totals = sumLines(
         detail.lines.map(line => ({
@@ -185,6 +190,31 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
                 <Lines detail={detail} isWide={isWide} />
             </ScrollView>
             <EntryTotals totals={totals} currency={currency} />
+            <EntryReadOnlyActions
+                isVisible
+                isWide={isWide}
+                actions={actions.actions}
+                onEdit={actions.onEdit}
+                onReverse={actions.onReverse}
+                onVoid={actions.onVoid}
+            />
+            <ReverseDialog
+                isVisible={actions.openDialog === 'reverse'}
+                entryNumber={actions.entryNumber}
+                entryDate={entry.date}
+                defaultDate={actions.reverseDate}
+                isPending={actions.isReversing}
+                onConfirm={actions.confirmReverse}
+                onCancel={actions.onClose}
+            />
+            <VoidDialog
+                isVisible={actions.openDialog === 'void'}
+                entryNumber={actions.entryNumber}
+                isPending={actions.isVoiding}
+                errorMessage={actions.voidError}
+                onConfirm={actions.confirmVoid}
+                onCancel={actions.onClose}
+            />
         </View>
     )
 }

@@ -1,0 +1,110 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only",
+            "name": "posted",
+            "schemes": ["light", "dark"],
+            "widths": [1280],
+            "finalReady": "entry-read-only"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only",
+            "name": "posted",
+            "schemes": ["light"],
+            "widths": [390],
+            "finalReady": "entry-read-only"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only",
+            "name": "reverse",
+            "steps": [
+                {
+                    "button": "Reverse"
+                }
+            ],
+            "schemes": ["light", "dark"],
+            "widths": [1280],
+            "finalReady": "reverse-dialog"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only",
+            "name": "reverse",
+            "steps": [
+                {
+                    "press": "entry-more"
+                },
+                {
+                    "menuItem": "Reverse"
+                }
+            ],
+            "schemes": ["light", "dark"],
+            "widths": [390],
+            "finalReady": "reverse-dialog"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only",
+            "name": "void",
+            "steps": [
+                {
+                    "button": "Void"
+                }
+            ],
+            "schemes": ["light"],
+            "widths": [1280],
+            "finalReady": "void-dialog"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only",
+            "name": "edit",
+            "steps": [
+                {
+                    "press": "entry-edit"
+                }
+            ],
+            "schemes": ["light"],
+            "widths": [1280],
+            "finalReady": "entry-screen"
+        },
+        {
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "typeSearch": "Entries seed posted",
+            "pressText": "Entries seed posted",
+            "afterReady": "entry-read-only",
+            "name": "edit",
+            "steps": [
+                {
+                    "press": "entry-edit"
+                }
+            ],
+            "schemes": ["light"],
+            "widths": [390],
+            "finalReady": "entry-screen"
+        }
+    ]
+}

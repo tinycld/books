@@ -367,7 +367,9 @@ for (const [sizeName, size] of SIZES) {
 
         test('register: the drawer links to the entry', async ({ page }) => {
             await start(page, size)
-            await openRegister(page, 'Business Checking')
+            // No other spec posts to Accounts receivable, so the seeded sale stays inside the
+            // register's newest-first window however many entries the suite adds to checking.
+            await openRegister(page, 'Accounts receivable')
             await page.getByTestId('register-range').click()
             await page.getByRole('menuitem', { name: 'This fiscal year', exact: true }).click()
 
