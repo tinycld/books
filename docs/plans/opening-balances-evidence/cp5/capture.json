@@ -1,0 +1,10 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "saved-draft",
+            "url": "/a/books/opening-balances",
+            "ready": "opening-balances-screen"
+        }
+    ]
+}

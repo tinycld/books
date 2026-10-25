@@ -42,6 +42,11 @@ export function formatMoney(cents: number, currency: string): string {
 // groups, and the first group cannot start with zero.
 const moneyPattern = /^(-?)\$?([1-9]\d{0,2}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?$/
 
+// Lets callers tell malformed text from a well-formed amount over the stored maximum.
+export function isWellFormedMoney(text: string): boolean {
+    return moneyPattern.test(text.trim())
+}
+
 export function parseMoney(text: string): number | null {
     const match = moneyPattern.exec(text.trim())
     if (!match) return null

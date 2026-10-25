@@ -7,8 +7,10 @@ import { accessFromRow } from '../lib/access'
 // read. Shared because every Books screen gates its writes on it.
 export function useBooksAccess() {
     const [accessCollection] = useStore('books_access')
-    const { data, isReady } = useMyLiveQuery((query, { userId }) =>
+    const { data, isReady, isError, collection } = useMyLiveQuery((query, { userId }) =>
         query.from({ access: accessCollection }).where(({ access }) => eq(access.user, userId))
     )
-    return accessFromRow(data?.[0], isReady)
+    // isError and collection let a screen show an error state and retry the
+    // read, instead of waiting forever on an isReady that never turns true.
+    return { ...accessFromRow(data?.[0], isReady), isError, collection }
 }

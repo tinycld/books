@@ -34,6 +34,9 @@ const maxStoredAmount = 1<<53 - 1
 // reversal or an edit posts inside the caller's transaction, which has no
 // savepoint, so only a rollback of the whole transaction undoes its writes.
 func postEntry(tx core.App, entry *core.Record, now time.Time) error {
+	if err := checkOpeningEntry(tx, entry); err != nil {
+		return err
+	}
 	day := entry.GetString("date")
 	if _, err := parseDay(day); err != nil {
 		return refuse("Date: %v.", err)
