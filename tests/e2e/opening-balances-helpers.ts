@@ -24,9 +24,23 @@ export function pad(n: number) {
     return String(n).padStart(2, '0')
 }
 
-// Last day of the previous fiscal year (seed fiscal_year_start_month is 1).
-export function lastFiscalYearEnd(now = new Date()) {
-    return `${now.getFullYear() - 1}-12-31`
+// The fiscal start month and close date are shared, mutable settings (another
+// spec changes them briefly), so the default date is read from the screen and
+// checked for its properties instead of being computed from January.
+export async function readDefaultDate(page: Page, now = new Date()) {
+    const input = page.getByTestId('opening-date')
+    await expect(input).toHaveValue(/^\d{4}-\d{2}-\d{2}$/)
+    const date = await input.inputValue()
+    const [year, month, day] = date.split('-').map(Number)
+    const lastDay = new Date(year, month, 0).getDate()
+    expect(day, 'the default date is the last day of its month').toBe(lastDay)
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+    expect(date < today, 'the default date is before today').toBe(true)
+    const earliest = new Date(now.getFullYear(), now.getMonth() - 13, 1)
+    const floor = `${earliest.getFullYear()}-${pad(earliest.getMonth() + 1)}-01`
+    expect(date >= floor, 'the default date is within the previous year').toBe(true)
+    await expect(page.getByTestId('opening-preset')).toContainText('End of last fiscal year')
+    return date
 }
 
 // Last day of the previous calendar month.

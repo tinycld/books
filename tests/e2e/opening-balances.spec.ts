@@ -13,7 +13,6 @@ import {
     GRID_NAMES,
     idsFromChart,
     isPhone,
-    lastFiscalYearEnd,
     lastMonthEnd,
     leaveToChart,
     openDiscardDialog,
@@ -21,6 +20,7 @@ import {
     openOpeningBalances,
     openWithIds,
     PHONE,
+    readDefaultDate,
 } from './opening-balances-helpers'
 
 // All opening-balances e2e live in this one file: the feature has one entry per
@@ -87,11 +87,7 @@ for (const [sizeName, size] of SIZES) {
             await start(page, size)
             await openOpeningBalances(page)
 
-            const yearEnd = lastFiscalYearEnd()
-            await expect(page.getByTestId('opening-preset')).toContainText(
-                'End of last fiscal year'
-            )
-            await expect(page.getByTestId('opening-date')).toHaveValue(yearEnd)
+            const yearEnd = await readDefaultDate(page)
             await expect(page.getByTestId('opening-date-helper')).toHaveText(
                 `Balances at end of day ${dayText(yearEnd)}`
             )
@@ -573,6 +569,7 @@ test.describe('opening-balances: preview and totals', () => {
             }) => {
                 await start(page, size)
                 const ids = await openWithIds(page)
+                const shownDate = await readDefaultDate(page)
                 await type(page, ids['Office Equipment'], '5,000')
                 await type(page, ids['Company Card'], '1,200')
                 await openPreview(page)
@@ -580,7 +577,7 @@ test.describe('opening-balances: preview and totals', () => {
                 const preview = page.getByTestId('opening-preview')
                 await expect(page.getByTestId('opening-preview-title')).toHaveText('Balance Sheet')
                 await expect(page.getByTestId('opening-preview-subtitle')).toHaveText(
-                    `As of Dec 31, ${new Date().getFullYear() - 1}`
+                    `As of ${dayText(shownDate)}`
                 )
                 await expect(page.getByTestId('opening-preview-chip')).toHaveText('Preview')
                 await expect(
@@ -642,10 +639,11 @@ test.describe('opening-balances: preview and totals', () => {
             test('the preview follows the date and the amounts', async ({ page }) => {
                 await start(page, size)
                 const ids = await openWithIds(page)
+                const shownDate = await readDefaultDate(page)
                 await type(page, ids['Office Equipment'], '5,000')
                 await openPreview(page)
                 await expect(page.getByTestId('opening-preview-subtitle')).toHaveText(
-                    `As of Dec 31, ${new Date().getFullYear() - 1}`
+                    `As of ${dayText(shownDate)}`
                 )
 
                 await page.getByTestId('opening-date').fill('2025-06-01')
@@ -1229,7 +1227,7 @@ test.describe('opening-balances: save draft and discard', () => {
         async (page, size) => {
             const ids = await begin(page, size)
             const writes = trackWrites(page)
-            const defaultDate = lastFiscalYearEnd()
+            const defaultDate = await readDefaultDate(page)
             await type(page, ids['Office Equipment'], '5,000')
             await saveAndSettle(page, writes)
 
