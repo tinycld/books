@@ -4,10 +4,12 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { materialize } from 'pbtsdb'
+import { useState } from 'react'
 import {
     findOpeningEquityAccount,
     type OpeningAccount,
     type OpeningEntryRow,
+    type OpeningScreenState,
     openingScreenState,
     pickOpeningBands,
     type SavedLine,
@@ -18,6 +20,23 @@ import { useBooksAccess } from './useBooksAccess'
 // The opening entry is unique among live entries, so two rows would already be
 // a bug; the second row lets the state derivation see it.
 const ENTRY_LIMIT = 2
+
+function entryIdOf(state: OpeningScreenState | null) {
+    return state && 'entry' in state ? state.entry.id : null
+}
+
+// A held draft must also follow its entry's date and memo, or the held copy goes stale.
+function entryFieldsOf(state: OpeningScreenState | null) {
+    return state && 'entry' in state ? `${state.entry.date}|${state.entry.memo}` : null
+}
+
+function isSameShown(a: OpeningScreenState | null, b: OpeningScreenState | null) {
+    return (
+        a?.kind === b?.kind &&
+        entryIdOf(a) === entryIdOf(b) &&
+        entryFieldsOf(a) === entryFieldsOf(b)
+    )
+}
 
 export function useOpeningBalancesScreen(isEditing = false) {
     const [accountsCollection, entriesCollection, linesCollection, settingsCollection] = useStore(
@@ -102,14 +121,11 @@ export function useOpeningBalancesScreen(isEditing = false) {
         access.isError ||
         settingsMissing ||
         [accountsQuery, entriesQuery, linesQuery, settingsQuery].some(q => q.isError)
-    const isReady =
-        access.isReady &&
-        accountsQuery.isReady &&
-        settingsQuery.isReady &&
-        entriesQuery.isReady &&
-        (entryId === null || linesQuery.isReady)
-    const state = openingScreenState({
-        isReady,
+    const isCoreReady =
+        access.isReady && accountsQuery.isReady && settingsQuery.isReady && entriesQuery.isReady
+    const isLinesReady = entryId === null || linesQuery.isReady
+    const loadedState = openingScreenState({
+        isReady: isCoreReady && isLinesReady,
         isError,
         canRead: access.canRead,
         hasBalanceSheetAccounts: bands.some(band => band.rows.length > 0),
@@ -117,12 +133,25 @@ export function useOpeningBalancesScreen(isEditing = false) {
         isEditing,
     })
     const canWrite = access.canWrite
-    const hasForm = state.kind === 'new' || state.kind === 'draft' || state.kind === 'replace'
 
-    // A query error flips the state to 'error', which sets formKey to null and
-    // unmounts the form, so a late error discards what the user typed. Checkpoint 5
-    // keeps a mounted form alive over a late error; until then retry remounts it.
-    //
+    // A form that is already shown outlives any transient loading or error state:
+    // saving a new draft makes `entry` appear and re-keys the lines query, and
+    // unmounting the form meanwhile would discard its errors and what was typed after
+    // the save began. The state the form was last shown under is kept in state that is
+    // compared and set during render (React's documented pattern for state derived
+    // from the previous render), by kind and entry id so it settles after one pass.
+    const [shownState, setShownState] = useState<OpeningScreenState | null>(null)
+    const isTransient = loadedState.kind === 'loading' || loadedState.kind === 'error'
+    const isHeld = isTransient && shownState !== null
+    const state = isHeld ? shownState : loadedState
+    const isFormState = state.kind === 'new' || state.kind === 'draft' || state.kind === 'replace'
+    const nextShown = isFormState && canWrite ? state : null
+    if (!isSameShown(shownState, nextShown)) setShownState(nextShown)
+    // Save and Post stay disabled while the held form's data is reloading or failed;
+    // the screen shows the late error with Retry above the mounted form.
+    const hasLateError = isHeld && loadedState.kind === 'error'
+    const isRefreshing = isHeld && loadedState.kind === 'loading'
+
     // Only a failed query is rebuilt, with its own source. Cleaning a healthy
     // query is not harmless: TanStack DB's hook can keep serving the rows it held
     // before the rebuild (its collection is full, `data` stays empty), and the
@@ -170,8 +199,10 @@ export function useOpeningBalancesScreen(isEditing = false) {
         entry,
         savedLines,
         retry,
+        hasLateError,
+        isRefreshing,
         isEditing,
-        formKey: hasForm && canWrite ? ('form' as const) : null,
+        formKey: isFormState && canWrite ? ('form' as const) : null,
     }
 }
 

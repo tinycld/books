@@ -4,9 +4,29 @@ import { ArrowLeft } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import { useBackToChart } from '../../hooks/useBackToChart'
 
+export interface OpeningStatusBadge {
+    label: string
+    tone: 'draft' | 'posted'
+}
+
 interface OpeningBalancesHeaderProps {
     title: string
     subtitleLine: string
+    statusBadge?: OpeningStatusBadge
+}
+
+function StatusBadge({ badge }: { badge: OpeningStatusBadge | undefined }) {
+    if (!badge) return null
+    const tone =
+        badge.tone === 'posted'
+            ? 'border border-transparent bg-success/15'
+            : 'border border-border bg-transparent'
+    const text = badge.tone === 'posted' ? 'text-success' : 'text-muted-foreground'
+    return (
+        <View testID="opening-status-badge" className={`rounded-full px-2 py-0.5 ${tone}`}>
+            <Text className={`text-xs font-medium ${text}`}>{badge.label}</Text>
+        </View>
+    )
 }
 
 function BackLink() {
@@ -26,12 +46,17 @@ function BackLink() {
     )
 }
 
-export function OpeningBalancesHeader({ title, subtitleLine }: OpeningBalancesHeaderProps) {
+export function OpeningBalancesHeader({
+    title,
+    subtitleLine,
+    statusBadge,
+}: OpeningBalancesHeaderProps) {
     return (
         <View className="gap-1 border-b border-border px-4 pb-3 pt-2">
             <BackLink />
             <View className="flex-row items-center gap-2">
                 <Text className="text-2xl font-semibold text-foreground">{title}</Text>
+                <StatusBadge badge={statusBadge} />
                 <View testID="opening-help">
                     <HelpIcon topic="books:opening-balances" />
                 </View>

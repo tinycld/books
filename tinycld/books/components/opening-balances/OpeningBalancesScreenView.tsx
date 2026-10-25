@@ -3,7 +3,7 @@ import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Text, View } from 'react-native'
 import type { OpeningScreen } from '../../hooks/useOpeningBalancesScreen'
-import { OpeningBalancesHeader } from './OpeningBalancesHeader'
+import { OpeningBalancesHeader, type OpeningStatusBadge } from './OpeningBalancesHeader'
 import { OpeningEmptyState } from './OpeningEmptyState'
 import { OpeningFormScreen } from './OpeningFormScreen'
 
@@ -64,13 +64,20 @@ function FormBody({ screen }: { screen: OpeningScreen }) {
     return <OpeningFormScreen key={screen.formKey} screen={screen} />
 }
 
+const DRAFT_BADGE: OpeningStatusBadge = { label: 'Draft', tone: 'draft' }
+
 export function OpeningBalancesScreenView({ screen }: { screen: OpeningScreen }) {
     const kind = screen.state.kind
+    const hasDraft = kind === 'draft' && screen.formKey !== null
     return (
         <View testID="opening-balances-screen" className="flex-1 bg-background">
-            <OpeningBalancesHeader title="Opening balances" subtitleLine={EXPLANATION} />
+            <OpeningBalancesHeader
+                title="Opening balances"
+                subtitleLine={EXPLANATION}
+                statusBadge={hasDraft ? DRAFT_BADGE : undefined}
+            />
             <LoadingBody isVisible={kind === 'loading'} />
-            <ErrorBody isVisible={kind === 'error'} onRetry={screen.retry} />
+            <ErrorBody isVisible={kind === 'error' || screen.hasLateError} onRetry={screen.retry} />
             <NoAccessBody isVisible={kind === 'no-access'} />
             <OpeningEmptyState isVisible={kind === 'empty-chart'} />
             <NoEntryBody isVisible={kind === 'new' && !screen.canWrite} />
