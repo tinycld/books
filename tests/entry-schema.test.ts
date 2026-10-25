@@ -197,7 +197,9 @@ describe('postSchema', () => {
         const lines = [line({ debit: '$10.00' }), line({ account: 'acc2', credit: '$9.00' })]
         const result = postSchema.safeParse(values({ lines }))
         expect(result.success).toBe(false)
-        expect(issuesOf(result).map(issue => issue.message)).toContain('Debits must equal credits')
+        expect(issuesOf(result).map(issue => issue.message)).toContain(
+            'Debits and credits must be equal before this entry can be posted.'
+        )
     })
 
     it('save-draft accepts a one-line entry that post rejects', () => {

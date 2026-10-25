@@ -138,7 +138,7 @@ function buildSchemas(currency?: string) {
             ctx.addIssue({
                 code: 'custom',
                 path: ['lines'],
-                message: 'Debits must equal credits',
+                message: 'Debits and credits must be equal before this entry can be posted.',
             })
         }
     })

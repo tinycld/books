@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native'
 import { AmountCell, MemoCell } from './AmountCell'
-import { AccountPick, type LineActions, LineMenu } from './EntryLineRow'
+import { AccountPick, type LineActions, LineError, LineMenu } from './EntryLineRow'
 
 interface EntryEditableLineCardProps {
     index: number
@@ -39,6 +39,7 @@ export function EntryEditableLineCard({
                 </View>
             </View>
             <MemoCell index={index} actions={actions} />
+            <LineError index={index} />
         </View>
     )
 }
