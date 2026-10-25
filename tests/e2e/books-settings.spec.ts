@@ -479,6 +479,10 @@ test.describe('books-settings: Settings screens', () => {
         const preview = id(page, 'books-settings-seq-journal-preview')
         await expect(preview).toContainText('Next entry:')
 
+        // Parallel workers advance the shared counter, so every save goes above the live value.
+        const started = Number(await next.inputValue())
+        expect(started).toBeGreaterThan(0)
+
         await prefix.fill('JE-')
         await next.fill('1')
         await save.click()
@@ -486,8 +490,9 @@ test.describe('books-settings: Settings screens', () => {
         await expect(prefix).toHaveValue('JE-')
         await expect(next).toHaveValue('1')
 
-        await next.fill('5000')
-        await expect(preview).toHaveText('Next entry: JE-5000')
+        const first = started + 1000
+        await next.fill(String(first))
+        await expect(preview).toHaveText(`Next entry: JE-${first}`)
         await save.click()
         await expectSaved(page)
         await expect(
@@ -500,10 +505,13 @@ test.describe('books-settings: Settings screens', () => {
         await expectNoHorizontalScroll(page)
         const card = await id(page, 'books-settings-seq-journal').boundingBox()
         expect((card?.x ?? 0) + (card?.width ?? 0)).toBeLessThanOrEqual(PHONE.width)
-        await prefix.fill('')
+        // The prefix stays JE-: the books are shared, and the entry specs read the posted
+        // number as JE-<n>. A save at or below a used number is refused, so go higher again.
+        const second = Number(await next.inputValue()) + 1000
+        await next.fill(String(second))
         await save.click()
         await expectSaved(page)
-        await expect(next).toHaveValue('5000')
+        await expect(next).toHaveValue(String(second))
     })
 
     test('Access: owner row is locked and search filters the list', async ({ page }) => {

@@ -5,7 +5,16 @@ import {
     type EntriesStatusFilter,
 } from '../lib/entries-query'
 
+export interface EntryDialogTarget {
+    kind: 'reverse' | 'void' | 'delete'
+    entryId: string
+}
+
 interface EntriesUiState {
+    dialog: EntryDialogTarget | null
+    openDialog: (kind: EntryDialogTarget['kind'], entryId: string) => void
+    // With a target, clears only that dialog, so a stale completion cannot close a newer one.
+    closeDialog: (target?: EntryDialogTarget) => void
     status: EntriesStatusFilter
     search: string
     range: EntriesRange
@@ -28,6 +37,14 @@ const DEFAULTS = {
 
 export const useEntriesUiStore = create<EntriesUiState>()(set => ({
     ...DEFAULTS,
+    dialog: null,
+    openDialog: (kind, entryId) => set({ dialog: { kind, entryId } }),
+    closeDialog: target =>
+        set(s => {
+            if (target && (s.dialog?.kind !== target.kind || s.dialog.entryId !== target.entryId))
+                return s
+            return { dialog: null }
+        }),
     // A new filter starts from the first page again.
     setStatus: status => set({ status, rowLimit: ROW_LIMIT_STEP }),
     setSearch: search => set({ search, rowLimit: ROW_LIMIT_STEP }),
