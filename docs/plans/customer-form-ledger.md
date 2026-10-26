@@ -30,6 +30,9 @@
 - cp 0 · browser history guard: a Forward to a hash-only entry on a dirty screen is held as a leave.
 - cp 0 · browser history guard: without the Navigation API (no current browser) the browser Back/Forward is not held.
 - cp 0 · core/lib/use-url.ts decodes params a second time (urlParams calls decodeURIComponent on params expo-router already decoded): a param holding a literal escape (a%41) gives useUrl the path aA; the guard never takes its entry and only warns. Outside this checkpoint; for the human.
+- cp 2 · search: customer search folds case for ASCII only (SQLite LIKE), as account search does (likeWhere documents it); 'émile' does not find 'Émile'. A Unicode-folded search would change likeWhere for every Books kind.
+- cp 2 · search: a sub-customer hit's title is 'Parent : Child', but hits are ordered by the customer's own display name and match only its own name, company and email; so 'Birch Mills : Phase 1' can sort between 'Alder Farms' and 'Zeta', and a search for the parent's name does not list its sub-customers. The spec's search columns are kept.
+- cp 2 · search: an exclude term checks only the customer's own columns, so 'phase -alder' still lists 'Alder Farms : Phase 1' (its title holds the excluded word); core's score sort puts the longer 'Parent : Child' titles below same-score top-level hits. Both follow from the spec's search columns.
 
 ## Out-of-plan changes
 - cp 1 · server/go.mod: require github.com/pocketbase/ozzo-validation/v4 v4.3.0 (refuseField's import; implementer).
@@ -105,6 +108,15 @@
 - fix round 4: tests (Cherokee both orders, D145 iota-subscript pair, comment), implementer NFC(cherokeeUpper(Fold(NFD))). Gate 1 (generate first): check clean, go test, vet, gofmt.
 - fix review 4: no block (exhaustive probe vs CaseFolding 17.0.0 D145: 0 mismatches over every code point and 300k strings; key stable; at most 800 runes). Note 1 the second Cherokee range and range ends untested → accepted, test-only (fresh test writer); note 3 spec label '(NFC)' → '(canonical equivalence)'.
 - cherokee range tests: five pairs × both orders; each new pair catches a bound or range mutation (scratch probe). go test green. Committed.
+
+## Checkpoint 2
+- test writer: tests/search-target.test.ts (customer and entry paths red; account and unknown/empty unchanged), server/search_test.go (TestSearch_FindsCustomers red: by name, company, email case-insensitive; title, subtitle company or email, meta, fields; phone and notes do not match. TestSearch_InterleavesAllThreeKinds red. NoAccess and LimitOffset extended with customers; they pass before, guarding no leak and no notes match).
+- implementer: DONE, no dispute, no differences (searchCustomers, interleave of three lists, search-target customer and entry paths). Gate 1 (generate first): tests unchanged, check 2289 clean, go test, vet, gofmt.
+- review A: no block. 1 search folds ASCII only (accounts share the limit, likeWhere says so) → design note; 2 sub-customer hits with the same name are told apart only by subtitle → accepted, title 'Parent : Child' (spec customerLabel), plan Produces updated; 3 search-target comment true from checkpoint 4 → no action; 4 PATHS['constructor'] is not null → accepted, Object.hasOwn; 5 no paging test with all three kinds matching → accepted, test; 6 inactive true unasserted → accepted, test.
+- review B: no block; nothing to fix. Note: help/customers.md should say search finds customers → added to checkpoint 7 (Do 7 and its test bullet).
+- fix round 1: tests (Parent : Child title red; inherited kinds red; paging across three kinds and inactive true pins); implementer: LEFT JOIN parent title, PATHS a Map. Gate 1 (generate first): check 2290 clean, go test, vet, gofmt.
+- fix review 1: no block. 1 likeWhere called twice with the params of the first → accepted (driver): one call with c.-qualified columns, the count query aliased too; 2 comment misleading → accepted, reviewer's wording; 3 comment names customerLabel before it exists → no action (checkpoint 4/its helper uses ' : '); 4 title starts with the parent's name, order is the child's → design note for the human; 5 no assertion that the join does not widen the match → accepted, test-only (fresh test writer).
+- fix review 2 (driver's single-likeWhere change): no block. 1 comment precision → reviewer's wording; 2 'phase -alder' still lists 'Alder Farms : Phase 1' (exclude checks the child's own columns) → design note; 3 longer sub-customer titles sort below same-score top-level hits in core sortRows → design note; 4 no exclude test for sub-customers → no change (one shared where makes a mismatch impossible). Plan Do 1 updated to the qualified columns. Committed.
 
 ## Final review
 - eval:
