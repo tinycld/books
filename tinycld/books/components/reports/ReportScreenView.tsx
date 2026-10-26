@@ -14,6 +14,7 @@ import type { ControlRowItem, EmptyAction } from '../../lib/report-state'
 import { ReportDocumentHeader } from './ReportDocumentHeader'
 import { ReportEmptyState } from './ReportEmptyState'
 import { REPORT_TAP_TARGET, ReportHeader } from './ReportHeader'
+import { ReportMethodToggle } from './ReportMethodToggle'
 import { ReportNotFound } from './ReportNotFound'
 import { ReportPeriodControl } from './ReportPeriodControl'
 
@@ -57,9 +58,27 @@ function EmptyBody({ isVisible, message, action, onAction }: EmptyBodyProps) {
     return <ReportEmptyState message={message} action={action} onAction={onAction} />
 }
 
-// The method toggle and the filter chips arrive with their own controls in later checkpoints.
-function ControlItem({ item, periodLabel }: { item: ControlRowItem; periodLabel: string }) {
-    if (item.kind === 'period') return <ReportPeriodControl label={periodLabel} />
+// The filter chips arrive with their own controls in a later checkpoint.
+function ControlItem({ item, model }: { item: ControlRowItem; model: ReportScreenModel }) {
+    const { form } = model
+    const onPeriodOpenChange = (open: boolean) => {
+        if (open) model.onOpenSurface({ kind: 'period' })
+        else model.onCloseSurface()
+    }
+    if (item.kind === 'period') {
+        return (
+            <ReportPeriodControl
+                label={model.periodChipLabel}
+                period={model.definition.period}
+                form={form}
+                isOpen={model.surface?.kind === 'period'}
+                onOpenChange={onPeriodOpenChange}
+            />
+        )
+    }
+    if (item.kind === 'method') {
+        return <ReportMethodToggle control={form.control} onValueChange={form.onOptionChange} />
+    }
     return null
 }
 
@@ -75,7 +94,7 @@ function basisLabel(definition: ReportDefinition, options: ReportOptions): strin
 export function ReportScreenView({ model }: { model: ReportScreenModel }) {
     const { definition, options, state } = model
     const controls = model.controlItems.map(item => (
-        <ControlItem key={controlKey(item)} item={item} periodLabel={model.periodChipLabel} />
+        <ControlItem key={controlKey(item)} item={item} model={model} />
     ))
     const basis = basisLabel(definition, options)
     return (

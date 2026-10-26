@@ -46,6 +46,7 @@ Period
 - As-of reports offer: Today, End of last month, End of last quarter, End of last fiscal year, Custom.
 - Picking a preset resolves its dates and applies at once.
 - From and To are core `DateField`s (typed YYYY-MM-DD or picked from the calendar). An as-of report has only one date, labelled "As of". Editing a date switches the preset to Custom. An incomplete or invalid date, From after To, or a range longer than the definition's `maxMonths` shows an inline field error, and the report keeps showing the last valid period. A valid edit applies at once.
+- Closing the period control while a date is invalid discards that edit: the form returns to the last valid period, so a later option change applies.
 - Day-level ranges are allowed. Reports read whole months from balance rows and the partial edge months from posted lines (`monthSlices`, see Data).
 
 Method

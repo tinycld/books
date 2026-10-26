@@ -26,6 +26,7 @@
 ## Design notes
 - cp 5 · hub loading and error states not captured at cp 5 → captured at cp 6 (hub-loading, hub-error).
 - cp 6 · tb: business-name line not seen (seed writes no business_name; blank is omitted per spec).
+- cp 7 · method toggle not seen (Trial Balance has no basis); judge at the first hasBasis report.
 - cp 6 · hub-loading, hub-error: sidebar "+ New" hidden while access loads (shell behavior).
 
 ## Out-of-plan changes
@@ -121,6 +122,17 @@
 - gate 3 A: no defects; declared differences accepted. Untested prerequisites stage → tests/use-report-prerequisites.test.tsx (7 tests; three temporary breaks each caught).
 - gate 3 B: no rule breaks; ledger records (out-of-plan test file, detailRowCount) → recorded here; staging decisions copy refreshed.
 - gate 1 (final): tinycld-pkg check pass (2566); stderr none.
+
+## Checkpoint 7 — Period control and live apply
+- test writer: tests/e2e/report-shell-period.spec.ts (2 e2e; report-shell total 5), helpers choosePreset/setAsOfDate; red for the right reason: yes (no report-period-popover); untestable: none (method toggle and range presets stay in the Not-reachable register for p5-profit-and-loss).
+- implementer: hooks/useReportOptionsForm.ts, components/reports/{ReportPeriodControl,ReportMethodToggle}.tsx, hooks/useReportScreen.ts, ReportScreenView.tsx, evidence/cp7/capture.json; self-declared: Custom writes at once when valid; ButtonGroup wrapper margin dropped; pill text weight; chip trigger helper; aria-checked + accessibilityState; optionsAfterEmptyAction removed; scripted edit (process breach, logged).
+- test disputes: e2e release order — `unroute` then `continue()` throws in Playwright 1.60 (unroute continues routes in flight) → settled for the implementer; later reviewer B showed continue-then-unroute races, so the release is `unroute` alone (P4).
+- gate 1: tinycld-pkg check pass; e2e report-shell 5 passed.
+- gate 2 (Fable): 8 shots valid, no BLOCKING; NOTE: method toggle never visible on the Trial Balance (hasBasis false) → judged at the first hasBasis report.
+- gate 3 A+B: plan gap — an invalid date left in the form after the popover closes blocks every later option change silently → accepted+fixed (P1 discard on close; new spec bullet); named-preset dates resolved only at pick time go stale on day rollover / fiscal-start change → fixed (P2: shown dates and Custom start from options.period); validate-before-custom ordering → fixed (P3); e2e assertions read the form after pick / copied link / hub reopen / discard → added (P5).
+- fix review 1: discard of a valid pending edit before re-render → fixed (Q1 errors guard) + tests (Q2). Fix review 2: the errors guard read a render-time snapshot (stale both ways) → fixed (R1: schema.safeParse(form.getValues()); R2 comment) + same-tick tests (R3). Fix review 3: clean.
+- hand-off to cp 9: when openSurface replaces the period surface with add-filter / filter-picker, call discardEdit on that switch.
+- gate 1 (final): tinycld-pkg check pass (2572); e2e 5 passed; stderr none.
 
 ## Final review
 - eval:

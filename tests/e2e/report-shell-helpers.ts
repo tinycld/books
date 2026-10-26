@@ -34,3 +34,24 @@ export async function hasNoPageScrollX(page: Page): Promise<boolean> {
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
     )
 }
+
+// Opens the period control, presses one preset pill and waits until the popover (or the
+// phone sheet) is gone: picking a preset applies at once and closes it.
+export async function choosePreset(page: Page, presetId: string): Promise<void> {
+    const popover = page.getByTestId('report-period-popover')
+    await page.getByTestId('report-period').click()
+    await expect(popover).toBeVisible()
+    await page.getByTestId(`report-period-preset-${presetId}`).click()
+    await expect(popover).toHaveCount(0)
+}
+
+// Types into the "As of" field, opening the period control first when it is closed. Editing a
+// date keeps the popover open, so the inline error stays in view.
+export async function setAsOfDate(page: Page, value: string): Promise<void> {
+    const popover = page.getByTestId('report-period-popover')
+    if ((await popover.count()) === 0) {
+        await page.getByTestId('report-period').click()
+        await expect(popover).toBeVisible()
+    }
+    await page.getByTestId('report-period-as-of').fill(value)
+}
