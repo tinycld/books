@@ -31,7 +31,7 @@ To have Books reverse an entry on a later day, type a date in Auto-reverse on. T
 
 ## Edit a posted entry
 
-To edit a posted entry, open it and choose Edit, or choose Edit in the menu of its row. The form opens with the posted figures and a notice. Nothing changes until you choose Save draft or Post. When you post, the new entry replaces the original under the same number, and the original is voided.
+To edit a posted entry, open it and choose Edit, or choose Edit in the menu of its row. The form opens with the posted figures and a notice. The form is a copy: the original stays posted and your books do not change until you post. Save draft keeps your changes for later. When you post, the new entry replaces the original under the same number, and the original is voided.
 
 ## Reverse an entry
 

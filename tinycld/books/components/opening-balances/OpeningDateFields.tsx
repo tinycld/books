@@ -1,6 +1,7 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { SelectInput, type SelectOption, TextInput, useController } from '@tinycld/core/ui/form'
+import { SelectInput, type SelectOption, useController } from '@tinycld/core/ui/form'
+import { DateField } from '@tinycld/core/ui/forms/fields/DateField'
 import { TextInput as RNTextInput, Text, View } from 'react-native'
 import type { OpeningForm } from '../../hooks/useOpeningBalancesForm'
 
@@ -9,8 +10,6 @@ const PRESET_OPTIONS: SelectOption[] = [
     { value: 'last-month', label: 'End of last month' },
     { value: 'custom', label: 'Custom date' },
 ]
-
-const NO_GAP = { className: 'gap-1.5' }
 
 function DateHelper({ text }: { text: string }) {
     if (!text) return null
@@ -53,6 +52,27 @@ function MemoField({ model }: { model: OpeningForm }) {
     )
 }
 
+// Typed as YYYY-MM-DD or picked from core's calendar; either way the date is a custom one.
+function BalanceDateField({ model }: { model: OpeningForm }) {
+    const { field, fieldState } = useController({ name: 'date', control: model.form.control })
+    return (
+        <View className="gap-1.5">
+            <Text className="text-sm font-semibold text-foreground">Balances at end of day</Text>
+            <DateField
+                value={field.value || null}
+                onChange={next => {
+                    field.onChange(next ?? '')
+                    model.onDateChange()
+                }}
+                withTime={false}
+                accessibilityLabel="Balances at end of day"
+                testID="opening-date"
+            />
+            <FieldError testID="opening-date-error" message={fieldState.error?.message ?? ''} />
+        </View>
+    )
+}
+
 export function OpeningDateFields({ model }: { model: OpeningForm }) {
     const isWide = useBreakpoint() !== 'mobile'
     const { control } = model.form
@@ -72,16 +92,7 @@ export function OpeningDateFields({ model }: { model: OpeningForm }) {
                 />
             </View>
             <View style={dateWidth}>
-                <TextInput
-                    name="date"
-                    control={control}
-                    label="Balances at end of day"
-                    testID="opening-date"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    onValueChange={model.onDateChange}
-                    wrapperProps={NO_GAP}
-                />
+                <BalanceDateField model={model} />
                 <DateHelper text={model.dateHelper} />
             </View>
             <View className="min-w-[260px] flex-1">
