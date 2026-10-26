@@ -4,9 +4,15 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useLocalSearchParams } from 'expo-router'
 import { fiscalStartMonth, todayIso } from '../lib/register-range'
-import type { ReportDefinition, ReportModel, ReportOptions } from '../lib/report-definition'
+import type {
+    ReportDefinition,
+    ReportModel,
+    ReportModelRow,
+    ReportOptions,
+} from '../lib/report-definition'
 import { parseReportParams } from '../lib/report-options'
 import { type PeriodContext, periodChipLabel, periodWords } from '../lib/report-period'
+import { foldAllLabel, foldAllTarget } from '../lib/report-rows'
 import {
     type ControlRowItem,
     controlRowItems,
@@ -24,6 +30,10 @@ import { useBooksSettings } from './useBooksSettings'
 import { type ReportOptionsForm, useReportOptionsForm } from './useReportOptionsForm'
 
 const DEFAULT_CURRENCY = 'USD'
+
+// Module-level, so a report with nothing folded hands the table the same array each render.
+const NOTHING_FOLDED: string[] = []
+const NO_ROWS: ReportModelRow[] = []
 
 export type ReportPrerequisites = {
     state: 'loading' | 'error' | 'no-access' | 'ready'
@@ -97,6 +107,10 @@ export type ReportScreenModel = {
     onRetry(): void
     onBack(): void
     breakpoint: Breakpoint
+    folded: string[]
+    foldAllLabel: 'Collapse all' | 'Expand all' | null
+    onFoldAll(): void
+    onToggleSection(sectionId: string): void
 }
 
 export function useReportScreen(input: {
@@ -115,12 +129,18 @@ export function useReportScreen(input: {
     const surface = useReportUIStore(s => s.surface)
     const onOpenSurface = useReportUIStore(s => s.openSurface)
     const onCloseSurface = useReportUIStore(s => s.closeSurface)
+    const folded = useReportUIStore(s => s.folded[definition.id]) ?? NOTHING_FOLDED
+    const setFolded = useReportUIStore(s => s.setFolded)
+    const toggleSection = useReportUIStore(s => s.toggleSection)
+    const rows = result.model?.rows ?? NO_ROWS
 
     // Through the form, so what the user edits next starts from the options shown.
     const onEmptyAction = () => {
         if (action?.kind === 'clear-filters') form.applyFilters({})
         if (action?.kind === 'preset') form.onPreset(action.preset)
     }
+    const onFoldAll = () => setFolded(definition.id, foldAllTarget(rows, folded))
+    const onToggleSection = (sectionId: string) => toggleSection(definition.id, sectionId)
 
     return {
         definition,
@@ -146,5 +166,9 @@ export function useReportScreen(input: {
         onRetry: result.retry,
         onBack,
         breakpoint,
+        folded,
+        foldAllLabel: foldAllLabel(rows, folded),
+        onFoldAll,
+        onToggleSection,
     }
 }
