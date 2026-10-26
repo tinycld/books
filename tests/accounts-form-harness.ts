@@ -16,6 +16,7 @@ import type {
     BooksJournalLines,
     BooksSettings,
 } from '../tinycld/books/types'
+import { refusedLoad } from './silence-log'
 
 export const ME = 'u1'
 
@@ -528,26 +529,32 @@ function erroredCollection<T extends { id: string }>() {
     })
 }
 
-// Fails its first load, as a rejected fetch would, then serves `rows` once the
-// collection is cleaned up and subscribed again, so a test can see a retry recover.
-function failsOnceCollection<T extends { id: string }>(rows: T[]) {
+// Fails the way a pbtsdb on-demand collection does when a fetch is refused: the
+// source is ready at once, and only the first subset load rejects with a 4xx that
+// pbtsdb does not retry. That fails the one live query that asked for it while the
+// source and its other readers stay healthy. Later loads serve `rows`, so a retry
+// that rebuilds the failed query recovers it.
+function failsOnceOnDemandCollection<T extends { id: string }>(rows: T[]) {
     counter += 1
-    let attempts = 0
+    const id = `fails-once-on-demand-${counter}`
+    let loads = 0
     return createCollection({
-        id: `fails-once-${counter}`,
+        id,
         getKey: (row: T) => row.id,
         ...indexed,
+        syncMode: 'on-demand',
         sync: {
-            sync: ({ collection, begin, write, commit, markReady }) => {
-                attempts += 1
-                if (attempts === 1) {
-                    queueMicrotask(() => collection._lifecycle.markError(new Error('load failed')))
-                    return
-                }
-                begin()
-                for (const value of rows) write({ type: 'insert', value })
-                commit()
+            sync: ({ begin, write, commit, markReady }) => {
                 markReady()
+                return {
+                    loadSubset: async () => {
+                        loads += 1
+                        if (loads === 1) throw refusedLoad(id)
+                        begin()
+                        for (const value of rows) write({ type: 'insert', value })
+                        commit()
+                    },
+                }
             },
         },
     })
@@ -586,7 +593,7 @@ function settingsCollectionFor(
 ) {
     if (opts.settingsErrored) return erroredCollection<BooksSettings>()
     if (opts.settingsNeverReady) return neverReady<BooksSettings>()
-    if (opts.settingsFailsOnce) return failsOnceCollection<BooksSettings>(rows)
+    if (opts.settingsFailsOnce) return failsOnceOnDemandCollection<BooksSettings>(rows)
     return settingsCollection(rows)
 }
 
@@ -601,7 +608,7 @@ function sequencesCollectionFor(
 ) {
     if (opts.sequencesErrored) return erroredCollection<BooksDocSequences>()
     if (opts.sequencesNeverReady) return neverReady<BooksDocSequences>()
-    if (opts.sequencesFailsOnce) return failsOnceCollection<BooksDocSequences>(rows)
+    if (opts.sequencesFailsOnce) return failsOnceOnDemandCollection<BooksDocSequences>(rows)
     return sequencesCollection(rows)
 }
 
@@ -615,7 +622,7 @@ function overridesCollectionFor(
 ) {
     if (opts.overridesErrored) return erroredCollection<BooksCloseOverrides>()
     if (opts.overridesNeverReady) return neverReady<BooksCloseOverrides>()
-    if (opts.overridesFailsOnce) return failsOnceCollection<BooksCloseOverrides>(rows)
+    if (opts.overridesFailsOnce) return failsOnceOnDemandCollection<BooksCloseOverrides>(rows)
     return overridesCollection(rows)
 }
 
@@ -625,7 +632,7 @@ function usersCollectionFor(
 ) {
     if (opts.usersErrored) return erroredCollection<SeedUser>()
     if (opts.usersNeverReady) return neverReady<SeedUser>()
-    if (opts.usersFailsOnce) return failsOnceCollection<SeedUser>(rows)
+    if (opts.usersFailsOnce) return failsOnceOnDemandCollection<SeedUser>(rows)
     return local<SeedUser>('users', rows)
 }
 
