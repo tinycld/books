@@ -64,6 +64,18 @@
 - fix review 2: serializer wrote rows/colsBy/cols the spec does not offer → fixed (J1); schema accepted unlisted columnsBy and cash basis on a no-basis spec → fixed (J2, plain messages); column-toggle normalization untested → tests added (J3).
 - fix review 3: clean. Note (not a finding): serializeReportParams writes options.filters as given; every options source already normalizes them.
 - gate 1 (final): tinycld-pkg check pass (2444 tests); warnings: only the open shared-source bug's two lines.
+- commit: 8068e10
+
+## Checkpoint 3 — Amount format, folding and UI store
+- test writer: tests/report-format.test.ts (17), tests/report-rows.test.ts (10), tests/report-ui-store.test.ts (7); red for the right reason: yes (missing modules); untestable: none. Plan defect found: Do 1's roundHalfAwayFromZero (×(1+EPSILON)) moves 9007199254740991 to …992, so the exact-at-the-limit bullet fails; implementer told to skip rounding for an already-integer scaled value.
+- implementer: created lib/report-format.ts, lib/report-rows.ts, stores/report-ui-store.ts; DONE. Self-declared differences: integer guard before rounding (plan defect at 2^53-1); shared displayUnits/unitsText; Without cents may exceed 2^53 as an exact multiple of 100; wrong-type cell value shows String(value); cycle guard in visibleReportRows; startVisit sets [].
+- test disputes: none
+- gate 1: tests unedited: yes · tinycld-pkg check pass (2478)
+- gate 2: n/a (logic)
+- gate 3 A: Without cents / Divide by 1000 showed wrong figures near the stored limit (float division lands on the wrong side of a half; 4000 + 400 wrong values in the top 200k cents) → accepted+fixed (K1: integer-exact quotient/remainder rounding; BigInt-reference sweep test); non-finite percent shows NaN% → accepted+fixed (K2: empty cell). Plan defect: Do 1 named roundHalfAwayFromZero for all rounding; spec Display/Data lines updated to integer-exact rounding.
+- gate 3 B: nothing found.
+- fix review 1: THOUSANDS_WITHOUT_CENTS had no integer-exact test → sweep and point tests added (proven by a temporary float-rounding break); roundFraction comment false → rewritten. fix review 2 (comment only): wording narrowed → reviewer's wording applied.
+- gate 1 (final): tinycld-pkg check pass (2485 tests); warnings: only the open shared-source bug's two lines.
 
 ## Final review
 - eval:
