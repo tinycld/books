@@ -94,7 +94,10 @@ export default function BooksSidebar() {
             icon={entry.icon}
             isActive={isActive(entry)}
             closesDrawer
-            onPress={() => router.navigate(orgHref(entry.href))}
+            // Sidebar items are sections, not drill-downs: dismissTo returns to the section
+            // when it is already in the stack, else replaces the top screen. router.navigate
+            // only reuses the top screen, so Chart → Entries → Chart stacked a second Chart.
+            onPress={() => router.dismissTo(orgHref(entry.href))}
             testID={`books-nav-${entry.id}`}
         />
     )
