@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
     entryNumberText,
     entryStatusText,
+    entryTotalText,
     entryTypeText,
     formatDateTime,
     reversalSummary,
@@ -127,5 +128,16 @@ describe('stampText with an unparseable stamp', () => {
     it('returns an empty string, with no trailing comma', () => {
         expect(stampText('Test User', 'not a date')).toBe('')
         expect(stampText(undefined, 'not a date')).toBe('')
+    })
+})
+
+describe('entryTotalText', () => {
+    it('shows a dash for a row the server has not stamped a total on yet', () => {
+        expect(entryTotalText({}, 'USD')).toBe('\u2014')
+    })
+
+    it('formats a stamped total, including zero', () => {
+        expect(entryTotalText({ total: 123456 }, 'USD')).toBe('$1,234.56')
+        expect(entryTotalText({ total: 0 }, 'USD')).toBe('$0.00')
     })
 })

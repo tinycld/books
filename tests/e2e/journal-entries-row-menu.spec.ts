@@ -186,6 +186,16 @@ async function makePosted(page: Page, memo: string) {
 
 for (const [sizeName, size] of SIZES) {
     test.describe(`journal-entries: row menu and flows (${sizeName})`, () => {
+        test('a row holds its menu without nesting a button in a button', async ({ page }) => {
+            await start(page, size)
+            const posted = await seeded(page, ENTRIES_SEED.posted)
+            await expect(page.getByTestId(`entries-row-menu-${posted.id}`)).toBeVisible()
+            // Invalid HTML: React warns of a hydration error and a screen reader reads the row twice.
+            await expect(
+                page.locator('button button, [role="button"] [role="button"]')
+            ).toHaveCount(0)
+        })
+
         test('menu contents follow the entry state', async ({ page }) => {
             await start(page, size)
             const posted = await seeded(page, ENTRIES_SEED.posted)
