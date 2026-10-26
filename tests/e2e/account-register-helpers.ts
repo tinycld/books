@@ -25,10 +25,15 @@ export function isPhone(page: Page) {
     return (page.viewportSize()?.width ?? DESKTOP.width) < 700
 }
 
-// A row on wide screens, a card on phones.
+// A row on wide screens, a card on phones. Only the visible chart's: the stack keeps an
+// earlier chart mounted but hidden under a screen the sidebar opened on top of it.
 export function accountItem(page: Page, name: string): Locator {
     const prefix = isPhone(page) ? 'account-card-' : 'account-row-'
-    return page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name })
+    return page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name, visible: true })
+}
+
+function chartSearch(page: Page) {
+    return page.getByTestId('account-search').filter({ visible: true })
 }
 
 async function revealInactive(page: Page) {
@@ -77,7 +82,7 @@ export async function openChart(page: Page) {
         if (!(await item.isVisible())) await toggle.click()
         await item.click()
     }
-    await expect(page.getByTestId('account-search')).toBeVisible()
+    await expect(chartSearch(page)).toBeVisible()
 }
 
 // The Chart of Accounts must already be open. Chooses "View register" from the
