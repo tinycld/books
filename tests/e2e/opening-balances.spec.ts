@@ -116,6 +116,13 @@ for (const [sizeName, size] of SIZES) {
                 'Balances at end of day Jun 1, 2025'
             )
 
+            await page.getByTestId('opening-date-open').click()
+            await page.getByLabel('2025-06-15', { exact: true }).first().click()
+            await expect(page.getByTestId('opening-date')).toHaveValue('2025-06-15')
+            await expect(page.getByTestId('opening-date-helper')).toHaveText(
+                'Balances at end of day Jun 15, 2025'
+            )
+
             await page.getByTestId('opening-memo').fill('Converted from the old books')
             await page.getByTestId('opening-date').fill('2025-07-01')
             await expect(page.getByTestId('opening-date-helper')).toHaveText(

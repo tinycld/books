@@ -382,6 +382,9 @@ for (const [sizeName, size] of SIZES) {
                     `Posting this replaces ${number} under the same number. The original is voided.`
                 )
             ).toBeVisible()
+            await expect(page.getByTestId('entry-replace-help')).toContainText(
+                `${number} stays as it is and your books do not change`
+            )
             await expect(page.getByTestId('entry-memo')).toHaveValue(memo)
             await expect
                 .poll(() => cellValue(page.getByTestId('entry-line-account-0')))

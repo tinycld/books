@@ -5,9 +5,14 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { type ReactNode, useEffect } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { useEntriesQuery } from '../../hooks/useEntriesQuery'
-import { entryNumberText, entryTypeText, reversesText } from '../../lib/entry-display'
-import { formatMoney } from '../../lib/money'
+import {
+    entryNumberText,
+    entryTotalText,
+    entryTypeText,
+    reversesText,
+} from '../../lib/entry-display'
 import { formatDay } from '../../lib/register-range'
+import { spaceOpens } from '../accounts/AccountRow'
 import { EntryStatusBadge } from './EntryStatusBadge'
 
 export type EntryListItem = NonNullable<ReturnType<typeof useEntriesQuery>['entries']>[number]
@@ -81,8 +86,10 @@ export function EntryRow({ entry, currency, onOpenEntry, rowMenu }: EntryItemPro
     return (
         <Pressable
             testID={`entries-row-${entry.id}`}
-            accessibilityRole="button"
+            // Not a button: the row menu inside it is a button, and buttons cannot nest.
+            role="row"
             onPress={() => onOpenEntry(entry.id)}
+            {...spaceOpens(entry.id, onOpenEntry)}
             className={`${ENTRY_ROW_CLASS} bg-background`}
             style={{ minHeight: ENTRY_ROW_HEIGHT }}
         >
@@ -113,7 +120,7 @@ export function EntryRow({ entry, currency, onOpenEntry, rowMenu }: EntryItemPro
             </View>
             <View testID={cellId('total')} className="items-end" style={ENTRY_COLUMNS.total}>
                 <Text className="text-right text-sm font-medium text-foreground">
-                    {formatMoney(entry.total, currency)}
+                    {entryTotalText(entry, currency)}
                 </Text>
             </View>
             <RowMenuSlot entryId={entry.id} rowMenu={rowMenu} />
