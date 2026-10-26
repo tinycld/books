@@ -4,7 +4,6 @@
 import type { BooksAccounts, BooksSettings } from '../types'
 import {
     DEFAULT_NUMBER_FORMAT,
-    type FilterChoiceOption,
     type FilterSpec,
     type ReportColumn,
     type ReportModel,
@@ -18,6 +17,7 @@ import { AS_OF_PRESET_IDS, PERIOD_PRESET_LABELS, RANGE_PRESET_IDS } from './repo
 import type { ReportEntry } from './report-registry'
 
 export { DEFAULT_NUMBER_FORMAT } from './report-definition'
+export { ACCOUNT_GROUP_CHOICES } from './report-filters'
 export { REPORT_SECTIONS } from './report-registry'
 
 // "Today" for the reference captures, so the presets resolve to stable dates.
@@ -460,14 +460,6 @@ export const ACCOUNT_FILTER: FilterSpec = {
     label: 'Account',
     kind: 'accounts',
 }
-
-export const ACCOUNT_GROUP_CHOICES: FilterChoiceOption[] = [
-    { id: 'group:asset', label: 'All asset accounts' },
-    { id: 'group:liability', label: 'All liability accounts' },
-    { id: 'group:equity', label: 'All equity accounts' },
-    { id: 'group:income', label: 'All income accounts' },
-    { id: 'group:expense', label: 'All expense accounts' },
-]
 
 export const TRIAL_BALANCE_OPTIONS: ReportOptions = {
     period: { kind: 'as-of', preset: 'end-of-last-month', from: null, to: '2026-09-30' },
