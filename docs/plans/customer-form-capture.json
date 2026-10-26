@@ -1,0 +1,47 @@
+{
+    "outDir": "customer-form-reference",
+    "shots": [
+        { "name": "list", "url": "/a/books/helix-mockup?state=list", "ready": "customers-list" },
+        {
+            "name": "list-empty",
+            "url": "/a/books/helix-mockup?state=list-empty",
+            "ready": "customers-empty"
+        },
+        {
+            "name": "list-no-match",
+            "url": "/a/books/helix-mockup?state=list-no-match",
+            "ready": "customers-no-match"
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/helix-mockup?state=edit&surface=panel&inactive=1",
+            "ready": "customer-panel",
+            "height": 2000,
+            "widths": [1600]
+        },
+        {
+            "name": "page",
+            "url": "/a/books/helix-mockup?state=edit&surface=page",
+            "ready": "customer-page",
+            "height": 2000
+        },
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new&surface=page",
+            "ready": "customer-page",
+            "height": 2000
+        },
+        {
+            "name": "new-sub",
+            "url": "/a/books/helix-mockup?state=new-sub&surface=page",
+            "ready": "customer-page",
+            "height": 2000
+        },
+        {
+            "name": "delete",
+            "url": "/a/books/helix-mockup?state=delete",
+            "ready": "delete-customer-dialog-body",
+            "opaque": "delete-customer-dialog-body"
+        }
+    ]
+}
