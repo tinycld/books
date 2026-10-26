@@ -49,12 +49,17 @@ type RunVariables = {
 export function useBooksSetup() {
     const [settingsCollection, accountsCollection] = useStore('books_settings', 'books_accounts')
     const access = useBooksAccess()
-    const settingsQuery = useLiveQuery(query => query.from({ settings: settingsCollection }))
-    const accountsQuery = useLiveQuery(query =>
-        query
-            .from({ account: accountsCollection })
-            .select(({ account }) => ({ id: account.id, number: account.number }))
-    )
+    const settingsQuery = useLiveQuery({
+        query: query => query.from({ settings: settingsCollection }),
+        queryKey: ['books', 'setup-settings'],
+    })
+    const accountsQuery = useLiveQuery({
+        query: query =>
+            query
+                .from({ account: accountsCollection })
+                .select(({ account }) => ({ id: account.id, number: account.number })),
+        queryKey: ['books', 'setup-account-numbers'],
+    })
     const [progress, setProgress] = useState<Progress | null>(null)
     // A ref, because two presses in one tick both see the same stale state.
     const inFlight = useRef(false)

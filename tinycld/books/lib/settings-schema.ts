@@ -1,6 +1,7 @@
 import { z } from '@tinycld/core/ui/form'
 import type { BooksDocSequences, BooksSettings } from '../types'
 import { LASTS_FOR_OPTIONS, type LastsFor } from './overrides'
+import { isIsoDay } from './register-range'
 
 const emailCheck = z.email()
 
@@ -51,22 +52,10 @@ export const fiscalYearSchema = z.object({
 
 export type FiscalYearValues = { fiscal_year_start_month: number }
 
-function isRealDay(day: string): boolean {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day)
-    if (!match) return false
-    const [year, month, date] = [Number(match[1]), Number(match[2]), Number(match[3])]
-    const built = new Date(Date.UTC(year, month - 1, date))
-    return (
-        built.getUTCFullYear() === year &&
-        built.getUTCMonth() === month - 1 &&
-        built.getUTCDate() === date
-    )
-}
-
 export const closeDateSchema = z
     .object({ closed: z.boolean(), close_date: z.string() })
     .superRefine((values, ctx) => {
-        if (values.closed && !isRealDay(values.close_date)) {
+        if (values.closed && !isIsoDay(values.close_date)) {
             ctx.addIssue({
                 code: 'custom',
                 path: ['close_date'],

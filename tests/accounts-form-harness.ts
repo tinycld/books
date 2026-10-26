@@ -462,6 +462,7 @@ function heldAccessCollection<T extends { id: string }>(
     return createCollection({
         id: `${name}-held-${counter}`,
         getKey: (row: T) => row.id,
+        ...indexed,
         onInsert: handler,
         onUpdate: handler,
         onDelete: handler,
@@ -507,6 +508,7 @@ function neverReady<T extends { id: string }>() {
     return createCollection({
         id: `never-ready-${counter}`,
         getKey: (row: T) => row.id,
+        ...indexed,
         sync: { sync: () => {} },
     })
 }
@@ -516,6 +518,7 @@ function erroredCollection<T extends { id: string }>() {
     return createCollection({
         id: `errored-${counter}`,
         getKey: (row: T) => row.id,
+        ...indexed,
         sync: {
             // Fails after the subscription is set up, as a failed fetch would.
             sync: ({ collection }) => {
@@ -533,6 +536,7 @@ function failsOnceCollection<T extends { id: string }>(rows: T[]) {
     return createCollection({
         id: `fails-once-${counter}`,
         getKey: (row: T) => row.id,
+        ...indexed,
         sync: {
             sync: ({ collection, begin, write, commit, markReady }) => {
                 attempts += 1
@@ -591,7 +595,6 @@ function sequencesCollectionFor(
         sequencesNeverReady?: boolean
         sequencesFailsOnce?: boolean
         // A doc sequences collection whose sync fails, so the sequences query errors.
-        sequencesErrored?: boolean
         sequencesErrored?: boolean
     },
     rows: BooksDocSequences[]

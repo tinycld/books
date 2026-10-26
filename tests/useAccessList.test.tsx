@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useAccessList } from '../tinycld/books/hooks/useAccessList'
 import type { BooksAccess } from '../tinycld/books/types'
 import { accessStore, seedBooks, usersStore } from './accounts-form-harness'
-import { silenceLog } from './silence-log'
+import { expectLiveQueryError, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -153,6 +153,7 @@ describe('useAccessList readiness and load errors', () => {
 
     it('sets hasLoadError when the users read fails', async () => {
         seedBooks({ level: 'admin', users: USERS, accessRows: ROWS, usersErrored: true })
+        expectLiveQueryError(usersStore().id)
         const { result } = renderHook(() => useAccessList(), { wrapper })
 
         await waitFor(() => expect(result.current.hasLoadError).toBe(true))
@@ -161,6 +162,7 @@ describe('useAccessList readiness and load errors', () => {
 
     it('recovers through retryLoad after the users read failed once', async () => {
         seedBooks({ level: 'admin', users: USERS, accessRows: ROWS, usersFailsOnce: true })
+        expectLiveQueryError(usersStore().id)
         const { result } = renderHook(() => useAccessList(), { wrapper })
         await waitFor(() => expect(result.current.hasLoadError).toBe(true))
 
@@ -188,6 +190,7 @@ describe('useAccessList viewer read', () => {
             accessRows: [...ROWS, ...many.map(m => row(m.id, 'bookkeeper'))],
             usersFailsOnce: true,
         })
+        expectLiveQueryError(usersStore().id)
         const { result } = renderHook(() => useAccessList(), { wrapper })
         await waitFor(() => expect(result.current.hasLoadError).toBe(true))
 

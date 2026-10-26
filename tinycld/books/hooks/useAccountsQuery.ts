@@ -9,9 +9,10 @@ export function useAccountsQuery() {
         'books_accounts',
         'books_account_balances'
     )
-    const { data, isReady, isError, collection } = useLiveQuery(
-        accountsWithBalances(accountsCollection, balancesCollection)
-    )
+    const { data, isReady, isError, collection } = useLiveQuery({
+        query: accountsWithBalances(accountsCollection, balancesCollection),
+        queryKey: ['books', 'accounts-with-balances'],
+    })
     const retry = () => {
         void recoverLiveQueries({
             queries: [collection],

@@ -1,70 +1,24 @@
-// Synthetic reports for the report shell helix reference route and, later, the seed.
-// Accounts and settings are typed against the generated record types so tsc checks every
-// field. Money is integer cents.
-//
-// The report contract does not exist yet. The local interfaces below mirror the Data
-// section of docs/specs/report-shell-design.md. The checkpoint that creates
-// lib/report-definition.ts and lib/report-registry.ts must replace them with imports
-// from those modules, so this fixture keeps checking against the real contract.
+// Synthetic reports for the report shell helix reference route and the unit tests.
+// Accounts and settings are typed against the generated record types, and the reports
+// against the report contract, so tsc checks every field. Money is integer cents.
 import type { BooksAccounts, BooksSettings } from '../types'
+import {
+    DEFAULT_NUMBER_FORMAT,
+    type FilterChoiceOption,
+    type FilterSpec,
+    type ReportColumn,
+    type ReportModel,
+    type ReportModelRow,
+    type ReportNumberFormat,
+    type ReportOptions,
+    type ReportSpec,
+    type RowsChoice,
+} from './report-definition'
+import { AS_OF_PRESET_IDS, PERIOD_PRESET_LABELS, RANGE_PRESET_IDS } from './report-period'
+import type { ReportEntry } from './report-registry'
 
-type ColumnKind = 'text' | 'date' | 'money' | 'percent'
-type RowKind = 'section' | 'detail' | 'subtotal' | 'total'
-type CellValue = number | string | null
-
-export interface FixtureReportColumn {
-    id: string
-    label: string
-    kind: ColumnKind
-}
-
-export interface FixtureReportRow {
-    id: string
-    kind: RowKind
-    depth: number
-    label: string
-    section?: string
-    cells: Record<string, CellValue>
-}
-
-export interface FixtureReportModel {
-    columns: FixtureReportColumn[]
-    rows: FixtureReportRow[]
-}
-
-export interface FixtureNumberFormat {
-    divideBy1000: boolean
-    withoutCents: boolean
-    negative: 'minus' | 'parens'
-    negativeRed: boolean
-}
-
-export interface FixtureReportOptions {
-    period: { preset: string; from: string | null; to: string }
-    basis: 'accrual' | 'cash'
-    rows: 'active' | 'non-zero' | 'all'
-    columnsBy: string
-    columns: string[]
-    filters: Record<string, string[]>
-    numberFormat: FixtureNumberFormat
-}
-
-export type FixtureFilterSpec =
-    | { id: string; label: string; kind: 'accounts' }
-    | { id: string; label: string; kind: 'choice'; options: { id: string; label: string }[] }
-
-export interface FixtureReportSection {
-    id: string
-    title: string
-}
-
-export interface FixtureReportEntry {
-    id: string
-    title: string
-    description: string
-    section: string
-    available: boolean
-}
+export { DEFAULT_NUMBER_FORMAT } from './report-definition'
+export { REPORT_SECTIONS } from './report-registry'
 
 // "Today" for the reference captures, so the presets resolve to stable dates.
 export const REPORT_TODAY = '2026-10-25'
@@ -87,19 +41,9 @@ export const REPORT_SETTINGS = {
     updated: '2026-01-01 00:00:00.000Z',
 } satisfies BooksSettings
 
-export const REPORT_SECTIONS: FixtureReportSection[] = [
-    { id: 'business-overview', title: 'Business overview' },
-    { id: 'accountant', title: 'For my accountant' },
-    { id: 'who-owes-you', title: 'Who owes you' },
-    { id: 'what-you-owe', title: 'What you owe' },
-    { id: 'sales', title: 'Sales and customers' },
-    { id: 'expenses', title: 'Expenses and vendors' },
-    { id: 'taxes', title: 'Taxes' },
-]
-
 // The registry as later units fill it in: most sections have an available report, and
 // Taxes has none, so the hub must not draw it.
-export const HUB_ENTRIES: FixtureReportEntry[] = [
+export const HUB_ENTRIES: ReportEntry[] = [
     {
         id: 'profit-and-loss',
         title: 'Profit and Loss',
@@ -174,12 +118,12 @@ export const HUB_ENTRIES: FixtureReportEntry[] = [
 ]
 
 // The registry as this unit ships it: only the Trial Balance is available.
-export const HUB_ENTRIES_V0: FixtureReportEntry[] = HUB_ENTRIES.map(entry => ({
+export const HUB_ENTRIES_V0: ReportEntry[] = HUB_ENTRIES.map(entry => ({
     ...entry,
     available: entry.id === 'trial-balance',
 }))
 
-export const HUB_ENTRIES_NONE: FixtureReportEntry[] = HUB_ENTRIES.map(entry => ({
+export const HUB_ENTRIES_NONE: ReportEntry[] = HUB_ENTRIES.map(entry => ({
     ...entry,
     available: false,
 }))
@@ -297,15 +241,15 @@ const TRIAL_BALANCES: Record<string, number> = {
     rpt_acct_6900: 0,
 }
 
-const TRIAL_COLUMNS: FixtureReportColumn[] = [
+const TRIAL_COLUMNS: ReportColumn[] = [
     { id: 'label', label: 'Account', kind: 'text' },
     { id: 'debit', label: 'Debit', kind: 'money' },
     { id: 'credit', label: 'Credit', kind: 'money' },
 ]
 
-function trialBalanceModel(): FixtureReportModel {
+function trialBalanceModel(): ReportModel {
     const lines = REPORT_ACCOUNTS.filter(a => (TRIAL_BALANCES[a.id] ?? 0) !== 0)
-    const details: FixtureReportRow[] = lines.map(a => {
+    const details: ReportModelRow[] = lines.map(a => {
         const cents = TRIAL_BALANCES[a.id] ?? 0
         return {
             id: a.id,
@@ -317,7 +261,7 @@ function trialBalanceModel(): FixtureReportModel {
     })
     const sum = (key: 'debit' | 'credit') =>
         details.reduce((total, row) => total + Number(row.cells[key] ?? 0), 0)
-    const total: FixtureReportRow = {
+    const total: ReportModelRow = {
         id: 'total',
         kind: 'total',
         depth: 0,
@@ -327,16 +271,16 @@ function trialBalanceModel(): FixtureReportModel {
     return { columns: TRIAL_COLUMNS, rows: [...details, total] }
 }
 
-export const TRIAL_BALANCE_MODEL = trialBalanceModel()
+export const TRIAL_BALANCE_MODEL: ReportModel = trialBalanceModel()
 
-export const EMPTY_MODEL: FixtureReportModel = { columns: TRIAL_COLUMNS, rows: [] }
+export const EMPTY_MODEL: ReportModel = { columns: TRIAL_COLUMNS, rows: [] }
 
 // Profit and Loss by quarter: the multi-section shape (sections, a nested section,
 // subtotals, totals) with five amount columns, so the phone layout fixes the label column
 // at 168pt and scrolls the amounts.
 const QUARTERS = ['q1', 'q2', 'q3', 'q4'] as const
 
-const PL_COLUMNS: FixtureReportColumn[] = [
+const PL_COLUMNS: ReportColumn[] = [
     { id: 'label', label: 'Account', kind: 'text' },
     { id: 'q1', label: 'Jan – Mar 2026', kind: 'money' },
     { id: 'q2', label: 'Apr – Jun 2026', kind: 'money' },
@@ -443,8 +387,8 @@ function sectionTotal(section: PlSection): Quarterly {
     return [add(0), add(1), add(2), add(3)]
 }
 
-function sectionRows(section: PlSection, depth: number, parent?: string): FixtureReportRow[] {
-    const head: FixtureReportRow = {
+function sectionRows(section: PlSection, depth: number, parent?: string): ReportModelRow[] {
+    const head: ReportModelRow = {
         id: section.id,
         kind: 'section',
         depth,
@@ -452,7 +396,7 @@ function sectionRows(section: PlSection, depth: number, parent?: string): Fixtur
         section: parent,
         cells: {},
     }
-    const details: FixtureReportRow[] = section.lines.map(line => ({
+    const details: ReportModelRow[] = section.lines.map(line => ({
         id: `${section.id}:${line.id}`,
         kind: 'detail',
         depth: depth + 1,
@@ -463,7 +407,7 @@ function sectionRows(section: PlSection, depth: number, parent?: string): Fixtur
     const nested = (section.children ?? []).flatMap(child =>
         sectionRows(child, depth + 1, section.id)
     )
-    const subtotal: FixtureReportRow = {
+    const subtotal: ReportModelRow = {
         id: `${section.id}:subtotal`,
         kind: 'subtotal',
         depth,
@@ -478,10 +422,10 @@ function difference(a: Quarterly, b: Quarterly): Quarterly {
     return [a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]]
 }
 
-function profitAndLossModel(): FixtureReportModel {
+function profitAndLossModel(): ReportModel {
     const grossProfit = difference(sectionTotal(PL_INCOME), sectionTotal(PL_COGS))
     const netIncome = difference(grossProfit, sectionTotal(PL_EXPENSES))
-    const total = (id: string, label: string, amounts: Quarterly): FixtureReportRow => ({
+    const total = (id: string, label: string, amounts: Quarterly): ReportModelRow => ({
         id,
         kind: 'total',
         depth: 0,
@@ -500,31 +444,24 @@ function profitAndLossModel(): FixtureReportModel {
     }
 }
 
-export const PROFIT_AND_LOSS_MODEL = profitAndLossModel()
+export const PROFIT_AND_LOSS_MODEL: ReportModel = profitAndLossModel()
 
-export const PL_EMPTY_MODEL: FixtureReportModel = { columns: PL_COLUMNS, rows: [] }
+export const PL_EMPTY_MODEL: ReportModel = { columns: PL_COLUMNS, rows: [] }
 
-export const DEFAULT_NUMBER_FORMAT: FixtureNumberFormat = {
-    divideBy1000: false,
-    withoutCents: false,
-    negative: 'minus',
-    negativeRed: false,
-}
-
-export const CUSTOM_NUMBER_FORMAT: FixtureNumberFormat = {
+export const CUSTOM_NUMBER_FORMAT: ReportNumberFormat = {
     divideBy1000: false,
     withoutCents: true,
     negative: 'parens',
     negativeRed: true,
 }
 
-export const ACCOUNT_FILTER: FixtureFilterSpec = {
+export const ACCOUNT_FILTER: FilterSpec = {
     id: 'account',
     label: 'Account',
     kind: 'accounts',
 }
 
-export const ACCOUNT_GROUP_CHOICES = [
+export const ACCOUNT_GROUP_CHOICES: FilterChoiceOption[] = [
     { id: 'group:asset', label: 'All asset accounts' },
     { id: 'group:liability', label: 'All liability accounts' },
     { id: 'group:equity', label: 'All equity accounts' },
@@ -532,8 +469,8 @@ export const ACCOUNT_GROUP_CHOICES = [
     { id: 'group:expense', label: 'All expense accounts' },
 ]
 
-export const TRIAL_BALANCE_OPTIONS: FixtureReportOptions = {
-    period: { preset: 'end-of-last-month', from: null, to: '2026-09-30' },
+export const TRIAL_BALANCE_OPTIONS: ReportOptions = {
+    period: { kind: 'as-of', preset: 'end-of-last-month', from: null, to: '2026-09-30' },
     basis: 'accrual',
     rows: 'non-zero',
     columnsBy: 'total',
@@ -542,8 +479,13 @@ export const TRIAL_BALANCE_OPTIONS: FixtureReportOptions = {
     numberFormat: DEFAULT_NUMBER_FORMAT,
 }
 
-export const PROFIT_AND_LOSS_OPTIONS: FixtureReportOptions = {
-    period: { preset: 'this-fiscal-year-to-date', from: '2026-01-01', to: '2026-10-25' },
+export const PROFIT_AND_LOSS_OPTIONS: ReportOptions = {
+    period: {
+        kind: 'range',
+        preset: 'this-fiscal-year-to-date',
+        from: '2026-01-01',
+        to: '2026-10-25',
+    },
     basis: 'accrual',
     rows: 'active',
     columnsBy: 'quarters',
@@ -553,48 +495,29 @@ export const PROFIT_AND_LOSS_OPTIONS: FixtureReportOptions = {
 }
 
 // Three accounts that had no activity this month: the "Clear filters" empty state.
-export const FILTERED_EMPTY_OPTIONS: FixtureReportOptions = {
+export const FILTERED_EMPTY_OPTIONS: ReportOptions = {
     ...PROFIT_AND_LOSS_OPTIONS,
-    period: { preset: 'this-month', from: '2026-10-01', to: '2026-10-31' },
+    period: { kind: 'range', preset: 'this-month', from: '2026-10-01', to: '2026-10-31' },
     filters: { account: ['rpt_acct_4200', 'rpt_acct_6500', 'rpt_acct_6900'] },
 }
 
-export const AS_OF_PRESETS = [
-    { id: 'today', label: 'Today' },
-    { id: 'end-of-last-month', label: 'End of last month' },
-    { id: 'end-of-last-quarter', label: 'End of last quarter' },
-    { id: 'end-of-last-fiscal-year', label: 'End of last fiscal year' },
-    { id: 'custom', label: 'Custom' },
-]
+export const AS_OF_PRESETS = AS_OF_PRESET_IDS.map(id => ({ id, label: PERIOD_PRESET_LABELS[id] }))
 
-export const RANGE_PRESETS = [
-    { id: 'today', label: 'Today' },
-    { id: 'this-month', label: 'This month' },
-    { id: 'this-month-to-date', label: 'This month to date' },
-    { id: 'this-quarter', label: 'This quarter' },
-    { id: 'this-quarter-to-date', label: 'This quarter to date' },
-    { id: 'this-fiscal-year', label: 'This fiscal year' },
-    { id: 'this-fiscal-year-to-date', label: 'This fiscal year to date' },
-    { id: 'last-month', label: 'Last month' },
-    { id: 'last-quarter', label: 'Last quarter' },
-    { id: 'last-fiscal-year', label: 'Last fiscal year' },
-    { id: 'last-12-months', label: 'Last 12 months' },
-    { id: 'custom', label: 'Custom' },
-]
+export const RANGE_PRESETS = RANGE_PRESET_IDS.map(id => ({ id, label: PERIOD_PRESET_LABELS[id] }))
 
-export const ROWS_CHOICES = [
+export const ROWS_CHOICES: { value: RowsChoice; label: string }[] = [
     { value: 'active', label: 'Active' },
     { value: 'non-zero', label: 'Non-zero' },
     { value: 'all', label: 'All' },
 ]
 
-export const PL_COLUMNS_BY = [
+export const PL_COLUMNS_BY: NonNullable<ReportSpec['columnsBy']>['choices'] = [
     { value: 'total', label: 'Total only' },
     { value: 'months', label: 'Months' },
     { value: 'quarters', label: 'Quarters' },
 ]
 
-export const PL_COLUMN_TOGGLES = [
+export const PL_COLUMN_TOGGLES: NonNullable<ReportSpec['columnToggles']> = [
     { id: 'percent-of-income', label: '% of income' },
     { id: 'previous-year', label: 'Previous year' },
 ]

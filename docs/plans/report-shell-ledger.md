@@ -21,13 +21,14 @@
 (none yet)
 
 ## Rebuttals
-(none yet)
+- cp 1 · reviewers A7 and B1: "docs/plans/report-shell-ledger.md: the Files block does not name this file … every file outside the Files block is a finding" — rejected: review-diff.mjs adds the ledger to the planned list itself (`planned.push(`docs/plans/${feature}-ledger.md`, …)`); the ledger is the loop's own record, written at every checkpoint.
 
 ## Design notes
 (none yet)
 
 ## Out-of-plan changes
-(none yet)
+- cp 1 · warning cleanup (user rule: fix every warning): hooks/useCloseOverrides.ts (onError on grant/revoke mutations — refusals are outcomes, not Sentry errors), explicit queryKey on 8 books live queries (hooks/useAccountsQuery.ts, useAccountUsage.ts, useBooksAccess.ts, useSetupCompleted.ts, useBooksSetup.ts, components/entries/EntryRow.tsx — TanStack hot-render-path warning), tests/accounts-form-harness.ts (index options on 4 builders; duplicate field), tests/silence-log.ts (expectLiveQueryError replaces silenceConsole), 11 test files using it, tests/setup-parts.test.tsx.
+- cp 1 · lib/opening-balances.ts, lib/entry-schema.ts, lib/settings-schema.ts: their private real-day validators now use isIsoDay (gate-3 A5, one helper instead of four). Plus lib/opening-balances-schema.ts (the real isRealDay call site). isIsoDay now refuses every year before 1900 (deliberate bound, fix-review R3): stricter than before for opening balances, which accepted any year, and for entry/settings, which refused only 0000–0099.
 
 ## Phase notes
 - phase 1: unattended; design packet /Users/nas/tmp/tinycld/auto-helix-books/staging/p5-report-shell/packet.md (intake.md beside it). No human corrections.
@@ -35,6 +36,21 @@
 - phase 3 (driver, after pass 2): spec edited from the reference — phone tables with one or two amount columns use fixed 108pt amount columns and a label column that takes the rest (55% cut amounts off at 390); three or more keep 168pt label + 128pt sideways-scrolling columns, column-label row scrolls in step with the body (refines Q11; shown to the human at the eval gate). Empty wording for as-of reports: "No balances as of <date in words>". Empty actions use core Button, not core EmptyState (its text-accent action is too faint in light mode; core change request, not made).
 - phase 4: plan written (10 checkpoints: 4 logic, 6 rendering; 10 e2e tests); plan-check --unattended exit 0. Fresh plan review: 14 narrowed findings, 4 untested, Consumes name gaps, e2e reach and definitions-map points; all applied (staging plan-review.md). One partial: finding 3 "no row has both cells blank" under Active contradicts the spec (postings that cancel to zero show blank cells under Active), so the check runs under Non-zero and Active is proven by the inactive never-posted 6900 Old Petty Cash row. Deviation accepted: definitions live in lib/reports/definitions.ts beside the registry, guarded by report-registry.test.ts. e2e coverage gaps (no sectioned / range / basis / choice-filter report exists yet) listed in the plan section "Not reachable by this unit's e2e"; recorded as a deferral of e2e coverage at the eval gate.
 - review mode switches: none
+
+## Checkpoint 1 — Report contract, periods and registry
+- test writer: tests/report-period.test.ts, tests/report-registry.test.ts; red for the right reason: yes (missing modules lib/report-period, lib/report-registry); untestable: none
+- implementer: created lib/report-definition.ts, lib/report-period.ts, lib/report-registry.ts; exported 5 helpers from lib/register-range.ts; fixture uses real types; DONE. Self-declared differences: fixture header comment; extra fixture typing; resolvePreset across kinds; null-from as-of fallback; short chip date without year; mockup type renames; perl one-liner instead of Edit (process breach, logged).
+- test disputes: none
+- gate 1: tests unedited: yes · tinycld-pkg check pass (2345 tests)
+- gate 2: n/a (logic)
+- gate 3 A (correctness): A1 short date by string replace on formatDay → accepted+fixed (local month list); A2 no from>to guard in monthSlices/monthsSpanned → accepted+fixed; A3 periodWords/periodChipLabel as-of fallback for a range → accepted+fixed (RangePeriod | AsOfPeriod union, branch on kind); A4 resolvePreset accepts mismatched preset/kind → accepted+fixed (split preset types, overloads, runtime throw); A5 three real-day validators → accepted+fixed (isIsoDay single helper); A6 ACCOUNT_GROUP_CHOICES untyped → accepted+fixed (FilterChoiceOption); A7 ledger out-of-plan → rebutted (see Rebuttals). Test gaps (hubSections out of order, adjacent-month slices) → fresh test writer added T1–T5.
+- gate 3 B (conformance): B1 ledger out-of-plan → rebutted; B2 = A1.
+- fix tests: T1, T2, T5 green at once (existing behavior); T3, T4 red for the right reason, green after the fix.
+- fix review (round 1 diff): A1 setup-parts retry test narrowed → accepted, mount restored (R1); A2 offline grant/revoke failures reach Sentry → accepted+fixed (R2); A3 isIsoDay accepted years 0000–0099 → accepted+fixed (year >= 1900 bound, R3); A4 period types broke later interfaces → accepted+fixed (kind discriminant on the period, R4; plan interfaces cp 1/2/6/7 updated, plan-check 0); A5 expectLiveQueryError too broad → accepted+fixed (named source ids, R5); A6 ledger out-of-plan incomplete → fixed; A7 isIsoDay location → accepted+fixed (lib/register-range.ts, isRealDay removed, R7).
+- fix review (round 2 diff): offline branch untested → test added (useCloseOverrides offline failure; proven by a temporary break); ledger wording and queryKey count → fixed; opening-balances-schema.ts missing from plan/ledger → fixed; plan said report-period imports isIsoDay and named tests/register-range.test.ts → plan text corrected; opening-balances schema pre-1900 untested → test added. Test-only round, no non-test source changed → no further fix review.
+- open: shared-source recovery bug (core recoverLiveQueries cleans sources other live queries read; setup-parts retry test prints "manually cleaned up"); waiting on a human decision before checkpoint 6.
+- gate 1 (final): tinycld-pkg check pass (2378 tests); warnings: only the open bug's two lines.
+- commit: 46ca292
 
 ## Final review
 - eval:

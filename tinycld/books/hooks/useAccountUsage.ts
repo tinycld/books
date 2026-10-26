@@ -16,6 +16,7 @@ export function useAccountUsage(accountId: string | null) {
                 .groupBy(({ line }) => line.account)
                 .select(({ line }) => ({ lines: count(line.id) }))
         },
+        queryKey: ['books', 'account-line-usage', accountId],
     })
     const childUsage = useLiveQuery({
         query: query => {
@@ -26,6 +27,7 @@ export function useAccountUsage(accountId: string | null) {
                 .groupBy(({ child }) => child.parent)
                 .select(({ child }) => ({ children: count(child.id) }))
         },
+        queryKey: ['books', 'account-child-usage', accountId],
     })
     return {
         lines: lineUsage.data?.[0]?.lines ?? 0,

@@ -22,21 +22,21 @@ export const defaultRangePreset: RangePreset = 'this-month'
 export type RegisterRange = { start: string; end: string }
 
 // Month arithmetic runs on a year * 12 + month index so no Date rollover or timezone applies.
-function monthIndexOf(day: string): number {
+export function monthIndexOf(day: string): number {
     const [year, month] = day.split('-').map(Number)
     return year * 12 + (month - 1)
 }
 
-function pad(value: number, width: number): string {
+export function pad(value: number, width: number): string {
     return String(value).padStart(width, '0')
 }
 
-function firstDayOf(monthIndex: number): string {
+export function firstDayOf(monthIndex: number): string {
     const year = Math.floor(monthIndex / 12)
     return `${pad(year, 4)}-${pad((monthIndex % 12) + 1, 2)}-01`
 }
 
-function lastDayBefore(monthIndex: number): string {
+export function lastDayBefore(monthIndex: number): string {
     const previous = monthIndex - 1
     const year = Math.floor(previous / 12)
     const month = (previous % 12) + 1
@@ -45,7 +45,20 @@ function lastDayBefore(monthIndex: number): string {
     return `${pad(year, 4)}-${pad(month, 2)}-${pad(lengths[month - 1], 2)}`
 }
 
-function fiscalYearStartIndex(todayIndex: number, startMonth: number): number {
+// Years before 1900 are refused on purpose: they are almost always a mistyped year, never a
+// real entry, close date, opening balance or report period.
+const FIRST_YEAR = 1900
+
+export function isIsoDay(text: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false
+    const year = Number(text.slice(0, 4))
+    const month = Number(text.slice(5, 7))
+    const day = Number(text.slice(8, 10))
+    if (year < FIRST_YEAR || month < 1 || month > 12 || day < 1) return false
+    return day <= Number(lastDayBefore(monthIndexOf(text) + 1).slice(8, 10))
+}
+
+export function fiscalYearStartIndex(todayIndex: number, startMonth: number): number {
     const year = Math.floor(todayIndex / 12)
     const month = (todayIndex % 12) + 1
     const startYear = month >= startMonth ? year : year - 1
