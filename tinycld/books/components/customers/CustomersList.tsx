@@ -18,6 +18,7 @@ import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useCustomerNavigation } from '../../hooks/useCustomerNavigation'
 import { useCustomersList } from '../../hooks/useCustomersList'
 import { type CustomerRecord, useCustomersQuery } from '../../hooks/useCustomersQuery'
+import { useDetailSurface } from '../../hooks/useDetailSurface'
 import { useRowWindow } from '../../hooks/useRowWindow'
 import {
     CUSTOMER_COLUMNS,
@@ -38,8 +39,13 @@ type Rows = CustomerListRow<CustomerRecord>[]
 interface BodyProps {
     isVisible: boolean
     rows: Rows
-    openId: string
     onOpen: (id: string) => void
+}
+
+// Only the table can sit beside the panel (cards show below 768 px, the panel at 1360 px).
+interface TableProps extends BodyProps {
+    // The row drawn as selected: the open customer on the panel surface, else none.
+    selectedId: string
 }
 
 const LOAD_ERROR = 'Could not load customers'
@@ -134,7 +140,7 @@ function TableHeader() {
     )
 }
 
-function CustomersTable({ isVisible, rows, openId, onOpen }: BodyProps) {
+function CustomersTable({ isVisible, rows, selectedId, onOpen }: TableProps) {
     const viewHeight = useWindowHeight()
     const rowWindow = useRowWindow({
         total: rows.length,
@@ -149,7 +155,7 @@ function CustomersTable({ isVisible, rows, openId, onOpen }: BodyProps) {
                 key={row.customer.id}
                 row={row}
                 onOpen={onOpen}
-                isSelected={row.customer.id === openId}
+                isSelected={row.customer.id === selectedId}
             />
         ))
     return (
@@ -230,10 +236,12 @@ function emptyKindFor(viewState: ViewState) {
 const TOOLBAR_STATES: ReadonlySet<ViewState> = new Set(['ready', 'no-match', 'all-inactive'])
 
 // The Customers list. The open customer (`openId`, from the URL) is marked on the
-// panel surface from checkpoint 6 on.
+// panel surface, where the list stays in view beside it.
 export function CustomersList({ openId }: { openId: string }) {
     const orgHref = useOrgHref()
     const navigation = useCustomerNavigation()
+    const surface = useDetailSurface()
+    const selectedId = surface === 'panel' ? openId : ''
     const { canWrite } = useBooksAccess()
     const isWide = useBreakpoint() !== 'mobile'
     const source = useCustomersQuery()
@@ -267,15 +275,10 @@ export function CustomersList({ openId }: { openId: string }) {
             <CustomersTable
                 isVisible={showTable}
                 rows={rows}
-                openId={openId}
+                selectedId={selectedId}
                 onOpen={navigation.open}
             />
-            <CustomerCards
-                isVisible={showCards}
-                rows={rows}
-                openId={openId}
-                onOpen={navigation.open}
-            />
+            <CustomerCards isVisible={showCards} rows={rows} onOpen={navigation.open} />
         </View>
     )
 }
