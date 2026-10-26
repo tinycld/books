@@ -11,7 +11,7 @@
 - scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
 - capture manifest: docs/plans/report-shell-capture.json
 - review mode: C — none (unattended)
-- core extension: none
+- core extension: tinycld PR #379 (branch books/p5-report-shell) — checkpoint 0, recoverLiveQueries fix (human decision 2026-10-26, option 1)
 - sparks:
   - report reads like a finished document → expressible (ReportDocumentHeader strip: text-muted-foreground, text-lg font-semibold text-foreground, border-border; books_settings.business_name)
   - totals set apart by weight and rule lines, not color → expressible (font-semibold, border-t border-border subtotal, border-t-2 border-foreground total; red negatives text-danger)
@@ -27,6 +27,7 @@
 (none yet)
 
 ## Out-of-plan changes
+- after cp 0 merge · tests/accounts-form-harness.ts (failsOnceOnDemandCollection replaces failsOnceCollection: an on-demand source whose first loadSubset is refused with a 403, as pbtsdb fails), tests/silence-log.ts (refusedLoad; expectLiveQueryError matches on-demand failure lines by source id), tests/setup-parts.test.tsx (retry test also mounts useSetupCompleted and asserts it stays defined; proven by a temporary revert of the core fix). The books suite now prints no stderr.
 - cp 1 · warning cleanup (user rule: fix every warning): hooks/useCloseOverrides.ts (onError on grant/revoke mutations — refusals are outcomes, not Sentry errors), explicit queryKey on 8 books live queries (hooks/useAccountsQuery.ts, useAccountUsage.ts, useBooksAccess.ts, useSetupCompleted.ts, useBooksSetup.ts, components/entries/EntryRow.tsx — TanStack hot-render-path warning), tests/accounts-form-harness.ts (index options on 4 builders; duplicate field), tests/silence-log.ts (expectLiveQueryError replaces silenceConsole), 11 test files using it, tests/setup-parts.test.tsx.
 - cp 1 · lib/opening-balances.ts, lib/entry-schema.ts, lib/settings-schema.ts: their private real-day validators now use isIsoDay (gate-3 A5, one helper instead of four). Plus lib/opening-balances-schema.ts (the real isRealDay call site). isIsoDay now refuses every year before 1900 (deliberate bound, fix-review R3): stricter than before for opening balances, which accepted any year, and for entry/settings, which refused only 0000–0099.
 
@@ -36,6 +37,15 @@
 - phase 3 (driver, after pass 2): spec edited from the reference — phone tables with one or two amount columns use fixed 108pt amount columns and a label column that takes the rest (55% cut amounts off at 390); three or more keep 168pt label + 128pt sideways-scrolling columns, column-label row scrolls in step with the body (refines Q11; shown to the human at the eval gate). Empty wording for as-of reports: "No balances as of <date in words>". Empty actions use core Button, not core EmptyState (its text-accent action is too faint in light mode; core change request, not made).
 - phase 4: plan written (10 checkpoints: 4 logic, 6 rendering; 10 e2e tests); plan-check --unattended exit 0. Fresh plan review: 14 narrowed findings, 4 untested, Consumes name gaps, e2e reach and definitions-map points; all applied (staging plan-review.md). One partial: finding 3 "no row has both cells blank" under Active contradicts the spec (postings that cancel to zero show blank cells under Active), so the check runs under Non-zero and Active is proven by the inactive never-posted 6900 Old Petty Cash row. Deviation accepted: definitions live in lib/reports/definitions.ts beside the registry, guarded by report-registry.test.ts. e2e coverage gaps (no sectioned / range / basis / choice-filter report exists yet) listed in the plan section "Not reachable by this unit's e2e"; recorded as a deferral of e2e coverage at the eval gate.
 - review mode switches: none
+
+## Checkpoint 0 — Retry keeps other readers working (core)
+- origin: found at cp 1 (warning cleanup); human chose option 1 (core fix). Root cause investigated in TanStack DB 0.12.1 / pbtsdb 2.0.5: cleaning a source fatally errors its other readers; on-demand load failures fail only the query.
+- test writer: core/lib/recover-live-queries.test.ts (4 new, 2 updated); red for the right reason: yes (current code cleans a ready source; sources required); expected TanStack stderr matched exactly per test; untestable: none
+- implementer: core/lib/recover-live-queries.ts — clean only sources with status 'error'; sources optional; DONE
+- gate 1: core tinycld-pkg check pass (3028); check:core-isolation 0 references; books check pass
+- gate 3 A: nothing found (three mutants each fail >= 3 tests). Note: pbtsdb retries 5xx/network/401/408/429 forever, so such a query never shows Retry (outside cp 0).
+- gate 3 B: fixed 20 ms sleep in tests → accepted, replaced by vi.waitFor on the real condition (5 consecutive green runs); misleading reader param type → fixed. Doc drift: none in core.
+- commit: tinycld 2407c62a · PR https://github.com/tinycld/tinycld/pull/379 — human approved; CI green; merged 2026-10-26 (merge commit 254e3222); exclusive released
 
 ## Checkpoint 1 — Report contract, periods and registry
 - test writer: tests/report-period.test.ts, tests/report-registry.test.ts; red for the right reason: yes (missing modules lib/report-period, lib/report-registry); untestable: none
@@ -48,7 +58,7 @@
 - fix tests: T1, T2, T5 green at once (existing behavior); T3, T4 red for the right reason, green after the fix.
 - fix review (round 1 diff): A1 setup-parts retry test narrowed → accepted, mount restored (R1); A2 offline grant/revoke failures reach Sentry → accepted+fixed (R2); A3 isIsoDay accepted years 0000–0099 → accepted+fixed (year >= 1900 bound, R3); A4 period types broke later interfaces → accepted+fixed (kind discriminant on the period, R4; plan interfaces cp 1/2/6/7 updated, plan-check 0); A5 expectLiveQueryError too broad → accepted+fixed (named source ids, R5); A6 ledger out-of-plan incomplete → fixed; A7 isIsoDay location → accepted+fixed (lib/register-range.ts, isRealDay removed, R7).
 - fix review (round 2 diff): offline branch untested → test added (useCloseOverrides offline failure; proven by a temporary break); ledger wording and queryKey count → fixed; opening-balances-schema.ts missing from plan/ledger → fixed; plan said report-period imports isIsoDay and named tests/register-range.test.ts → plan text corrected; opening-balances schema pre-1900 untested → test added. Test-only round, no non-test source changed → no further fix review.
-- open: shared-source recovery bug (core recoverLiveQueries cleans sources other live queries read; setup-parts retry test prints "manually cleaned up"); waiting on a human decision before checkpoint 6.
+- resolved by checkpoint 0 (core PR #379): shared-source recovery bug (core recoverLiveQueries cleans sources other live queries read; setup-parts retry test prints "manually cleaned up"); waiting on a human decision before checkpoint 6.
 - gate 1 (final): tinycld-pkg check pass (2378 tests); warnings: only the open bug's two lines.
 - commit: 972fa94 (amended with this ledger line; the line first carried the pre-amend sha)
 
