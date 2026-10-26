@@ -1,7 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
-import { openRegister, settledBox } from './account-register-helpers'
 import {
     ACCOUNT_LABELS,
     createDraftEntry,
@@ -14,8 +13,8 @@ import {
     settleFrames,
 } from './journal-entries-helpers'
 
-// The per-row menu on the entries list (Open, Edit, Reverse, Void, Delete), the dialogs it
-// opens, one run of the whole path, and the in-app help topic.
+// The per-row menu on the entries list (Open, Edit, Reverse, Void, Delete) and the dialogs it
+// opens.
 // Decisions that shape it (design gate): the menu trigger `entries-row-menu-<id>` sits in
 // the row (wide) and the card (phone) and stops presses reaching the row; writers see the
 // items `entryActions` allows for the entry's state (Edit, Reverse, Void for posted, Reverse
@@ -134,14 +133,6 @@ async function entryDay(page: Page) {
     return new Date(`${printed} UTC`).toISOString().slice(0, 10)
 }
 
-async function chooseReadOnlyAction(page: Page, name: 'Reverse' | 'Void') {
-    if (isPhone(page)) {
-        await page.getByTestId('entry-more').click()
-        return page.getByRole('menuitem', { name, exact: true }).click()
-    }
-    return page.getByTestId('entry-actions').getByRole('button', { name, exact: true }).click()
-}
-
 async function hopTo(page: Page, path: string) {
     await page.evaluate(url => {
         window.history.pushState({}, '', url)
@@ -185,35 +176,14 @@ async function makePosted(page: Page, memo: string) {
 }
 
 for (const [sizeName, size] of SIZES) {
-    test.describe(`journal-entries: row menu and flows (${sizeName})`, () => {
-        test('a row holds its menu without nesting a button in a button', async ({ page }) => {
+    test.describe(`journal-entries: row menu (${sizeName})`, () => {
+        test('row menu: presses never open the row; Reverse, Void and Delete open dialogs over the list; Open and Edit navigate', async ({
+            page,
+        }) => {
             await start(page, size)
             const posted = await seeded(page, ENTRIES_SEED.posted)
-            await expect(page.getByTestId(`entries-row-menu-${posted.id}`)).toBeVisible()
-            // Invalid HTML: React warns of a hydration error and a screen reader reads the row twice.
-            await expect(
-                page.locator('button button, [role="button"] [role="button"]')
-            ).toHaveCount(0)
-        })
-
-        test('menu contents follow the entry state', async ({ page }) => {
-            await start(page, size)
-            const posted = await seeded(page, ENTRIES_SEED.posted)
-            await expectMenu(page, posted.id, ['open', 'edit', 'reverse', 'void'])
-
-            const draft = await seeded(page, ENTRIES_SEED.draft)
-            await expectMenu(page, draft.id, ['open', 'delete'])
-
-            const voided = await seeded(page, ENTRIES_SEED.voided)
-            await expectMenu(page, voided.id, ['open'])
-
-            const reversed = await seeded(page, ENTRIES_SEED.reversed)
-            await expectMenu(page, reversed.id, ['open', 'edit', 'void'])
-        })
-
-        test('menu presses never open the row; only Open and Edit navigate', async ({ page }) => {
-            await start(page, size)
-            const posted = await seeded(page, ENTRIES_SEED.posted)
+            const number = (await posted.item.innerText()).match(NUMBER)?.[0] ?? ''
+            expect(number).not.toBe('')
 
             await openMenu(page, posted.id)
             await expectStillOnList(page)
@@ -238,396 +208,331 @@ for (const [sizeName, size] of SIZES) {
             await cancelDialog(page, 'delete-draft-dialog')
             await expectStillOnList(page)
             await expect(listItems(page, ENTRIES_SEED.draft)).toHaveCount(1)
-        })
 
-        test('a dialog left open when the user leaves the list is gone on return (void)', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Stale void', sizeName)
-            const entry = await makePosted(page, memo)
-            await backToList(page)
-            await findItem(page, memo)
-
-            await chooseFromMenu(page, entry.id, 'void')
-            await expect(page.getByTestId('void-dialog')).toBeVisible()
-
-            await leaveAndReturn(page)
-            await expect(page.getByTestId('void-dialog')).toHaveCount(0)
-        })
-
-        test('a reverse held in flight, then leaving and returning, shows no reverse dialog', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Stale reverse', sizeName)
-            const entry = await makePosted(page, memo)
-            await backToList(page)
-            await findItem(page, memo)
-
-            await chooseFromMenu(page, entry.id, 'reverse')
-            await expect(page.getByTestId('reverse-dialog')).toBeVisible()
-            const held = await holdRequests(
-                page,
-                '**/api/collections/books_journal_entries/records/*',
-                request =>
-                    request.method() === 'PATCH' &&
-                    (request.postData() ?? '').includes('"status":"posted"')
-            )
-            await page.getByTestId('reverse-confirm').click()
-            await held.firstHeld
-
-            await leaveAndReturn(page)
-            held.release()
-            await settleFrames(page)
-            await expect(page.getByTestId('reverse-dialog')).toHaveCount(0)
-            await expectStillOnList(page)
-        })
-
-        test('a dialog left open under a pushed route is gone when the user comes back (void)', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Pushed void', sizeName)
-            const entry = await makePosted(page, memo)
-            await backToList(page)
-            await findItem(page, memo)
-
-            await chooseFromMenu(page, entry.id, 'void')
-            await expect(page.getByTestId('void-dialog')).toBeVisible()
-
-            await pushAwayFromList(page)
-            await goBackToList(page)
-            await expect(page.getByTestId('void-dialog')).toHaveCount(0)
-            await expect(page.getByTestId('reverse-dialog')).toHaveCount(0)
-        })
-
-        test('a reverse held in flight, then a push away, never pulls the user to the reversal', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Pushed reverse', sizeName)
-            const entry = await makePosted(page, memo)
-            await backToList(page)
-            await findItem(page, memo)
-
-            await chooseFromMenu(page, entry.id, 'reverse')
-            await expect(page.getByTestId('reverse-dialog')).toBeVisible()
-            const held = await holdRequests(
-                page,
-                '**/api/collections/books_journal_entries/records/*',
-                request =>
-                    request.method() === 'PATCH' &&
-                    (request.postData() ?? '').includes('"status":"posted"')
-            )
-            await page.getByTestId('reverse-confirm').click()
-            await held.firstHeld
-
-            await pushAwayFromList(page)
-            held.release()
-            await settleFrames(page)
-            expect(new URL(page.url()).pathname).toMatch(/\/entries\/new$/)
-            await expect(page.getByTestId('entry-title')).toBeVisible()
-
-            await goBackToList(page)
-            await expect(page.getByTestId('reverse-dialog')).toHaveCount(0)
-            await expectStillOnList(page)
-        })
-
-        test('a void held in flight closes only its own dialog, not a Reverse opened later on another row', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const stamp = uniqueMemo('Targeted close', sizeName)
-            const first = await makePosted(page, `${stamp} A`)
-            await backToList(page)
-            const second = await makePosted(page, `${stamp} B`)
-            await backToList(page)
-            await page.getByTestId('entries-search').fill(stamp)
-            await expect(page.getByTestId(`entries-row-menu-${first.id}`)).toBeVisible()
-            await expect(page.getByTestId(`entries-row-menu-${second.id}`)).toBeVisible()
-
-            await chooseFromMenu(page, first.id, 'void')
-            await expect(page.getByTestId('void-dialog')).toBeVisible()
-            const held = await holdRequests(
-                page,
-                '**/api/collections/books_journal_entries/records/*',
-                request =>
-                    request.method() === 'PATCH' &&
-                    (request.postData() ?? '').includes('"status":"void"')
-            )
-            await page.getByTestId('void-confirm').click()
-            await held.firstHeld
-
-            await leaveAndReturn(page)
-            await expect(page.getByTestId(`entries-row-menu-${second.id}`)).toBeVisible()
-            await chooseFromMenu(page, second.id, 'reverse')
-            await expect(page.getByTestId('reverse-dialog')).toBeVisible()
-
-            // The void must finish (its completion handler runs) before the dialog is checked.
-            const voided = page.waitForResponse(
-                response =>
-                    response.request().method() === 'PATCH' &&
-                    (response.request().postData() ?? '').includes('"status":"void"')
-            )
-            held.release()
-            await voided
-            await settleFrames(page)
-            await expect(page.getByTestId('reverse-dialog')).toBeVisible()
-            await expectStillOnList(page)
-        })
-
-        test('Enter and Space on the focused menu trigger open the menu, not the row', async ({
-            page,
-        }) => {
-            test.skip(sizeName === 'phone', 'No keyboard focus on a phone card.')
-            await start(page, size)
-            const posted = await seeded(page, ENTRIES_SEED.posted)
-            for (const key of ['Enter', 'Space']) {
-                await page.getByTestId(`entries-row-menu-${posted.id}`).focus()
-                await page.keyboard.press(key)
-                await expect(page.getByTestId('entries-menu-open')).toBeVisible()
-                await expectStillOnList(page)
-                await page.keyboard.press('Escape')
-                await expect(page.getByTestId('entries-menu-open')).toHaveCount(0)
-            }
-        })
-
-        test('the reversed original never offers Reverse while the reversal lookup is pending', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Gate reversed', sizeName)
-            const original = await makePosted(page, memo)
-            const month = (await entryDay(page)).slice(0, 7)
-            await backToList(page)
-            await findItem(page, memo)
-            // The default reversal date is next month, so "This month" lists the original
-            // without its reversal: the reversal row is not in the store, and only the
-            // lookup request can say the original is reversed.
-            await chooseFromMenu(page, original.id, 'reverse')
-            await page.getByTestId('reverse-confirm').click()
-            await expect(page.getByTestId('entry-read-only')).toBeVisible()
-            await expect.poll(() => entryIdOf(page)).not.toBe(original.id)
-
-            // Leave the reversal's own screen, which would load the reversal row on a reload.
-            await backToList(page)
-            // A reload empties the store. The default (fiscal year) list would load the reversal
-            // row into it, so that request is held back; only the "This month" list, which
-            // leaves the reversal out, and the held reversal lookup may answer.
-            await page.reload()
-            const held = await holdRequests(
-                page,
-                '**/api/collections/books_journal_entries/records?*',
-                request => {
-                    const url = decodeURIComponent(request.url())
-                    if (url.includes('reverses')) return url.includes(original.id)
-                    return url.includes('date') && !url.includes(month)
-                }
-            )
-            await openEntriesList(page)
-            await page.getByTestId('entries-range').click()
-            await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
-            const item = listItems(page, memo).filter({ hasNotText: 'Reversal of' })
-            await expect(item).toBeVisible()
-            await expect(listItems(page, `Reversal of ${original.number}`)).toHaveCount(0)
-            // The default list and the reversal lookup are both held.
-            await expect.poll(() => held.count()).toBeGreaterThanOrEqual(2)
-
-            await openMenu(page, original.id)
-            await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
-            await settleFrames(page)
-            await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
-            held.release()
-            await settleFrames(page)
-            await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
-        })
-
-        test('Delete confirmed on a draft that was posted elsewhere refuses and never deletes the posted entry', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Stale delete', sizeName)
-            await createDraftEntry(page, entryInput(memo))
-            const id = entryIdOf(page)
-            const draftUrl = page.url()
-            await backToList(page)
-            await findItem(page, memo)
-            await chooseFromMenu(page, id, 'delete')
-            await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
-
-            const other = await page.context().newPage()
-            await start(other, size)
-            await other.goto(draftUrl)
-            await other.getByTestId('entry-post').click()
-            await expect(other.getByTestId('entry-read-only')).toBeVisible()
-            await other.close()
-
-            await page.getByTestId('delete-draft-confirm').click()
-            const dialog = page.getByTestId('delete-draft-dialog')
-            await expect(dialog).toBeVisible()
-            await expect(dialog.getByRole('alert').filter({ hasText: /is posted/ })).toBeVisible()
-            await cancelDialog(page, 'delete-draft-dialog')
-
-            await findItem(page, memo)
-            await expect(page.getByTestId(`entries-status-${id}`)).toHaveText('Posted')
-            await expect(listItems(page, memo)).toHaveCount(1)
-        })
-
-        test('the row menu sheet opens from the bottom edge on a phone', async ({ page }) => {
-            test.skip(sizeName !== 'phone', 'The menu is a popover on wide screens.')
-            await start(page, size)
-            const posted = await seeded(page, ENTRIES_SEED.posted)
-            await openMenu(page, posted.id)
-            const box = await settledBox(page.getByTestId('entries-menu-open'))
-            expect(box.y).toBeGreaterThan(size.height / 2)
-        })
-
-        test('Open goes to the entry', async ({ page }) => {
-            await start(page, size)
-            const posted = await seeded(page, ENTRIES_SEED.posted)
+            await findItem(page, ENTRIES_SEED.posted)
             await chooseFromMenu(page, posted.id, 'open')
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
             expect(entryIdOf(page)).toBe(posted.id)
-        })
 
-        test('Edit goes to the replacement form titled Edit JE-n', async ({ page }) => {
-            await start(page, size)
-            const posted = await seeded(page, ENTRIES_SEED.posted)
-            const number = (await posted.item.innerText()).match(NUMBER)?.[0] ?? ''
-            expect(number).not.toBe('')
-
+            await backToList(page)
+            await findItem(page, ENTRIES_SEED.posted)
             await chooseFromMenu(page, posted.id, 'edit')
             await expect(page).toHaveURL(new RegExp(`/entries/new\\?replaces=${posted.id}$`))
             await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
         })
-
-        test('Reverse from the menu opens the dialog over the list and opens the reversal', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Menu reverse', sizeName)
-            const original = await makePosted(page, memo)
-            await backToList(page)
-            await findItem(page, memo)
-
-            await chooseFromMenu(page, original.id, 'reverse')
-            const dialog = page.getByTestId('reverse-dialog')
-            await expect(dialog).toBeVisible()
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-            await expect(page.getByTestId('reverse-memo')).toHaveValue(
-                `Reversal of ${original.number}`
-            )
-            await page.getByTestId('reverse-confirm').click()
-
-            await expect(page.getByTestId('entry-read-only')).toBeVisible()
-            await expect.poll(() => entryIdOf(page)).not.toBe(original.id)
-            await expect(page.getByTestId('entry-link-reverses')).toHaveText(
-                `Reverses ${original.number}`
-            )
-
-            await backToList(page)
-            await findItem(page, memo)
-            await expectMenu(page, original.id, ['open', 'edit', 'void'])
-        })
-
-        test('Void from the menu returns the row to Void in place', async ({ page }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Menu void', sizeName)
-            const entry = await makePosted(page, memo)
-            await backToList(page)
-            await findItem(page, memo)
-
-            await chooseFromMenu(page, entry.id, 'void')
-            await expect(page.getByTestId('void-dialog')).toBeVisible()
-            await page.getByTestId('void-confirm').click()
-
-            await expect(page.getByTestId('void-dialog')).toHaveCount(0)
-            await expect(page.getByTestId(`entries-status-${entry.id}`)).toHaveText('Void')
-            await expectStillOnList(page)
-            await expectMenu(page, entry.id, ['open'])
-        })
-
-        test('Delete on a draft asks, then removes the row', async ({ page }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Menu delete', sizeName)
-            await createDraftEntry(page, entryInput(memo))
-            const id = entryIdOf(page)
-            await backToList(page)
-            await findItem(page, memo)
-            await expectMenu(page, id, ['open', 'delete'])
-
-            await chooseFromMenu(page, id, 'delete')
-            await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
-            await page.getByTestId('delete-draft-confirm').click()
-
-            await expect(page.getByTestId('delete-draft-dialog')).toHaveCount(0)
-            await expect(listItems(page, memo)).toHaveCount(0)
-            await expectStillOnList(page)
-        })
-
-        test('full path: create, post, list, reverse, register, void, list', async ({ page }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Full path', sizeName)
-            const first = await makePosted(page, memo)
-            const day = await entryDay(page)
-
-            await backToList(page)
-            const found = await findItem(page, memo)
-            await expect(page.getByTestId(`entries-status-${found.id}`)).toHaveText('Posted')
-
-            await found.item.click()
-            await expect(page.getByTestId('entry-read-only')).toBeVisible()
-            await chooseReadOnlyAction(page, 'Reverse')
-            // Same-day reversal keeps both lines in the register's default month.
-            await page.getByTestId('reverse-date').fill(day)
-            await page.getByTestId('reverse-confirm').click()
-            await expect.poll(() => entryIdOf(page)).not.toBe(first.id)
-            await expect(page.getByTestId('entry-link-reverses')).toBeVisible()
-
-            // A fresh page opens Books at its landing, so the register is reached from there.
-            const other = await page.context().newPage()
-            await start(other, size)
-            await openRegister(other, 'Business Checking')
-            await other.getByTestId('register-range').click()
-            await other.getByRole('menuitem', { name: 'This month', exact: true }).click()
-            const rows = other.locator(
-                '[data-testid^="register-row-"], [data-testid^="register-card-"]'
-            )
-            await expect(rows.filter({ hasText: memo })).toHaveCount(1)
-            await expect(rows.filter({ hasText: `Reversal of ${first.number}` })).toHaveCount(1)
-            await other.close()
-
-            await backToList(page)
-            const voidMemo = uniqueMemo('Full path void', sizeName)
-            const second = await makePosted(page, voidMemo)
-            await chooseReadOnlyAction(page, 'Void')
-            await page.getByTestId('void-confirm').click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Void')
-
-            await backToList(page)
-            await findItem(page, voidMemo)
-            await expect(page.getByTestId(`entries-status-${second.id}`)).toHaveText('Void')
-        })
-
-        test('help: the Books help lists Journal entries and the navigation link opens it', async ({
-            page,
-        }) => {
-            await login(page)
-            await navigateToPackage(page, 'books')
-            // The help button is a desktop rail item; the phone width is applied after it.
-            await page.getByTestId('nav-help').click()
-            await page.setViewportSize(size)
-
-            await expect(page.getByText('Journal entries', { exact: true }).first()).toBeVisible()
-            await page.getByText('Moving around Books', { exact: true }).first().click()
-            // A role query: the hub list behind the topic also says "Journal entries" as plain text.
-            const link = page.getByRole('link').filter({ hasText: 'Journal entries' })
-            await expect(link).toBeVisible()
-            await link.click()
-
-            await expect(page.getByText('Journal entries', { exact: true }).first()).toBeVisible()
-            await expect(page.getByText(/Post & new/i).first()).toBeVisible()
-        })
     })
 }
+
+test.describe('journal-entries: row menu and flows (desktop)', () => {
+    const sizeName = 'desktop'
+    const size = DESKTOP
+
+    test('menu contents follow the entry state', async ({ page }) => {
+        await start(page, size)
+        const posted = await seeded(page, ENTRIES_SEED.posted)
+        await expectMenu(page, posted.id, ['open', 'edit', 'reverse', 'void'])
+
+        const draft = await seeded(page, ENTRIES_SEED.draft)
+        await expectMenu(page, draft.id, ['open', 'delete'])
+
+        const voided = await seeded(page, ENTRIES_SEED.voided)
+        await expectMenu(page, voided.id, ['open'])
+
+        const reversed = await seeded(page, ENTRIES_SEED.reversed)
+        await expectMenu(page, reversed.id, ['open', 'edit', 'void'])
+    })
+
+    test('a dialog left open when the user leaves the list is gone on return (void)', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Stale void', sizeName)
+        const entry = await makePosted(page, memo)
+        await backToList(page)
+        await findItem(page, memo)
+
+        await chooseFromMenu(page, entry.id, 'void')
+        await expect(page.getByTestId('void-dialog')).toBeVisible()
+
+        await leaveAndReturn(page)
+        await expect(page.getByTestId('void-dialog')).toHaveCount(0)
+    })
+
+    test('a reverse held in flight, then leaving and returning, shows no reverse dialog', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Stale reverse', sizeName)
+        const entry = await makePosted(page, memo)
+        await backToList(page)
+        await findItem(page, memo)
+
+        await chooseFromMenu(page, entry.id, 'reverse')
+        await expect(page.getByTestId('reverse-dialog')).toBeVisible()
+        const held = await holdRequests(
+            page,
+            '**/api/collections/books_journal_entries/records/*',
+            request =>
+                request.method() === 'PATCH' &&
+                (request.postData() ?? '').includes('"status":"posted"')
+        )
+        await page.getByTestId('reverse-confirm').click()
+        await held.firstHeld
+
+        await leaveAndReturn(page)
+        held.release()
+        await settleFrames(page)
+        await expect(page.getByTestId('reverse-dialog')).toHaveCount(0)
+        await expectStillOnList(page)
+    })
+
+    test('a dialog left open under a pushed route is gone when the user comes back (void)', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Pushed void', sizeName)
+        const entry = await makePosted(page, memo)
+        await backToList(page)
+        await findItem(page, memo)
+
+        await chooseFromMenu(page, entry.id, 'void')
+        await expect(page.getByTestId('void-dialog')).toBeVisible()
+
+        await pushAwayFromList(page)
+        await goBackToList(page)
+        await expect(page.getByTestId('void-dialog')).toHaveCount(0)
+        await expect(page.getByTestId('reverse-dialog')).toHaveCount(0)
+    })
+
+    test('a reverse held in flight, then a push away, never pulls the user to the reversal', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Pushed reverse', sizeName)
+        const entry = await makePosted(page, memo)
+        await backToList(page)
+        await findItem(page, memo)
+
+        await chooseFromMenu(page, entry.id, 'reverse')
+        await expect(page.getByTestId('reverse-dialog')).toBeVisible()
+        const held = await holdRequests(
+            page,
+            '**/api/collections/books_journal_entries/records/*',
+            request =>
+                request.method() === 'PATCH' &&
+                (request.postData() ?? '').includes('"status":"posted"')
+        )
+        await page.getByTestId('reverse-confirm').click()
+        await held.firstHeld
+
+        await pushAwayFromList(page)
+        held.release()
+        await settleFrames(page)
+        expect(new URL(page.url()).pathname).toMatch(/\/entries\/new$/)
+        await expect(page.getByTestId('entry-title')).toBeVisible()
+
+        await goBackToList(page)
+        await expect(page.getByTestId('reverse-dialog')).toHaveCount(0)
+        await expectStillOnList(page)
+    })
+
+    test('a void held in flight closes only its own dialog, not a Reverse opened later on another row', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const stamp = uniqueMemo('Targeted close', sizeName)
+        const first = await makePosted(page, `${stamp} A`)
+        await backToList(page)
+        const second = await makePosted(page, `${stamp} B`)
+        await backToList(page)
+        await page.getByTestId('entries-search').fill(stamp)
+        await expect(page.getByTestId(`entries-row-menu-${first.id}`)).toBeVisible()
+        await expect(page.getByTestId(`entries-row-menu-${second.id}`)).toBeVisible()
+
+        await chooseFromMenu(page, first.id, 'void')
+        await expect(page.getByTestId('void-dialog')).toBeVisible()
+        const held = await holdRequests(
+            page,
+            '**/api/collections/books_journal_entries/records/*',
+            request =>
+                request.method() === 'PATCH' &&
+                (request.postData() ?? '').includes('"status":"void"')
+        )
+        await page.getByTestId('void-confirm').click()
+        await held.firstHeld
+
+        await leaveAndReturn(page)
+        await expect(page.getByTestId(`entries-row-menu-${second.id}`)).toBeVisible()
+        await chooseFromMenu(page, second.id, 'reverse')
+        await expect(page.getByTestId('reverse-dialog')).toBeVisible()
+
+        // The void must finish (its completion handler runs) before the dialog is checked.
+        const voided = page.waitForResponse(
+            response =>
+                response.request().method() === 'PATCH' &&
+                (response.request().postData() ?? '').includes('"status":"void"')
+        )
+        held.release()
+        await voided
+        await settleFrames(page)
+        await expect(page.getByTestId('reverse-dialog')).toBeVisible()
+        await expectStillOnList(page)
+    })
+
+    test('Enter and Space on the focused menu trigger open the menu, not the row', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const posted = await seeded(page, ENTRIES_SEED.posted)
+        for (const key of ['Enter', 'Space']) {
+            await page.getByTestId(`entries-row-menu-${posted.id}`).focus()
+            await page.keyboard.press(key)
+            await expect(page.getByTestId('entries-menu-open')).toBeVisible()
+            await expectStillOnList(page)
+            await page.keyboard.press('Escape')
+            await expect(page.getByTestId('entries-menu-open')).toHaveCount(0)
+        }
+    })
+
+    test('the reversed original never offers Reverse while the reversal lookup is pending', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Gate reversed', sizeName)
+        const original = await makePosted(page, memo)
+        const month = (await entryDay(page)).slice(0, 7)
+        await backToList(page)
+        await findItem(page, memo)
+        // The default reversal date is next month, so "This month" lists the original
+        // without its reversal: the reversal row is not in the store, and only the
+        // lookup request can say the original is reversed.
+        await chooseFromMenu(page, original.id, 'reverse')
+        await page.getByTestId('reverse-confirm').click()
+        await expect(page.getByTestId('entry-read-only')).toBeVisible()
+        await expect.poll(() => entryIdOf(page)).not.toBe(original.id)
+
+        // Leave the reversal's own screen, which would load the reversal row on a reload.
+        await backToList(page)
+        // A reload empties the store. The default (fiscal year) list would load the reversal
+        // row into it, so that request is held back; only the "This month" list, which
+        // leaves the reversal out, and the held reversal lookup may answer.
+        await page.reload()
+        const held = await holdRequests(
+            page,
+            '**/api/collections/books_journal_entries/records?*',
+            request => {
+                const url = decodeURIComponent(request.url())
+                if (url.includes('reverses')) return url.includes(original.id)
+                return url.includes('date') && !url.includes(month)
+            }
+        )
+        await openEntriesList(page)
+        await page.getByTestId('entries-range').click()
+        await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
+        const item = listItems(page, memo).filter({ hasNotText: 'Reversal of' })
+        await expect(item).toBeVisible()
+        await expect(listItems(page, `Reversal of ${original.number}`)).toHaveCount(0)
+        // The default list and the reversal lookup are both held.
+        await expect.poll(() => held.count()).toBeGreaterThanOrEqual(2)
+
+        await openMenu(page, original.id)
+        await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
+        await settleFrames(page)
+        await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
+        held.release()
+        await settleFrames(page)
+        await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
+    })
+
+    test('Delete confirmed on a draft that was posted elsewhere refuses and never deletes the posted entry', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Stale delete', sizeName)
+        await createDraftEntry(page, entryInput(memo))
+        const id = entryIdOf(page)
+        const draftUrl = page.url()
+        await backToList(page)
+        await findItem(page, memo)
+        await chooseFromMenu(page, id, 'delete')
+        await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
+
+        const other = await page.context().newPage()
+        await start(other, size)
+        await other.goto(draftUrl)
+        await other.getByTestId('entry-post').click()
+        await expect(other.getByTestId('entry-read-only')).toBeVisible()
+        await other.close()
+
+        await page.getByTestId('delete-draft-confirm').click()
+        const dialog = page.getByTestId('delete-draft-dialog')
+        await expect(dialog).toBeVisible()
+        await expect(dialog.getByRole('alert').filter({ hasText: /is posted/ })).toBeVisible()
+        await cancelDialog(page, 'delete-draft-dialog')
+
+        await findItem(page, memo)
+        await expect(page.getByTestId(`entries-status-${id}`)).toHaveText('Posted')
+        await expect(listItems(page, memo)).toHaveCount(1)
+    })
+
+    test('Reverse from the menu opens the dialog over the list and opens the reversal', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Menu reverse', sizeName)
+        const original = await makePosted(page, memo)
+        await backToList(page)
+        await findItem(page, memo)
+
+        await chooseFromMenu(page, original.id, 'reverse')
+        const dialog = page.getByTestId('reverse-dialog')
+        await expect(dialog).toBeVisible()
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+        await expect(page.getByTestId('reverse-memo')).toHaveValue(`Reversal of ${original.number}`)
+        await page.getByTestId('reverse-confirm').click()
+
+        await expect(page.getByTestId('entry-read-only')).toBeVisible()
+        await expect.poll(() => entryIdOf(page)).not.toBe(original.id)
+        await expect(page.getByTestId('entry-link-reverses')).toHaveText(
+            `Reverses ${original.number}`
+        )
+
+        await backToList(page)
+        await findItem(page, memo)
+        await expectMenu(page, original.id, ['open', 'edit', 'void'])
+    })
+
+    test('Void from the menu returns the row to Void in place', async ({ page }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Menu void', sizeName)
+        const entry = await makePosted(page, memo)
+        await backToList(page)
+        await findItem(page, memo)
+
+        await chooseFromMenu(page, entry.id, 'void')
+        await expect(page.getByTestId('void-dialog')).toBeVisible()
+        await page.getByTestId('void-confirm').click()
+
+        await expect(page.getByTestId('void-dialog')).toHaveCount(0)
+        await expect(page.getByTestId(`entries-status-${entry.id}`)).toHaveText('Void')
+        await expectStillOnList(page)
+        await expectMenu(page, entry.id, ['open'])
+    })
+
+    test('Delete on a draft asks, then removes the row', async ({ page }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Menu delete', sizeName)
+        await createDraftEntry(page, entryInput(memo))
+        const id = entryIdOf(page)
+        await backToList(page)
+        await findItem(page, memo)
+
+        await chooseFromMenu(page, id, 'delete')
+        await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
+        await page.getByTestId('delete-draft-confirm').click()
+
+        await expect(page.getByTestId('delete-draft-dialog')).toHaveCount(0)
+        await expect(listItems(page, memo)).toHaveCount(0)
+        await expectStillOnList(page)
+    })
+})

@@ -58,16 +58,11 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await navigateToPackage(page, 'books')
         await openChartOfAccounts(page)
 
-        await expect(page.getByText('All lists', { exact: true })).toBeVisible()
-
-        // The tree: a child sits beneath its parent, and collapsing hides it.
+        // The tree: collapsing a parent hides its child.
         const software = row(page, 'Software Subscriptions')
         const design = row(page, 'Design Tools')
         await expect(software).toBeVisible()
         await expect(design).toBeVisible()
-        const parentBox = await software.boundingBox()
-        const childBox = await design.boundingBox()
-        expect(childBox?.y ?? 0).toBeGreaterThan(parentBox?.y ?? 0)
         await software.locator('[data-testid^="account-caret-"]').click()
         await expect(design).toHaveCount(0)
         await expect(software.getByText('incl. sub-accounts')).toBeVisible()

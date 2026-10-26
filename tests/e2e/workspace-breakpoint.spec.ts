@@ -18,7 +18,7 @@ const TABLET = { width: 800, height: 900 }
 const MOBILE = { width: 390, height: 844 }
 const MARKER = '__breakpointProbe'
 
-test.describe('workspace layout: breakpoint changes', () => {
+test.describe('workspace-breakpoint: breakpoint changes', () => {
     test('a package screen keeps its state and DOM across desktop, mobile, tablet', async ({
         page,
     }) => {
