@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
     hasAvailableReport,
     hubSections,
@@ -12,6 +12,13 @@ import {
     HUB_ENTRIES_NONE,
     HUB_ENTRIES_V0,
 } from '../tinycld/books/lib/report-shell-fixture'
+import { definedReportIds, reportDefinition } from '../tinycld/books/lib/reports/definitions'
+
+// The definitions import the data hooks that read the collections.
+vi.mock('@tinycld/core/lib/pocketbase', async () => {
+    const { useStoreStub } = await import('./accounts-form-harness')
+    return { useStore: useStoreStub }
+})
 
 describe('REPORT_SECTIONS', () => {
     it('lists the seven hub sections in order', () => {
@@ -31,8 +38,10 @@ describe('REPORT_ENTRIES', () => {
     const sectionIds = new Set<string>(REPORT_SECTIONS.map(section => section.id))
     const ids = REPORT_ENTRIES.map(entry => entry.id)
 
-    it('no entry is available in this checkpoint', () => {
-        expect(REPORT_ENTRIES.filter(entry => entry.available).map(entry => entry.id)).toEqual([])
+    it('the Trial Balance is the only available entry', () => {
+        expect(REPORT_ENTRIES.filter(entry => entry.available).map(entry => entry.id)).toEqual([
+            'trial-balance',
+        ])
     })
 
     it('ids are unique and kebab-case', () => {
@@ -141,11 +150,41 @@ describe('reportEntry and hasAvailableReport', () => {
         expect(reportEntry('nope')).toBeUndefined()
     })
 
-    it('the shipped registry has no available report', () => {
-        expect(hasAvailableReport(REPORT_ENTRIES)).toBe(false)
+    it('the shipped registry has an available report', () => {
+        expect(hasAvailableReport(REPORT_ENTRIES)).toBe(true)
     })
 
     it('the v0 fixture has an available report', () => {
         expect(hasAvailableReport(HUB_ENTRIES_V0)).toBe(true)
+    })
+})
+
+describe('registry and definitions agree', () => {
+    it('every available entry has a definition with its id and title', () => {
+        const available = REPORT_ENTRIES.filter(entry => entry.available)
+        expect(available.length).toBeGreaterThan(0)
+        const mismatched = available
+            .map(entry => {
+                const definition = reportDefinition(entry.id)
+                return {
+                    id: entry.id,
+                    definitionId: definition?.id,
+                    title: entry.title,
+                    definitionTitle: definition?.title,
+                }
+            })
+            .filter(row => row.definitionId !== row.id || row.definitionTitle !== row.title)
+        expect(mismatched).toEqual([])
+    })
+
+    it('every defined report id is a registry id', () => {
+        const registryIds = new Set(REPORT_ENTRIES.map(entry => entry.id))
+        expect(definedReportIds().filter(id => !registryIds.has(id))).toEqual([])
+    })
+
+    it('serves no definition for an unavailable registry id or an unknown id', () => {
+        expect(reportEntry('profit-and-loss')?.available).toBe(false)
+        expect(reportDefinition('profit-and-loss')).toBeUndefined()
+        expect(reportDefinition('no-such-report')).toBeUndefined()
     })
 })

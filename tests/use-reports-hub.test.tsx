@@ -4,8 +4,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { useBooksSettings } from '../tinycld/books/hooks/useBooksSettings'
 import { useReportsHub } from '../tinycld/books/hooks/useReportsHub'
-import { REPORT_ENTRIES } from '../tinycld/books/lib/report-registry'
-import { HUB_ENTRIES_V0 } from '../tinycld/books/lib/report-shell-fixture'
+import { HUB_ENTRIES_NONE, HUB_ENTRIES_V0 } from '../tinycld/books/lib/report-shell-fixture'
 import type { BooksAccess } from '../tinycld/books/types'
 import { accessStore, cleanups, ME, releaseAccessReads, seedBooks } from './accounts-form-harness'
 import { expectLiveQueryError, silenceLog } from './silence-log'
@@ -97,7 +96,7 @@ describe('useReportsHub', () => {
 
     it('is empty for a ready reader when no report is available', async () => {
         seedBooks({ level: 'read_only' })
-        const hook = renderHook(() => useReportsHub(REPORT_ENTRIES))
+        const hook = renderHook(() => useReportsHub(HUB_ENTRIES_NONE))
 
         await waitFor(() => expect(hook.result.current.state).toBe('ready'))
         expect(hook.result.current.isEmpty).toBe(true)
