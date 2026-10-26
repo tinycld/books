@@ -56,6 +56,8 @@
 - cp 5 · a save that never settles (PocketBase fetch has no timeout) keeps Save, Cancel, back and Escape disabled with no message; browser/hardware back and the rail still leave.
 - cp 5 · core gap (for the human): core useFormEdit's values reset has keepDirtyValues but not keepErrors, so a realtime echo of the record clears the refusals shown on an edit form.
 - cp 5 · a create Save loses text typed into the form while the insert is in flight (the form leaves on success); making the form read-only during every insert would swap the inputs to read mode on each save.
+- cp 6 · the selected row's tint is faint in light mode and in dark mode equals the border color, so the row's bottom border disappears (both as in the reference).
+- cp 6 · New customer pressed while a New form is open starts a fresh New form (a dirty one asks first).
 
 ## Out-of-plan changes
 - cp 1 · server/go.mod: require github.com/pocketbase/ozzo-validation/v4 v4.3.0 (refuseField's import; implementer).
@@ -64,6 +66,7 @@
 - cp 3 · tinycld/books/collections.ts: books_customers subsetGcTime 0 (implementer; a quick reopen of the list reused a parked subset).
 - cp 3 · tests/e2e/books-shell.spec.ts: the New FAB assert used a role the FAB does not have, so it asserted nothing; now getByLabel, title 'no New FAB'.
 - cp 5 · tinycld/books/components/customers/CustomerSurface.tsx: isLeaveDisabled and surfaceRef props (it owns the back button and Escape).
+- cp 6 · tinycld/books/hooks/useCustomerNavigation.ts: open(id) does nothing when that customer is open (review A: the selected row replaced its own route).
 
 ## Phase notes
 - phase 1: design gate 1 (2026-10-25): human chose direction A, but the customer shows in a side panel only on a very wide window and otherwise as a pushed page (master-detail, slide in); the URL encodes the customer shown, as boards `[boardSlug]/[card]` does. Packet revised.
@@ -190,6 +193,14 @@
 - fix review 2: BLOCK 1 a create success after the user left resets the New form to the saved values (probe: stale 'New customer' with the saved name) → accepted (driver): reset to the starting values when not present; BLOCK 2 (declared) a create Save loses text typed during the insert → design note, not fixed: a read-only form during every insert swaps inputs to read mode on each save, and the window is the optimistic insert's round-trip (the same as the Save and new note); BLOCK 3 comment says the save's answer goes to a toast (only a refusal does) → corrected (driver). Notes: test gaps (success after leaving for another package; create not-present path; throw-before-mutate) → the first two pinned by a test writer, the third has no UI path. isFocused judged correct on page, panel and phone; the field-state loop and the lock judged correct.
 - fix round 3 (driver): a not-present create success resets to the starting values; comment. Pins added (an edit success after leaving for Calendar stays there; a late create leaves a clean empty New form). Save spec 10.1 s desktop, 17.4 s phone.
 - fix review 3: BLOCK useCreateSave JSDoc still described the old behavior → corrected with the reviewer's wording; note: no not-present create pin with ?parent (same reset() as Save and new, which is pinned) → no change. Gate 1: check clean, e2e green. Committed.
+
+## Checkpoint 6
+- test writer: tests/e2e/customer-form-panel.spec.ts, one flow at WIDE only (the panel does not exist below 1360; phone flows are checkpoints 4–5); e2e budget 9 of 12. Red at step 2: no customer-panel. A probe copy with the page test ids passed every later step (20.4 s), so what is missing is the panel chrome (test ids, 52 px header, ✕ 'Close') and the selected-row background.
+- implementer: DONE, no dispute. PanelHeader (52 px, title, ✕ customer-close 'Close', disabled while saving), root testID from surface, CustomerRow bg-accent when selected (panel only). Declared: testID prop removed (root id from surface); selectedId computed in CustomersList; helpers unchanged (openCustomersList already presses customer-close); left border from checkpoint 3's stackContainerStyle; header styling from the reference. Gate 1: tests unchanged, check 2403 clean, e2e 9/9. Gate 2 capture: evidence/cp6/capture.json (1600, Show inactive on, Alvarez kitchen remodel opened from its row).
+- gate 2 critique (evidence/cp6/critique.md): 2/2 valid; nothing found (panel, header, highlight, footer match the reference by pixel).
+- review A: BLOCK 1 pressing the open customer's (selected) row replaces the route with itself: the form remounts, a dirty form asks 'Discard changes?' and Discard drops the edits → accepted (driver): open(id) does nothing when that customer is open; notes: 2 dark selected row's border matches its background (accent = border) and the light tint is faint (the reference decided it) → design note; 3 = B2; 4 highlight not asserted to clear on close or be absent on the page surface → accepted, test; 5 'no animation' on reload unasserted (probe showed no flash) → no change.
+- review B: no block. 1 selectedId passed to cards, never read → accepted (driver): TableProps only; 2 the disabled ✕ and back show no disabled state → accepted (driver): opacity-50 while disabled. Deferral: helpers unchanged → declared and verified, not a deferral.
+- fix review 1 (driver's fixes): no block. 1 useCustomerNavigation is outside the Files block and Do 3 said no change to the navigation rule → recorded (the same-id no-op extends 'When a customer is already open they replace it'); 2 openNew replaces a New form with a fresh one (dirty asks) → design note (New customer starts a fresh form); 3 comment narrower than the code → reworded; 4 leaveDimClass type → boolean; 5 'cards show on phones' → 'below 768 px'. Pins: own-row press keeps the form (no dialog, same URL, same input element); no row selected on the page surface or after the panel closes. Committed.
 
 ## Final review
 - eval:

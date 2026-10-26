@@ -11,7 +11,7 @@ import type { CustomerListRow } from '../../lib/customer-tree'
 interface CustomerRowProps {
     row: CustomerListRow<CustomerRecord>
     onOpen: (id: string) => void
-    // Read from checkpoint 6 on, when the panel surface marks the open customer's row.
+    // The open customer's row on the panel surface.
     isSelected: boolean
 }
 
@@ -37,16 +37,17 @@ function CompanyText({ id, company }: { id: string; company: string }) {
     )
 }
 
-export function CustomerRow({ row, onOpen }: CustomerRowProps) {
+export function CustomerRow({ row, onOpen, isSelected }: CustomerRowProps) {
     const { customer, depth } = row
     const { id } = customer
     const dim = customer.inactive ? 'opacity-60' : ''
+    const bg = isSelected ? 'bg-accent' : 'bg-background'
     return (
         <Pressable
             testID={`customer-row-${id}`}
             accessibilityRole="button"
             onPress={() => onOpen(id)}
-            className={`${CUSTOMER_ROW_CLASS} border-b border-border bg-background ${dim}`}
+            className={`${CUSTOMER_ROW_CLASS} border-b border-border ${bg} ${dim}`}
             style={{ height: CUSTOMER_ROW_HEIGHT, minHeight: 44 }}
         >
             <View

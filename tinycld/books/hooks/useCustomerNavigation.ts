@@ -13,7 +13,8 @@ import {
 export function useCustomerNavigation() {
     const orgHref = useOrgHref()
     const { pathname } = useUrl()
-    const mode = navigationModeFor(openCustomerFromPath(pathname))
+    const current = openCustomerFromPath(pathname)
+    const mode = navigationModeFor(current)
 
     const go = (route: CustomerRoute) => {
         const href = orgHref(route.path, route.params)
@@ -22,7 +23,12 @@ export function useCustomerNavigation() {
     }
 
     return {
-        open: (id: string) => go(customerPath(id)),
+        // Pressing the open customer's row again (drawn as selected on the panel) keeps the form,
+        // its scroll and its unsaved edits, instead of replacing the route with itself.
+        open: (id: string) => {
+            if (current.kind === 'id' && current.id === id) return
+            go(customerPath(id))
+        },
         openNew: (parentId?: string) => go(newCustomerPath(parentId)),
         // Dismisses to the list even after a deep link with no history to go back through.
         leave: () => router.dismissTo(orgHref(CUSTOMERS_PATH)),
