@@ -26,6 +26,7 @@
 ## Design notes
 - cp 5 · hub loading and error states not captured at cp 5 → captured at cp 6 (hub-loading, hub-error).
 - cp 6 · tb: business-name line not seen (seed writes no business_name; blank is omitted per spec).
+- cp 8 · phone money columns are 108pt (84pt of text): a seven-digit total would be cut; human to decide at the eval gate.
 - cp 7 · method toggle not seen (Trial Balance has no basis); judge at the first hasBasis report.
 - cp 6 · hub-loading, hub-error: sidebar "+ New" hidden while access loads (shell behavior).
 
@@ -133,6 +134,16 @@
 - fix review 1: discard of a valid pending edit before re-render → fixed (Q1 errors guard) + tests (Q2). Fix review 2: the errors guard read a render-time snapshot (stale both ways) → fixed (R1: schema.safeParse(form.getValues()); R2 comment) + same-tick tests (R3). Fix review 3: clean.
 - hand-off to cp 9: when openSurface replaces the period surface with add-filter / filter-picker, call discardEdit on that switch.
 - gate 1 (final): tinycld-pkg check pass (2572); e2e 5 passed; stderr none.
+
+## Checkpoint 8 — Report table renderer
+- test writer: tests/report-table-layout.test.ts, tests/e2e/report-shell-table.spec.ts (1 e2e; total 6); red for the right reason: yes (missing report-table-layout module; no report-table); untestable: none beyond the Not-reachable register. Risk noted: the sum and last-row checks read only windowed rows.
+- implementer: components/reports/{report-table-layout.ts,ReportRow.tsx,ReportTable.tsx}, hooks/useReportScreen.ts, ReportScreenView.tsx, evidence/cp8 (tb shots); DONE; e2e Trial Balance has 8 detail rows. Self-declared: heading web:overflow-y-hidden for scrollbar-gutter alignment; heading scroller style matches body; pl-1 label heading; label column stripped before ReportRowAmounts; NO_ROWS fallback; TableBody null unless ready; no rule on section Pressable; scripted edit (logged).
+- gate 1: tinycld-pkg check pass (2577); e2e report-shell 6 passed.
+- gate 2 (Fable): 4 shots valid, no BLOCKING; NOTE: phone amount column 108pt leaves 84pt of text, so a seven-digit total ("$132,901.00") would be cut by numberOfLines={1} — raised to the human at the eval gate (the 108pt rule came from the driver's spec edit after pass 2).
+- gate 3 A: heading alignment ignored column kind → fixed (S1 columnAlign shared by heading and cells); money-consistency checks read one snapshot of live shared data → polled (S2); only the label side of a section row was pressable → fixed (S3). Declared differences accepted. Window-size risk judged not flaky (Trial Balance shows only accounts with activity).
+- gate 3 B: e2e sum/total depended on the row window → fixed (S2: tall viewport, assert the total row is mounted first, then poll).
+- fix review 1: the S3 amounts-side press was a second accessible button with the same name, hiding folded subtotal figures from screen readers and doubling tab stops (the driver's brief asked for it) → fixed (amounts side: onPress only, accessible={false}, tabIndex={-1}); plan interfaces updated (onToggleSection, columnAlign, Not-reachable line). Rebutted: CellDisplay.align is now unread by the renderer — kept as checkpoint 3's tested contract (the cell rule is identical for every amount column). fix review 2: clean.
+- gate 1 (final): tinycld-pkg check pass (2580); e2e 6 passed; stderr none.
 
 ## Final review
 - eval:

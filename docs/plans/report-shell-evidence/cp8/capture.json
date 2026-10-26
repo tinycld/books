@@ -1,0 +1,10 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "tb",
+            "url": "/a/books/reports/trial-balance?preset=today",
+            "ready": "report-table"
+        }
+    ]
+}

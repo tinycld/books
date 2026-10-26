@@ -17,6 +17,7 @@ import { REPORT_TAP_TARGET, ReportHeader } from './ReportHeader'
 import { ReportMethodToggle } from './ReportMethodToggle'
 import { ReportNotFound } from './ReportNotFound'
 import { ReportPeriodControl } from './ReportPeriodControl'
+import { ReportTable } from './ReportTable'
 
 function LoadingBody({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
@@ -58,6 +59,35 @@ function EmptyBody({ isVisible, message, action, onAction }: EmptyBodyProps) {
     return <ReportEmptyState message={message} action={action} onAction={onAction} />
 }
 
+function TableBody({ isVisible, model }: { isVisible: boolean; model: ReportScreenModel }) {
+    if (!isVisible || !model.model) return null
+    return (
+        <ReportTable
+            model={model.model}
+            folded={model.folded}
+            currency={model.currency}
+            numberFormat={model.options.numberFormat}
+            breakpoint={model.breakpoint}
+            onToggleSection={model.onToggleSection}
+        />
+    )
+}
+
+// Not drawn when the report has no section rows (the label is null).
+function FoldAllButton({ label, onPress }: { label: string | null; onPress: () => void }) {
+    if (!label) return null
+    return (
+        <Button
+            testID="report-fold-all"
+            variant="outline"
+            style={{ minHeight: REPORT_TAP_TARGET }}
+            onPress={onPress}
+        >
+            <ButtonText>{label}</ButtonText>
+        </Button>
+    )
+}
+
 // The filter chips arrive with their own controls in a later checkpoint.
 function ControlItem({ item, model }: { item: ControlRowItem; model: ReportScreenModel }) {
     const { form } = model
@@ -97,10 +127,11 @@ export function ReportScreenView({ model }: { model: ReportScreenModel }) {
         <ControlItem key={controlKey(item)} item={item} model={model} />
     ))
     const basis = basisLabel(definition, options)
+    const toolbar = <FoldAllButton label={model.foldAllLabel} onPress={model.onFoldAll} />
     return (
         <View testID="report-screen" className="flex-1 flex-row bg-background">
             <View className="min-w-0 flex-1">
-                <ReportHeader title={definition.title} onBack={model.onBack} toolbar={null} />
+                <ReportHeader title={definition.title} onBack={model.onBack} toolbar={toolbar} />
                 <ScrollView
                     horizontal
                     testID="report-controls"
@@ -125,6 +156,7 @@ export function ReportScreenView({ model }: { model: ReportScreenModel }) {
                     action={model.emptyAction}
                     onAction={model.onEmptyAction}
                 />
+                <TableBody isVisible={state === 'ready'} model={model} />
             </View>
         </View>
     )
