@@ -1,40 +1,34 @@
-// Synthetic customers for the helix reference route and, later, the seed.
-//
-// `books_customers` does not exist yet. The migration checkpoint that adds
-// pb-migrations/2100000003_create_books_customers.js must replace
-// CustomerFixtureRecord (and CustomerAddress) with the generated
-// `BooksCustomers` type from ../types, so tsc checks every field against the
-// real schema.
+// Synthetic customers for the seed (seed.ts) and the helix reference route,
+// typed against the generated `BooksCustomers`. tsc checks each column's name
+// against the real schema, and the type of every column except the JSON ones
+// (billing_address, shipping_address, fields): the generated type holds those
+// as `any`, so their shape here is the fixture's own. The server's guard
+// checks the address shape when the seed sends the addresses; the seed does
+// not send `fields`.
 
-export interface CustomerAddress {
-    line1: string
-    line2: string
-    city: string
-    region: string
-    postal_code: string
-    country: string
-}
+import type { BooksCustomers } from '../types'
+import type { CustomerAddress } from './address'
 
-export interface CustomerFixtureRecord {
-    id: string
-    display_name: string
-    company: string
-    first_name: string
-    last_name: string
-    email: string
-    phone: string
-    mobile: string
-    website: string
-    parent: string
+export type { CustomerAddress } from './address'
+
+// Each name must be a key of `BooksCustomers`, so this fails to compile when
+// one of these columns leaves the schema instead of leaving a stale override
+// or a stale Omit.
+type ColumnOf<Key extends keyof BooksCustomers> = Key
+type JsonColumn = ColumnOf<'billing_address' | 'shipping_address' | 'fields'>
+type ServerOnlyColumn = ColumnOf<'name_key'>
+
+// The generated type holds JSON columns as `any`, which would reach every
+// reader of a fixture row untyped. The fixture row keeps them typed and is
+// still assignable to `BooksCustomers` without `name_key`. A null
+// shipping_address means "same as billing address". The row never carries
+// `name_key`, as a live query sees the row: the generated type has the
+// column, but it is hidden, so a non-superuser never receives it, and the
+// server's guard sets it on every write.
+export type CustomerFixtureRecord = Omit<BooksCustomers, JsonColumn | ServerOnlyColumn> & {
     billing_address: CustomerAddress | null
-    // null means "same as billing address".
     shipping_address: CustomerAddress | null
-    notes: string
-    inactive: boolean
-    form: string
     fields: Record<string, unknown> | null
-    created: string
-    updated: string
 }
 
 type CustomerSeed = Pick<CustomerFixtureRecord, 'id' | 'display_name'> &
@@ -96,7 +90,7 @@ export const CUSTOMER_IDS = {
 
 const HARBORVIEW_BILLING = address('1450 Waterfront Avenue', 'Seattle', 'WA', '98101', 'Suite 300')
 
-export const CUSTOMERS: CustomerFixtureRecord[] = [
+export const CUSTOMERS = [
     customer({
         id: CUSTOMER_IDS.harborview,
         display_name: 'Harborview Hospitality Group',
@@ -321,7 +315,7 @@ export const CUSTOMERS: CustomerFixtureRecord[] = [
         email: 'studio@quarrylane.example',
         phone: '(206) 555-0151',
     }),
-]
+] satisfies Omit<BooksCustomers, ServerOnlyColumn>[]
 
 export const EMPTY_CUSTOMERS: CustomerFixtureRecord[] = []
 
