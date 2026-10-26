@@ -22,6 +22,7 @@ import {
     storedAccounts,
 } from './accounts-form-harness'
 import { byTestId, classOf } from './accounts-test-rows'
+import { expectLiveQueryError } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -504,56 +505,37 @@ describe('AccountPanel edit seeding', () => {
     // with isReady false after it appeared. The harness cannot flip a live
     // collection back to not ready; that rule is covered on the hook.
     it('shows a load error when the accounts query fails', async () => {
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-        try {
-            seedBooks({ accountsErrored: true })
-            renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        seedBooks({ accountsErrored: true })
+        expectLiveQueryError(accountsStore().id)
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
 
-            await waitFor(() =>
-                expect(screen.getByText('Could not load this account')).toBeTruthy()
-            )
-            expect(field('Account name')).toBeNull()
-            expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('[Live Query Error]'))
-        } finally {
-            consoleError.mockRestore()
-        }
+        await waitFor(() => expect(screen.getByText('Could not load this account')).toBeTruthy())
+        expect(field('Account name')).toBeNull()
     })
 
     it('titles the load error drawer, closes it from the X and from Close, and uses its own testID', async () => {
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-        try {
-            seedBooks({ accountsErrored: true })
-            renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
-            await waitFor(() =>
-                expect(screen.getByText('Could not load this account')).toBeTruthy()
-            )
+        seedBooks({ accountsErrored: true })
+        expectLiveQueryError(accountsStore().id)
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        await waitFor(() => expect(screen.getByText('Could not load this account')).toBeTruthy())
 
-            expect(byTestId(document.body, 'account-panel-error')).not.toBeNull()
-            expect(byTestId(document.body, 'account-panel')).toBeNull()
-            expect(screen.getByText('Account')).toBeTruthy()
-            const closeX = document.querySelector('[accessibilitylabel="Close"]')
-            expect(closeX).not.toBeNull()
+        expect(byTestId(document.body, 'account-panel-error')).not.toBeNull()
+        expect(byTestId(document.body, 'account-panel')).toBeNull()
+        expect(screen.getByText('Account')).toBeTruthy()
+        const closeX = document.querySelector('[accessibilitylabel="Close"]')
+        expect(closeX).not.toBeNull()
 
-            fireEvent.click(closeX as Element)
-            expect(target()).toBeNull()
-        } finally {
-            consoleError.mockRestore()
-        }
+        fireEvent.click(closeX as Element)
+        expect(target()).toBeNull()
     })
 
     it('closes the load error drawer with the Close button', async () => {
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-        try {
-            seedBooks({ accountsErrored: true })
-            renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
-            await waitFor(() =>
-                expect(screen.getByText('Could not load this account')).toBeTruthy()
-            )
-            press('Close')
-            expect(target()).toBeNull()
-        } finally {
-            consoleError.mockRestore()
-        }
+        seedBooks({ accountsErrored: true })
+        expectLiveQueryError(accountsStore().id)
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        await waitFor(() => expect(screen.getByText('Could not load this account')).toBeTruthy())
+        press('Close')
+        expect(target()).toBeNull()
     })
 })
 

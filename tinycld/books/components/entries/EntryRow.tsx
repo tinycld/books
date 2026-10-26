@@ -50,6 +50,7 @@ export function ReversesNumber({ entryId, className }: { entryId: string; classN
                       .where(({ r }) => eq(r.id, entryId))
                       .findOne()
                 : null,
+        queryKey: ['books', 'reversed-entry', entryId],
     })
     const isMissing = entryId !== '' && isReady && !reversed
     // Logging is the only effect; the placeholder text shows meanwhile.

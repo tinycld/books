@@ -48,7 +48,7 @@ describe('saveDraftSchema', () => {
     })
 
     it('rejects a bad date', () => {
-        for (const date of ['2026-02-30', 'tomorrow']) {
+        for (const date of ['2026-02-30', 'tomorrow', '0026-10-25', '1899-12-31']) {
             const result = saveDraftSchema.safeParse(values({ date }))
             expect(result.success).toBe(false)
             expect(issuesOf(result)).toContainEqual(
@@ -58,6 +58,10 @@ describe('saveDraftSchema', () => {
                 })
             )
         }
+    })
+
+    it('accepts the first day of 1900', () => {
+        expect(saveDraftSchema.safeParse(values({ date: '1900-01-01' })).success).toBe(true)
     })
 
     it('rejects 201 lines', () => {
