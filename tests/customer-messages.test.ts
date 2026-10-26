@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { ClientResponseError } from 'pocketbase'
+import { describe, expect, it, vi } from 'vitest'
 import {
     activeSubCustomersMessage,
+    customerRefusalHandler,
     duplicateNameMessage,
     PARENT_LOCKED_MESSAGE,
 } from '../tinycld/books/lib/customer-messages'
@@ -57,5 +59,69 @@ describe('server drift', () => {
             'A customer with sub-customers cannot be a sub-customer.'
         )
         expect(serverSource()).toContain(PARENT_LOCKED_MESSAGE)
+    })
+})
+
+const RECORDS_URL = 'http://127.0.0.1:7100/api/collections/books_customers/records'
+
+// The handler's two outlets: the form's setError and the host's field-mapping onError.
+function outlets() {
+    return { form: { setError: vi.fn() }, hostOnError: vi.fn() }
+}
+
+describe('customerRefusalHandler', () => {
+    it('puts a refusal with a message and no field on the form root, not on the host', () => {
+        const message = 'Make the parent customer active first.'
+        const error = new ClientResponseError({
+            url: RECORDS_URL,
+            status: 400,
+            response: { code: 400, message, data: {} },
+        })
+        const { form, hostOnError } = outlets()
+
+        customerRefusalHandler(form, hostOnError)(error)
+
+        expect(form.setError).toHaveBeenCalledTimes(1)
+        expect(form.setError).toHaveBeenCalledWith('root', { type: 'server', message })
+        expect(hostOnError).not.toHaveBeenCalled()
+    })
+
+    it('hands a display_name field refusal to the host, not to the form root', () => {
+        const error = new ClientResponseError({
+            url: RECORDS_URL,
+            status: 400,
+            response: {
+                code: 400,
+                message: 'Failed to create record.',
+                data: {
+                    display_name: {
+                        code: 'validation_not_unique',
+                        message: duplicateNameMessage('Acme'),
+                    },
+                },
+            },
+        })
+        const { form, hostOnError } = outlets()
+
+        customerRefusalHandler(form, hostOnError)(error)
+
+        expect(hostOnError).toHaveBeenCalledTimes(1)
+        expect(hostOnError).toHaveBeenCalledWith(error)
+        expect(form.setError.mock.calls.filter(([name]) => name === 'root')).toEqual([])
+    })
+
+    it('hands a network error with no response to the host', () => {
+        const error = new ClientResponseError({
+            url: RECORDS_URL,
+            status: 0,
+            originalError: new TypeError('Failed to fetch'),
+        })
+        const { form, hostOnError } = outlets()
+
+        customerRefusalHandler(form, hostOnError)(error)
+
+        expect(hostOnError).toHaveBeenCalledTimes(1)
+        expect(hostOnError).toHaveBeenCalledWith(error)
+        expect(form.setError).not.toHaveBeenCalled()
     })
 })

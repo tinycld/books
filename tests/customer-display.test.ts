@@ -4,6 +4,7 @@ import {
     CUSTOMERS_TABLE_MIN_WIDTH,
     companyLine,
     customerCardHeight,
+    customerFooter,
     customerLabel,
     customerTitle,
 } from '../tinycld/books/lib/customer-display'
@@ -192,6 +193,37 @@ describe('customerTitle', () => {
             for (const isSubCustomer of [false, true]) {
                 expect(customerTitle({ mode, isSubCustomer, canWrite: false })).toBe('Customer')
             }
+        }
+    })
+})
+
+describe('customerFooter', () => {
+    it('offers Cancel, Save and Save and new on a new customer for a writer', () => {
+        expect(customerFooter({ mode: 'new', canWrite: true })).toEqual({
+            cancel: true,
+            save: true,
+            saveAndNew: true,
+            close: false,
+        })
+    })
+
+    it('offers Cancel and Save, without Save and new, on an edit for a writer', () => {
+        expect(customerFooter({ mode: 'edit', canWrite: true })).toEqual({
+            cancel: true,
+            save: true,
+            saveAndNew: false,
+            close: false,
+        })
+    })
+
+    it('offers only Close to a read-only user, in both modes', () => {
+        for (const mode of ['new', 'edit'] as const) {
+            expect(customerFooter({ mode, canWrite: false })).toEqual({
+                cancel: false,
+                save: false,
+                saveAndNew: false,
+                close: true,
+            })
         }
     })
 })

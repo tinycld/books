@@ -112,3 +112,61 @@ export async function openNewCustomer(page: Page) {
     await expect(customerSurface(page)).toBeVisible()
     await expect(page.getByTestId('customer-title')).toHaveText('New customer')
 }
+
+export interface NewCustomerValues {
+    name: string
+    company?: string
+    email?: string
+    phone?: string
+}
+
+// Creates a customer through the New customer form and waits for the list to show again.
+export async function createCustomer(page: Page, values: NewCustomerValues) {
+    await openNewCustomer(page)
+    await field(page, 'display_name').fill(values.name)
+    for (const [key, value] of [
+        ['company', values.company],
+        ['email', values.email],
+        ['phone', values.phone],
+    ] as const) {
+        if (value !== undefined) await field(page, key).fill(value)
+    }
+    await page.getByTestId('customer-save').click()
+    await expect(page.getByTestId('customers-list')).toBeVisible()
+    await expect(customerSurface(page)).toBeHidden()
+}
+
+// The "Discard changes?" question. It is core ConfirmDialog, whose buttons have no test
+// ids (and a phone shows it as a sheet with no dialog role), so every part is found by text.
+export function discardDialog(page: Page) {
+    return {
+        title: page.getByText('Discard changes?', { exact: true }),
+        message: page.getByText('This customer has changes that are not saved.', {
+            exact: true,
+        }),
+        keepEditing: page.getByText('Keep editing', { exact: true }),
+        discard: page.getByText('Discard', { exact: true }),
+    }
+}
+
+// `/a/.../books/customers`, read from the current URL so an org segment is kept.
+export function customersBase(page: Page) {
+    const { pathname } = new URL(page.url())
+    return `${pathname.slice(0, pathname.indexOf('/books/'))}/books/customers`
+}
+
+// An in-app navigation (no reload), as a link from outside the list would make.
+export async function navigateInApp(page: Page, path: string) {
+    await page.evaluate(url => {
+        window.history.pushState({}, '', url)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+    }, path)
+}
+
+// react-native-web marks a disabled Pressable with aria-disabled, a disabled input with
+// the attribute.
+export function isDisabled(locator: Locator) {
+    return locator.evaluate(
+        el => el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled')
+    )
+}
