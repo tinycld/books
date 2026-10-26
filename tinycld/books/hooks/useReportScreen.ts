@@ -2,10 +2,10 @@ import { type Breakpoint, useBreakpoint } from '@tinycld/core/components/workspa
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { router, useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
 import { fiscalStartMonth, todayIso } from '../lib/register-range'
 import type { ReportDefinition, ReportModel, ReportOptions } from '../lib/report-definition'
-import { parseReportParams, serializeReportParams } from '../lib/report-options'
+import { parseReportParams } from '../lib/report-options'
 import { type PeriodContext, periodChipLabel, periodWords } from '../lib/report-period'
 import {
     type ControlRowItem,
@@ -17,9 +17,11 @@ import {
     type ReportViewState,
     reportViewState,
 } from '../lib/report-state'
+import { type ReportSurface, useReportUIStore } from '../stores/report-ui-store'
 import { useBackToReports } from './useBackToReports'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
+import { type ReportOptionsForm, useReportOptionsForm } from './useReportOptionsForm'
 
 const DEFAULT_CURRENCY = 'USD'
 
@@ -87,21 +89,14 @@ export type ReportScreenModel = {
     emptyMessage: string
     emptyAction: EmptyAction | null
     controlItems: ControlRowItem[]
+    form: ReportOptionsForm
+    surface: ReportSurface | null
+    onOpenSurface(surface: ReportSurface): void
+    onCloseSurface(): void
     onEmptyAction(): void
     onRetry(): void
     onBack(): void
     breakpoint: Breakpoint
-}
-
-function optionsAfterEmptyAction(
-    definition: ReportDefinition,
-    options: ReportOptions,
-    action: EmptyAction,
-    context: PeriodContext
-): ReportOptions {
-    if (action.kind === 'clear-filters') return { ...options, filters: {} }
-    const { period } = parseReportParams(definition, { preset: action.preset }, context)
-    return { ...options, period }
 }
 
 export function useReportScreen(input: {
@@ -116,12 +111,15 @@ export function useReportScreen(input: {
     const onBack = useBackToReports()
     const breakpoint = useBreakpoint()
     const action = emptyAction(definition, options)
+    const form = useReportOptionsForm({ definition, options, context })
+    const surface = useReportUIStore(s => s.surface)
+    const onOpenSurface = useReportUIStore(s => s.openSurface)
+    const onCloseSurface = useReportUIStore(s => s.closeSurface)
 
-    // setParams replaces the history entry, so an option change adds none.
+    // Through the form, so what the user edits next starts from the options shown.
     const onEmptyAction = () => {
-        if (!action) return
-        const next = optionsAfterEmptyAction(definition, options, action, context)
-        router.setParams(serializeReportParams(definition, next))
+        if (action?.kind === 'clear-filters') form.applyFilters({})
+        if (action?.kind === 'preset') form.onPreset(action.preset)
     }
 
     return {
@@ -140,6 +138,10 @@ export function useReportScreen(input: {
         emptyMessage: emptyMessage(options.period),
         emptyAction: action,
         controlItems: controlRowItems(definition, options),
+        form,
+        surface,
+        onOpenSurface,
+        onCloseSurface,
         onEmptyAction,
         onRetry: result.retry,
         onBack,
