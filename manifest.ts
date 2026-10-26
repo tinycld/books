@@ -22,6 +22,9 @@ const manifest = {
     // Searchable through core's federated /api/search, which reads the Go
     // source in server/search.go. The adapter only handles selection.
     search: { adapter: 'search-adapter' },
+    // Forms hosts: `forms` is the data the generator reads in Node
+    // (server/form_hosts.json), `forms-ui` the components the forms render.
+    forms: { hosts: 'forms', ui: 'forms-ui' },
     peerVersions: { '@tinycld/core': '>=0.8 <1' },
     server: { package: 'server', module: 'tinycld.org/packages/books' },
 }

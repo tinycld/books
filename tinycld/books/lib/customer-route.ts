@@ -29,3 +29,6 @@ export function openCustomerFromPath(pathname: string): OpenCustomer {
 export function navigationModeFor(open: OpenCustomer): 'push' | 'replace' {
     return open.kind === 'none' ? 'push' : 'replace'
 }
+
+// The child stack's customer screens, after its transparent `index`.
+export const CUSTOMER_DETAIL_SCREENS = ['[id]', 'new'] as const

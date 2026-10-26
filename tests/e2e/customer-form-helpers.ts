@@ -99,3 +99,16 @@ export async function openCustomer(page: Page, name: string) {
     await customerEntry(page, name).click()
     await expect(customerSurface(page)).toBeVisible()
 }
+
+// The input of a form field: core text kinds and ContactInput use `form-input-<key>`.
+export function field(page: Page, key: string): Locator {
+    return customerSurface(page).getByTestId(`form-input-${key}`)
+}
+
+// From anywhere in Books to an empty New customer form, through the list header button.
+export async function openNewCustomer(page: Page) {
+    await openCustomersList(page)
+    await page.getByTestId('customer-new-header').click()
+    await expect(customerSurface(page)).toBeVisible()
+    await expect(page.getByTestId('customer-title')).toHaveText('New customer')
+}

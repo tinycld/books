@@ -53,3 +53,17 @@ export const CUSTOMER_COLUMNS = {
 export const CUSTOMERS_TABLE_MIN_WIDTH = 540
 
 export const CUSTOMER_ROW_HEIGHT = 56
+
+export function customerTitle({
+    mode,
+    isSubCustomer,
+    canWrite,
+}: {
+    mode: 'new' | 'edit'
+    isSubCustomer: boolean
+    canWrite: boolean
+}): string {
+    if (!canWrite) return 'Customer'
+    if (mode === 'edit') return 'Edit customer'
+    return isSubCustomer ? 'New sub-customer' : 'New customer'
+}
