@@ -5,6 +5,7 @@ import {
     companyLine,
     customerCardHeight,
     customerLabel,
+    customerTitle,
 } from '../tinycld/books/lib/customer-display'
 import type { TreeCustomer } from '../tinycld/books/lib/customer-tree'
 
@@ -167,5 +168,30 @@ describe('table columns', () => {
         })
         expect(CUSTOMER_COLUMNS.phone).toEqual({ width: 150, flexShrink: 0 })
         expect(CUSTOMER_COLUMNS.menu).toEqual({ width: 44, flexShrink: 0 })
+    })
+})
+
+describe('customerTitle', () => {
+    it('names a new customer, a new sub-customer and an edit for a writer', () => {
+        expect(customerTitle({ mode: 'new', isSubCustomer: false, canWrite: true })).toBe(
+            'New customer'
+        )
+        expect(customerTitle({ mode: 'new', isSubCustomer: true, canWrite: true })).toBe(
+            'New sub-customer'
+        )
+        expect(customerTitle({ mode: 'edit', isSubCustomer: false, canWrite: true })).toBe(
+            'Edit customer'
+        )
+        expect(customerTitle({ mode: 'edit', isSubCustomer: true, canWrite: true })).toBe(
+            'Edit customer'
+        )
+    })
+
+    it('is "Customer" in any mode for a read-only user', () => {
+        for (const mode of ['new', 'edit'] as const) {
+            for (const isSubCustomer of [false, true]) {
+                expect(customerTitle({ mode, isSubCustomer, canWrite: false })).toBe('Customer')
+            }
+        }
     })
 })

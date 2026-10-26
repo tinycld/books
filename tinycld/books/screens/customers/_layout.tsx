@@ -1,7 +1,7 @@
 import { useUrl } from '@tinycld/core/lib/use-url'
 import { CustomersList } from '../../components/customers/CustomersList'
 import { ListDetailLayout } from '../../components/ListDetailLayout'
-import { openCustomerFromPath } from '../../lib/customer-route'
+import { CUSTOMER_DETAIL_SCREENS, openCustomerFromPath } from '../../lib/customer-route'
 
 /**
  * The Customers list — `/a/books/customers` — and the customer open over or beside it.
@@ -17,7 +17,7 @@ export default function CustomersLayout() {
         <ListDetailLayout
             list={<CustomersList openId={openId} />}
             isDetailOpen={open.kind !== 'none'}
-            detailScreens={[]}
+            detailScreens={CUSTOMER_DETAIL_SCREENS}
         />
     )
 }
