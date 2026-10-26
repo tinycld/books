@@ -25,6 +25,9 @@ export function ReplaceHeader({ originalNumber, totals, currency, menu }: Replac
             <Text className="px-4 pt-3 text-sm text-muted-foreground">
                 {`Posting this replaces ${originalNumber} under the same number. The original is voided.`}
             </Text>
+            <Text testID="entry-replace-help" className="px-4 pt-1 text-sm text-muted-foreground">
+                {`You are editing a copy. Until you post, ${originalNumber} stays as it is and your books do not change. Save draft keeps your changes for later.`}
+            </Text>
         </View>
     )
 }

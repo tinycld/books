@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from 'react-native'
-import { entryNumberText, entryTypeText } from '../../lib/entry-display'
-import { formatMoney } from '../../lib/money'
+import { entryNumberText, entryTotalText, entryTypeText } from '../../lib/entry-display'
 import { formatDay } from '../../lib/register-range'
+import { spaceOpens } from '../accounts/AccountRow'
 import { type EntryItemProps, ReversesNumber, RowMenuSlot } from './EntryRow'
 import { EntryStatusBadge } from './EntryStatusBadge'
 
@@ -13,8 +13,10 @@ export function EntryCard({ entry, currency, onOpenEntry, rowMenu }: EntryItemPr
     return (
         <Pressable
             testID={`entries-card-${entry.id}`}
-            accessibilityRole="button"
+            // Not a button: the card menu inside it is a button, and buttons cannot nest.
+            role="row"
             onPress={() => onOpenEntry(entry.id)}
+            {...spaceOpens(entry.id, onOpenEntry)}
             className="flex-row gap-3 overflow-hidden border-b border-border bg-background px-4 py-2"
             style={{ height: ENTRY_CARD_HEIGHT }}
         >
@@ -44,7 +46,7 @@ export function EntryCard({ entry, currency, onOpenEntry, rowMenu }: EntryItemPr
             <View className="shrink-0 items-end justify-between">
                 <EntryStatusBadge entryId={entry.id} status={entry.status} />
                 <Text className="text-right text-sm font-medium text-foreground">
-                    {formatMoney(entry.total, currency)}
+                    {entryTotalText(entry, currency)}
                 </Text>
             </View>
             <RowMenuSlot entryId={entry.id} rowMenu={rowMenu} />

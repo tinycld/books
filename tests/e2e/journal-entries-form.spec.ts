@@ -91,6 +91,19 @@ for (const [sizeName, size] of SIZES) {
             await expect(lineRows(page)).toHaveCount(2)
         })
 
+        test("the date fields open core's calendar and a picked day fills the field", async ({
+            page,
+        }) => {
+            await start(page, size)
+            const firstOfMonth = `${todayIso().slice(0, 8)}01`
+
+            for (const field of ['entry-date', 'entry-auto-reverse']) {
+                await page.getByTestId(`${field}-open`).click()
+                await page.getByLabel(firstOfMonth, { exact: true }).first().click()
+                await expect(page.getByTestId(field)).toHaveValue(firstOfMonth)
+            }
+        })
+
         test('add line appends a line', async ({ page }) => {
             await start(page, size)
 

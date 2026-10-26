@@ -1,5 +1,6 @@
 import type { BooksJournalEntries } from '../types'
 import { ENTRY_TYPE_LABELS } from './entry-messages'
+import { formatMoney } from './money'
 import { formatDay } from './register-range'
 
 type EntryStatus = BooksJournalEntries['status']
@@ -15,6 +16,13 @@ const STATUS_LABELS: Record<EntryStatus, string> = {
 export function entryNumberText(entry: { number: string; status: string }): string {
     if (entry.number === '' && entry.status === 'draft') return 'Draft'
     return entry.number
+}
+
+// The server stamps a draft's total after its lines are written, so a row just created in this
+// session has none yet. The list shows a dash until the total arrives, without a warning.
+export function entryTotalText(entry: { total?: number }, currency: string): string {
+    if (entry.total === undefined) return '\u2014'
+    return formatMoney(entry.total, currency)
 }
 
 export function entryStatusText(status: EntryStatus): string {
