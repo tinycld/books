@@ -63,6 +63,17 @@ describe('registries', () => {
         expect(entries?.id).toBe('entries')
         expect(entries?.available).toBe(true)
     })
+
+    it('LIST_ENTRIES has an available Customers card', () => {
+        const customers = LIST_ENTRIES.find(e => e.id === 'customers')
+        expect(customers).toEqual({
+            id: 'customers',
+            label: 'Customers',
+            description: 'People and companies you sell to',
+            href: 'books/customers',
+            available: true,
+        })
+    })
 })
 
 describe('settings sidebar entry', () => {

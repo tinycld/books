@@ -29,14 +29,14 @@ Draft for the design gate, revised after gate 1. Direction A, with the customer 
 ## Behavior
 
 List
-- The screen shows a back link "All lists" (to `books/lists`), the title "Customers", a toolbar, and the list. Writers see a "New customer" button in the header. On phones the Books New FAB also shows on the list.
+- The screen shows a back link "All lists" (to `books/lists`), the title "Customers", a toolbar (shown once at least one customer exists), and the list. Writers see a "New customer" button in the header. On phones the Books New FAB also shows on the list.
 - Each top-level customer is a row; its sub-customers follow it, indented one level. Top-level rows sort by display name (case-insensitive); sub-customers sort by display name under their parent.
 - Wide columns: Name (display name; company name below in muted text when it differs), Email, Phone, row menu. No balance column (Q10). The table has a minimum width of 540 px; the Name and Email cells shrink with an ellipsis and never collapse to blank.
 - Search filters by display name, company name, email or phone, case-insensitive. A matching sub-customer keeps its parent row visible. A "Show inactive" toggle (off by default) shows inactive customers dimmed with an "Inactive" label.
 - Tapping a row opens that customer (see Navigation): edit for writers, read-only for read-only users. On the panel surface, the open customer's row has `bg-accent`; the open customer is read from the URL (`openCustomerFromPath`), never from a store.
 - The row menu (writers only) has: Edit, Add sub-customer (top-level rows only), Make inactive or Make active, Delete. The menu sits in a stop-propagation boundary so a menu press never also opens the row.
 - The list is windowed (the existing `useRowWindow`), so ten thousand customers scroll without rendering every row.
-- Empty state (no customers): "No customers yet" with a New customer button for writers. Search with no match: "No customers match" with a Clear search button.
+- Empty state (no customers): "No customers yet" with a New customer button for writers. Search with no match: "No customers match" with a Clear search button. Every customer inactive, no search and Show inactive off: "No active customers" with a Show inactive button.
 - Loading: `LoadingState` until the customers query is ready. A failed query shows the error banner with Retry, which rebuilds only the failed query (`recoverLiveQueries`).
 - Phone: each customer is a card (display name, then company, email and phone on muted lines), sub-customer cards indented. The toolbar is a search field and the Show inactive toggle.
 

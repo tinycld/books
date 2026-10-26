@@ -1,0 +1,21 @@
+{
+    "outDir": ".",
+    "shots": [
+        { "name": "list", "url": "/a/books/customers", "ready": "customers-list" },
+        {
+            "name": "list-empty",
+            "url": "/a/books/customers",
+            "emptyRecords": "books_customers",
+            "ready": "customers-empty"
+        },
+        {
+            "name": "list-no-match",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "actions": [
+                { "fill": "customers-search", "value": "Zephyr Logistics" },
+                { "waitFor": "customers-no-match" }
+            ]
+        }
+    ]
+}
