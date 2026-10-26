@@ -11,7 +11,7 @@
 - scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
 - capture manifest: docs/plans/report-shell-capture.json
 - review mode: C — none (unattended)
-- core extension: tinycld PR #379 (branch books/p5-report-shell) — checkpoint 0, recoverLiveQueries fix (human decision 2026-10-26, option 1)
+- core extension: tinycld PR #380 (useRecord queryKey, merged eaf01844); tinycld PR #379 (branch books/p5-report-shell) — checkpoint 0, recoverLiveQueries fix (human decision 2026-10-26, option 1)
 - sparks:
   - report reads like a finished document → expressible (ReportDocumentHeader strip: text-muted-foreground, text-lg font-semibold text-foreground, border-border; books_settings.business_name)
   - totals set apart by weight and rule lines, not color → expressible (font-semibold, border-t border-border subtotal, border-t-2 border-foreground total; red negatives text-danger)
@@ -24,9 +24,12 @@
 - cp 1 · reviewers A7 and B1: "docs/plans/report-shell-ledger.md: the Files block does not name this file … every file outside the Files block is a finding" — rejected: review-diff.mjs adds the ledger to the planned list itself (`planned.push(`docs/plans/${feature}-ledger.md`, …)`); the ledger is the loop's own record, written at every checkpoint.
 
 ## Design notes
-(none yet)
+- cp 5 · hub loading and error states not captured at cp 5 → captured at cp 6 (hub-loading, hub-error).
+- cp 6 · tb: business-name line not seen (seed writes no business_name; blank is omitted per spec).
+- cp 6 · hub-loading, hub-error: sidebar "+ New" hidden while access loads (shell behavior).
 
 ## Out-of-plan changes
+- cp 6 · tests/use-reports-hub.test.tsx: no-report input changed to HUB_ENTRIES_NONE because cp 6 makes trial-balance available (test-writer confirmed; assertion unchanged).
 - after cp 0 merge · tests/accounts-form-harness.ts (failsOnceOnDemandCollection replaces failsOnceCollection: an on-demand source whose first loadSubset is refused with a 403, as pbtsdb fails), tests/silence-log.ts (refusedLoad; expectLiveQueryError matches on-demand failure lines by source id), tests/setup-parts.test.tsx (retry test also mounts useSetupCompleted and asserts it stays defined; proven by a temporary revert of the core fix). The books suite now prints no stderr.
 - cp 1 · warning cleanup (user rule: fix every warning): hooks/useCloseOverrides.ts (onError on grant/revoke mutations — refusals are outcomes, not Sentry errors), explicit queryKey on 8 books live queries (hooks/useAccountsQuery.ts, useAccountUsage.ts, useBooksAccess.ts, useSetupCompleted.ts, useBooksSetup.ts, components/entries/EntryRow.tsx — TanStack hot-render-path warning), tests/accounts-form-harness.ts (index options on 4 builders; duplicate field), tests/silence-log.ts (expectLiveQueryError replaces silenceConsole), 11 test files using it, tests/setup-parts.test.tsx.
 - cp 1 · lib/opening-balances.ts, lib/entry-schema.ts, lib/settings-schema.ts: their private real-day validators now use isIsoDay (gate-3 A5, one helper instead of four). Plus lib/opening-balances-schema.ts (the real isRealDay call site). isIsoDay now refuses every year before 1900 (deliberate bound, fix-review R3): stricter than before for opening balances, which accepted any year, and for entry/settings, which refused only 0000–0099.
@@ -106,8 +109,18 @@
 - gate 3 A: plan defect — hub showed "No reports yet" while access loads and forever if it fails → accepted+fixed (N1: state loading/error/ready, onRetry rebuilds the access query with books_access as a source, safe since tinycld #379; spec gains two hub bullets); doubled border under the last row → fixed (N2); access gate untested → tests/use-reports-hub.test.tsx (N3).
 - gate 3 B: nothing found.
 - fix review: no defects; books_access as a source accepted (decisions updated; memory p1-opening-balances now stale → retrospective). Retry onError logging untested → test added; it first used markError on an eager source, which exposed a core order question → core 0b item 2 tried and REVERTED (app sources are on-demand and never error); test rewritten with accessFailsTwice (the retried load is refused again; log.error once; state back to error). Rebutted: multi-row divider seen only in code (checkpoint Tests do not ask for it).
-- core 0b (tinycld PR, branch books/p5-report-shell): useRecord explicit queryKey — the hot-render-path warning in register-realtime.test.ts came from core useRecord; awaiting human approval to merge.
+- core 0b: tinycld PR #380, useRecord explicit queryKey (the hot-render-path warning in register-realtime.test.ts came from core useRecord) — human approved, CI green, merged 2026-10-26 (eaf01844); exclusive released.
 - gate 1 (final): tinycld-pkg check pass; stderr none.
+
+## Checkpoint 6 — Report screen frame and states
+- test writer: tests/report-state.test.ts (new), tests/report-registry.test.ts (changed), tests/e2e/report-shell-helpers.ts, tests/e2e/report-shell-frame.spec.ts (3 e2e), scratch capture spec gains route hold/fail; red for the right reason: yes (missing lib/report-state; no available report; no reports/[report] route); untestable: none.
+- implementer: lib/report-state.ts, hooks/useReportScreen.ts, hooks/useBackToReports.ts, components/reports/{ReportScreenView,ReportHeader,ReportDocumentHeader,ReportPeriodControl,ReportEmptyState,ReportNotFound}.tsx, screens/reports/[report].tsx, lib/report-registry.ts (trial-balance available), evidence/cp6/capture.json; DONE. Self-declared: detailRowCount (plan defect: the Trial Balance always has a Total row, so rows.length is never 0; plan Do 4 text corrected); shared ReportBackLink/REPORT_TAP_TARGET; prerequisites frame carries report-screen; EmptyBody isVisible wrapper; whitespace business name is blank.
+- test disputes: the implementer wrote tests/report-detail-rows.test.ts and edited tests/use-reports-hub.test.tsx (implementers may not) → a fresh test writer took both over: detail-row cases moved into report-state.test.ts against the real buildTrialBalance (proven by a temporary break); the hub test input change to HUB_ENTRIES_NONE kept (registry flip made REPORT_ENTRIES no longer a no-report input).
+- gate 1: staged test-writer files unedited; tinycld-pkg check pass (2559); e2e -g "report-shell:" 3 passed.
+- gate 2 (Fable): 32 shots valid; no BLOCKING; NOTEs: business-name line not seen (seed has no business name; spec omits a blank name); sidebar "+ New" hidden while access loads (hub-loading, hub-error; shell behavior).
+- gate 3 A: no defects; declared differences accepted. Untested prerequisites stage → tests/use-report-prerequisites.test.tsx (7 tests; three temporary breaks each caught).
+- gate 3 B: no rule breaks; ledger records (out-of-plan test file, detailRowCount) → recorded here; staging decisions copy refreshed.
+- gate 1 (final): tinycld-pkg check pass (2566); stderr none.
 
 ## Final review
 - eval:

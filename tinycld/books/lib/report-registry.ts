@@ -53,7 +53,7 @@ export const REPORT_ENTRIES: readonly ReportEntry[] = [
         title: 'Trial Balance',
         description: 'Debit and credit balance of every account on a date',
         section: 'accountant',
-        available: false,
+        available: true,
     },
     {
         id: 'general-ledger',
