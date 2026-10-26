@@ -2,7 +2,12 @@
 // `@tinycld/core/lib/pocketbase` module in each test file serves `useStore`
 // from this registry, so every hook and component under test is the real one
 // and reads and writes real TanStack DB local-only collections.
-import { BasicIndex, createCollection, localOnlyCollectionOptions } from '@tanstack/db'
+import {
+    BasicIndex,
+    createCollection,
+    localOnlyCollectionOptions,
+    type OperationType,
+} from '@tanstack/db'
 import type { OrgPkgAccess } from '@tinycld/core/types/pbSchema'
 import { ACCOUNTS, BALANCES } from '../tinycld/books/lib/chart-of-accounts-fixture'
 import type {
@@ -62,6 +67,14 @@ const state = {
     refuseAt: [] as { at: number; error: unknown }[],
     // Names passed to useStore, in order, so a test can see which collections a hook reads.
     requested: [] as string[],
+    // Names of the seeded collections that received cleanup(), in order.
+    cleanups: [] as string[],
+}
+
+// The seeded collections that received cleanup() since the last seed, in order, so a retry
+// test can prove that no source was cleaned.
+export function cleanups() {
+    return [...state.cleanups]
 }
 
 export function requestedStores() {
@@ -221,7 +234,7 @@ async function refuseSharedWrite({
     if (state.refusal) throw state.refusal
 }
 
-function accountsCollection() {
+function accountsCollection(initialData: BooksAccounts[] = ACCOUNTS) {
     counter += 1
     const refuseWhenAsked = async (args: Parameters<typeof refuseSharedWrite>[0]) => {
         state.log.push(...args.transaction.mutations.map(m => `account:${String(m.key)}`))
@@ -231,7 +244,7 @@ function accountsCollection() {
         localOnlyCollectionOptions({
             id: `books_accounts-${counter}`,
             getKey: (row: BooksAccounts) => row.id,
-            initialData: ACCOUNTS,
+            initialData,
             onInsert: refuseWhenAsked,
             onUpdate: refuseWhenAsked,
             onDelete: refuseWhenAsked,
@@ -347,7 +360,7 @@ function overridesCollection(initialData: BooksCloseOverrides[]) {
 
 type AccessMutation = {
     key: unknown
-    type: string
+    type: OperationType
     modified: Record<string, unknown>
     changes: Record<string, unknown>
 }
@@ -577,10 +590,48 @@ function journalLine(account: string, position: number): BooksJournalLines {
     }
 }
 
-function accountsCollectionFor(opts: { accountsNeverReady?: boolean; accountsErrored?: boolean }) {
+function accountsCollectionFor(opts: {
+    accountsNeverReady?: boolean
+    accountsErrored?: boolean
+    accountsFailsOnce?: boolean
+    ledger?: { accounts?: BooksAccounts[] }
+}) {
     if (opts.accountsErrored) return erroredCollection<BooksAccounts>()
     if (opts.accountsNeverReady) return neverReady<BooksAccounts>()
-    return accountsCollection()
+    if (opts.accountsFailsOnce) {
+        return failsOnceOnDemandCollection<BooksAccounts>(opts.ledger?.accounts ?? ACCOUNTS)
+    }
+    return accountsCollection(opts.ledger?.accounts)
+}
+
+function linesCollectionFor(
+    opts: { linesNeverReady?: boolean; linesFailsOnce?: boolean },
+    rows: BooksJournalLines[]
+) {
+    if (opts.linesNeverReady) return neverReady<BooksJournalLines>()
+    if (opts.linesFailsOnce) return failsOnceOnDemandCollection<BooksJournalLines>(rows)
+    return guarded<BooksJournalLines>('books_journal_lines', rows)
+}
+
+function balancesCollectionFor(
+    opts: { balancesNeverReady?: boolean; balancesFailsOnce?: boolean },
+    rows: BooksAccountBalances[]
+) {
+    if (opts.balancesNeverReady) return neverReady<BooksAccountBalances>()
+    if (opts.balancesFailsOnce) return failsOnceOnDemandCollection<BooksAccountBalances>(rows)
+    return local<BooksAccountBalances>('books_account_balances', rows)
+}
+
+// Records each cleanup() a seeded collection receives under its registry name, then runs it.
+function recordCleanups(registry: Record<string, { cleanup(): Promise<void> }>) {
+    for (const [name, collection] of Object.entries(registry)) {
+        const cleanup = collection.cleanup.bind(collection)
+        collection.cleanup = () => {
+            state.cleanups.push(name)
+            return cleanup()
+        }
+    }
+    return registry
 }
 
 function settingsCollectionFor(
@@ -659,8 +710,16 @@ export function seedBooks(
         accountsNeverReady?: boolean
         // An accounts collection whose sync fails, so the accounts query errors.
         accountsErrored?: boolean
+        // An accounts collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads succeed; the source itself stays ready.
+        accountsFailsOnce?: boolean
+        // A journal-lines collection that fails its first subset load the same way.
+        linesFailsOnce?: boolean
         // A balances collection that never finishes loading.
         balancesNeverReady?: boolean
+        // A balances collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads succeed; the source itself stays ready.
+        balancesFailsOnce?: boolean
         // A settings collection that never finishes loading.
         settingsNeverReady?: boolean
         // A settings collection whose first load fails and whose reload succeeds.
@@ -712,7 +771,9 @@ export function seedBooks(
         // An access collection that never finishes loading, so the Books level stays unknown.
         accessNeverReady?: boolean
         // Replaces the journal lines, entries, balances and settings rows, for the register tests.
+        // `accounts`, when given, replaces the seeded accounts.
         ledger?: {
+            accounts?: BooksAccounts[]
             lines: BooksJournalLines[]
             entries: BooksJournalEntries[]
             balances: BooksAccountBalances[]
@@ -750,19 +811,13 @@ export function seedBooks(
     state.refuseAt = []
     state.entered = []
     state.requested = []
+    state.cleanups = []
     state.gate = null
     state.steps = null
-    state.registry = {
+    state.registry = recordCleanups({
         books_accounts: accountsCollectionFor(opts),
-        books_account_balances: opts.balancesNeverReady
-            ? neverReady<BooksAccountBalances>()
-            : local<BooksAccountBalances>(
-                  'books_account_balances',
-                  opts.ledger?.balances ?? BALANCES
-              ),
-        books_journal_lines: opts.linesNeverReady
-            ? neverReady<BooksJournalLines>()
-            : guarded<BooksJournalLines>('books_journal_lines', opts.ledger?.lines ?? lines),
+        books_account_balances: balancesCollectionFor(opts, opts.ledger?.balances ?? BALANCES),
+        books_journal_lines: linesCollectionFor(opts, opts.ledger?.lines ?? lines),
         books_journal_entries: guarded<BooksJournalEntries>(
             'books_journal_entries',
             opts.ledger?.entries ?? []
@@ -794,7 +849,7 @@ export function seedBooks(
         ),
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
-    }
+    })
 }
 
 export function accountsStore() {
