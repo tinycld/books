@@ -87,6 +87,17 @@
 - fix review 1: THOUSANDS_WITHOUT_CENTS had no integer-exact test → sweep and point tests added (proven by a temporary float-rounding break); roundFraction comment false → rewritten. fix review 2 (comment only): wording narrowed → reviewer's wording applied.
 - gate 1 (final): tinycld-pkg check pass (2485 tests); warnings: only the open shared-source bug's two lines.
 
+## Checkpoint 4 — Trial Balance figures
+- test writer: tests/trial-balance.test.ts (21), tests/use-trial-balance.test.tsx (6), harness (ledger.accounts, balancesFailsOnce via failsOnceOnDemandCollection, cleanups()); red for the right reason: yes (missing modules; proven sound against a throwaway implementation, 27/27, and a rebuild-everything mutant fails the retry test); untestable: none. Out of plan: harness AccessMutation.type typed OperationType (existing type error). Found: typechecking tests/ shows 65 existing errors in 14 test files (retro item 3, awaiting human).
+- implementer: lib/reports/trial-balance-rows.ts, hooks/useTrialBalance.ts, lib/reports/trial-balance.ts, lib/reports/definitions.ts; DONE (four live queries; superseded by L1 below).
+- test disputes: none
+- gate 1: tinycld-pkg check pass (2512); stderr none
+- gate 2: n/a (logic)
+- gate 3 A: no defects; accounting verified (prior-year netting, edge lines, debit/credit sides, Active). Untested: accounts/lines failure retry, synthetic row last with no equity account, synthetic zero under All, blank-number label → tests added (L2–L5).
+- gate 3 B: four live queries stitched with JS Maps breaks CLAUDE.md pbtsdb ("one query with .join() + .select()") → accepted+fixed (L1: one query, accounts leftJoin through/prior/edge total subqueries, TrialBalanceSourceRow derived from the query, BalanceTotals removed). Plan defect: Do step 5 specified the four queries; plan updated (cp 4 Interfaces, Do, Tests), plan-check 0.
+- fix review: no code defects; declared differences accepted (caseWhen(isUndefined) keeps a missing join row null; NO_EDGE constant; sources returned from useTrialBalanceRows). Gaps: missing totals row null through the query; realtime left join no-match → match → tests added (proven by temporary breaks).
+- gate 1 (final): tinycld-pkg check pass (2520 tests); stderr none.
+
 ## Final review
 - eval:
 - native: not executed in this run
