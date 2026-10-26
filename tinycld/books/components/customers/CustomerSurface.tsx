@@ -1,8 +1,10 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useRegisterShortcuts, useShortcutScope } from '@tinycld/core/lib/shortcuts'
-import { type ReactNode, useId, useMemo, useRef } from 'react'
+import { type ReactNode, type Ref, useId, useMemo, useRef } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { type DetailSurface, formRowClassFor } from '../../lib/detail-surface'
+
+const noop = () => {}
 
 interface CustomerSurfaceProps {
     surface: DetailSurface
@@ -12,6 +14,13 @@ interface CustomerSurfaceProps {
     footer: ReactNode
     children: ReactNode
     testID?: string
+    // True while a save is in flight: the back button and Escape do nothing. Other ways
+    // out (the package rail, the tab bar, the search palette, another list row, the
+    // browser's or hardware back) still leave; the save routes its answer by whether the
+    // user still sees the form.
+    isLeaveDisabled?: boolean
+    // Set on the root view, so the form can tell when the surface has closed.
+    surfaceRef?: Ref<View>
 }
 
 // Escape runs Cancel. The surface owns a `modal` scope, and every core layer (a menu, a
@@ -19,11 +28,11 @@ interface CustomerSurfaceProps {
 // itself. The id is per instance: two customer screens can be mounted for a moment
 // while one replaces the other, and a shared id would let the leaving one unregister
 // the new one's shortcut.
-function useEscapeToLeave(onLeave: () => void) {
+function useEscapeToLeave(onLeave: () => void, isLeaveDisabled: boolean) {
     const owner = useShortcutScope('modal')
     const instance = useId()
     const onLeaveRef = useRef(onLeave)
-    onLeaveRef.current = onLeave
+    onLeaveRef.current = isLeaveDisabled ? noop : onLeave
     const shortcuts = useMemo(
         () => [
             {
@@ -44,7 +53,8 @@ function PageHeader({
     surface,
     title,
     onLeave,
-}: Pick<CustomerSurfaceProps, 'surface' | 'title' | 'onLeave'>) {
+    isLeaveDisabled,
+}: Pick<CustomerSurfaceProps, 'surface' | 'title' | 'onLeave'> & { isLeaveDisabled: boolean }) {
     return (
         <View testID="customer-page-header" className="border-b border-border">
             <View className={`pb-3 pt-2 ${formRowClassFor(surface)}`}>
@@ -52,6 +62,7 @@ function PageHeader({
                     testID="customer-back"
                     accessibilityRole="button"
                     accessibilityLabel="Back to customers"
+                    disabled={isLeaveDisabled}
                     onPress={onLeave}
                     className="-ml-1 min-h-11 justify-center self-start px-1"
                 >
@@ -95,11 +106,23 @@ export function CustomerSurface({
     footer,
     children,
     testID = 'customer-page',
+    isLeaveDisabled = false,
+    surfaceRef,
 }: CustomerSurfaceProps) {
-    useEscapeToLeave(onLeave)
+    useEscapeToLeave(onLeave, isLeaveDisabled)
     return (
-        <View testID={testID} pointerEvents="auto" className="flex-1 bg-background">
-            <PageHeader surface={surface} title={title} onLeave={onLeave} />
+        <View
+            ref={surfaceRef}
+            testID={testID}
+            pointerEvents="auto"
+            className="flex-1 bg-background"
+        >
+            <PageHeader
+                surface={surface}
+                title={title}
+                onLeave={onLeave}
+                isLeaveDisabled={isLeaveDisabled}
+            />
             <View className="flex-1">{children}</View>
             <SurfaceFooter surface={surface} footer={footer} />
         </View>

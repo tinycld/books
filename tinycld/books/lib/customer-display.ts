@@ -67,3 +67,14 @@ export function customerTitle({
     if (mode === 'edit') return 'Edit customer'
     return isSubCustomer ? 'New sub-customer' : 'New customer'
 }
+
+// The footer buttons: a writer gets Cancel and Save (and Save and new on a new
+// customer); a read-only user gets only Close.
+export function customerFooter({ mode, canWrite }: { mode: 'new' | 'edit'; canWrite: boolean }) {
+    return {
+        cancel: canWrite,
+        save: canWrite,
+        saveAndNew: canWrite && mode === 'new',
+        close: !canWrite,
+    }
+}
