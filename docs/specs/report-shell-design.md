@@ -30,6 +30,8 @@ Reports hub
 - Lists available reports under section headings, in registry order: Business overview, For my accountant, Who owes you, What you owe, Sales and customers, Expenses and vendors, Taxes. A section with no available report is not drawn.
 - Each report is one row: title and one-line description; a press opens the report with its default options. Rows are 44pt or taller.
 - No available report: the empty state "No reports yet".
+- While Books access loads, the hub shows the loading state, never "No reports yet".
+- If Books access fails to load, an alert region "Could not load reports" with a Retry button that rebuilds the access query.
 - Every user with Books read access sees the hub. Level none sees no Books screens (existing shell behavior).
 
 Report screen — frame

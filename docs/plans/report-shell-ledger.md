@@ -98,6 +98,17 @@
 - fix review: no code defects; declared differences accepted (caseWhen(isUndefined) keeps a missing join row null; NO_EDGE constant; sources returned from useTrialBalanceRows). Gaps: missing totals row null through the query; realtime left join no-match → match → tests added (proven by temporary breaks).
 - gate 1 (final): tinycld-pkg check pass (2520 tests); stderr none.
 
+## Checkpoint 5 — Reports hub and sidebar entry
+- test writer: tests/shell-nav.test.ts (5), tests/books-sidebar.test.tsx (3 changed); red for the right reason: yes (no reports entry) except hasAvailableReport (from cp 1); untestable: the BarChart3 icon (core lucide stub gives every icon one function) → plan Tests bullet fixed: the icon is appearance, judged at gate 2 of checkpoint 6 where the entry first shows.
+- implementer: lib/shell-nav.ts reports entry, hooks/useReportsHub.ts, components/reports/ReportsHubView.tsx, screens/reports/index.tsx; DONE.
+- gate 1: tinycld-pkg check pass (2525); no e2e in this checkpoint.
+- gate 2 round 1 (Fable): BLOCKING — max-w-3xl cap put the empty message off center at 1280; the approved reference uses the full pane (the mockup gained the cap after approval) → fixed (N4, cap removed). Round 2: all four shots byte-identical to the reference; NOTE: hub loading and error states not captured → added to checkpoint 6 (hub-loading, hub-error shots; e2e access-error step).
+- gate 3 A: plan defect — hub showed "No reports yet" while access loads and forever if it fails → accepted+fixed (N1: state loading/error/ready, onRetry rebuilds the access query with books_access as a source, safe since tinycld #379; spec gains two hub bullets); doubled border under the last row → fixed (N2); access gate untested → tests/use-reports-hub.test.tsx (N3).
+- gate 3 B: nothing found.
+- fix review: no defects; books_access as a source accepted (decisions updated; memory p1-opening-balances now stale → retrospective). Retry onError logging untested → test added; it first used markError on an eager source, which exposed a core order question → core 0b item 2 tried and REVERTED (app sources are on-demand and never error); test rewritten with accessFailsTwice (the retried load is refused again; log.error once; state back to error). Rebutted: multi-row divider seen only in code (checkpoint Tests do not ask for it).
+- core 0b (tinycld PR, branch books/p5-report-shell): useRecord explicit queryKey — the hot-render-path warning in register-realtime.test.ts came from core useRecord; awaiting human approval to merge.
+- gate 1 (final): tinycld-pkg check pass; stderr none.
+
 ## Final review
 - eval:
 - native: not executed in this run

@@ -145,8 +145,8 @@ export function failReload(error: unknown) {
     state.reloadError = error
 }
 
-// Lets the org_pkg_access and books_admins reads that were seeded with holdCoreRead /
-// holdAdminRead finish loading, with their seeded rows.
+// Lets the org_pkg_access, books_admins and books_access reads that were seeded with
+// holdCoreRead / holdAdminRead / holdAccessRead finish loading, with their seeded rows.
 export function releaseAccessReads() {
     for (const release of state.releaseReads.splice(0)) release()
 }
@@ -548,6 +548,12 @@ function erroredCollection<T extends { id: string }>() {
 // source and its other readers stay healthy. Later loads serve `rows`, so a retry
 // that rebuilds the failed query recovers it.
 function failsOnceOnDemandCollection<T extends { id: string }>(rows: T[]) {
+    return refusingOnDemandCollection(rows, 1)
+}
+
+// As failsOnceOnDemandCollection, but the first `refusals` subset loads are refused, so
+// the load a retry triggers can be refused again.
+function refusingOnDemandCollection<T extends { id: string }>(rows: T[], refusals: number) {
     counter += 1
     const id = `fails-once-on-demand-${counter}`
     let loads = 0
@@ -562,7 +568,7 @@ function failsOnceOnDemandCollection<T extends { id: string }>(rows: T[]) {
                 return {
                     loadSubset: async () => {
                         loads += 1
-                        if (loads === 1) throw refusedLoad(id)
+                        if (loads <= refusals) throw refusedLoad(id)
                         begin()
                         for (const value of rows) write({ type: 'insert', value })
                         commit()
@@ -687,6 +693,42 @@ function usersCollectionFor(
     return local<SeedUser>('users', rows)
 }
 
+// books_access is a read-only view, so the held form takes no writes.
+function heldAccessView(rows: BooksAccess[]) {
+    counter += 1
+    return createCollection({
+        id: `books_access-held-${counter}`,
+        getKey: (row: BooksAccess) => row.id,
+        ...indexed,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseReads.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
+}
+
+function accessCollectionFor(
+    opts: {
+        accessNeverReady?: boolean
+        accessFailsOnce?: boolean
+        accessFailsTwice?: boolean
+        holdAccessRead?: boolean
+    },
+    rows: BooksAccess[]
+) {
+    if (opts.accessNeverReady) return neverReady<BooksAccess>()
+    if (opts.accessFailsOnce) return failsOnceOnDemandCollection<BooksAccess>(rows)
+    if (opts.accessFailsTwice) return refusingOnDemandCollection<BooksAccess>(rows, 2)
+    if (opts.holdAccessRead) return heldAccessView(rows)
+    return accessViewCollection(rows)
+}
+
 export function seedBooks(
     opts: {
         level?: Level
@@ -770,6 +812,14 @@ export function seedBooks(
         sequencesFailsOnce?: boolean
         // An access collection that never finishes loading, so the Books level stays unknown.
         accessNeverReady?: boolean
+        // An access collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads succeed; the source itself stays ready.
+        accessFailsOnce?: boolean
+        // As accessFailsOnce, but the load a retry triggers is refused too.
+        accessFailsTwice?: boolean
+        // An access collection whose first load waits for releaseAccessReads(), so a test can see
+        // a hook while the Books level loads and again once the seeded row has loaded.
+        holdAccessRead?: boolean
         // Replaces the journal lines, entries, balances and settings rows, for the register tests.
         // `accounts`, when given, replaces the seeded accounts.
         ledger?: {
@@ -824,9 +874,7 @@ export function seedBooks(
         ),
         books_settings: settingsCollectionFor(opts, opts.ledger?.settings ?? []),
         books_doc_sequences: sequencesCollectionFor(opts, opts.sequences ?? []),
-        books_access: opts.accessNeverReady
-            ? neverReady<BooksAccess>()
-            : accessViewCollection(opts.accessRows ?? [access]),
+        books_access: accessCollectionFor(opts, opts.accessRows ?? [access]),
         org_pkg_access: accessReadCollection<OrgPkgAccess>(
             'org_pkg_access',
             opts.coreAccess ?? [],

@@ -1,0 +1,4 @@
+{
+    "outDir": ".",
+    "shots": [{ "name": "hub-empty", "url": "/a/books/reports", "ready": "report-hub-empty" }]
+}
