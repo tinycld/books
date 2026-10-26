@@ -50,7 +50,20 @@
 - fix review (round 2 diff): offline branch untested → test added (useCloseOverrides offline failure; proven by a temporary break); ledger wording and queryKey count → fixed; opening-balances-schema.ts missing from plan/ledger → fixed; plan said report-period imports isIsoDay and named tests/register-range.test.ts → plan text corrected; opening-balances schema pre-1900 untested → test added. Test-only round, no non-test source changed → no further fix review.
 - open: shared-source recovery bug (core recoverLiveQueries cleans sources other live queries read; setup-parts retry test prints "manually cleaned up"); waiting on a human decision before checkpoint 6.
 - gate 1 (final): tinycld-pkg check pass (2378 tests); warnings: only the open bug's two lines.
-- commit: 46ca292
+- commit: 972fa94 (amended with this ledger line; the line first carried the pre-amend sha)
+
+## Checkpoint 2 — Options codec and filter helpers
+- test writer: tests/report-options.test.ts (38), tests/report-filters.test.ts (7); red for the right reason: yes (missing modules lib/report-options, lib/report-filters; proven sound against a throwaway implementation, 45/45); untestable: none
+- implementer: created lib/report-options.ts, lib/report-filters.ts; fixture re-exports ACCOUNT_GROUP_CHOICES; DONE. Self-declared differences: local PRESET_MESSAGE; preset via z.custom; serializer compares the preset by name (no PeriodContext); lists normalized on parse; rows/basis read only when offered; reportDefaults copies the number format.
+- test disputes: none
+- gate 1: tests unedited: yes · tinycld-pkg check pass (2423)
+- gate 2: n/a (logic)
+- gate 3 A: date rules applied to listed presets (bad typed To blocks a preset pick; maxMonths vs a long preset) → accepted+fixed (G1: checks only for preset custom); invalid group: value survives parse → fixed (G2); form filters not normalized like URL → fixed (G3, shared normalizeFilters); basis serialized without hasBasis → fixed (G4). Declared differences all accepted by A.
+- gate 3 B: B1 = G2; B2 = G1; B3 number-format flags assume false defaults → fixed (G5, parseNumberFormat/serializeNumberFormat); B4 choice fallback "1 account" → fixed (G6, "1 selection").
+- fix review 1: basis/rows/columnsBy from the form not limited to the spec → fixed (H1, shared normalizeChoices); preset pick must write resolved dates and the report reads last valid values → already in checkpoint 7's plan (onPreset setValue from/to; write only when valid); invalid-period fallback to the default period → only for callers that skip the schema, same plan note.
+- fix review 2: serializer wrote rows/colsBy/cols the spec does not offer → fixed (J1); schema accepted unlisted columnsBy and cash basis on a no-basis spec → fixed (J2, plain messages); column-toggle normalization untested → tests added (J3).
+- fix review 3: clean. Note (not a finding): serializeReportParams writes options.filters as given; every options source already normalizes them.
+- gate 1 (final): tinycld-pkg check pass (2444 tests); warnings: only the open shared-source bug's two lines.
 
 ## Final review
 - eval:
