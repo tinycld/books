@@ -2,7 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { useCloseOverrides } from '../tinycld/books/hooks/useCloseOverrides'
 import { splitOverrides } from '../tinycld/books/lib/overrides'
 import type { BooksAccess, BooksCloseOverrides } from '../tinycld/books/types'
@@ -543,15 +543,18 @@ describe('useCloseOverrides guard release', () => {
         seedBooks({ level: 'admin', users: USERS, accessRows: ACCESS_ROWS, overrides: [ROW] })
     })
 
-    afterEach(() => {
-        vi.restoreAllMocks()
-    })
+    // Restores only its own spy: vi.restoreAllMocks() would also undo the file's silenceLog
+    // spies, and the refusals of every later test would then print.
+    function throwBeforeWrite(method: 'insert' | 'update') {
+        const spy = vi.spyOn(overridesStore(), method).mockImplementationOnce(() => {
+            throw new Error('rejected before write')
+        })
+        onTestFinished(() => spy.mockRestore())
+    }
 
     it('grants after a grant whose insert throws before the write', async () => {
         const { result } = await renderReady()
-        vi.spyOn(overridesStore(), 'insert').mockImplementationOnce(() => {
-            throw new Error('rejected before write')
-        })
+        throwBeforeWrite('insert')
 
         let first: Awaited<ReturnType<typeof result.current.grant>> | undefined
         await act(async () => {
@@ -570,9 +573,7 @@ describe('useCloseOverrides guard release', () => {
 
     it('revokes after a revoke whose update throws before the write', async () => {
         const { result } = await renderReady()
-        vi.spyOn(overridesStore(), 'update').mockImplementationOnce(() => {
-            throw new Error('rejected before write')
-        })
+        throwBeforeWrite('update')
 
         let first: Awaited<ReturnType<typeof result.current.revoke>> | undefined
         await act(async () => {
