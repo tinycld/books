@@ -11,6 +11,7 @@ import {
     isPhone,
     openEntriesList,
     PHONE,
+    postOpenEntry,
     settleFrames,
 } from './journal-entries-helpers'
 
@@ -459,8 +460,7 @@ for (const [sizeName, size] of SIZES) {
             const other = await page.context().newPage()
             await start(other, size)
             await other.goto(draftUrl)
-            await other.getByTestId('entry-post').click()
-            await expect(other.getByTestId('entry-read-only')).toBeVisible()
+            await postOpenEntry(other)
             await other.close()
 
             await page.getByTestId('delete-draft-confirm').click()

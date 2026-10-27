@@ -1,0 +1,132 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "list",
+            "url": "/a/books/customers",
+            "ready": "customers-list"
+        },
+        {
+            "name": "delete",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "opaque": "delete-customer-dialog",
+            "actions": [
+                {
+                    "click": "customer-new-header"
+                },
+                {
+                    "waitFor": "customer-page"
+                },
+                {
+                    "fill": "form-input-display_name",
+                    "value": "Helix Delete Capture"
+                },
+                {
+                    "fill": "form-input-email",
+                    "value": "delete.capture@helix.example"
+                },
+                {
+                    "click": "customer-save"
+                },
+                {
+                    "waitForHidden": "customer-page"
+                },
+                {
+                    "fill": "customers-search",
+                    "value": "Helix Delete Capture"
+                },
+                {
+                    "waitFor": "Helix Delete Capture"
+                },
+                {
+                    "clickLabel": "Customer actions"
+                },
+                {
+                    "click": "customer-menu-delete"
+                },
+                {
+                    "waitFor": "delete-customer-dialog"
+                }
+            ]
+        },
+        {
+            "name": "inactive",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "opaque": "delete-customer-dialog",
+            "actions": [
+                {
+                    "fill": "customers-search",
+                    "value": "Alvarez"
+                },
+                {
+                    "waitFor": "Alvarez kitchen remodel"
+                },
+                {
+                    "clickLabel": "Customer actions",
+                    "nth": 1
+                },
+                {
+                    "click": "customer-menu-toggle-inactive"
+                },
+                {
+                    "waitForHidden": "customer-menu-delete"
+                },
+                {
+                    "clickLabel": "Customer actions",
+                    "nth": 0
+                },
+                {
+                    "click": "customer-menu-delete"
+                },
+                {
+                    "waitFor": "delete-customer-make-inactive"
+                }
+            ]
+        },
+        {
+            "name": "menu-w390",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "actions": [
+                {
+                    "fill": "customers-search",
+                    "value": "Alvarez"
+                },
+                {
+                    "waitFor": "Alvarez kitchen remodel"
+                },
+                {
+                    "clickLabel": "Customer actions"
+                },
+                {
+                    "waitFor": "customer-menu-delete"
+                }
+            ],
+            "widths": [390],
+            "opaque": "customer-menu-delete"
+        },
+        {
+            "name": "menu-w1280",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "actions": [
+                {
+                    "fill": "customers-search",
+                    "value": "Alvarez"
+                },
+                {
+                    "waitFor": "Alvarez kitchen remodel"
+                },
+                {
+                    "clickLabel": "Customer actions"
+                },
+                {
+                    "waitFor": "customer-menu-delete"
+                }
+            ],
+            "widths": [1280]
+        }
+    ]
+}
