@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/customer-form-checkpoints.md
 - reference: docs/plans/customer-form-reference/
 - evidence: docs/plans/customer-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen, 2026-10-26)
 - capture manifest: docs/plans/customer-form-capture.json
 - review mode: C — none (unattended)
 - core extension: tinycld PR (branch books/p2-customers), checkpoint 0 — Q15 forms host default layout; Q16 useLeaveGuard catches browser Back on web. Must merge before checkpoint 1.
@@ -234,5 +234,5 @@
 - gate 2 round 2: captured the open row menu (popover and phone sheet) and the Make inactive dialog; capture spec: one-width shots set the viewport before actions
 
 ## Final review
-- eval:
+- eval: approved 2026-10-26 (full Books suite at ed79c00 on core eaf0184: 446 passed, 4 skipped). Not answered at the gate: the status-0 wording (Design notes), the core gaps, the retrospective items; kept open.
 - native: not executed in this run
