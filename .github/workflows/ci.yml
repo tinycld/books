@@ -77,8 +77,15 @@ jobs:
         run: go test -count=1 ./...
 
   e2e:
-    name: E2E
+    name: E2E (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    # The suite grows by a screen at a time; one runner takes too long. Each
+    # shard builds its own bundle, so the shards share nothing. fail-fast off
+    # so one red shard does not hide the result of the others.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -117,7 +124,7 @@ jobs:
           # The bundle was built by the action above; reuse it (the webServer
           # still seeds + promotes + serves, just doesn't export a second time).
           TINYCLD_E2E_SKIP_EXPORT: '1'
-        run: pnpm exec tinycld-pkg test:e2e
+        run: pnpm exec tinycld-pkg test:e2e -- --shard=${{ matrix.shard }}/4
       # Capture Playwright's per-failure artifacts (trace, screenshot,
       # video, error-context.md) so a CI failure can be diagnosed
       # without a re-run. `if: failure()` skips the upload on green
@@ -126,7 +133,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-artifacts
+          name: playwright-artifacts-shard-${{ matrix.shard }}
           path: |
             ws/${{ env.PACKAGE }}/test-results/
             ws/${{ env.PACKAGE }}/playwright-report/
