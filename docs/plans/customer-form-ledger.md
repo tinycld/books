@@ -68,6 +68,7 @@
 - cp 7 · no test pins the row actions' Sentry path, the selected row's aria-current, or the accounts queryKeys.
 - core (for the human): on a phone the Books sidebar (MobileDrawer) opens only by a swipe from the left edge — no button; in iOS Safari that edge swipe can start the browser's Back.
 - cp 7 · the status-0 message says "Your change wasn't saved". When a response is lost after the server committed, the write may have landed (realtime then shows it). Core's offline toast uses the same words. A truer text is "may not have been saved: no answer from the server"; it changes a protected e2e assertion, so it waits for your word.
+- outside this unit (for the human): EntryTable, RegisterTable and OpeningAccountTable use the same stable-gutter pattern without useTableMinWidth; their column minimums still fit inside (min width − 17 px) with 11-79 px spare, so nothing clips today. Adopting the hook would keep them safe if columns grow.
 
 ## Out-of-plan changes
 - cp 1 · server/go.mod: require github.com/pocketbase/ozzo-validation/v4 v4.3.0 (refuseField's import; implementer).
@@ -235,4 +236,5 @@
 
 ## Final review
 - eval: approved 2026-10-26 (full Books suite at ed79c00 on core eaf0184: 446 passed, 4 skipped). Not answered at the gate: the status-0 wording (Design notes), the core gaps, the retrospective items; kept open.
+- PR #18 CI E2E red (3 tests): (1) list header row 525 < 540 — the rows scroller's stable gutter takes 15 px on Linux classic scrollbars (macOS overlay hides it), and the column minimums need 538 px → fixed at the source: hooks/useTableMinWidth.ts adds the measured gutter to the table's min width; the list spec now injects classic scrollbars so the check holds on every OS (proven red on the old code); (2) the save spec switched to Calendar, which a Books-only CI workspace lacks → it now leaves Books for core Settings. Review A: no BLOCK; notes applied (anchored /a/settings URL, comment). List + save specs green on both sizes; check clean.
 - native: not executed in this run

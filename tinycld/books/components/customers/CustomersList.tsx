@@ -21,6 +21,7 @@ import { useCustomersList } from '../../hooks/useCustomersList'
 import { type CustomerRecord, useCustomersQuery } from '../../hooks/useCustomersQuery'
 import { useDetailSurface } from '../../hooks/useDetailSurface'
 import { useRowWindow } from '../../hooks/useRowWindow'
+import { useTableMinWidth } from '../../hooks/useTableMinWidth'
 import { type CustomerMenuItem, customerMenuItems } from '../../lib/customer-actions'
 import {
     CUSTOMER_COLUMNS,
@@ -58,7 +59,6 @@ interface TableProps extends BodyProps {
 }
 
 const LOAD_ERROR = 'Could not load customers'
-const TABLE_CONTENT_STYLE = { width: '100%', minWidth: CUSTOMERS_TABLE_MIN_WIDTH } as const
 
 function BackLink({ onPress }: { onPress: () => void }) {
     const color = useThemeColor('muted-foreground')
@@ -156,6 +156,7 @@ function CustomersTable({ isVisible, rows, selectedId, onOpen, menuFor }: TableP
         rowHeight: CUSTOMER_ROW_HEIGHT,
         viewHeight,
     })
+    const table = useTableMinWidth(CUSTOMERS_TABLE_MIN_WIDTH)
     if (!isVisible) return null
     const visible = rows
         .slice(rowWindow.first, rowWindow.last)
@@ -173,10 +174,12 @@ function CustomersTable({ isVisible, rows, selectedId, onOpen, menuFor }: TableP
             horizontal
             testID="customers-table"
             className="flex-1"
-            contentContainerStyle={TABLE_CONTENT_STYLE}
+            contentContainerStyle={table.contentStyle}
         >
             <View className="flex-1">
                 <ScrollView
+                    ref={table.rowsScrollRef}
+                    onLayout={table.onRowsLayout}
                     className="flex-1 web:[scrollbar-gutter:stable]"
                     stickyHeaderIndices={[0]}
                     onScroll={rowWindow.onScroll}

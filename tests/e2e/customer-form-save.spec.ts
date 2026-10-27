@@ -132,17 +132,39 @@ async function afterNextFrames(page: Page) {
     )
 }
 
-// To another installed package and back again. A phone has no rail (navigateToPackage
-// clicks rail links), so there the MobileTabBar's tab is pressed.
-async function switchPackage(page: Page, slug: string) {
+// Away from Books to core Settings: a tab of core's package switcher like any package,
+// and present in every workspace (CI assembles Books alone, with no other package). The
+// rail has a Settings link; a phone has no rail, and Settings is a row of the More drawer.
+// The drawer has no test id, so its row is found next to its Sign out row: the Books
+// sidebar has a Settings item too.
+async function leaveBooks(page: Page) {
     if (isPhone(page)) {
-        await page.getByTestId(`nav-${slug}`).click()
-        await expect(page.getByTestId(`pkg-active-${slug}`)).toBeVisible()
+        await page.getByTestId('nav-more').click()
+        const signOut = page.getByText('Sign out', { exact: true })
+        await expect(signOut).toBeVisible()
+        await signOut
+            .locator('xpath=ancestor::*[.//text()[normalize-space()="Settings"]][1]')
+            .getByText('Settings', { exact: true })
+            .click()
     } else {
-        await navigateToPackage(page, slug)
+        await page.getByTestId('nav-settings').click()
     }
-    await expect(page).toHaveURL(new RegExp(`/${slug}(/|$)`))
+    // Settings is not a package, so it has no pkg-active marker; its URL and its window
+    // title show it.
+    await expect(page).toHaveURL(SETTINGS_URL)
+    await expect(page).toHaveTitle(/Settings/)
 }
+
+// Back to Books: a rail link, or on a phone the MobileTabBar's tab.
+async function returnToBooks(page: Page) {
+    if (isPhone(page)) await page.getByTestId('nav-books').click()
+    else await navigateToPackage(page, 'books')
+    await expect(page.getByTestId('pkg-active-books')).toBeVisible()
+    await expect(page).toHaveURL(/\/books(\/|$)/)
+}
+
+// Core Settings, not Books' own /a/books/settings.
+const SETTINGS_URL = /\/a\/settings(\/|$)/
 
 const FORM_RECORDS = '**/api/collections/forms/records**'
 
@@ -362,9 +384,9 @@ test.describe('customer-form: save and discard', () => {
             patches.hold()
             await save.click()
             await expect.poll(() => patches.urls.length).toBe(3)
-            // The Books page is still in the DOM under Calendar, so Playwright counts it
-            // visible; the Calendar marker and URL show it is covered.
-            await switchPackage(page, 'calendar')
+            // The Books page is still in the DOM under Settings, so Playwright counts it
+            // visible; the Settings URL and window title show it is covered.
+            await leaveBooks(page)
             patches.release()
             await expect(refusalToast).toBeVisible()
             await refusalToast.getByRole('button', { name: 'Dismiss notification' }).click()
@@ -372,7 +394,7 @@ test.describe('customer-form: save and discard', () => {
 
             // Back in Books the page is as it was left: the typed phone is kept and still
             // unsaved, and the refusal is not on its form.
-            await switchPackage(page, 'books')
+            await returnToBooks(page)
             await expect(customerSurface(page)).toBeVisible()
             await expect(page).toHaveURL(recordPath)
             await expect(field(page, 'phone')).toHaveValue(newPhone)
@@ -456,14 +478,14 @@ test.describe('customer-form: save and discard', () => {
             passed.hold()
             await save.click()
             await expect.poll(() => passed.urls.length).toBe(patchesBefore + 1)
-            await switchPackage(page, 'calendar')
+            await leaveBooks(page)
             const savedAway = patchAnswered(page, id)
             passed.release('pass')
             await savedAway
             await afterNextFrames(page)
-            await expect(page).toHaveURL(/\/calendar(\/|$)/)
+            await expect(page).toHaveURL(SETTINGS_URL)
             await page.unroute(recordUrl, passed.handler)
-            await switchPackage(page, 'books')
+            await returnToBooks(page)
             await back.click()
             await expectListShown(page)
             await expect(dialog.title).toBeHidden()
@@ -541,14 +563,14 @@ test.describe('customer-form: save and discard', () => {
             inserts.hold()
             await save.click()
             await expect.poll(() => inserts.urls.length).toBe(1)
-            await switchPackage(page, 'calendar')
+            await leaveBooks(page)
             const insertedAway = insertAnswered(page)
             inserts.release('pass')
             await insertedAway
             await afterNextFrames(page)
-            await expect(page).toHaveURL(/\/calendar(\/|$)/)
+            await expect(page).toHaveURL(SETTINGS_URL)
             await page.unroute(isRecordsUrl, inserts.handler)
-            await switchPackage(page, 'books')
+            await returnToBooks(page)
             await expect(page).toHaveURL(/\/books\/customers\/new$/)
             await expect(title).toHaveText('New customer')
             await expect(field(page, 'display_name')).toHaveValue('')

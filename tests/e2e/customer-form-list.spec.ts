@@ -114,6 +114,8 @@ function effectiveOpacity(locator: Locator) {
     })
 }
 
+const CLASSIC_SCROLLBARS = '::-webkit-scrollbar { width: 15px; height: 15px; }'
+
 // The horizontal scroller of the table: the test id's element, or the first one inside it.
 function tableScroll(page: Page) {
     return page.getByTestId('customers-table').evaluate(el => {
@@ -380,6 +382,9 @@ test.describe('customer-form: customers list', () => {
                     .poll(async () => (await table.boundingBox())?.width ?? 0)
                     .toBeGreaterThanOrEqual(540)
 
+                // Classic scrollbars, as Windows and Linux (CI) draw them: the rows' stable
+                // gutter takes width from them. macOS draws overlay scrollbars, which take none.
+                await page.addStyleTag({ content: CLASSIC_SCROLLBARS })
                 await page.setViewportSize(TABLET)
                 await expect(table).toBeVisible()
                 await expect
