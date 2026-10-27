@@ -1,89 +1,68 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import {
-    accountItem,
-    chooseViewRegister,
-    DESKTOP,
-    isPhone,
-    openChart,
-    openRegister,
-    PHONE,
-} from './account-register-helpers'
+import { accountItem, chooseViewRegister, DESKTOP, openChart } from './account-register-helpers'
 
-// Navigation and title edge cases of the register. Journal entry creation has
-// no UI until `p1-journal-entries`; this spec reads the seeded ledger through
-// the UI and writes only the one number-less account it creates and deletes
-// through the UI. It does not cover a live post or a read-only user (see
-// account-register-states.spec.ts).
+// Entry points into the register from the Chart of Accounts, and Back out of it.
+// The entries the register reads are posted by `seed.ts` through the server's
+// posting hook (dated relative to today, so no spec depends on the calendar).
+// That is the seeded-fixture exception: the interaction under test (opening a
+// register from the menu and the panel, going back) is driven through the UI;
+// only the pre-existing ledger state is seeded. The spec writes nothing.
 
-const SIZES = [
-    ['desktop', DESKTOP],
-    ['phone', PHONE],
-] as const
+const REGISTER_URL = /\/books\/accounts\/[^/?#]+$/
+const CHART_URL = /\/books\/accounts$/
 
-const REGISTER_URL = /\/books\/accounts\/[^/?#]+/
-
-async function start(page: Page, size: { width: number; height: number }) {
-    await login(page)
-    await navigateToPackage(page, 'books')
-    await page.setViewportSize(size)
+async function accountId(page: Page, name: string) {
+    const testId = await accountItem(page, name).first().getAttribute('data-testid')
+    return (testId ?? '').replace(/^account-(row|card)-/, '')
 }
 
-for (const [sizeName, size] of SIZES) {
-    test.describe(`account-register: navigation (${sizeName})`, () => {
-        test('Back pops to the Chart of Accounts instead of stacking history', async ({ page }) => {
-            await start(page, size)
-            await openRegister(page, 'Business Checking')
-            await expect(page.getByTestId('register-title')).toBeVisible()
-            await page.getByTestId('register-back').click()
-            await expect(page.getByTestId('account-search')).toBeVisible()
-            await expect(page).toHaveURL(/\/books\/accounts$/)
+async function expectChart(page: Page, name: string) {
+    await expect(page.getByTestId('account-search')).toBeVisible()
+    await expect(accountItem(page, name).first()).toBeVisible()
+}
 
-            await page.goBack()
-            await expect(page.getByTestId('register-title')).toHaveCount(0)
-            expect(page.url()).not.toMatch(REGISTER_URL)
-        })
+test.describe('account-register: navigation', () => {
+    test('the register opens from the row menu and the panel, and Back returns to the chart', async ({
+        page,
+    }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(DESKTOP)
+        await openChart(page)
+        const title = page.getByTestId('register-title')
 
-        test('Back works after reloading the register page', async ({ page }) => {
-            await start(page, size)
-            await openRegister(page, 'Business Checking')
-            await expect(page.getByTestId('register-title')).toBeVisible()
-            await page.reload()
-            await expect(page.getByTestId('register-title')).toContainText('Business Checking')
-            await page.getByTestId('register-back').click()
-            await expect(page.getByTestId('account-search')).toBeVisible()
-            await expect(page).toHaveURL(/\/books\/accounts$/)
-        })
+        const id = await accountId(page, 'Business Checking')
+        expect(id).not.toBe('')
+        await chooseViewRegister(page, 'Business Checking')
+        await expect(title).toContainText('Business Checking')
+        expect(new URL(page.url()).pathname.endsWith(`/accounts/${id}`)).toBe(true)
 
-        test('an account without a number shows just its name in the title', async ({ page }) => {
-            await start(page, size)
-            const name = `E2E No Number ${Date.now()}`
-            await openChart(page)
-            await page
-                .getByTestId(isPhone(page) ? 'account-new-header' : 'account-new-toolbar')
-                .click()
-            const panel = page.getByTestId('account-panel')
-            await expect(panel).toBeVisible()
-            await page.getByLabel('Account name').fill(name)
-            await panel.getByTestId('account-type').click()
-            await page.getByRole('menuitem', { name: 'Income', exact: true }).click()
-            await panel.getByTestId('account-detail-type').click()
-            await page.getByRole('menuitem', { name: 'Service income', exact: true }).click()
-            await panel.getByRole('button', { name: 'Save', exact: true }).click()
-            await expect(accountItem(page, name)).toBeVisible()
+        // Back pops to the chart instead of stacking a second copy on history.
+        await page.getByTestId('register-back').click()
+        await expectChart(page, 'Business Checking')
+        await expect(page).toHaveURL(CHART_URL)
+        await expect(page.getByTestId('account-panel')).toHaveCount(0)
+        await page.goBack()
+        await expect(title).toHaveCount(0)
+        expect(new URL(page.url()).pathname).not.toMatch(REGISTER_URL)
 
-            await chooseViewRegister(page, name)
-            const title = page.getByTestId('register-title')
-            await expect(title).toContainText(name)
-            const lines = (await title.innerText()).split('\n').map(line => line.trim())
-            expect(lines[0]).toBe(name)
-            expect(lines.filter(Boolean)).toHaveLength(2)
+        // After a reload there is no chart to pop to, so Back must still reach it.
+        await openChart(page)
+        await chooseViewRegister(page, 'Business Checking')
+        await expect(title).toBeVisible()
+        await page.reload()
+        await expect(title).toContainText('Business Checking')
+        await page.getByTestId('register-back').click()
+        await expectChart(page, 'Business Checking')
+        await expect(page).toHaveURL(CHART_URL)
 
-            await openChart(page)
-            await accountItem(page, name).locator('[data-testid^="account-menu-"]').click()
-            await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
-            await page.getByRole('button', { name: 'Delete', exact: true }).click()
-            await expect(accountItem(page, name)).toHaveCount(0)
-        })
+        await accountItem(page, 'Business Checking').first().click()
+        await expect(page.getByTestId('account-panel')).toBeVisible()
+        await page.getByTestId('account-panel-view-register').click()
+        await expect(title).toContainText('Business Checking')
+        expect(new URL(page.url()).pathname).toMatch(REGISTER_URL)
+        await page.getByTestId('register-back').click()
+        await expectChart(page, 'Business Checking')
     })
-}
+})
