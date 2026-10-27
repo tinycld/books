@@ -4,8 +4,11 @@ import {
     ACCOUNT_GROUP_CHOICES,
     accountGroupOf,
     filterChipValue,
+    filterPickerSchema,
     hasActiveFilters,
     inactiveFilters,
+    pickerRows,
+    shownAccountValues,
     withoutFilter,
 } from '../tinycld/books/lib/report-filters'
 import { REPORT_ACCOUNTS } from '../tinycld/books/lib/report-shell-fixture'
@@ -112,5 +115,110 @@ describe('filter state helpers', () => {
                 account: [],
             })
         ).toEqual([ACCOUNT_FILTER, VENDOR_FILTER])
+    })
+})
+
+describe('filterPickerSchema', () => {
+    // Apply stays disabled until a value is chosen: an empty selection is not a filter.
+    it('rejects an empty selection and accepts one value', () => {
+        expect(filterPickerSchema.safeParse({ values: [] }).success).toBe(false)
+        expect(filterPickerSchema.safeParse({ values: ['group:income'] }).success).toBe(true)
+        expect(filterPickerSchema.safeParse({ values: ['rpt_acct_1010'] }).success).toBe(true)
+    })
+})
+
+describe('pickerRows', () => {
+    // The picker's rows: the two active accounts, in chart order, as useAccountOptions
+    // offers them (labels trimmed by the screen).
+    const CHOICES = [
+        { value: 'rpt_acct_1010', label: '1010 Operating checking' },
+        { value: 'rpt_acct_1020', label: '1020 Reserve savings' },
+    ]
+    // Every account by id, active or not: the two above and the inactive 1030 and 1040.
+    const PICKER_NAMES: ReadonlyMap<string, string> = new Map([
+        ['rpt_acct_1010', '1010 Operating checking'],
+        ['rpt_acct_1020', '1020 Reserve savings'],
+        ['rpt_acct_1030', '1030 Old petty cash'],
+        ['rpt_acct_1040', '1040 Closed savings'],
+    ])
+
+    it('equals the choices, in order, with nothing selected', () => {
+        expect(pickerRows(CHOICES, [], PICKER_NAMES)).toEqual(CHOICES)
+    })
+
+    it('adds a selected inactive account once, after the active rows, labelled by its name', () => {
+        expect(pickerRows(CHOICES, ['rpt_acct_1030'], PICKER_NAMES)).toEqual([
+            ...CHOICES,
+            { value: 'rpt_acct_1030', label: '1030 Old petty cash' },
+        ])
+        expect(
+            pickerRows(CHOICES, ['rpt_acct_1030', 'rpt_acct_1030'], PICKER_NAMES).filter(
+                row => row.value === 'rpt_acct_1030'
+            )
+        ).toEqual([{ value: 'rpt_acct_1030', label: '1030 Old petty cash' }])
+    })
+
+    it('adds selected inactive accounts in selected order', () => {
+        expect(pickerRows(CHOICES, ['rpt_acct_1040', 'rpt_acct_1030'], PICKER_NAMES)).toEqual([
+            ...CHOICES,
+            { value: 'rpt_acct_1040', label: '1040 Closed savings' },
+            { value: 'rpt_acct_1030', label: '1030 Old petty cash' },
+        ])
+    })
+
+    it('does not repeat a selected active account', () => {
+        expect(pickerRows(CHOICES, ['rpt_acct_1020', 'rpt_acct_1030'], PICKER_NAMES)).toEqual([
+            ...CHOICES,
+            { value: 'rpt_acct_1030', label: '1030 Old petty cash' },
+        ])
+    })
+
+    it('gives a selected id with no name no row', () => {
+        expect(pickerRows(CHOICES, ['rpt_acct_missing'], PICKER_NAMES)).toEqual(CHOICES)
+        expect(pickerRows(CHOICES, ['rpt_acct_missing', 'rpt_acct_1030'], PICKER_NAMES)).toEqual([
+            ...CHOICES,
+            { value: 'rpt_acct_1030', label: '1030 Old petty cash' },
+        ])
+    })
+
+    it('never makes a group value an account row, even when a name matches it', () => {
+        // A names map never holds a group; this one does, so only the group rule keeps it out.
+        const namesWithGroup = new Map([...PICKER_NAMES, ['group:income', 'All income accounts']])
+        expect(pickerRows(CHOICES, ['group:income'], namesWithGroup)).toEqual(CHOICES)
+        expect(
+            pickerRows(CHOICES, ['group:income', 'group:expense', 'rpt_acct_1030'], PICKER_NAMES)
+        ).toEqual([...CHOICES, { value: 'rpt_acct_1030', label: '1030 Old petty cash' }])
+    })
+
+    it('leaves its inputs unchanged', () => {
+        const choices = CHOICES.map(choice => ({ ...choice }))
+        const selected = ['rpt_acct_1030']
+        pickerRows(choices, selected, PICKER_NAMES)
+        expect(choices).toEqual(CHOICES)
+        expect(selected).toEqual(['rpt_acct_1030'])
+    })
+})
+
+describe('shownAccountValues', () => {
+    // The picker's rows: an active account, then a selected inactive one it added.
+    const ROWS = [
+        { value: 'rpt_acct_1010', label: '1010 Operating checking' },
+        { value: 'rpt_acct_1030', label: '1030 Old petty cash' },
+    ]
+
+    it('keeps valid groups and values with a row, and drops the rest, once accounts are known', () => {
+        expect(
+            shownAccountValues(
+                ['group:income', 'rpt_acct_1030', 'rpt_acct_gone', 'group:nope', 'rpt_acct_1010'],
+                ROWS,
+                true
+            )
+        ).toEqual(['group:income', 'rpt_acct_1030', 'rpt_acct_1010'])
+    })
+
+    it('returns every value unchanged while accounts are not known', () => {
+        const values = ['rpt_acct_gone', 'group:nope', 'group:income', 'rpt_acct_1010']
+        expect(shownAccountValues(values, [], false)).toEqual(values)
+        expect(shownAccountValues(values, ROWS, false)).toEqual(values)
     })
 })

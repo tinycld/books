@@ -13,6 +13,7 @@ import type { PeriodContext } from '../../lib/report-period'
 import type { ControlRowItem, EmptyAction } from '../../lib/report-state'
 import { ReportDocumentHeader } from './ReportDocumentHeader'
 import { ReportEmptyState } from './ReportEmptyState'
+import { ReportFilterChips } from './ReportFilterChips'
 import { REPORT_TAP_TARGET, ReportHeader } from './ReportHeader'
 import { ReportMethodToggle } from './ReportMethodToggle'
 import { ReportNotFound } from './ReportNotFound'
@@ -88,7 +89,7 @@ function FoldAllButton({ label, onPress }: { label: string | null; onPress: () =
     )
 }
 
-// The filter chips arrive with their own controls in a later checkpoint.
+// The filter and Add filter items are drawn by ReportFilterChips, after these.
 function ControlItem({ item, model }: { item: ControlRowItem; model: ReportScreenModel }) {
     const { form } = model
     const onPeriodOpenChange = (open: boolean) => {
@@ -140,6 +141,7 @@ export function ReportScreenView({ model }: { model: ReportScreenModel }) {
                     contentContainerClassName="flex-row items-center gap-2 px-4 py-2"
                 >
                     {controls}
+                    <ReportFilterChips model={model} />
                 </ScrollView>
                 <ReportDocumentHeader
                     businessName={model.businessName}

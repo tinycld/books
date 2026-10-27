@@ -55,6 +55,10 @@ const state = {
     accessMaxInFlight: 0,
     // Releases the core and admin reads held by holdCoreRead / holdAdminRead.
     releaseReads: [] as (() => void)[],
+    // Releases the settings read held by holdSettingsRead.
+    releaseSettings: [] as (() => void)[],
+    // Releases the accounts read held by holdAccountsRead.
+    releaseAccounts: [] as (() => void)[],
     // Makes books_access.reload() wait until released.
     reloadGate: null as Promise<void> | null,
     // Makes books_access.reload() reject with this error.
@@ -149,6 +153,18 @@ export function failReload(error: unknown) {
 // holdCoreRead / holdAdminRead / holdAccessRead finish loading, with their seeded rows.
 export function releaseAccessReads() {
     for (const release of state.releaseReads.splice(0)) release()
+}
+
+// Lets the settings read that was seeded with holdSettingsRead finish loading, with its
+// seeded rows.
+export function releaseSettingsRead() {
+    for (const release of state.releaseSettings.splice(0)) release()
+}
+
+// Lets the accounts read that was seeded with holdAccountsRead finish loading, with its
+// seeded rows.
+export function releaseAccountsRead() {
+    for (const release of state.releaseAccounts.splice(0)) release()
 }
 
 export function enteredWrites() {
@@ -596,14 +612,37 @@ function journalLine(account: string, position: number): BooksJournalLines {
     }
 }
 
+// An accounts collection whose first load waits for releaseAccountsRead(). It takes no
+// writes: a test that holds the read only reads accounts.
+function heldAccountsView(rows: BooksAccounts[]) {
+    counter += 1
+    return createCollection({
+        id: `books_accounts-held-${counter}`,
+        getKey: (row: BooksAccounts) => row.id,
+        ...indexed,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseAccounts.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
+}
+
 function accountsCollectionFor(opts: {
     accountsNeverReady?: boolean
     accountsErrored?: boolean
     accountsFailsOnce?: boolean
+    holdAccountsRead?: boolean
     ledger?: { accounts?: BooksAccounts[] }
 }) {
     if (opts.accountsErrored) return erroredCollection<BooksAccounts>()
     if (opts.accountsNeverReady) return neverReady<BooksAccounts>()
+    if (opts.holdAccountsRead) return heldAccountsView(opts.ledger?.accounts ?? ACCOUNTS)
     if (opts.accountsFailsOnce) {
         return failsOnceOnDemandCollection<BooksAccounts>(opts.ledger?.accounts ?? ACCOUNTS)
     }
@@ -640,16 +679,39 @@ function recordCleanups(registry: Record<string, { cleanup(): Promise<void> }>) 
     return registry
 }
 
+// A settings collection whose first load waits for releaseSettingsRead(). It takes no
+// writes: a test that holds the read only reads settings.
+function heldSettingsView(rows: BooksSettings[]) {
+    counter += 1
+    return createCollection({
+        id: `books_settings-held-${counter}`,
+        getKey: (row: BooksSettings) => row.id,
+        ...indexed,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseSettings.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
+}
+
 function settingsCollectionFor(
     opts: {
         settingsNeverReady?: boolean
         settingsFailsOnce?: boolean
         settingsErrored?: boolean
+        holdSettingsRead?: boolean
     },
     rows: BooksSettings[]
 ) {
     if (opts.settingsErrored) return erroredCollection<BooksSettings>()
     if (opts.settingsNeverReady) return neverReady<BooksSettings>()
+    if (opts.holdSettingsRead) return heldSettingsView(rows)
     if (opts.settingsFailsOnce) return failsOnceOnDemandCollection<BooksSettings>(rows)
     return settingsCollection(rows)
 }
@@ -755,6 +817,9 @@ export function seedBooks(
         // An accounts collection whose first subset load is refused with a 403, as pbtsdb
         // refuses it, and whose later loads succeed; the source itself stays ready.
         accountsFailsOnce?: boolean
+        // An accounts collection whose first load waits for releaseAccountsRead(), so a test
+        // can act while the account names are not loaded yet.
+        holdAccountsRead?: boolean
         // A journal-lines collection that fails its first subset load the same way.
         linesFailsOnce?: boolean
         // A balances collection that never finishes loading.
@@ -768,6 +833,9 @@ export function seedBooks(
         settingsFailsOnce?: boolean
         // A settings collection whose sync fails, so the settings query errors.
         settingsErrored?: boolean
+        // A settings collection whose first load waits for releaseSettingsRead(), so a test
+        // can hold back every query that waits for settings.
+        holdSettingsRead?: boolean
         // Refuses every write to a close override row with this error.
         refuseOverrides?: unknown
         // A close overrides collection that never finishes loading.
@@ -856,6 +924,8 @@ export function seedBooks(
     state.reloadGate = null
     state.reloadError = null
     state.releaseReads = []
+    state.releaseSettings = []
+    state.releaseAccounts = []
     state.overrideDeletes = []
     state.log = []
     state.refuseAt = []

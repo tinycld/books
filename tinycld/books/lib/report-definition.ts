@@ -1,3 +1,5 @@
+import type { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+
 // The contract every report implements. The shell owns the options, the period control,
 // the filters and the table; a definition owns its spec and the hook that reads its figures.
 // Money cells are integer cents.
@@ -99,9 +101,15 @@ export interface ReportModel {
     rows: ReportModelRow[]
 }
 
+// What a failed read hands to one `recoverLiveQueries` call: its failed queries and the
+// sources they read. Both are empty while nothing failed.
+export type LiveRecovery = Pick<Parameters<typeof recoverLiveQueries>[0], 'queries' | 'sources'>
+
 export interface ReportResult {
     state: 'loading' | 'error' | 'ready'
     model?: ReportModel
+    // A screen with other failed reads merges this into its one recovery call.
+    recovery: LiveRecovery
     retry(): void
 }
 

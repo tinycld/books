@@ -1,5 +1,6 @@
 import type {
     FilterSpec,
+    LiveRecovery,
     PeriodPreset,
     ReportModel,
     ReportOptions,
@@ -8,6 +9,14 @@ import type {
 } from './report-definition'
 import { hasActiveFilters, inactiveFilters } from './report-filters'
 import { dayWords, periodWords } from './report-period'
+
+// One recovery for every failed read of a screen: a source two failed queries share is
+// cleaned once, before any of the queries loads again.
+export function mergeRecoveries(parts: readonly LiveRecovery[]): LiveRecovery {
+    const queries = parts.flatMap(part => part.queries)
+    const sources = [...new Set(parts.flatMap(part => part.sources ?? []))]
+    return { queries, sources }
+}
 
 export type ReportViewState = 'loading' | 'error' | 'empty' | 'ready'
 

@@ -55,3 +55,20 @@ export async function setAsOfDate(page: Page, value: string): Promise<void> {
     }
     await page.getByTestId('report-period-as-of').fill(value)
 }
+
+// Below the tablet breakpoint (768) a popover is a bottom sheet.
+const PHONE_MAX_WIDTH = 767
+
+// Opens the Account filter's picker from the "Add filter" menu. On wide and tablet the
+// picker is a popover; on a phone it is a bottom sheet, found by its title "Account".
+export async function openAccountPicker(page: Page): Promise<void> {
+    await page.getByTestId('report-add-filter').click()
+    await page.getByTestId('report-add-filter-account').click()
+    const picker = page.getByTestId('report-filter-picker')
+    const width = page.viewportSize()?.width ?? Number.POSITIVE_INFINITY
+    if (width <= PHONE_MAX_WIDTH) {
+        await expect(picker.getByText('Account', { exact: true })).toBeVisible()
+        return
+    }
+    await expect(picker).toBeVisible()
+}
