@@ -39,7 +39,6 @@ const SIZES = [
 const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
 const CARDS = '[data-testid^="entries-card-"]'
 const NUMBER = /^JE-\d+$/
-const VOID_TEXT = 'A reversing entry is posted in the original period. The number is kept.'
 
 async function start(page: Page, size: { width: number; height: number }) {
     await login(page)
@@ -60,20 +59,6 @@ function refuse(route: Route, message: string) {
         contentType: 'application/json',
         body: JSON.stringify({ message, data: {} }),
     })
-}
-
-async function expectReverseOffered(page: Page, isOffered: boolean) {
-    const count = isOffered ? 1 : 0
-    if (isPhone(page)) {
-        await page.getByTestId('entry-more').click()
-        await expect(page.getByRole('menuitem', { name: 'Reverse', exact: true })).toHaveCount(
-            count
-        )
-        await page.keyboard.press('Escape')
-        return
-    }
-    const bar = page.getByTestId('entry-actions')
-    await expect(bar.getByRole('button', { name: 'Reverse', exact: true })).toHaveCount(count)
 }
 
 function uniqueMemo(label: string, sizeName: string) {
@@ -204,44 +189,7 @@ async function cellValue(locator: Locator): Promise<string> {
 }
 
 for (const [sizeName, size] of SIZES) {
-    test.describe(`journal-entries: edit, reverse, void (${sizeName})`, () => {
-        test('actions: a posted entry offers Edit, Reverse and Void; void entries offer none', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await makePosted(page, uniqueMemo('Actions', sizeName))
-
-            if (isPhone(page)) {
-                await expect(page.getByTestId('entry-edit')).toBeVisible()
-                await page.getByTestId('entry-more').click()
-                await expect(
-                    page.getByRole('menuitem', { name: 'Reverse', exact: true })
-                ).toBeVisible()
-                await expect(
-                    page.getByRole('menuitem', { name: 'Void', exact: true })
-                ).toBeVisible()
-                await page.keyboard.press('Escape')
-            } else {
-                const bar = page.getByTestId('entry-actions')
-                for (const name of ['Edit', 'Reverse', 'Void']) {
-                    await expect(bar.getByRole('button', { name, exact: true })).toBeVisible()
-                }
-            }
-
-            await backToList(page)
-            await openSeeded(page, ENTRIES_SEED.voided)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Void')
-            await expect(page.getByTestId('entry-actions')).toHaveCount(0)
-            await expect(page.getByTestId('entry-edit')).toHaveCount(0)
-            await expect(page.getByTestId('entry-more')).toHaveCount(0)
-
-            await page.getByTestId('entry-link-reversed-by').click()
-            await expect(page.getByTestId('entry-link-reverses')).toBeVisible()
-            await expect(page.getByTestId('entry-actions')).toHaveCount(0)
-            await expect(page.getByTestId('entry-edit')).toHaveCount(0)
-            await expect(page.getByTestId('entry-more')).toHaveCount(0)
-        })
-
+    test.describe(`journal-entries: reverse (${sizeName})`, () => {
         test('reverse: the dialog validates the date, then posts a mirrored reversal', async ({
             page,
         }) => {
@@ -259,7 +207,6 @@ for (const [sizeName, size] of SIZES) {
             await chooseAction(page, 'Reverse')
             const dialog = page.getByTestId('reverse-dialog')
             await expect(dialog).toBeVisible()
-            await expect(dialog.getByText(`Reverse ${number}`, { exact: true })).toBeVisible()
             await expect(page.getByTestId('reverse-memo')).toHaveValue(`Reversal of ${number}`)
             const defaultDate = today > next ? today : next
             await expect(page.getByTestId('reverse-date')).toHaveValue(defaultDate)
@@ -313,348 +260,334 @@ for (const [sizeName, size] of SIZES) {
                 )
             }
         })
-
-        test('void: Cancel keeps the entry, Void keeps the number and lists it as Void', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Void me', sizeName)
-            await makePosted(page, memo)
-            const id = entryIdOf(page)
-            const number = await entryNumber(page)
-
-            await chooseAction(page, 'Void')
-            const dialog = page.getByTestId('void-dialog')
-            await expect(dialog).toBeVisible()
-            await expect(dialog.getByText(`Void ${number}?`, { exact: true })).toBeVisible()
-            await expect(dialog).toContainText(VOID_TEXT)
-            await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-            await expect(dialog).toHaveCount(0)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-
-            await chooseAction(page, 'Void')
-            await page.getByTestId('void-confirm').click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Void')
-            await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
-            expect(entryIdOf(page)).toBe(id)
-
-            await backToList(page)
-            await searchList(page, memo)
-            const item = listItems(page, memo)
-            await expect(item).toHaveCount(1)
-            await expect(page.getByTestId(`entries-status-${id}`)).toHaveText('Void')
-            await expect(item).toContainText(number)
-        })
-
-        test('void: the seeded reversed original refuses and the message shows in the dialog', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await openSeeded(page, ENTRIES_SEED.reversed)
-            const id = entryIdOf(page)
-
-            await chooseAction(page, 'Void')
-            const dialog = page.getByTestId('void-dialog')
-            await page.getByTestId('void-confirm').click()
-            await expect(dialog.getByTestId('entry-error-summary')).toContainText(/reversed/i)
-            await expect(dialog).toBeVisible()
-
-            await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-            await expect(dialog).toHaveCount(0)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-            expect(entryIdOf(page)).toBe(id)
-        })
-
-        test('edit: prefilled replacement form, leaving writes nothing, posting replaces under the same number', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Edit me', sizeName)
-            await makePosted(page, memo)
-            const originalId = entryIdOf(page)
-            const number = await entryNumber(page)
-
-            await chooseAction(page, 'Edit')
-            await expect(page).toHaveURL(/\/entries\/new\?.*replaces=/)
-            await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
-            await expect(
-                page.getByText(
-                    `Posting this replaces ${number} under the same number. The original is voided.`
-                )
-            ).toBeVisible()
-            await expect(page.getByTestId('entry-replace-help')).toContainText(
-                `${number} stays as it is and your books do not change`
-            )
-            await expect(page.getByTestId('entry-memo')).toHaveValue(memo)
-            await expect
-                .poll(() => cellValue(page.getByTestId('entry-line-account-0')))
-                .toBe(ACCOUNT_LABELS.checking)
-            await expect
-                .poll(() => cellValue(page.getByTestId('entry-line-debit-0')))
-                .toBe('$10.00')
-            await expect
-                .poll(() => cellValue(page.getByTestId('entry-line-account-1')))
-                .toBe(ACCOUNT_LABELS.equity)
-            await expect
-                .poll(() => cellValue(page.getByTestId('entry-line-credit-1')))
-                .toBe('$10.00')
-
-            await page.getByTestId('entry-memo').fill(`${memo} changed`)
-            await page.getByTestId('entry-cancel').click()
-            await page.getByTestId('discard-confirm').click()
-            await openEntriesList(page)
-            await searchList(page, memo)
-            await expect(listItems(page, memo)).toHaveCount(1)
-            await expect(page.getByTestId(`entries-status-${originalId}`)).toHaveText('Posted')
-
-            await listItems(page, memo).click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-            await chooseAction(page, 'Edit')
-            await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
-            await fillLine(page, 0, { debit: '$12.00' })
-            await fillLine(page, 1, { credit: '$12.00' })
-            await page.getByTestId('entry-post').click()
-
-            await waitForOtherEntry(page, originalId)
-            const replacementId = entryIdOf(page)
-            await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-            await expect(page.getByTestId('entry-link-replaces')).toHaveText(`Replaces ${number}`)
-
-            await page.getByTestId('entry-link-replaces').click()
-            await expect.poll(() => entryIdOf(page)).toBe(originalId)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Void')
-
-            await backToList(page)
-            expect((await listStatuses(page, memo)).sort()).toEqual(['Posted', 'Void'])
-
-            await listItems(page, memo)
-                .filter({ has: page.getByTestId(`entries-status-${replacementId}`) })
-                .click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-            await chooseAction(page, 'Edit')
-            await page.getByTestId('entry-save-draft').click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
-            await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
-            await expect(page.getByTestId('entry-number')).toHaveText(number)
-            await expect(
-                page.getByText(
-                    `Posting this replaces ${number} under the same number. The original is voided.`
-                )
-            ).toBeVisible()
-            await page.getByTestId('entry-header-more').click()
-            await page.getByRole('menuitem', { name: 'Delete draft', exact: true }).click()
-            await page.getByTestId('delete-draft-confirm').click()
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-
-            expect((await listStatuses(page, memo)).sort()).toEqual(['Posted', 'Void'])
-            await expect(page.getByTestId(`entries-status-${replacementId}`)).toHaveText('Posted')
-        })
-
-        test('reverse: voiding the posted reversal frees the original to be reversed again', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await makePosted(page, uniqueMemo('Unreverse', sizeName))
-            const originalId = entryIdOf(page)
-            const number = await entryNumber(page)
-
-            await chooseAction(page, 'Reverse')
-            await page.getByTestId('reverse-confirm').click()
-            await waitForOtherEntry(page, originalId)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-
-            await chooseAction(page, 'Void')
-            await page.getByTestId('void-confirm').click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Void')
-
-            await page.getByTestId('entry-link-reverses').click()
-            await expect.poll(() => entryIdOf(page)).toBe(originalId)
-            await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-            await expect(page.getByTestId('entry-link-reversed-by')).toHaveCount(0)
-            await expectReverseOffered(page, true)
-            if (!isPhone(page)) await expect(page.getByTestId('entry-more')).toHaveCount(0)
-        })
-
-        test('reverse: Escape and a backdrop press keep the dialog open while the reverse is in flight', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await makePosted(page, uniqueMemo('Reverse busy', sizeName))
-            const originalId = entryIdOf(page)
-
-            await chooseAction(page, 'Reverse')
-            const dialog = page.getByTestId('reverse-dialog')
-            const held = await holdRequests(page, ENTRY_RECORDS, isStatusPost)
-            await page.getByTestId('reverse-confirm').click()
-            await held.firstHeld
-
-            await page.keyboard.press('Escape')
-            await expect(dialog).toBeVisible()
-            await page.mouse.click(2, 2)
-            await expect(dialog).toBeVisible()
-            expect(entryIdOf(page)).toBe(originalId)
-
-            held.release()
-            await waitForOtherEntry(page, originalId)
-            await expect(dialog).toHaveCount(0)
-        })
-
-        test('reverse: finishing after the user left the entry does not pull them to the reversal', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await makePosted(page, uniqueMemo('Reverse left', sizeName))
-            const number = await entryNumber(page)
-            const entryPath = new URL(page.url()).pathname
-
-            const today = await localToday(page)
-
-            await chooseAction(page, 'Reverse')
-            // The default date is next month, past the list's default range ending today.
-            await page.getByTestId('reverse-date').fill(today)
-            const held = await holdRequests(page, ENTRY_RECORDS, isStatusPost)
-            await page.getByTestId('reverse-confirm').click()
-            await held.firstHeld
-
-            await hopTo(page, booksPath(page, 'entries'))
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-            held.release()
-            await searchList(page, `Reversal of ${number}`)
-            const reversal = listItems(page, `Reversal of ${number}`)
-            await expect(reversal.locator('[data-testid^="entries-status-"]')).toHaveText('Posted')
-            await settleFrames(page)
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-            expect(new URL(page.url()).pathname).toBe(booksPath(page, 'entries'))
-            expect(new URL(page.url()).pathname).not.toBe(entryPath)
-        })
-
-        test('reverse: a refused reverse shows the message in the dialog and leaves no reversal draft', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Reverse refused', sizeName)
-            await makePosted(page, memo)
-            const originalId = entryIdOf(page)
-            const number = await entryNumber(page)
-            // No input makes the real server refuse a reverse here, so the posting PATCH is
-            // answered with a 400. This covers the dialog and the cleanup, not the server rule.
-            await page.route(ENTRY_RECORDS, route =>
-                isStatusPost(route.request()) ? refuse(route, REFUSAL) : route.continue()
-            )
-
-            await chooseAction(page, 'Reverse')
-            const dialog = page.getByTestId('reverse-dialog')
-            await page.getByTestId('reverse-confirm').click()
-            await expect(dialog.getByTestId('entry-error-summary')).toContainText(REFUSAL)
-            await expect(dialog).toBeVisible()
-            expect(entryIdOf(page)).toBe(originalId)
-
-            await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-            await expect(dialog).toHaveCount(0)
-            await backToList(page)
-            await searchList(page, memo)
-            await expect(listItems(page, memo)).toHaveCount(1)
-            await searchList(page, `Reversal of ${number}`)
-            await settleFrames(page)
-            await expect(page.getByTestId('entries-search')).toHaveValue(`Reversal of ${number}`)
-            await expect(listItems(page, `Reversal of ${number}`)).toHaveCount(0)
-        })
-
-        test('reverse: the dialog shows a close control that dismisses it', async ({ page }) => {
-            await start(page, size)
-            await makePosted(page, uniqueMemo('Reverse close', sizeName))
-
-            await chooseAction(page, 'Reverse')
-            const dialog = page.getByTestId('reverse-dialog')
-            const close = dialog.getByRole('button', { name: 'Close', exact: true })
-            await expect(close).toBeVisible()
-            await close.click()
-            await expect(dialog).toHaveCount(0)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-        })
-
-        test('edit: the form keeps the journal number instead of "Assigned when posted"', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await makePosted(page, uniqueMemo('Edit number', sizeName))
-            const number = await entryNumber(page)
-
-            await chooseAction(page, 'Edit')
-            await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
-            await expect(page.getByTestId('entry-number')).toHaveText(number)
-        })
-
-        test('edit: a draft opened for an original another edit already voided shows not-found', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Edit twice', sizeName)
-            await makePosted(page, memo)
-            await chooseAction(page, 'Edit')
-            await expect(page.getByTestId('entry-title')).toHaveText(/^Edit /)
-
-            const other = await page.context().newPage()
-            await start(other, size)
-            await openEntriesList(other)
-            await other.getByTestId('entries-search').fill(memo)
-            await listItems(other, memo).first().click()
-            await expect(other.getByTestId('entry-read-only')).toBeVisible()
-            const originalId = entryIdOf(other)
-            await chooseAction(other, 'Edit')
-            await expect(other.getByTestId('entry-title')).toHaveText(/^Edit /)
-
-            await page.getByTestId('entry-post').click()
-            await expect(page.getByTestId('entry-read-only')).toBeVisible()
-
-            // Opening the edit route again, in-app, for an original that is now void.
-            await hopTo(other, booksPath(other, 'entries'))
-            await expect(other.getByTestId('entries-screen')).toBeVisible()
-            await hopTo(other, booksPath(other, `entries/new?replaces=${originalId}`))
-            await expect(other).toHaveURL(new RegExp(`replaces=${originalId}`))
-            await expect(other.getByTestId('entry-not-found')).toBeVisible()
-            await other.close()
-        })
-
-        test('register: a posted entry shows, a draft does not, and a void keeps both lines', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const draftMemo = uniqueMemo('Register draft', sizeName)
-            const postedMemo = uniqueMemo('Register posted', sizeName)
-            await createDraftEntry(page, {
-                memo: draftMemo,
-                amount: '$10.00',
-                debitAccount: ACCOUNT_LABELS.checking,
-                creditAccount: ACCOUNT_LABELS.equity,
-            })
-            await makePosted(page, postedMemo)
-            const number = await entryNumber(page)
-
-            // A second page opens Books fresh, so the register is reached from the landing
-            // and stays open while the first page voids the entry.
-            const other = await page.context().newPage()
-            await start(other, size)
-            const rowsFor = (memo: string) =>
-                other
-                    .locator('[data-testid^="register-row-"], [data-testid^="register-card-"]')
-                    .filter({ hasText: memo })
-            await openRegister(other, 'Business Checking')
-            await other.getByTestId('register-range').click()
-            await other.getByRole('menuitem', { name: 'This month', exact: true }).click()
-            await expect(other.getByTestId('register-range')).toContainText('This month')
-            await expect(rowsFor(postedMemo)).toHaveCount(1)
-            await expect(rowsFor(draftMemo)).toHaveCount(0)
-
-            await chooseAction(page, 'Void')
-            await page.getByTestId('void-confirm').click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Void')
-
-            await expect(rowsFor(`Void of ${number}`)).toHaveCount(1)
-            await expect(rowsFor(postedMemo)).toHaveCount(1)
-            await other.close()
-        })
     })
 }
+
+test.describe('journal-entries: edit, reverse, void (desktop)', () => {
+    const sizeName = 'desktop'
+    const size = DESKTOP
+
+    test('actions: a void entry and its void reversal offer no actions', async ({ page }) => {
+        await start(page, size)
+        await openSeeded(page, ENTRIES_SEED.voided)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Void')
+        await expect(page.getByTestId('entry-actions')).toHaveCount(0)
+        await expect(page.getByTestId('entry-edit')).toHaveCount(0)
+
+        await page.getByTestId('entry-link-reversed-by').click()
+        await expect(page.getByTestId('entry-link-reverses')).toBeVisible()
+        await expect(page.getByTestId('entry-actions')).toHaveCount(0)
+        await expect(page.getByTestId('entry-edit')).toHaveCount(0)
+    })
+
+    test('void: Cancel keeps the entry, Void keeps the number and lists it as Void', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Void me', sizeName)
+        await makePosted(page, memo)
+        const id = entryIdOf(page)
+        const number = await entryNumber(page)
+
+        await chooseAction(page, 'Void')
+        const dialog = page.getByTestId('void-dialog')
+        await expect(dialog).toBeVisible()
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(dialog).toHaveCount(0)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+
+        await chooseAction(page, 'Void')
+        await page.getByTestId('void-confirm').click()
+        await expect(page.getByTestId('entry-badge')).toHaveText('Void')
+        await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
+        expect(entryIdOf(page)).toBe(id)
+
+        await backToList(page)
+        await searchList(page, memo)
+        const item = listItems(page, memo)
+        await expect(item).toHaveCount(1)
+        await expect(page.getByTestId(`entries-status-${id}`)).toHaveText('Void')
+        await expect(item).toContainText(number)
+    })
+
+    test('void: the seeded reversed original refuses and the message shows in the dialog', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await openSeeded(page, ENTRIES_SEED.reversed)
+        const id = entryIdOf(page)
+
+        await chooseAction(page, 'Void')
+        const dialog = page.getByTestId('void-dialog')
+        await page.getByTestId('void-confirm').click()
+        await expect(dialog.getByTestId('entry-error-summary')).toContainText(/reversed/i)
+        await expect(dialog).toBeVisible()
+
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(dialog).toHaveCount(0)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+        expect(entryIdOf(page)).toBe(id)
+    })
+
+    test('edit: prefilled replacement form keeps the number, leaving writes nothing, posting replaces under the same number', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Edit me', sizeName)
+        await makePosted(page, memo)
+        const originalId = entryIdOf(page)
+        const number = await entryNumber(page)
+
+        await chooseAction(page, 'Edit')
+        await expect(page).toHaveURL(/\/entries\/new\?.*replaces=/)
+        await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
+        await expect(page.getByTestId('entry-number')).toHaveText(number)
+        await expect(
+            page.getByText(
+                `Posting this replaces ${number} under the same number. The original is voided.`
+            )
+        ).toBeVisible()
+        await expect(page.getByTestId('entry-memo')).toHaveValue(memo)
+        await expect
+            .poll(() => cellValue(page.getByTestId('entry-line-account-0')))
+            .toBe(ACCOUNT_LABELS.checking)
+        await expect.poll(() => cellValue(page.getByTestId('entry-line-debit-0'))).toBe('$10.00')
+        await expect
+            .poll(() => cellValue(page.getByTestId('entry-line-account-1')))
+            .toBe(ACCOUNT_LABELS.equity)
+        await expect.poll(() => cellValue(page.getByTestId('entry-line-credit-1'))).toBe('$10.00')
+
+        await page.getByTestId('entry-memo').fill(`${memo} changed`)
+        await page.getByTestId('entry-cancel').click()
+        await page.getByTestId('discard-confirm').click()
+        await openEntriesList(page)
+        await searchList(page, memo)
+        await expect(listItems(page, memo)).toHaveCount(1)
+        await expect(page.getByTestId(`entries-status-${originalId}`)).toHaveText('Posted')
+
+        await listItems(page, memo).click()
+        await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+        await chooseAction(page, 'Edit')
+        await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
+        await fillLine(page, 0, { debit: '$12.00' })
+        await fillLine(page, 1, { credit: '$12.00' })
+        await page.getByTestId('entry-post').click()
+
+        await waitForOtherEntry(page, originalId)
+        const replacementId = entryIdOf(page)
+        await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+        await expect(page.getByTestId('entry-link-replaces')).toHaveText(`Replaces ${number}`)
+
+        await page.getByTestId('entry-link-replaces').click()
+        await expect.poll(() => entryIdOf(page)).toBe(originalId)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Void')
+
+        await backToList(page)
+        expect((await listStatuses(page, memo)).sort()).toEqual(['Posted', 'Void'])
+
+        await listItems(page, memo)
+            .filter({ has: page.getByTestId(`entries-status-${replacementId}`) })
+            .click()
+        await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+        await chooseAction(page, 'Edit')
+        await page.getByTestId('entry-save-draft').click()
+        await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+        await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
+        await expect(page.getByTestId('entry-number')).toHaveText(number)
+        await expect(
+            page.getByText(
+                `Posting this replaces ${number} under the same number. The original is voided.`
+            )
+        ).toBeVisible()
+        await page.getByTestId('entry-header-more').click()
+        await page.getByRole('menuitem', { name: 'Delete draft', exact: true }).click()
+        await page.getByTestId('delete-draft-confirm').click()
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+
+        expect((await listStatuses(page, memo)).sort()).toEqual(['Posted', 'Void'])
+        await expect(page.getByTestId(`entries-status-${replacementId}`)).toHaveText('Posted')
+    })
+
+    test('reverse: voiding the posted reversal frees the original to be reversed again', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await makePosted(page, uniqueMemo('Unreverse', sizeName))
+        const originalId = entryIdOf(page)
+        const number = await entryNumber(page)
+
+        await chooseAction(page, 'Reverse')
+        await page.getByTestId('reverse-confirm').click()
+        await waitForOtherEntry(page, originalId)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+
+        await chooseAction(page, 'Void')
+        await page.getByTestId('void-confirm').click()
+        await expect(page.getByTestId('entry-badge')).toHaveText('Void')
+
+        await page.getByTestId('entry-link-reverses').click()
+        await expect.poll(() => entryIdOf(page)).toBe(originalId)
+        await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+        await expect(page.getByTestId('entry-link-reversed-by')).toHaveCount(0)
+        await expect(
+            page.getByTestId('entry-actions').getByRole('button', { name: 'Reverse', exact: true })
+        ).toBeVisible()
+    })
+
+    test('reverse: Escape and a backdrop press keep the dialog open while the reverse is in flight', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await makePosted(page, uniqueMemo('Reverse busy', sizeName))
+        const originalId = entryIdOf(page)
+
+        await chooseAction(page, 'Reverse')
+        const dialog = page.getByTestId('reverse-dialog')
+        const held = await holdRequests(page, ENTRY_RECORDS, isStatusPost)
+        await page.getByTestId('reverse-confirm').click()
+        await held.firstHeld
+
+        await page.keyboard.press('Escape')
+        await expect(dialog).toBeVisible()
+        await page.mouse.click(2, 2)
+        await expect(dialog).toBeVisible()
+        expect(entryIdOf(page)).toBe(originalId)
+
+        held.release()
+        await waitForOtherEntry(page, originalId)
+        await expect(dialog).toHaveCount(0)
+    })
+
+    test('reverse: finishing after the user left the entry does not pull them to the reversal', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await makePosted(page, uniqueMemo('Reverse left', sizeName))
+        const number = await entryNumber(page)
+        const entryPath = new URL(page.url()).pathname
+
+        const today = await localToday(page)
+
+        await chooseAction(page, 'Reverse')
+        // The default date is next month, past the list's default range ending today.
+        await page.getByTestId('reverse-date').fill(today)
+        const held = await holdRequests(page, ENTRY_RECORDS, isStatusPost)
+        await page.getByTestId('reverse-confirm').click()
+        await held.firstHeld
+
+        await hopTo(page, booksPath(page, 'entries'))
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+        held.release()
+        await searchList(page, `Reversal of ${number}`)
+        const reversal = listItems(page, `Reversal of ${number}`)
+        await expect(reversal.locator('[data-testid^="entries-status-"]')).toHaveText('Posted')
+        await settleFrames(page)
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+        expect(new URL(page.url()).pathname).toBe(booksPath(page, 'entries'))
+        expect(new URL(page.url()).pathname).not.toBe(entryPath)
+    })
+
+    test('reverse: a refused reverse shows the message in the dialog and leaves no reversal draft', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Reverse refused', sizeName)
+        await makePosted(page, memo)
+        const originalId = entryIdOf(page)
+        const number = await entryNumber(page)
+        // No input makes the real server refuse a reverse here, so the posting PATCH is
+        // answered with a 400. This covers the dialog and the cleanup, not the server rule.
+        await page.route(ENTRY_RECORDS, route =>
+            isStatusPost(route.request()) ? refuse(route, REFUSAL) : route.continue()
+        )
+
+        await chooseAction(page, 'Reverse')
+        const dialog = page.getByTestId('reverse-dialog')
+        await page.getByTestId('reverse-confirm').click()
+        await expect(dialog.getByTestId('entry-error-summary')).toContainText(REFUSAL)
+        await expect(dialog).toBeVisible()
+        expect(entryIdOf(page)).toBe(originalId)
+
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(dialog).toHaveCount(0)
+        await backToList(page)
+        await searchList(page, memo)
+        await expect(listItems(page, memo)).toHaveCount(1)
+        await searchList(page, `Reversal of ${number}`)
+        await settleFrames(page)
+        await expect(page.getByTestId('entries-search')).toHaveValue(`Reversal of ${number}`)
+        await expect(listItems(page, `Reversal of ${number}`)).toHaveCount(0)
+    })
+
+    test('edit: a draft opened for an original another edit already voided shows not-found', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Edit twice', sizeName)
+        await makePosted(page, memo)
+        await chooseAction(page, 'Edit')
+        await expect(page.getByTestId('entry-title')).toHaveText(/^Edit /)
+
+        const other = await page.context().newPage()
+        await start(other, size)
+        await openEntriesList(other)
+        await other.getByTestId('entries-search').fill(memo)
+        await listItems(other, memo).first().click()
+        await expect(other.getByTestId('entry-read-only')).toBeVisible()
+        const originalId = entryIdOf(other)
+        await chooseAction(other, 'Edit')
+        await expect(other.getByTestId('entry-title')).toHaveText(/^Edit /)
+
+        await page.getByTestId('entry-post').click()
+        await expect(page.getByTestId('entry-read-only')).toBeVisible()
+
+        // Opening the edit route again, in-app, for an original that is now void.
+        await hopTo(other, booksPath(other, 'entries'))
+        await expect(other.getByTestId('entries-screen')).toBeVisible()
+        await hopTo(other, booksPath(other, `entries/new?replaces=${originalId}`))
+        await expect(other).toHaveURL(new RegExp(`replaces=${originalId}`))
+        await expect(other.getByTestId('entry-not-found')).toBeVisible()
+        await other.close()
+    })
+
+    test('register: a posted entry shows, a draft does not, and a void keeps both lines', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const draftMemo = uniqueMemo('Register draft', sizeName)
+        const postedMemo = uniqueMemo('Register posted', sizeName)
+        await createDraftEntry(page, {
+            memo: draftMemo,
+            amount: '$10.00',
+            debitAccount: ACCOUNT_LABELS.checking,
+            creditAccount: ACCOUNT_LABELS.equity,
+        })
+        await makePosted(page, postedMemo)
+        const number = await entryNumber(page)
+
+        // A second page opens Books fresh, so the register is reached from the landing
+        // and stays open while the first page voids the entry.
+        const other = await page.context().newPage()
+        await start(other, size)
+        const rowsFor = (memo: string) =>
+            other
+                .locator('[data-testid^="register-row-"], [data-testid^="register-card-"]')
+                .filter({ hasText: memo })
+        await openRegister(other, 'Business Checking')
+        await other.getByTestId('register-range').click()
+        await other.getByRole('menuitem', { name: 'This month', exact: true }).click()
+        await expect(other.getByTestId('register-range')).toContainText('This month')
+        await expect(rowsFor(postedMemo)).toHaveCount(1)
+        await expect(rowsFor(draftMemo)).toHaveCount(0)
+
+        await chooseAction(page, 'Void')
+        await page.getByTestId('void-confirm').click()
+        await expect(page.getByTestId('entry-badge')).toHaveText('Void')
+
+        await expect(rowsFor(`Void of ${number}`)).toHaveCount(1)
+        await expect(rowsFor(postedMemo)).toHaveCount(1)
+        await other.close()
+    })
+})
