@@ -8,3 +8,5 @@ To open a list, choose Lists in the sidebar and pick a card. To start a transact
 To enter the balances your accounts held on your starting date, see [Opening balances](help://books:opening-balances).
 
 To write and review entries, which you open from the sidebar, see [Journal entries](help://books:journal-entries).
+
+To run a report, choose Reports in the sidebar; see [Reports](help://books:reports).
