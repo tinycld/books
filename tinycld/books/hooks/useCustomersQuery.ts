@@ -7,7 +7,11 @@ import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 // tree, the search and the inactive filter are shaped in lib/customer-tree.ts.
 export function useCustomersQuery() {
     const [customersCollection] = useStore('books_customers')
-    const query = useLiveQuery(q => q.from({ customer: customersCollection }))
+    // An explicit key, so the query's identity is not rebuilt from its IR on every render.
+    const query = useLiveQuery({
+        queryKey: ['books.customers.all'],
+        query: q => q.from({ customer: customersCollection }),
+    })
     // Rebuilds only the failed list query. The collection stays out of `sources`: the open
     // customer and the parent picker read it too, and a cleaned source empties them.
     const retry = () => {
