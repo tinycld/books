@@ -26,6 +26,7 @@
 ## Design notes
 - cp 5 · hub loading and error states not captured at cp 5 → captured at cp 6 (hub-loading, hub-error).
 - cp 6 · tb: business-name line not seen (seed writes no business_name; blank is omitted per spec).
+- cp 10 · negative style and red never visible on the Trial Balance (no negative amounts).
 - cp 9 · dark-mode filter-chip remove ✕ low contrast (matches the reference).
 - cp 8 · phone money columns are 108pt (84pt of text): a seven-digit total would be cut; human to decide at the eval gate.
 - cp 7 · method toggle not seen (Trial Balance has no basis); judge at the first hasBasis report.
@@ -157,6 +158,15 @@
 - fix review 1: reset() left isValid stale (Apply enabled on an empty draft / disabled on applied values) → trigger() after reset (U1); draft cut account ids before names loaded → cut only when accounts known (U2); draft-side T3 tests (U3). Fix review 2: a nameless id kept during load could be applied after names loaded → Apply intersects with shown rows (V1). Fix review 3: rows built from the applied filter could drop a value made inactive mid-draft → rows from the values being kept (W1). Fix review 4: picker rows and Apply used different row sources → one source, model.accountPickerRows = rows for applied ∪ watched draft (X1). Fix review 5: rebutted "keep the row of an unchecked never-applied inactive account" (driver narrowed the intent: no checked value without a row); stale test helper → reads model.accountPickerRows (Y1); comment precision (Y2); rebutted a separate useWatch-freshness test (covered by e2e T1).
 - test infrastructure: tests/setup-cleanup.ts mocks expo-router with settable route params (tests/route-params.ts) for deep-link hook tests; report-format sweep made boundary-only (43k calls, ~33 ms, still fails 800/800/8 under float rounding) after a 5 s timeout under machine load.
 - gate 1 (final): tinycld-pkg check pass (2603); e2e 8 passed; stderr none.
+
+## Checkpoint 10 — Customize panel and help topic
+- test writer: tests/help-reports.test.ts (17), tests/e2e/report-shell-customize.spec.ts (2 e2e; total 10); red for the right reason: yes (no help/reports.md, no report-customize-open); untestable: none (Columns section and drawn negative style stay in the Not-reachable register). Changed from the plan: tall viewports so the row window holds every row; the write recorder matches only record writes (not auth-refresh).
+- implementer: components/reports/ReportCustomizePanel.tsx, help/reports.md, help/navigating-books.md (link), hooks/useReportScreen.ts (customize state, sections, onReset), ReportScreenView.tsx, evidence/cp10; DONE. Self-declared: accessibilityState.expanded beside aria-expanded; pb-2 section wrapper; DrawerContent accessibilityLabel; fixed 44×44 close; columnsBy select only when columnsBy exists; inline onReset; scripted edits (logged).
+- gate 1: tinycld-pkg check pass (2620); e2e report-shell 10 passed.
+- gate 2 (Fable): 4 shots valid, no BLOCKING; NOTE: negative style and red not visible (the Trial Balance has no negative amounts) — covered by URL assertions and the Not-reachable register.
+- gate 3 A: no code defects; help text said balances show "on the normal side" (wrong for contra/overdrawn balances) → fixed (A1); "copy the link from the address bar" is web-only → "In a web browser, …" (A2); Reset form state untested → assertions added (A3).
+- gate 3 B: one-shot layout reads in the wide-scroll block → polled (B1). Recorded test changes: record-only write recorder; tall viewports for the row window.
+- gate 1 (final): tinycld-pkg check pass (2620); e2e 10 passed; stderr none.
 
 ## Final review
 - eval:

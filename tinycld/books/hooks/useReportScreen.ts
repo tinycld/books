@@ -27,7 +27,9 @@ import { type PeriodContext, periodChipLabel, periodWords } from '../lib/report-
 import { foldAllLabel, foldAllTarget } from '../lib/report-rows'
 import {
     type ControlRowItem,
+    type CustomizeSection,
     controlRowItems,
+    customizeSections,
     detailRowCount,
     type EmptyAction,
     emptyAction,
@@ -148,6 +150,11 @@ export type ReportScreenModel = {
     foldAllLabel: 'Collapse all' | 'Expand all' | null
     onFoldAll(): void
     onToggleSection(sectionId: string): void
+    isCustomizeOpen: boolean
+    onOpenCustomize(): void
+    onCloseCustomize(): void
+    customizeSections: CustomizeSection[]
+    onReset(): void
 }
 
 export function useReportScreen(input: {
@@ -171,6 +178,9 @@ export function useReportScreen(input: {
     const folded = useReportUIStore(s => s.folded[definition.id]) ?? NOTHING_FOLDED
     const setFolded = useReportUIStore(s => s.setFolded)
     const toggleSection = useReportUIStore(s => s.toggleSection)
+    const isCustomizeOpen = useReportUIStore(s => s.isCustomizeOpen)
+    const onOpenCustomize = useReportUIStore(s => s.openCustomize)
+    const onCloseCustomize = useReportUIStore(s => s.closeCustomize)
     const rows = result.model?.rows ?? NO_ROWS
     const filterSpecs = definition.filters ?? []
     const accountChoices = accounts.options.map(o => ({ value: o.value, label: o.label.trim() }))
@@ -288,5 +298,10 @@ export function useReportScreen(input: {
         foldAllLabel: foldAllLabel(rows, folded),
         onFoldAll,
         onToggleSection,
+        isCustomizeOpen,
+        onOpenCustomize,
+        onCloseCustomize,
+        customizeSections: customizeSections(definition),
+        onReset: () => form.reset(),
     }
 }

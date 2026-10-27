@@ -1,5 +1,7 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { SlidersHorizontal } from 'lucide-react-native'
 import { ScrollView, Text, View } from 'react-native'
 import { useBackToReports } from '../../hooks/useBackToReports'
 import {
@@ -11,6 +13,7 @@ import {
 import type { ReportDefinition, ReportOptions } from '../../lib/report-definition'
 import type { PeriodContext } from '../../lib/report-period'
 import type { ControlRowItem, EmptyAction } from '../../lib/report-state'
+import { ReportCustomizePanel } from './ReportCustomizePanel'
 import { ReportDocumentHeader } from './ReportDocumentHeader'
 import { ReportEmptyState } from './ReportEmptyState'
 import { ReportFilterChips } from './ReportFilterChips'
@@ -89,6 +92,21 @@ function FoldAllButton({ label, onPress }: { label: string | null; onPress: () =
     )
 }
 
+function CustomizeButton({ onPress }: { onPress: () => void }) {
+    const color = useThemeColor('foreground')
+    return (
+        <Button
+            testID="report-customize-open"
+            variant="outline"
+            style={{ minHeight: REPORT_TAP_TARGET }}
+            onPress={onPress}
+        >
+            <SlidersHorizontal size={16} color={color} />
+            <ButtonText>Customize</ButtonText>
+        </Button>
+    )
+}
+
 // The filter and Add filter items are drawn by ReportFilterChips, after these.
 function ControlItem({ item, model }: { item: ControlRowItem; model: ReportScreenModel }) {
     const { form } = model
@@ -128,7 +146,12 @@ export function ReportScreenView({ model }: { model: ReportScreenModel }) {
         <ControlItem key={controlKey(item)} item={item} model={model} />
     ))
     const basis = basisLabel(definition, options)
-    const toolbar = <FoldAllButton label={model.foldAllLabel} onPress={model.onFoldAll} />
+    const toolbar = (
+        <>
+            <FoldAllButton label={model.foldAllLabel} onPress={model.onFoldAll} />
+            <CustomizeButton onPress={model.onOpenCustomize} />
+        </>
+    )
     return (
         <View testID="report-screen" className="flex-1 flex-row bg-background">
             <View className="min-w-0 flex-1">
@@ -160,6 +183,7 @@ export function ReportScreenView({ model }: { model: ReportScreenModel }) {
                 />
                 <TableBody isVisible={state === 'ready'} model={model} />
             </View>
+            <ReportCustomizePanel model={model} />
         </View>
     )
 }
