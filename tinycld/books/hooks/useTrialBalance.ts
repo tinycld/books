@@ -58,6 +58,9 @@ export function useTrialBalance(options: ReportOptions | null): ReportResult {
         return buildTrialBalance({ rows: data, rowsChoice, filter })
     }, [state, data, rowsChoice, filter])
 
+    const recovery = result.isError
+        ? { queries: [result.collection], sources: result.sources }
+        : { queries: [], sources: [] }
     const retry = () => {
         void recoverLiveQueries({
             queries: [result.collection],
@@ -66,5 +69,5 @@ export function useTrialBalance(options: ReportOptions | null): ReportResult {
         })
     }
 
-    return { state, model, retry }
+    return { state, model, recovery, retry }
 }

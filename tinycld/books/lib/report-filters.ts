@@ -1,5 +1,10 @@
+import { z } from '@tinycld/core/ui/form'
+import type { AccountChoice } from '../hooks/useAccountOptions'
 import type { AccountGroup } from './account-types'
 import type { FilterChoiceOption, FilterSpec } from './report-definition'
+
+// A filter picker's draft. An empty selection is not a filter, so Apply waits for one value.
+export const filterPickerSchema = z.object({ values: z.array(z.string()).min(1) })
 
 const GROUP_PREFIX = 'group:'
 
@@ -77,6 +82,37 @@ export function filterChipValue(
     const onlyAccounts =
         spec.kind === 'accounts' && values.every(value => accountGroupOf(value) === null)
     return onlyAccounts ? `${values.length} accounts` : `${values.length} selections`
+}
+
+// The account rows of a picker: the active accounts, then each selected account that is not
+// among them (made inactive after the filter was applied, or a linked id), so it can still be
+// unchecked. A selected id with no name has nothing to show and gets no row.
+export function pickerRows(
+    choices: readonly AccountChoice[],
+    selected: readonly string[],
+    names: ReadonlyMap<string, string>
+): AccountChoice[] {
+    const offered = new Set(choices.map(choice => choice.value))
+    const extra: AccountChoice[] = []
+    for (const value of new Set(selected)) {
+        const label = names.get(value)
+        if (offered.has(value) || value.startsWith(GROUP_PREFIX) || label === undefined) continue
+        extra.push({ value, label })
+    }
+    return [...choices, ...extra]
+}
+
+// An accounts filter keeps the groups and the accounts its picker shows a row for, so it never
+// holds a value the user cannot see or uncheck. Until the account names are known, every id is
+// nameless, so it keeps all of them rather than drop live accounts.
+export function shownAccountValues(
+    values: readonly string[],
+    rows: readonly AccountChoice[],
+    accountsKnown: boolean
+): string[] {
+    if (!accountsKnown) return [...values]
+    const shown = new Set(rows.map(row => row.value))
+    return values.filter(value => accountGroupOf(value) !== null || shown.has(value))
 }
 
 export function hasActiveFilters(filters: Record<string, string[]>): boolean {

@@ -15,6 +15,9 @@ interface ReportUIState {
     setFolded: (reportId: string, sectionIds: string[]) => void
     openSurface: (surface: ReportSurface) => void
     closeSurface: () => void
+    // Closes the surface only while it is still of this kind. A menu closes itself after an
+    // item opened the next surface, and that close must not take the new surface with it.
+    closeSurfaceOf: (kind: ReportSurface['kind']) => void
     openCustomize: () => void
     closeCustomize: () => void
     startVisit: (reportId: string) => void
@@ -39,6 +42,7 @@ export const useReportUIStore = create<ReportUIState>()(set => ({
         set(state => ({ folded: { ...state.folded, [reportId]: sectionIds } })),
     openSurface: surface => set({ surface }),
     closeSurface: () => set({ surface: null }),
+    closeSurfaceOf: kind => set(state => (state.surface?.kind === kind ? { surface: null } : {})),
     openCustomize: () => set({ isCustomizeOpen: true }),
     closeCustomize: () => set({ isCustomizeOpen: false }),
     startVisit: reportId =>

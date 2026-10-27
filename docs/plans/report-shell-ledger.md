@@ -26,11 +26,13 @@
 ## Design notes
 - cp 5 · hub loading and error states not captured at cp 5 → captured at cp 6 (hub-loading, hub-error).
 - cp 6 · tb: business-name line not seen (seed writes no business_name; blank is omitted per spec).
+- cp 9 · dark-mode filter-chip remove ✕ low contrast (matches the reference).
 - cp 8 · phone money columns are 108pt (84pt of text): a seven-digit total would be cut; human to decide at the eval gate.
 - cp 7 · method toggle not seen (Trial Balance has no basis); judge at the first hasBasis report.
 - cp 6 · hub-loading, hub-error: sidebar "+ New" hidden while access loads (shell behavior).
 
 ## Out-of-plan changes
+- cp 9 · stores/report-ui-store.ts closeSurfaceOf (plan updated); tests/setup-cleanup.ts + tests/route-params.ts (expo-router params mock for deep-link hook tests); tests/report-format.test.ts sweep cost cut (cp 3 file) after a timeout under load.
 - cp 6 · tests/use-reports-hub.test.tsx: no-report input changed to HUB_ENTRIES_NONE because cp 6 makes trial-balance available (test-writer confirmed; assertion unchanged).
 - after cp 0 merge · tests/accounts-form-harness.ts (failsOnceOnDemandCollection replaces failsOnceCollection: an on-demand source whose first loadSubset is refused with a 403, as pbtsdb fails), tests/silence-log.ts (refusedLoad; expectLiveQueryError matches on-demand failure lines by source id), tests/setup-parts.test.tsx (retry test also mounts useSetupCompleted and asserts it stays defined; proven by a temporary revert of the core fix). The books suite now prints no stderr.
 - cp 1 · warning cleanup (user rule: fix every warning): hooks/useCloseOverrides.ts (onError on grant/revoke mutations — refusals are outcomes, not Sentry errors), explicit queryKey on 8 books live queries (hooks/useAccountsQuery.ts, useAccountUsage.ts, useBooksAccess.ts, useSetupCompleted.ts, useBooksSetup.ts, components/entries/EntryRow.tsx — TanStack hot-render-path warning), tests/accounts-form-harness.ts (index options on 4 builders; duplicate field), tests/silence-log.ts (expectLiveQueryError replaces silenceConsole), 11 test files using it, tests/setup-parts.test.tsx.
@@ -144,6 +146,17 @@
 - gate 3 B: e2e sum/total depended on the row window → fixed (S2: tall viewport, assert the total row is mounted first, then poll).
 - fix review 1: the S3 amounts-side press was a second accessible button with the same name, hiding folded subtotal figures from screen readers and doubling tab stops (the driver's brief asked for it) → fixed (amounts side: onPress only, accessible={false}, tabIndex={-1}); plan interfaces updated (onToggleSection, columnAlign, Not-reachable line). Rebutted: CellDisplay.align is now unread by the renderer — kept as checkpoint 3's tested contract (the cell rule is identical for every amount column). fix review 2: clean.
 - gate 1 (final): tinycld-pkg check pass (2580); e2e 6 passed; stderr none.
+
+## Checkpoint 9 — Filter chips and account picker
+- test writer: tests/report-filters.test.ts (filterPickerSchema), tests/use-account-options.test.tsx (new), tests/e2e/report-shell-filters.spec.ts (2 e2e; total 8), helper openAccountPicker; red for the right reason: yes (missing export, missing isError/retry, no report-add-filter); untestable: none. Deviation accepted: after a fails-once retry cleanups() is [] (core #379 cleans only an errored source); the errored-source case asserts ['books_accounts'].
+- implementer: hooks/useAccountOptions.ts (isError, retry, recovery, isReady, AccountChoice), hooks/useReportScreen.ts, lib/report-filters.ts (filterPickerSchema, pickerRows, shownAccountValues), components/reports/{ReportFilterChip,ReportFilterChips,ReportAccountFilterPicker}.tsx, ReportScreenView.tsx, stores/report-ui-store.ts (closeSurfaceOf — out of plan, core Menu.Item closes after onSelect; plan updated), evidence/cp9; T6 also touched lib/report-definition.ts (LiveRecovery, ReportResult.recovery), lib/report-state.ts (mergeRecoveries), hooks/useTrialBalance.ts, hooks/useBooksSettings.ts. Self-declared: chip inner targets marginVertical -1 (44pt chip); picker onOpenChange close-only; chip ref; scripted edits (logged).
+- gate 1: tinycld-pkg check pass (2585); e2e report-shell 8 passed.
+- gate 2 (Fable): 12 shots valid, no BLOCKING; NOTE: dark-mode remove ✕ (muted-foreground on bg-secondary) low contrast, as the reference.
+- gate 3 A: picker draft lost across the 768 breakpoint → fixed (T1: draft owned above the Popover, reset on open); removing a filter left its picker open → fixed (T2); a selected value with no row could not be unchecked → fixed (T3 pickerRows); the period→filter switch discard was unreachable → removed, plan note (T4); screen-level accounts error untested → test (T5); two parallel recoveries on a shared source → one merged call (T6).
+- gate 3 B: closeSurfaceOf out of plan → plan updated (B1); inner list ScrollView not scrollable on Android → nestedScrollEnabled (B2); hand-declared choice types → derived AccountChoice (B3).
+- fix review 1: reset() left isValid stale (Apply enabled on an empty draft / disabled on applied values) → trigger() after reset (U1); draft cut account ids before names loaded → cut only when accounts known (U2); draft-side T3 tests (U3). Fix review 2: a nameless id kept during load could be applied after names loaded → Apply intersects with shown rows (V1). Fix review 3: rows built from the applied filter could drop a value made inactive mid-draft → rows from the values being kept (W1). Fix review 4: picker rows and Apply used different row sources → one source, model.accountPickerRows = rows for applied ∪ watched draft (X1). Fix review 5: rebutted "keep the row of an unchecked never-applied inactive account" (driver narrowed the intent: no checked value without a row); stale test helper → reads model.accountPickerRows (Y1); comment precision (Y2); rebutted a separate useWatch-freshness test (covered by e2e T1).
+- test infrastructure: tests/setup-cleanup.ts mocks expo-router with settable route params (tests/route-params.ts) for deep-link hook tests; report-format sweep made boundary-only (43k calls, ~33 ms, still fails 800/800/8 under float rounding) after a 5 s timeout under machine load.
+- gate 1 (final): tinycld-pkg check pass (2603); e2e 8 passed; stderr none.
 
 ## Final review
 - eval:

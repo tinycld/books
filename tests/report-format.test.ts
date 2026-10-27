@@ -126,7 +126,34 @@ function referenceThousandsWithoutCents(cents: number): string {
     return referenceSign(units, referenceGroup(magnitude / 100n))
 }
 
+// A float quotient misrounds only next to a half (near the limit, the two cents just
+// below it), so the sweep checks every cent within BOUNDARY_REACH of each half and each
+// whole multiple, not every cent in the span. A divisor with many multiples in the span
+// is sampled at a fixed stride of multiples; 100000 has only two halves there, so the
+// sweep takes all of them.
 const SWEEP_SPAN = 200000
+const BOUNDARY_REACH = 4
+const SWEEP_DIVISORS = [
+    { divisor: 100, stride: 10 },
+    { divisor: 1000, stride: 1 },
+    { divisor: 100000, stride: 1 },
+]
+
+function boundaryCents(): number[] {
+    const lowest = maxStoredAmount - SWEEP_SPAN
+    const cents = new Set<number>()
+    for (const { divisor, stride } of SWEEP_DIVISORS) {
+        const top = maxStoredAmount - (maxStoredAmount % divisor)
+        for (let multiple = top; multiple + divisor >= lowest; multiple -= divisor * stride) {
+            for (let step = -BOUNDARY_REACH; step <= BOUNDARY_REACH; step += 1) {
+                for (const value of [multiple + step, multiple + divisor / 2 + step]) {
+                    if (value >= lowest && value <= maxStoredAmount) cents.add(value)
+                }
+            }
+        }
+    }
+    return [...cents]
+}
 
 function sweepMismatches() {
     const mismatches: string[] = []
@@ -135,8 +162,8 @@ function sweepMismatches() {
         count += 1
         if (mismatches.length < 5) mismatches.push(`${format} ${cents}: ${actual} != ${expected}`)
     }
-    for (let offset = 0; offset <= SWEEP_SPAN; offset += 1) {
-        for (const cents of [maxStoredAmount - offset, -(maxStoredAmount - offset)]) {
+    for (const magnitude of boundaryCents()) {
+        for (const cents of [magnitude, -magnitude]) {
             const withoutCents = plain(cents, WITHOUT_CENTS)
             const withoutCentsExpected = referenceWithoutCents(cents)
             if (withoutCents !== withoutCentsExpected) {
@@ -183,7 +210,7 @@ describe('formatReportAmount near the stored limit', () => {
         expect(plain(49, WITHOUT_CENTS)).toBe('0')
     })
 
-    it('matches an integer-exact reference for every cent near the limit', () => {
+    it('matches an integer-exact reference at every rounding boundary near the limit', () => {
         expect(sweepMismatches()).toEqual({ count: 0, mismatches: [] })
     })
 })
