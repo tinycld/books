@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page, type Route } from '@playwright/test'
 import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 
 // Shared by the customer-form e2e specs. Customers are created by driving the
@@ -58,6 +58,14 @@ export async function openCustomersList(page: Page) {
     await expect(
         list.or(pageBack).or(panelClose).or(notFoundBack).or(listCard).first()
     ).toBeAttached()
+
+    // The list renders before the customer screen over it (a lazy route), so when the URL
+    // names a customer, wait for that screen's way out instead of taking the list as shown.
+    if (/\/books\/customers\/[^/]+$/.test(new URL(page.url()).pathname)) {
+        await expect(
+            pageBack.or(panelClose).or(notFoundBack).filter({ visible: true }).first()
+        ).toBeVisible()
+    }
 
     for (const leave of [pageBack, panelClose, notFoundBack]) {
         if (await leave.isVisible()) {
@@ -169,4 +177,39 @@ export function isDisabled(locator: Locator) {
     return locator.evaluate(
         el => el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled')
     )
+}
+
+// Holds the next PATCH or DELETE of one customer record; every other request passes.
+// `arrived` resolves once the write reaches the route; `release` sends it on to the
+// server and removes the route once its handler is done.
+export async function holdRecordWrite(page: Page, id: string, method: 'PATCH' | 'DELETE') {
+    const url = `**/api/collections/books_customers/records/${id}`
+    let open = () => {}
+    const released = new Promise<void>(resolve => {
+        open = resolve
+    })
+    let arrive = () => {}
+    const arrived = new Promise<void>(resolve => {
+        arrive = resolve
+    })
+    let finish = () => {}
+    const finished = new Promise<void>(resolve => {
+        finish = resolve
+    })
+    const handler = async (route: Route) => {
+        if (route.request().method() !== method) return route.continue()
+        arrive()
+        await released
+        await route.continue()
+        finish()
+    }
+    await page.route(url, handler)
+    return {
+        arrived,
+        release: async () => {
+            open()
+            await finished
+            await page.unroute(url, handler)
+        },
+    }
 }

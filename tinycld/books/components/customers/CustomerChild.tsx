@@ -3,12 +3,14 @@ import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
 import { Button, ButtonText, ServerActionButton } from '@tinycld/core/ui/button'
 import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import { FormRenderer } from '@tinycld/core/ui/forms'
+import { useEffect } from 'react'
 import { View } from 'react-native'
 import { type CustomerFormTarget, useCustomerForm } from '../../hooks/useCustomerForm'
 import { useCustomerNavigation } from '../../hooks/useCustomerNavigation'
 import { useDetailSurface } from '../../hooks/useDetailSurface'
 import { customerFooter } from '../../lib/customer-display'
 import { type DetailSurface, formRowClassFor } from '../../lib/detail-surface'
+import { useCustomerFormStore } from '../../stores/customer-form-store'
 import { CustomerLoadingBody, CustomerSurface } from './CustomerSurface'
 
 type CustomerFormState = ReturnType<typeof useCustomerForm>
@@ -126,6 +128,47 @@ function CustomerFooter({ state, mode, onLeave }: CustomerFooterProps) {
     )
 }
 
+// Whether the form holds unsaved edits, read the way useCustomerForm reads it.
+function hasDirtyFields(dirtyFields: object | undefined, readOnly: boolean) {
+    return !readOnly && dirtyFields !== undefined && Object.keys(dirtyFields).length > 0
+}
+
+/**
+ * Tells the Customers list whether the open customer has unsaved edits, so its Delete
+ * customer dialog can warn that they will be lost. Edit mode only (a new customer has
+ * no row to delete). The form is an outside source here: the subscription sets no React
+ * state. On unmount it clears the entry, and ends a delete of this customer, whose
+ * screen goes away once the delete lands.
+ */
+function usePublishDirty(
+    form: CustomerFormState['form'],
+    editedId: string | null,
+    readOnly: boolean
+) {
+    useEffect(() => {
+        if (editedId === null) return
+        const store = useCustomerFormStore.getState()
+        store.setDirtyCustomer(editedId, hasDirtyFields(form.formState.dirtyFields, readOnly))
+        const unsubscribe = form.subscribe({
+            formState: { dirtyFields: true },
+            callback: ({ dirtyFields }) =>
+                store.setDirtyCustomer(editedId, hasDirtyFields(dirtyFields, readOnly)),
+        })
+        return () => {
+            unsubscribe()
+            useCustomerFormStore.getState().setDirtyCustomer(editedId, false)
+        }
+    }, [form, editedId, readOnly])
+    // Apart from the subscription, so a change of access level mid-delete keeps the flag.
+    useEffect(() => {
+        if (editedId === null) return
+        return () => {
+            const current = useCustomerFormStore.getState()
+            if (current.deleting?.id === editedId) current.endDeleting()
+        }
+    }, [editedId])
+}
+
 // Asks before an unsaved form is left; Discard lets the held navigation go on.
 function DiscardDialog({ guard }: { guard: ReturnType<typeof useLeaveGuard> }) {
     return (
@@ -152,12 +195,19 @@ export function CustomerChild({ target }: { target: CustomerFormTarget }) {
     const navigation = useCustomerNavigation()
     const surface = useDetailSurface()
     const state = useCustomerForm(target)
+    const editedId = target.mode === 'edit' ? target.record.id : null
+    usePublishDirty(state.form, editedId, state.readOnly)
+    const isBeingDeleted = useCustomerFormStore(
+        s => editedId !== null && s.deleting?.id === editedId
+    )
     // Off while a save runs, so the `leave` that follows a saved write is not held. Cancel,
     // the back button and Escape are disabled for that time; the other ways out (the
     // package rail, the tab bar, the search palette, another list row, the browser's or
     // hardware back) still leave; a refusal then shows as a toast, and a success does not
-    // navigate.
-    const guard = useLeaveGuard(state.isDirty && !state.isSaving)
+    // navigate. Off too while this customer is being deleted from its row menu, where the
+    // Delete customer dialog already said the edits will be lost, so the `leave` that
+    // follows the delete asks nothing.
+    const guard = useLeaveGuard(state.isDirty && !state.isSaving && !isBeingDeleted)
     const definition = state.isReady ? state.definition : undefined
     const body = definition ? (
         <CustomerFormBody state={state} definition={definition} surface={surface} />

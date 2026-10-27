@@ -7,6 +7,7 @@ import {
     DESKTOP,
     discardDialog,
     field,
+    holdRecordWrite,
     openCustomersList,
     searchCustomers,
     uniqueName,
@@ -15,8 +16,11 @@ import {
 
 // The customer side panel: at a window of 1360 px or more a customer opens in a 480 px
 // panel beside the list, and a resize moves the open customer between the panel and the
-// page without losing anything. Every customer this spec opens for editing it creates
+// page without losing anything. The open, dirty customer can be deleted from its row menu
+// beside the panel. Every customer this spec opens for editing or deletes it creates
 // with a unique name; it reads the seeded Old Mill Bakery and Northwind customers only.
+// The delete refusal is a 400 answered through `page.route`, which writes nothing. The
+// last step holds a delete through `page.route` while the user goes to the Lists hub.
 //
 // Not covered here: there is no 390 run, because the panel surface does not exist below
 // a 1360 px window (spec Surfaces: `panel` at 1360 px or more, `page` below). The phone
@@ -121,6 +125,53 @@ function backgroundOf(locator: Locator) {
 async function pressEscapeOutsideInputs(page: Page) {
     await page.getByTestId('customer-title').click()
     await page.keyboard.press('Escape')
+}
+
+const UNSAVED_DELETE_WARNING = 'Unsaved changes to this customer will be lost.'
+const DELETE_REFUSAL = 'This customer is used on an invoice.'
+
+// From now on, records whether the not-found message or the Discard changes? question
+// ever appears, even for one frame.
+function watchForNotFoundAndDiscard(page: Page) {
+    return page.evaluate(() => {
+        const seen = { notFound: false, discard: false }
+        new MutationObserver(() => {
+            if (document.querySelector('[data-testid="customer-not-found"]')) seen.notFound = true
+            if (document.body.textContent?.includes('Discard changes?')) seen.discard = true
+        }).observe(document.body, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            characterData: true,
+        })
+        Object.assign(window, { __customerSeen: seen })
+    })
+}
+
+// To the Books Lists hub with the `t k` jump, the way out while a dialog's backdrop takes
+// the pointer off the sidebar, and waits until the hub shows.
+async function jumpToBooksLists(page: Page) {
+    await page.keyboard.press('t')
+    await page.keyboard.press('k')
+    await expect(page).toHaveURL(/\/books\/lists$/)
+    await expect(page.getByTestId('books-list-card-customers')).toBeVisible()
+}
+
+// Two frames and a task in the page, so work queued by a response that just arrived (a
+// mutation's onSuccess and any navigation it starts) has run.
+function settle(page: Page) {
+    return page.evaluate(
+        () =>
+            new Promise<void>(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve)))
+            )
+    )
+}
+
+function seenNotFoundOrDiscard(page: Page) {
+    return page.evaluate(
+        () => (window as unknown as { __customerSeen: Record<string, boolean> }).__customerSeen
+    )
 }
 
 test.describe('customer-form: side panel', () => {
@@ -364,5 +415,89 @@ test.describe('customer-form: side panel', () => {
         await expect(showInactive).toHaveAttribute('aria-checked', 'false')
         await expect(customerEntry(page, OLD_MILL)).toHaveCount(0)
         await expect(panel).toBeVisible()
+
+        // (13) The open, dirty customer deleted from its own row menu beside the panel:
+        // the dialog warns of the unsaved changes, a refusal keeps the panel and its typed
+        // notes, and the delete closes the panel with no second question and no not-found.
+        const nameD = `${prefix} D`
+        const typedNotes = `${prefix} notes`
+        await createCustomer(page, { name: nameD })
+        await searchCustomers(page, nameD)
+        const idD = await customerIdOf(page, nameD)
+        await page.getByTestId(`customer-row-${idD}`).click()
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'display_name')).toHaveValue(nameD)
+        await field(page, 'notes').fill(typedNotes)
+        await watchForNotFoundAndDiscard(page)
+
+        const deleteDialog = page.getByTestId('delete-customer-dialog')
+        const deleteBody = page.getByTestId('delete-customer-dialog-body')
+        const deleteConfirm = page.getByTestId('delete-customer-confirm')
+        const openDeleteFromRow = async () => {
+            await page.getByTestId(`customer-menu-${idD}`).click()
+            await page.getByTestId('customer-menu-delete').click()
+            await expect(deleteDialog).toBeVisible()
+            await expect(deleteBody).toContainText(UNSAVED_DELETE_WARNING)
+        }
+        const recordD = `**/api/collections/books_customers/records/${idD}`
+        await page.route(recordD, route => {
+            if (route.request().method() !== 'DELETE') return route.continue()
+            return route.fulfill({
+                status: 400,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 400, message: DELETE_REFUSAL, data: {} }),
+            })
+        })
+        await openDeleteFromRow()
+        await deleteConfirm.click()
+        await expect(deleteBody).toContainText(DELETE_REFUSAL)
+        await expect(page.getByTestId('customer-not-found')).toHaveCount(0)
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'display_name')).toHaveValue(nameD)
+        await expect(field(page, 'notes')).toHaveValue(typedNotes)
+        // Escape closes the dialog only; the click moves focus off any input first.
+        await deleteBody.click()
+        await page.keyboard.press('Escape')
+        await expect(deleteDialog).toBeHidden()
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'notes')).toHaveValue(typedNotes)
+        await page.unroute(recordD)
+
+        await openDeleteFromRow()
+        await deleteConfirm.click()
+        await expect(deleteDialog).toBeHidden()
+        await expect(panel).toBeHidden()
+        await expect(page).toHaveURL(/\/books\/customers$/)
+        await expect(dialog.title).toBeHidden()
+        await expect(customerEntry(page, nameD)).toHaveCount(0)
+        expect(await seenNotFoundOrDiscard(page)).toEqual({ notFound: false, discard: false })
+
+        // (14) The delete's follow-up acts only while the user still sees that customer: a
+        // delete of the open customer that lands after the user went on to the Lists hub
+        // leaves them there.
+        const nameE = `${prefix} E`
+        await createCustomer(page, { name: nameE })
+        await searchCustomers(page, nameE)
+        const idE = await customerIdOf(page, nameE)
+        await page.getByTestId(`customer-row-${idE}`).click()
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'display_name')).toHaveValue(nameE)
+        const heldDelete = await holdRecordWrite(page, idE, 'DELETE')
+        await page.getByTestId(`customer-menu-${idE}`).click()
+        await page.getByTestId('customer-menu-delete').click()
+        await expect(deleteDialog).toBeVisible()
+        await deleteConfirm.click()
+        await heldDelete.arrived
+        await jumpToBooksLists(page)
+        const deleted = page.waitForResponse(
+            response =>
+                response.request().method() === 'DELETE' &&
+                response.url().includes(`/books_customers/records/${idE}`)
+        )
+        await heldDelete.release()
+        expect((await deleted).ok()).toBe(true)
+        await settle(page)
+        await expect(page).toHaveURL(/\/books\/lists$/)
+        await expect(page.getByTestId('books-list-card-customers')).toBeVisible()
     })
 })

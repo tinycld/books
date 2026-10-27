@@ -95,8 +95,15 @@ async function fillEntry(page: Page, entry: EntryInput) {
 export async function createPostedEntry(page: Page, entry: EntryInput): Promise<void> {
     await openNewEntry(page)
     await fillEntry(page, entry)
+    await postOpenEntry(page)
+}
+
+// Posts the entry open on the page and waits for the server to commit it. The read-only view
+// shows the optimistic state first; the number comes only from the server's answer.
+export async function postOpenEntry(page: Page) {
     await page.getByTestId('entry-post').click()
     await expect(page.getByTestId('entry-read-only')).toBeVisible()
+    await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
 }
 
 // Books must already be open. Leaves the page on the saved draft's view.
