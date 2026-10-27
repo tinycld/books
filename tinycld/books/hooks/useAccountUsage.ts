@@ -8,6 +8,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 export function useAccountUsage(accountId: string | null) {
     const [linesCollection, accountsCollection] = useStore('books_journal_lines', 'books_accounts')
     const lineUsage = useLiveQuery({
+        queryKey: ['books-account-line-usage', accountId],
         query: query => {
             if (accountId === null) return undefined
             return query
@@ -18,6 +19,7 @@ export function useAccountUsage(accountId: string | null) {
         },
     })
     const childUsage = useLiveQuery({
+        queryKey: ['books-account-child-usage', accountId],
         query: query => {
             if (accountId === null) return undefined
             return query
