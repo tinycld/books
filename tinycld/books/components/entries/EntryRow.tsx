@@ -43,6 +43,9 @@ export interface EntryItemProps {
 export function ReversesNumber({ entryId, className }: { entryId: string; className: string }) {
     const [entriesCollection] = useStore('books_journal_entries')
     const { data: reversed, isReady } = useLiveQuery({
+        // An explicit key: this runs once per visible row, so rebuilding the IR identity on
+        // every render adds up.
+        queryKey: ['books.entries.reverses', entryId],
         query: q =>
             entryId
                 ? q

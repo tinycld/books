@@ -53,6 +53,24 @@ describe('registries', () => {
         expect(journal?.available).toBe(true)
     })
 
+    it('NEW_ACTIONS has an available Customer action in the customers column', () => {
+        const customer = NEW_ACTIONS.find(a => a.id === 'customer')
+        expect(customer).toEqual({
+            id: 'customer',
+            label: 'Customer',
+            href: 'books/customers/new',
+            column: 'customers',
+            available: true,
+        })
+    })
+
+    it('the New menu starts with the Customers column holding Customer', () => {
+        const columns = newMenuColumns(NEW_ACTIONS)
+        expect(columns[0]?.heading).toBe('Customers')
+        expect(columns[0]?.actions.map(a => a.id)).toEqual(['customer'])
+        expect(columns.map(c => c.heading)).toEqual(['Customers', 'Other'])
+    })
+
     it('LIST_ENTRIES has an available Accounts entry', () => {
         const accounts = LIST_ENTRIES.find(e => e.href === 'books/accounts')
         expect(accounts?.available).toBe(true)
@@ -62,6 +80,17 @@ describe('registries', () => {
         const entries = LIST_ENTRIES.find(e => e.href === 'books/entries')
         expect(entries?.id).toBe('entries')
         expect(entries?.available).toBe(true)
+    })
+
+    it('LIST_ENTRIES has an available Customers card', () => {
+        const customers = LIST_ENTRIES.find(e => e.id === 'customers')
+        expect(customers).toEqual({
+            id: 'customers',
+            label: 'Customers',
+            description: 'People and companies you sell to',
+            href: 'books/customers',
+            available: true,
+        })
     })
 })
 
@@ -215,6 +244,8 @@ describe('hidesNewFab', () => {
         '/a/acme/books/entries/',
         '/a/entries/books',
         '/a/acme/books/accounts',
+        '/a/books/customers',
+        '/a/books/customers/',
     ])('keeps the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(false)
     })
@@ -224,6 +255,8 @@ describe('hidesNewFab', () => {
         '/a/acme/books/entries/new/',
         '/a/acme/books/entries/abc123',
         '/a/acme/books/entries/abc123/',
+        '/a/books/customers/abc',
+        '/a/books/customers/new',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

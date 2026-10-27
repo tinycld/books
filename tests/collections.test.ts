@@ -11,6 +11,7 @@ const NAMES = [
     'books_close_overrides',
     'books_admins',
     'books_access',
+    'books_customers',
 ]
 
 function register() {
@@ -70,5 +71,17 @@ describe('registerCollections', () => {
         expect(calls.get('books_journal_lines')?.omitOnInsert).toEqual(
             expect.arrayContaining(['posted', 'date', 'currency'])
         )
+        // The guard sets name_key on every write, so the client never sends it.
+        expect(calls.get('books_customers')?.omitOnInsert).toEqual(
+            expect.arrayContaining(['created', 'updated', 'name_key'])
+        )
+    })
+
+    // The customers list loads every customer in one query and builds the
+    // tree itself, so the collection files no related rows.
+    it('declares no relations on customers', () => {
+        const { calls } = register()
+        expect(calls.has('books_customers')).toBe(true)
+        expect(calls.get('books_customers')?.relations).toBeUndefined()
     })
 })

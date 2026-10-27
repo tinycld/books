@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSettingsShell } from '../tinycld/books/hooks/useSettingsShell'
 import type { BooksSettings } from '../tinycld/books/types'
 import { seedBooks } from './accounts-form-harness'
-import { silenceLog } from './silence-log'
+import { captureLoadErrors, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -65,16 +65,20 @@ describe('useSettingsShell part', () => {
     })
 
     it('is error when the settings row read fails', async () => {
+        const consoleError = captureLoadErrors()
         seed({ settingsErrored: true })
         const { result } = await renderShell('company')
         expect(result.current.part).toBe('error')
+        consoleError.expectOnlyLoadErrors()
     })
 
     it('does not block Company when the doc sequences read fails', async () => {
+        const consoleError = captureLoadErrors()
         seed({ sequencesErrored: true })
         const { result } = renderHook(() => useSettingsShell('company'))
         await waitFor(() => expect(result.current.part).toBe('detail'))
         expect(result.current.sections.find(s => s.id === 'company')?.isActive).toBe(true)
+        await waitFor(() => consoleError.expectOnlyLoadErrors())
     })
 })
 

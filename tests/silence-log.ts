@@ -1,5 +1,5 @@
 import { log } from '@tinycld/core/lib/logger'
-import { afterAll, afterEach, vi } from 'vitest'
+import { afterAll, afterEach, expect, onTestFinished, vi } from 'vitest'
 
 // Refusal-path tests provoke log.error/log.warn on purpose. Call this at the top of the file: the
 // spies swallow the output, reset after each test and are restored after the file, and a test can
@@ -16,6 +16,21 @@ export function silenceLog() {
         warn.mockRestore()
     })
     return { error, warn }
+}
+
+// TanStack DB reports a source collection's failed load with console.error. A load-error test
+// calls this first: the spy holds only that one test's output, and `expectOnlyLoadErrors` checks
+// that the load error was reported and that nothing else was.
+export function captureLoadErrors() {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    onTestFinished(() => spy.mockRestore())
+    const expectOnlyLoadErrors = () => {
+        expect(spy).toHaveBeenCalled()
+        for (const [message] of spy.mock.calls) {
+            expect(String(message)).toMatch(/^\[Live Query Error\] /)
+        }
+    }
+    return { expectOnlyLoadErrors }
 }
 
 // Third-party libraries report some expected states straight to the console.

@@ -1,0 +1,41 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "page",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 2000,
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-page" },
+                { "waitFor": "Edit customer" }
+            ]
+        },
+        {
+            "name": "new",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 2000,
+            "actions": [
+                { "click": "customer-new-header" },
+                { "waitFor": "customer-page" },
+                { "waitFor": "New customer" }
+            ]
+        },
+        {
+            "name": "new-sub",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 2000,
+            "actions": [
+                {
+                    "idFromText": "Harborview Hospitality Group",
+                    "goto": "/a/books/customers/new?parent={id}"
+                },
+                { "waitFor": "customer-page" },
+                { "waitFor": "New sub-customer" }
+            ]
+        }
+    ]
+}

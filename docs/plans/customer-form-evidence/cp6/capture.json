@@ -1,0 +1,17 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "panel",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 2000,
+            "widths": [1600],
+            "actions": [
+                { "click": "customers-show-inactive" },
+                { "clickText": "Alvarez kitchen remodel" },
+                { "waitFor": "Edit customer" }
+            ]
+        }
+    ]
+}
