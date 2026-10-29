@@ -11,14 +11,22 @@
 - scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
 - capture manifest: docs/plans/report-shell-capture.json
 - review mode: C — none (unattended)
-- core extension: tinycld PR #380 (useRecord queryKey, merged eaf01844); tinycld PR #379 (branch books/p5-report-shell) — checkpoint 0, recoverLiveQueries fix (human decision 2026-10-26, option 1)
+- core extension: tinycld PR #381 (DateField calendar width, found at the eval gate; merged by the human); tinycld PR #380 (useRecord queryKey, merged eaf01844); tinycld PR #379 (branch books/p5-report-shell) — checkpoint 0, recoverLiveQueries fix (human decision 2026-10-26, option 1)
 - sparks:
   - report reads like a finished document → expressible (ReportDocumentHeader strip: text-muted-foreground, text-lg font-semibold text-foreground, border-border; books_settings.business_name)
   - totals set apart by weight and rule lines, not color → expressible (font-semibold, border-t border-border subtotal, border-t-2 border-foreground total; red negatives text-danger)
   - every control shows its current value at rest → expressible (core PickMenu / Popover, core ButtonGroup, Books ReportFilterChip from Pressable + bg-secondary / border-border / text-secondary-foreground)
 
 ## Deferrals
-(none yet)
+- **agreed:** spec Behavior bullets for sections and folding (press, Enter/Space, Collapse all / Expand all), subtotal/section row styles and depth indent, row windowing beyond one screen, phone tables with three or more amount columns, range presets with From/To and the From-after-To / maxMonths errors, the method toggle (presence, Accrual default, change) and the basis text, "No activity for …" with "Show this fiscal year", the Customize Columns section, the `choice` filter picker, and drawn negative style / red — each delivered and verified in this unit by e2e
+  **built:** all of the code exists and is unit-tested where it is pure (folding rules, period math, codec, formats, choice chips, columnAlign); none of it can be driven in e2e here, because the Trial Balance is an as-of report with two money columns, no sections, no basis, no choice filter and no negative cells
+  **reason:** missing dependency
+  **blocker evidence:** no report that has sections, a range period, a basis, a choice filter or negative amounts exists until p5-profit-and-loss (manifest unit, state pending in docs/plans/auto-helix — verified: no unit file) and the first unit with a choice filter (none in the manifest yet); a test-only registry definition would ship to users, so none was added (plan "Not reachable by this unit's e2e")
+  **impact:** a regression in those parts of the shell would not fail this unit's e2e; it would fail the first report unit that renders them
+  **unblock:** p5-profit-and-loss adds e2e for sections/folding, range presets and errors, the method toggle and basis text, the range empty state, windowing and the 3+ column phone layout; the first choice-filter unit adds the choice picker e2e — each named in report-shell-checkpoints.md "Not reachable by this unit's e2e"
+  **tracked in:** books/docs/plans/report-shell-checkpoints.md "Not reachable by this unit's e2e"; manifest unit p5-profit-and-loss
+  **found by:** plan review (phase 4)
+  **checkpoint:** 6–10
 
 ## Rebuttals
 - cp 1 · reviewers A7 and B1: "docs/plans/report-shell-ledger.md: the Files block does not name this file … every file outside the Files block is a finding" — rejected: review-diff.mjs adds the ledger to the planned list itself (`planned.push(`docs/plans/${feature}-ledger.md`, …)`); the ledger is the loop's own record, written at every checkpoint.
@@ -169,5 +177,5 @@
 - gate 1 (final): tinycld-pkg check pass (2620); e2e 10 passed; stderr none.
 
 ## Final review
-- eval:
+- eval: revised (2026-10-26) → (1) the As-of DateField's calendar spans nearly the whole window from inside the period popover; it needs a bounded width; (2) open the period popover, navigate away from Reports and back → two period popovers render (the surface lives in the Zustand UI store, and the stacked earlier screen instance still renders it). Fix sha: f377e75.
 - native: not executed in this run
