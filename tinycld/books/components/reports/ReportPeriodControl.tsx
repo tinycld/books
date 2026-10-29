@@ -138,6 +138,7 @@ interface ReportPeriodControlProps {
     form: ReportOptionsForm
     isOpen: boolean
     onOpenChange: (open: boolean) => void
+    onDismiss: () => void
 }
 
 // A preset applies at once, so its pill closes the popover and the chip shows the result.
@@ -148,6 +149,7 @@ export function ReportPeriodControl({
     form,
     isOpen,
     onOpenChange,
+    onDismiss,
 }: ReportPeriodControlProps) {
     const muted = useThemeColor('muted-foreground')
     const presets: readonly PeriodPreset[] = period.presets
@@ -155,12 +157,12 @@ export function ReportPeriodControl({
         form.onPreset(preset)
         if (preset !== 'custom') onOpenChange(false)
     }
-    // Escape, an outside press or the sheet's close drops an invalid typed date, so a later
-    // option change is not held back by it. A preset pick closes through onPreset instead,
-    // because its values are about to become the options.
-    const onDismiss = (open: boolean) => {
-        if (!open) form.discardEdit()
-        onOpenChange(open)
+    // Escape, an outside press or the sheet's close goes through onDismiss, which drops an
+    // invalid typed date. A preset pick closes through onPreset instead, because its values are
+    // about to become the options.
+    const onPopoverOpenChange = (open: boolean) => {
+        if (open) onOpenChange(true)
+        else onDismiss()
     }
     const pills = presets.map(preset => (
         <PresetPill
@@ -174,7 +176,7 @@ export function ReportPeriodControl({
         <Popover
             trigger={periodChip(label, muted)}
             isOpen={isOpen}
-            onOpenChange={onDismiss}
+            onOpenChange={onPopoverOpenChange}
             title="Report period"
             sheetSide="bottom"
             width={POPOVER_WIDTH}

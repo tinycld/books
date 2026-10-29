@@ -10,6 +10,7 @@ import {
     isPhone,
     openEntriesList,
     PHONE,
+    searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
 
@@ -39,7 +40,7 @@ function uniqueMemo(label: string) {
 
 async function openFromList(page: Page, memo: string) {
     await openEntriesList(page)
-    await page.getByTestId('entries-search').fill(memo)
+    await searchEntries(page, memo)
     const item = page
         .locator(isPhone(page) ? CARDS : ROWS)
         .filter({ hasText: memo })

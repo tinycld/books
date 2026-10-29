@@ -1166,6 +1166,7 @@ test.describe('opening-balances: save draft and discard', () => {
             // Two clicks in one tick: the button has not re-rendered as disabled
             // between them, so only the ref guard can drop the second.
             await saveButton(page).evaluate(el => {
+                if (!(el instanceof HTMLElement)) throw new Error('the save button is not HTML')
                 el.click()
                 el.click()
             })
@@ -1590,6 +1591,11 @@ test.describe('opening-balances: post and posted view', () => {
 
     test('(3) Post shows Posting..., then the read-only posted view', async ({ page }) => {
         const ids = await begin(page, DESKTOP)
+        // The entry this posts is the one checkpoint 7 replaces and finds in the register. End
+        // of last month does not depend on the fiscal start month, which other specs change on
+        // the shared DB, so the register's Last month range holds it whatever that month is.
+        await choosePreset(page, 'End of last month')
+        await expect(page.getByTestId('opening-preset')).toContainText('End of last month')
         let release: () => void = () => {}
         const held = new Promise<void>(resolve => {
             release = resolve
@@ -1898,9 +1904,11 @@ test.describe('opening-balances: replace a posted entry', () => {
         async (page, size) => {
             await start(page, size)
             await openRegister(page, 'Office Equipment')
+            // Post test (3) dated the entry at the end of last month, and each replacement keeps
+            // that date, so Last month holds all three whatever the fiscal start month is.
             await page.getByTestId('register-range').click()
-            await page.getByRole('menuitem', { name: 'Last fiscal year', exact: true }).click()
-            await expect(page.getByTestId('register-range')).toContainText('Last fiscal year')
+            await page.getByRole('menuitem', { name: 'Last month', exact: true }).click()
+            await expect(page.getByTestId('register-range')).toContainText('Last month')
 
             if (isPhone(page)) {
                 // The entry's memo can read the same, so match the card's detail

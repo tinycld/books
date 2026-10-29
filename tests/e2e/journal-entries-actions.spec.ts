@@ -12,6 +12,7 @@ import {
     isPhone,
     openEntriesList,
     PHONE,
+    searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
 
@@ -131,7 +132,7 @@ function listItems(page: Page, memo: string): Locator {
 // The list is newest first and windowed while parallel workers add entries, so a row is
 // found by searching for its memo.
 async function searchList(page: Page, memo: string) {
-    await page.getByTestId('entries-search').fill(memo)
+    await searchEntries(page, memo)
 }
 
 // An in-app route change (no page load), the way openChart in account-register-helpers does it.
@@ -599,7 +600,7 @@ for (const [sizeName, size] of SIZES) {
             const other = await page.context().newPage()
             await start(other, size)
             await openEntriesList(other)
-            await other.getByTestId('entries-search').fill(memo)
+            await searchEntries(other, memo)
             await listItems(other, memo).first().click()
             await expect(other.getByTestId('entry-read-only')).toBeVisible()
             const originalId = entryIdOf(other)

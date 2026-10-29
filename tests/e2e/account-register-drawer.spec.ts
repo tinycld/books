@@ -6,6 +6,7 @@ import {
     openRegister,
     PHONE,
     REGISTER_SEED,
+    revealRegisterItem,
 } from './account-register-helpers'
 
 // Journal entry creation has no UI until `p1-journal-entries`, so the register
@@ -44,17 +45,25 @@ async function openChecking(page: Page, size: { width: number; height: number })
     await navigateToPackage(page, 'books')
     await page.setViewportSize(size)
     await openRegister(page, 'Business Checking')
+    // This month, not a fiscal range: books-settings.spec.ts and the setup wizard spec change the
+    // fiscal start month on the shared DB, and that reloads a fiscal-range register mid-test. The
+    // seeded entries this spec reads are dated today.
     await page.getByTestId('register-range').click()
-    await page.getByRole('menuitem', { name: 'This fiscal year', exact: true }).click()
-    await expect(page.getByTestId('register-range')).toContainText('This fiscal year')
+    await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
+    await expect(page.getByTestId('register-range')).toContainText('This month')
 }
 
-function cardByMemo(page: Page, memo: string) {
-    return page.locator(CARDS).filter({ hasText: memo })
+// Seeded entries can sit below the register's mounted window, so each lookup scrolls to them.
+async function cardByMemo(page: Page, memo: string) {
+    const card = page.locator(CARDS).filter({ hasText: memo })
+    await revealRegisterItem(page, card)
+    return card
 }
 
-function rowByMemo(page: Page, memo: string) {
-    return page.locator(ROWS).filter({ hasText: memo })
+async function rowByMemo(page: Page, memo: string) {
+    const row = page.locator(ROWS).filter({ hasText: memo })
+    await revealRegisterItem(page, row)
+    return row
 }
 
 function drawer(page: Page) {
@@ -84,7 +93,19 @@ test.describe('account-register: cards and drawer', () => {
             expect(box.x + box.width).toBeLessThanOrEqual(PHONE.width)
         }
 
-        const sale = cardByMemo(page, REGISTER_SEED.sale)
+        // Measured before any lookup scrolls the list and changes which cards are mounted.
+        const tops: number[] = []
+        const heights = new Set<number>()
+        for (let i = 0; i < count; i++) {
+            const box = await boxOf(cards.nth(i))
+            tops.push(box.y)
+            heights.add(Math.round(box.height))
+        }
+        expect(tops).toEqual([...tops].sort((a, b) => a - b))
+        expect(new Set(tops).size).toBe(tops.length)
+        expect(heights.size).toBe(1)
+
+        const sale = await cardByMemo(page, REGISTER_SEED.sale)
         await expect(sale).toHaveCount(1)
         await expect(sale).toContainText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)
         await expect(sale).toContainText(REGISTER_SEED.sale)
@@ -107,22 +128,14 @@ test.describe('account-register: cards and drawer', () => {
         expect(balance.y).toBeGreaterThanOrEqual(amount.y + amount.height - 1)
         expect(Math.round(balance.x + balance.width)).toBe(Math.round(amount.x + amount.width))
 
-        await expect(cardByMemo(page, REGISTER_SEED.split)).toContainText('-Split-')
-        await expect(cardByMemo(page, REGISTER_SEED.voidOriginal)).toContainText('Void')
-        await expect(page.locator(CARDS).filter({ hasText: 'Void reversal of' })).not.toHaveCount(0)
-
-        const tops: number[] = []
-        const heights = new Set<number>()
-        for (let i = 0; i < count; i++) {
-            const box = await boxOf(cards.nth(i))
-            tops.push(box.y)
-            heights.add(Math.round(box.height))
-        }
-        expect(tops).toEqual([...tops].sort((a, b) => a - b))
-        expect(new Set(tops).size).toBe(tops.length)
-        expect(heights.size).toBe(1)
+        await expect(await cardByMemo(page, REGISTER_SEED.split)).toContainText('-Split-')
+        await expect(await cardByMemo(page, REGISTER_SEED.voidOriginal)).toContainText('Void')
+        const voidReversal = page.locator(CARDS).filter({ hasText: 'Void reversal of' })
+        await revealRegisterItem(page, voidReversal.first())
+        await expect(voidReversal).not.toHaveCount(0)
 
         const opening = page.getByTestId('register-opening-card')
+        await revealRegisterItem(page, opening)
         await expect(opening).toBeVisible()
         await expect(opening.getByText(MONEY)).toHaveCount(1)
         await expect(opening).not.toContainText('Debit')
@@ -133,7 +146,7 @@ test.describe('account-register: cards and drawer', () => {
 
     test('phone: the second line of a card reads with spaces around the dot', async ({ page }) => {
         await openChecking(page, PHONE)
-        const sale = cardByMemo(page, REGISTER_SEED.sale)
+        const sale = await cardByMemo(page, REGISTER_SEED.sale)
         await expect(sale).toBeVisible()
         const text = await sale.evaluate(el => (el instanceof HTMLElement ? el.innerText : ''))
         expect(text).toContain('Accounts receivable \u00b7 Journal entry')
@@ -141,7 +154,7 @@ test.describe('account-register: cards and drawer', () => {
 
     test('phone: a long memo is cut short and its figures stay visible', async ({ page }) => {
         await openChecking(page, PHONE)
-        const card = cardByMemo(page, 'Register long memo')
+        const card = await cardByMemo(page, 'Register long memo')
         await expect(card).toHaveCount(1)
         const memo = card.getByText(/^Register long memo/)
         const clamp = await memo.evaluate(el => {
@@ -155,7 +168,7 @@ test.describe('account-register: cards and drawer', () => {
         expect(clamp).toEqual({ lines: expect.any(Number), cut: true })
         expect(clamp?.lines).toBeLessThanOrEqual(2)
 
-        const sale = cardByMemo(page, REGISTER_SEED.sale)
+        const sale = await cardByMemo(page, REGISTER_SEED.sale)
         expect(Math.round((await boxOf(card)).height)).toBe(Math.round((await boxOf(sale)).height))
 
         const money = card.getByText(MONEY)
@@ -211,7 +224,7 @@ test.describe('account-register: cards and drawer', () => {
 
     test('phone: a card opens a bottom drawer with the entry', async ({ page }) => {
         await openChecking(page, PHONE)
-        const split = cardByMemo(page, REGISTER_SEED.split)
+        const split = await cardByMemo(page, REGISTER_SEED.split)
         await split.click()
 
         const panel = drawer(page)
@@ -276,7 +289,7 @@ test.describe('account-register: cards and drawer', () => {
         page,
     }) => {
         await openChecking(page, PHONE)
-        await cardByMemo(page, REGISTER_SEED.voidOriginal).click()
+        await (await cardByMemo(page, REGISTER_SEED.voidOriginal)).click()
         await expect(page.getByTestId('register-drawer-field-status')).toContainText('Void')
         await expect(page.getByTestId('register-drawer-field-memo')).toContainText(
             REGISTER_SEED.voidOriginal
@@ -286,7 +299,7 @@ test.describe('account-register: cards and drawer', () => {
         // being pressed, so the next card is opened after closing, and must show its own entry.
         await page.getByTestId('register-drawer-close').click()
         await expect(drawer(page)).not.toBeVisible()
-        await cardByMemo(page, REGISTER_SEED.sale).click()
+        await (await cardByMemo(page, REGISTER_SEED.sale)).click()
         await expect(page.getByTestId('register-drawer-field-memo')).toContainText(
             REGISTER_SEED.sale
         )
@@ -296,7 +309,7 @@ test.describe('account-register: cards and drawer', () => {
 
     test('phone: Enter and Space on a card open the drawer', async ({ page }) => {
         await openChecking(page, PHONE)
-        await cardByMemo(page, REGISTER_SEED.sale).focus()
+        await (await cardByMemo(page, REGISTER_SEED.sale)).focus()
         await page.keyboard.press('Enter')
         await expect(page.getByTestId('register-drawer-field-memo')).toContainText(
             REGISTER_SEED.sale
@@ -304,7 +317,7 @@ test.describe('account-register: cards and drawer', () => {
         await page.getByTestId('register-drawer-close').click()
         await expect(drawer(page)).not.toBeVisible()
 
-        await cardByMemo(page, REGISTER_SEED.split).focus()
+        await (await cardByMemo(page, REGISTER_SEED.split)).focus()
         await page.keyboard.press('Space')
         await expect(page.getByTestId('register-drawer-field-memo')).toContainText(
             REGISTER_SEED.split
@@ -315,7 +328,7 @@ test.describe('account-register: cards and drawer', () => {
         await openChecking(page, DESKTOP_TALL)
         const table = page.getByTestId('register-table')
         const before = await boxOf(table)
-        const sale = rowByMemo(page, REGISTER_SEED.sale)
+        const sale = await rowByMemo(page, REGISTER_SEED.sale)
         await sale.click()
 
         const panel = drawer(page)
@@ -341,7 +354,7 @@ test.describe('account-register: cards and drawer', () => {
         await expect(page.locator(LINES)).toHaveCount(2)
 
         // Inline, nothing covers the table, so another row replaces the open entry.
-        await rowByMemo(page, REGISTER_SEED.split).click()
+        await (await rowByMemo(page, REGISTER_SEED.split)).click()
         await expect(page.getByTestId('register-drawer-field-memo')).toContainText(
             REGISTER_SEED.split
         )
@@ -362,7 +375,7 @@ test.describe('account-register: cards and drawer', () => {
 
     test('desktop: Enter and Space on a row open the drawer', async ({ page }) => {
         await openChecking(page, DESKTOP_TALL)
-        await rowByMemo(page, REGISTER_SEED.sale).focus()
+        await (await rowByMemo(page, REGISTER_SEED.sale)).focus()
         await page.keyboard.press('Enter')
         await expect(drawer(page)).toBeVisible()
         await expect(page.getByTestId('register-drawer-field-memo')).toContainText(
@@ -372,7 +385,7 @@ test.describe('account-register: cards and drawer', () => {
         await page.getByTestId('register-drawer-close').click()
         await expect(drawer(page)).not.toBeVisible()
 
-        await rowByMemo(page, REGISTER_SEED.split).focus()
+        await (await rowByMemo(page, REGISTER_SEED.split)).focus()
         await page.keyboard.press('Space')
         await expect(drawer(page)).toBeVisible()
         await expect(page.getByTestId('register-drawer-field-memo')).toContainText(
@@ -385,7 +398,7 @@ test.describe('account-register: cards and drawer', () => {
         const table = page.getByTestId('register-table')
         await expect(table).toBeVisible()
         const before = await boxOf(table)
-        await rowByMemo(page, REGISTER_SEED.sale).click()
+        await (await rowByMemo(page, REGISTER_SEED.sale)).click()
 
         const panel = drawer(page)
         await expect(panel).toBeVisible()
@@ -415,8 +428,8 @@ test.describe('account-register: cards and drawer', () => {
             await openChecking(page, size)
             const item =
                 name === 'phone'
-                    ? cardByMemo(page, REGISTER_SEED.sale)
-                    : rowByMemo(page, REGISTER_SEED.sale)
+                    ? await cardByMemo(page, REGISTER_SEED.sale)
+                    : await rowByMemo(page, REGISTER_SEED.sale)
             await item.click()
             await expect(drawer(page)).toBeVisible()
 
@@ -450,17 +463,27 @@ test.describe('account-register: cards and drawer', () => {
 
     test('desktop: changing the range does not reopen a closed drawer', async ({ page }) => {
         await openChecking(page, DESKTOP_TALL)
-        await rowByMemo(page, REGISTER_SEED.sale).click()
+        const sale = await rowByMemo(page, REGISTER_SEED.sale)
+        await sale.click()
         await expect(drawer(page)).toBeVisible()
 
+        // The sale is dated today, so it is outside Last fiscal year for any fiscal start month.
+        // Other rows can be inside that range, so the empty state is not a safe signal here.
         await page.getByTestId('register-range').click()
         await page.getByRole('menuitem', { name: 'Last fiscal year', exact: true }).click()
         await expect(page.getByTestId('register-range')).toContainText('Last fiscal year')
-        await expect(page.getByTestId('register-empty-range')).toBeVisible()
+        // While the range loads the list is not mounted, so the sale's absence proves nothing
+        // until the register shows a loaded body for the new range.
+        await expect(page.getByTestId('register-loading')).toHaveCount(0)
+        await expect(
+            page.getByTestId('register-empty-range').or(page.getByTestId('register-table'))
+        ).toBeVisible()
+        await expect(sale).toHaveCount(0)
 
         await page.getByTestId('register-range').click()
-        await page.getByRole('menuitem', { name: 'This fiscal year', exact: true }).click()
-        await expect(rowByMemo(page, REGISTER_SEED.sale)).toBeVisible()
+        await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
+        await expect(page.getByTestId('register-range')).toContainText('This month')
+        await expect(await rowByMemo(page, REGISTER_SEED.sale)).toBeVisible()
         await expect.poll(() => drawer(page).count()).toBe(0)
         await expect(page.locator(`${ROWS}.bg-accent`)).toHaveCount(0)
     })
@@ -471,8 +494,8 @@ test.describe('account-register: cards and drawer', () => {
             const url = page.url()
             const item =
                 name === 'phone'
-                    ? cardByMemo(page, REGISTER_SEED.sale)
-                    : rowByMemo(page, REGISTER_SEED.sale)
+                    ? await cardByMemo(page, REGISTER_SEED.sale)
+                    : await rowByMemo(page, REGISTER_SEED.sale)
             await expect(item).toHaveCount(1)
             await expect(page.locator(`${name === 'phone' ? CARDS : ROWS} a`)).toHaveCount(0)
             await expect(
@@ -493,8 +516,8 @@ test.describe('account-register: cards and drawer', () => {
             await openChecking(page, size)
             const item =
                 name === 'phone'
-                    ? cardByMemo(page, REGISTER_SEED.sale)
-                    : rowByMemo(page, REGISTER_SEED.sale)
+                    ? await cardByMemo(page, REGISTER_SEED.sale)
+                    : await rowByMemo(page, REGISTER_SEED.sale)
             await item.click()
             await expect(drawer(page)).toBeVisible()
             await expect(page.getByTestId('register-drawer-field-memo')).toContainText(

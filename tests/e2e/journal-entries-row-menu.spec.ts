@@ -11,6 +11,7 @@ import {
     isPhone,
     openEntriesList,
     PHONE,
+    searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
 
@@ -78,7 +79,7 @@ async function backToList(page: Page) {
 
 // Finds the one list item with this memo (a reversal's memo differs, so seeds stay unique).
 async function findItem(page: Page, memo: string) {
-    await page.getByTestId('entries-search').fill(memo)
+    await searchEntries(page, memo)
     const item = listItems(page, memo).filter({ hasNotText: 'Reversal of' }).first()
     await expect(item).toBeVisible()
     return { item, id: await itemId(item) }
@@ -343,7 +344,7 @@ for (const [sizeName, size] of SIZES) {
             await backToList(page)
             const second = await makePosted(page, `${stamp} B`)
             await backToList(page)
-            await page.getByTestId('entries-search').fill(stamp)
+            await searchEntries(page, stamp)
             await expect(page.getByTestId(`entries-row-menu-${first.id}`)).toBeVisible()
             await expect(page.getByTestId(`entries-row-menu-${second.id}`)).toBeVisible()
 
@@ -480,7 +481,7 @@ for (const [sizeName, size] of SIZES) {
             const posted = await seeded(page, ENTRIES_SEED.posted)
             await openMenu(page, posted.id)
             const box = await settledBox(page.getByTestId('entries-menu-open'))
-            expect(box.y).toBeGreaterThan(size.height / 2)
+            expect(box?.y ?? 0).toBeGreaterThan(size.height / 2)
         })
 
         test('Open goes to the entry', async ({ page }) => {

@@ -1,3 +1,5 @@
 - List the helpers a screen needs (navigation back target, stamp/date formatting, test ids) in the plan at design time; the implementer otherwise adds them out of plan. — journal-entries, retro, p1-journal-entries
 - E2E tests that need a seeded list row open it through the search box (entries-search), not by scrolling a windowed list; other specs add rows dated today and push seeded rows out of view. — journal-entries, retro, p1-journal-entries
 - Give every new e2e spec a unique memo on the rows it creates and find them through `entries-search`; treat any assumption about shared state (default list contents, shared counters) as a test-isolation bug in review. — journal-entries, retro, p1-journal-entries
+- A DateField (or any control with its own calendar popover) inside a Popover/Sheet must have its calendar bounded to the field or a fixed max width; check it open at 1280 — report-shell, human, eval
+- Screen-scoped open surfaces (popovers, pickers) kept in a Zustand store must close when the screen loses focus; a stacked earlier instance of the screen still renders them — report-shell, human, eval

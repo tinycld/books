@@ -16,7 +16,8 @@ export const PHONE = { width: 390, height: 844 }
 export const REGISTER_SEED = {
     sale: 'Register sale',
     split: 'Register split payment',
-    fiscalYearStart: 'Register fiscal year start',
+    // Dated the 1st of this month; not posted when the seed runs on the 1st.
+    monthStart: 'Register month start',
     voidOriginal: 'Register void original',
     corrected: 'Register corrected',
 } as const
@@ -92,6 +93,104 @@ export async function chooseViewRegister(page: Page, accountName: string) {
 export async function openRegister(page: Page, accountName: string) {
     await openChart(page)
     await chooseViewRegister(page, accountName)
+}
+
+// Every item the register list mounts: entry cards and rows, and the opening balance item,
+// which is last when the newest entry is on top and first in oldest-first order.
+const REGISTER_ITEMS = [
+    '[data-testid^="register-card-"]',
+    '[data-testid^="register-row-"]',
+    '[data-testid="register-opening-card"]',
+    '[data-testid="register-opening-row"]',
+].join(', ')
+
+type RegisterMove = { move: 'top' | 'step' | 'stay'; items: string }
+
+function registerMove(move: RegisterMove['move']): RegisterMove {
+    return { move, items: REGISTER_ITEMS }
+}
+
+// Runs in the page. Finds the register's vertical scroller from the last mounted item and
+// moves it. It looks the items up itself, in one synchronous pass, so a re-render cannot
+// detach the item it measures (a handle resolved earlier can be gone by then). `mounted` is
+// false while the list shows no item (it is loading). `offset` is where the first mounted
+// item starts in the scrolled content: 0 when the list renders from its first item, in either
+// sort order. A 'step' brings the last mounted item to the top edge, so a step never passes an
+// item that has not mounted yet, even when a render lags behind the scroll. `atEnd` is true
+// when a step could not move the list and the mounted items already reach its end (the
+// spacer after the last one has no height).
+function moveRegisterList({ move, items }: RegisterMove) {
+    const mountedItems = document.querySelectorAll(items)
+    const first = mountedItems[0]
+    const last = mountedItems[mountedItems.length - 1]
+    let list = last?.parentElement ?? null
+    while (list && !/auto|scroll/.test(getComputedStyle(list).overflowY)) {
+        list = list.parentElement
+    }
+    if (!first || !last || !list) return { mounted: false, offset: -1, atEnd: false }
+    const top = list.getBoundingClientRect().top
+    const before = list.scrollTop
+    if (move === 'top') list.scrollTop = 0
+    if (move === 'step') list.scrollTop += last.getBoundingClientRect().top - top
+    const spacerAfterLast = last.nextElementSibling?.getBoundingClientRect().height ?? 0
+    return {
+        mounted: true,
+        offset: Math.round(first.getBoundingClientRect().top - top + list.scrollTop),
+        atEnd: move === 'step' && list.scrollTop === before && spacerAfterLast === 0,
+    }
+}
+
+// Waits two animation frames, so a render the last scroll started can land.
+async function nextFrames(page: Page) {
+    await page.evaluate(
+        () =>
+            new Promise<void>(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+            )
+    )
+}
+
+function lastRegisterItem(page: Page) {
+    return page.locator(REGISTER_ITEMS).last()
+}
+
+// Scrolls the register list to its top and waits until it renders from its first item.
+export async function scrollRegisterToTop(page: Page) {
+    await expect(lastRegisterItem(page)).toBeAttached()
+    await expect
+        .poll(async () => (await page.evaluate(moveRegisterList, registerMove('top'))).offset)
+        .toBe(0)
+}
+
+// True when the first item the register list mounts is the opening balance item, which is
+// the case only in oldest-first order with the list at its top.
+export async function openingItemIsFirst(page: Page) {
+    return page.evaluate(items => {
+        const id = document.querySelector(items)?.getAttribute('data-testid') ?? ''
+        return id.startsWith('register-opening-')
+    }, REGISTER_ITEMS)
+}
+
+// The register mounts only the items near its scroll position (useRowWindow). Other specs on
+// the shared DB post entries dated today on Business Checking, and those sort above the seeded
+// entries of the same day, so a seeded item can sit below the mounted items. Scroll the list
+// from its top, as a user would, until the item mounts, then bring it into view.
+export async function revealRegisterItem(page: Page, item: Locator) {
+    await expect(lastRegisterItem(page)).toBeAttached()
+    if ((await item.count()) === 0) {
+        await scrollRegisterToTop(page)
+        while ((await item.count()) === 0) {
+            const { atEnd } = await page.evaluate(moveRegisterList, registerMove('step'))
+            // A render can land between the count and the step, so count once more first.
+            if (atEnd && (await item.count()) === 0) {
+                throw new Error(
+                    'The register list scrolled to its end and the item never mounted: it is not in this register and range.'
+                )
+            }
+            await nextFrames(page)
+        }
+    }
+    await item.scrollIntoViewIfNeeded()
 }
 
 // Returns the element's box once it has held still for several frames. A sheet, drawer or panel
