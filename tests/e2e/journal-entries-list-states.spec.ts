@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
+import { searchEntries } from './journal-entries-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -58,8 +59,10 @@ async function openEntries(page: Page) {
 // Other specs add entries dated today to the shared database, and the list sorts newest first,
 // so the seeded rows sink below the rows a phone mounts (the list renders a window). Every seed memo
 // starts with this text, and search reads the whole collection, so it keeps them on screen at any volume.
+// searchEntries also selects All dates, which does not reload when another spec changes the fiscal
+// start month; the range tests choose their range after it.
 async function showSeededEntries(page: Page) {
-    await page.getByTestId('entries-search').fill('Entries seed')
+    await searchEntries(page, 'Entries seed')
 }
 
 async function expectMemos(page: Page, memos: string[], count: number) {
@@ -145,18 +148,23 @@ for (const [sizeName, size] of SIZES) {
             await openEntries(page)
 
             const search = page.getByTestId('entries-search')
-            await search.fill(ENTRIES_SEED.posted)
+            await searchEntries(page, ENTRIES_SEED.posted)
             await expectMemos(page, [ENTRIES_SEED.posted], 1)
             await expectMemos(page, [ENTRIES_SEED.draft], 0)
 
-            await search.fill('zzzz-no-such')
+            await searchEntries(page, 'zzzz-no-such')
             await expect(page.getByTestId('entries-no-match')).toContainText('No entries match')
             await expectMemos(page, ALL_MEMOS, 0)
 
             await page.getByTestId('entries-clear-filters').click()
             await expect(search).toHaveValue('')
             await expect(page.getByTestId('entries-no-match')).toHaveCount(0)
-            await showSeededEntries(page)
+            // Clear filters restores the default range too. The seed rows are read under it with a
+            // plain search, not searchEntries, which would select All dates first. The list is
+            // windowed, so the search keeps the seed rows mounted; expectMemos retries if another
+            // spec's fiscal start change reloads the list meanwhile.
+            await expect(page.getByTestId('entries-range')).toContainText('This fiscal year')
+            await search.fill('Entries seed')
             await expectMemos(page, ALL_MEMOS, 1)
         })
 
@@ -164,7 +172,7 @@ for (const [sizeName, size] of SIZES) {
             await start(page, size)
             await openEntries(page)
 
-            await page.getByTestId('entries-search').fill(ENTRIES_SEED.posted.toLowerCase())
+            await searchEntries(page, ENTRIES_SEED.posted.toLowerCase())
             await expectMemos(page, [ENTRIES_SEED.posted], 1)
             await expectMemos(page, [ENTRIES_SEED.draft], 0)
         })

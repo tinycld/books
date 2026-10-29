@@ -126,7 +126,11 @@ for (const [sizeName, size] of SIZES) {
 
         test('range select offers five presets and Last fiscal year is empty', async ({ page }) => {
             await start(page, size)
-            await openRegister(page, 'Business Checking')
+            // Every posted line on Software Subscriptions is dated today, which is inside This
+            // fiscal year for any start month. books-settings.spec.ts and the setup wizard spec
+            // change the start month on the shared DB, and that moves Business Checking's
+            // entries at the January fiscal start into Last fiscal year.
+            await openRegister(page, 'Software Subscriptions')
 
             const presets = [
                 'This month',

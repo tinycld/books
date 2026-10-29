@@ -17,16 +17,20 @@ export const ACCESS_ROUTE = '**/api/collections/books_access/records*'
 
 // Books is already open (login and navigateToPackage(page, 'books') at the desktop
 // viewport). Reports is a top-group sidebar item, visible on every Books route on desktop.
+// A screen reached again through the sidebar stacks over its earlier, hidden instance, so
+// these read only the visible one.
 export async function openReportsHub(page: Page): Promise<void> {
     await page.getByTestId('books-nav-reports').click()
-    await expect(page.getByTestId('report-hub')).toBeVisible()
+    await expect(page.getByTestId('report-hub').filter({ visible: true })).toBeVisible()
 }
 
 export async function openTrialBalance(page: Page): Promise<void> {
     await openReportsHub(page)
-    await page.getByTestId('report-hub-row-trial-balance').click()
-    await expect(page.getByTestId('report-screen')).toBeVisible()
-    await expect(page.getByTestId('report-title')).toHaveText('Trial Balance')
+    await page.getByTestId('report-hub-row-trial-balance').filter({ visible: true }).click()
+    await expect(page.getByTestId('report-screen').filter({ visible: true })).toBeVisible()
+    await expect(page.getByTestId('report-title').filter({ visible: true })).toHaveText(
+        'Trial Balance'
+    )
 }
 
 export async function hasNoPageScrollX(page: Page): Promise<boolean> {
@@ -46,14 +50,16 @@ export async function choosePreset(page: Page, presetId: string): Promise<void> 
 }
 
 // Types into the "As of" field, opening the period control first when it is closed. Editing a
-// date keeps the popover open, so the inline error stays in view.
+// date keeps the popover open, so the inline error stays in view. The field is found, not the
+// popover, so this works for the phone sheet too; the chip is the visible one, because a report
+// reached again through the sidebar stacks over its earlier, hidden instance.
 export async function setAsOfDate(page: Page, value: string): Promise<void> {
-    const popover = page.getByTestId('report-period-popover')
-    if ((await popover.count()) === 0) {
-        await page.getByTestId('report-period').click()
-        await expect(popover).toBeVisible()
+    const asOf = page.getByTestId('report-period-as-of')
+    if ((await asOf.count()) === 0) {
+        await page.getByTestId('report-period').filter({ visible: true }).click()
+        await expect(asOf).toBeVisible()
     }
-    await page.getByTestId('report-period-as-of').fill(value)
+    await asOf.fill(value)
 }
 
 // Below the tablet breakpoint (768) a popover is a bottom sheet.

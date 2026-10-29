@@ -122,6 +122,7 @@ function ControlItem({ item, model }: { item: ControlRowItem; model: ReportScree
                 form={form}
                 isOpen={model.surface?.kind === 'period'}
                 onOpenChange={onPeriodOpenChange}
+                onDismiss={model.onDismissSurface}
             />
         )
     }

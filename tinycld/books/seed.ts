@@ -248,6 +248,19 @@ async function seedRegisterEntries(pb: PocketBase, ctx: SeedContext, ids: Map<st
     const today = isoDay(now)
     const settings = (await pb.collection('books_settings').getFullList({ perPage: 1 }))[0]
     const fiscalStart = fiscalYearStart(now, settings?.fiscal_year_start_month ?? 1)
+    // A second day in This month, so the register's date order compares two days. On the 1st
+    // the month has no earlier day.
+    const monthStart = isoDay(new Date(now.getFullYear(), now.getMonth(), 1))
+    if (monthStart !== today) {
+        await postEntry(pb, ctx, ids, {
+            date: monthStart,
+            memo: 'Register month start',
+            lines: [
+                ['checking', 2000, 0],
+                ['equity', 0, 2000],
+            ],
+        })
+    }
     await postEntry(pb, ctx, ids, {
         date: today,
         memo: 'Register sale',
@@ -273,8 +286,10 @@ async function seedRegisterEntries(pb: PocketBase, ctx: SeedContext, ids: Map<st
             ['equity', 0, 50000],
         ],
     })
+    // Dated today, not at the fiscal start: e2e specs change the fiscal start month on the
+    // shared DB, and today is inside This fiscal year for any start month.
     await postEntry(pb, ctx, ids, {
-        date: fiscalStart,
+        date: today,
         memo: 'Register long memo '.repeat(12).trim(),
         lines: [
             ['checking', 100, 0],

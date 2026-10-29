@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
-import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { clickSidebarItem, login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     BALANCES_ROUTE,
     choosePreset,
@@ -34,6 +34,11 @@ const AS_OF_PRESET_IDS = [
     'custom',
 ]
 
+// A report reached again through the sidebar stacks over its earlier, hidden instance.
+function visibleChip(page: Page) {
+    return page.getByTestId('report-period').filter({ visible: true })
+}
+
 function presetPills(page: Page) {
     return page.locator('[data-testid^="report-period-preset-"]')
 }
@@ -44,6 +49,18 @@ async function heightOf(locator: Locator) {
 
 async function widthOf(locator: Locator) {
     return (await locator.boundingBox())?.width ?? 0
+}
+
+async function fitsViewport(page: Page, locator: Locator) {
+    const box = await locator.boundingBox()
+    const viewport = page.viewportSize()
+    if (!box || !viewport) return false
+    return (
+        box.x >= 0 &&
+        box.y >= 0 &&
+        box.x + box.width <= viewport.width &&
+        box.y + box.height <= viewport.height
+    )
 }
 
 async function pillBoxes(page: Page) {
@@ -73,11 +90,23 @@ const SHORT_MONTHS = [
 // The as-of chip ends with one day ("End of last quarter · Sep 30, 2026"); this is that day as
 // the YYYY-MM-DD the "As of" field holds.
 async function chipDay(page: Page) {
-    const text = (await page.getByTestId('report-period').textContent()) ?? ''
+    const text = (await visibleChip(page).textContent()) ?? ''
     const match = /· ([A-Z][a-z]{2}) (\d{1,2}), (\d{4})$/.exec(text)
     if (!match) return `unreadable chip: ${text}`
     const month = String(SHORT_MONTHS.indexOf(match[1]) + 1).padStart(2, '0')
     return `${match[3]}-${month}-${match[2].padStart(2, '0')}`
+}
+
+// Types an invalid date into the open period control, then leaves the report by browser Back
+// and returns by Forward. Neither is a press outside the control, so only the screen losing
+// focus can close it.
+async function leaveAndReturnWithInvalidEdit(page: Page) {
+    await setAsOfDate(page, '2026-02-30')
+    await expect(page.getByTestId('report-period-error')).toHaveText('Enter a date as YYYY-MM-DD.')
+    await page.goBack()
+    await expect(page.getByTestId('report-hub').filter({ visible: true })).toBeVisible()
+    await page.goForward()
+    await expect(page.getByTestId('report-screen').filter({ visible: true })).toBeVisible()
 }
 
 async function asOfFieldTop(page: Page) {
@@ -93,7 +122,7 @@ test.describe('report-shell: period and live apply', () => {
         await page.setViewportSize(DESKTOP)
         await openTrialBalance(page)
 
-        const chip = page.getByTestId('report-period')
+        const chip = visibleChip(page)
         const popover = page.getByTestId('report-period-popover')
         await chip.click()
         await expect(popover).toBeVisible()
@@ -154,6 +183,23 @@ test.describe('report-shell: period and live apply', () => {
         await page.keyboard.press('Escape')
         await expect(popover).toHaveCount(0)
 
+        // Leaving the report with no press outside the open control (browser Back, then Forward)
+        // closes it as the screen loses focus and discards the invalid edit: back on the report,
+        // no popover is left over, and reopened, the form shows the applied period.
+        await leaveAndReturnWithInvalidEdit(page)
+        await expect(chip).toHaveText(/^End of last quarter · /)
+        await expect(popover).toHaveCount(0)
+        await chip.click()
+        await expect(popover).toHaveCount(1)
+        await expect(error).toHaveCount(0)
+        await expect(asOf).toHaveValue(quarterEnd)
+        await expect(page.getByTestId('report-period-preset-end-of-last-quarter')).toHaveAttribute(
+            'aria-checked',
+            'true'
+        )
+        await page.keyboard.press('Escape')
+        await expect(popover).toHaveCount(0)
+
         // The default preset is left out of the URL.
         await choosePreset(page, 'end-of-last-month')
         await expect.poll(() => page.url()).not.toContain('?')
@@ -173,6 +219,22 @@ test.describe('report-shell: period and live apply', () => {
         await expect(page.getByTestId('report-screen')).toBeVisible()
         await expect(chip).toHaveText(/^End of last month · /)
         await expect.poll(() => page.url()).not.toContain('?')
+
+        // Leaving the report through the sidebar while the period control is open closes it:
+        // back on the report, no period popover is left over, and opening it again shows one.
+        if (!(await page.getByTestId('books-nav-accounts').isVisible())) {
+            await page.getByTestId('books-nav-accounting-toggle').click()
+        }
+        await chip.click()
+        await expect(popover).toBeVisible()
+        await clickSidebarItem(page, 'Chart of Accounts')
+        await expect(page.getByTestId('account-search')).toBeVisible()
+        await openTrialBalance(page)
+        await expect(popover).toHaveCount(0)
+        await chip.click()
+        await expect(popover).toHaveCount(1)
+        await page.keyboard.press('Escape')
+        await expect(popover).toHaveCount(0)
 
         // Tablet: a popover of its own width, not a full-width sheet. The new visit's form
         // starts from the default preset too.
@@ -212,6 +274,21 @@ test.describe('report-shell: period and live apply', () => {
         await expect(sheetTitle).toHaveCount(0)
         await expect(chip).toHaveText(/^Today · /)
         await expect.poll(() => hasNoPageScrollX(page)).toBe(true)
+
+        // Phone: leaving with the sheet open and an invalid date closes the sheet too, and
+        // reopened there is exactly one sheet, showing the applied period.
+        const today = await chipDay(page)
+        await leaveAndReturnWithInvalidEdit(page)
+        await expect(chip).toHaveText(/^Today · /)
+        await expect(sheetTitle).toHaveCount(0)
+        await chip.click()
+        await expect(sheetTitle).toHaveCount(1)
+        await expect(error).toHaveCount(0)
+        await expect(asOf).toHaveValue(today)
+        await expect(page.getByTestId('report-period-preset-today')).toHaveAttribute(
+            'aria-checked',
+            'true'
+        )
     })
 
     test('custom dates while the report loads, the copied link and the empty action, at desktop and phone', async ({
@@ -239,6 +316,15 @@ test.describe('report-shell: period and live apply', () => {
         const value = await asOf.inputValue()
         const picked = `${value.slice(0, 8)}15`
         await page.getByTestId('report-period-as-of-open').click()
+        // The calendar is a small popover, not a strip across the window, and it stays inside
+        // the viewport. At this width its "Pick a date" title shows only in the phone sheet, so
+        // the surface is found from the calendar's own month button.
+        const calendar = page
+            .getByRole('button', { name: 'Previous month' })
+            .locator('xpath=ancestor::*[@tabindex="-1"][1]')
+        await expect(calendar).toBeVisible()
+        await expect.poll(() => widthOf(calendar)).toBeLessThanOrEqual(400)
+        await expect.poll(() => fitsViewport(page, calendar)).toBe(true)
         await page.getByRole('button', { name: picked, exact: true }).click()
         await expect(chip).toHaveText(/^Custom · [A-Z][a-z]{2} 15, \d{4}$/)
         await expect.poll(() => page.url()).toContain(`to=${picked}`)

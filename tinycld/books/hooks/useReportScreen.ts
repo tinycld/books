@@ -3,7 +3,8 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
-import { useLocalSearchParams } from 'expo-router'
+import { useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router'
+import { useCallback, useEffectEvent } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { fiscalStartMonth, todayIso } from '../lib/register-range'
 import type {
@@ -139,6 +140,7 @@ export type ReportScreenModel = {
     surface: ReportSurface | null
     onOpenSurface(surface: ReportSurface): void
     onCloseSurface(): void
+    onDismissSurface(): void
     onCloseSurfaceOf(kind: ReportSurface['kind']): void
     onApplyFilter(filterId: string, values: string[]): void
     onRemoveFilter(filterId: string): void
@@ -171,14 +173,18 @@ export function useReportScreen(input: {
     const action = emptyAction(definition, options)
     const form = useReportOptionsForm({ definition, options, context })
     const accounts = useAccountOptions()
-    const surface = useReportUIStore(s => s.surface)
+    // The surfaces live in a module store, and a pushed route keeps an earlier instance of this
+    // screen mounted under the focused one, so only the focused instance draws them.
+    const isFocused = useIsFocused()
+    const storedSurface = useReportUIStore(s => s.surface)
+    const surface = isFocused ? storedSurface : null
     const openSurface = useReportUIStore(s => s.openSurface)
     const onCloseSurface = useReportUIStore(s => s.closeSurface)
     const onCloseSurfaceOf = useReportUIStore(s => s.closeSurfaceOf)
     const folded = useReportUIStore(s => s.folded[definition.id]) ?? NOTHING_FOLDED
     const setFolded = useReportUIStore(s => s.setFolded)
     const toggleSection = useReportUIStore(s => s.toggleSection)
-    const isCustomizeOpen = useReportUIStore(s => s.isCustomizeOpen)
+    const isCustomizeOpen = useReportUIStore(s => s.isCustomizeOpen) && isFocused
     const onOpenCustomize = useReportUIStore(s => s.openCustomize)
     const onCloseCustomize = useReportUIStore(s => s.closeCustomize)
     const rows = result.model?.rows ?? NO_ROWS
@@ -246,6 +252,22 @@ export function useReportScreen(input: {
         form.applyFilters(withoutFilter(options.filters, filterId))
         if (surface?.kind === 'filter-picker' && surface.filterId === filterId) onCloseSurface()
     }
+
+    // Escape, an outside press, a sheet's close or the screen losing focus. It drops an invalid
+    // typed date, so a later option change is not held back by it.
+    const onDismissSurface = () => {
+        form.discardEdit()
+        onCloseSurface()
+    }
+
+    // A surface left open would come back with this screen, or show over the next screen's own.
+    // An effect event, so the close reads the options of the last render, not of the focus.
+    const closeOnBlur = useEffectEvent(() => {
+        onDismissSurface()
+        onCloseCustomize()
+    })
+    useFocusEffect(useCallback(() => () => closeOnBlur(), []))
+
     const onFoldAll = () => setFolded(definition.id, foldAllTarget(rows, folded))
     const onToggleSection = (sectionId: string) => toggleSection(definition.id, sectionId)
 
@@ -287,6 +309,7 @@ export function useReportScreen(input: {
         surface,
         onOpenSurface,
         onCloseSurface,
+        onDismissSurface,
         onCloseSurfaceOf,
         onApplyFilter,
         onRemoveFilter,

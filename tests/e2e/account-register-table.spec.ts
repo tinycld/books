@@ -4,8 +4,11 @@ import {
     accountItem,
     DESKTOP,
     openChart,
+    openingItemIsFirst,
     openRegister,
     REGISTER_SEED,
+    revealRegisterItem,
+    scrollRegisterToTop,
 } from './account-register-helpers'
 
 // Journal entry creation has no UI until `p1-journal-entries`, so the register
@@ -38,14 +41,16 @@ function cents(text: string): number {
     return /[-−]/.test(text) ? -value : value
 }
 
-async function openChecking(page: Page, preset: string) {
+// This month, not a fiscal range: books-settings.spec.ts and the setup wizard spec change the
+// fiscal start month on the shared DB, and that reloads a fiscal-range register mid-test.
+async function openChecking(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(DESKTOP)
     await openRegister(page, 'Business Checking')
     await page.getByTestId('register-range').click()
-    await page.getByRole('menuitem', { name: preset, exact: true }).click()
-    await expect(page.getByTestId('register-range')).toContainText(preset)
+    await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
+    await expect(page.getByTestId('register-range')).toContainText('This month')
     await expect(page.getByTestId('register-table')).toBeVisible()
 }
 
@@ -53,12 +58,94 @@ function rows(page: Page) {
     return page.locator(ROWS)
 }
 
-function rowByMemo(page: Page, memo: string) {
-    return rows(page).filter({ hasText: memo })
+// Seeded entries can sit below the register's mounted window, so each lookup scrolls to them.
+async function rowByMemo(page: Page, memo: string) {
+    const row = rows(page).filter({ hasText: memo })
+    await revealRegisterItem(page, row)
+    return row
 }
 
 async function rowIds(page: Page): Promise<string[]> {
     return rows(page).evaluateAll(els => els.map(el => el.getAttribute('data-testid') ?? ''))
+}
+
+// Reads every mounted row, the ending balance and the opening row in one evaluate. The register
+// mounts only a window of its rows, and other specs post entries dated today on Business
+// Checking on the shared DB, so rows can shift out of the window between separate reads.
+async function registerSnapshot(page: Page) {
+    const raw = await page.evaluate(selector => {
+        const textOf = (testId: string) => {
+            const el = document.querySelector(`[data-testid="${testId}"]`)
+            return el instanceof HTMLElement ? el.innerText.trim() : ''
+        }
+        const rows = Array.from(document.querySelectorAll(selector)).map(el => {
+            const id = el.getAttribute('data-testid') ?? ''
+            const line = id.replace('register-row-', '')
+            return {
+                id,
+                memo: textOf(`register-cell-memo-${line}`),
+                date: textOf(`register-cell-date-${line}`),
+                debit: textOf(`register-cell-debit-${line}`),
+                credit: textOf(`register-cell-credit-${line}`),
+                balance: textOf(`register-cell-balance-${line}`),
+            }
+        })
+        return {
+            rows,
+            ending: textOf('register-ending-balance'),
+            opening: textOf('register-opening-row'),
+        }
+    }, ROWS)
+    return {
+        ending: raw.ending,
+        opening: raw.opening,
+        rows: raw.rows.map(row => ({
+            id: row.id,
+            memo: row.memo,
+            day: Date.parse(row.date),
+            debit: cents(row.debit),
+            credit: cents(row.credit),
+            balance: cents(row.balance),
+        })),
+    }
+}
+
+type Row = Awaited<ReturnType<typeof registerSnapshot>>['rows'][number]
+
+// The mounted rows are contiguous. Returns how many different days they hold.
+function expectDatesInOrder(rows: Row[], order: 'newest' | 'oldest') {
+    expect(rows.length).toBeGreaterThan(1)
+    const days = rows.map(row => row.day)
+    const sorted = [...days].sort((a, b) => (order === 'newest' ? b - a : a - b))
+    expect(days).toEqual(sorted)
+    return new Set(days).size
+}
+
+// Each row's balance differs from the row before it in time by that row's debit minus credit.
+function expectRunningBalance(rows: Row[], order: 'newest' | 'oldest') {
+    expect(rows.length).toBeGreaterThan(1)
+    for (let i = 0; i < rows.length - 1; i++) {
+        const [newer, older] = order === 'newest' ? [rows[i], rows[i + 1]] : [rows[i + 1], rows[i]]
+        expect(newer.balance - older.balance).toBe(newer.debit - newer.credit)
+    }
+}
+
+// Rows another spec posts while the test runs join the newest end, so an order is compared on
+// the rows both reads hold: those keep their relative order.
+function expectSameOrder(before: Row[], after: Row[]) {
+    const afterIds = new Set(after.map(row => row.id))
+    const shared = before.map(row => row.id).filter(id => afterIds.has(id))
+    expect(shared.length).toBeGreaterThan(1)
+    const sharedIds = new Set(shared)
+    expect(after.map(row => row.id).filter(id => sharedIds.has(id))).toEqual(shared)
+}
+
+// Flips the date sort and waits for the new order: oldest first puts the opening row at the
+// top of the list, newest first puts an entry row there.
+async function toggleSort(page: Page, order: 'newest' | 'oldest') {
+    await page.getByTestId('register-sort-date').click()
+    await scrollRegisterToTop(page)
+    await expect.poll(() => openingItemIsFirst(page)).toBe(order === 'oldest')
 }
 
 async function cell(page: Page, column: string, rowTestId: string) {
@@ -101,7 +188,7 @@ async function headingBoxes(page: Page): Promise<Record<string, Box>> {
 
 test.describe('account-register: wide table', () => {
     test('columns and seeded rows', async ({ page }) => {
-        await openChecking(page, 'This month')
+        await openChecking(page)
 
         const boxes = await headingBoxes(page)
         expect(Object.keys(boxes)).toEqual(HEADINGS)
@@ -114,12 +201,13 @@ test.describe('account-register: wide table', () => {
             REGISTER_SEED.voidOriginal,
             REGISTER_SEED.corrected,
         ]) {
-            await expect(rowByMemo(page, memo)).toHaveCount(1)
+            await expect(await rowByMemo(page, memo)).toHaveCount(1)
         }
 
         const sale = (await rowIds(page)).filter(Boolean)
         expect(sale.length).toBeGreaterThanOrEqual(4)
-        const saleId = (await rowByMemo(page, REGISTER_SEED.sale).getAttribute('data-testid')) ?? ''
+        const saleId =
+            (await (await rowByMemo(page, REGISTER_SEED.sale)).getAttribute('data-testid')) ?? ''
         expect(await cellText(page, 'ref', saleId)).toMatch(/\S/)
         expect(await cellText(page, 'type', saleId)).toBe('Journal entry')
         expect(await cellText(page, 'account', saleId)).toBe('Accounts receivable')
@@ -128,99 +216,102 @@ test.describe('account-register: wide table', () => {
     })
 
     test('split, void and corrected rows', async ({ page }) => {
-        await openChecking(page, 'This month')
+        await openChecking(page)
 
         const splitId =
-            (await rowByMemo(page, REGISTER_SEED.split).getAttribute('data-testid')) ?? ''
+            (await (await rowByMemo(page, REGISTER_SEED.split)).getAttribute('data-testid')) ?? ''
         expect(await cellText(page, 'account', splitId)).toBe('-Split-')
         expect(await cellText(page, 'credit', splitId)).toMatch(MONEY)
 
         const voidId =
-            (await rowByMemo(page, REGISTER_SEED.voidOriginal).getAttribute('data-testid')) ?? ''
+            (await (
+                await rowByMemo(page, REGISTER_SEED.voidOriginal)
+            ).getAttribute('data-testid')) ?? ''
         expect(await cellText(page, 'type', voidId)).toContain('Void')
 
-        await expect(
-            page.locator('[data-testid^="register-cell-type-"]').filter({
+        const voidReversal = rows(page).filter({
+            has: page.locator('[data-testid^="register-cell-type-"]', {
                 hasText: /^Void reversal of /,
-            })
-        ).not.toHaveCount(0)
+            }),
+        })
+        await revealRegisterItem(page, voidReversal.first())
+        await expect(voidReversal).not.toHaveCount(0)
 
         const correctedId =
-            (await rowByMemo(page, REGISTER_SEED.corrected).getAttribute('data-testid')) ?? ''
+            (await (await rowByMemo(page, REGISTER_SEED.corrected)).getAttribute('data-testid')) ??
+            ''
         expect(await cellText(page, 'type', correctedId)).toBe('Journal entry')
     })
 
     test('sort order and the opening balance row', async ({ page }) => {
-        await openChecking(page, 'This fiscal year')
+        await openChecking(page)
+        const newestTop = await registerSnapshot(page)
+        expectDatesInOrder(newestTop.rows, 'newest')
 
-        const newestFirst = await rowIds(page)
-        expect(newestFirst.length).toBeGreaterThan(1)
-        const first = await cellText(page, 'date', newestFirst[0])
-        const last = await cellText(page, 'date', newestFirst[newestFirst.length - 1])
-        expect(Date.parse(first)).toBeGreaterThanOrEqual(Date.parse(last))
-
+        // Newest first, the opening row is the last item: it is reached by scrolling to the end.
+        // That end is stable while other specs post, because their entries are dated today and
+        // sort to the newest end.
         const opening = page.getByTestId('register-opening-row')
+        await revealRegisterItem(page, opening)
         await expect(opening).toBeVisible()
-        const openingText = await opening.innerText()
         expect((await boxOf(opening)).y).toBeGreaterThan((await boxOf(rows(page).last())).y)
-        const lastId = newestFirst[newestFirst.length - 1]
-        const lastDebit = cents(await cellText(page, 'debit', lastId))
-        const lastCredit = cents(await cellText(page, 'credit', lastId))
-        expect(cents(await cellText(page, 'balance', lastId))).toBe(
-            cents(openingText) + lastDebit - lastCredit
+        const oldestEnd = await registerSnapshot(page)
+        const daysAtEnd = expectDatesInOrder(oldestEnd.rows, 'newest')
+        // seed.ts dates this row the 1st of the month and skips it when it runs on the 1st, so
+        // when the range holds it, the oldest end holds two different days.
+        if (oldestEnd.rows.some(row => row.memo === REGISTER_SEED.monthStart)) {
+            expect(daysAtEnd).toBeGreaterThan(1)
+        }
+        const oldestAtEnd = oldestEnd.rows[oldestEnd.rows.length - 1]
+        expect(oldestAtEnd.balance).toBe(
+            cents(oldestEnd.opening) + oldestAtEnd.debit - oldestAtEnd.credit
         )
 
-        await page.getByTestId('register-sort-date').click()
-        await expect.poll(() => rowIds(page)).toEqual([...newestFirst].reverse())
+        // Oldest first, the opening row is the first item, above the oldest entry, and the rows
+        // below it are the bottom rows of newest first, reversed.
+        await toggleSort(page, 'oldest')
+        await expect(opening).toBeVisible()
         expect((await boxOf(opening)).y).toBeLessThan((await boxOf(rows(page).first())).y)
-        const oldestId = [...newestFirst].reverse()[0]
-        const oldestDebit = cents(await cellText(page, 'debit', oldestId))
-        const oldestCredit = cents(await cellText(page, 'credit', oldestId))
-        expect(cents(await cellText(page, 'balance', oldestId))).toBe(
-            cents(openingText) + oldestDebit - oldestCredit
+        const oldestTop = await registerSnapshot(page)
+        expectDatesInOrder(oldestTop.rows, 'oldest')
+        const compared = Math.min(oldestTop.rows.length, oldestEnd.rows.length)
+        expect(compared).toBeGreaterThan(1)
+        expect(oldestTop.rows.slice(0, compared).map(row => row.id)).toEqual(
+            [...oldestEnd.rows]
+                .reverse()
+                .slice(0, compared)
+                .map(row => row.id)
+        )
+        const oldestAtTop = oldestTop.rows[0]
+        expect(oldestAtTop.balance).toBe(
+            cents(oldestTop.opening) + oldestAtTop.debit - oldestAtTop.credit
         )
 
-        await page.getByTestId('register-sort-date').click()
-        await expect.poll(() => rowIds(page)).toEqual(newestFirst)
+        // Back to newest first, the rows at the top come back in their first order.
+        await toggleSort(page, 'newest')
+        const newestAgain = await registerSnapshot(page)
+        expectDatesInOrder(newestAgain.rows, 'newest')
+        expectSameOrder(newestTop.rows, newestAgain.rows)
     })
 
     test('running balance', async ({ page }) => {
-        await openChecking(page, 'This month')
+        await openChecking(page)
 
-        const ids = await rowIds(page)
-        expect(ids.length).toBeGreaterThan(1)
-        for (let i = 0; i < ids.length - 1; i++) {
-            const newer = ids[i]
-            const older = ids[i + 1]
-            const delta =
-                cents(await cellText(page, 'debit', newer)) -
-                cents(await cellText(page, 'credit', newer))
-            const diff =
-                cents(await cellText(page, 'balance', newer)) -
-                cents(await cellText(page, 'balance', older))
-            expect(diff).toBe(delta)
-        }
-        const ending = await page.getByTestId('register-ending-balance').innerText()
-        expect(cents(await cellText(page, 'balance', ids[0]))).toBe(cents(ending))
+        const newestFirst = await registerSnapshot(page)
+        expectRunningBalance(newestFirst.rows, 'newest')
+        expect(newestFirst.rows[0].balance).toBe(cents(newestFirst.ending))
 
-        await page.getByTestId('register-sort-date').click()
-        await expect.poll(() => rowIds(page)).toEqual([...ids].reverse())
-        const oldestFirst = await rowIds(page)
-        for (let i = 0; i < oldestFirst.length - 1; i++) {
-            const older = oldestFirst[i]
-            const newer = oldestFirst[i + 1]
-            const delta =
-                cents(await cellText(page, 'debit', newer)) -
-                cents(await cellText(page, 'credit', newer))
-            const diff =
-                cents(await cellText(page, 'balance', newer)) -
-                cents(await cellText(page, 'balance', older))
-            expect(diff).toBe(delta)
-        }
+        await toggleSort(page, 'oldest')
+        expectRunningBalance((await registerSnapshot(page)).rows, 'oldest')
+
+        await toggleSort(page, 'newest')
+        const newestAgain = await registerSnapshot(page)
+        expectRunningBalance(newestAgain.rows, 'newest')
+        expectSameOrder(newestFirst.rows, newestAgain.rows)
     })
 
     test('layout by bounding boxes', async ({ page }) => {
-        await openChecking(page, 'This month')
+        await openChecking(page)
 
         const table = page.getByTestId('register-table')
         await expect(table.locator('a')).toHaveCount(0)
@@ -256,10 +347,10 @@ test.describe('account-register: wide table', () => {
     test('at 1280 the table fits without sideways scroll and Balance is not clipped', async ({
         page,
     }) => {
-        await openChecking(page, 'This fiscal year')
+        await openChecking(page)
         const table = page.getByTestId('register-table')
         const fits = await table.evaluate(el => {
-            for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+            for (let node: Element | null = el; node; node = node.parentElement) {
                 const overflowX = getComputedStyle(node).overflowX
                 if (
                     (overflowX === 'auto' || overflowX === 'scroll') &&
@@ -283,7 +374,9 @@ test.describe('account-register: wide table', () => {
         for (const right of rights) expect(right).toBeLessThanOrEqual(limit + 0.5)
         const heading = (await headingBoxes(page)).Balance
         expect(heading.x + heading.width).toBeLessThanOrEqual(limit + 0.5)
-        const openingBalance = page.getByTestId('register-opening-row').locator('text=/\\$/').last()
+        const openingRow = page.getByTestId('register-opening-row')
+        await revealRegisterItem(page, openingRow)
+        const openingBalance = openingRow.locator('text=/\\$/').last()
         const openingBox = await boxOf(openingBalance)
         expect(openingBox.x + openingBox.width).toBeLessThanOrEqual(limit + 0.5)
 
@@ -295,9 +388,10 @@ test.describe('account-register: wide table', () => {
     })
 
     test('headings share the right edge of their cells', async ({ page }) => {
-        await openChecking(page, 'This month')
+        await openChecking(page)
         const boxes = await headingBoxes(page)
-        const id = (await rowByMemo(page, REGISTER_SEED.sale).getAttribute('data-testid')) ?? ''
+        const id =
+            (await (await rowByMemo(page, REGISTER_SEED.sale)).getAttribute('data-testid')) ?? ''
         for (const [label, column] of [
             ['Debit', 'debit'],
             ['Credit', 'credit'],
@@ -311,7 +405,7 @@ test.describe('account-register: wide table', () => {
     })
 
     test('headings stay aligned with cells when scrollbars take layout space', async ({ page }) => {
-        await openChecking(page, 'This fiscal year')
+        await openChecking(page)
         await page.addStyleTag({
             content:
                 '*::-webkit-scrollbar { width: 15px; height: 15px; } *::-webkit-scrollbar-thumb { background: #888 }',
@@ -334,7 +428,8 @@ test.describe('account-register: wide table', () => {
         expect(scroller.overflows).toBe(true)
         expect(scroller.gutter).toBeGreaterThan(0)
         const boxes = await headingBoxes(page)
-        const id = (await rowByMemo(page, REGISTER_SEED.sale).getAttribute('data-testid')) ?? ''
+        const id =
+            (await (await rowByMemo(page, REGISTER_SEED.sale)).getAttribute('data-testid')) ?? ''
         for (const [label, column] of [
             ['Debit', 'debit'],
             ['Credit', 'credit'],
@@ -357,8 +452,9 @@ test.describe('account-register: wide table', () => {
     test('narrow desktop keeps the amount columns and the Memo and Account minimums', async ({
         page,
     }) => {
-        await openChecking(page, 'This month')
-        const id = (await rowByMemo(page, REGISTER_SEED.sale).getAttribute('data-testid')) ?? ''
+        await openChecking(page)
+        const id =
+            (await (await rowByMemo(page, REGISTER_SEED.sale)).getAttribute('data-testid')) ?? ''
         const amounts = ['debit', 'credit', 'balance']
         const wide: number[] = []
         for (const column of amounts) wide.push((await boxOf(await cell(page, column, id))).width)
@@ -377,7 +473,7 @@ test.describe('account-register: wide table', () => {
     })
 
     test('ending balance and the Chart of Accounts both show money', async ({ page }) => {
-        await openChecking(page, 'This fiscal year')
+        await openChecking(page)
         await expect(page.getByTestId('register-ending-balance')).toHaveText(MONEY)
 
         await openChart(page)

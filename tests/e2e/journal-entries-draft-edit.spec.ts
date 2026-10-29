@@ -11,6 +11,7 @@ import {
     openEntriesList,
     openNewEntry,
     PHONE,
+    searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
 
@@ -81,7 +82,7 @@ async function backToList(page: Page) {
 // The list sorts newest first and mounts only a window of rows, while parallel workers keep
 // adding entries, so a row is found by searching for its memo instead of by its position.
 async function searchList(page: Page, memo: string) {
-    await page.getByTestId('entries-search').fill(memo)
+    await searchEntries(page, memo)
 }
 
 async function openDraft(page: Page, memo: string) {
@@ -565,7 +566,7 @@ for (const [sizeName, size] of SIZES) {
                 Object.assign(window, { __entrySeen: seen })
             })
 
-            await page.getByTestId('entries-search').fill(ENTRIES_SEED.draft)
+            await searchEntries(page, ENTRIES_SEED.draft)
             await listItems(page, ENTRIES_SEED.draft).first().click()
             await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
             await expect(page.getByTestId('entry-actions')).toBeVisible()
@@ -581,7 +582,7 @@ test.describe('journal-entries: draft header (phone)', () => {
     test('the badge shares the title row and the header stays compact', async ({ page }) => {
         await start(page, PHONE)
         await openEntriesList(page)
-        await page.getByTestId('entries-search').fill(ENTRIES_SEED.draft)
+        await searchEntries(page, ENTRIES_SEED.draft)
         await listItems(page, ENTRIES_SEED.draft).first().click()
         await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
 

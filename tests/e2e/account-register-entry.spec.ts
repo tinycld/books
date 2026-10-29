@@ -61,9 +61,11 @@ for (const [sizeName, size] of SIZES) {
             expect(new URL(page.url()).pathname).toMatch(REGISTER_URL)
             expect(new URL(page.url()).pathname.endsWith(`/accounts/${id}`)).toBe(true)
 
+            // This month holds the entries seeded today and, unlike a fiscal range, does not
+            // reload when another spec changes the fiscal start month on the shared DB.
             await page.getByTestId('register-range').click()
-            await page.getByRole('menuitem', { name: 'This fiscal year', exact: true }).click()
-            await expect(page.getByTestId('register-range')).toContainText('This fiscal year')
+            await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
+            await expect(page.getByTestId('register-range')).toContainText('This month')
             await expect(page.locator(ITEMS).first()).toBeVisible()
             await expect(page.getByTestId('register-new-entry')).toBeVisible()
             if (isPhone(page)) {
@@ -113,7 +115,8 @@ test.describe('account-register: entry points (phone drawer)', () => {
         await chooseViewRegister(page, 'Business Checking')
         await expectRegisterOpen(page, 'Business Checking')
         await page.getByTestId('register-range').click()
-        await page.getByRole('menuitem', { name: 'This fiscal year', exact: true }).click()
+        await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
+        await expect(page.getByTestId('register-range')).toContainText('This month')
 
         const card = page.locator('[data-testid^="register-card-"]').first()
         await expect(card).toBeVisible()
