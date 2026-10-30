@@ -1,5 +1,5 @@
 import { CUSTOMERS_PATH } from '../lib/customer-route'
-import { useIsShowingRecord, useRecordNavigation } from './useRecordNavigation'
+import { useRecordNavigation } from './useRecordNavigation'
 
 export function useCustomerNavigation() {
     const nav = useRecordNavigation(CUSTOMERS_PATH)
@@ -9,5 +9,3 @@ export function useCustomerNavigation() {
         leave: nav.leave,
     }
 }
-
-export const useIsShowingCustomer = () => useIsShowingRecord(CUSTOMERS_PATH)

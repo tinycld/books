@@ -1,8 +1,6 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { Dialog } from '@tinycld/core/ui/dialog'
-import { Text } from 'react-native'
 import type { useCustomerActions } from '../../hooks/useCustomerActions'
 import type { CustomerRecord } from '../../hooks/useCustomersQuery'
 import { type DeleteDecision, deleteDecision } from '../../lib/customer-actions'
@@ -11,6 +9,11 @@ import {
     SUB_CUSTOMERS_ACTIVE_FIRST,
     UNSAVED_DELETE_WARNING,
 } from '../../lib/customer-messages'
+import {
+    type DeleteDialogConfirm,
+    type DeleteDialogLine,
+    DeleteRecordDialog,
+} from '../DeleteRecordDialog'
 
 type Actions = ReturnType<typeof useCustomerActions>
 
@@ -19,6 +22,8 @@ interface DeleteCustomerDialogProps {
     actions: Actions
     // The customer is open beside the list with unsaved edits, which the delete drops.
     isOpenAndDirty: boolean
+    // This customer's refusal, or null; another customer's stays in the list's banner.
+    refusal: string | null
     onClose: () => void
     // Takes the user off the customer once the delete lands, if they still see it, and
     // says whether it did.
@@ -57,9 +62,7 @@ function dialogStateFor(subs: ReturnType<typeof useSubCustomers>): DialogState {
     return deleteDecision(subs.subs)
 }
 
-type Confirm = { testID: string; label: string; isDestructive: boolean } | null
-
-const CONFIRM: Record<DialogState, Confirm> = {
+const CONFIRM: Record<DialogState, DeleteDialogConfirm> = {
     delete: { testID: 'delete-customer-confirm', label: 'Delete', isDestructive: true },
     'make-inactive': {
         testID: 'delete-customer-make-inactive',
@@ -91,112 +94,59 @@ const CLOSE_LABEL: Record<DialogState, string> = {
     'check-failed': 'Close',
 }
 
+type LineInput = Omit<DeleteDialogLine, 'text'> & { text: string | null; isVisible: boolean }
+
+// The dialog's lines in order; a line with no text or not visible is left out.
+function linesOf(inputs: readonly LineInput[]): DeleteDialogLine[] {
+    return inputs.flatMap(({ key, text, tone, isVisible }) =>
+        isVisible && text ? [{ key, text, tone }] : []
+    )
+}
+
 function DeleteCustomerBody({
     customer,
     actions,
     isOpenAndDirty,
+    refusal,
     onClose,
     onDeleted,
 }: DeleteCustomerDialogProps & { customer: CustomerRecord }) {
     const state = dialogStateFor(useSubCustomers(customer.id))
     const hasSubs = state === 'make-inactive' || state === 'close-only'
-    // Only this customer's refusal; another customer's stays in the list's banner.
-    const refusal = actions.actionError?.id === customer.id ? actions.actionError.message : null
+    const lines = linesOf([
+        { key: 'has-subs', text: HAS_SUB_CUSTOMERS_TITLE, tone: 'title', isVisible: hasSubs },
+        { key: 'explanation', text: EXPLANATION[state], tone: 'muted', isVisible: true },
+        { key: 'name', text: customer.display_name, tone: 'plain', isVisible: true },
+        {
+            key: 'unsaved',
+            text: UNSAVED_DELETE_WARNING,
+            tone: 'plain',
+            isVisible: isOpenAndDirty,
+        },
+        {
+            key: 'check-failed',
+            text: CHECK_FAILED,
+            tone: 'error',
+            isVisible: state === 'check-failed',
+        },
+        { key: 'refusal', text: refusal, tone: 'error', isVisible: true },
+    ])
 
-    // A write in flight must finish before the dialog goes away.
-    const dismiss = () => {
-        if (!actions.isWorking) onClose()
-    }
-
-    const run = async () => {
-        const isDone =
-            state === 'make-inactive'
-                ? await actions.setInactive(customer.id, true)
-                : await actions.deleteCustomer(customer.id, onDeleted)
-        if (isDone) onClose()
-    }
+    const onConfirm = () =>
+        state === 'make-inactive'
+            ? actions.setInactive(customer.id, true)
+            : actions.deleteRecord(customer.id, onDeleted)
 
     return (
-        <Dialog
-            isOpen
-            onClose={dismiss}
+        <DeleteRecordDialog
+            testIdPrefix="delete-customer"
             title="Delete customer"
-            hasCloseButton={false}
-            testID="delete-customer-dialog"
-        >
-            <Dialog.Body testID="delete-customer-dialog-body">
-                <Line isVisible={hasSubs} className="text-sm font-medium text-foreground">
-                    {HAS_SUB_CUSTOMERS_TITLE}
-                </Line>
-                <Line
-                    isVisible={EXPLANATION[state] !== null}
-                    className="text-sm text-muted-foreground"
-                >
-                    {EXPLANATION[state]}
-                </Line>
-                <Text className="text-sm text-foreground">{customer.display_name}</Text>
-                <Line isVisible={isOpenAndDirty} className="text-sm text-foreground">
-                    {UNSAVED_DELETE_WARNING}
-                </Line>
-                <ErrorLine message={state === 'check-failed' ? CHECK_FAILED : null} />
-                <ErrorLine message={refusal} />
-            </Dialog.Body>
-            <Dialog.Footer>
-                <Dialog.CancelButton
-                    label={CLOSE_LABEL[state]}
-                    onPress={dismiss}
-                    isDisabled={actions.isWorking}
-                    testID="delete-customer-close"
-                />
-                <ConfirmButton
-                    confirm={CONFIRM[state]}
-                    isDisabled={actions.isWorking}
-                    onPress={run}
-                />
-            </Dialog.Footer>
-        </Dialog>
-    )
-}
-
-function ConfirmButton({
-    confirm,
-    isDisabled,
-    onPress,
-}: {
-    confirm: Confirm
-    isDisabled: boolean
-    onPress: () => void
-}) {
-    if (!confirm) return null
-    return (
-        <Dialog.ActionButton
-            testID={confirm.testID}
-            label={confirm.label}
-            onPress={onPress}
-            isDisabled={isDisabled}
-            isDestructive={confirm.isDestructive}
+            lines={lines}
+            confirm={CONFIRM[state]}
+            closeLabel={CLOSE_LABEL[state]}
+            isWorking={actions.isWorking}
+            onClose={onClose}
+            onConfirm={onConfirm}
         />
-    )
-}
-
-function Line({
-    isVisible,
-    className,
-    children,
-}: {
-    isVisible: boolean
-    className: string
-    children: string | null
-}) {
-    if (!isVisible) return null
-    return <Text className={className}>{children}</Text>
-}
-
-function ErrorLine({ message }: { message: string | null }) {
-    if (!message) return null
-    return (
-        <Text accessibilityRole="alert" className="text-sm text-danger">
-            {message}
-        </Text>
     )
 }
