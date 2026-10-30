@@ -28,8 +28,8 @@ describe('useAccountOptions', () => {
         expect(hook.result.current.options).toEqual(BEFORE.options)
         expect(hook.result.current.names).toEqual(BEFORE.names)
         expect(hook.result.current.options.slice(0, 2)).toEqual([
-            { value: 'acct_bank_0001', label: '1000 Cash and bank' },
-            { value: 'acct_bank_0002', label: '  1010 Operating checking' },
+            { value: 'acct_bank_0001', label: '1000 Cash and bank', indent: 0 },
+            { value: 'acct_bank_0002', label: '1010 Operating checking', indent: 1 },
         ])
         expect(hook.result.current.names.size).toBe(ACCOUNTS.length)
     })

@@ -189,7 +189,7 @@ export function useReportScreen(input: {
     const onCloseCustomize = useReportUIStore(s => s.closeCustomize)
     const rows = result.model?.rows ?? NO_ROWS
     const filterSpecs = definition.filters ?? []
-    const accountChoices = accounts.options.map(o => ({ value: o.value, label: o.label.trim() }))
+    const accountChoices = accounts.options.map(o => ({ value: o.value, label: o.label }))
 
     // Owned here, above the Popover, so the draft survives the Popover becoming a Sheet at a
     // breakpoint change.
