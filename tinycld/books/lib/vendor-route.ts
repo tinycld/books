@@ -2,6 +2,7 @@ import {
     newRecordPath,
     type OpenRecord,
     openRecordFromPath,
+    RECORD_DETAIL_SCREENS,
     type RecordRoute,
     recordPath,
 } from './record-route'
@@ -19,3 +20,5 @@ export function newVendorPath(): RecordRoute {
 export function openVendorFromPath(pathname: string): OpenRecord {
     return openRecordFromPath(VENDORS_PATH, pathname)
 }
+
+export const VENDOR_DETAIL_SCREENS = RECORD_DETAIL_SCREENS

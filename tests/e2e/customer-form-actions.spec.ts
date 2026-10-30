@@ -263,8 +263,8 @@ test.describe('customer-form: inactive and delete', () => {
             await expect(parentEntry).toBeVisible()
             await expect(inactiveLabel(subEntry)).toBeVisible()
 
-            // Offline behavior does not depend on the viewport; desktop only keeps the phone
-            // run well inside the test timeout.
+            // Offline behavior runs the same code at both sizes, so a phone run would be a
+            // duplicate (CLAUDE.md); desktop only.
             if (sizeName === 'desktop') {
                 // (6b) Offline, a write from the menu fails at once instead of pausing: the banner
                 // says why (a refusal, with Dismiss), and the write items are enabled again.
@@ -322,52 +322,60 @@ test.describe('customer-form: inactive and delete', () => {
             await expect(parentEntry).toHaveCount(0)
             await expect(page.getByTestId('customers-no-match')).toBeVisible()
 
-            // (8) The open, dirty customer is deleted in another tab: the not-found message
-            // replaces the form and no Discard changes? question appears.
-            const openName = `${prefix} open`
-            await createCustomer(page, { name: openName })
-            await searchCustomers(page, openName)
-            await openButton(page, openName).click()
-            await expect(customerSurface(page)).toBeVisible()
-            await expect(field(page, 'display_name')).toHaveValue(openName)
-            await field(page, 'notes').fill(`${prefix} typed notes`)
-
-            const other = await page.context().newPage()
-            await login(other)
-            await navigateToPackage(other, 'books')
-            await other.setViewportSize(size)
-            await openCustomersList(other)
-            await searchCustomers(other, openName)
-            const openId = await customerIdOf(other, openName)
-            const otherDialog = deleteDialog(other)
-            // A sub-customer check that fails offers neither Delete nor Make inactive.
-            const failedCheck = await failSubCustomerCheck(other, openId)
-            await other.getByTestId(`customer-menu-${openId}`).click()
-            await other.getByTestId('customer-menu-delete').click()
-            await expect(otherDialog.root).toBeVisible()
-            await expect(otherDialog.body).toContainText(/could not|couldn't|failed|try again/i)
-            await expect(otherDialog.close).toBeVisible()
-            await expect(otherDialog.confirm).toHaveCount(0)
-            await expect(otherDialog.makeInactive).toHaveCount(0)
-            await otherDialog.close.click()
-            await expect(otherDialog.root).toBeHidden()
-            await other.unroute(CUSTOMER_RECORDS, failedCheck)
-
-            await other.getByTestId(`customer-menu-${openId}`).click()
-            await other.getByTestId('customer-menu-delete').click()
-            await expect(otherDialog.root).toBeVisible()
-            await otherDialog.confirm.click()
-            await expect(otherDialog.root).toBeHidden()
-            await expect(customerEntry(other, openName)).toHaveCount(0)
-            await other.close()
-
-            const notFound = page.getByTestId('customer-not-found')
-            await expect(notFound).toContainText(NOT_FOUND)
-            await expect(discard.title).toBeHidden()
-            await page.getByTestId('customer-not-found-back').click()
-            await expect(discard.title).toBeHidden()
-            await expect(notFound).toBeHidden()
-            await expect(page.getByTestId('customers-list')).toBeVisible()
+            // The failed check, the delete elsewhere and the not-found message run the same
+            // code at both sizes, and the phone's menu and dialog sheets are driven above, so
+            // a phone run would be a duplicate (CLAUDE.md); desktop only.
+            if (sizeName === 'desktop') await deleteOpenCustomerElsewhere(page, prefix)
         })
     }
 })
+
+// (8) The open, dirty customer is deleted in another tab: the not-found message replaces
+// the form and no Discard changes? question appears.
+async function deleteOpenCustomerElsewhere(page: Page, prefix: string) {
+    const discard = discardDialog(page)
+    const openName = `${prefix} open`
+    await createCustomer(page, { name: openName })
+    await searchCustomers(page, openName)
+    await openButton(page, openName).click()
+    await expect(customerSurface(page)).toBeVisible()
+    await expect(field(page, 'display_name')).toHaveValue(openName)
+    await field(page, 'notes').fill(`${prefix} typed notes`)
+
+    const other = await page.context().newPage()
+    await login(other)
+    await navigateToPackage(other, 'books')
+    await other.setViewportSize(DESKTOP)
+    await openCustomersList(other)
+    await searchCustomers(other, openName)
+    const openId = await customerIdOf(other, openName)
+    const otherDialog = deleteDialog(other)
+    // A sub-customer check that fails offers neither Delete nor Make inactive.
+    const failedCheck = await failSubCustomerCheck(other, openId)
+    await other.getByTestId(`customer-menu-${openId}`).click()
+    await other.getByTestId('customer-menu-delete').click()
+    await expect(otherDialog.root).toBeVisible()
+    await expect(otherDialog.body).toContainText(/could not|couldn't|failed|try again/i)
+    await expect(otherDialog.close).toBeVisible()
+    await expect(otherDialog.confirm).toHaveCount(0)
+    await expect(otherDialog.makeInactive).toHaveCount(0)
+    await otherDialog.close.click()
+    await expect(otherDialog.root).toBeHidden()
+    await other.unroute(CUSTOMER_RECORDS, failedCheck)
+
+    await other.getByTestId(`customer-menu-${openId}`).click()
+    await other.getByTestId('customer-menu-delete').click()
+    await expect(otherDialog.root).toBeVisible()
+    await otherDialog.confirm.click()
+    await expect(otherDialog.root).toBeHidden()
+    await expect(customerEntry(other, openName)).toHaveCount(0)
+    await other.close()
+
+    const notFound = page.getByTestId('customer-not-found')
+    await expect(notFound).toContainText(NOT_FOUND)
+    await expect(discard.title).toBeHidden()
+    await page.getByTestId('customer-not-found-back').click()
+    await expect(discard.title).toBeHidden()
+    await expect(notFound).toBeHidden()
+    await expect(page.getByTestId('customers-list')).toBeVisible()
+}

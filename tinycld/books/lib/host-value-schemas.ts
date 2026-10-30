@@ -13,5 +13,8 @@ export function contactValueSchema(maxLength?: number) {
     return z.object({ text })
 }
 
+// A select's chosen option value; '' is the "None" option.
+export const selectValueSchema = z.object({ value: z.string() })
+
 // The shipping address parts plus the "Same as billing address" toggle.
 export const shippingValueSchema = addressPartsSchema.extend({ same: z.boolean() })

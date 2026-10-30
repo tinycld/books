@@ -89,9 +89,7 @@
             "name": "list-error",
             "url": "/a/books/vendors",
             "ready": "vendors-banner",
-            "widths": [
-                1280
-            ],
+            "widths": [1280],
             "fakeRecords": {
                 "collection": "books_vendors",
                 "status": 400

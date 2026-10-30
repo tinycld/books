@@ -57,8 +57,9 @@ const CUSTOM_COMPONENTS = {
 const HALF_WIDTH = ['first_name', 'last_name', 'email', 'phone', 'mobile', 'website']
 
 function parsedHost() {
-    expect(hosts).toHaveLength(1)
-    return hostDefSchema.parse(hosts[0])
+    const host = hosts.find(h => h.key === CUSTOMER_HOST_KEY)
+    if (!host) throw new Error('no books:customer host in forms/hosts.ts')
+    return hostDefSchema.parse(host)
 }
 
 describe('books:customer forms host', () => {
