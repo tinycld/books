@@ -1,65 +1,49 @@
-// Synthetic vendors for the helix reference route and, from the migration
-// checkpoint on, the seed (seed.ts).
+// Synthetic vendors for the seed (seed.ts) and the helix reference route,
+// typed against the generated `BooksVendors`, as customer-form-fixture.ts
+// does, so tsc checks every column against the schema.
 //
-// `books_vendors` does not exist yet, so `VendorRecord` below mirrors the Data
-// section of docs/specs/vendor-form-design.md. The migration checkpoint
-// (2100000004_create_books_vendors.js) must delete it and type VENDORS with
-// `satisfies` against the generated `BooksVendors` from '../types', as
-// customer-form-fixture.ts does, so tsc checks every column against the schema.
+// The default expense accounts are the seeded e2e book's accounts
+// (lib/seed-accounts.ts), not the starter chart (the ledger's driver decision:
+// the e2e book has the seed's chart). 6900 Old Petty Cash is inactive, so
+// Pacific Power names an account that became inactive after it was saved;
+// 1500 Office Equipment gives Ironclad an account that is not an expense
+// account.
 
+import type { BooksVendors } from '../types'
 import type { CustomerAddress } from './address'
-import { starterChart } from './starter-chart'
+import type { ColumnOf } from './fixture-columns'
+import { SEED_ACCOUNTS } from './seed-accounts'
 
-// The `terms` select values; empty means none. lib/payment-terms.ts takes over
-// this list in the build.
-export type VendorTermKey = 'due_on_receipt' | 'net_10' | 'net_15' | 'net_30' | 'net_60'
-
-// One row of `books_vendors` as a live query sees it: `name_key` is hidden and
-// set only by the server's guard, so a row never carries it.
-interface VendorRecord {
-    id: string
-    display_name: string
-    company: string
-    first_name: string
-    last_name: string
-    email: string
-    phone: string
-    mobile: string
-    website: string
+// The generated type holds JSON columns as `any`, which would reach every
+// reader of a fixture row untyped, so the fixture keeps them typed. The row
+// never carries `name_key`: it is hidden, so a live query never receives it,
+// and the server's guard sets it on every write. `expense_account` is a
+// relation id, known only after the seed creates the accounts, so the fixture
+// names the default expense account by its seed account number instead (empty
+// for none); the seed maps the number to the created account's id.
+export type VendorFixtureRecord = Omit<
+    BooksVendors,
+    ColumnOf<BooksVendors, 'address' | 'fields' | 'name_key' | 'expense_account'>
+> & {
     address: CustomerAddress | null
-    terms: VendorTermKey | ''
-    account_number: string
-    expense_account: string
-    notes: string
-    inactive: boolean
-    form: string
     fields: Record<string, unknown> | null
-    created: string
-    updated: string
-}
-
-// `expense_account` is a relation id, known only after the seed creates the
-// accounts. The fixture names the default expense account by its starter-chart
-// number instead (empty for none); the seed maps the number to the seeded
-// account's id.
-export type VendorFixtureRecord = Omit<VendorRecord, 'expense_account'> & {
     expense_account_number: string
 }
 
 type VendorSeed = Pick<VendorFixtureRecord, 'id' | 'display_name'> &
     Partial<Omit<VendorFixtureRecord, 'id' | 'display_name'>>
 
-// The accounts a vendor may name: the starter chart less Accounts receivable and
-// Accounts payable, which the server refuses as a default expense account.
-const ALLOWED_ACCOUNTS = starterChart('owners').filter(
+// The accounts a vendor may name: the seed's accounts less Accounts receivable
+// and Accounts payable, which the server refuses as a default expense account.
+const ALLOWED_ACCOUNTS = SEED_ACCOUNTS.filter(
     account => account.type !== 'accounts_receivable' && account.type !== 'accounts_payable'
 )
 
-// A number that is not in the starter chart is a fixture bug, not data.
+// A number that is not a seeded account is a fixture bug, not data.
 function checkedAccountNumber(number: string, vendorId: string): string {
     if (number === '') return number
     if (ALLOWED_ACCOUNTS.some(account => account.number === number)) return number
-    throw new Error(`vendor fixture: ${vendorId} names ${number}, not an allowed starter account`)
+    throw new Error(`vendor fixture: ${vendorId} names ${number}, not an allowed seeded account`)
 }
 
 function vendor(seed: VendorSeed): VendorFixtureRecord {
@@ -116,7 +100,7 @@ export const VENDOR_IDS = {
     oldTownPrint: 'vendoldtownpr01',
 } as const
 
-export const VENDORS: VendorFixtureRecord[] = [
+export const VENDORS = [
     vendor({
         id: 'vendblueridge01',
         display_name: 'Blue Ridge Insurance Agency',
@@ -141,7 +125,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'ar@harborfreightlogistics.example',
         phone: '(206) 555-0123',
         terms: 'net_30',
-        expense_account_number: '5000',
+        expense_account_number: '6100',
     }),
     vendor({
         id: 'vendnwpaper0001',
@@ -149,7 +133,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'orders@nwpaper.example',
         phone: '(971) 555-0102',
         terms: 'net_10',
-        expense_account_number: '6400',
+        expense_account_number: '6210',
     }),
     vendor({
         id: VENDOR_IDS.officeSupply,
@@ -164,7 +148,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         address: address('4120 Commerce Boulevard', 'Los Angeles', 'CA', '90040'),
         terms: 'net_15',
         account_number: '1234567',
-        expense_account_number: '6400',
+        expense_account_number: '6210',
         notes: 'Order by noon for next-day delivery. Ask for Grace about bulk paper pricing.',
     }),
     vendor({
@@ -186,7 +170,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'maria@riveracpa.example',
         phone: '(503) 555-0175',
         terms: 'net_30',
-        expense_account_number: '6300',
+        expense_account_number: '6200',
     }),
     vendor({
         id: 'vendsummitit001',
@@ -195,7 +179,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'support@summitit.example',
         phone: '(360) 555-0119',
         terms: 'net_30',
-        expense_account_number: '6700',
+        expense_account_number: '6200',
     }),
     vendor({
         id: VENDOR_IDS.willamette,
@@ -216,7 +200,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         ),
         terms: 'net_60',
         account_number: 'WVCC-COMM-2026-0004417-B',
-        expense_account_number: '6700',
+        expense_account_number: '6200',
         notes: 'Nightly cleaning, Monday to Friday. The invoice arrives on the first business day of the month and lists each visit; check it against the door log before paying.',
     }),
     vendor({
@@ -226,7 +210,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         last_name: 'Okafor',
         email: 'jamal.okafor@fastmail.example',
         mobile: '(971) 555-0166',
-        expense_account_number: '6000',
+        expense_account_number: '6210',
         notes: 'Freelance photographer. Prefers payment by check.',
     }),
     vendor({
@@ -234,7 +218,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         display_name: 'Greenline Landscaping',
         phone: '(503) 555-0193',
         terms: 'due_on_receipt',
-        expense_account_number: '6700',
+        expense_account_number: '6200',
     }),
     vendor({
         id: 'vendmetroprop01',
@@ -245,7 +229,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         address: address('900 Southwest Fifth Avenue', 'Portland', 'OR', '97204', 'Suite 1700'),
         terms: 'due_on_receipt',
         account_number: 'Unit 210',
-        expense_account_number: '6600',
+        expense_account_number: '6100',
     }),
     vendor({
         id: 'vendkeystonel01',
@@ -253,7 +237,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'billing@keystonelegal.example',
         phone: '(503) 555-0112',
         terms: 'net_30',
-        expense_account_number: '6300',
+        expense_account_number: '6200',
     }),
     vendor({
         id: 'vendbrightwav01',
@@ -261,7 +245,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'hello@brightwave.example',
         phone: '(415) 555-0177',
         terms: 'net_15',
-        expense_account_number: '6000',
+        expense_account_number: '6210',
     }),
     vendor({
         id: 'vendcityportl01',
@@ -269,7 +253,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         company: 'City of Portland',
         phone: '(503) 555-0105',
         account_number: 'BL-2026-118842',
-        expense_account_number: '6800',
+        expense_account_number: '6200',
     }),
     vendor({
         id: 'vendfirsthbank1',
@@ -293,14 +277,14 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'support@evergreenpayroll.example',
         phone: '(206) 555-0161',
         terms: 'due_on_receipt',
-        expense_account_number: '6500',
+        expense_account_number: '6100',
     }),
     vendor({
         id: 'vendlumenledgr1',
         display_name: 'Lumen & Ledger Coworking',
         email: 'members@lumenledger.example',
         terms: 'net_10',
-        expense_account_number: '1300',
+        expense_account_number: '6100',
         notes: 'Annual membership, paid in advance each January.',
     }),
     vendor({
@@ -317,7 +301,7 @@ export const VENDORS: VendorFixtureRecord[] = [
         email: 'wholesale@coastalcoffee.example',
         phone: '(541) 555-0183',
         terms: 'net_15',
-        expense_account_number: '5000',
+        expense_account_number: '6100',
         inactive: true,
         notes: 'Switched suppliers in 2025.',
     }),
@@ -326,10 +310,10 @@ export const VENDORS: VendorFixtureRecord[] = [
         display_name: 'Old Town Print Shop',
         email: 'orders@oldtownprint.example',
         phone: '(503) 555-0109',
-        expense_account_number: '6000',
+        expense_account_number: '6210',
         inactive: true,
     }),
-]
+] satisfies VendorFixtureRecord[]
 
 export const EMPTY_VENDORS: VendorFixtureRecord[] = []
 
@@ -339,6 +323,6 @@ export const ALL_INACTIVE_VENDORS = VENDORS.filter(row => row.inactive)
 // A search that matches nothing in VENDORS, for the no-match state.
 export const NO_MATCH_SEARCH = 'Zephyr Logistics'
 
-// The chart the fixture's account numbers come from, as the Default expense
-// account picker would offer it on a book set up from the starter chart.
+// The accounts the fixture's account numbers come from, as the Default expense
+// account picker would offer them on the seeded book.
 export const FIXTURE_ACCOUNTS = ALLOWED_ACCOUNTS

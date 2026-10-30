@@ -32,7 +32,8 @@
 // the number of the voided original, so the index counts only posted entries
 // that are not void reversals. At most one posted reversal exists per entry.
 //
-// The rule constants repeat 2100000000's: a migration cannot import another.
+// AUTH, ME and READ repeat 2100000000's, and WRITE is new here: a migration cannot
+// import another.
 const AUTH = '@request.auth.id != "" && @request.auth.disabled != true'
 const ME = '@collection.books_access:me.user ?= @request.auth.id'
 const READ = `${AUTH} && ${ME} && @collection.books_access:me.can_read ?= true`

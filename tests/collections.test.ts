@@ -12,6 +12,7 @@ const NAMES = [
     'books_admins',
     'books_access',
     'books_customers',
+    'books_vendors',
 ]
 
 function register() {
@@ -75,6 +76,9 @@ describe('registerCollections', () => {
         expect(calls.get('books_customers')?.omitOnInsert).toEqual(
             expect.arrayContaining(['created', 'updated', 'name_key'])
         )
+        expect(calls.get('books_vendors')?.omitOnInsert).toEqual(
+            expect.arrayContaining(['created', 'updated', 'name_key'])
+        )
     })
 
     // The customers list loads every customer in one query and builds the
@@ -83,5 +87,13 @@ describe('registerCollections', () => {
         const { calls } = register()
         expect(calls.has('books_customers')).toBe(true)
         expect(calls.get('books_customers')?.relations).toBeUndefined()
+    })
+
+    // The vendors list loads every vendor in one query, and the expense
+    // account picker reads books_accounts itself.
+    it('declares no relations on vendors', () => {
+        const { calls } = register()
+        expect(calls.has('books_vendors')).toBe(true)
+        expect(calls.get('books_vendors')?.relations).toBeUndefined()
     })
 })
