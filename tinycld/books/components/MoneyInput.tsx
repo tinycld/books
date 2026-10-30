@@ -1,6 +1,12 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { type Control, useController } from '@tinycld/core/ui/form'
-import { Pressable, TextInput as RNTextInput, Text, View } from 'react-native'
+import {
+    Pressable,
+    TextInput as RNTextInput,
+    Text,
+    type TextInputInstance,
+    View,
+} from 'react-native'
 import { amountCents, amountError, centsToText } from '../lib/opening-balances'
 import type { OpeningFormValues } from '../lib/opening-balances-schema'
 
@@ -12,7 +18,7 @@ interface MoneyInputProps {
     testID: string
     returnKeyType?: 'next' | 'done'
     onSubmitEditing?: () => void
-    inputRef?: (node: RNTextInput | null) => void
+    inputRef?: (node: TextInputInstance | null) => void
 }
 
 // Plain text in flow: the row or card renders it in its helper slot, in place of the

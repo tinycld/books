@@ -8,7 +8,7 @@ import { Menu } from '@tinycld/core/ui/menu'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { ChevronDown } from 'lucide-react-native'
 import { forwardRef, useState } from 'react'
-import { Pressable, Text, type View } from 'react-native'
+import { Pressable, type PressableInstance, Text } from 'react-native'
 import { PICKER_LIMIT, pickerOptions } from '../../lib/customer-tree'
 
 const NONE_LABEL = 'None (top level)'
@@ -58,7 +58,7 @@ interface TriggerProps {
 }
 
 // A forwardRef around the Pressable: the menu measures its trigger through the ref.
-const PickerTrigger = forwardRef<View, TriggerProps>(function PickerTrigger(
+const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function PickerTrigger(
     { label, disabled, onPress },
     ref
 ) {
