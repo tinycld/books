@@ -53,6 +53,11 @@ function blankSettings(): BooksSettings {
         currency: 'USD',
         business_name: '',
         ownership: '',
+        tax_id: '',
+        address: '',
+        phone: '',
+        email: '',
+        website: '',
         setup_completed: false,
         setup_started: false,
         created: '2026-01-01 00:00:00.000Z',
@@ -238,7 +243,7 @@ describe('useBooksSetup create', () => {
 
         const refused = planChart('owners', new Map()).flat()[3]
         expect(outcome).toMatchObject({ ok: false, failedAccount: refused.name })
-        expect(outcome && !outcome.ok && outcome.message).toContain('Number 1100 is taken')
+        expect(outcome && 'message' in outcome && outcome.message).toContain('Number 1100 is taken')
         expect(storedAccounts()).toHaveLength(3)
         expect(settingsRow()?.setup_completed).toBe(false)
         expect(
@@ -372,7 +377,9 @@ describe('useBooksSetup create', () => {
         const outcome = await run(rendered, 'create')
 
         expect(outcome).toMatchObject({ ok: false, failedAccount: 'Business settings' })
-        expect(outcome && !outcome.ok && outcome.message).toContain('Only admins can do this')
+        expect(outcome && 'message' in outcome && outcome.message).toContain(
+            'Only admins can do this'
+        )
         expect(settingsRow()?.setup_completed).toBe(false)
         expect(storedAccounts()).toHaveLength(0)
     })
