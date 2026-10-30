@@ -7,10 +7,12 @@ import { accessFromRow } from '../lib/access'
 // read. Shared because every Books screen gates its writes on it.
 export function useBooksAccess() {
     const [accessCollection] = useStore('books_access')
+    // An explicit key (useMyLiveQuery adds the user id), so the query's identity is not
+    // rebuilt from its IR on every render of every Books screen.
     const { data, isReady, isError, collection } = useMyLiveQuery(
         (query, { userId }) =>
             query.from({ access: accessCollection }).where(({ access }) => eq(access.user, userId)),
-        { queryKey: ['books', 'access'] }
+        { queryKey: ['books.access'] }
     )
     // isError and collection let a screen show an error state and retry the
     // read, instead of waiting forever on an isReady that never turns true.

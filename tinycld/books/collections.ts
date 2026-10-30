@@ -110,6 +110,14 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // No relations: the customers list loads every customer in one query and
+    // builds the parent tree itself.
+    const books_customers = newCollection('books_customers', {
+        omitOnInsert: ['created', 'updated', 'name_key'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_journal_lines,
@@ -120,5 +128,6 @@ export function registerCollections(
         books_close_overrides,
         books_admins,
         books_access,
+        books_customers,
     }
 }

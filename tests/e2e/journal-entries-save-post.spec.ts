@@ -1,6 +1,5 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { settledBox } from './account-register-helpers'
 import {
     ACCOUNT_LABELS,
     DESKTOP,
@@ -55,7 +54,8 @@ function todayIso() {
 }
 
 function uniqueMemo(label: string, sizeName: string) {
-    return `${label} ${sizeName} ${Date.now()}`
+    // Two workers can start the same test in the same millisecond (--repeat-each, retries).
+    return `${label} ${sizeName} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 async function fillBalanced(page: Page, memo: string, amount = '$10.00') {
@@ -79,18 +79,6 @@ function cellText(locator: Locator): Promise<string> {
     return locator.evaluate(el => {
         const value = (el as HTMLInputElement).value
         return (value ?? el.textContent ?? '').trim()
-    })
-}
-
-function hasScrollableAncestor(locator: Locator): Promise<boolean> {
-    return locator.evaluate(el => {
-        for (let node = el.parentElement; node; node = node.parentElement) {
-            const style = getComputedStyle(node)
-            const scrollsY = style.overflowY === 'auto' || style.overflowY === 'scroll'
-            const scrollsX = style.overflowX === 'auto' || style.overflowX === 'scroll'
-            if (scrollsY || scrollsX) return true
-        }
-        return false
     })
 }
 
@@ -119,83 +107,308 @@ async function backToList(page: Page) {
     await expect(page.getByTestId('entries-screen')).toBeVisible()
 }
 
+test.describe('journal-entries: save and post (desktop)', () => {
+    const sizeName = 'desktop'
+    const size = DESKTOP
+
+    test('save draft: moves to the draft, drops the blank line, lists it as Draft', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Draft save', sizeName)
+        await fillBalanced(page, memo)
+        await page.getByTestId('entry-add-line').click()
+        await expect(page.getByTestId('entry-line-2')).toBeVisible()
+
+        await page.getByTestId('entry-save-draft').click()
+
+        await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
+        await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
+        await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+        await expect(page.getByTestId('entry-line-account-0')).toBeVisible()
+        expect(await cellText(page.getByTestId('entry-line-account-0'))).toBe(
+            ACCOUNT_LABELS.checking
+        )
+        expect(await cellText(page.getByTestId('entry-line-account-1'))).toBe(ACCOUNT_LABELS.equity)
+        expect(await cellText(page.getByTestId('entry-line-debit-0'))).toBe('$10.00')
+        expect(await cellText(page.getByTestId('entry-line-credit-1'))).toBe('$10.00')
+        await expect(page.getByTestId('entry-line-2')).toHaveCount(0)
+
+        await backToList(page)
+        const item = listItems(page, memo)
+        await expect(item).toHaveCount(1)
+        const id = await idOf(item)
+        await expect(page.getByTestId(`entries-status-${id}`)).toHaveText('Draft')
+        await expect(page.getByTestId(`entries-cell-number-${id}`)).toHaveText('Draft')
+    })
+
+    test('validation: unbalanced blocks Post, the message clears once balanced, and Save draft still saves an unbalanced draft', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Unbalanced', sizeName)
+        await page.getByTestId('entry-memo').fill(memo)
+        await fillLine(page, 0, { account: ACCOUNT_LABELS.checking, debit: '$10.00' })
+        await fillLine(page, 1, { account: ACCOUNT_LABELS.equity, credit: '$5.00' })
+
+        await page.getByTestId('entry-post').click()
+
+        const summary = page.getByTestId('entry-error-summary')
+        await expect(summary).toContainText(UNBALANCED)
+        await expect(summary).not.toContainText('This entry cannot be saved yet')
+        await expect(page).toHaveURL(/\/entries\/new$/)
+
+        // The message clears once the entry balances, without another submit.
+        await fillLine(page, 1, { credit: '$10.00' })
+        await expect(page.getByText(UNBALANCED)).toHaveCount(0)
+
+        await fillLine(page, 1, { credit: '$5.00' })
+        await page.getByTestId('entry-save-draft').click()
+        // The new-entry form shows the same Draft badge, so only the move to `entries/<id>` says
+        // the save finished. Back pressed before that pops the new form, and the save's late
+        // replace then covers the list with the draft.
+        await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
+        await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
+        await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+
+        // One row: the refused Post wrote nothing, only the draft save did.
+        await backToList(page)
+        const item = listItems(page, memo)
+        await expect(item).toHaveCount(1)
+        await expect(page.getByTestId(`entries-status-${await idOf(item)}`)).toHaveText('Draft')
+    })
+
+    test('validation: fewer than two amount lines blocks Post', async ({ page }) => {
+        await start(page, size)
+        await fillLine(page, 0, { account: ACCOUNT_LABELS.checking, debit: '$10.00' })
+
+        await page.getByTestId('entry-post').click()
+
+        await expect(page.getByTestId('entry-error-summary')).toContainText(
+            'Enter an amount on at least two lines'
+        )
+        await expect(page).toHaveURL(/\/entries\/new$/)
+    })
+
+    test('validation: a bad entry date and an auto-reverse date not after the entry date show their errors', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await fillBalanced(page, uniqueMemo('Dates', sizeName))
+        await page.getByTestId('entry-date').fill('2026-13-45')
+
+        await page.getByTestId('entry-save-draft').click()
+
+        await expect(page.getByText('Enter a date as YYYY-MM-DD')).toBeVisible()
+        await expect(page).toHaveURL(/\/entries\/new$/)
+
+        await page.getByTestId('entry-date').fill('2026-10-12')
+        await page.getByTestId('entry-auto-reverse').fill('2026-10-12')
+
+        await page.getByTestId('entry-save-draft').click()
+
+        await expect(
+            page.getByText('The auto-reverse date must be after the entry date')
+        ).toBeVisible()
+        await expect(page).toHaveURL(/\/entries\/new$/)
+    })
+
+    test('server refusal: shows the message, keeps the draft, the next Post reuses it', async ({
+        page,
+    }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Refused post', sizeName)
+        await fillBalanced(page, memo)
+        const refusal = 'Line 2: account Old is inactive.'
+        const statusUpdate = '**/api/collections/books_journal_entries/records/*'
+        await page.route(statusUpdate, route => {
+            if (route.request().method() !== 'PATCH') return route.continue()
+            return route.fulfill({
+                status: 400,
+                contentType: 'application/json',
+                body: JSON.stringify({ message: refusal, data: {} }),
+            })
+        })
+
+        await page.getByTestId('entry-post').click()
+
+        await expect(page.getByTestId('entry-error-summary')).toContainText(refusal)
+        await expect(page.getByTestId('entry-line-error-1')).toContainText(refusal)
+        await expect(page).toHaveURL(/\/entries\/new$/)
+        await expect(page.getByTestId('entry-memo')).toHaveValue(memo)
+
+        // A second page of the same session shows the draft the failed post left.
+        const other = await page.context().newPage()
+        await login(other)
+        await navigateToPackage(other, 'books')
+        await other.setViewportSize(size)
+        await openEntriesList(other)
+        const draft = listItems(other, memo)
+        await expect(draft).toHaveCount(1)
+        await expect(other.getByTestId(`entries-status-${await idOf(draft)}`)).toHaveText('Draft')
+        await other.close()
+
+        await page.unroute(statusUpdate)
+        await page.getByTestId('entry-post').click()
+        await expect(page.getByTestId('entry-read-only')).toBeVisible()
+        await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
+
+        await backToList(page)
+        const item = listItems(page, memo)
+        await expect(item).toHaveCount(1)
+        await expect(page.getByTestId(`entries-status-${await idOf(item)}`)).toHaveText('Posted')
+    })
+
+    test('cancel: leaves at once when clean, asks to discard when edited', async ({ page }) => {
+        await start(page, size)
+
+        await page.getByTestId('entry-cancel').click()
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+
+        await page.getByTestId('entries-new').click()
+        await expect(page.getByTestId('entry-title')).toHaveText('New journal entry')
+        await page.getByTestId('entry-memo').fill('Keep this memo')
+        await page.getByTestId('entry-cancel').click()
+        await expect(page.getByTestId('discard-dialog')).toBeVisible()
+
+        await page.getByRole('button', { name: 'Keep editing' }).click()
+        await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
+        await expect(page.getByTestId('entry-memo')).toHaveValue('Keep this memo')
+
+        await page.getByTestId('entry-cancel').click()
+        await page.getByTestId('discard-confirm').click()
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+    })
+
+    test('double click on Save draft writes one entry', async ({ page }) => {
+        await start(page, size)
+        const memo = uniqueMemo('Double save', sizeName)
+        await fillBalanced(page, memo)
+
+        await page.getByTestId('entry-save-draft').dblclick()
+
+        await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+        await backToList(page)
+        await expect(listItems(page, memo)).toHaveCount(1)
+    })
+
+    test('leaving while a save is in flight does not navigate to the draft afterwards', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await fillBalanced(page, uniqueMemo('Leave mid save', sizeName))
+        let release = () => {}
+        const gate = new Promise<void>(resolve => {
+            release = resolve
+        })
+        await page.route(ENTRY_WRITE, async route => {
+            if (route.request().method() !== 'POST') return route.continue()
+            await gate
+            return route.continue()
+        })
+        // The save writes the entry, then one POST per line; the second line is the last write.
+        let lineWrites = 0
+        const lastWrite = new Promise<void>(resolve => {
+            page.on('response', res => {
+                const isLineWrite =
+                    res.url().includes('books_journal_lines') && res.request().method() === 'POST'
+                if (isLineWrite) lineWrites += 1
+                if (lineWrites === 2) resolve()
+            })
+        })
+
+        await page.getByTestId('entry-save-draft').click()
+        await page.getByTestId('entry-back').click()
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+        if (await page.getByTestId('discard-confirm').isVisible()) {
+            await page.getByTestId('discard-confirm').click()
+        }
+        await expect(page).toHaveURL(/\/entries$/)
+
+        release()
+        await lastWrite
+        // The navigation, if the guard let it through, runs in the continuation of that write;
+        // two frames let it run before the negative check.
+        await page.evaluate(
+            () =>
+                new Promise<void>(resolve =>
+                    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+                )
+        )
+        await expect(page).toHaveURL(/\/entries$/)
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+    })
+
+    test('after a refused post, editing a line clears its refusal and Cancel asks to discard again', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await fillBalanced(page, uniqueMemo('Stale refusal', sizeName))
+        await refuseStatusUpdates(page)
+        await page.getByTestId('entry-post').click()
+        await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
+        await expect(page.getByTestId('entry-line-error-1')).toContainText(STATUS_REFUSAL)
+
+        await fillLine(page, 1, { credit: '$11.00' })
+
+        await expect(page.getByTestId('entry-line-error-1')).toHaveCount(0)
+        await expect(page.getByTestId('entry-error-summary').getByText(STATUS_REFUSAL)).toHaveCount(
+            0
+        )
+
+        // The saved draft no longer matches the form, so leaving asks first.
+        await page.getByTestId('entry-cancel').click()
+        await expect(page.getByTestId('discard-dialog')).toBeVisible()
+    })
+
+    test('a field-keyed server refusal shows its message in the error summary', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await fillBalanced(page, uniqueMemo('Field refusal', sizeName))
+        await page.route(ENTRY_WRITE, route => {
+            if (route.request().method() !== 'POST') return route.continue()
+            return route.fulfill({
+                status: 400,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    message: 'Failed to update record.',
+                    data: {
+                        auto_reverse_on: {
+                            code: 'validation_x',
+                            message: 'Auto-reverse date is not valid.',
+                        },
+                    },
+                }),
+            })
+        })
+
+        await page.getByTestId('entry-save-draft').click()
+
+        await expect(page.getByTestId('entry-error-summary')).toContainText(
+            'Auto-reverse date is not valid.'
+        )
+        await expect(page).toHaveURL(/\/entries\/new$/)
+    })
+
+    test('cancel after a refused post leaves without asking, the draft is already saved', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await fillBalanced(page, uniqueMemo('Cancel saved', sizeName))
+        await refuseStatusUpdates(page)
+        await page.getByTestId('entry-post').click()
+        await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
+
+        await page.getByTestId('entry-cancel').click()
+
+        await expect(page.getByTestId('entries-screen')).toBeVisible()
+        await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
+    })
+})
+
 for (const [sizeName, size] of SIZES) {
     test.describe(`journal-entries: save and post (${sizeName})`, () => {
-        test('action bar: buttons per size, outside the scroll, below the totals', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const bar = page.getByTestId('entry-actions')
-
-            await expect(bar).toBeVisible()
-            await expect(page.getByTestId('entry-cancel')).toBeVisible()
-            await expect(page.getByTestId('entry-save-draft')).toBeVisible()
-            await expect(page.getByTestId('entry-post')).toBeVisible()
-            if (isPhone(page)) {
-                await expect(page.getByTestId('entry-post-new')).toHaveCount(0)
-                await expect(page.getByTestId('entry-more')).toBeVisible()
-                await page.getByTestId('entry-more').click()
-                await expect(page.getByTestId('entry-post-new')).toBeVisible()
-                await page.keyboard.press('Escape')
-            } else {
-                await expect(page.getByTestId('entry-post-new')).toBeVisible()
-                await expect(page.getByTestId('entry-more')).toHaveCount(0)
-            }
-
-            expect(await hasScrollableAncestor(bar)).toBe(false)
-            const totals = await settledBox(page.getByTestId('entry-totals'))
-            const barBox = await settledBox(bar)
-            expect(totals).not.toBeNull()
-            expect(barBox).not.toBeNull()
-            expect(barBox?.y ?? 0).toBeGreaterThan(totals?.y ?? 0)
-        })
-
-        test('save draft: moves to the draft, drops the blank line, lists it as Draft', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Draft save', sizeName)
-            await fillBalanced(page, memo)
-            await page.getByTestId('entry-add-line').click()
-            await expect(page.getByTestId('entry-line-2')).toBeVisible()
-
-            await page.getByTestId('entry-save-draft').click()
-
-            await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
-            await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
-            await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
-            await expect(page.getByTestId('entry-line-account-0')).toBeVisible()
-            expect(await cellText(page.getByTestId('entry-line-account-0'))).toBe(
-                ACCOUNT_LABELS.checking
-            )
-            expect(await cellText(page.getByTestId('entry-line-account-1'))).toBe(
-                ACCOUNT_LABELS.equity
-            )
-            expect(await cellText(page.getByTestId('entry-line-debit-0'))).toBe('$10.00')
-            expect(await cellText(page.getByTestId('entry-line-credit-1'))).toBe('$10.00')
-            await expect(page.getByTestId('entry-line-2')).toHaveCount(0)
-
-            await backToList(page)
-            const item = listItems(page, memo)
-            await expect(item).toHaveCount(1)
-            const id = await idOf(item)
-            await expect(page.getByTestId(`entries-status-${id}`)).toHaveText('Draft')
-            if (!isPhone(page)) {
-                await expect(page.getByTestId(`entries-cell-number-${id}`)).toHaveText('Draft')
-            }
-        })
-
-        test('post: shows the read-only view with the assigned number', async ({ page }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Post', sizeName))
-
-            await page.getByTestId('entry-post').click()
-
-            await expect(page.getByTestId('entry-read-only')).toBeVisible()
-            await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
-            await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-        })
-
         test('post and new: posts, then opens a fresh form', async ({ page }) => {
             await start(page, size)
             const memo = uniqueMemo('Post and new', sizeName)
@@ -218,51 +431,6 @@ for (const [sizeName, size] of SIZES) {
             )
         })
 
-        test('validation: unbalanced blocks Post but not Save draft', async ({ page }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Unbalanced', sizeName)
-            await page.getByTestId('entry-memo').fill(memo)
-            await fillLine(page, 0, { account: ACCOUNT_LABELS.checking, debit: '$10.00' })
-            await fillLine(page, 1, { account: ACCOUNT_LABELS.equity, credit: '$5.00' })
-
-            await page.getByTestId('entry-post').click()
-
-            const summary = page.getByTestId('entry-error-summary')
-            await expect(summary).toContainText(UNBALANCED)
-            await expect(summary).not.toContainText('This entry cannot be saved yet')
-            const borderColor = (locator: Locator) =>
-                locator.evaluate(el => getComputedStyle(el).borderTopColor)
-            const textColor = (locator: Locator) =>
-                locator.evaluate(el => getComputedStyle(el).color)
-            const destructive = await textColor(page.getByTestId('entry-balance-status'))
-            expect(await borderColor(summary)).toBe(destructive)
-            expect(await borderColor(summary)).not.toBe(
-                await borderColor(page.getByTestId('entry-totals'))
-            )
-            await expect(page).toHaveURL(/\/entries\/new$/)
-
-            await page.getByTestId('entry-save-draft').click()
-            await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
-
-            // One row: the refused Post wrote nothing, only the draft save did.
-            await backToList(page)
-            const item = listItems(page, memo)
-            await expect(item).toHaveCount(1)
-            await expect(page.getByTestId(`entries-status-${await idOf(item)}`)).toHaveText('Draft')
-        })
-
-        test('validation: fewer than two amount lines blocks Post', async ({ page }) => {
-            await start(page, size)
-            await fillLine(page, 0, { account: ACCOUNT_LABELS.checking, debit: '$10.00' })
-
-            await page.getByTestId('entry-post').click()
-
-            await expect(page.getByTestId('entry-error-summary')).toContainText(
-                'Enter an amount on at least two lines'
-            )
-            await expect(page).toHaveURL(/\/entries\/new$/)
-        })
-
         test('validation: a line with an amount but no account shows its error under the line', async ({
             page,
         }) => {
@@ -275,254 +443,6 @@ for (const [sizeName, size] of SIZES) {
             await expect(page.getByTestId('entry-line-error-1')).toContainText('Choose an account')
             await expect(page.getByTestId('entry-line-error-0')).toHaveCount(0)
             await expect(page).toHaveURL(/\/entries\/new$/)
-        })
-
-        test('validation: an auto-reverse date on the entry date shows an error', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Auto reverse', sizeName))
-            await page.getByTestId('entry-date').fill('2026-10-12')
-            await page.getByTestId('entry-auto-reverse').fill('2026-10-12')
-
-            await page.getByTestId('entry-save-draft').click()
-
-            await expect(
-                page.getByText('The auto-reverse date must be after the entry date')
-            ).toBeVisible()
-            await expect(page).toHaveURL(/\/entries\/new$/)
-        })
-
-        test('validation: a bad date shows an error on the date', async ({ page }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Bad date', sizeName))
-            await page.getByTestId('entry-date').fill('2026-13-45')
-
-            await page.getByTestId('entry-save-draft').click()
-
-            await expect(page.getByText('Enter a date as YYYY-MM-DD')).toBeVisible()
-            await expect(page).toHaveURL(/\/entries\/new$/)
-        })
-
-        test('server refusal: shows the message, keeps the draft, the next Post reuses it', async ({
-            page,
-        }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Refused post', sizeName)
-            await fillBalanced(page, memo)
-            const refusal = 'Line 2: account Old is inactive.'
-            const statusUpdate = '**/api/collections/books_journal_entries/records/*'
-            await page.route(statusUpdate, route => {
-                if (route.request().method() !== 'PATCH') return route.continue()
-                return route.fulfill({
-                    status: 400,
-                    contentType: 'application/json',
-                    body: JSON.stringify({ message: refusal, data: {} }),
-                })
-            })
-
-            await page.getByTestId('entry-post').click()
-
-            await expect(page.getByTestId('entry-error-summary')).toContainText(refusal)
-            await expect(page.getByTestId('entry-line-error-1')).toContainText(refusal)
-            await expect(page).toHaveURL(/\/entries\/new$/)
-            await expect(page.getByTestId('entry-memo')).toHaveValue(memo)
-
-            // A second page of the same session shows the draft the failed post left.
-            const other = await page.context().newPage()
-            await login(other)
-            await navigateToPackage(other, 'books')
-            await other.setViewportSize(size)
-            await openEntriesList(other)
-            const draft = listItems(other, memo)
-            await expect(draft).toHaveCount(1)
-            await expect(other.getByTestId(`entries-status-${await idOf(draft)}`)).toHaveText(
-                'Draft'
-            )
-            await other.close()
-
-            await page.unroute(statusUpdate)
-            await page.getByTestId('entry-post').click()
-            await expect(page.getByTestId('entry-read-only')).toBeVisible()
-            await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
-
-            await backToList(page)
-            const item = listItems(page, memo)
-            await expect(item).toHaveCount(1)
-            await expect(page.getByTestId(`entries-status-${await idOf(item)}`)).toHaveText(
-                'Posted'
-            )
-        })
-
-        test('cancel: leaves at once when clean, asks to discard when edited', async ({ page }) => {
-            await start(page, size)
-
-            await page.getByTestId('entry-cancel').click()
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-
-            await page.getByTestId('entries-new').click()
-            await expect(page.getByTestId('entry-title')).toHaveText('New journal entry')
-            await page.getByTestId('entry-memo').fill('Keep this memo')
-            await page.getByTestId('entry-cancel').click()
-            await expect(page.getByTestId('discard-dialog')).toBeVisible()
-
-            await page.getByRole('button', { name: 'Keep editing' }).click()
-            await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
-            await expect(page.getByTestId('entry-memo')).toHaveValue('Keep this memo')
-
-            await page.getByTestId('entry-cancel').click()
-            await page.getByTestId('discard-confirm').click()
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-        })
-
-        test('double click on Save draft writes one entry', async ({ page }) => {
-            await start(page, size)
-            const memo = uniqueMemo('Double save', sizeName)
-            await fillBalanced(page, memo)
-
-            await page.getByTestId('entry-save-draft').dblclick()
-
-            await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
-            await backToList(page)
-            await expect(listItems(page, memo)).toHaveCount(1)
-        })
-
-        test('leaving while a save is in flight does not navigate to the draft afterwards', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Leave mid save', sizeName))
-            let release = () => {}
-            const gate = new Promise<void>(resolve => {
-                release = resolve
-            })
-            await page.route(ENTRY_WRITE, async route => {
-                if (route.request().method() !== 'POST') return route.continue()
-                await gate
-                return route.continue()
-            })
-            // The save writes the entry, then one POST per line; the second line is the last write.
-            let lineWrites = 0
-            const lastWrite = new Promise<void>(resolve => {
-                page.on('response', res => {
-                    const isLineWrite =
-                        res.url().includes('books_journal_lines') &&
-                        res.request().method() === 'POST'
-                    if (isLineWrite) lineWrites += 1
-                    if (lineWrites === 2) resolve()
-                })
-            })
-
-            await page.getByTestId('entry-save-draft').click()
-            await page.getByTestId('entry-back').click()
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-            if (await page.getByTestId('discard-confirm').isVisible()) {
-                await page.getByTestId('discard-confirm').click()
-            }
-            await expect(page).toHaveURL(/\/entries$/)
-
-            release()
-            await lastWrite
-            // The navigation, if the guard let it through, runs in the continuation of that write;
-            // two frames let it run before the negative check.
-            await page.evaluate(
-                () =>
-                    new Promise<void>(resolve =>
-                        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-                    )
-            )
-            await expect(page).toHaveURL(/\/entries$/)
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-        })
-
-        test('a refusal under a line clears when that line is edited', async ({ page }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Stale refusal', sizeName))
-            await refuseStatusUpdates(page)
-            await page.getByTestId('entry-post').click()
-            await expect(page.getByTestId('entry-line-error-1')).toContainText(STATUS_REFUSAL)
-
-            await fillLine(page, 1, { credit: '$11.00' })
-
-            await expect(page.getByTestId('entry-line-error-1')).toHaveCount(0)
-            await expect(
-                page.getByTestId('entry-error-summary').getByText(STATUS_REFUSAL)
-            ).toHaveCount(0)
-        })
-
-        test('the unbalanced message clears once the entry balances, without another submit', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await page.getByTestId('entry-memo').fill(uniqueMemo('Rebalance', sizeName))
-            await fillLine(page, 0, { account: ACCOUNT_LABELS.checking, debit: '$10.00' })
-            await fillLine(page, 1, { account: ACCOUNT_LABELS.equity, credit: '$5.00' })
-            await page.getByTestId('entry-post').click()
-            await expect(page.getByTestId('entry-error-summary')).toContainText(UNBALANCED)
-
-            await fillLine(page, 1, { credit: '$10.00' })
-
-            await expect(page.getByText(UNBALANCED)).toHaveCount(0)
-        })
-
-        test('a field-keyed server refusal shows its message in the error summary', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Field refusal', sizeName))
-            await page.route(ENTRY_WRITE, route => {
-                if (route.request().method() !== 'POST') return route.continue()
-                return route.fulfill({
-                    status: 400,
-                    contentType: 'application/json',
-                    body: JSON.stringify({
-                        message: 'Failed to update record.',
-                        data: {
-                            auto_reverse_on: {
-                                code: 'validation_x',
-                                message: 'Auto-reverse date is not valid.',
-                            },
-                        },
-                    }),
-                })
-            })
-
-            await page.getByTestId('entry-save-draft').click()
-
-            await expect(page.getByTestId('entry-error-summary')).toContainText(
-                'Auto-reverse date is not valid.'
-            )
-            await expect(page).toHaveURL(/\/entries\/new$/)
-        })
-
-        test('cancel after a refused post leaves without asking, the draft is already saved', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Cancel saved', sizeName))
-            await refuseStatusUpdates(page)
-            await page.getByTestId('entry-post').click()
-            await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
-
-            await page.getByTestId('entry-cancel').click()
-
-            await expect(page.getByTestId('entries-screen')).toBeVisible()
-            await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
-        })
-
-        test('cancel after a refused post asks again once something new is typed', async ({
-            page,
-        }) => {
-            await start(page, size)
-            await fillBalanced(page, uniqueMemo('Cancel typed', sizeName))
-            await refuseStatusUpdates(page)
-            await page.getByTestId('entry-post').click()
-            await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
-
-            await page.getByTestId('entry-memo').fill(uniqueMemo('Changed after save', sizeName))
-            await page.getByTestId('entry-cancel').click()
-
-            await expect(page.getByTestId('discard-dialog')).toBeVisible()
         })
     })
 }

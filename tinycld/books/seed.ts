@@ -1,4 +1,5 @@
 import type PocketBase from 'pocketbase'
+import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
@@ -203,6 +204,39 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     }
     await seedRegisterEntries(pb, ctx, ids)
     await seedJournalEntries(pb, ctx, ids)
+    await seedCustomers(pb)
+}
+
+// Top-level customers first, so each sub-customer's parent exists when it is
+// created. The fixture ids hold `_`, which a PocketBase id refuses, so the
+// server assigns ids and `parent` is mapped from fixture id to created id.
+// form, fields and the autodates are left to the server. A fixture row has no
+// name_key (CustomerFixtureRecord omits it), so the seed never sends one: the
+// server's guard sets it.
+export async function seedCustomers(pb: PocketBase): Promise<void> {
+    const ids = new Map<string, string>()
+    const topLevelFirst = [
+        ...CUSTOMERS.filter(c => c.parent === ''),
+        ...CUSTOMERS.filter(c => c.parent !== ''),
+    ]
+    for (const {
+        id,
+        parent,
+        form: _form,
+        fields: _fields,
+        created: _created,
+        updated: _updated,
+        ...values
+    } of topLevelFirst) {
+        const parentId = parent ? ids.get(parent) : ''
+        if (parentId === undefined) {
+            throw new Error(`seed: the parent ${parent} of customer ${id} was not created first`)
+        }
+        const created = await pb
+            .collection('books_customers')
+            .create({ ...values, parent: parentId })
+        ids.set(id, created.id)
+    }
 }
 
 interface PostInput {

@@ -15,31 +15,11 @@ import { useState } from 'react'
 import { Text, View } from 'react-native'
 import { useAccountForm } from '../../hooks/useAccountForm'
 import { type AccountRow, useAccountsQuery } from '../../hooks/useAccountsQuery'
+import { type DrawerPlacementInput, drawerPlacement } from '../../lib/drawer-placement'
 import { type PanelTarget, useAccountsPanelStore } from '../../stores/accounts-panel-store'
 import { AccountPanelFields } from './AccountPanelFields'
 
-interface Placement {
-    isWide: boolean
-    isTablet: boolean
-}
-
-const INLINE_WIDTH = 'w-[380px]'
-
-function placementProps({ isWide, isTablet }: Placement) {
-    if (isWide && !isTablet) {
-        return {
-            presentation: 'inline',
-            anchor: 'right',
-            size: 'md',
-        } as const
-    }
-    if (isTablet) return { presentation: 'overlay', anchor: 'right', size: 'md' } as const
-    return { presentation: 'overlay', anchor: 'bottom', size: 'lg' } as const
-}
-
-function contentClass({ isWide, isTablet }: Placement) {
-    return isWide && !isTablet ? INLINE_WIDTH : undefined
-}
+type Placement = DrawerPlacementInput
 
 function titleFor(target: PanelTarget, isReadOnly: boolean) {
     if (target.mode === 'new') return target.parentId === '' ? 'New account' : 'New sub-account'
@@ -159,11 +139,12 @@ function AccountPanelBody({ target, accounts, isReady, onViewRegister, ...placem
     const { form, isReadOnly, isEditing, isMissing, isSaving, save, saveAndNew } = account
     const { errors, isSubmitted } = form.formState
     const registerId = target.mode === 'edit' && !isMissing ? target.id : null
+    const { contentClassName, ...drawerProps } = drawerPlacement(placement)
 
     return (
-        <Drawer isOpen onClose={close} {...placementProps(placement)}>
+        <Drawer isOpen onClose={close} {...drawerProps}>
             <DrawerBackdrop />
-            <DrawerContent testID="account-panel" className={contentClass(placement)}>
+            <DrawerContent testID="account-panel" className={contentClassName}>
                 <DrawerHeader testID="account-panel-header" className="border-b border-border">
                     <Text className="text-lg font-semibold text-foreground">
                         {titleFor(target, isReadOnly)}
@@ -199,13 +180,11 @@ function AccountPanelBody({ target, accounts, isReady, onViewRegister, ...placem
 function LoadError({ isWide, isTablet }: Placement) {
     const close = useAccountsPanelStore(s => s.close)
     const closeColor = useThemeColor('foreground')
+    const { contentClassName, ...drawerProps } = drawerPlacement({ isWide, isTablet })
     return (
-        <Drawer isOpen onClose={close} {...placementProps({ isWide, isTablet })}>
+        <Drawer isOpen onClose={close} {...drawerProps}>
             <DrawerBackdrop />
-            <DrawerContent
-                testID="account-panel-error"
-                className={contentClass({ isWide, isTablet })}
-            >
+            <DrawerContent testID="account-panel-error" className={contentClassName}>
                 <DrawerHeader className="border-b border-border">
                     <Text className="text-lg font-semibold text-foreground">Account</Text>
                     <DrawerCloseButton accessibilityLabel="Close">

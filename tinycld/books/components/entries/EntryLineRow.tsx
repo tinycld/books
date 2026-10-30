@@ -3,7 +3,7 @@ import { SelectInput } from '@tinycld/core/ui/form'
 import { Menu } from '@tinycld/core/ui/menu'
 import { EllipsisVertical } from 'lucide-react-native'
 import { useFormContext, useFormState } from 'react-hook-form'
-import { Platform, Pressable, Text, View } from 'react-native'
+import { Platform, Pressable, Text, View, type ViewInstance } from 'react-native'
 import { useClearStaleErrors } from '../../hooks/useClearStaleErrors'
 import type { EntryFormValues } from '../../lib/entry-schema'
 import type { FocusNode, LineColumn } from '../../lib/line-focus'
@@ -56,7 +56,7 @@ export function AccountPick({
     const { control } = useFormContext<EntryFormValues>()
     const { onEdit } = useClearStaleErrors()
     const register = actions.register(index, 'account')
-    const setRef = (node: View | null) =>
+    const setRef = (node: ViewInstance | null) =>
         register(node ? accountFocusNode(node, index, actions) : null)
     return (
         <View ref={setRef} className="min-w-0">

@@ -132,6 +132,7 @@ function OpenPickerBody({ sections, draft, onApply }: Omit<PickerBodyProps, 'isV
     const onToggle = (value: string) => {
         draft.setValue('values', toggledValue(values, value), { shouldValidate: true })
     }
+    const apply = () => draft.handleSubmit(submitted => onApply(submitted.values))()
     const list = sections.map(section => (
         <PickSection
             key={section.heading ?? 'choices'}
@@ -152,7 +153,7 @@ function OpenPickerBody({ sections, draft, onApply }: Omit<PickerBodyProps, 'isV
                     testID="report-filter-apply"
                     style={{ minHeight: REPORT_TAP_TARGET }}
                     isDisabled={!draft.formState.isValid}
-                    onPress={draft.handleSubmit(submitted => onApply(submitted.values))}
+                    onPress={apply}
                 >
                     <ButtonText>Apply</ButtonText>
                 </Button>

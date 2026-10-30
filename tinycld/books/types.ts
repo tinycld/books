@@ -11,6 +11,7 @@ export type {
     BooksAccounts,
     BooksAdmins,
     BooksCloseOverrides,
+    BooksCustomers,
     BooksDocSequences,
     BooksJournalEntries,
     BooksJournalLines,

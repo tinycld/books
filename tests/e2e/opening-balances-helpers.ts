@@ -20,7 +20,7 @@ export function dayText(iso: string) {
     return `${MONTHS[month - 1]} ${day}, ${year}`
 }
 
-export function pad(n: number) {
+function pad(n: number) {
     return String(n).padStart(2, '0')
 }
 

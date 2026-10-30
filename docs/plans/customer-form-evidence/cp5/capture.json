@@ -1,0 +1,44 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 2000,
+            "actions": [
+                { "click": "customer-new-header" },
+                { "waitFor": "customer-page" },
+                { "waitFor": "New customer" },
+                { "waitFor": "customer-save" }
+            ]
+        },
+        {
+            "name": "page",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 2000,
+            "actions": [
+                { "click": "customer-new-header" },
+                { "waitFor": "customer-page" },
+                { "fill": "form-input-display_name", "value": "Helix Capture Studio" },
+                { "fill": "form-input-company", "value": "Helix Capture Studio LLC" },
+                { "fill": "form-input-first_name", "value": "Ada" },
+                { "fill": "form-input-last_name", "value": "Lovelace" },
+                { "fill": "form-input-email", "value": "ada@helix-capture.example.com" },
+                { "fill": "form-input-phone", "value": "(555) 010-2026" },
+                { "fill": "form-input-billing_address-line1", "value": "12 Harbor Way" },
+                { "fill": "form-input-billing_address-city", "value": "Portland" },
+                { "fill": "form-input-billing_address-region", "value": "OR" },
+                { "fill": "form-input-billing_address-postal_code", "value": "97210" },
+                { "fill": "form-input-billing_address-country", "value": "United States" },
+                { "click": "customer-save" },
+                { "waitForHidden": "customer-page" },
+                { "fill": "customers-search", "value": "Helix Capture Studio" },
+                { "clickText": "Helix Capture Studio" },
+                { "waitFor": "customer-page" },
+                { "waitFor": "Edit customer" }
+            ]
+        }
+    ]
+}
