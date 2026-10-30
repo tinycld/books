@@ -11,7 +11,6 @@ import {
     diffLines,
     effectiveMemo,
     findOpeningEquityAccount,
-    isRealDay,
     maxLineAmount,
     memoFor,
     type OpeningAccount,
@@ -24,6 +23,7 @@ import {
     viewEntryHref,
 } from '../tinycld/books/lib/opening-balances'
 import { ACCOUNTS, DRAFT_AMOUNTS } from '../tinycld/books/lib/opening-balances-fixture'
+import { isIsoDay } from '../tinycld/books/lib/register-range'
 
 function fixtureAccount(id: string): OpeningAccount {
     const found = ACCOUNTS.find(account => account.id === id)
@@ -481,13 +481,13 @@ describe('dates and memo', () => {
     })
 
     it('applies the leap year rule', () => {
-        expect(isRealDay('2024-02-29')).toBe(true)
-        expect(isRealDay('2025-02-29')).toBe(false)
-        expect(isRealDay('31/12/2025')).toBe(false)
-        expect(isRealDay('2000-02-29')).toBe(true)
-        expect(isRealDay('2100-02-29')).toBe(false)
-        expect(isRealDay('2025-13-01')).toBe(false)
-        expect(isRealDay('2025-12-00')).toBe(false)
+        expect(isIsoDay('2024-02-29')).toBe(true)
+        expect(isIsoDay('2025-02-29')).toBe(false)
+        expect(isIsoDay('31/12/2025')).toBe(false)
+        expect(isIsoDay('2000-02-29')).toBe(true)
+        expect(isIsoDay('2100-02-29')).toBe(false)
+        expect(isIsoDay('2025-13-01')).toBe(false)
+        expect(isIsoDay('2025-12-00')).toBe(false)
     })
 
     it('treats a blank memo as untouched', () => {

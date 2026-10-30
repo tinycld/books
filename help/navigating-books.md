@@ -9,4 +9,6 @@ To enter the balances your accounts held on your starting date, see [Opening bal
 
 To write and review entries, which you open from the sidebar, see [Journal entries](help://books:journal-entries).
 
+To run a report, choose Reports in the sidebar; see [Reports](help://books:reports).
+
 To keep the people and companies you sell to, see [Customers](help://books:customers).

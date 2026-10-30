@@ -1,0 +1,51 @@
+{
+    "outDir": ".",
+    "shots": [
+        { "name": "hub-v0", "url": "/a/books/reports", "ready": "report-hub" },
+        {
+            "name": "tb",
+            "url": "/a/books/reports/trial-balance?preset=today",
+            "ready": "report-document-header"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/reports/trial-balance",
+            "ready": "report-loading",
+            "route": {
+                "match": "**/api/collections/books_account_balances/records*",
+                "mode": "hold"
+            }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/reports/trial-balance",
+            "ready": "report-error",
+            "route": {
+                "match": "**/api/collections/books_account_balances/records*",
+                "mode": "fail"
+            }
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/reports/trial-balance?to=2000-01-31",
+            "ready": "report-empty"
+        },
+        {
+            "name": "unknown",
+            "url": "/a/books/reports/no-such-report",
+            "ready": "report-not-found"
+        },
+        {
+            "name": "hub-loading",
+            "url": "/a/books/reports",
+            "ready": "report-hub-loading",
+            "route": { "match": "**/api/collections/books_access/records*", "mode": "hold" }
+        },
+        {
+            "name": "hub-error",
+            "url": "/a/books/reports",
+            "ready": "report-hub-error",
+            "route": { "match": "**/api/collections/books_access/records*", "mode": "fail" }
+        }
+    ]
+}

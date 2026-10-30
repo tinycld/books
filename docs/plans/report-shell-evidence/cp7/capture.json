@@ -1,0 +1,20 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "period",
+            "url": "/a/books/reports/trial-balance",
+            "ready": "report-period-popover",
+            "actions": [{ "click": "report-period" }]
+        },
+        {
+            "name": "invalid-date",
+            "url": "/a/books/reports/trial-balance",
+            "ready": "report-period-popover",
+            "actions": [
+                { "click": "report-period" },
+                { "fill": "report-period-as-of", "value": "2026-02-30" }
+            ]
+        }
+    ]
+}

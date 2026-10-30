@@ -1,0 +1,36 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "add-filter",
+            "url": "/a/books/reports/trial-balance",
+            "ready": "report-add-filter-menu",
+            "actions": [
+                {
+                    "click": "report-add-filter"
+                }
+            ]
+        },
+        {
+            "name": "filter-picker",
+            "url": "/a/books/reports/trial-balance",
+            "ready": "report-filter-picker",
+            "actions": [
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-account"
+                },
+                {
+                    "click": "report-filter-option-group:expense"
+                }
+            ]
+        },
+        {
+            "name": "empty-filtered",
+            "url": "/a/books/reports/trial-balance?to=2000-01-31&filter-account=group:income",
+            "ready": "report-empty"
+        }
+    ]
+}

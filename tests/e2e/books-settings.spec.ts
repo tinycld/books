@@ -738,4 +738,30 @@ test.describe('books-settings: setup wizard flow', () => {
         await page.getByTestId('books-nav-lists').click()
         await expect(page.getByTestId('books-setup-card')).toHaveCount(0)
     })
+
+    // Finishing saves fiscal start month July on the shared DB, and other specs read the fiscal
+    // year, so it goes back to January through Settings. An afterEach hook runs when the test
+    // fails or times out too, and Playwright reports a hook error next to the test's own error
+    // instead of in its place.
+    test.afterEach(async ({ page }) => {
+        await restoreJanuaryFiscalStart(page)
+    })
 })
+
+const MONTH_NAME =
+    /January|February|March|April|May|June|July|August|September|October|November|December/
+
+// Puts the fiscal start month back to January through Settings, when the wizard saved another.
+async function restoreJanuaryFiscalStart(page: Page) {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await id(page, 'books-nav-settings').click()
+    await expect(id(page, 'books-settings')).toBeVisible()
+    await openRailSection(page, 'accounting')
+    const month = id(page, 'books-settings-fiscal-month')
+    await expect(month).toContainText(MONTH_NAME)
+    if ((await month.innerText()).includes('January')) return
+    await pickMenuItem(page, 'books-settings-fiscal-month', 'books-settings-fiscal-month-1')
+    await id(page, 'books-settings-fiscal-save').click()
+    await expectSaved(page)
+    await expect(month).toContainText('January')
+}

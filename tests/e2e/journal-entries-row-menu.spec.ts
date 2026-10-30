@@ -11,6 +11,7 @@ import {
     openEntriesList,
     PHONE,
     postOpenEntry,
+    searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
 
@@ -78,7 +79,7 @@ async function backToList(page: Page) {
 
 // Finds the one list item with this memo (a reversal's memo differs, so seeds stay unique).
 async function findItem(page: Page, memo: string) {
-    await page.getByTestId('entries-search').fill(memo)
+    await searchEntries(page, memo)
     const item = listItems(page, memo).filter({ hasNotText: 'Reversal of' }).first()
     await expect(item).toBeVisible()
     return { item, id: await itemId(item) }
@@ -346,7 +347,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         await backToList(page)
         const second = await makePosted(page, `${stamp} B`)
         await backToList(page)
-        await page.getByTestId('entries-search').fill(stamp)
+        await searchEntries(page, stamp)
         await expect(page.getByTestId(`entries-row-menu-${first.id}`)).toBeVisible()
         await expect(page.getByTestId(`entries-row-menu-${second.id}`)).toBeVisible()
 

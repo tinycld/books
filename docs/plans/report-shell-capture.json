@@ -1,0 +1,80 @@
+{
+    "outDir": "report-shell-reference",
+    "shots": [
+        {
+            "name": "hub",
+            "url": "/a/books/helix-mockup?state=hub",
+            "ready": "report-hub"
+        },
+        {
+            "name": "hub-v0",
+            "url": "/a/books/helix-mockup?state=hub-v0",
+            "ready": "report-hub"
+        },
+        {
+            "name": "hub-empty",
+            "url": "/a/books/helix-mockup?state=hub-empty",
+            "ready": "report-hub-empty"
+        },
+        {
+            "name": "tb",
+            "url": "/a/books/helix-mockup?state=tb",
+            "ready": "report-table"
+        },
+        {
+            "name": "pl-folded",
+            "url": "/a/books/helix-mockup?state=pl-folded",
+            "ready": "report-table"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "report-loading"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "report-error"
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "report-empty"
+        },
+        {
+            "name": "empty-filtered",
+            "url": "/a/books/helix-mockup?state=empty-filtered",
+            "ready": "report-empty"
+        },
+        {
+            "name": "period",
+            "url": "/a/books/helix-mockup?state=period",
+            "ready": "report-period-popover"
+        },
+        {
+            "name": "invalid-date",
+            "url": "/a/books/helix-mockup?state=invalid-date",
+            "ready": "report-period-popover"
+        },
+        {
+            "name": "add-filter",
+            "url": "/a/books/helix-mockup?state=add-filter",
+            "ready": "report-add-filter-menu"
+        },
+        {
+            "name": "filter-picker",
+            "url": "/a/books/helix-mockup?state=filter-picker",
+            "ready": "report-filter-picker"
+        },
+        {
+            "name": "customize",
+            "url": "/a/books/helix-mockup?state=customize",
+            "ready": "report-customize"
+        },
+        {
+            "name": "unknown",
+            "url": "/a/books/helix-mockup?state=unknown",
+            "ready": "report-not-found"
+        }
+    ]
+}

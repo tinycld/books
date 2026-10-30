@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { useConnectivityStore } from '@tinycld/core/lib/stores/connectivity-store'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { useCloseOverrides } from '../tinycld/books/hooks/useCloseOverrides'
@@ -24,7 +25,7 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 })
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
-silenceLog()
+const logged = silenceLog()
 
 const DAY = 24 * 60 * 60 * 1000
 const STAMP = '2026-10-01 00:00:00.000Z'
@@ -562,6 +563,7 @@ describe('useCloseOverrides guard release', () => {
         })
         expect(first?.ok).toBe(false)
         expect(overrideWrites()).toEqual([])
+        expect(logged.error).toHaveBeenCalledWith('books.overrides', expect.any(Error))
 
         let second: Awaited<ReturnType<typeof result.current.grant>> | undefined
         await act(async () => {
@@ -581,6 +583,7 @@ describe('useCloseOverrides guard release', () => {
         })
         expect(first?.ok).toBe(false)
         expect(overrideWrites()).toEqual([])
+        expect(logged.error).toHaveBeenCalledWith('books.overrides', expect.any(Error))
 
         let second: Awaited<ReturnType<typeof result.current.revoke>> | undefined
         await act(async () => {
@@ -605,6 +608,8 @@ describe('useCloseOverrides guard release', () => {
             await result.current.revoke('o_live')
         })
         await settle()
+        // The caller shows a refusal, so it is not an error to log.
+        expect(logged.error).not.toHaveBeenCalled()
 
         liftRefusal()
         let granted: Awaited<ReturnType<typeof result.current.grant>> | undefined
@@ -786,5 +791,47 @@ describe('useCloseOverrides classifies with the render-time clock', () => {
 
         expect(rendered.result.current.past.map(o => o.id)).toEqual(['o_stale'])
         expect(seen.filter(entry => entry.active.includes('o_stale'))).toEqual([])
+    })
+})
+
+describe('useCloseOverrides offline failure', () => {
+    const ROW = override('o_live', 'maya', 'nathan', Date.now() + 3 * DAY)
+    const NETWORK = 'Failed to fetch'
+
+    afterEach(() => {
+        useConnectivityStore.setState({ isOnline: true, isServerReachable: true })
+    })
+
+    it.each([
+        [
+            'grant',
+            (hook: ReturnType<typeof useCloseOverrides>) =>
+                hook.grant({ user: 'maya', reason: 'Year-end', lasts: '24h' }),
+        ],
+        ['revoke', (hook: ReturnType<typeof useCloseOverrides>) => hook.revoke('o_live')],
+    ])('returns the %s failure and logs it as info, not as an error, while offline', async (_n, run) => {
+        seedBooks({
+            level: 'admin',
+            users: USERS,
+            accessRows: ACCESS_ROWS,
+            overrides: [ROW],
+            refuseOverrides: new Error(NETWORK),
+        })
+        const { result } = await renderReady()
+        useConnectivityStore.setState({ isOnline: false, isServerReachable: true })
+        logged.info.mockImplementationOnce(() => {})
+
+        let outcome: Awaited<ReturnType<typeof run>> | undefined
+        await act(async () => {
+            outcome = await run(result.current)
+        })
+        await settle()
+
+        expect(outcome).toEqual({ ok: false, message: expect.stringContaining(NETWORK) })
+        expect(logged.error).not.toHaveBeenCalled()
+        expect(logged.info).toHaveBeenCalledWith(
+            'books.overrides',
+            expect.stringContaining(NETWORK)
+        )
     })
 })

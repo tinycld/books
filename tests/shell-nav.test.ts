@@ -1,6 +1,7 @@
 import { List } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
+import { hasAvailableReport, REPORT_ENTRIES } from '../tinycld/books/lib/report-registry'
 import {
     availableOnly,
     hidesNewFab,
@@ -114,6 +115,41 @@ describe('settings sidebar entry', () => {
         const { top, accounting, end } = sidebarSections(availableOnly(SIDEBAR_ENTRIES))
         const rendered = [...top, ...accounting, ...end]
         expect(rendered[rendered.length - 1]?.id).toBe('settings')
+    })
+})
+
+describe('reports sidebar entry', () => {
+    function reportsEntry(): SidebarEntry {
+        const reports = SIDEBAR_ENTRIES.find(e => e.id === 'reports')
+        if (!reports) throw new Error('SIDEBAR_ENTRIES has no reports entry')
+        return reports
+    }
+
+    it('is a top-group Reports entry at books/reports', () => {
+        const reports = reportsEntry()
+        expect(reports.label).toBe('Reports')
+        expect(reports.href).toBe('books/reports')
+        expect(reports.group).toBeUndefined()
+    })
+
+    it('sits right after lists', () => {
+        const ids = SIDEBAR_ENTRIES.map(e => e.id)
+        expect(ids.indexOf('reports')).toBe(ids.indexOf('lists') + 1)
+    })
+
+    it('is available exactly when the registry has an available report', () => {
+        expect(reportsEntry().available).toBe(hasAvailableReport(REPORT_ENTRIES))
+    })
+
+    it('hasAvailableReport is false when every entry is unavailable and true when one is', () => {
+        const none = REPORT_ENTRIES.map(e => ({ ...e, available: false }))
+        const one = none.map(e => (e.id === 'trial-balance' ? { ...e, available: true } : e))
+        expect(hasAvailableReport(none)).toBe(false)
+        expect(hasAvailableReport(one)).toBe(true)
+    })
+
+    it('is active on a report screen under books/reports', () => {
+        expect(isActivePath('/a/books/reports/trial-balance', reportsEntry())).toBe(true)
     })
 })
 
