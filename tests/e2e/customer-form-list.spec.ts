@@ -157,11 +157,11 @@ test.describe('customer-form: customers list', () => {
             await quiet.close()
 
             // (2) A failed load shows the banner; Retry rebuilds the failed query.
-            const page = await openBooksPage(first, size, fresh =>
-                fresh.route(CUSTOMERS_RECORDS, route =>
+            const page = await openBooksPage(first, size, async fresh => {
+                await fresh.route(CUSTOMERS_RECORDS, route =>
                     route.fulfill({ status: 400, contentType: 'application/json', body: '{}' })
                 )
-            )
+            })
             const phone = isPhone(page)
             await openCustomersList(page)
             const banner = page.getByTestId('customers-banner')

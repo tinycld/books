@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useAccessList } from '../tinycld/books/hooks/useAccessList'
 import type { BooksAccess } from '../tinycld/books/types'
 import { accessStore, seedBooks, usersStore } from './accounts-form-harness'
-import { captureLoadErrors, silenceLog } from './silence-log'
+import { expectLiveQueryError, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -152,18 +152,17 @@ describe('useAccessList readiness and load errors', () => {
     })
 
     it('sets hasLoadError when the users read fails', async () => {
-        const consoleError = captureLoadErrors()
         seedBooks({ level: 'admin', users: USERS, accessRows: ROWS, usersErrored: true })
+        expectLiveQueryError(usersStore().id)
         const { result } = renderHook(() => useAccessList(), { wrapper })
 
         await waitFor(() => expect(result.current.hasLoadError).toBe(true))
         expect(result.current.isReady).toBe(false)
-        consoleError.expectOnlyLoadErrors()
     })
 
     it('recovers through retryLoad after the users read failed once', async () => {
-        const consoleError = captureLoadErrors()
         seedBooks({ level: 'admin', users: USERS, accessRows: ROWS, usersFailsOnce: true })
+        expectLiveQueryError(usersStore().id)
         const { result } = renderHook(() => useAccessList(), { wrapper })
         await waitFor(() => expect(result.current.hasLoadError).toBe(true))
 
@@ -172,7 +171,6 @@ describe('useAccessList readiness and load errors', () => {
         await waitFor(() => expect(result.current.hasLoadError).toBe(false))
         await waitFor(() => expect(result.current.isReady).toBe(true))
         expect(result.current.viewerOrgRole).toBe('owner')
-        consoleError.expectOnlyLoadErrors()
     })
 })
 
@@ -180,7 +178,6 @@ describe('useAccessList readiness and load errors', () => {
 // the subscription), so scoping of the viewer read is covered by this behavior check only.
 describe('useAccessList viewer read', () => {
     it('still reports the viewer role and recovers through retryLoad among many users', async () => {
-        const consoleError = captureLoadErrors()
         const many = Array.from({ length: 40 }, (_n, i) => ({
             id: `p${i}`,
             name: `Person ${i}`,
@@ -193,6 +190,7 @@ describe('useAccessList viewer read', () => {
             accessRows: [...ROWS, ...many.map(m => row(m.id, 'bookkeeper'))],
             usersFailsOnce: true,
         })
+        expectLiveQueryError(usersStore().id)
         const { result } = renderHook(() => useAccessList(), { wrapper })
         await waitFor(() => expect(result.current.hasLoadError).toBe(true))
 
@@ -201,6 +199,5 @@ describe('useAccessList viewer read', () => {
         await waitFor(() => expect(result.current.isReady).toBe(true))
         expect(result.current.hasLoadError).toBe(false)
         expect(result.current.viewerOrgRole).toBe('owner')
-        consoleError.expectOnlyLoadErrors()
     })
 })

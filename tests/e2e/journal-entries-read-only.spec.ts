@@ -1,7 +1,15 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
-import { DESKTOP, isPhone, openRegister, PHONE, REGISTER_SEED } from './account-register-helpers'
+import {
+    DESKTOP,
+    isPhone,
+    openRegister,
+    PHONE,
+    REGISTER_SEED,
+    revealRegisterItem,
+} from './account-register-helpers'
+import { searchEntries } from './journal-entries-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -58,7 +66,7 @@ function entryRow(page: Page, memo: string): Locator {
 // The list is windowed and newest first, so once other specs have created many
 // entries a seeded one may sit outside the rendered rows; search finds it.
 async function clickEntryRow(page: Page, memo: string) {
-    await page.getByTestId('entries-search').fill(memo)
+    await searchEntries(page, memo)
     await entryRow(page, memo).click()
 }
 
@@ -118,17 +126,21 @@ for (const [sizeName, size] of SIZES) {
 
         test('register: the drawer links to the entry', async ({ page }) => {
             await start(page, size)
-            // No other spec posts to Accounts receivable, so the seeded sale stays inside the
-            // register's newest-first window however many entries the suite adds to checking.
             await openRegister(page, 'Accounts receivable')
             await page.getByTestId('register-range').click()
-            await page.getByRole('menuitem', { name: 'This fiscal year', exact: true }).click()
+            // This month holds the sale (dated today) and does not reload when another spec
+            // changes the fiscal start month on the shared DB.
+            await page.getByRole('menuitem', { name: 'This month', exact: true }).click()
+            await expect(page.getByTestId('register-range')).toContainText('This month')
 
+            // Other specs can post entries dated today on this account too, and those sort
+            // above the sale, so the list scrolls until the sale mounts.
             const prefix = isPhone(page) ? 'register-card-' : 'register-row-'
-            await page
+            const sale = page
                 .locator(`[data-testid^="${prefix}"]`)
                 .filter({ hasText: REGISTER_SEED.sale })
-                .click()
+            await revealRegisterItem(page, sale)
+            await sale.click()
             await page.getByTestId('register-drawer-open-entry').click()
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
 

@@ -17,7 +17,7 @@ import {
     serverRefusal,
     writeLog,
 } from './accounts-form-harness'
-import { captureLoadErrors, silenceLog } from './silence-log'
+import { expectLiveQueryError, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -343,8 +343,8 @@ describe('useDocSequences', () => {
     })
 
     it('sets hasLoadError when the load fails, and retryLoad recovers', async () => {
-        const consoleError = captureLoadErrors()
         seedBooks({ level: 'admin', sequences: [SEQ], sequencesFailsOnce: true })
+        expectLiveQueryError(sequencesStore().id)
         const rendered = renderHook(() => useDocSequences(), { wrapper })
         await waitFor(() => expect(rendered.result.current.hasLoadError).toBe(true))
 
@@ -352,6 +352,5 @@ describe('useDocSequences', () => {
 
         await waitFor(() => expect(rendered.result.current.hasLoadError).toBe(false))
         await waitFor(() => expect(rendered.result.current.sequences?.[0]?.id).toBe(SEQ.id))
-        consoleError.expectOnlyLoadErrors()
     })
 })

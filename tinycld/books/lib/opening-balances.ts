@@ -3,7 +3,7 @@ import { buildAccountTree, defaultSort, type TreeAccount, type TreeNode } from '
 import { accountTypeDef } from './account-types'
 import { isWellFormedMoney, maxStoredAmount, parseMoney } from './money'
 import type { OpeningPreset } from './opening-balances-schema'
-import { formatDay, rangeForPreset } from './register-range'
+import { formatDay, isIsoDay, rangeForPreset } from './register-range'
 import type { SidebarEntry } from './shell-nav'
 
 export type OpeningAccount = Pick<
@@ -322,23 +322,12 @@ export function centsFromAmounts(
     return cents
 }
 
-const monthLengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-
-export function isRealDay(day: string): boolean {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false
-    const [year, month, date] = day.split('-').map(Number)
-    if (month < 1 || month > 12) return false
-    const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
-    const length = month === 2 && isLeap ? 29 : monthLengths[month - 1]
-    return date >= 1 && date <= length
-}
-
 export function dayLabel(day: string): string {
-    return isRealDay(day) ? formatDay(day) : ''
+    return isIsoDay(day) ? formatDay(day) : ''
 }
 
 export function memoFor(date: string): string {
-    return isRealDay(date) ? `Opening balances as of ${formatDay(date)}` : 'Opening balances'
+    return isIsoDay(date) ? `Opening balances as of ${formatDay(date)}` : 'Opening balances'
 }
 
 // A blank memo means the person left it untouched.
