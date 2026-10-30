@@ -20,7 +20,10 @@
 (none yet)
 
 ## Rebuttals
-(none yet)
+- **finding:** reviewer B, checkpoint 3: "`tinycld/books/lib/customer-actions.ts:8`: the `CustomerMenuItem` export is now used only inside its own file."
+  **rebutted because:** it is the key type of two exported constants in that file (`export const CUSTOMER_MENU_LABELS: Record<CustomerMenuItem, string>` and `export const CUSTOMER_MENU_TEST_IDS: Record<CustomerMenuItem, string>`), and the checkpoint's Produces names it; a caller that reads those maps names their key type.
+- **finding:** reviewer B, checkpoint 3: "`tinycld/books/hooks/useRecordRowMenus.ts:9`: `RecordRowMenusConfig` is exported, but only its own file uses it … Fix: make it file-local."
+  **rebutted because:** it is the parameter type of the exported hook (`config: RecordRowMenusConfig<R, I>`, useRecordRowMenus.ts:35), which the vendors list calls in a later checkpoint; an exported function's parameter type stays nameable by its callers.
 
 ## Design notes
 - cp0 reviewer A NOTE: `lib/account-register-fixture.ts:39` and `lib/setup-wizard-fixture.ts:19` keep `'' as BooksSettings['ownership']`; the type now holds `''`, so the casts do nothing. Driver: remove both in checkpoint 1 (books branch), listed under Out-of-plan changes then.
@@ -28,6 +31,7 @@
 - cp1 reviewer A NOTE: `lib/account-register-fixture.ts:38` `SETTINGS` uses `satisfies`, so with the cast gone `typeof SETTINGS` types `ownership` as `''`, not the union; `tests/register-realtime.test.ts:155` types its parameter from it. Tighter, not weaker; tsc passes.
 - cp1 fix review NOTEs: `server/names.go` nameKey comment now has two colons in one sentence and an early line break; the new no-join alias comment in `searchParties` partly repeats the `withParent` branch comment.
 - cp2 reviewer A NOTE: `lib/record-refusals.ts` and `lib/record-save.ts` import each other; the record-refusals → record-save import is type-only (`RefusalForm`, which the checkpoint puts in record-save), so it is safe at runtime.
+- cp3 fix review NOTE: `DeleteCustomerDialog` `linesOf` now drops a line with an empty display name too (the old dialog showed the name with no condition); the server requires a display name, so no user reaches it.
 
 ## Out-of-plan changes
 - cp1: `tinycld/books/lib/account-register-fixture.ts`, `tinycld/books/lib/setup-wizard-fixture.ts` — removed the `'' as BooksSettings['ownership']` casts and their now-false comments, since core #397 types the field with `''` (cp0 reviewer A NOTE).
@@ -80,6 +84,21 @@
 - gate 3 A (correctness): no BLOCK; NOTEs: screens/customers/[id].tsx repeats RecordByIdScreen's delete-snapshot doc comment (accepted+fixed: cut to its first line); record-refusals.ts ↔ record-save.ts import each other, the record-refusals side type-only (Design notes)
 - gate 3 B (conformance): no rule broken; NOTE the same repeated doc comment (accepted+fixed)
 - fix review: round 1: clean
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: aa92e91
+- human: n/a (review mode C)
+
+## Checkpoint 3
+- test writer: tests/record-menu.test.ts; red for the right reason: yes (`Cannot find module '../tinycld/books/lib/record-menu'`); untestable: none (moved hooks/components guarded by tests/customer-actions.test.ts and the customer e2e specs, per the checkpoint)
+- implementer: record-menu.ts, RecordRowMenu.tsx (renamed from CustomerRowMenu.tsx), useRecordActions.ts, useRecordRowMenus.ts, DeleteRecordDialog.tsx; customer-actions.ts, useCustomerActions.ts, DeleteCustomerDialog.tsx, CustomersList.tsx moved onto them; DONE (stopped by the driver afterwards, see gate 1)
+- test disputes: none
+- self-declared differences: useRecordRowMenus.ts builds the menu with createElement (plan names a .ts file); reportUnexpected takes logContext; shared test-id comment moved to recordMenuTestIds, RECORD_MENU_WRITES one-line comment; DeleteCustomerDialog local linesOf drops an invisible or null line; DeleteRecordDialog keys lines by `tone:text` (biome no-index-key); useIsShowingCustomer export unused but kept
+- gate 1: tests unedited: yes · fail → the implementer reported "24 passed (2.2m)" but its log read "3 failed, 21 passed": its log-pattern wait ended early and it stopped the 7200/7201 servers while Playwright still ran (tests 23-24 ERR_CONNECTION_REFUSED, 22 a toHaveURL miss in the same window) → driver stopped the agent and ran the guard to process exit → 24 passed (1.6m); tinycld-pkg check green
+- gate 2: n/a (nothing new renders)
+- gate 3 A (correctness): no BLOCK; NOTEs accepted+fixed: linesOf dropped only null text (old ErrorLine dropped falsy) → drops falsy; DeleteRecordDialog `tone:text` key could repeat (a name equal to the unsaved warning) → `key` field on DeleteDialogLine naming the line's role; duplicate `Confirm` type → exported `DeleteDialogConfirm`; dead useIsShowingCustomer → deleted
+- gate 3 B (conformance): no rule broken; dead exports: useIsShowingCustomer (deleted), SERVER_UNREACHED/CustomerRefusal re-exports in useCustomerActions (deleted); CustomerMenuItem and RecordRowMenusConfig rebutted (see Rebuttals)
+- fix review: round 1: clean · NOTE to Design notes: linesOf now also drops an empty display name (the server requires one). Gate 1 after fixes: tinycld-pkg check green, customer-form guard 24 passed (1.7m). Plan revised for checkpoint 10: DeleteDialogLine gains `key`, DeleteDialogConfirm exported; vendorDeleteLines keys name/explanation/unsaved/refusal and drops an empty refusal. plan-check: 8 errors, all in done checkpoints 1-2 (names those checkpoints removed); none in 3-10.
 - gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: none
 - human: n/a (review mode C)

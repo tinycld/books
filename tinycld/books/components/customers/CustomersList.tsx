@@ -5,7 +5,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { router } from 'expo-router'
 import { ArrowLeft } from 'lucide-react-native'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import {
     Pressable,
     ScrollView,
@@ -16,25 +16,30 @@ import {
 } from 'react-native'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useCustomerActions } from '../../hooks/useCustomerActions'
-import { useCustomerNavigation, useIsShowingCustomer } from '../../hooks/useCustomerNavigation'
+import { useCustomerNavigation } from '../../hooks/useCustomerNavigation'
 import { useCustomersList } from '../../hooks/useCustomersList'
 import { type CustomerRecord, useCustomersQuery } from '../../hooks/useCustomersQuery'
 import { useDetailSurface } from '../../hooks/useDetailSurface'
+import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import { useRowWindow } from '../../hooks/useRowWindow'
 import { useTableMinWidth } from '../../hooks/useTableMinWidth'
-import { type CustomerMenuItem, customerMenuItems } from '../../lib/customer-actions'
+import {
+    CUSTOMER_MENU_LABELS,
+    CUSTOMER_MENU_TEST_IDS,
+    customerMenuItems,
+} from '../../lib/customer-actions'
 import {
     CUSTOMER_COLUMNS,
     CUSTOMER_ROW_HEIGHT,
     CUSTOMERS_TABLE_MIN_WIDTH,
     customerCardHeight,
 } from '../../lib/customer-display'
+import { CUSTOMERS_PATH } from '../../lib/customer-route'
 import type { CustomerListRow, CustomerListViewState } from '../../lib/customer-tree'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { useCustomerFormStore } from '../../stores/customer-form-store'
 import { CustomerCard } from './CustomerCard'
 import { CUSTOMER_ROW_CLASS, CustomerRow } from './CustomerRow'
-import { CustomerRowMenu } from './CustomerRowMenu'
 import { CustomersBanner } from './CustomersBanner'
 import { CustomersEmptyState } from './CustomersEmptyState'
 import { CustomerToolbar } from './CustomerToolbar'
@@ -42,14 +47,12 @@ import { DeleteCustomerDialog } from './DeleteCustomerDialog'
 
 type Rows = CustomerListRow<CustomerRecord>[]
 
-type Row = Rows[number]
-
 interface BodyProps {
     isVisible: boolean
     rows: Rows
     onOpen: (id: string) => void
     // The row menu for one customer, or null for a reader.
-    menuFor: (row: Row) => ReactNode
+    menuFor: (customer: CustomerRecord) => ReactNode
 }
 
 // Only the table can sit beside the panel (cards show below 768 px, the panel at 1360 px).
@@ -166,7 +169,7 @@ function CustomersTable({ isVisible, rows, selectedId, onOpen, menuFor }: TableP
                 row={row}
                 onOpen={onOpen}
                 isSelected={row.customer.id === selectedId}
-                menu={menuFor(row)}
+                menu={menuFor(row.customer)}
             />
         ))
     return (
@@ -218,7 +221,7 @@ function CustomerCards({ isVisible, rows, onOpen, menuFor }: BodyProps) {
                 row={row}
                 onOpen={onOpen}
                 height={heights[rowWindow.first + offset]}
-                menu={menuFor(row)}
+                menu={menuFor(row.customer)}
             />
         ))
     return (
@@ -249,90 +252,9 @@ function emptyKindFor(viewState: ViewState) {
 // inactive filter hides every row.
 const TOOLBAR_STATES: ReadonlySet<ViewState> = new Set(['ready', 'no-match', 'all-inactive'])
 
-type Navigation = ReturnType<typeof useCustomerNavigation>
-
-/**
- * The row menus and the Delete customer dialog they open. The one `useCustomerActions`
- * lives here, so the list's banner and the dialog read the same refusals. The dialog
- * shows the customer as it was when Delete was chosen: the delete removes the row from
- * the list at once, and a refusal must still show in the dialog.
- */
-function useCustomerRowMenus(openId: string, canWrite: boolean, navigation: Navigation) {
-    const actions = useCustomerActions()
-    const isShowingCustomer = useIsShowingCustomer()
-    const [deleteTarget, setDeleteTarget] = useState<CustomerRecord | null>(null)
-    const dirtyCustomerId = useCustomerFormStore(s => s.dirtyRecordId)
-    const targetId = deleteTarget?.id ?? ''
-    const isTargetOpen = targetId !== '' && targetId === openId
-
-    // Opening a customer's dialog drops that customer's refusal: the dialog shows the
-    // customer's current state. Closing drops it too: the user has seen it in the dialog,
-    // and it would otherwise come back in the banner. A refusal about another customer
-    // stays in the banner.
-    const openDeleteDialog = (customer: CustomerRecord) => {
-        actions.clearActionError(customer.id)
-        setDeleteTarget(customer)
-    }
-
-    const select = (customer: CustomerRecord, item: CustomerMenuItem) => {
-        if (item === 'edit') navigation.open(customer.id)
-        else if (item === 'add-sub') navigation.openNew(customer.id)
-        else if (item === 'make-inactive') void actions.setInactive(customer.id, true)
-        else if (item === 'make-active') void actions.setInactive(customer.id, false)
-        else openDeleteDialog(customer)
-    }
-
-    const menuFor = (row: Row) => {
-        const { customer } = row
-        const items = customerMenuItems(
-            { isTopLevel: customer.parent === '', inactive: customer.inactive },
-            canWrite
-        )
-        if (items.length === 0) return null
-        return (
-            <CustomerRowMenu
-                row={row}
-                items={items}
-                onSelect={item => select(customer, item)}
-                isWriting={actions.isWorking}
-            />
-        )
-    }
-
-    // The delete's answer may arrive after the user moved on (another customer, the Lists
-    // hub, another package): it leaves to the list only while they still see that
-    // customer, so it never pulls them back.
-    const leaveDeleted = (id: string) => {
-        if (!isShowingCustomer(id)) return false
-        navigation.leave()
-        return true
-    }
-
-    return {
-        actions,
-        menuFor,
-        deleteDialog: {
-            customer: deleteTarget,
-            actions,
-            isOpenAndDirty: isTargetOpen && dirtyCustomerId === targetId,
-            onClose: () => {
-                actions.clearActionError(targetId)
-                setDeleteTarget(null)
-            },
-            onDeleted: () => leaveDeleted(targetId),
-        },
-    }
-}
-
-// The load error, with Retry, comes before an action's refusal. A refusal about the
-// customer whose Delete customer dialog is open shows in the dialog, not twice.
-function bannerFor(isLoadError: boolean, menus: ReturnType<typeof useCustomerRowMenus>) {
-    if (isLoadError) return { message: LOAD_ERROR, isLoadError }
-    const refusal = menus.actions.actionError
-    const dialogId = menus.deleteDialog.customer?.id
-    const message = refusal && refusal.id !== dialogId ? refusal.message : null
-    return { message, isLoadError }
-}
+// Only a top-level customer can take sub-customers (one level).
+const customerItemsFor = (customer: CustomerRecord, canWrite: boolean) =>
+    customerMenuItems({ isTopLevel: customer.parent === '', inactive: customer.inactive }, canWrite)
 
 // The Customers list. The open customer (`openId`, from the URL) is marked on the
 // panel surface, where the list stays in view beside it.
@@ -342,16 +264,37 @@ export function CustomersList({ openId }: { openId: string }) {
     const surface = useDetailSurface()
     const selectedId = surface === 'panel' ? openId : ''
     const { canWrite } = useBooksAccess()
-    const menus = useCustomerRowMenus(openId, canWrite, navigation)
+    // The one actions instance lives here, so the list's banner and the Delete customer
+    // dialog read the same refusals.
+    const actions = useCustomerActions()
+    const menus = useRecordRowMenus({
+        actions,
+        store: useCustomerFormStore,
+        openId,
+        listPath: CUSTOMERS_PATH,
+        navigation,
+        canWrite,
+        itemsFor: customerItemsFor,
+        onExtra: (customer, item) => {
+            if (item === 'add-sub') navigation.openNew(customer.id)
+        },
+        menu: {
+            triggerPrefix: 'customer-menu',
+            triggerLabel: 'Customer actions',
+            labels: CUSTOMER_MENU_LABELS,
+            testIds: CUSTOMER_MENU_TEST_IDS,
+        },
+    })
     const isWide = useBreakpoint() !== 'mobile'
     const source = useCustomersQuery()
     const list = useCustomersList(source)
     const { viewState, rows } = list
     const isReady = viewState === 'ready'
     const showToolbar = TOOLBAR_STATES.has(viewState)
-    const banner = bannerFor(viewState === 'error', menus)
-    const onRetry = banner.isLoadError ? source.retry : undefined
-    const onDismissBanner = banner.isLoadError ? undefined : () => menus.actions.clearActionError()
+    const isLoadError = viewState === 'error'
+    const bannerMessage = menus.bannerMessage(isLoadError ? LOAD_ERROR : null)
+    const onRetry = isLoadError ? source.retry : undefined
+    const onDismissBanner = isLoadError ? undefined : menus.dismissRefusal
     const isLoading = viewState === 'loading'
     const emptyKind = emptyKindFor(viewState)
     const showTable = isReady && isWide
@@ -366,7 +309,7 @@ export function CustomersList({ openId }: { openId: string }) {
             <ListHeader canWrite={canWrite} onBack={backToLists} onNew={openNew} />
             <ListToolbar isVisible={showToolbar} list={list} isWide={isWide} />
             <CustomersBanner
-                message={banner.message}
+                message={bannerMessage}
                 onRetry={onRetry}
                 onDismiss={onDismissBanner}
             />
@@ -391,7 +334,14 @@ export function CustomersList({ openId }: { openId: string }) {
                 onOpen={navigation.open}
                 menuFor={menus.menuFor}
             />
-            <DeleteCustomerDialog {...menus.deleteDialog} />
+            <DeleteCustomerDialog
+                customer={menus.deleteDialog.record}
+                actions={actions}
+                isOpenAndDirty={menus.deleteDialog.isOpenAndDirty}
+                refusal={menus.deleteDialog.refusal}
+                onClose={menus.deleteDialog.onClose}
+                onDeleted={menus.deleteDialog.onDeleted}
+            />
         </View>
     )
 }
