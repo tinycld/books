@@ -1,0 +1,24 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "customize",
+            "url": "/a/books/reports/trial-balance?preset=today",
+            "ready": "report-customize",
+            "actions": [
+                {
+                    "click": "report-customize-open"
+                },
+                {
+                    "click": "report-option-without-cents"
+                },
+                {
+                    "clickText": "(100)"
+                },
+                {
+                    "click": "report-option-negative-red"
+                }
+            ]
+        }
+    ]
+}

@@ -2,7 +2,12 @@
 // `@tinycld/core/lib/pocketbase` module in each test file serves `useStore`
 // from this registry, so every hook and component under test is the real one
 // and reads and writes real TanStack DB local-only collections.
-import { BasicIndex, createCollection, localOnlyCollectionOptions } from '@tanstack/db'
+import {
+    BasicIndex,
+    createCollection,
+    localOnlyCollectionOptions,
+    type OperationType,
+} from '@tanstack/db'
 import type { OrgPkgAccess } from '@tinycld/core/types/pbSchema'
 import { ACCOUNTS, BALANCES } from '../tinycld/books/lib/chart-of-accounts-fixture'
 import type {
@@ -16,6 +21,7 @@ import type {
     BooksJournalLines,
     BooksSettings,
 } from '../tinycld/books/types'
+import { refusedLoad } from './silence-log'
 
 export const ME = 'u1'
 
@@ -49,6 +55,10 @@ const state = {
     accessMaxInFlight: 0,
     // Releases the core and admin reads held by holdCoreRead / holdAdminRead.
     releaseReads: [] as (() => void)[],
+    // Releases the settings read held by holdSettingsRead.
+    releaseSettings: [] as (() => void)[],
+    // Releases the accounts read held by holdAccountsRead.
+    releaseAccounts: [] as (() => void)[],
     // Makes books_access.reload() wait until released.
     reloadGate: null as Promise<void> | null,
     // Makes books_access.reload() reject with this error.
@@ -61,6 +71,14 @@ const state = {
     refuseAt: [] as { at: number; error: unknown }[],
     // Names passed to useStore, in order, so a test can see which collections a hook reads.
     requested: [] as string[],
+    // Names of the seeded collections that received cleanup(), in order.
+    cleanups: [] as string[],
+}
+
+// The seeded collections that received cleanup() since the last seed, in order, so a retry
+// test can prove that no source was cleaned.
+export function cleanups() {
+    return [...state.cleanups]
 }
 
 export function requestedStores() {
@@ -131,10 +149,22 @@ export function failReload(error: unknown) {
     state.reloadError = error
 }
 
-// Lets the org_pkg_access and books_admins reads that were seeded with holdCoreRead /
-// holdAdminRead finish loading, with their seeded rows.
+// Lets the org_pkg_access, books_admins and books_access reads that were seeded with
+// holdCoreRead / holdAdminRead / holdAccessRead finish loading, with their seeded rows.
 export function releaseAccessReads() {
     for (const release of state.releaseReads.splice(0)) release()
+}
+
+// Lets the settings read that was seeded with holdSettingsRead finish loading, with its
+// seeded rows.
+export function releaseSettingsRead() {
+    for (const release of state.releaseSettings.splice(0)) release()
+}
+
+// Lets the accounts read that was seeded with holdAccountsRead finish loading, with its
+// seeded rows.
+export function releaseAccountsRead() {
+    for (const release of state.releaseAccounts.splice(0)) release()
 }
 
 export function enteredWrites() {
@@ -220,7 +250,7 @@ async function refuseSharedWrite({
     if (state.refusal) throw state.refusal
 }
 
-function accountsCollection() {
+function accountsCollection(initialData: BooksAccounts[] = ACCOUNTS) {
     counter += 1
     const refuseWhenAsked = async (args: Parameters<typeof refuseSharedWrite>[0]) => {
         state.log.push(...args.transaction.mutations.map(m => `account:${String(m.key)}`))
@@ -230,7 +260,7 @@ function accountsCollection() {
         localOnlyCollectionOptions({
             id: `books_accounts-${counter}`,
             getKey: (row: BooksAccounts) => row.id,
-            initialData: ACCOUNTS,
+            initialData,
             onInsert: refuseWhenAsked,
             onUpdate: refuseWhenAsked,
             onDelete: refuseWhenAsked,
@@ -346,7 +376,7 @@ function overridesCollection(initialData: BooksCloseOverrides[]) {
 
 type AccessMutation = {
     key: unknown
-    type: string
+    type: OperationType
     modified: Record<string, unknown>
     changes: Record<string, unknown>
 }
@@ -528,26 +558,38 @@ function erroredCollection<T extends { id: string }>() {
     })
 }
 
-// Fails its first load, as a rejected fetch would, then serves `rows` once the
-// collection is cleaned up and subscribed again, so a test can see a retry recover.
-function failsOnceCollection<T extends { id: string }>(rows: T[]) {
+// Fails the way a pbtsdb on-demand collection does when a fetch is refused: the
+// source is ready at once, and only the first subset load rejects with a 4xx that
+// pbtsdb does not retry. That fails the one live query that asked for it while the
+// source and its other readers stay healthy. Later loads serve `rows`, so a retry
+// that rebuilds the failed query recovers it.
+function failsOnceOnDemandCollection<T extends { id: string }>(rows: T[]) {
+    return refusingOnDemandCollection(rows, 1)
+}
+
+// As failsOnceOnDemandCollection, but the first `refusals` subset loads are refused, so
+// the load a retry triggers can be refused again.
+function refusingOnDemandCollection<T extends { id: string }>(rows: T[], refusals: number) {
     counter += 1
-    let attempts = 0
+    const id = `fails-once-on-demand-${counter}`
+    let loads = 0
     return createCollection({
-        id: `fails-once-${counter}`,
+        id,
         getKey: (row: T) => row.id,
         ...indexed,
+        syncMode: 'on-demand',
         sync: {
-            sync: ({ collection, begin, write, commit, markReady }) => {
-                attempts += 1
-                if (attempts === 1) {
-                    queueMicrotask(() => collection._lifecycle.markError(new Error('load failed')))
-                    return
-                }
-                begin()
-                for (const value of rows) write({ type: 'insert', value })
-                commit()
+            sync: ({ begin, write, commit, markReady }) => {
                 markReady()
+                return {
+                    loadSubset: async () => {
+                        loads += 1
+                        if (loads <= refusals) throw refusedLoad(id)
+                        begin()
+                        for (const value of rows) write({ type: 'insert', value })
+                        commit()
+                    },
+                }
             },
         },
     })
@@ -570,10 +612,92 @@ function journalLine(account: string, position: number): BooksJournalLines {
     }
 }
 
-function accountsCollectionFor(opts: { accountsNeverReady?: boolean; accountsErrored?: boolean }) {
+// An accounts collection whose first load waits for releaseAccountsRead(). It takes no
+// writes: a test that holds the read only reads accounts.
+function heldAccountsView(rows: BooksAccounts[]) {
+    counter += 1
+    return createCollection({
+        id: `books_accounts-held-${counter}`,
+        getKey: (row: BooksAccounts) => row.id,
+        ...indexed,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseAccounts.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
+}
+
+function accountsCollectionFor(opts: {
+    accountsNeverReady?: boolean
+    accountsErrored?: boolean
+    accountsFailsOnce?: boolean
+    holdAccountsRead?: boolean
+    ledger?: { accounts?: BooksAccounts[] }
+}) {
     if (opts.accountsErrored) return erroredCollection<BooksAccounts>()
     if (opts.accountsNeverReady) return neverReady<BooksAccounts>()
-    return accountsCollection()
+    if (opts.holdAccountsRead) return heldAccountsView(opts.ledger?.accounts ?? ACCOUNTS)
+    if (opts.accountsFailsOnce) {
+        return failsOnceOnDemandCollection<BooksAccounts>(opts.ledger?.accounts ?? ACCOUNTS)
+    }
+    return accountsCollection(opts.ledger?.accounts)
+}
+
+function linesCollectionFor(
+    opts: { linesNeverReady?: boolean; linesFailsOnce?: boolean },
+    rows: BooksJournalLines[]
+) {
+    if (opts.linesNeverReady) return neverReady<BooksJournalLines>()
+    if (opts.linesFailsOnce) return failsOnceOnDemandCollection<BooksJournalLines>(rows)
+    return guarded<BooksJournalLines>('books_journal_lines', rows)
+}
+
+function balancesCollectionFor(
+    opts: { balancesNeverReady?: boolean; balancesFailsOnce?: boolean },
+    rows: BooksAccountBalances[]
+) {
+    if (opts.balancesNeverReady) return neverReady<BooksAccountBalances>()
+    if (opts.balancesFailsOnce) return failsOnceOnDemandCollection<BooksAccountBalances>(rows)
+    return local<BooksAccountBalances>('books_account_balances', rows)
+}
+
+// Records each cleanup() a seeded collection receives under its registry name, then runs it.
+function recordCleanups(registry: Record<string, { cleanup(): Promise<void> }>) {
+    for (const [name, collection] of Object.entries(registry)) {
+        const cleanup = collection.cleanup.bind(collection)
+        collection.cleanup = () => {
+            state.cleanups.push(name)
+            return cleanup()
+        }
+    }
+    return registry
+}
+
+// A settings collection whose first load waits for releaseSettingsRead(). It takes no
+// writes: a test that holds the read only reads settings.
+function heldSettingsView(rows: BooksSettings[]) {
+    counter += 1
+    return createCollection({
+        id: `books_settings-held-${counter}`,
+        getKey: (row: BooksSettings) => row.id,
+        ...indexed,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseSettings.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
 }
 
 function settingsCollectionFor(
@@ -581,12 +705,14 @@ function settingsCollectionFor(
         settingsNeverReady?: boolean
         settingsFailsOnce?: boolean
         settingsErrored?: boolean
+        holdSettingsRead?: boolean
     },
     rows: BooksSettings[]
 ) {
     if (opts.settingsErrored) return erroredCollection<BooksSettings>()
     if (opts.settingsNeverReady) return neverReady<BooksSettings>()
-    if (opts.settingsFailsOnce) return failsOnceCollection<BooksSettings>(rows)
+    if (opts.holdSettingsRead) return heldSettingsView(rows)
+    if (opts.settingsFailsOnce) return failsOnceOnDemandCollection<BooksSettings>(rows)
     return settingsCollection(rows)
 }
 
@@ -596,13 +722,12 @@ function sequencesCollectionFor(
         sequencesFailsOnce?: boolean
         // A doc sequences collection whose sync fails, so the sequences query errors.
         sequencesErrored?: boolean
-        sequencesErrored?: boolean
     },
     rows: BooksDocSequences[]
 ) {
     if (opts.sequencesErrored) return erroredCollection<BooksDocSequences>()
     if (opts.sequencesNeverReady) return neverReady<BooksDocSequences>()
-    if (opts.sequencesFailsOnce) return failsOnceCollection<BooksDocSequences>(rows)
+    if (opts.sequencesFailsOnce) return failsOnceOnDemandCollection<BooksDocSequences>(rows)
     return sequencesCollection(rows)
 }
 
@@ -616,7 +741,7 @@ function overridesCollectionFor(
 ) {
     if (opts.overridesErrored) return erroredCollection<BooksCloseOverrides>()
     if (opts.overridesNeverReady) return neverReady<BooksCloseOverrides>()
-    if (opts.overridesFailsOnce) return failsOnceCollection<BooksCloseOverrides>(rows)
+    if (opts.overridesFailsOnce) return failsOnceOnDemandCollection<BooksCloseOverrides>(rows)
     return overridesCollection(rows)
 }
 
@@ -626,8 +751,44 @@ function usersCollectionFor(
 ) {
     if (opts.usersErrored) return erroredCollection<SeedUser>()
     if (opts.usersNeverReady) return neverReady<SeedUser>()
-    if (opts.usersFailsOnce) return failsOnceCollection<SeedUser>(rows)
+    if (opts.usersFailsOnce) return failsOnceOnDemandCollection<SeedUser>(rows)
     return local<SeedUser>('users', rows)
+}
+
+// books_access is a read-only view, so the held form takes no writes.
+function heldAccessView(rows: BooksAccess[]) {
+    counter += 1
+    return createCollection({
+        id: `books_access-held-${counter}`,
+        getKey: (row: BooksAccess) => row.id,
+        ...indexed,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseReads.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
+}
+
+function accessCollectionFor(
+    opts: {
+        accessNeverReady?: boolean
+        accessFailsOnce?: boolean
+        accessFailsTwice?: boolean
+        holdAccessRead?: boolean
+    },
+    rows: BooksAccess[]
+) {
+    if (opts.accessNeverReady) return neverReady<BooksAccess>()
+    if (opts.accessFailsOnce) return failsOnceOnDemandCollection<BooksAccess>(rows)
+    if (opts.accessFailsTwice) return refusingOnDemandCollection<BooksAccess>(rows, 2)
+    if (opts.holdAccessRead) return heldAccessView(rows)
+    return accessViewCollection(rows)
 }
 
 export function seedBooks(
@@ -653,14 +814,28 @@ export function seedBooks(
         accountsNeverReady?: boolean
         // An accounts collection whose sync fails, so the accounts query errors.
         accountsErrored?: boolean
+        // An accounts collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads succeed; the source itself stays ready.
+        accountsFailsOnce?: boolean
+        // An accounts collection whose first load waits for releaseAccountsRead(), so a test
+        // can act while the account names are not loaded yet.
+        holdAccountsRead?: boolean
+        // A journal-lines collection that fails its first subset load the same way.
+        linesFailsOnce?: boolean
         // A balances collection that never finishes loading.
         balancesNeverReady?: boolean
+        // A balances collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads succeed; the source itself stays ready.
+        balancesFailsOnce?: boolean
         // A settings collection that never finishes loading.
         settingsNeverReady?: boolean
         // A settings collection whose first load fails and whose reload succeeds.
         settingsFailsOnce?: boolean
         // A settings collection whose sync fails, so the settings query errors.
         settingsErrored?: boolean
+        // A settings collection whose first load waits for releaseSettingsRead(), so a test
+        // can hold back every query that waits for settings.
+        holdSettingsRead?: boolean
         // Refuses every write to a close override row with this error.
         refuseOverrides?: unknown
         // A close overrides collection that never finishes loading.
@@ -705,8 +880,18 @@ export function seedBooks(
         sequencesFailsOnce?: boolean
         // An access collection that never finishes loading, so the Books level stays unknown.
         accessNeverReady?: boolean
+        // An access collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads succeed; the source itself stays ready.
+        accessFailsOnce?: boolean
+        // As accessFailsOnce, but the load a retry triggers is refused too.
+        accessFailsTwice?: boolean
+        // An access collection whose first load waits for releaseAccessReads(), so a test can see
+        // a hook while the Books level loads and again once the seeded row has loaded.
+        holdAccessRead?: boolean
         // Replaces the journal lines, entries, balances and settings rows, for the register tests.
+        // `accounts`, when given, replaces the seeded accounts.
         ledger?: {
+            accounts?: BooksAccounts[]
             lines: BooksJournalLines[]
             entries: BooksJournalEntries[]
             balances: BooksAccountBalances[]
@@ -739,33 +924,27 @@ export function seedBooks(
     state.reloadGate = null
     state.reloadError = null
     state.releaseReads = []
+    state.releaseSettings = []
+    state.releaseAccounts = []
     state.overrideDeletes = []
     state.log = []
     state.refuseAt = []
     state.entered = []
     state.requested = []
+    state.cleanups = []
     state.gate = null
     state.steps = null
-    state.registry = {
+    state.registry = recordCleanups({
         books_accounts: accountsCollectionFor(opts),
-        books_account_balances: opts.balancesNeverReady
-            ? neverReady<BooksAccountBalances>()
-            : local<BooksAccountBalances>(
-                  'books_account_balances',
-                  opts.ledger?.balances ?? BALANCES
-              ),
-        books_journal_lines: opts.linesNeverReady
-            ? neverReady<BooksJournalLines>()
-            : guarded<BooksJournalLines>('books_journal_lines', opts.ledger?.lines ?? lines),
+        books_account_balances: balancesCollectionFor(opts, opts.ledger?.balances ?? BALANCES),
+        books_journal_lines: linesCollectionFor(opts, opts.ledger?.lines ?? lines),
         books_journal_entries: guarded<BooksJournalEntries>(
             'books_journal_entries',
             opts.ledger?.entries ?? []
         ),
         books_settings: settingsCollectionFor(opts, opts.ledger?.settings ?? []),
         books_doc_sequences: sequencesCollectionFor(opts, opts.sequences ?? []),
-        books_access: opts.accessNeverReady
-            ? neverReady<BooksAccess>()
-            : accessViewCollection(opts.accessRows ?? [access]),
+        books_access: accessCollectionFor(opts, opts.accessRows ?? [access]),
         org_pkg_access: accessReadCollection<OrgPkgAccess>(
             'org_pkg_access',
             opts.coreAccess ?? [],
@@ -788,7 +967,7 @@ export function seedBooks(
         ),
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
-    }
+    })
 }
 
 export function accountsStore() {

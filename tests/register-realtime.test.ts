@@ -5,7 +5,7 @@ import { useRegisterQuery } from '../tinycld/books/hooks/useRegisterQuery'
 import { REGISTER_ACCOUNT_ID, SETTINGS } from '../tinycld/books/lib/account-register-fixture'
 import { balanceStore, entryStore, lineStore, seedBooks } from './accounts-form-harness'
 import { BALANCES, RANGE, registerLine, SEED_ENTRIES, SEED_LINES } from './register-test-data'
-import { silenceConsole } from './silence-log'
+import { expectLiveQueryError } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -137,17 +137,14 @@ describe('useRegisterQuery priorTotals', () => {
 })
 
 describe('useRegisterQuery errors', () => {
-    // TanStack DB reports a failed source collection straight to console.error.
-    const reported = silenceConsole('error')
-
     it('reports an error when the entries the origins query reads fail to load', async () => {
+        expectLiveQueryError(entryStore().id)
         const hook = await mounted()
         expect(hook.result.current.isError).toBe(false)
         await act(async () => {
             entryStore()._lifecycle.markError(new Error('load failed'))
         })
         await waitFor(() => expect(hook.result.current.isError).toBe(true))
-        expect(reported).toHaveBeenCalledWith(expect.stringContaining('[Live Query Error]'))
     })
 })
 

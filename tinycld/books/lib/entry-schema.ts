@@ -1,6 +1,6 @@
 import { type useForm, z, zodResolver } from '@tinycld/core/ui/form'
 import { type EntryFormLine, isBlankLine, maxLines, parseAmountText, sumLines } from './entry-lines'
-import { nextMonthStart } from './register-range'
+import { isIsoDay, nextMonthStart } from './register-range'
 
 export type EntryFormValues = {
     date: string
@@ -19,20 +19,7 @@ export function newEntryDefaults(today: string): EntryFormValues {
     return { date: today, memo: '', autoReverseOn: '', lines: [emptyLine(), emptyLine()] }
 }
 
-const isoDayPattern = /^\d{4}-\d{2}-\d{2}$/
-
-function isRealDay(text: string): boolean {
-    if (!isoDayPattern.test(text)) return false
-    const [year, month, day] = text.split('-').map(Number)
-    const date = new Date(Date.UTC(year, month - 1, day))
-    return (
-        date.getUTCFullYear() === year &&
-        date.getUTCMonth() === month - 1 &&
-        date.getUTCDate() === day
-    )
-}
-
-const dayRule = z.string().refine(isRealDay, 'Enter a date as YYYY-MM-DD')
+const dayRule = z.string().refine(isIsoDay, 'Enter a date as YYYY-MM-DD')
 
 // The currency makes an amount typed in another currency invalid.
 function buildSchemas(currency?: string) {
@@ -97,7 +84,7 @@ function buildSchemas(currency?: string) {
         })
         .superRefine((values, ctx) => {
             if (values.autoReverseOn === '') return
-            if (!isRealDay(values.autoReverseOn)) {
+            if (!isIsoDay(values.autoReverseOn)) {
                 ctx.addIssue({
                     code: 'custom',
                     path: ['autoReverseOn'],
@@ -105,7 +92,7 @@ function buildSchemas(currency?: string) {
                 })
                 return
             }
-            if (isRealDay(values.date) && values.autoReverseOn <= values.date) {
+            if (isIsoDay(values.date) && values.autoReverseOn <= values.date) {
                 ctx.addIssue({
                     code: 'custom',
                     path: ['autoReverseOn'],
@@ -165,7 +152,7 @@ export function entryResolver(getMode: () => 'draft' | 'post', currency?: string
 export function reverseSchema(entryDate: string) {
     return z.object({
         date: dayRule.refine(
-            date => !isRealDay(date) || date >= entryDate,
+            date => !isIsoDay(date) || date >= entryDate,
             'The reversal cannot be dated before the entry'
         ),
         memo: z.string(),

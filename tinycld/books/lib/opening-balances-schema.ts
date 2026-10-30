@@ -1,13 +1,14 @@
 import { z } from '@tinycld/core/ui/form'
-import { amountError, isRealDay } from './opening-balances'
+import { amountError } from './opening-balances'
 import { closedThroughMessage } from './opening-balances-messages'
+import { isIsoDay } from './register-range'
 
 export const openingPresets = ['last-fiscal-year', 'last-month', 'custom'] as const
 export type OpeningPreset = (typeof openingPresets)[number]
 
 const openingShape = z.object({
     preset: z.enum(openingPresets),
-    date: z.string().refine(isRealDay, 'Enter a real date as YYYY-MM-DD'),
+    date: z.string().refine(isIsoDay, 'Enter a real date as YYYY-MM-DD'),
     memo: z.string().max(4000, 'Use 4000 characters or fewer'),
     amounts: z.record(z.string(), z.string()),
 })
@@ -18,7 +19,7 @@ export function openingFormSchema(closeDate: string) {
     return openingShape
         .superRefine((values, ctx) => {
             // ISO day strings compare in date order.
-            if (closeDate === '' || !isRealDay(values.date) || values.date > closeDate) return
+            if (closeDate === '' || !isIsoDay(values.date) || values.date > closeDate) return
             ctx.addIssue({
                 code: 'custom',
                 path: ['date'],

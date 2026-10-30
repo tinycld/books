@@ -1,6 +1,8 @@
 - List the helpers a screen needs (navigation back target, stamp/date formatting, test ids) in the plan at design time; the implementer otherwise adds them out of plan. — journal-entries, retro, p1-journal-entries
 - E2E tests that need a seeded list row open it through the search box (entries-search), not by scrolling a windowed list; other specs add rows dated today and push seeded rows out of view. — journal-entries, retro, p1-journal-entries
 - Give every new e2e spec a unique memo on the rows it creates and find them through `entries-search`; treat any assumption about shared state (default list contents, shared counters) as a test-isolation bug in review. — journal-entries, retro, p1-journal-entries
+- A DateField (or any control with its own calendar popover) inside a Popover/Sheet must have its calendar bounded to the field or a fixed max width; check it open at 1280 — report-shell, human, eval
+- Screen-scoped open surfaces (popovers, pickers) kept in a Zustand store must close when the screen loses focus; a stacked earlier instance of the screen still renders them — report-shell, human, eval
 - A list-detail screen puts the shown record in the path (`<list>/<id>`, `<list>/new`); the list renders once in the route `_layout.tsx` with a child Stack (boards `[boardSlug]/[card]` pattern); the record is a side panel only on a very wide window, otherwise a pushed page. — customer-form, retro, p2-customers
 - A frozen package screen and a collapsed sidebar stay laid out, so Playwright counts them visible; assert the `pkg-active` marker, the URL, or the toggle's label. — customer-form, retro, p2-customers
 - Core Sheet keeps its content in the DOM while it slides out (~300 ms); render menu items only while the menu is open. — customer-form, retro, p2-customers
@@ -9,3 +11,5 @@
 - CI draws classic scrollbars (Linux): a `web:[scrollbar-gutter:stable]` scroller takes its gutter from the rows, so a min-width table uses `useTableMinWidth`. An e2e spec opens only Books; CI installs core + Books alone. — customer-form, retro, p2-customers
 - Artboards name accounts from `lib/starter-chart.ts`, never from the screenshot; fixtures name accounts by `seed.ts` ACCOUNTS numbers, the e2e book. — vendor-form, retro, p3-vendors
 - A plan for a second screen on an existing pattern extracts every piece the new files would copy, found by diffing against the first screen's files, not only the packet's shared-parts list; e2e steps copy locators from the merged spec code, not an older plan. — vendor-form, retro, p3-vendors
+- Empty-state actions use a core Button; core EmptyState's text-accent action is too faint in light mode — report-shell, retro, p5-report-shell
+- In e2e on a windowed list in the shared DB, read rows, totals and scroll math in ONE page.evaluate snapshot; never read cell by cell or hold a row handle across a re-render (other specs insert rows at the newest end) — report-shell, retro, p5-report-shell

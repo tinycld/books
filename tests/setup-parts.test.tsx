@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBooksAccess } from '../tinycld/books/hooks/useBooksAccess'
 import { useBooksSetup } from '../tinycld/books/hooks/useBooksSetup'
+import { useSetupCompleted } from '../tinycld/books/hooks/useSetupCompleted'
 import { useSetupParts } from '../tinycld/books/hooks/useSetupParts'
 import { starterChart } from '../tinycld/books/lib/starter-chart'
 import type { BooksAccounts, BooksSettings } from '../tinycld/books/types'
@@ -21,7 +22,7 @@ import {
     storedAccounts,
     writeLog,
 } from './accounts-form-harness'
-import { silenceConsole, silenceLog } from './silence-log'
+import { expectLiveQueryError, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -30,8 +31,6 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
-// TanStack DB reports the seeded settings load failure straight to the console.
-silenceConsole('error')
 
 const SETTINGS_ID = 'bookssettings01'
 
@@ -64,13 +63,17 @@ function renderParts(next?: () => void) {
     history = []
     return renderHook(
         () => {
+            // The wizard's hook subscribes first, so the first load a source refuses fails the
+            // wizard's own query. The hooks after it are other readers of the same sources.
+            const parts = useSetupParts(next)
             const access = useBooksAccess()
             const setup = useBooksSetup()
-            const parts = useSetupParts(next)
+            // The setup wizard reads this on every step.
+            const setupCompleted = useSetupCompleted()
             history.push({ part: parts.part, hasFailure: parts.failure !== null })
             // Read during render so the hook re-renders when an error is set.
             const errors = parts.form.formState.errors
-            return { access, setup, errors, ...parts }
+            return { access, setup, setupCompleted, errors, ...parts }
         },
         { wrapper }
     )
@@ -219,15 +222,22 @@ describe('useSetupParts outcomes', () => {
         expect(rendered.result.current.part).toBe('loading')
     })
 
-    it('sets hasLoadError when settings fail to load, and retryLoad recovers', async () => {
+    // The settings load is refused once, as pbtsdb refuses it: only the wizard's query fails.
+    // Retry must rebuild that query and leave the source's other readers, such as
+    // useSetupCompleted, loaded. expectLiveQueryError fails the test if retry breaks one.
+    it('sets hasLoadError when settings fail to load, and retryLoad recovers without breaking other readers', async () => {
         seedBooks({ level: 'admin', ledger: seedLedger, settingsFailsOnce: true })
+        expectLiveQueryError(settingsStore().id)
         const rendered = renderParts()
         await waitFor(() => expect(rendered.result.current.hasLoadError).toBe(true))
+        expect(rendered.result.current.setupCompleted).toBe(false)
 
         act(() => rendered.result.current.retryLoad())
 
         await waitFor(() => expect(rendered.result.current.hasLoadError).toBe(false))
         await waitFor(() => expect(rendered.result.current.part).toBe('business'))
+        expect(rendered.result.current.setupCompleted).toBeDefined()
+        expect(rendered.result.current.setupCompleted).toBe(false)
     })
 })
 

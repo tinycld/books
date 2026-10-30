@@ -28,6 +28,16 @@ describe('openingFormSchema date', () => {
         expect(found[0].message).toContain('YYYY-MM-DD')
     })
 
+    it.each(['1899-12-31', '0026-10-25'])('refuses %j, a year before 1900', date => {
+        expect(issues('', { date })).toEqual([
+            { path: 'date', message: 'Enter a real date as YYYY-MM-DD' },
+        ])
+    })
+
+    it('accepts 1900-01-01, the first allowed day', () => {
+        expect(openingFormSchema('').safeParse({ ...valid, date: '1900-01-01' }).success).toBe(true)
+    })
+
     it.each(['2025-03-31', '2025-01-01'])('refuses %j on or before the close date', date => {
         const found = issues('2025-03-31', { date }).filter(issue => issue.path === 'date')
         expect(found.map(issue => issue.message)).toEqual([

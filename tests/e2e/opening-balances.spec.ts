@@ -764,6 +764,7 @@ test.describe('opening-balances: save draft and discard', () => {
         // Two clicks in one tick: the button has not re-rendered as disabled
         // between them, so only the ref guard can drop the second.
         await saveButton(page).evaluate(el => {
+            if (!(el instanceof HTMLElement)) throw new Error('the save button is not HTML')
             el.click()
             el.click()
         })
@@ -1105,6 +1106,11 @@ test.describe('opening-balances: post and posted view', () => {
 
     test('(3) Post shows Posting..., then the read-only posted view', async ({ page }) => {
         const ids = await begin(page, DESKTOP)
+        // The entry this posts is the one the replace tests replace and find in the register. End
+        // of last month does not depend on the fiscal start month, which other specs change on
+        // the shared DB, so the register's Last month range holds it whatever that month is.
+        await choosePreset(page, 'End of last month')
+        await expect(page.getByTestId('opening-preset')).toContainText('End of last month')
         let release: () => void = () => {}
         const held = new Promise<void>(resolve => {
             release = resolve
@@ -1170,7 +1176,7 @@ test.describe('opening-balances: post and posted view', () => {
 // Checkpoint 7 (replace a posted entry, register label, help). In file order
 // these tests use the entry the "post and posted view" describe left posted (one
 // worker, a fresh database per run); run alone, `ensurePosted` posts the same
-// 5,000 / 1,200 entry through the form first. Tests (1) and (4) leave the entry
+// 5,000 / 1,200 entry on the same date (end of last month) through the form first. Tests (1) and (4) leave the entry
 // untouched and run first, because they assert its original figures; test (3)
 // then replaces it (6,000 at desktop, then 7,000 at phone, which seeds from the
 // 6,000). Test (5) makes its own replacement and counts relative to what the
@@ -1197,6 +1203,8 @@ async function ensurePosted(page: Page, ids: Record<string, string>) {
         await expect(loaded).toBeVisible()
         if (await editBalances(page).isVisible()) return
     }
+    await choosePreset(page, 'End of last month')
+    await expect(page.getByTestId('opening-preset')).toContainText('End of last month')
     await type(page, ids['Office Equipment'], '5,000')
     await type(page, ids['Company Card'], '1,200')
     await postButton(page).click()
@@ -1242,13 +1250,14 @@ async function openReplaceForm(
     await expectAmount(page, ids['Office Equipment'], seededOfficeEquipment)
 }
 
-// Opens the Office Equipment register on the last fiscal year, where the default
-// opening date falls. The type cell holds the label and a separate Void marker.
+// Opens the Office Equipment register on last month. The post test dated the entry at the end
+// of last month, and each replacement keeps that date, so Last month holds them whatever the
+// fiscal start month is. The type cell holds the label and a separate Void marker.
 async function openOpeningTypes(page: Page) {
     await openRegister(page, 'Office Equipment')
     await page.getByTestId('register-range').click()
-    await page.getByRole('menuitem', { name: 'Last fiscal year', exact: true }).click()
-    await expect(page.getByTestId('register-range')).toContainText('Last fiscal year')
+    await page.getByRole('menuitem', { name: 'Last month', exact: true }).click()
+    await expect(page.getByTestId('register-range')).toContainText('Last month')
     const types = page.locator('[data-testid^="register-cell-type-"]')
     return {
         live: types.filter({ hasText: /^Opening balances$/ }),

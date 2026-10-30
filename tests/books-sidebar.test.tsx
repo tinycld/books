@@ -21,7 +21,7 @@ describe('useBooksSidebar', () => {
 
     it('splits available entries into top and accounting', () => {
         const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        expect(result.current.top.map(e => e.id)).toEqual(['lists'])
+        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
         expect(result.current.accounting.map(e => e.id)).toEqual(['accounts', 'entries'])
     })
 
@@ -31,7 +31,7 @@ describe('useBooksSidebar', () => {
         )
         const { result } = renderHook(() => useBooksSidebar(entries))
         expect(result.current.accounting).toEqual([])
-        expect(result.current.top.map(e => e.id)).toEqual(['lists'])
+        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
     })
 
     it('excludes unavailable entries from both sections', () => {
@@ -39,7 +39,7 @@ describe('useBooksSidebar', () => {
         const hiddenAccounting = { ...allAvailable[1], id: 'hidden-acct', available: false }
         const entries = [...allAvailable, top, hiddenAccounting]
         const { result } = renderHook(() => useBooksSidebar(entries))
-        expect(result.current.top.map(e => e.id)).toEqual(['lists'])
+        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
         expect(result.current.accounting.map(e => e.id)).toEqual(['accounts', 'entries'])
     })
 

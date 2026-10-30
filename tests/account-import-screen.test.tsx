@@ -7,7 +7,7 @@ import { ImportView } from '../tinycld/books/components/accounts/import/ImportVi
 import { useAccountsImportScreen } from '../tinycld/books/hooks/useAccountsImportScreen'
 import { accountsStore, requestedStores, seedBooks } from './accounts-form-harness'
 import { byTestId } from './accounts-test-rows'
-import { silenceConsole, silenceLog } from './silence-log'
+import { expectLiveQueryError, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -48,8 +48,6 @@ async function chooseCsv(text: string) {
 }
 
 const logs = silenceLog()
-// TanStack DB reports the deliberately errored source collection as [Live Query Error].
-silenceConsole('error')
 const consoleWarn = vi.spyOn(console, 'warn')
 
 beforeEach(() => {
@@ -71,6 +69,7 @@ describe('import screen: useLiveQuery usage', () => {
 describe('import screen: accounts query errors', () => {
     it('shows an error state with Retry instead of loading forever', async () => {
         seedBooks({ accountsErrored: true })
+        expectLiveQueryError(accountsStore().id)
         const { container } = renderScreen()
         await waitFor(() => expect(byTestId(container, 'account-import-error')).not.toBeNull())
         const retry = byTestId(container, 'account-import-retry')
@@ -85,6 +84,7 @@ describe('import screen: accounts query errors', () => {
 
     it('Retry reloads the accounts collection once', async () => {
         seedBooks({ accountsErrored: true })
+        expectLiveQueryError(accountsStore().id)
         const reload = vi.fn(async () => {})
         Object.assign(accountsStore(), { reload })
         const { container } = renderScreen()
