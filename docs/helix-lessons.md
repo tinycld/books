@@ -2,3 +2,9 @@
 - E2E tests that need a seeded list row open it through the search box (entries-search), not by scrolling a windowed list; other specs add rows dated today and push seeded rows out of view. — journal-entries, retro, p1-journal-entries
 - Give every new e2e spec a unique memo on the rows it creates and find them through `entries-search`; treat any assumption about shared state (default list contents, shared counters) as a test-isolation bug in review. — journal-entries, retro, p1-journal-entries
 - A list-detail screen puts the shown record in the path (`<list>/<id>`, `<list>/new`); the list renders once in the route `_layout.tsx` with a child Stack (boards `[boardSlug]/[card]` pattern); the record is a side panel only on a very wide window, otherwise a pushed page. — customer-form, retro, p2-customers
+- A frozen package screen and a collapsed sidebar stay laid out, so Playwright counts them visible; assert the `pkg-active` marker, the URL, or the toggle's label. — customer-form, retro, p2-customers
+- Core Sheet keeps its content in the DOM while it slides out (~300 ms); render menu items only while the menu is open. — customer-form, retro, p2-customers
+- Core Dialog action buttons disable themselves while writes are unavailable; an offline e2e step asserts the disabled state, not a click. — customer-form, retro, p2-customers
+- TanStack DB `limit()` needs an `orderBy()`; `router.navigate` pushes, so a back link to a hub uses `router.dismissTo`. — customer-form, retro, p2-customers
+- CI draws classic scrollbars (Linux): a `web:[scrollbar-gutter:stable]` scroller takes its gutter from the rows, so a min-width table uses `useTableMinWidth`. An e2e spec opens only Books; CI installs core + Books alone. — customer-form, retro, p2-customers
+- Artboards and fixtures name accounts from `lib/starter-chart.ts`, never from the screenshot. — vendor-form, retro, p3-vendors
