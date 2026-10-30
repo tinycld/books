@@ -26,10 +26,15 @@ export function isPhone(page: Page) {
     return (page.viewportSize()?.width ?? DESKTOP.width) < 700
 }
 
-// A row on wide screens, a card on phones.
+// A row on wide screens, a card on phones. Only the visible chart's: the stack keeps an
+// earlier chart mounted but hidden under a screen the sidebar opened on top of it.
 export function accountItem(page: Page, name: string): Locator {
     const prefix = isPhone(page) ? 'account-card-' : 'account-row-'
-    return page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name })
+    return page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name, visible: true })
+}
+
+function chartSearch(page: Page) {
+    return page.getByTestId('account-search').filter({ visible: true })
 }
 
 async function revealInactive(page: Page) {
@@ -78,7 +83,7 @@ export async function openChart(page: Page) {
         if (!(await item.isVisible())) await toggle.click()
         await item.click()
     }
-    await expect(page.getByTestId('account-search')).toBeVisible()
+    await expect(chartSearch(page)).toBeVisible()
 }
 
 // The Chart of Accounts must already be open. Chooses "View register" from the
@@ -193,27 +198,17 @@ export async function revealRegisterItem(page: Page, item: Locator) {
     await item.scrollIntoViewIfNeeded()
 }
 
-// Returns the element's box once it has held still for several frames. A sheet, drawer or panel
-// scales in on mount, so a box read straight after `toBeVisible` can be mid-transform (a 44px
-// minHeight reads as 43.9999). Waiting for a stable rect is deterministic; a tolerance is not.
-export async function settledBox(locator: Locator) {
-    await locator.evaluate(
-        el =>
-            new Promise<void>(resolve => {
-                let last = ''
-                let still = 0
-                let frames = 0
-                const tick = () => {
-                    const box = el.getBoundingClientRect()
-                    const key = [box.x, box.y, box.width, box.height].join()
-                    still = key === last ? still + 1 : 0
-                    last = key
-                    frames += 1
-                    if (still >= 8 || frames > 240) resolve()
-                    else requestAnimationFrame(tick)
-                }
-                tick()
-            })
-    )
-    return locator.boundingBox()
+// The Chart of Accounts must already be open. Creates a number-less Income account
+// through the account panel.
+export async function createIncomeAccount(page: Page, name: string) {
+    await page.getByTestId(isPhone(page) ? 'account-new-header' : 'account-new-toolbar').click()
+    const panel = page.getByTestId('account-panel')
+    await expect(panel).toBeVisible()
+    await page.getByLabel('Account name').fill(name)
+    await panel.getByTestId('account-type').click()
+    await page.getByRole('menuitem', { name: 'Income', exact: true }).click()
+    await panel.getByTestId('account-detail-type').click()
+    await page.getByRole('menuitem', { name: 'Service income', exact: true }).click()
+    await panel.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(accountItem(page, name)).toBeVisible()
 }

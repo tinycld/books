@@ -1,19 +1,22 @@
 // Where a federated search hit opens. The server (server/search.go) prefixes
-// each row id with its kind; the screens below are built by the chart of
-// accounts register and journal entry units.
+// each row id with its kind; the screens below are the account register, the
+// journal entry screen and the customer screen.
 export interface SearchTarget {
     path: string
     id: string
 }
 
-const PATHS: Record<string, string> = {
-    account: 'books/accounts/[id]',
-    entry: 'books/journal-entries/[id]',
-}
+// A Map, so a kind that names an inherited object member (`constructor`,
+// `__proto__`) finds no path.
+const PATHS = new Map([
+    ['account', 'books/accounts/[id]'],
+    ['entry', 'books/entries/[id]'],
+    ['customer', 'books/customers/[id]'],
+])
 
 export function searchTarget(rowId: string): SearchTarget | null {
     const [kind, id] = rowId.split(':')
-    const path = PATHS[kind]
+    const path = PATHS.get(kind)
     if (!path || !id) return null
     return { path, id }
 }

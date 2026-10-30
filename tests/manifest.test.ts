@@ -45,4 +45,18 @@ describe('books manifest', () => {
         const loaded = await import(file)
         expect(typeof loaded.default).toBe('function')
     })
+
+    it('declares the forms host modules, each resolved through package.json exports', () => {
+        expect(manifest.forms).toEqual({ hosts: 'forms', ui: 'forms-ui' })
+        const exportsMap: Record<string, string> = pkg.exports
+        const targets = {
+            hosts: './tinycld/books/forms/hosts.ts',
+            ui: './tinycld/books/forms/ui.ts',
+        }
+        for (const [part, target] of Object.entries(targets)) {
+            const subpath = `./${manifest.forms[part as keyof typeof targets]}`
+            expect(exportsMap[subpath]).toBe(target)
+            expect(existsSync(join(__dirname, '..', exportsMap[subpath]))).toBe(true)
+        }
+    })
 })

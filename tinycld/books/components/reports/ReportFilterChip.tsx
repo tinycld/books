@@ -1,7 +1,7 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { X } from 'lucide-react-native'
 import type { Ref } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View, type ViewInstance } from 'react-native'
 import type { FilterSpec } from '../../lib/report-definition'
 import { REPORT_TAP_TARGET } from './ReportHeader'
 
@@ -11,7 +11,7 @@ interface ReportFilterChipProps {
     onPress: () => void
     onRemove: () => void
     // Set by the picker's Popover, which clones its trigger with an anchor ref.
-    ref?: Ref<View>
+    ref?: Ref<ViewInstance>
 }
 
 // The 44pt targets reach over the chip's 1px top and bottom border, so the chip is 44 tall

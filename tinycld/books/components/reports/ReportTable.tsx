@@ -4,6 +4,7 @@ import {
     type NativeScrollEvent,
     type NativeSyntheticEvent,
     ScrollView,
+    type ScrollViewInstance,
     Text,
     View,
 } from 'react-native'
@@ -55,7 +56,7 @@ interface HeadingRowProps {
     labelColumn: ReportColumn
     amountColumns: ReportColumn[]
     layout: ReportTableLayout
-    scrollRef: RefObject<ScrollView | null>
+    scrollRef: RefObject<ScrollViewInstance | null>
 }
 
 // Outside the rows' vertical scroller, so it stays visible. Its amount labels sit in a
@@ -108,7 +109,7 @@ export function ReportTable({
     const [labelColumn, ...amountColumns] = model.columns
     const layout = reportTableLayout({ breakpoint, amountCount: amountColumns.length })
     const fabClearanceStyle = useFabClearanceStyle()
-    const headingRef = useRef<ScrollView>(null)
+    const headingRef = useRef<ScrollViewInstance>(null)
     const items = visibleReportRows(model.rows, folded)
     const rowWindow = useRowWindow({
         total: items.length,

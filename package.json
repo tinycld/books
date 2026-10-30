@@ -16,7 +16,9 @@
         "./provider": "./tinycld/books/provider.tsx",
         "./hooks/*": "./tinycld/books/hooks/*.ts",
         "./components/*": "./tinycld/books/components/*.tsx",
-        "./setup/*": "./tinycld/books/setup/*.tsx"
+        "./setup/*": "./tinycld/books/setup/*.tsx",
+        "./forms": "./tinycld/books/forms/hosts.ts",
+        "./forms-ui": "./tinycld/books/forms/ui.ts"
     },
     "scripts": {
         "typecheck": "tinycld-pkg typecheck",
