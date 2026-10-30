@@ -23,10 +23,12 @@
 (none yet)
 
 ## Design notes
-(none yet)
+- cp0 reviewer A NOTE: `lib/account-register-fixture.ts:39` and `lib/setup-wizard-fixture.ts:19` keep `'' as BooksSettings['ownership']`; the type now holds `''`, so the casts do nothing. Driver: remove both in checkpoint 1 (books branch), listed under Out-of-plan changes then.
+- cp0 reviewer A NOTE: a select with no `Values` would generate `name:  | ''` (and `z.enum([])`, already invalid before this change); no migration has one.
+- cp1 reviewer A NOTE: `lib/account-register-fixture.ts:38` `SETTINGS` uses `satisfies`, so with the cast gone `typeof SETTINGS` types `ownership` as `''`, not the union; `tests/register-realtime.test.ts:155` types its parameter from it. Tighter, not weaker; tsc passes.
 
 ## Out-of-plan changes
-(none yet)
+- cp1: `tinycld/books/lib/account-register-fixture.ts`, `tinycld/books/lib/setup-wizard-fixture.ts` — removed the `'' as BooksSettings['ownership']` casts and their now-false comments, since core #397 types the field with `''` (cp0 reviewer A NOTE).
 
 ## Phase notes
 - phase 1: design packet staged 2026-10-26 (`~/tmp/tinycld/auto-helix-books/staging/p3-vendors/packet.md`), rechecked 2026-10-29 against books main 3c32b22 and core 12759a7 and kept.
@@ -35,6 +37,34 @@
 - phase 4 plan review 1 (2026-10-30): findings A1-A11, B1-B2, C1-C7, D1-D19, E1 and F1-F3 fixed in the plan. Driver decision D: every customer piece the vendor files would copy is extracted in checkpoints 1-4 (found by diffing the customer screens, hooks, libs, forms, Go guards and search, Go tests and e2e helpers and spec helpers against what the vendor files need), and Customers move onto it with the `customer-form:` specs as the guard. Human decision: checkpoint 0 in core (the schema generator types a non-required single select with `''`), so `terms` "None" writes `''` with no cast. E2E budget 12 of 12.
 - phase 4 plan review 2 (2026-10-30): A1-A8, B1-B5, C1-C10, E1-E5 and F1-F4 fixed in the plan (A7 by naming core's canvas.test.tsx and use-form-edit.test.tsx; E5 takes the refusal rule into `useRecordRowMenus`, and the dialogs keep their no-record `null` as the visibility pattern). A9 rejected: closing the Delete dialog clears that record's refusal (CustomersList.tsx:318-321) and the dialog cannot close while the delete runs (DeleteCustomerDialog.tsx:107-109), so a delete refusal never reaches the banner. E2E budget still 12 of 12.
 - review mode switches: none
+
+## Checkpoint 0
+- test writer: core/server/coreserver/schema_gen_test.go (TestSchemaGenSelectFieldTypes, TestSchemaGenZodOptionalSelectLines); red for the right reason: yes (size/kind TS lack `| ''`, zod lacks `.or(z.literal(''))`; shade/tags/labels pass as pinned unchanged behavior); untestable: none
+- implementer: schema_gen.go single-select branches of tsFieldType and zodFieldType; DONE. No member tsc fix needed (pkg:check green over all 10 members). It re-ran core's tests/scripts/scaffold-search-stubs.ts to refresh the local search-alpha/search-beta stubs (TS5101 `baseUrl`; the stubs predate the script's patchTsconfig); no repo file changed.
+- test disputes: none
+- self-declared differences: none
+- gate 1: tests unedited: yes · pass (driver re-ran: core tinycld-pkg check, go test TestSchemaGen*, pkg:check, check:core-isolation; pbSchema.ts:474 `ownership: 'owners' | 'corporation' | ''`)
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): no BLOCK; 2 NOTEs (see Design notes)
+- gate 3 B (conformance): nothing found (check:core-isolation pass, gofmt clean, docs say nothing about select typing)
+- fix review: n/a (no fix touched source)
+- gate 3 A notes: 2, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: tinycld e786fe5 (core PR https://github.com/tinycld/tinycld/pull/397)
+- human: approved 2026-10-30; core PR #397 merged (8a2e182) after a main merge (0db2009); workspace synced and reinstalled
+
+## Checkpoint 1
+- test writer: tests/record-route.test.ts; red for the right reason: yes (`Cannot find module '../tinycld/books/lib/record-route'`); untestable: none (no new Go test by the checkpoint)
+- implementer: names.go, address.go, guards.go, party_helpers_test.go, record-route.ts, useRecordNavigation.ts created; customers.go/_test.go, search.go, errors.go, customer-route.ts, useCustomerNavigation.ts, customers/_layout.tsx, address.ts, host-value-schemas.ts moved onto them; DONE
+- test disputes: none
+- self-declared differences: unused `tests` import removed from customers_test.go; shared comments reworded generically (partyHitTitle, partySource, new server files, runRulesByLevel, requireNameKeyHidden, lib/address.ts); msgAddressShape comment line (gofmt re-aligned msgDeleteHasSubs); useOpenRecord one-line comment; useIsShowingCustomer an arrow const per Do 8
+- gate 1: tests unedited: yes · pass (driver: tinycld-pkg check, go test ./...; implementer's customer-form e2e guard 24 passed)
+- gate 2: n/a (nothing new renders)
+- gate 3 A (correctness): no BLOCK; NOTEs: ledger Out-of-plan list (already filled); names.go nameKey comment wording (accepted+fixed, one-line comment); searchParties c. alias comment for the no-join branch (accepted+fixed, one-line comment); account-register-fixture `satisfies` narrows typeof SETTINGS.ownership to '' (Design notes)
+- gate 3 B (conformance): out-of-plan fixture files (accepted: the cp0 driver item, listed under Out-of-plan changes); search.go partyHitTitle comment named customerLabel in shared code (accepted+fixed)
+- fix review: round 1: clean (no BLOCK) · NOTEs to Design notes: nameKey comment has two colons and an early line break; the new no-join alias comment partly repeats the withParent one
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
 
 ## Final review
 - eval:

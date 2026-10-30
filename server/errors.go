@@ -20,6 +20,6 @@ func refuse(format string, args ...any) error {
 func refuseField(field, format string, args ...any) error {
 	msg := fmt.Sprintf(format, args...)
 	return apis.NewBadRequestError(msg, validation.Errors{
-		field: validation.NewError("validation_books_customer", msg),
+		field: validation.NewError("validation_books", msg),
 	})
 }

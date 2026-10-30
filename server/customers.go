@@ -1,18 +1,13 @@
 package books
 
 import (
-	"bytes"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/unicode/norm"
 )
 
 // Refusal texts. tinycld/books/lib/customer-messages.ts copies the ones the
@@ -26,15 +21,10 @@ const (
 	msgParentLocked      = "A customer with sub-customers cannot be a sub-customer."
 	msgParentInactive    = "The parent customer is inactive."
 	msgParentActiveFirst = "Make the parent customer active first."
-	msgAddressShape      = "An address has only street, street line 2, city, state or region, postal code and country, each at most 200 characters."
-	msgDeleteHasSubs     = "This customer has sub-customers, so it cannot be deleted."
+	// Every Books address guard refuses a malformed address with this text.
+	msgAddressShape  = "An address has only street, street line 2, city, state or region, postal code and country, each at most 200 characters."
+	msgDeleteHasSubs = "This customer has sub-customers, so it cannot be deleted."
 )
-
-// addressParts are the keys of a stored address, the same list as
-// ADDRESS_PARTS in tinycld/books/lib/address.ts.
-var addressParts = []string{"line1", "line2", "city", "region", "postal_code", "country"}
-
-const maxAddressPart = 200
 
 // activeSubCustomersMessage names how many active sub-customers keep a
 // customer from being made inactive.
@@ -49,22 +39,14 @@ func activeSubCustomersMessage(n int) string {
 // siblings) inside serialized, so no other customer write can commit between
 // the check and the write it allows.
 func registerCustomerGuard(app core.App) {
-	app.OnRecordCreate("books_customers").BindFunc(func(e *core.RecordEvent) error {
-		return serialized(e, func(tx core.App) error {
-			return validateCustomer(tx, nil, e.Record)
-		})
-	})
-	app.OnRecordUpdate("books_customers").BindFunc(func(e *core.RecordEvent) error {
-		return serialized(e, func(tx core.App) error {
-			stored, err := tx.FindRecordById("books_customers", e.Record.Id)
-			if err != nil {
-				return err
-			}
-			if err := validateCustomer(tx, stored, e.Record); err != nil {
-				return err
-			}
-			return checkCustomerInactive(tx, stored, e.Record)
-		})
+	bindSerializedGuard(app, "books_customers", func(tx core.App, stored, r *core.Record) error {
+		if err := validateCustomer(tx, stored, r); err != nil {
+			return err
+		}
+		if stored == nil {
+			return nil
+		}
+		return checkCustomerInactive(tx, stored, r)
 	})
 	app.OnRecordDelete("books_customers").BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
@@ -97,51 +79,23 @@ func validateCustomer(app core.App, stored, r *core.Record) error {
 	return validateSiblingName(app, stored, r, name)
 }
 
-// customerNameKey is the form of a display name that two siblings may not
-// share, its canonical caseless form (Unicode D145): NFD-normalized first, so
-// a composed and a decomposed letter are one letter and a combining mark sits
-// where the fold expects it, then case-folded for every letter, not only
-// ASCII ones, with Cherokee folded to uppercase as CaseFolding.txt does, and
-// NFC-normalized last, so the stored key is short.
-func customerNameKey(trimmed string) string {
-	return norm.NFC.String(cherokeeUpper(cases.Fold().String(norm.NFD.String(trimmed))))
-}
-
-// cherokeeUpper maps Cherokee lowercase letters to their uppercase letters.
-// CaseFolding.txt folds Cherokee to uppercase, but x/text's cases.Fold swaps
-// Cherokee case instead, so after that fold both cases must end here.
-func cherokeeUpper(s string) string {
-	return strings.Map(func(r rune) rune {
-		switch {
-		case r >= 0xAB70 && r <= 0xABBF:
-			return r - 0xAB70 + 0x13A0
-		case r >= 0x13F8 && r <= 0x13FD:
-			return r - 0x13F8 + 0x13F0
-		}
-		return r
-	}, s)
-}
-
 // validateSiblingName sets name_key, overwriting whatever the request sent,
 // and refuses a name whose key a sibling (a customer with the same parent;
 // top-level customers share the empty parent) already has. The lookup runs
 // on the unique (parent, name_key) index, which is the backstop for it.
 // stored is the record before an update, nil on a create.
 func validateSiblingName(app core.App, stored, r *core.Record, name string) error {
-	key := customerNameKey(name)
+	key := nameKey(name)
 	r.Set("name_key", key)
 	parentID := r.GetString("parent")
 	if stored != nil && stored.GetString("name_key") == key && stored.GetString("parent") == parentID {
 		return nil
 	}
-	var siblings int
-	err := app.DB().NewQuery(
-		"SELECT COUNT(*) FROM books_customers WHERE parent = {:parent} AND name_key = {:key} AND id != {:id}",
-	).Bind(dbx.Params{"parent": parentID, "key": key, "id": r.Id}).Row(&siblings)
+	taken, err := nameKeyTaken(app, "books_customers", key, r.Id, dbx.HashExp{"parent": parentID})
 	if err != nil {
 		return fmt.Errorf("books: look up sibling customer names: %w", err)
 	}
-	if siblings > 0 {
+	if taken {
 		return refuseField("display_name", msgDuplicateName, name)
 	}
 	return nil
@@ -206,32 +160,4 @@ func checkCustomerInactive(app core.App, stored, next *core.Record) error {
 		return refuse("%s", activeSubCustomersMessage(int(active)))
 	}
 	return nil
-}
-
-// isAddress reports whether a stored JSON value is null or an address: an
-// object whose keys are exactly addressParts, each a string of at most
-// maxAddressPart characters.
-func isAddress(value any) bool {
-	raw, err := json.Marshal(value)
-	if err != nil {
-		return false
-	}
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return true
-	}
-	var parts map[string]any
-	if err := json.Unmarshal(raw, &parts); err != nil || parts == nil {
-		return false
-	}
-	if len(parts) != len(addressParts) {
-		return false
-	}
-	for _, key := range addressParts {
-		text, ok := parts[key].(string)
-		if !ok || utf8.RuneCountInString(text) > maxAddressPart {
-			return false
-		}
-	}
-	return true
 }
