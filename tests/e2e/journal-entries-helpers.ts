@@ -56,6 +56,20 @@ export async function openEntriesList(page: Page) {
     await expect(entries).toBeVisible()
 }
 
+// The entries list must be open. Searches it under All dates. The default range, This fiscal
+// year, follows the fiscal start month, which books-settings.spec.ts and the setup wizard spec
+// change on the shared DB. That change starts a new list query, which unmounts the rows, and
+// a row menu open on one of them, until it loads. All dates does not depend on that month.
+export async function searchEntries(page: Page, text: string) {
+    const range = page.getByTestId('entries-range')
+    if (!(await range.innerText()).includes('All dates')) {
+        await range.click()
+        await page.getByRole('menuitem', { name: 'All dates', exact: true }).click()
+        await expect(range).toContainText('All dates')
+    }
+    await page.getByTestId('entries-search').fill(text)
+}
+
 // Books must already be open (login + navigateToPackage). Presses New journal
 // entry in the list; on a phone the list's button is the same `entries-new`.
 export async function openNewEntry(page: Page) {

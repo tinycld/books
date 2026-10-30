@@ -130,6 +130,12 @@ describe('closeDateSchema', () => {
         expect(ok(true, '2026-2-8')).toBe(false)
     })
 
+    it('refuses a close date before the year 1900', () => {
+        expect(ok(true, '0026-10-25')).toBe(false)
+        expect(ok(true, '1899-12-31')).toBe(false)
+        expect(ok(true, '1900-01-01')).toBe(true)
+    })
+
     it('saves an empty close date when not closed', () => {
         expect(closeDateValue({ closed: false, close_date: '2026-02-28' })).toBe('')
         expect(closeDateValue({ closed: true, close_date: '2026-02-28' })).toBe('2026-02-28')

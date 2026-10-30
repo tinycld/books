@@ -59,7 +59,11 @@ test.describe('account-register: header and states', () => {
         page,
     }) => {
         await start(page)
-        await openRegister(page, 'Business Checking')
+        // Every posted line on Software Subscriptions is dated today, which is inside This
+        // fiscal year for any start month. books-settings.spec.ts and the setup wizard spec
+        // change the start month on the shared DB, and that moves Business Checking's
+        // entries at the January fiscal start into Last fiscal year.
+        await openRegister(page, 'Software Subscriptions')
 
         await page.getByTestId('register-range').click()
         await page.getByRole('menuitem', { name: 'Last fiscal year', exact: true }).click()

@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
-import { ACCOUNT_LABELS, createDraftEntry } from './journal-entries-helpers'
+import { ACCOUNT_LABELS, createDraftEntry, searchEntries } from './journal-entries-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -50,8 +50,10 @@ async function openEntries(page: Page) {
 // Other specs add entries dated today to the shared database, and the list sorts newest first, so
 // the seeded rows sink below the rows the list mounts (it renders a window). Every seed memo starts
 // with this text, and search reads the whole collection, so it keeps them on screen at any volume.
+// searchEntries also selects All dates, which does not reload when another spec changes the fiscal
+// start month.
 async function showSeededEntries(page: Page) {
-    await page.getByTestId('entries-search').fill('Entries seed')
+    await searchEntries(page, 'Entries seed')
 }
 
 function item(page: Page, memo: string): Locator {
@@ -173,7 +175,7 @@ test.describe('journal-entries: list rows (desktop)', () => {
         const number = (await cell(page, 'number', await idOf(posted)).innerText()).trim()
         expect(number).toMatch(NUMBER)
 
-        await page.getByTestId('entries-search').fill(number.toLowerCase())
+        await searchEntries(page, number.toLowerCase())
         await expect(item(page, ENTRIES_SEED.posted)).toHaveCount(1)
         await expect(item(page, ENTRIES_SEED.draft)).toHaveCount(0)
     })

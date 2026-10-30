@@ -54,7 +54,8 @@ function todayIso() {
 }
 
 function uniqueMemo(label: string, sizeName: string) {
-    return `${label} ${sizeName} ${Date.now()}`
+    // Two workers can start the same test in the same millisecond (--repeat-each, retries).
+    return `${label} ${sizeName} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 async function fillBalanced(page: Page, memo: string, amount = '$10.00') {
@@ -163,6 +164,11 @@ test.describe('journal-entries: save and post (desktop)', () => {
 
         await fillLine(page, 1, { credit: '$5.00' })
         await page.getByTestId('entry-save-draft').click()
+        // The new-entry form shows the same Draft badge, so only the move to `entries/<id>` says
+        // the save finished. Back pressed before that pops the new form, and the save's late
+        // replace then covers the list with the draft.
+        await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
+        await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
         await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
 
         // One row: the refused Post wrote nothing, only the draft save did.

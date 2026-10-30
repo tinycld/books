@@ -27,7 +27,7 @@ import {
     settingsStore,
     writeLog,
 } from './accounts-form-harness'
-import { silenceConsole, silenceLog } from './silence-log'
+import { expectLiveQueryError, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -36,7 +36,6 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
-silenceConsole('error')
 
 const ROW: BooksSettings = { ...COMPANY_SETTINGS, fiscal_year_start_month: 3 }
 const LEDGER = { lines: [], entries: [], balances: [], settings: [ROW] }
@@ -305,6 +304,7 @@ describe('useBooksSettings', () => {
 
     it('sets hasLoadError when the load fails, and retryLoad recovers', async () => {
         seedBooks({ level: 'admin', ledger: LEDGER, settingsFailsOnce: true })
+        expectLiveQueryError(settingsStore().id)
         const rendered = renderHook(() => useBooksSettings(), { wrapper })
         await waitFor(() => expect(rendered.result.current.hasLoadError).toBe(true))
 

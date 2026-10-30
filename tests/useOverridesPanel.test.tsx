@@ -17,7 +17,7 @@ import {
     settingsStore,
     writeLog,
 } from './accounts-form-harness'
-import { silenceConsole, silenceLog } from './silence-log'
+import { expectLiveQueryError, silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -26,7 +26,6 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
-silenceConsole('error')
 
 const DAY = 24 * 60 * 60 * 1000
 const STAMP = '2026-10-01 00:00:00.000Z'
@@ -361,6 +360,7 @@ describe('useOverridesPanel load states', () => {
             overridesFailsOnce: true,
             overrides: [override('o_live', 'maya', Date.now() + 3 * DAY)],
         })
+        expectLiveQueryError(overridesStore().id)
         const { result } = renderHook(() => useWatched(), { wrapper })
         await waitFor(() => expect(result.current.panel.part).toBe('error'))
 
@@ -396,6 +396,7 @@ describe('useOverridesPanel settings load states', () => {
 
     it('reports an error part when the settings read fails', async () => {
         seed({ settingsErrored: true })
+        expectLiveQueryError(settingsStore().id)
         const { result } = renderHook(() => useWatched(), { wrapper })
 
         await waitFor(() => expect(result.current.panel.part).toBe('error'))
@@ -407,6 +408,7 @@ describe('useOverridesPanel settings load states', () => {
             overridesFailsOnce: true,
             overrides: [override('o_live', 'maya', Date.now() + 3 * DAY)],
         })
+        expectLiveQueryError(settingsStore().id, overridesStore().id)
         const { result } = renderHook(() => useWatched(), { wrapper })
         await waitFor(() => expect(result.current.panel.part).toBe('error'))
 
@@ -419,6 +421,7 @@ describe('useOverridesPanel settings load states', () => {
 
     it('recovers a settings-only failure on retryLoad', async () => {
         seed({ settingsFailsOnce: true })
+        expectLiveQueryError(settingsStore().id)
         const { result } = renderHook(() => useWatched(), { wrapper })
         await waitFor(() => expect(result.current.panel.part).toBe('error'))
 

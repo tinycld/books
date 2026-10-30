@@ -5,6 +5,8 @@ import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { useConnectivityStore } from '@tinycld/core/lib/stores/connectivity-store'
+import { writesAvailability } from '@tinycld/core/lib/writes-available'
 import { materialize } from 'pbtsdb'
 import { newRecordId } from 'pbtsdb/core'
 import { useMemo, useRef } from 'react'
@@ -23,6 +25,19 @@ const ENDED_MESSAGE = 'This override has already ended.'
 
 function refusalMessage(error: unknown) {
     return messageOnlyRefusal(error) ?? errorToString(error)
+}
+
+// grant and revoke return every failure as an outcome that the caller shows, so the default
+// handler would add a toast and a Sentry event for an expected refusal. Any other failure is
+// unexpected, so it is logged while the caller still shows its message. Offline, a failed
+// save is expected rather than a bug, so it stays out of Sentry as in core's default handler.
+function logUnexpected(error: unknown) {
+    if (messageOnlyRefusal(error) !== null) return
+    if (!writesAvailability(useConnectivityStore.getState()).available) {
+        log.info('books.overrides', errorToString(error))
+        return
+    }
+    log.error('books.overrides', error)
 }
 
 export type OverrideRow = NonNullable<ReturnType<typeof useCloseOverrides>['overrides']>[number]
@@ -102,6 +117,7 @@ export function useCloseOverrides() {
         }: Pick<OverrideValues, 'user' | 'reason'> & { expires_at: string }) {
             yield overridesCollection.insert({ id: newRecordId(), user, reason, expires_at })
         },
+        onError: logUnexpected,
     })
 
     const revokeMutation = useMutation({
@@ -110,6 +126,7 @@ export function useCloseOverrides() {
                 draft.expires_at = expires_at
             })
         },
+        onError: logUnexpected,
     })
 
     // A repeat call with the same key shares the first call's promise, so it settles with the same outcome.

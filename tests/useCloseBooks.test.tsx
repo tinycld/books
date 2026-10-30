@@ -17,7 +17,7 @@ import {
     settingsStore,
     writeLog,
 } from './accounts-form-harness'
-import { silenceConsole, silenceLog } from './silence-log'
+import { silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -26,7 +26,6 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
-silenceConsole('error')
 
 const CLOSED: BooksSettings = { ...COMPANY_SETTINGS, close_date: '2026-09-30' }
 const OPEN: BooksSettings = { ...EMPTY_SETTINGS }

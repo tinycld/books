@@ -10,6 +10,7 @@ import {
     isPhone,
     openEntriesList,
     PHONE,
+    searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
 
@@ -80,7 +81,7 @@ async function backToList(page: Page) {
 // The list sorts newest first and mounts only a window of rows, while parallel workers keep
 // adding entries, so a row is found by searching for its memo instead of by its position.
 async function searchList(page: Page, memo: string) {
-    await page.getByTestId('entries-search').fill(memo)
+    await searchEntries(page, memo)
 }
 
 async function openDraft(page: Page, memo: string) {
