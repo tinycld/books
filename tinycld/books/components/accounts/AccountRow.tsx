@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native'
+import { type KeyDownEvent, Pressable, Text, View } from 'react-native'
 import type { AccountRow as AccountData } from '../../hooks/useAccountsQuery'
 import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
 import type { VisibleRow } from '../../lib/account-tree'
@@ -115,11 +115,10 @@ export function AccountTableRow({
 }
 
 // Pressable activates on Enter for any role but on Space only for a button role, which this row cannot have.
-// react-native types omit onKeyDown, though react-native-web forwards it to the DOM element.
 export function spaceOpens(id: string, onOpen: (id: string) => void) {
     return {
-        onKeyDown: (event: KeyboardEvent) => {
-            if (event.key !== ' ' || event.target !== event.currentTarget) return
+        onKeyDown: (event: KeyDownEvent) => {
+            if (event.nativeEvent.key !== ' ' || event.target !== event.currentTarget) return
             event.preventDefault()
             onOpen(id)
         },

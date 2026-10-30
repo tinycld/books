@@ -5,7 +5,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { type FieldErrors, useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
 import { useCallback, useMemo, useRef, useState } from 'react'
-import type { TextInput, View } from 'react-native'
+import type { TextInputInstance, ViewInstance } from 'react-native'
 import {
     amountsFromLines,
     buildOpening,
@@ -137,9 +137,9 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         [screen.bands, build]
     )
 
-    const inputs = useRef(new Map<string, TextInput>())
-    const refCallbacks = useRef(new Map<string, (node: TextInput | null) => void>())
-    const registerInput = useCallback((accountId: string, node: TextInput | null) => {
+    const inputs = useRef(new Map<string, TextInputInstance>())
+    const refCallbacks = useRef(new Map<string, (node: TextInputInstance | null) => void>())
+    const registerInput = useCallback((accountId: string, node: TextInputInstance | null) => {
         if (node) inputs.current.set(accountId, node)
         else inputs.current.delete(accountId)
     }, [])
@@ -149,7 +149,7 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         (accountId: string) => {
             const known = refCallbacks.current.get(accountId)
             if (known) return known
-            const callback = (node: TextInput | null) => registerInput(accountId, node)
+            const callback = (node: TextInputInstance | null) => registerInput(accountId, node)
             refCallbacks.current.set(accountId, callback)
             return callback
         },
@@ -181,7 +181,7 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
 
     // Set when the form leaves the tree, so a finished discard does not navigate on.
     const isMounted = useRef(true)
-    const rootRef = useCallback((node: View | null) => {
+    const rootRef = useCallback((node: ViewInstance | null) => {
         isMounted.current = node !== null
     }, [])
 
