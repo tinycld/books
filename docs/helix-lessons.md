@@ -7,4 +7,5 @@
 - Core Dialog action buttons disable themselves while writes are unavailable; an offline e2e step asserts the disabled state, not a click. — customer-form, retro, p2-customers
 - TanStack DB `limit()` needs an `orderBy()`; `router.navigate` pushes, so a back link to a hub uses `router.dismissTo`. — customer-form, retro, p2-customers
 - CI draws classic scrollbars (Linux): a `web:[scrollbar-gutter:stable]` scroller takes its gutter from the rows, so a min-width table uses `useTableMinWidth`. An e2e spec opens only Books; CI installs core + Books alone. — customer-form, retro, p2-customers
-- Artboards and fixtures name accounts from `lib/starter-chart.ts`, never from the screenshot. — vendor-form, retro, p3-vendors
+- Artboards name accounts from `lib/starter-chart.ts`, never from the screenshot; fixtures name accounts by `seed.ts` ACCOUNTS numbers, the e2e book. — vendor-form, retro, p3-vendors
+- A plan for a second screen on an existing pattern extracts every piece the new files would copy, found by diffing against the first screen's files, not only the packet's shared-parts list; e2e steps copy locators from the merged spec code, not an older plan. — vendor-form, retro, p3-vendors
