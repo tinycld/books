@@ -11,10 +11,10 @@ import (
 	"tinycld.org/core/search"
 )
 
-// searchSource contributes accounts, journal entries and customers to core's
-// federated /api/search. Rows are shaped here so the palette and the CLI show
-// the same thing; the client adapter (tinycld/books/search-adapter.ts) only
-// navigates.
+// searchSource contributes accounts, journal entries, customers and vendors to
+// core's federated /api/search. Rows are shaped here so the palette and the CLI
+// show the same thing; the client adapter (tinycld/books/search-adapter.ts)
+// only navigates.
 func searchSource() search.Source {
 	return search.Source{
 		Slug:  "books",
@@ -58,8 +58,13 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers)
-	return search.Result{Rows: page(rows, offset, limit), Total: accountTotal + entryTotal + customerTotal}, nil
+	vendors, vendorTotal, err := searchVendors(ctx, app, q, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors)
+	total := accountTotal + entryTotal + customerTotal + vendorTotal
+	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
 // interleave takes one row from each list in turn, then what is left of the
@@ -178,6 +183,8 @@ type partySource struct {
 
 var customerSource = partySource{table: "books_customers", kind: "customer", meta: "Customer", withParent: true}
 
+var vendorSource = partySource{table: "books_vendors", kind: "vendor", meta: "Vendor", withParent: false}
+
 // partyHitTitle uses the client's "Parent : Child" label form, so two rows of
 // the same name under different parents are told apart.
 func partyHitTitle(h partyHit) string {
@@ -189,6 +196,11 @@ func partyHitTitle(h partyHit) string {
 
 func searchCustomers(ctx context.Context, app core.App, q search.Query, window int) ([]search.Row, int, error) {
 	return searchParties(ctx, app, q, window, customerSource)
+}
+
+// searchVendors has no parent join, so a vendor's title is its display name.
+func searchVendors(ctx context.Context, app core.App, q search.Query, window int) ([]search.Row, int, error) {
+	return searchParties(ctx, app, q, window, vendorSource)
 }
 
 func searchParties(ctx context.Context, app core.App, q search.Query, window int, src partySource) ([]search.Row, int, error) {

@@ -23,11 +23,19 @@ describe('searchTarget', () => {
         })
     })
 
+    it('routes a vendor hit to the vendor', () => {
+        expect(searchTarget('vendor:abc123')).toEqual({
+            path: 'books/vendors/[id]',
+            id: 'abc123',
+        })
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('invoice:1')).toBeNull()
         expect(searchTarget('account:')).toBeNull()
         expect(searchTarget('entry:')).toBeNull()
         expect(searchTarget('customer:')).toBeNull()
+        expect(searchTarget('vendor:')).toBeNull()
         expect(searchTarget('plain')).toBeNull()
     })
 

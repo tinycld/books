@@ -137,6 +137,21 @@
 - fix review: round 1: clean · NOTE to Design notes: vendor-messages.ts line 1 says the strings mirror server refusals, but the file also holds client-only texts (VENDOR_DISCARD_MESSAGE and others); wording predates the fix. Gate 1 after fixes: gofmt, go vet, go test, tinycld-pkg check green
 - gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: none
+- commit: e1dd7dd
+- human: n/a (review mode C)
+
+## Checkpoint 6
+- test writer: tests/search-target.test.ts (vendor case + `vendor:` with no id is null), server/search_test.go (TestSearch_FindsVendors, TestSearch_InterleavesAllFourKinds, TestSearch_NoAccessFindsNothing seeds a matching vendor; helpers mkSearchVendor, vendorRows); red for the right reason: yes (searchTarget returns null; no vendor rows; 6 of 8 interleaved rows), except TestSearch_NoAccessFindsNothing, which passes before the work by design (it guards that a vendor row never reaches a no-access user); untestable: none
+- implementer: server/search.go (`vendorSource`, `searchVendors`, searchBooks interleaves four kinds; file comment names vendors), lib/search-target.ts (`vendor` → `books/vendors/[id]`); DONE
+- test disputes: none
+- self-declared differences: searchBooks sums the four totals in a local `total`
+- gate 1: tests unedited: yes · pass (driver: tinycld-pkg check, go vet, go test -run TestSearch -count=1)
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): no BLOCK; NOTEs: search.go:14 comment wrap (accepted+fixed); TestSearch_NoAccessFindsNothing passes before the work because the level check returns before any source (accepted: it still fails if the check moves below the sources)
+- gate 3 B (conformance): no rule broken; the same comment wrap (accepted+fixed)
+- fix review: round 1: clean (gofmt, go vet green after the fix)
+- gate 3 A notes: none open
+- reviewer-caught deferrals: none
 - human: n/a (review mode C)
 
 ## Final review
