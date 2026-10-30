@@ -99,6 +99,13 @@ export const LIST_ENTRIES: ListEntry[] = [
         href: 'books/customers',
         available: true,
     },
+    {
+        id: 'vendors',
+        label: 'Vendors',
+        description: 'People and companies you buy from',
+        href: 'books/vendors',
+        available: true,
+    },
 ]
 
 const COLUMNS: readonly { column: NewAction['column']; heading: string }[] = [
