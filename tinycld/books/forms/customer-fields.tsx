@@ -5,31 +5,10 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { Text, View } from 'react-native'
 import { CustomerPicker } from '../components/customers/CustomerPicker'
 import { AddressField } from '../components/forms/AddressField'
-import { ContactInput } from '../components/forms/ContactInput'
 import { PARENT_LOCKED_MESSAGE } from '../lib/customer-messages'
-import { PHONE_MAX_LENGTH } from '../lib/host-value-schemas'
 
-// The `books:customer` host components (hosts.ts names them). The core cell draws
-// each one's label and error.
-
-export function EmailField(props: BuiltinFieldProps) {
-    return <ContactInput {...props} keyboardType="email-address" autoComplete="email" />
-}
-
-export function PhoneField(props: BuiltinFieldProps) {
-    return (
-        <ContactInput
-            {...props}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            maxLength={PHONE_MAX_LENGTH}
-        />
-    )
-}
-
-export function WebsiteField(props: BuiltinFieldProps) {
-    return <ContactInput {...props} keyboardType="url" autoComplete="url" />
-}
+// The `books:customer` host components only it names (hosts.ts); the contact fields
+// are in contact-fields.tsx. The core cell draws each one's label and error.
 
 // A customer with sub-customers cannot become one (one level only), so its picker is
 // locked. Any sub-customer counts, inactive ones too, as on the server. The picker
@@ -82,10 +61,6 @@ export function ParentCustomerField({ value, onChange, recordId, disabled }: Bui
             <ParentLockedHelp isVisible={lock.hasSubCustomers} />
         </View>
     )
-}
-
-export function BillingAddressField(props: BuiltinFieldProps) {
-    return <AddressField {...props} variant="billing" />
 }
 
 export function ShippingAddressField(props: BuiltinFieldProps) {

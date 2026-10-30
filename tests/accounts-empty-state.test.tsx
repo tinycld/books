@@ -5,6 +5,7 @@ import { router } from 'expo-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountsEmptyState } from '../tinycld/books/components/accounts/AccountsEmptyState'
 import { AccountsScreenView } from '../tinycld/books/components/accounts/AccountsScreenView'
+import type { AccountRow } from '../tinycld/books/hooks/useAccountsQuery'
 import { useAccountTree } from '../tinycld/books/hooks/useAccountTree'
 import { accountTypeDef } from '../tinycld/books/lib/account-types'
 import { byTestId, fixtureRows } from './accounts-test-rows'
@@ -93,7 +94,7 @@ describe('AccountsEmptyState with filters', () => {
 })
 
 function renderView(
-    tree: ReturnType<typeof useAccountTree>,
+    tree: ReturnType<typeof useAccountTree<AccountRow>>,
     isWide: boolean,
     opts: { canWrite?: boolean; onNew?: () => void } = {}
 ) {

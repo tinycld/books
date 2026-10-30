@@ -1,7 +1,7 @@
-import { useUrl } from '@tinycld/core/lib/use-url'
 import { CustomersList } from '../../components/customers/CustomersList'
 import { ListDetailLayout } from '../../components/ListDetailLayout'
-import { CUSTOMER_DETAIL_SCREENS, openCustomerFromPath } from '../../lib/customer-route'
+import { useOpenRecord } from '../../hooks/useRecordNavigation'
+import { CUSTOMER_DETAIL_SCREENS, CUSTOMERS_PATH } from '../../lib/customer-route'
 
 /**
  * The Customers list — `/a/books/customers` — and the customer open over or beside it.
@@ -11,8 +11,7 @@ import { CUSTOMER_DETAIL_SCREENS, openCustomerFromPath } from '../../lib/custome
  * the URL, never from a store.
  */
 export default function CustomersLayout() {
-    const open = openCustomerFromPath(useUrl().pathname)
-    const openId = open.kind === 'id' ? open.id : ''
+    const { open, openId } = useOpenRecord(CUSTOMERS_PATH)
     return (
         <ListDetailLayout
             list={<CustomersList openId={openId} />}

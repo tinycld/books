@@ -419,7 +419,7 @@ describe('entryDetail fields', () => {
                 { id: 'x1', account: ME, debit: 10, credit: 0, memo: 'first', position: 0 },
                 { id: 'x2', account: 'acct_b', debit: 20, credit: 0, memo: 'second', position: 1 },
             ],
-        }
+        } satisfies RegisterSourceLine
         expect(entryDetail(line, ME)).toEqual({
             date: '2026-10-07',
             number: 'JE-9',

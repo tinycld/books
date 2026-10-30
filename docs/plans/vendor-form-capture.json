@@ -1,0 +1,112 @@
+{
+    "outDir": "vendor-form-reference",
+    "shots": [
+        { "name": "list", "url": "/a/books/helix-mockup?state=list", "ready": "vendors-list" },
+        {
+            "name": "list-empty",
+            "url": "/a/books/helix-mockup?state=list-empty",
+            "ready": "vendors-empty"
+        },
+        {
+            "name": "list-empty-read-only",
+            "url": "/a/books/helix-mockup?state=list-empty-read-only",
+            "ready": "vendors-empty",
+            "widths": [1280]
+        },
+        {
+            "name": "list-no-match",
+            "url": "/a/books/helix-mockup?state=list-no-match",
+            "ready": "vendors-no-match"
+        },
+        {
+            "name": "list-all-inactive",
+            "url": "/a/books/helix-mockup?state=list-all-inactive",
+            "ready": "vendors-all-inactive"
+        },
+        {
+            "name": "list-error",
+            "url": "/a/books/helix-mockup?state=list-error",
+            "ready": "customers-banner",
+            "widths": [1280]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/helix-mockup?state=list",
+            "ready": "vendors-table",
+            "widths": [1280],
+            "actions": [
+                { "click": "vendor-menu-vendoffsupply01" },
+                { "waitFor": "vendor-menu-delete" }
+            ]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/helix-mockup?state=panel&inactive=1",
+            "ready": "vendor-panel",
+            "height": 2000,
+            "widths": [1600]
+        },
+        {
+            "name": "panel-long",
+            "url": "/a/books/helix-mockup?state=edit-long",
+            "ready": "vendor-panel",
+            "height": 2000,
+            "widths": [1600]
+        },
+        {
+            "name": "page",
+            "url": "/a/books/helix-mockup?state=page",
+            "ready": "vendor-page",
+            "height": 1600,
+            "widths": [1100]
+        },
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "vendor-page",
+            "height": 1600,
+            "widths": [1100]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "vendor-form",
+            "height": 2000,
+            "widths": [1600, 1100]
+        },
+        {
+            "name": "delete",
+            "url": "/a/books/helix-mockup?state=delete",
+            "ready": "delete-vendor-dialog-body",
+            "opaque": "delete-vendor-dialog-body"
+        },
+        {
+            "name": "delete-dirty",
+            "url": "/a/books/helix-mockup?state=delete-dirty",
+            "ready": "delete-vendor-dialog-body",
+            "opaque": "delete-vendor-dialog-body",
+            "widths": [1600]
+        },
+        {
+            "name": "discard",
+            "url": "/a/books/helix-mockup?state=discard",
+            "ready": "confirm-dialog-body",
+            "opaque": "confirm-dialog-body",
+            "widths": [1100]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "vendor-not-found",
+            "widths": [1100]
+        },
+        {
+            "name": "phone-page",
+            "url": "/a/books/helix-mockup?state=page",
+            "ready": "vendor-page",
+            "height": 2000,
+            "widths": [390],
+            "actions": [{ "hideLabel": "New" }]
+        }
+    ]
+}

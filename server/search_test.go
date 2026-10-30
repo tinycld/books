@@ -132,10 +132,111 @@ func TestSearch_InterleavesAllThreeKinds(t *testing.T) {
 	}
 }
 
+func mkSearchVendor(t testing.TB, env *ledgerEnv, fields map[string]any) *core.Record {
+	t.Helper()
+	r, err := newVendor(env.app, fields)
+	if err != nil {
+		t.Fatalf("save vendor %v: %v", fields, err)
+	}
+	return r
+}
+
+func vendorRows(rows []search.Row) []search.Row {
+	var out []search.Row
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "vendor:") {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func TestSearch_FindsVendors(t *testing.T) {
+	env := newLedgerEnv(t)
+	withCompany := mkSearchVendor(t, env, map[string]any{
+		"display_name": "Tamarind Paper", "company": "Halcyon Mills Ltd", "email": "Billing@Corvid.example",
+		"phone": "555-0177", "account_number": "ACCT-88412", "notes": "Ships in saffron crates",
+	})
+	emailOnly := mkSearchVendor(t, env, map[string]any{
+		"display_name": "Granite Freight", "email": "dispatch@Wrenfold.example",
+	})
+	dormant := mkSearchVendor(t, env, map[string]any{"display_name": "Obsidian Courier", "inactive": true})
+	find := func(term string) []search.Row {
+		t.Helper()
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{term}, Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return vendorRows(res.Rows)
+	}
+	for _, term := range []string{"TAMARIND", "halcyON", "corvid"} {
+		rows := find(term)
+		if rowIDs(rows) != "vendor:"+withCompany.Id {
+			t.Fatalf("%q found vendors %q, want vendor:%s", term, rowIDs(rows), withCompany.Id)
+		}
+		r := rows[0]
+		if r.Title != "Tamarind Paper" || r.Subtitle != "Halcyon Mills Ltd" || r.Meta != "Vendor" {
+			t.Fatalf("%q row title %q subtitle %q meta %q", term, r.Title, r.Subtitle, r.Meta)
+		}
+		if r.Fields["kind"] != "vendor" || r.Fields["inactive"] != false {
+			t.Fatalf("%q row fields %v", term, r.Fields)
+		}
+	}
+	rows := find("wrenfold")
+	if rowIDs(rows) != "vendor:"+emailOnly.Id {
+		t.Fatalf("email term found vendors %q, want vendor:%s", rowIDs(rows), emailOnly.Id)
+	}
+	if rows[0].Title != "Granite Freight" || rows[0].Subtitle != "dispatch@Wrenfold.example" || rows[0].Meta != "Vendor" {
+		t.Fatalf("company-less row title %q subtitle %q meta %q", rows[0].Title, rows[0].Subtitle, rows[0].Meta)
+	}
+	for _, term := range []string{"0177", "88412", "saffron"} {
+		if rows := find(term); len(rows) != 0 {
+			t.Fatalf("phone, account number or notes term %q found vendors %s", term, rowIDs(rows))
+		}
+	}
+	rows = find("obsidian")
+	if rowIDs(rows) != "vendor:"+dormant.Id {
+		t.Fatalf("obsidian found vendors %q, want vendor:%s", rowIDs(rows), dormant.Id)
+	}
+	if rows[0].Fields["kind"] != "vendor" || rows[0].Fields["inactive"] != true {
+		t.Fatalf("inactive vendor row fields %v", rows[0].Fields)
+	}
+}
+
+// Two of each kind match "quokka"; the first page takes one of each kind in
+// turn, vendors after customers, so no kind starves the others.
+func TestSearch_InterleavesAllFourKinds(t *testing.T) {
+	env := newLedgerEnv(t)
+	acctA := mkAccount(t, env.app, "Quokka Alpha Fund", "bank", "checking")
+	acctB := mkAccount(t, env.app, "Quokka Beta Fund", "bank", "checking")
+	newer := env.sale(t, "2026-05-02", 100)
+	setMemo(t, env, newer.Id, "Quokka deposit two")
+	older := env.sale(t, "2026-05-01", 100)
+	setMemo(t, env, older.Id, "Quokka deposit one")
+	custA := mkCustomer(t, env.app, "Quokka Analytics", "")
+	custB := mkCustomer(t, env.app, "Quokka Bakery", "")
+	vendA := mkVendor(t, env.app, "Quokka Cartage")
+	vendB := mkVendor(t, env.app, "Quokka Dairy")
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"quokka"}, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Join([]string{
+		"account:" + acctA.Id, "entry:" + newer.Id, "customer:" + custA.Id, "vendor:" + vendA.Id,
+		"account:" + acctB.Id, "entry:" + older.Id, "customer:" + custB.Id, "vendor:" + vendB.Id,
+	}, ",")
+	if rowIDs(res.Rows) != want || res.Total != 8 {
+		t.Fatalf("rows %s total %d, want %s total 8", rowIDs(res.Rows), res.Total, want)
+	}
+}
+
 func TestSearch_NoAccessFindsNothing(t *testing.T) {
 	env := newLedgerEnv(t)
 	mkSearchCustomer(t, env, map[string]any{
 		"display_name": "Checking Partners", "company": "Checking Holdings", "email": "checking@example.com",
+	})
+	mkSearchVendor(t, env, map[string]any{
+		"display_name": "Checking Supply", "company": "Checking Wholesale", "email": "checking@vendor.example",
 	})
 	res, err := searchBooks(env.app, env.users.none.Id, search.Query{Include: []string{"checking"}, Limit: 10})
 	if err != nil || len(res.Rows) != 0 || res.Total != 0 {

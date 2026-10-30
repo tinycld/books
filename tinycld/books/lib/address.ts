@@ -1,7 +1,7 @@
 import { z } from '@tinycld/core/ui/form'
 
-// The parts of a stored customer address, the same list server/customers.go
-// checks (addressParts). A stored address is null or has exactly these keys.
+// The parts of a stored address, the same list server/address.go checks
+// (addressParts). A stored address is null or has exactly these keys.
 export const ADDRESS_PARTS = ['line1', 'line2', 'city', 'region', 'postal_code', 'country'] as const
 
 export type AddressPart = (typeof ADDRESS_PARTS)[number]
@@ -28,6 +28,19 @@ export const addressPartsSchema = z.strictObject({
     postal_code: part,
     country: part,
 })
+
+// A stored address has exactly the six parts, each a string. Only the shape is checked
+// here. The 200-character limit belongs to the server, which refuses a longer part on
+// the address field with its own message, and to the address inputs' local schemas
+// (lib/host-value-schemas.ts), which show the length error under the part.
+export const storedAddressSchema = z.strictObject({
+    line1: z.string(),
+    line2: z.string(),
+    city: z.string(),
+    region: z.string(),
+    postal_code: z.string(),
+    country: z.string(),
+} satisfies Record<AddressPart, z.ZodString>)
 
 export function isCustomerAddress(value: unknown): value is CustomerAddress {
     return addressPartsSchema.safeParse(value).success

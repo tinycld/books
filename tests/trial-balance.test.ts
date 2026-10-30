@@ -18,6 +18,7 @@ import {
     trialBalancePlan,
 } from '../tinycld/books/lib/reports/trial-balance-rows'
 import type { BooksAccounts } from '../tinycld/books/types'
+import { publishedRow } from './live-rows'
 
 const BANK = 'rpt_acct_1010'
 const EQUITY = 'rpt_acct_3000'
@@ -55,20 +56,23 @@ function sourceRows(
         const through = kinds.through[account.id]
         const prior = kinds.prior[account.id]
         const edge = kinds.edge[account.id]
-        return {
-            id: account.id,
-            number: account.number,
-            name: account.name,
-            type: account.type,
-            detail_type: account.detail_type,
-            parent: account.parent,
-            inactive: account.inactive,
-            throughNet: through ? through.net : null,
-            throughMonths: through ? through.months : null,
-            priorNet: prior ? prior.net : null,
-            priorMonths: prior ? prior.months : null,
-            edgeNet: edge ? edge.net : null,
-        }
+        return publishedRow(
+            {
+                id: account.id,
+                number: account.number,
+                name: account.name,
+                type: account.type,
+                detail_type: account.detail_type,
+                parent: account.parent,
+                inactive: account.inactive,
+                throughNet: through ? through.net : null,
+                throughMonths: through ? through.months : null,
+                priorNet: prior ? prior.net : null,
+                priorMonths: prior ? prior.months : null,
+                edgeNet: edge ? edge.net : null,
+            },
+            'books_accounts'
+        )
     })
 }
 

@@ -1,0 +1,73 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "list",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list"
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/vendors",
+            "ready": "vendors-table",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "vendor-menu-vendoffsupply01"
+                },
+                {
+                    "waitFor": "vendor-menu-delete"
+                }
+            ]
+        },
+        {
+            "name": "delete",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "opaque": "delete-vendor-dialog-body",
+            "actions": [
+                {
+                    "click": "vendor-menu-vendoffsupply01"
+                },
+                {
+                    "click": "vendor-menu-delete"
+                },
+                {
+                    "waitFor": "delete-vendor-dialog-body"
+                }
+            ]
+        },
+        {
+            "name": "delete-dirty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1600],
+            "opaque": "delete-vendor-dialog-body",
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "vendor-panel"
+                },
+                {
+                    "fill": "form-input-notes",
+                    "value": "Call before the delivery."
+                },
+                {
+                    "click": "vendor-menu-vendoffsupply01"
+                },
+                {
+                    "click": "vendor-menu-delete"
+                },
+                {
+                    "waitFor": "delete-vendor-dialog-body"
+                }
+            ]
+        }
+    ]
+}

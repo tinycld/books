@@ -29,4 +29,6 @@ export function useAccountOptions() {
     return { options, names, isReady: query.isReady, isError: query.isError, retry, recovery }
 }
 
-export type AccountChoice = ReturnType<typeof useAccountOptions>['options'][number]
+// A choice in an account picker; `indent` (depth in the chart) is drawn only by a select's
+// menu, so a picker's own choices (report groups) may leave it out.
+export type AccountChoice = { value: string; label: string; indent?: number }

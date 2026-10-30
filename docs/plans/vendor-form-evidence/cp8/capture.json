@@ -1,0 +1,102 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "page",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 1600,
+            "widths": [1100],
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "vendor-page"
+                }
+            ]
+        },
+        {
+            "name": "new",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 1600,
+            "widths": [1100],
+            "actions": [
+                {
+                    "click": "vendor-new-header"
+                },
+                {
+                    "waitFor": "vendor-page"
+                }
+            ]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/vendors/doesnotexist000",
+            "ready": "vendor-not-found",
+            "widths": [1100]
+        },
+        {
+            "name": "phone-page",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 2000,
+            "widths": [390],
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "vendor-page"
+                }
+            ]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 2000,
+            "widths": [1600],
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "vendor-panel"
+                }
+            ]
+        },
+        {
+            "name": "panel-long",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 2000,
+            "widths": [1600],
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Willamette Valley Commercial Cleaning and Janitorial Services Cooperative"
+                },
+                {
+                    "clickText": "Willamette Valley Commercial Cleaning and Janitorial Services Cooperative"
+                },
+                {
+                    "waitFor": "vendor-panel"
+                }
+            ]
+        }
+    ]
+}

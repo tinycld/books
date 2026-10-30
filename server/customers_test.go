@@ -10,20 +10,13 @@ import (
 	"github.com/pocketbase/dbx"
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/pocketbase/pocketbase/tools/router"
 )
 
 // newCustomer saves a customer through the app, so the guards bound on it
 // run, and returns what they said.
 func newCustomer(app core.App, fields map[string]any) (*core.Record, error) {
-	col, err := app.FindCollectionByNameOrId("books_customers")
-	if err != nil {
-		return nil, err
-	}
-	r := core.NewRecord(col)
-	r.Load(fields)
-	return r, app.Save(r)
+	return saveNew(app, "books_customers", fields)
 }
 
 func mkCustomer(t testing.TB, app core.App, name, parent string) *core.Record {
@@ -37,11 +30,7 @@ func mkCustomer(t testing.TB, app core.App, name, parent string) *core.Record {
 
 func setCustomer(t testing.TB, app core.App, id string, fields map[string]any) error {
 	t.Helper()
-	r := reload(t, app, "books_customers", id)
-	for k, v := range fields {
-		r.Set(k, v)
-	}
-	return app.Save(r)
+	return setFields(t, app, "books_customers", id, fields)
 }
 
 func apiErrorOf(t testing.TB, err error) *router.ApiError {
@@ -396,68 +385,14 @@ func TestCustomer_MakeInactiveWaitsForActiveSubCustomers(t *testing.T) {
 // Books level does not see them. The bookkeeper's create is the positive
 // control: the refusals below are the rules, not a broken request.
 func TestCustomerRules_ByLevel(t *testing.T) {
-	const list = "/api/collections/books_customers/records"
-	cases := []struct {
-		name    string
-		level   Level
-		method  string
-		url     func(id string) string
-		body    string
-		want    int
-		content []string
-	}{
-		{"read lists", LevelReadOnly, http.MethodGet, func(string) string { return list }, "", http.StatusOK, []string{`"totalItems":1`}},
-		{"read views", LevelReadOnly, http.MethodGet, func(id string) string { return list + "/" + id }, "", http.StatusOK, []string{`"display_name":"Harborview"`}},
-		{"read cannot create", LevelReadOnly, http.MethodPost, func(string) string { return list }, `{"display_name":"Acme"}`, http.StatusBadRequest, nil},
-		{"read cannot update", LevelReadOnly, http.MethodPatch, func(id string) string { return list + "/" + id }, `{"notes":"x"}`, http.StatusNotFound, nil},
-		{"read cannot delete", LevelReadOnly, http.MethodDelete, func(id string) string { return list + "/" + id }, "", http.StatusNotFound, nil},
-		{"none cannot list", LevelNone, http.MethodGet, func(string) string { return list }, "", http.StatusOK, []string{`"totalItems":0`}},
-		{"bookkeeper creates", LevelBookkeeper, http.MethodPost, func(string) string { return list }, `{"display_name":"Acme"}`, http.StatusOK, []string{`"display_name":"Acme"`}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// The guard bound, as in production: it gives every saved row its
-			// name_key, so rows do not collide on the (parent, name_key) index.
-			app := newGuardedApp(t)
-			users := newLevelUsers(t, app)
-			harbor := saveRecord(t, app, "books_customers", map[string]any{"display_name": "Harborview"})
-			apiReq{
-				method:  tc.method,
-				url:     tc.url(harbor.Id),
-				token:   tokenFor(t, users.byLevel(tc.level)),
-				body:    tc.body,
-				want:    tc.want,
-				content: tc.content,
-				after: func(t testing.TB, app *tests.TestApp) {
-					if tc.level != LevelReadOnly {
-						return
-					}
-					after := reload(t, app, "books_customers", harbor.Id)
-					if after.GetString("notes") != "" {
-						t.Errorf("a read-only user changed the customer: %v", after.PublicExport())
-					}
-					if n, _ := app.CountRecords("books_customers"); n != 1 {
-						t.Errorf("%d customers after a read-only request, want 1", n)
-					}
-				},
-			}.run(t, app)
-		})
-	}
+	runRulesByLevel(t, "books_customers", "customer")
 }
 
 // rawCustomer saves a customer with no hook and no validation, so only the
 // schema (the unique index) can refuse it.
 func rawCustomer(t testing.TB, app core.App, fields map[string]any) error {
 	t.Helper()
-	col, err := app.FindCollectionByNameOrId("books_customers")
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := core.NewRecord(col)
-	for k, v := range fields {
-		r.Set(k, v)
-	}
-	return app.SaveNoValidate(r)
+	return rawSave(t, app, "books_customers", fields)
 }
 
 // The unique index on (parent, name_key) is the backstop for the guard: a
@@ -560,33 +495,9 @@ func TestCustomer_MoveAndMakeActiveUnderAnInactiveParentIsRefusedOnParent(t *tes
 // name_key is the guard's own column: a reader sees the display name, never
 // the key, in a view or a list response.
 func TestCustomerRules_NameKeyIsHidden(t *testing.T) {
-	const list = "/api/collections/books_customers/records"
-	for _, path := range []string{"", "/view"} {
-		t.Run("read"+path, func(t *testing.T) {
-			app := newGuardedApp(t)
-			users := newLevelUsers(t, app)
-			harbor := mkCustomer(t, app, "Harborview", "")
-			if got := reload(t, app, "books_customers", harbor.Id).GetString("name_key"); got != "harborview" {
-				t.Fatalf("stored name_key = %q, want %q", got, "harborview")
-			}
-			url := list
-			if path == "/view" {
-				url = list + "/" + harbor.Id
-			}
-			scenario := &tests.ApiScenario{
-				Name:                  "GET " + url,
-				Method:                http.MethodGet,
-				URL:                   url,
-				Headers:               map[string]string{"Authorization": tokenFor(t, users.readOnly)},
-				ExpectedStatus:        http.StatusOK,
-				ExpectedContent:       []string{`"display_name":"Harborview"`},
-				NotExpectedContent:    []string{`"name_key"`, `"harborview"`},
-				TestAppFactory:        func(testing.TB) *tests.TestApp { return app },
-				DisableTestAppCleanup: true,
-			}
-			scenario.Test(t)
-		})
-	}
+	requireNameKeyHidden(t, "books_customers", func(t testing.TB, app core.App) *core.Record {
+		return mkCustomer(t, app, "Harborview", "")
+	})
 }
 
 // The key is canonical caseless: NFC(cherokeeUpper(Fold(NFD(name)))). NFD

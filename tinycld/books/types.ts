@@ -16,5 +16,6 @@ export type {
     BooksJournalEntries,
     BooksJournalLines,
     BooksSettings,
+    BooksVendors,
     Schema as BooksSchema,
 } from '@tinycld/core/types/pbSchema'

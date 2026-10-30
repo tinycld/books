@@ -129,7 +129,7 @@ describe('filterPickerSchema', () => {
 
 describe('pickerRows', () => {
     // The picker's rows: the two active accounts, in chart order, as useAccountOptions
-    // offers them (labels trimmed by the screen).
+    // offers them (plain `number name` labels; the depth is an `indent` the picker does not use).
     const CHOICES = [
         { value: 'rpt_acct_1010', label: '1010 Operating checking' },
         { value: 'rpt_acct_1020', label: '1020 Reserve savings' },

@@ -35,7 +35,8 @@ const wide: Placement = { isWide: true, isTablet: false }
 const tablet: Placement = { isWide: false, isTablet: true }
 const phone: Placement = { isWide: false, isTablet: false }
 
-const blankNew: PanelTarget = { mode: 'new', parentId: '' }
+// The store numbers its own opens from 1, so seq 0 never collides with one.
+const blankNew: PanelTarget = { mode: 'new', parentId: '', seq: 0 }
 
 function renderPanel(target: PanelTarget | null, placement: Placement = wide) {
     act(() => useAccountsPanelStore.setState({ target }))
@@ -44,7 +45,7 @@ function renderPanel(target: PanelTarget | null, placement: Placement = wide) {
         <QueryClientProvider client={client}>
             <OverlayProvider>
                 <PortalHost>
-                    <AccountPanel {...placement} />
+                    <AccountPanel {...placement} onViewRegister={() => {}} />
                 </PortalHost>
             </OverlayProvider>
         </QueryClientProvider>
@@ -133,7 +134,7 @@ function target() {
 }
 
 async function editLoaded(id: string, name: string, placement: Placement = wide) {
-    renderPanel({ mode: 'edit', id }, placement)
+    renderPanel({ mode: 'edit', id, seq: 0 }, placement)
     await waitFor(() => expect(inputValue('Account name')).toBe(name))
 }
 
@@ -209,7 +210,7 @@ describe('AccountPanel fields', () => {
     })
 
     it('renders Account type, Detail type and Parent account as dropdowns, not radio groups', async () => {
-        renderPanel({ mode: 'new', parentId: 'acct_bank_0001' })
+        renderPanel({ mode: 'new', parentId: 'acct_bank_0001', seq: 0 })
         await waitFor(() => expect(group('Parent account')).not.toBeNull())
         expect(group('Account type')).not.toBeNull()
         expect(group('Detail type')).not.toBeNull()
@@ -220,6 +221,7 @@ describe('AccountPanel fields', () => {
     it('disables the Type select and shows typeLockReason as help text for an account with sub-accounts', async () => {
         await editLoaded('acct_fa_00001', 'Fixed assets')
         const reason = typeLockMessage({ lines: 0, children: 3 })
+        if (!reason) throw new Error('an account with sub-accounts must have a lock reason')
 
         await waitFor(() => expect(screen.getByText(reason)).toBeTruthy())
         expect(dropdownDisabled('Account type')).toBe(true)
@@ -249,7 +251,7 @@ describe('AccountPanel fields', () => {
 
     it.each([
         blankNew,
-        { mode: 'edit', id: 'acct_bank_0002' } as PanelTarget,
+        { mode: 'edit', id: 'acct_bank_0002', seq: 0 } satisfies PanelTarget,
     ])('never renders currency (%o)', async panelTarget => {
         renderPanel(panelTarget)
         await waitFor(() => expect(field('Account name')).not.toBeNull())
@@ -262,7 +264,7 @@ describe('AccountPanel fields', () => {
     })
 
     it('clears the parent and the detail type when the type changes', async () => {
-        renderPanel({ mode: 'new', parentId: 'acct_bank_0001' })
+        renderPanel({ mode: 'new', parentId: 'acct_bank_0001', seq: 0 })
         await waitFor(() => expect(checked('Parent account')).toHaveLength(1))
         choose('Detail type', 'Checking')
         expect(checked('Detail type')).toHaveLength(1)
@@ -275,7 +277,7 @@ describe('AccountPanel fields', () => {
     })
 
     it('clears the parent when None (top level) is chosen', async () => {
-        renderPanel({ mode: 'new', parentId: 'acct_bank_0001' })
+        renderPanel({ mode: 'new', parentId: 'acct_bank_0001', seq: 0 })
         await waitFor(() => expect(checked('Parent account')).toHaveLength(1))
 
         choose('Parent account', 'None (top level)')
@@ -358,7 +360,7 @@ describe('AccountPanel for a read-only user', () => {
     })
 
     it('disables every field and shows only a Close button', async () => {
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(screen.getByText('Close')).toBeTruthy())
         await waitFor(() => expect(inputValue('Account name')).toBe('Undeposited funds'))
 
@@ -375,7 +377,7 @@ describe('AccountPanel for a read-only user', () => {
     })
 
     it('closes the panel from the Close button', async () => {
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(screen.getByText('Close')).toBeTruthy())
 
         press('Close')
@@ -444,7 +446,7 @@ describe('AccountPanel edit seeding', () => {
 
     it('renders nothing while the accounts query is not ready', async () => {
         seedBooks({ accountsNeverReady: true })
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await act(async () => {
             await new Promise(resolve => setTimeout(resolve, 60))
         })
@@ -458,7 +460,7 @@ describe('AccountPanel edit seeding', () => {
         act(() => {
             accountsStore().delete('acct_oca_0001')
         })
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
 
         await waitFor(() => expect(screen.getByText('This account no longer exists')).toBeTruthy())
         expect(byTestId(document.body, 'account-panel')).not.toBeNull()
@@ -469,7 +471,7 @@ describe('AccountPanel edit seeding', () => {
         act(() => {
             accountsStore().delete('acct_oca_0001')
         })
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(screen.getByText('This account no longer exists')).toBeTruthy())
 
         for (const label of ['Account name', 'Account number', 'Description']) {
@@ -486,7 +488,7 @@ describe('AccountPanel edit seeding', () => {
         act(() => {
             accountsStore().delete('acct_oca_0001')
         })
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(screen.getByText('This account no longer exists')).toBeTruthy())
 
         act(() => {
@@ -507,7 +509,7 @@ describe('AccountPanel edit seeding', () => {
     it('shows a load error when the accounts query fails', async () => {
         seedBooks({ accountsErrored: true })
         expectLiveQueryError(accountsStore().id)
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
 
         await waitFor(() => expect(screen.getByText('Could not load this account')).toBeTruthy())
         expect(field('Account name')).toBeNull()
@@ -516,7 +518,7 @@ describe('AccountPanel edit seeding', () => {
     it('titles the load error drawer, closes it from the X and from Close, and uses its own testID', async () => {
         seedBooks({ accountsErrored: true })
         expectLiveQueryError(accountsStore().id)
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(screen.getByText('Could not load this account')).toBeTruthy())
 
         expect(byTestId(document.body, 'account-panel-error')).not.toBeNull()
@@ -532,7 +534,7 @@ describe('AccountPanel edit seeding', () => {
     it('closes the load error drawer with the Close button', async () => {
         seedBooks({ accountsErrored: true })
         expectLiveQueryError(accountsStore().id)
-        renderPanel({ mode: 'edit', id: 'acct_oca_0001' })
+        renderPanel({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(screen.getByText('Could not load this account')).toBeTruthy())
         press('Close')
         expect(target()).toBeNull()
@@ -687,7 +689,7 @@ describe('AccountPanel save buttons', () => {
 
 describe('AccountPanel re-selecting the chosen type', () => {
     it('keeps the detail type and the parent when the already chosen type is pressed again', async () => {
-        renderPanel({ mode: 'new', parentId: 'acct_bank_0001' })
+        renderPanel({ mode: 'new', parentId: 'acct_bank_0001', seq: 0 })
         await waitFor(() => expect(checked('Parent account')).toHaveLength(1))
         choose('Detail type', 'Checking')
 
@@ -820,7 +822,7 @@ describe('AccountPanel after a refused save', () => {
     })
 
     it('keeps the parent and the type pre-filled after Save and new for a new sub-account', async () => {
-        const subAccount: PanelTarget = { mode: 'new', parentId: 'acct_bank_0001' }
+        const subAccount: PanelTarget = { mode: 'new', parentId: 'acct_bank_0001', seq: 0 }
         renderPanel(subAccount)
         await waitFor(() => expect(checked('Parent account')).toHaveLength(1))
         const before = storedAccounts().length
@@ -912,7 +914,8 @@ describe('AccountPanel retarget detection by object identity', () => {
         release()
         await settle()
 
-        expect(target()).toMatchObject(blankNew)
+        // openNew numbered this target itself, so match the key, not blankNew's seq.
+        expect(target()).toMatchObject({ mode: 'new', parentId: '' })
         expect(byTestId(document.body, 'account-panel')).not.toBeNull()
         expect(inputValue('Account name')).toBe('Fresh panel')
     })

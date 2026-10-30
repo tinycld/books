@@ -8,15 +8,12 @@
 
 import type { BooksCustomers } from '../types'
 import type { CustomerAddress } from './address'
+import type { ColumnOf } from './fixture-columns'
 
 export type { CustomerAddress } from './address'
 
-// Each name must be a key of `BooksCustomers`, so this fails to compile when
-// one of these columns leaves the schema instead of leaving a stale override
-// or a stale Omit.
-type ColumnOf<Key extends keyof BooksCustomers> = Key
-type JsonColumn = ColumnOf<'billing_address' | 'shipping_address' | 'fields'>
-type ServerOnlyColumn = ColumnOf<'name_key'>
+type JsonColumn = ColumnOf<BooksCustomers, 'billing_address' | 'shipping_address' | 'fields'>
+type ServerOnlyColumn = ColumnOf<BooksCustomers, 'name_key'>
 
 // The generated type holds JSON columns as `any`, which would reach every
 // reader of a fixture row untyped. The fixture row keeps them typed and is

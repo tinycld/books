@@ -11,10 +11,10 @@ import (
 	"tinycld.org/core/search"
 )
 
-// searchSource contributes accounts, journal entries and customers to core's
-// federated /api/search. Rows are shaped here so the palette and the CLI show
-// the same thing; the client adapter (tinycld/books/search-adapter.ts) only
-// navigates.
+// searchSource contributes accounts, journal entries, customers and vendors to
+// core's federated /api/search. Rows are shaped here so the palette and the CLI
+// show the same thing; the client adapter (tinycld/books/search-adapter.ts)
+// only navigates.
 func searchSource() search.Source {
 	return search.Source{
 		Slug:  "books",
@@ -58,8 +58,13 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers)
-	return search.Result{Rows: page(rows, offset, limit), Total: accountTotal + entryTotal + customerTotal}, nil
+	vendors, vendorTotal, err := searchVendors(ctx, app, q, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors)
+	total := accountTotal + entryTotal + customerTotal + vendorTotal
+	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
 // interleave takes one row from each list in turn, then what is left of the
@@ -159,7 +164,7 @@ func searchEntries(ctx context.Context, app core.App, q search.Query, window int
 	return rows, total, nil
 }
 
-type customerHit struct {
+type partyHit struct {
 	ID          string `db:"id"`
 	DisplayName string `db:"display_name"`
 	Company     string `db:"company"`
@@ -168,10 +173,21 @@ type customerHit struct {
 	ParentName  string `db:"parent_name"`
 }
 
-// customerHitTitle uses the "Parent : Child" form of the client's
-// customerLabel, so two sub-customers of the same name under different
-// parents are told apart.
-func customerHitTitle(h customerHit) string {
+// partySource names a table of parties (people and companies the books deal
+// with) and how its hits read: the row id prefix and kind, the Meta label,
+// and whether a row may have a parent row in the same table.
+type partySource struct {
+	table, kind, meta string
+	withParent        bool
+}
+
+var customerSource = partySource{table: "books_customers", kind: "customer", meta: "Customer", withParent: true}
+
+var vendorSource = partySource{table: "books_vendors", kind: "vendor", meta: "Vendor", withParent: false}
+
+// partyHitTitle uses the client's "Parent : Child" label form, so two rows of
+// the same name under different parents are told apart.
+func partyHitTitle(h partyHit) string {
 	if h.ParentName == "" {
 		return h.DisplayName
 	}
@@ -179,23 +195,39 @@ func customerHitTitle(h customerHit) string {
 }
 
 func searchCustomers(ctx context.Context, app core.App, q search.Query, window int) ([]search.Row, int, error) {
-	// Qualified with c.: the parent self-join below makes bare names
-	// ambiguous, and the match stays on the child's own columns. The count
-	// uses the same alias and the LEFT JOIN on the unique parent id adds or
-	// drops no rows, so both queries match the same rows.
+	return searchParties(ctx, app, q, window, customerSource)
+}
+
+// searchVendors has no parent join, so a vendor's title is its display name.
+func searchVendors(ctx context.Context, app core.App, q search.Query, window int) ([]search.Row, int, error) {
+	return searchParties(ctx, app, q, window, vendorSource)
+}
+
+func searchParties(ctx context.Context, app core.App, q search.Query, window int, src partySource) ([]search.Row, int, error) {
+	// Qualified with c. in both forms, so the query with no parent join and
+	// the one with it share one match clause.
 	where, params := likeWhere([]string{"c.display_name", "c.company", "c.email"}, q)
 	var total int
-	if err := app.DB().NewQuery("SELECT COUNT(*) FROM books_customers c WHERE " + where).
+	if err := app.DB().NewQuery("SELECT COUNT(*) FROM " + src.table + " c WHERE " + where).
 		WithContext(ctx).Bind(params).Row(&total); err != nil {
-		return nil, 0, fmt.Errorf("books: count customer hits: %w", err)
+		return nil, 0, fmt.Errorf("books: count %s hits: %w", src.kind, err)
 	}
 	params["window"] = window
-	var hits []customerHit
+	parentName := " '' AS parent_name"
+	from := " FROM " + src.table + " c"
+	if src.withParent {
+		// Qualified with c.: the parent self-join makes bare names ambiguous,
+		// and the match stays on the child's own columns. The count uses the
+		// same alias and the LEFT JOIN on the unique parent id adds or drops
+		// no rows, so both queries match the same rows.
+		parentName = " COALESCE(p.display_name, '') AS parent_name"
+		from += " LEFT JOIN " + src.table + " p ON p.id = c.parent"
+	}
+	var hits []partyHit
 	if err := app.DB().NewQuery("SELECT c.id, c.display_name, c.company, c.email, c.inactive," +
-		" COALESCE(p.display_name, '') AS parent_name" +
-		" FROM books_customers c LEFT JOIN books_customers p ON p.id = c.parent WHERE " + where +
+		parentName + from + " WHERE " + where +
 		" ORDER BY c.display_name, c.id LIMIT {:window}").WithContext(ctx).Bind(params).All(&hits); err != nil {
-		return nil, 0, fmt.Errorf("books: search customers: %w", err)
+		return nil, 0, fmt.Errorf("books: search %ss: %w", src.kind, err)
 	}
 	rows := make([]search.Row, 0, len(hits))
 	for _, h := range hits {
@@ -204,11 +236,11 @@ func searchCustomers(ctx context.Context, app core.App, q search.Query, window i
 			subtitle = h.Email
 		}
 		rows = append(rows, search.Row{
-			ID:       "customer:" + h.ID,
-			Title:    customerHitTitle(h),
+			ID:       src.kind + ":" + h.ID,
+			Title:    partyHitTitle(h),
 			Subtitle: subtitle,
-			Meta:     "Customer",
-			Fields:   map[string]any{"kind": "customer", "inactive": h.Inactive},
+			Meta:     src.meta,
+			Fields:   map[string]any{"kind": src.kind, "inactive": h.Inactive},
 		})
 	}
 	return rows, total, nil

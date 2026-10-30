@@ -1,19 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readHelpTopic } from './help-topic'
 
 const helpDir = path.resolve(__dirname, '../help')
-const topicPath = path.join(helpDir, 'customers.md')
 
 function read(name: string) {
     return readFileSync(path.join(helpDir, name), 'utf8')
 }
 
-const topicExists = existsSync(topicPath)
-const source = topicExists ? read('customers.md') : ''
+const { exists: topicExists, source, frontmatter, body } = readHelpTopic('customers')
 const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(source)
-const frontmatter = match?.[1] ?? ''
-const body = match?.[2] ?? ''
 
 describe('help/customers.md', () => {
     it('exists', () => {
