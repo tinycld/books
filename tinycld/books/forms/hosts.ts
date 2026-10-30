@@ -16,6 +16,25 @@ const LAYOUT = {
     },
 } satisfies FormHostDefInput['layout']
 
+export const VENDOR_HOST_KEY = 'books:vendor'
+
+// The default Vendor form: one page, with first and last name, email and phone, mobile
+// and website, and payment terms and account number side by side wherever the form is
+// 640 px wide or more.
+const VENDOR_LAYOUT = {
+    pages: [{ key: 'main', title: 'Vendor' }],
+    fields: {
+        first_name: { width: 'half' },
+        last_name: { width: 'half' },
+        email: { width: 'half' },
+        phone: { width: 'half' },
+        mobile: { width: 'half' },
+        website: { width: 'half' },
+        terms: { width: 'half' },
+        account_number: { width: 'half' },
+    },
+} satisfies FormHostDefInput['layout']
+
 // Pure data: the generator imports this in Node (server/form_hosts.json). Keys of
 // column built-ins ARE the column names; their order is the default form's field
 // order. Later Books units append their hosts here.
@@ -145,6 +164,142 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'notes',
         layout: LAYOUT,
+    },
+    {
+        key: VENDOR_HOST_KEY,
+        label: 'Vendor',
+        collection: 'books_vendors',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, `id` and the server-only `name_key` too: a custom key must
+        // never shadow a column.
+        columns: [
+            'id',
+            'display_name',
+            'company',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'mobile',
+            'website',
+            'address',
+            'terms',
+            'account_number',
+            'expense_account',
+            'notes',
+            'inactive',
+            'form',
+            'fields',
+            'name_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'display_name',
+                label: 'Display name',
+                kind: 'text',
+                storage: 'column',
+                required: true,
+            },
+            {
+                key: 'company',
+                label: 'Company name',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'first_name',
+                label: 'First name',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'last_name',
+                label: 'Last name',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'email',
+                label: 'Email',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'EmailField',
+                chrome: 'cell',
+            },
+            {
+                key: 'phone',
+                label: 'Phone',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'PhoneField',
+                chrome: 'cell',
+            },
+            {
+                key: 'mobile',
+                label: 'Mobile',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'PhoneField',
+                chrome: 'cell',
+            },
+            {
+                key: 'website',
+                label: 'Website',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'WebsiteField',
+                chrome: 'cell',
+            },
+            {
+                key: 'address',
+                label: 'Address',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'VendorAddressField',
+                chrome: 'cell',
+            },
+            {
+                key: 'terms',
+                label: 'Payment terms',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'PaymentTermsField',
+                chrome: 'cell',
+            },
+            {
+                key: 'account_number',
+                label: 'Account number',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'AccountNumberField',
+                chrome: 'cell',
+            },
+            {
+                key: 'expense_account',
+                label: 'Default expense account',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'ExpenseAccountField',
+                chrome: 'cell',
+            },
+            { key: 'notes', label: 'Notes', kind: 'textarea', storage: 'column', required: false },
+        ],
+        insertCustomBefore: 'notes',
+        layout: VENDOR_LAYOUT,
     },
 ]
 

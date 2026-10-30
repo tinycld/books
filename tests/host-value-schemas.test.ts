@@ -3,6 +3,7 @@ import { EMPTY_ADDRESS } from '../tinycld/books/lib/address'
 import {
     contactValueSchema,
     PHONE_MAX_LENGTH,
+    selectValueSchema,
     shippingValueSchema,
 } from '../tinycld/books/lib/host-value-schemas'
 
@@ -22,6 +23,17 @@ describe('contactValueSchema', () => {
         for (const text of ['', 'not an email', 'ftp:/not a url', 'x'.repeat(1000)]) {
             expect(schema.safeParse({ text }).success).toBe(true)
         }
+    })
+})
+
+describe('selectValueSchema', () => {
+    it('accepts an empty choice and an option value', () => {
+        expect(selectValueSchema.safeParse({ value: '' }).success).toBe(true)
+        expect(selectValueSchema.safeParse({ value: 'net_30' }).success).toBe(true)
+    })
+
+    it('refuses a value that is not a string', () => {
+        expect(selectValueSchema.safeParse({ value: 3 }).success).toBe(false)
     })
 })
 

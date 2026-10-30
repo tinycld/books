@@ -3,11 +3,13 @@
 // without an import cycle. `parent` is another account's key; an `inactive`
 // account is created active and made inactive after the rows that name it.
 
+import type { BooksAccounts } from '../types'
+
 export type SeedAccount = {
     key: string
     name: string
     number: string
-    type: string
+    type: BooksAccounts['type']
     detail_type: string
     parent?: string
     inactive?: boolean

@@ -64,11 +64,23 @@ describe('registries', () => {
         })
     })
 
+    it('NEW_ACTIONS has an available Vendor action in the vendors column', () => {
+        const vendor = NEW_ACTIONS.find(a => a.id === 'vendor')
+        expect(vendor).toEqual({
+            id: 'vendor',
+            label: 'Vendor',
+            href: 'books/vendors/new',
+            column: 'vendors',
+            available: true,
+        })
+    })
+
     it('the New menu starts with the Customers column holding Customer', () => {
         const columns = newMenuColumns(NEW_ACTIONS)
         expect(columns[0]?.heading).toBe('Customers')
         expect(columns[0]?.actions.map(a => a.id)).toEqual(['customer'])
-        expect(columns.map(c => c.heading)).toEqual(['Customers', 'Other'])
+        expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
+        expect(columns[1]?.actions.map(a => a.id)).toEqual(['vendor'])
     })
 
     it('LIST_ENTRIES has an available Accounts entry', () => {
@@ -257,6 +269,8 @@ describe('hidesNewFab', () => {
         '/a/acme/books/accounts',
         '/a/books/customers',
         '/a/books/customers/',
+        '/a/books/vendors',
+        '/a/books/vendors/',
     ])('keeps the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(false)
     })
@@ -268,6 +282,8 @@ describe('hidesNewFab', () => {
         '/a/acme/books/entries/abc123/',
         '/a/books/customers/abc',
         '/a/books/customers/new',
+        '/a/books/vendors/abc',
+        '/a/books/vendors/new',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

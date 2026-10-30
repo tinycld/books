@@ -1,10 +1,7 @@
 import { ListDetailLayout } from '../../components/ListDetailLayout'
 import { VendorsList } from '../../components/vendors/VendorsList'
 import { useOpenRecord } from '../../hooks/useRecordNavigation'
-import { VENDORS_PATH } from '../../lib/vendor-route'
-
-// The vendor routes `[id]` and `new` are not in the child stack yet.
-const NO_DETAIL_SCREENS: readonly string[] = []
+import { VENDOR_DETAIL_SCREENS, VENDORS_PATH } from '../../lib/vendor-route'
 
 /**
  * The Vendors list — `/a/books/vendors` — and the vendor open over or beside it.
@@ -19,7 +16,7 @@ export default function VendorsLayout() {
         <ListDetailLayout
             list={<VendorsList openId={openId} />}
             isDetailOpen={open.kind !== 'none'}
-            detailScreens={NO_DETAIL_SCREENS}
+            detailScreens={VENDOR_DETAIL_SCREENS}
         />
     )
 }
