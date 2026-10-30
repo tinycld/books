@@ -10,7 +10,7 @@ import { useNavigation } from 'expo-router'
 import { newRecordId } from 'pbtsdb/core'
 import { type RefObject, useMemo, useRef } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
-import type { View } from 'react-native'
+import type { ViewInstance } from 'react-native'
 import { CUSTOMER_HOST_KEY } from '../forms/hosts'
 import {
     type CustomerColumns,
@@ -55,7 +55,7 @@ type IsPresent = () => boolean
  * for another package stays mounted, frozen, under the one now shown. `isFocused` also
  * asks the parent navigators, so a covered package counts as not focused.
  */
-function usePresence(surfaceRef: RefObject<View | null>): IsPresent {
+function usePresence(surfaceRef: RefObject<ViewInstance | null>): IsPresent {
     const navigation = useNavigation()
     return () => surfaceRef.current !== null && navigation.isFocused()
 }
@@ -262,7 +262,7 @@ export function useCustomerForm(target: CustomerFormTarget) {
     // A new customer's title follows the Parent customer field, not `?parent`.
     const chosenParent = useWatch({ control: chosen.form.control, name: 'parent' })
     const { leave } = useCustomerNavigation()
-    const surfaceRef = useRef<View>(null)
+    const surfaceRef = useRef<ViewInstance>(null)
     const isPresent = usePresence(surfaceRef)
     const createSave = useCreateSave(create, leave, isPresent)
     const editSave = useEditSave(edit, record?.id ?? '', leave, isPresent)

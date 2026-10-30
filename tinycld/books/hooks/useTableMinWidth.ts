@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Platform, type ScrollView } from 'react-native'
+import { Platform, type ScrollViewInstance } from 'react-native'
 
 /**
  * The content style of a table's sideways scroller, whose rows sit in a vertical scroller
@@ -9,13 +9,14 @@ import { Platform, type ScrollView } from 'react-native'
  * Overlay scrollbars (macOS) and native take no width, so there the gutter is 0.
  */
 export function useTableMinWidth(minWidth: number) {
-    const rowsScrollRef = useRef<ScrollView>(null)
+    const rowsScrollRef = useRef<ScrollViewInstance>(null)
     const [gutter, setGutter] = useState(0)
     // A layout change is the only time the gutter can change: a resize, or a browser zoom
     // that changes the scrollbar's width in CSS pixels.
     const onRowsLayout = () => {
         if (Platform.OS !== 'web') return
-        const node = rowsScrollRef.current?.getScrollableNode() as HTMLElement | null
+        // On web the ScrollView ref is the scrolling DOM element itself.
+        const node = rowsScrollRef.current
         if (!node) return
         setGutter(node.offsetWidth - node.clientWidth)
     }

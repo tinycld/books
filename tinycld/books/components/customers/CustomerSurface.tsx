@@ -3,7 +3,7 @@ import { useRegisterShortcuts, useShortcutScope } from '@tinycld/core/lib/shortc
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { X } from 'lucide-react-native'
 import { type ReactNode, type Ref, useId, useMemo, useRef } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View, type ViewInstance } from 'react-native'
 import { type DetailSurface, formRowClassFor } from '../../lib/detail-surface'
 
 const noop = () => {}
@@ -21,7 +21,7 @@ interface CustomerSurfaceProps {
     // user still sees the form.
     isLeaveDisabled?: boolean
     // Set on the root view, so the form can tell when the surface has closed.
-    surfaceRef?: Ref<View>
+    surfaceRef?: Ref<ViewInstance>
 }
 
 // Escape runs Cancel. The surface owns a `modal` scope, and every core layer (a menu, a

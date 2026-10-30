@@ -151,6 +151,8 @@ async function leaveBooks(page: Page) {
             .locator('xpath=ancestor::*[.//text()[normalize-space()="Settings"]][1]')
             .getByText('Settings', { exact: true })
             .click()
+        // The drawer slides out after the move; a row pressed while it moves is not stable.
+        await expect(signOut).toBeHidden()
     } else {
         await page.getByTestId('nav-settings').click()
     }
@@ -160,10 +162,16 @@ async function leaveBooks(page: Page) {
     await expect(page).toHaveTitle(/Settings/)
 }
 
-// Back to Books: a rail link, or on a phone the MobileTabBar's tab.
+// Back to Books: a rail link, or on a phone the MobileTabBar's tab. With more packages
+// than the tab bar holds, Books is a row of the More drawer instead.
 async function returnToBooks(page: Page) {
-    if (isPhone(page)) await page.getByTestId('nav-books').click()
-    else await navigateToPackage(page, 'books')
+    if (isPhone(page)) {
+        const books = page.getByTestId('nav-books')
+        if ((await books.count()) === 0) await page.getByTestId('nav-more').click()
+        await books.click()
+    } else {
+        await navigateToPackage(page, 'books')
+    }
     await expect(page.getByTestId('pkg-active-books')).toBeVisible()
     await expect(page).toHaveURL(/\/books(\/|$)/)
 }
