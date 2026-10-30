@@ -42,6 +42,11 @@ function blankSettings(): BooksSettings {
         currency: 'USD',
         business_name: '',
         ownership: '',
+        tax_id: '',
+        address: '',
+        phone: '',
+        email: '',
+        website: '',
         setup_completed: false,
         setup_started: false,
         created: '2026-01-01 00:00:00.000Z',
@@ -71,9 +76,9 @@ function renderParts(next?: () => void) {
             // The setup wizard reads this on every step.
             const setupCompleted = useSetupCompleted()
             history.push({ part: parts.part, hasFailure: parts.failure !== null })
-            // Read during render so the hook re-renders when an error is set.
-            const errors = parts.form.formState.errors
-            return { access, setup, setupCompleted, errors, ...parts }
+            // parts.errors is the form's errors, read during the hook's render, so the
+            // hook re-renders when an error is set.
+            return { access, setup, setupCompleted, ...parts }
         },
         { wrapper }
     )

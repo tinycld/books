@@ -6,6 +6,7 @@ import { OverlayProvider } from '@tinycld/core/ui/overlay'
 import { router } from 'expo-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountsScreenView } from '../tinycld/books/components/accounts/AccountsScreenView'
+import type { AccountRow } from '../tinycld/books/hooks/useAccountsQuery'
 import { useAccountTree } from '../tinycld/books/hooks/useAccountTree'
 import { useAccountsPanelStore } from '../tinycld/books/stores/accounts-panel-store'
 import { seedBooks } from './accounts-form-harness'
@@ -24,7 +25,7 @@ function renderView(
         isWide?: boolean
         canWrite?: boolean
         isError?: boolean
-        tree?: ReturnType<typeof useAccountTree>
+        tree?: ReturnType<typeof useAccountTree<AccountRow>>
     } = {}
 ) {
     const tree = props.tree ?? renderHook(() => useAccountTree(fixtureRows())).result.current
@@ -230,8 +231,8 @@ describe('AccountsScreenView selected row', () => {
     })
 
     it.each([
-        ['new account', { mode: 'new', parentId: '' }],
-        ['new sub-account', { mode: 'new', parentId: 'acct_bank_0001' }],
+        ['new account', { mode: 'new', parentId: '', seq: 0 }],
+        ['new sub-account', { mode: 'new', parentId: 'acct_bank_0001', seq: 0 }],
     ] as const)('selects no row in %s mode', (_label, target) => {
         const { container } = renderWithPanel(true)
         act(() => useAccountsPanelStore.setState({ target }))

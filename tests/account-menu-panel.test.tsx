@@ -28,8 +28,7 @@ function target() {
 function renderScreen(isWide: boolean, over: Parameters<typeof viewProps>[0] = {}) {
     const store = useAccountsPanelStore.getState()
     const props = viewProps(over)
-    props.menu.onEdit = store.openEdit
-    props.menu.onAddSub = store.openSubAccount
+    const menu = { ...props.menu, onEdit: store.openEdit, onAddSub: store.openSubAccount }
     const tree = renderHook(() => useAccountTree(fixtureRows())).result.current
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
     const view = render(
@@ -43,6 +42,7 @@ function renderScreen(isWide: boolean, over: Parameters<typeof viewProps>[0] = {
                         isError={false}
                         tree={tree}
                         {...props}
+                        menu={menu}
                         onOpen={store.openEdit}
                         onNew={store.openNew}
                         onRetry={vi.fn()}
@@ -51,7 +51,7 @@ function renderScreen(isWide: boolean, over: Parameters<typeof viewProps>[0] = {
             </OverlayProvider>
         </QueryClientProvider>
     )
-    return { ...view, menu: props.menu }
+    return { ...view, menu }
 }
 
 function openMenu(container: HTMLElement) {

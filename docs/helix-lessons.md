@@ -13,3 +13,4 @@
 - A plan for a second screen on an existing pattern extracts every piece the new files would copy, found by diffing against the first screen's files, not only the packet's shared-parts list; e2e steps copy locators from the merged spec code, not an older plan. — vendor-form, retro, p3-vendors
 - Empty-state actions use a core Button; core EmptyState's text-accent action is too faint in light mode — report-shell, retro, p5-report-shell
 - In e2e on a windowed list in the shared DB, read rows, totals and scroll math in ONE page.evaluate snapshot; never read cell by cell or hold a row handle across a re-render (other specs insert rows at the newest end) — report-shell, retro, p5-report-shell
+- A shared helper's output shape (its fields, its label text) is an interface: change it only with every caller in every lane in view, or keep the old fields; the report lane trimmed spaced account labels that p3-vendors replaced with `indent`. — vendor-form, retro, p3-vendors

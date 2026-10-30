@@ -57,6 +57,7 @@
 - cp8: `tests/e2e/customer-form-actions.spec.ts` — step (8) "deleted in another tab" moved to desktop only (a phone run of the same code is a duplicate, CLAUDE.md); both desktop-only comments now give that reason. Made by the step 10 implementer (not a test writer), checked by the fix review.
 - cp8: `tinycld/books/lib/account-options.ts` — options carry `indent` instead of leading spaces, so the journal entry form's account pickers also get a plain trigger and an indented menu (core #399).
 - cp8a (core): `docs/overlays.md` — the Menu.Item prop list names the new `indent` (cp8a reviewer B).
+- eval integration (merge of origin/main with p5-report-shell, 1a7cc28; fix 2208ad9): `tinycld/books/hooks/useAccountOptions.ts` (`AccountChoice` written as `{ value; label; indent? }`, since report group choices have no indent), `tinycld/books/hooks/useReportScreen.ts` (the `.trim()` map is a plain copy: labels carry no spaces now), `tests/use-account-options.test.tsx` (expects `{ label, indent }`), `tests/report-filters.test.ts` (comment); reviewer-A pass clean.
 
 ## Phase notes
 - phase 1: design packet staged 2026-10-26 (`~/tmp/tinycld/auto-helix-books/staging/p3-vendors/packet.md`), rechecked 2026-10-29 against books main 3c32b22 and core 12759a7 and kept.
@@ -252,5 +253,5 @@
 - human: approved 2026-10-30; #399 merged as 7045966 (no main merge needed: MERGEABLE, CI green); `exclusive` released; core main checked out, pnpm install done. The human also took ~/tmp/tinycld out of Spotlight indexing (the cause of the cp8 step 10 load); load average then 7
 
 ## Final review
-- eval:
+- eval: approved 2026-10-30. Full suite at 2208ad9 green (216 passed, 1 skipped scratch capture). Human decisions at the gate: the coverage gaps of the prune (dirty-tab beforeunload, Retry beside an open vendor) and the multi-goal actions/panel tests accepted with the approval; search moves to FTS5 and the record lists to paged server-filtered queries in a new unit p2-books-fts-search; retro items 4-16 approved (check 4: books tsconfig includes tests; check 16: core dev.ts port probe).
 - native: not executed in this run

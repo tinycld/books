@@ -23,7 +23,13 @@ const row: BooksSettings = {
     currency: 'USD',
     business_name: 'Acme',
     ownership: '',
+    tax_id: '',
+    address: '',
+    phone: '',
+    email: '',
+    website: '',
     setup_completed: true,
+    setup_started: true,
     created: '2026-01-01 00:00:00.000Z',
     updated: '2026-01-01 00:00:00.000Z',
 }

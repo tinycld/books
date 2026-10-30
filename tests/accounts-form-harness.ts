@@ -878,6 +878,8 @@ export function seedBooks(
         sequencesNeverReady?: boolean
         // A doc sequences collection whose first load fails and whose reload succeeds.
         sequencesFailsOnce?: boolean
+        // A doc sequences collection whose sync fails, so the sequences query errors.
+        sequencesErrored?: boolean
         // An access collection that never finishes loading, so the Books level stays unknown.
         accessNeverReady?: boolean
         // An access collection whose first subset load is refused with a 403, as pbtsdb
