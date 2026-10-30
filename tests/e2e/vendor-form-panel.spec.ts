@@ -8,24 +8,32 @@ import {
     discardDialog,
     edges,
     field,
+    holdVendorWrite,
+    jumpToLists,
     leftEdgeOf,
     listSpansContent,
     openVendorsList,
     panelPlacement,
     pressEscapeOutsideInputs,
     searchVendors,
+    seenNotFoundOrDiscard,
+    settle,
     stacked,
     uniqueName,
     vendorEntry,
+    vendorHelpers,
     vendorIdOf,
     WIDE,
+    watchForNotFoundAndDiscard,
 } from './vendor-form-helpers'
 
 // The vendor side panel: at a window of 1360 px or more a vendor opens in a 480 px panel
 // beside the list, and a resize moves the open vendor between the panel and the page
-// without losing anything. Every vendor this spec opens for editing it creates with a
-// unique name; it reads the seeded Coastal Coffee Roasters and Willamette Valley Commercial
-// Cleaning and Janitorial Services Cooperative and edits neither.
+// without losing anything; the open vendor can be deleted from its row menu beside the
+// panel. Every vendor this spec opens for editing or deletes it creates with a unique
+// name; it reads the seeded Coastal Coffee Roasters and Willamette Valley Commercial
+// Cleaning and Janitorial Services Cooperative and edits neither. A delete refusal is a
+// 400 answered through `page.route` (no "in use" refusal exists yet), which writes nothing.
 //
 // Not covered here: there is no phone run, because the panel surface does not exist below
 // a 1360 px window. The phone flows it touches (Back, Escape, the Discard changes?
@@ -37,6 +45,8 @@ const PANEL_HEADER_HEIGHT = 52
 const PANEL_WIDTH = 480
 const COASTAL = 'Coastal Coffee Roasters'
 const WILLAMETTE = 'Willamette Valley Commercial Cleaning and Janitorial Services Cooperative'
+const UNSAVED_DELETE_WARNING = 'Unsaved changes to this vendor will be lost.'
+const DELETE_REFUSAL = 'This vendor is used on a bill.'
 
 // The four half-width pairs of the default layout.
 const PAIRS = [
@@ -367,5 +377,89 @@ test.describe('vendor-form: side panel', () => {
         await page.setViewportSize(WIDE)
         await close.click()
         await expect(panel).toBeHidden()
+
+        // (13) The open, dirty vendor deleted from its own row menu beside the panel: the
+        // dialog warns of the unsaved changes, a refusal keeps the panel and its typed notes,
+        // and the delete closes the panel with no second question and no not-found.
+        const nameD = `${prefix} D`
+        const typedNotes = `${prefix} notes`
+        await createVendor(page, { name: nameD })
+        await searchVendors(page, nameD)
+        const idD = await vendorIdOf(page, nameD)
+        await page.getByTestId(`vendor-row-${idD}`).click()
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'display_name')).toHaveValue(nameD)
+        await field(page, 'notes').fill(typedNotes)
+        await watchForNotFoundAndDiscard(page)
+
+        const deleteDialog = page.getByTestId('delete-vendor-dialog')
+        const deleteBody = page.getByTestId('delete-vendor-dialog-body')
+        const deleteConfirm = page.getByTestId('delete-vendor-confirm')
+        const menuD = page.getByTestId(`vendor-menu-${idD}`)
+        const openDeleteFromRow = async () => {
+            await expect(menuD).toBeVisible()
+            await menuD.click()
+            await page.getByTestId('vendor-menu-delete').click()
+            await expect(deleteDialog).toBeVisible()
+            await expect(deleteBody).toContainText(UNSAVED_DELETE_WARNING)
+        }
+        await page.route(vendorHelpers.recordUrl(idD), route => {
+            if (route.request().method() !== 'DELETE') return route.continue()
+            return route.fulfill({
+                status: 400,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 400, message: DELETE_REFUSAL, data: {} }),
+            })
+        })
+        await openDeleteFromRow()
+        await deleteConfirm.click()
+        await expect(deleteBody).toContainText(DELETE_REFUSAL)
+        await expect(page.getByTestId('vendor-not-found')).toHaveCount(0)
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'display_name')).toHaveValue(nameD)
+        await expect(field(page, 'notes')).toHaveValue(typedNotes)
+        // Escape closes the dialog only; the click moves focus off any input first.
+        await deleteBody.click()
+        await page.keyboard.press('Escape')
+        await expect(deleteDialog).toBeHidden()
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'notes')).toHaveValue(typedNotes)
+        await page.unroute(vendorHelpers.recordUrl(idD))
+
+        await openDeleteFromRow()
+        await deleteConfirm.click()
+        await expect(deleteDialog).toBeHidden()
+        await expect(panel).toBeHidden()
+        await expect(page).toHaveURL(/\/books\/vendors$/)
+        await expect(dialog.title).toBeHidden()
+        await expect(vendorEntry(page, nameD)).toHaveCount(0)
+        expect(await seenNotFoundOrDiscard(page)).toEqual({ notFound: false, discard: false })
+
+        // (14) A delete of the open vendor that lands after the user went on to the Lists
+        // hub leaves them there.
+        const nameE = `${prefix} E`
+        await createVendor(page, { name: nameE })
+        await searchVendors(page, nameE)
+        const idE = await vendorIdOf(page, nameE)
+        await page.getByTestId(`vendor-row-${idE}`).click()
+        await expect(panel).toBeVisible()
+        await expect(field(page, 'display_name')).toHaveValue(nameE)
+        const held = await holdVendorWrite(page, idE, 'DELETE')
+        await page.getByTestId(`vendor-menu-${idE}`).click()
+        await page.getByTestId('vendor-menu-delete').click()
+        await expect(deleteDialog).toBeVisible()
+        await deleteConfirm.click()
+        await held.arrived
+        await jumpToLists(page)
+        const deleted = page.waitForResponse(
+            response =>
+                response.request().method() === 'DELETE' &&
+                response.url().includes(`/books_vendors/records/${idE}`)
+        )
+        await held.release()
+        expect((await deleted).ok()).toBe(true)
+        await settle(page)
+        await expect(page).toHaveURL(/\/books\/lists$/)
+        await expect(page.getByTestId('books-list-card-vendors')).toBeVisible()
     })
 })

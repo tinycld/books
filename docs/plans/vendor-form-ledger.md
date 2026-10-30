@@ -26,6 +26,8 @@
   **rebutted because:** it is the parameter type of the exported hook (`config: RecordRowMenusConfig<R, I>`, useRecordRowMenus.ts:35), which the vendors list calls in a later checkpoint; an exported function's parameter type stays nameable by its callers.
 - **finding:** reviewers A and B, checkpoint 4: "`menuItem` and `chooseFromMenu` now take `item: string` … so tsc no longer catches a misspelled menu item in a customer test body."
   **rebutted because:** tsc never checked the specs: books `tsconfig.json` has `"include": ["tinycld/**/*.ts", "tinycld/**/*.tsx"]` and `"exclude": [… "tests/**/*.spec.ts"]`, so the deleted `MenuItem` union caught no misspelling before this change either. The gap is the tsconfig, raised as a retro check item.
+- **finding:** reviewer B, checkpoint 10: "`VendorsList.tsx:36`. Rule broken: 'Embrace type inference'. The call is `useRecordRowMenus<VendorRecord, RecordMenuItem>(…)` … Fix: remove the two type arguments."
+  **rebutted because:** inference gives the wrong type here: without the arguments tsc infers the record type as `MenuRecord` and refuses the dialog's `vendor` prop (the implementer's report: "tsc inferred the record type as `MenuRecord` … because `recordMenuItems` takes only `{ inactive }`"). CLAUDE.md says "don't over-specify"; two arguments that tsc needs are not over-specified. `CustomersList` infers because its items function returns `CustomerMenuItem[]` from a `CustomerRecord`.
 
 ## Design notes
 - cp0 reviewer A NOTE: `lib/account-register-fixture.ts:39` and `lib/setup-wizard-fixture.ts:19` keep `'' as BooksSettings['ownership']`; the type now holds `''`, so the casts do nothing. Driver: remove both in checkpoint 1 (books branch), listed under Out-of-plan changes then.
@@ -38,6 +40,9 @@
 - cp5 implementer: the git-excluded scratch route reads `FIXTURE_ACCOUNTS[].parent` as an `a<number>` id, but it is now an account key, so Design Tools loses its indent in the mockup only (the route is deleted before the PR).
 - cp7 reviewer A NOTE: `useVendorsQuery` returns `query.data ?? []`, a new array each render before the query is ready, so the `useRecordList` memo reruns; customers do the same and the cost is small.
 - cp7 reviewer B: the merged customer specs (`tests/e2e/customer-form-*.spec.ts`) have the same phone loops over steps whose code is the same at both sizes; the vendor spec was fixed, the customer specs were left unchanged as the extraction guard (for the human).
+- cp10 reviewer A NOTE: a delete refusal is lost if the user leaves the Vendors (or Customers) list while the delete is in flight: the list that owned `actionError` unmounts and `deleting` is cleared, so the user sees no message and the record still exists (status 0 or 5xx). Fix idea: a toast when no dialog or banner can show the refusal (shared useRecordActions).
+- cp10 critic NOTE: on phones the Books New FAB sits on the ⋮ button of the card under it at rest (the list's FAB clearance lets it scroll clear).
+- cp10 critic NOTE: in the dirty Delete dialog the muted "This cannot be undone." sits between two plain-tone lines (the name and the unsaved warning).
 - cp9 reviewer A NOTE: the discard capture dirties the seeded Office Supply World (a typed note, then Cancel; nothing is written) where the Gates line asked for a vendor the capture creates.
 - cp8 critic NOTE: the Account number hint sits about 6 px closer to its input than the reference.
 - cp8 reviewer A NOTE: `ExpenseAccountField` reads `data ?? []`, so while the accounts load or after a refused load the trigger of a stored account is blank and the menu offers only "None", with no message.
@@ -216,6 +221,22 @@
 - fix review: n/a (test-only fixes by a fresh test writer): held loads polled; after each resize the page or panel surface is asserted before the Discard checks; the all-empty-address step first expects the question on `x`; the save read-back waits for the insert answer (200). Gate 1 after: vendor-form-save + vendor-form-panel 4 passed (29.1s)
 - gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: 1 for the human (Retry beside an open vendor and the dirty-tab beforeunload prompt have no e2e after the prune)
+- commit: e773268
+- human: eval gate
+
+## Checkpoint 10
+- test writer: tests/vendor-display.test.ts (vendorDeleteLines, with role keys and no line for an empty refusal), tests/help-vendors.test.ts (new), tests/help-customers.test.ts (setup only), tests/e2e/vendor-form-actions.spec.ts (desktop + phone; phone only for cards, the menu sheet and the dialog sheet), tests/e2e/vendor-form-panel.spec.ts (steps 13 and 14 in the same test); red for the right reason: yes (vendorDeleteLines not a function; `./help-topic` missing — the implementer creates tests/help-topic.ts, a Produces name; `vendor-menu-<id>` not found in both e2e files); untestable: none. Tests now: 10 + 2 = 12 of 12
+- implementer: hooks/useVendorActions.ts, components/vendors/DeleteVendorDialog.tsx, tests/help-topic.ts (readHelpTopic), help/vendors.md; lib/vendor-display.ts (vendorDeleteLines), components/vendors/VendorsList.tsx, help/navigating-books.md (the Vendors link); packages:generate run; DONE
+- test disputes: none
+- self-declared differences: explicit type arguments `useRecordRowMenus<VendorRecord, RecordMenuItem>` (inference gave MenuRecord, since recordMenuItems takes only `{ inactive }`); help/vendors.md adds true-to-code sentences step 5 does not list (a vendor and a customer may share a name; make inactive instead of deleting; "for example the number on their invoices"; the swipe-from-left-edge sidebar path; the list search also matches phone; read-only users can open but not change); navigating-books.md gets only the link line; capture left to the loop
+- gate 1: tests unedited: yes · pass (driver: tinycld-pkg check; implementer e2e vendor-form-* + customer-form-* `36 passed (1.8m)`)
+- gate 2 capture: evidence/cp10/capture.json (row menu on the seeded Office Supply World by its fixture id; the Delete dialogs opened, never confirmed; delete-dirty with a typed note in the panel); 12 shots, 4 passed
+- gate 2: invalid shots: none · blocking: none · notes: 2 (the phone FAB sits on a card's new ⋮ button at rest; the muted "This cannot be undone." between two plain lines in the dirty dialog), under Design notes. Critique: evidence/cp10/critique.md
+- gate 3 A (correctness): no BLOCK; every help claim checked true against the code (list search matches phone; app search display name/company/email; the left-edge swipe opens the drawer with Lists; vendor and customer names may match; read-only gets no row menu; the expense list's exclusions; dirty-only writes). NOTEs: a refusal is lost when the user leaves the list while a delete is in flight (shared useRecordActions/RecordChild code, customers too) → Design notes; the help test's app-search regex also matched the list-search sentence → accepted, fresh test writer; steps (3) and (6) of the actions spec are desktop-only (rules.md phone rule; correct)
+- gate 3 B (conformance): no rule broken except the explicit type arguments on useRecordRowMenus (rebutted, verified by tsc; see Rebuttals); the actions test and the extended panel test hold several goals each (plan-mandated under the 12-test cap) → for the human at the eval gate; website docs: web/ has no Books section yet → offer to the human
+- fix review: n/a (test-only fix by a fresh test writer): the app-search assertion now matches the sentence itself (`use the app search. Search finds vendors by display name, company or email.`, whitespace collapsed); help-vendors.test.ts 16/16
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none new (cp9's for the human stays open)
 - human: eval gate
 
 ## Checkpoint 8, core part (8a)
