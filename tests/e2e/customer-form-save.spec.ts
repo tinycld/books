@@ -1,6 +1,6 @@
-import { expect, type Page, type Route, test } from '@playwright/test'
-import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { expect, type Page, test } from '@playwright/test'
 import {
+    afterNextFrames,
     createCustomer,
     customerEntries,
     customerEntry,
@@ -10,15 +10,27 @@ import {
     DESKTOP,
     discardDialog,
     field,
+    holdLoads,
+    insertAnswered,
     isDisabled,
-    isPhone,
+    isRecordsUrl,
+    isRecordUrl,
+    leaveBooks,
     type NewCustomerValues,
     navigateInApp,
+    openBooks,
     openCustomer,
     openCustomersList,
     openNewCustomer,
     PHONE,
+    patchAnswered,
+    pressEscapeOutsideInputs,
+    refusedWrites,
+    returnToBooks,
+    SETTINGS_URL,
     searchCustomers,
+    refusalToast as sharedRefusalToast,
+    stampDigits,
     uniqueName,
     WIDE,
 } from './customer-form-helpers'
@@ -48,171 +60,18 @@ const SIZES = [
 
 const ROOT_REFUSAL = 'Books cannot save this customer right now.'
 
-// Four digits that differ between runs, for phone numbers and emails.
-function stampDigits() {
-    return String(Date.now() % 10000).padStart(4, '0')
-}
-
 async function expectListShown(page: Page) {
     await expect(page.getByTestId('customers-list')).toBeVisible()
     await expect(customerSurface(page)).toBeHidden()
 }
 
-// A click on the title moves focus off any input: react-native-web's TextInput stops
-// every keydown from reaching the window, where the Escape shortcut listens.
-async function pressEscapeOutsideInputs(page: Page) {
-    await page.getByTestId('customer-title').click()
-    await page.keyboard.press('Escape')
-}
-
-function isRecordUrl(id: string) {
-    return (url: URL) => url.pathname.endsWith(`/api/collections/books_customers/records/${id}`)
-}
-
-type PatchAnswer = 'refuse' | 'pass'
-
-// Answers each PATCH (or each `method` request) on the routed URL with a refusal that
-// names no field, or after `hold` waits for `release`, which refuses it or (`'pass'`)
-// lets it reach the server. `urls` lists the requests seen.
-function refusedPatches(method: 'PATCH' | 'POST' = 'PATCH') {
-    const urls: string[] = []
-    let gate = Promise.resolve<PatchAnswer>('refuse')
-    let open = (_answer: PatchAnswer) => {}
-    const handler = async (route: Route) => {
-        if (route.request().method() !== method) {
-            await route.continue()
-            return
-        }
-        urls.push(route.request().url())
-        if ((await gate) === 'pass') {
-            await route.continue()
-            return
-        }
-        await route.fulfill({
-            status: 400,
-            contentType: 'application/json',
-            body: JSON.stringify({ code: 400, message: ROOT_REFUSAL, data: {} }),
-        })
-    }
-    return {
-        urls,
-        handler,
-        hold: () => {
-            gate = new Promise<PatchAnswer>(resolve => {
-                open = resolve
-            })
-        },
-        release: (answer: PatchAnswer = 'refuse') => open(answer),
-    }
-}
-
-// The customers collection's records endpoint, where a create POSTs.
-function isRecordsUrl(url: URL) {
-    return url.pathname.endsWith('/api/collections/books_customers/records')
-}
-
-// A PATCH of the record that the server answered.
-function patchAnswered(page: Page, id: string) {
-    const recordUrl = isRecordUrl(id)
-    return page.waitForResponse(
-        r => r.request().method() === 'PATCH' && recordUrl(new URL(r.url()))
-    )
-}
-
-// A create of a customer that the server answered.
-function insertAnswered(page: Page) {
-    return page.waitForResponse(
-        r => r.request().method() === 'POST' && isRecordsUrl(new URL(r.url()))
-    )
-}
-
-// The app handles a server answer in the frames after it arrives: two frames later, a
-// save's success or refusal handler has run.
-async function afterNextFrames(page: Page) {
-    await page.evaluate(
-        () =>
-            new Promise<void>(resolve =>
-                requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-            )
-    )
-}
-
-// Away from Books to core Settings: a tab of core's package switcher like any package,
-// and present in every workspace (CI assembles Books alone, with no other package). The
-// rail has a Settings link; a phone has no rail, and Settings is a row of the More drawer.
-// The drawer has no test id, so its row is found next to its Sign out row: the Books
-// sidebar has a Settings item too.
-async function leaveBooks(page: Page) {
-    if (isPhone(page)) {
-        await page.getByTestId('nav-more').click()
-        const signOut = page.getByText('Sign out', { exact: true })
-        await expect(signOut).toBeVisible()
-        await signOut
-            .locator('xpath=ancestor::*[.//text()[normalize-space()="Settings"]][1]')
-            .getByText('Settings', { exact: true })
-            .click()
-        // The drawer slides out after the move; a row pressed while it moves is not stable.
-        await expect(signOut).toBeHidden()
-    } else {
-        await page.getByTestId('nav-settings').click()
-    }
-    // Settings is not a package, so it has no pkg-active marker; its URL and its window
-    // title show it.
-    await expect(page).toHaveURL(SETTINGS_URL)
-    await expect(page).toHaveTitle(/Settings/)
-}
-
-// Back to Books: a rail link, or on a phone the MobileTabBar's tab. With more packages
-// than the tab bar holds, Books is a row of the More drawer instead.
-async function returnToBooks(page: Page) {
-    if (isPhone(page)) {
-        const books = page.getByTestId('nav-books')
-        if ((await books.count()) === 0) await page.getByTestId('nav-more').click()
-        await books.click()
-    } else {
-        await navigateToPackage(page, 'books')
-    }
-    await expect(page.getByTestId('pkg-active-books')).toBeVisible()
-    await expect(page).toHaveURL(/\/books(\/|$)/)
-}
-
-// Core Settings, not Books' own /a/books/settings.
-const SETTINGS_URL = /\/a\/settings(\/|$)/
+const refusedPatches = (method: 'PATCH' | 'POST' = 'PATCH') => refusedWrites(ROOT_REFUSAL, method)
 
 const FORM_RECORDS = '**/api/collections/forms/records**'
 
 // Holds every load of the forms collection, so the customer form's definition is not
-// ready. `held` lists the held loads; `release` lets them through.
-async function holdFormLoads(page: Page) {
-    let open = () => {}
-    const released = new Promise<void>(resolve => {
-        open = resolve
-    })
-    const held: string[] = []
-    const handler = async (route: Route) => {
-        held.push(route.request().url())
-        await released
-        await route.continue()
-    }
-    await page.route(FORM_RECORDS, handler)
-    return {
-        held,
-        // Waits for the held handlers: removing a route under a pending handler hands
-        // its request on, and the handler's own `continue` then fails.
-        release: async () => {
-            open()
-            await page.unrouteAll({ behavior: 'wait' })
-        },
-    }
-}
-
-// Books open at the given viewport. The rail links that navigateToPackage clicks are
-// absent below the phone breakpoint, so the viewport changes after it.
-async function openBooks(page: Page, size: { width: number; height: number }) {
-    await login(page)
-    await navigateToPackage(page, 'books')
-    await page.setViewportSize(size)
-}
+// ready.
+const holdFormLoads = (page: Page) => holdLoads(page, FORM_RECORDS)
 
 // Creates a customer through the New customer form and returns its id, read from its
 // list entry. The list is left searched for the customer's name.
@@ -222,9 +81,7 @@ async function createListedCustomer(page: Page, values: NewCustomerValues) {
     return customerIdOf(page, values.name)
 }
 
-function refusalToast(page: Page) {
-    return page.getByTestId('toast-card').filter({ hasText: ROOT_REFUSAL })
-}
+const refusalToast = (page: Page) => sharedRefusalToast(page, ROOT_REFUSAL)
 
 test.describe('customer-form: save and discard', () => {
     for (const [sizeName, size] of SIZES) {

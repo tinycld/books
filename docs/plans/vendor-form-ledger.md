@@ -24,6 +24,8 @@
   **rebutted because:** it is the key type of two exported constants in that file (`export const CUSTOMER_MENU_LABELS: Record<CustomerMenuItem, string>` and `export const CUSTOMER_MENU_TEST_IDS: Record<CustomerMenuItem, string>`), and the checkpoint's Produces names it; a caller that reads those maps names their key type.
 - **finding:** reviewer B, checkpoint 3: "`tinycld/books/hooks/useRecordRowMenus.ts:9`: `RecordRowMenusConfig` is exported, but only its own file uses it … Fix: make it file-local."
   **rebutted because:** it is the parameter type of the exported hook (`config: RecordRowMenusConfig<R, I>`, useRecordRowMenus.ts:35), which the vendors list calls in a later checkpoint; an exported function's parameter type stays nameable by its callers.
+- **finding:** reviewers A and B, checkpoint 4: "`menuItem` and `chooseFromMenu` now take `item: string` … so tsc no longer catches a misspelled menu item in a customer test body."
+  **rebutted because:** tsc never checked the specs: books `tsconfig.json` has `"include": ["tinycld/**/*.ts", "tinycld/**/*.tsx"]` and `"exclude": [… "tests/**/*.spec.ts"]`, so the deleted `MenuItem` union caught no misspelling before this change either. The gap is the tsconfig, raised as a retro check item.
 
 ## Design notes
 - cp0 reviewer A NOTE: `lib/account-register-fixture.ts:39` and `lib/setup-wizard-fixture.ts:19` keep `'' as BooksSettings['ownership']`; the type now holds `''`, so the casts do nothing. Driver: remove both in checkpoint 1 (books branch), listed under Out-of-plan changes then.
@@ -32,6 +34,7 @@
 - cp1 fix review NOTEs: `server/names.go` nameKey comment now has two colons in one sentence and an early line break; the new no-join alias comment in `searchParties` partly repeats the `withParent` branch comment.
 - cp2 reviewer A NOTE: `lib/record-refusals.ts` and `lib/record-save.ts` import each other; the record-refusals → record-save import is type-only (`RefusalForm`, which the checkpoint puts in record-save), so it is safe at runtime.
 - cp3 fix review NOTE: `DeleteCustomerDialog` `linesOf` now drops a line with an empty display name too (the old dialog showed the name with no condition); the server requires a display name, so no user reaches it.
+- cp4 reviewer B: `CUSTOMER_ROW_HEIGHT` and `isShownLine` (customer-display re-exports) are read only by the git-excluded scratch route; when finish.mjs deletes it they have no importer.
 
 ## Out-of-plan changes
 - cp1: `tinycld/books/lib/account-register-fixture.ts`, `tinycld/books/lib/setup-wizard-fixture.ts` — removed the `'' as BooksSettings['ownership']` casts and their now-false comments, since core #397 types the field with `''` (cp0 reviewer A NOTE).
@@ -100,6 +103,21 @@
 - gate 3 B (conformance): no rule broken; dead exports: useIsShowingCustomer (deleted), SERVER_UNREACHED/CustomerRefusal re-exports in useCustomerActions (deleted); CustomerMenuItem and RecordRowMenusConfig rebutted (see Rebuttals)
 - fix review: round 1: clean · NOTE to Design notes: linesOf now also drops an empty display name (the server requires one). Gate 1 after fixes: tinycld-pkg check green, customer-form guard 24 passed (1.7m). Plan revised for checkpoint 10: DeleteDialogLine gains `key`, DeleteDialogConfirm exported; vendorDeleteLines keys name/explanation/unsaved/refusal and drops an empty refusal. plan-check: 8 errors, all in done checkpoints 1-2 (names those checkpoints removed); none in 3-10.
 - gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: 2399cfe
+- human: n/a (review mode C)
+
+## Checkpoint 4
+- test writer: tests/party-list.test.ts (24 tests); red for the right reason: yes (`Cannot find module '../tinycld/books/lib/party-list'`; assertions proved once against a temporary shim over today's customer functions, then deleted); untestable: none
+- implementer: party-list.ts, list-query.ts, useRecordList.ts, ListBanner/ListToolbar (renamed from the customer ones), ListEmptyState, components/party/{PartyRowParts,PartyRow,PartyCard,PartyList}, tests/e2e/record-form-helpers.ts; CustomerRow/CustomerCard/CustomersEmptyState deleted; customer-display, customer-tree, useCustomersList, useCustomersQuery, CustomersList, helix-mockup, customer-form-helpers and the five customer spec tops moved onto them; DONE
+- test disputes: none
+- self-declared differences: actions spec local MENU_ITEMS/MenuItem removed (shared menuItem/chooseFromMenu take `item: string`); openBooksPage `intercept` returns Promise<unknown> (a list spec passes page.route, which resolves to a Disposable; the old local copy had the same type error, unseen because tsc does not cover specs); PANEL_WIDTH moved into record-form-helpers.ts; NewCustomerValues a type alias from customers.create; parent-picker comment in useCustomersQuery; PARTY_ROW_CLASS in party-list.ts; PartyListCopy exported from PartyList.tsx; locals renamed search→input, open→openGate
+- gate 1: tests unedited: yes · pass (driver: tinycld-pkg check; every customer spec change above its first test.describe; implementer's foreground guard 24 passed (1.7m))
+- gate 2: n/a (nothing new renders)
+- gate 3 A (correctness): no BLOCK; NOTEs: menuItem/chooseFromMenu take `item: string` (rebutted, see Rebuttals); lib/customer-display.ts type import from a component (accepted+fixed: PartyListCopy declared in lib/party-list.ts, re-exported from PartyList.tsx; plan line updated); useRecordList `rowsOf` must be stable (accepted+fixed: comment); ledger not in Files (driver's file)
+- gate 3 B (conformance): no rule broken; the same two NOTEs (same triage); dead exports CustomerListRow, CustomerListViewState, customersEmptyHint are plan-named; customerCardHeight, CUSTOMER_COLUMNS, CUSTOMERS_TABLE_MIN_WIDTH, compareCustomerNames, customerMatches, customerListViewState kept for the unchanged-test guard; CUSTOMER_ROW_HEIGHT and isShownLine read only by the scratch route (Design notes)
+- fix review: round 1: clean (gate 1 after fixes: tinycld-pkg check green; type-only move and a comment, so no e2e rerun)
+- gate 3 A notes: none open
 - reviewer-caught deferrals: none
 - human: n/a (review mode C)
 

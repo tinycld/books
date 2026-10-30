@@ -1,15 +1,25 @@
-import { expect, type Locator, type Page, test, type ViewportSize } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { NO_MATCH_SEARCH } from '../../tinycld/books/lib/customer-form-fixture'
 import {
-    customerEntries,
+    CLASSIC_SCROLLBARS,
     customerEntry,
     customerIdOf,
     DESKTOP,
+    effectiveOpacity,
+    expectEntriesInOrder,
+    expectTextInsideCell,
+    headerRowWidth,
     isPhone,
+    openBooksPage,
     openCustomersList,
     PHONE,
     searchCustomers,
+    TABLET,
+    tableScroll,
+    takesClickAtCenter,
+    textLeft,
+    textTop,
 } from './customer-form-helpers'
 
 // Reads the customers `seed.ts` writes (lib/customer-form-fixture.ts). That is the
@@ -66,9 +76,6 @@ const ALL_INACTIVE_LIST = JSON.stringify({
     totalItems: 2,
     totalPages: 1,
 })
-// Still the tablet breakpoint (table, not cards). Its content area is 768 - 64 (rail) - 175
-// (tablet sidebar) = 529 px, narrower than the table's 540 px minimum; at 800 it is 561 px.
-const TABLET = { width: 768, height: 900 }
 const SIZES = [
     ['desktop', DESKTOP],
     ['phone', PHONE],
@@ -78,98 +85,6 @@ const HARBORVIEW = 'Harborview Hospitality Group'
 const NORTHWIND = 'Northwind Traders'
 const ST_JUDE = 'St. Jude Community Hospital Foundation of the Greater Willamette Valley'
 const ST_JUDE_EMAIL = 'theodore.okonkwo-lindqvist@stjudecommunityhospitalfoundation.org'
-
-// A new page in this test's browser context, logged in, in Books, at `size`. `intercept`
-// runs before the page loads anything, so its routes catch the page's first list request
-// even when Books reopens at the Customers list.
-async function openBooksPage(
-    page: Page,
-    size: ViewportSize,
-    intercept: (fresh: Page) => Promise<void>
-) {
-    const fresh = await page.context().newPage()
-    await intercept(fresh)
-    await login(fresh)
-    await navigateToPackage(fresh, 'books')
-    await fresh.setViewportSize(size)
-    return fresh
-}
-
-async function textLeft(entry: Locator, name: string) {
-    return (await entry.getByText(name, { exact: true }).boundingBox())?.x ?? 0
-}
-
-async function textTop(scope: Locator, text: string) {
-    return (await scope.getByText(text, { exact: true }).boundingBox())?.y ?? -1
-}
-
-// The opacity the user sees on the element: its own times every ancestor's.
-function effectiveOpacity(locator: Locator) {
-    return locator.evaluate(el => {
-        let opacity = 1
-        for (let node: Element | null = el; node; node = node.parentElement) {
-            opacity *= Number(getComputedStyle(node).opacity)
-        }
-        return opacity
-    })
-}
-
-const CLASSIC_SCROLLBARS = '::-webkit-scrollbar { width: 15px; height: 15px; }'
-
-// The horizontal scroller of the table: the test id's element, or the first one inside it.
-function tableScroll(page: Page) {
-    return page.getByTestId('customers-table').evaluate(el => {
-        const scrolls = (node: Element) =>
-            ['auto', 'scroll'].includes(getComputedStyle(node).overflowX)
-        const scroller = scrolls(el) ? el : Array.from(el.querySelectorAll('*')).find(scrolls)
-        return { scrollWidth: scroller?.scrollWidth ?? 0, clientWidth: scroller?.clientWidth ?? 0 }
-    })
-}
-
-// True when a click at the element's center reaches the element itself, not a layer above it.
-function takesClickAtCenter(locator: Locator) {
-    return locator.evaluate(el => {
-        const box = el.getBoundingClientRect()
-        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
-        return hit !== null && (hit === el || el.contains(hit))
-    })
-}
-
-// The table's header row (it has no test id): the first child of the vertical scroller's
-// content, measured only when it holds the column titles.
-function headerRowWidth(page: Page) {
-    return page.getByTestId('customers-table').evaluate(el => {
-        const scrolls = (node: Element) =>
-            ['auto', 'scroll'].includes(getComputedStyle(node).overflowY)
-        const scroller = Array.from(el.querySelectorAll('*')).find(scrolls)
-        const row = scroller?.firstElementChild?.firstElementChild
-        if (!row || !/Name.*Email.*Phone/is.test(row.textContent ?? '')) return 0
-        return row.getBoundingClientRect().width
-    })
-}
-
-async function expectTextInsideCell(cell: Locator, text: string) {
-    const label = cell.getByText(text, { exact: true })
-    await expect(label).toBeVisible()
-    await expect
-        .poll(async () => {
-            const [cellBox, labelBox] = await Promise.all([cell.boundingBox(), label.boundingBox()])
-            if (!cellBox || !labelBox) return false
-            return (
-                labelBox.width > 40 &&
-                labelBox.x + labelBox.width <= cellBox.x + cellBox.width + 0.5
-            )
-        })
-        .toBe(true)
-}
-
-async function expectEntriesInOrder(page: Page, names: readonly string[]) {
-    const entries = customerEntries(page)
-    await expect(entries).toHaveCount(names.length)
-    for (const [index, name] of names.entries()) {
-        await expect(entries.nth(index).getByText(name, { exact: true })).toBeVisible()
-    }
-}
 
 test.describe('customer-form: customers list', () => {
     for (const [sizeName, size] of SIZES) {

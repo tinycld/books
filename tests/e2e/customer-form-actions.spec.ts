@@ -1,19 +1,28 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
+    chooseFromMenu,
+    closeMenu,
     createCustomer,
     customerEntries,
     customerEntry,
+    customerHelpers,
     customerIdOf,
     customerSurface,
     DESKTOP,
     discardDialog,
     field,
     holdRecordWrite,
+    inactiveLabel,
     isDisabled,
+    menuItem,
+    openButton,
     openCustomersList,
+    openMenu,
     PHONE,
+    recordUrl,
     searchCustomers,
+    textLeft,
     uniqueName,
 } from './customer-form-helpers'
 
@@ -37,24 +46,11 @@ const SIZES = [
     ['phone', PHONE],
 ] as const
 
-const MENU_ITEMS = ['edit', 'add-sub', 'toggle-inactive', 'delete'] as const
-type MenuItem = (typeof MENU_ITEMS)[number]
-
 const REFUSAL = 'This customer is used on an invoice.'
 const ACTIVE_SUB_REFUSAL = 'This customer has 1 active sub-customer.'
 const CANNOT_UNDO = 'This cannot be undone.'
 const NOT_FOUND = "This customer doesn't exist or was removed"
 const CUSTOMER_RECORDS = '**/api/collections/books_customers/records**'
-
-function recordUrl(id: string) {
-    return `**/api/collections/books_customers/records/${id}`
-}
-
-// The button that opens a customer from its row or card. Its accessible name carries the
-// display name; the row menu ("Customer actions") is a separate button beside it.
-function openButton(page: Page, name: string) {
-    return page.getByTestId('customers-list').getByRole('button', { name })
-}
 
 // Answers the has-sub-customers load for one customer (filtered on `parent = id`) with a
 // 400; every other request passes. Returns the route's handler, to remove it.
@@ -72,49 +68,13 @@ async function failSubCustomerCheck(page: Page, id: string) {
     return handler
 }
 
-// Answers only the DELETE of the record with the server's 400; every other request passes.
-async function refuseDelete(page: Page, id: string) {
-    await page.route(recordUrl(id), route => {
-        if (route.request().method() !== 'DELETE') return route.continue()
-        return route.fulfill({
-            status: 400,
-            contentType: 'application/json',
-            body: JSON.stringify({ code: 400, message: REFUSAL, data: {} }),
-        })
-    })
-}
+const refuseDelete = (page: Page, id: string) => customerHelpers.refuseDelete(page, id, REFUSAL)
 
-function menuItem(page: Page, item: MenuItem) {
-    return page.getByTestId(`customer-menu-${item}`)
-}
-
-async function openMenu(page: Page, id: string) {
-    await page.getByTestId(`customer-menu-${id}`).click()
-    await expect(menuItem(page, 'edit')).toBeVisible()
-}
-
-async function closeMenu(page: Page) {
-    await page.keyboard.press('Escape')
-    await expect(menuItem(page, 'edit')).toHaveCount(0)
-}
-
-async function chooseFromMenu(page: Page, id: string, item: MenuItem) {
-    await openMenu(page, id)
-    await menuItem(page, item).click()
-}
-
-function deleteDialog(page: Page) {
-    const root = page.getByTestId('delete-customer-dialog')
-    return {
-        root,
-        // A phone shows the dialog as a sheet with no dialog role; its title is text.
-        title: page.getByText('Delete customer', { exact: true }),
-        body: page.getByTestId('delete-customer-dialog-body'),
-        confirm: page.getByTestId('delete-customer-confirm'),
-        makeInactive: page.getByTestId('delete-customer-make-inactive'),
-        close: page.getByTestId('delete-customer-close'),
-    }
-}
+// The shared dialog plus Make inactive, a button only the customer dialog has.
+const deleteDialog = (page: Page) => ({
+    ...customerHelpers.deleteDialog(page),
+    makeInactive: page.getByTestId('delete-customer-make-inactive'),
+})
 
 async function openDeleteDialog(page: Page, id: string) {
     await chooseFromMenu(page, id, 'delete')
@@ -122,10 +82,6 @@ async function openDeleteDialog(page: Page, id: string) {
     await expect(dialog.root).toBeVisible()
     await expect(dialog.title).toBeVisible()
     return dialog
-}
-
-async function textLeft(entry: Locator, name: string) {
-    return (await entry.getByText(name, { exact: true }).boundingBox())?.x ?? 0
 }
 
 async function expectListShown(page: Page) {
@@ -146,10 +102,6 @@ async function openWithKey(page: Page, open: Locator, id: string, name: string, 
     await page.getByTestId('customer-back').click()
     await expectListShown(page)
     await searchCustomers(page, name)
-}
-
-function inactiveLabel(entry: Locator) {
-    return entry.getByText('Inactive', { exact: true })
 }
 
 test.describe('customer-form: inactive and delete', () => {
