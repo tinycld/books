@@ -38,6 +38,7 @@
 - cp5 implementer: the git-excluded scratch route reads `FIXTURE_ACCOUNTS[].parent` as an `a<number>` id, but it is now an account key, so Design Tools loses its indent in the mockup only (the route is deleted before the PR).
 - cp7 reviewer A NOTE: `useVendorsQuery` returns `query.data ?? []`, a new array each render before the query is ready, so the `useRecordList` memo reruns; customers do the same and the cost is small.
 - cp7 reviewer B: the merged customer specs (`tests/e2e/customer-form-*.spec.ts`) have the same phone loops over steps whose code is the same at both sizes; the vendor spec was fixed, the customer specs were left unchanged as the extraction guard (for the human).
+- cp9 reviewer A NOTE: the discard capture dirties the seeded Office Supply World (a typed note, then Cancel; nothing is written) where the Gates line asked for a vendor the capture creates.
 - cp8 critic NOTE: the Account number hint sits about 6 px closer to its input than the reference.
 - cp8 reviewer A NOTE: `ExpenseAccountField` reads `data ?? []`, so while the accounts load or after a refused load the trigger of a stored account is blank and the menu offers only "None", with no message.
 - cp7 critic NOTE: on phones the Books New FAB covers the right end of the vendor card rows under it (a reference decision).
@@ -201,7 +202,21 @@
 - fix review: round 1: clean · the customer-form-actions step (8) move is valid by the duplicate rule (DESKTOP 1280 px is below the panel breakpoint, so both sizes run the same RecordByIdScreen/RecordNotFound code; the phone run still drives cards, the menu sheet and the dialog sheets in steps 1-7; no other body change) · NOTE accepted+fixed: its comment gave the test timeout as the reason; both desktop-only comments in that spec now give the duplicate rule (the step 6b one predated this unit)
 - gate 3 A notes: 1 open (ExpenseAccountField loading/error, Design notes)
 - reviewer-caught deferrals: none
+- commit: b8f3f68
 - human: decisions recorded above (core indent, prune to 12 tests); review mode C
+
+## Checkpoint 9
+- test writer: tests/e2e/vendor-form-save.spec.ts (save, refuse, guard — desktop only), tests/e2e/vendor-form-panel.spec.ts (WIDE); the away test and the guard's phone run pruned (budget line); red for the right reason: no — all 4 green on the first run, because checkpoint 8 wired the vendor surface onto the shared RecordChild / useRecordSave / RecordSurface / ListDetailLayout and the server already had the vendor guards and search; the checkpoint's Files block expects exactly this ("Modify only where a test of this checkpoint fails"). Not weakened. Probed: the dirty-keys PATCH sends only `{ phone }`. Different from the plan text: borderLeftOfColumn takes the outermost 480 ± 1 px element (stricter); scrollerIn also counts the test-id element itself (wider). Untestable: none. Tests now: 6 + 4 = 10 of 12
+- implementer: n/a (no test failed, so no source change)
+- gate 1: pass (tinycld-pkg check; `-g "vendor-form:"` 10 passed (30.5s))
+- gate 2 capture: evidence/cp9/capture.json (new, page and panel by row press; discard by typing a note on the seeded Office Supply World and pressing Cancel, nothing saved); 8 shots, 4 passed
+- gate 2: invalid shots: none · blocking: none (footers on new and edit, the Discard changes? question, and `recordFooter`'s Close-only read-only footer match the references) · notes: 1 — the panel shot filtered the list to one row, so the selected-row tint showed against no neighbour; a capture fault, fixed (the capture clears the search after opening the row), re-captured, and a fresh critic (critique-2.md) found nothing
+- gate 3 A (correctness): no BLOCK; each Tests bullet has a failing assertion; NOTEs accepted as weak tests (fresh test writer): `held.length` read once (poll it); panel dialog checks after a resize can pass before the re-render (assert the page surface first); the all-empty-address step passes even if typing never dirties the form (expect the question on `x` first); the save read-back can show the optimistic row (wait for the server answer); capture dirtied the seeded Office Supply World instead of a created vendor (no write happens; Design notes). DEFERRAL for the human: the Delivers line says Retry beside an open vendor and the dirty-tab `beforeunload` prompt are proved in e2e; after the prune neither has an e2e (the plan's "customer save spec drives them" was wrong for both) — shown at the eval gate
+- gate 3 B (conformance): no rule broken; false comments (the "customer guard spec" does not exist; the customer save spec does not assert beforeunload) → accepted+fixed in the spec header and the plan; the panel test holds ~10 user goals in one test (plan-mandated; the 12-test cap leaves no room to split) → for the human at the eval gate; ledger "stricter" for scrollerIn → "wider" (fixed); review-diff's out-of-plan list is the known parser fault
+- fix review: n/a (test-only fixes by a fresh test writer): held loads polled; after each resize the page or panel surface is asserted before the Discard checks; the all-empty-address step first expects the question on `x`; the save read-back waits for the insert answer (200). Gate 1 after: vendor-form-save + vendor-form-panel 4 passed (29.1s)
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: 1 for the human (Retry beside an open vendor and the dirty-tab beforeunload prompt have no e2e after the prune)
+- human: eval gate
 
 ## Checkpoint 8, core part (8a)
 - test writer: n/a (no core e2e and no component unit test; the Books vendor page e2e drives it in checkpoint 8 step 10)

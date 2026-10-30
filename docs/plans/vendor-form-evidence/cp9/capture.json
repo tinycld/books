@@ -1,0 +1,94 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 1600,
+            "widths": [1100],
+            "actions": [
+                {
+                    "click": "vendor-new-header"
+                },
+                {
+                    "waitFor": "vendor-page"
+                }
+            ]
+        },
+        {
+            "name": "page",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 1600,
+            "widths": [1100],
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "vendor-page"
+                }
+            ]
+        },
+        {
+            "name": "discard",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1100],
+            "opaque": "confirm-dialog-body",
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "vendor-page"
+                },
+                {
+                    "fill": "form-input-notes",
+                    "value": "Call before the delivery."
+                },
+                {
+                    "click": "vendor-cancel"
+                },
+                {
+                    "waitFor": "confirm-dialog-body"
+                }
+            ]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 2000,
+            "widths": [1600],
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "vendor-panel"
+                },
+                {
+                    "fill": "vendors-search",
+                    "value": ""
+                },
+                {
+                    "waitFor": "Pacific Power"
+                }
+            ]
+        }
+    ]
+}
