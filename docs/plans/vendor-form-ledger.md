@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/vendor-form-checkpoints.md
 - reference: docs/plans/vendor-form-reference/
 - evidence: docs/plans/vendor-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen 2026-10-30; screen e2e 12 passed)
 - capture manifest: docs/plans/vendor-form-capture.json
 - review mode: C — none (unattended)
 - core extension: checkpoint 0 on core branch books/p3-vendors (from main 12759a7) — the schema generator types a non-required single `select` with `''` (TS `| ''`, zod `.or(z.literal(''))`), so `books_vendors.terms` can be cleared to None through pbtsdb; human chose it 2026-10-30
