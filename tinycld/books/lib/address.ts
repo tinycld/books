@@ -1,7 +1,7 @@
 import { z } from '@tinycld/core/ui/form'
 
-// The parts of a stored customer address, the same list server/customers.go
-// checks (addressParts). A stored address is null or has exactly these keys.
+// The parts of a stored address, the same list server/address.go checks
+// (addressParts). A stored address is null or has exactly these keys.
 export const ADDRESS_PARTS = ['line1', 'line2', 'city', 'region', 'postal_code', 'country'] as const
 
 export type AddressPart = (typeof ADDRESS_PARTS)[number]

@@ -1,34 +1,30 @@
+import {
+    newRecordPath,
+    type OpenRecord,
+    openRecordFromPath,
+    RECORD_DETAIL_SCREENS,
+    type RecordRoute,
+    recordPath,
+} from './record-route'
+
+export { navigationModeFor } from './record-route'
+
 export const CUSTOMERS_PATH = 'books/customers'
 
-export type CustomerRoute = { path: string; params?: Record<string, string> }
+export type CustomerRoute = RecordRoute
 
-export type OpenCustomer = { kind: 'new' } | { kind: 'id'; id: string } | { kind: 'none' }
+export type OpenCustomer = OpenRecord
 
 export function customerPath(id: string): CustomerRoute {
-    return { path: `${CUSTOMERS_PATH}/[id]`, params: { id } }
+    return recordPath(CUSTOMERS_PATH, id)
 }
 
 export function newCustomerPath(parentId?: string): CustomerRoute {
-    const path = `${CUSTOMERS_PATH}/new`
-    if (!parentId) return { path }
-    return { path, params: { parent: parentId } }
+    return newRecordPath(CUSTOMERS_PATH, parentId ? { parent: parentId } : undefined)
 }
 
-const CUSTOMER_SEGMENT = new RegExp(`/${CUSTOMERS_PATH}/([^/]+)/?$`)
-
-// The customer the URL opens. The child stack's route is the only record of it.
 export function openCustomerFromPath(pathname: string): OpenCustomer {
-    const segment = CUSTOMER_SEGMENT.exec(pathname)?.[1]
-    if (!segment) return { kind: 'none' }
-    if (segment === 'new') return { kind: 'new' }
-    return { kind: 'id', id: segment }
+    return openRecordFromPath(CUSTOMERS_PATH, pathname)
 }
 
-// One customer at a time in the child stack: opening another replaces the open one,
-// so Back always returns to the list.
-export function navigationModeFor(open: OpenCustomer): 'push' | 'replace' {
-    return open.kind === 'none' ? 'push' : 'replace'
-}
-
-// The child stack's customer screens, after its transparent `index`.
-export const CUSTOMER_DETAIL_SCREENS = ['[id]', 'new'] as const
+export const CUSTOMER_DETAIL_SCREENS = RECORD_DETAIL_SCREENS
