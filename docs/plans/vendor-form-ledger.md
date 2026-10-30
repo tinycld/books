@@ -35,9 +35,12 @@
 - cp2 reviewer A NOTE: `lib/record-refusals.ts` and `lib/record-save.ts` import each other; the record-refusals → record-save import is type-only (`RefusalForm`, which the checkpoint puts in record-save), so it is safe at runtime.
 - cp3 fix review NOTE: `DeleteCustomerDialog` `linesOf` now drops a line with an empty display name too (the old dialog showed the name with no condition); the server requires a display name, so no user reaches it.
 - cp4 reviewer B: `CUSTOMER_ROW_HEIGHT` and `isShownLine` (customer-display re-exports) are read only by the git-excluded scratch route; when finish.mjs deletes it they have no importer.
+- cp5 implementer: the git-excluded scratch route reads `FIXTURE_ACCOUNTS[].parent` as an `a<number>` id, but it is now an account key, so Design Tools loses its indent in the mockup only (the route is deleted before the PR).
+- cp5 fix review NOTE: `lib/vendor-messages.ts` line 1 says its strings mirror server refusals, but the file also holds client-only texts (`VENDOR_DISCARD_MESSAGE` and others).
 
 ## Out-of-plan changes
 - cp1: `tinycld/books/lib/account-register-fixture.ts`, `tinycld/books/lib/setup-wizard-fixture.ts` — removed the `'' as BooksSettings['ownership']` casts and their now-false comments, since core #397 types the field with `''` (cp0 reviewer A NOTE).
+- cp5: `pb-migrations/2100000002_create_books_ledger.js`, `pb-migrations/2100000003_create_books_customers.js` — comment only: the rule-constant source named the wrong migration (cp5 reviewer B); unreleased migrations, no schema change.
 
 ## Phase notes
 - phase 1: design packet staged 2026-10-26 (`~/tmp/tinycld/auto-helix-books/staging/p3-vendors/packet.md`), rechecked 2026-10-29 against books main 3c32b22 and core 12759a7 and kept.
@@ -118,6 +121,21 @@
 - gate 3 B (conformance): no rule broken; the same two NOTEs (same triage); dead exports CustomerListRow, CustomerListViewState, customersEmptyHint are plan-named; customerCardHeight, CUSTOMER_COLUMNS, CUSTOMERS_TABLE_MIN_WIDTH, compareCustomerNames, customerMatches, customerListViewState kept for the unchanged-test guard; CUSTOMER_ROW_HEIGHT and isShownLine read only by the scratch route (Design notes)
 - fix review: round 1: clean (gate 1 after fixes: tinycld-pkg check green; type-only move and a comment, so no e2e rerun)
 - gate 3 A notes: none open
+- reviewer-caught deferrals: none
+- commit: adeb109
+- human: n/a (review mode C)
+
+## Checkpoint 5
+- test writer: server/vendors_test.go, server/registrations_test.go (books_vendors in TestOAuth_LedgerIsReadWrite; new TestAudit_LabelsAVendorByDisplayName), tests/payment-terms.test.ts, tests/vendor-messages.test.ts, tests/vendor-fixture.test.ts, tests/collections.test.ts; red for the right reason: yes (Go build fails on the Produces names msgVendorDuplicateName, msgExpenseAccountMissing/Inactive/Ledger; with them stubbed in a temporary file every test fails on the missing books_vendors table; TS files fail on the missing modules; collections tests on the missing books_vendors entry); untestable: none. Plan defect fixed in the test: the plan reads length/format/`net_90` refusals with `apiErrorOf(...).Data`, but `app.Save` returns `validation.Errors` for a schema refusal (probed on books_customers), so the test uses a local `requireSchemaRefusal`
+- implementer: migration 2100000004_create_books_vendors.js, server/vendors.go, lib/payment-terms.ts, vendor-messages.ts, seed-accounts.ts, fixture-columns.ts; ledger.go, audit.go, oauth_scopes.go, collections.ts, types.ts, customer-form-fixture.ts, vendor-form-fixture.ts, seed.ts changed; generated `BooksVendors.terms` includes `''`; DONE
+- test disputes: none
+- self-declared differences: oauth_scopes.go package comment also names the vendors; seedVendors account lookup in a variable with an `=== undefined` throw; inactive-account step filters SEED_ACCOUNTS and throws on a missing id; seedCustomers destructures id/parent, then seedValues(row); own comment wording in the migration header and registerVendorGuard; the git-excluded scratch route not updated (Design Tools loses its indent there)
+- gate 1: tests unedited: yes · pass (implementer: packages:generate; driver: tinycld-pkg check, go test ./...; implementer's foreground seed boot `2 passed (31.9s)`, 22 books_vendors inserts then the 6900 inactive update)
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): no BLOCK; NOTEs: oauth_scopes.go paragraph wrap (accepted+fixed); FIXTURE_ACCOUNTS[].parent is now an account key (already said in seed-accounts.ts:3; no later checkpoint resolves it); requireSchemaRefusal vs the plan's apiErrorOf (the recorded plan defect; not a deferral)
+- gate 3 B (conformance): no rule broken; migration comment "repeat 2100000000's" wrong (accepted+fixed in 0002, 0003, 0004 by each file's constants; 0001 was right); vendor-messages.ts comment claimed screens check first (accepted+fixed: server-only; customer-messages.ts keeps its text, as PARENT_LOCKED_MESSAGE and the sub-customer dialog texts show before a save)
+- fix review: round 1: clean · NOTE to Design notes: vendor-messages.ts line 1 says the strings mirror server refusals, but the file also holds client-only texts (VENDOR_DISCARD_MESSAGE and others); wording predates the fix. Gate 1 after fixes: gofmt, go vet, go test, tinycld-pkg check green
+- gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: none
 - human: n/a (review mode C)
 

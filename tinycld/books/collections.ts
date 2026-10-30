@@ -118,6 +118,14 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // No relations: the list loads every vendor in one query; the expense
+    // account picker reads books_accounts itself.
+    const books_vendors = newCollection('books_vendors', {
+        omitOnInsert: ['created', 'updated', 'name_key'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_journal_lines,
@@ -129,5 +137,6 @@ export function registerCollections(
         books_admins,
         books_access,
         books_customers,
+        books_vendors,
     }
 }

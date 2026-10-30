@@ -32,7 +32,7 @@
 //
 // form and fields are the core forms engine's host columns (books:customer).
 //
-// The rule constants repeat 2100000000's: a migration cannot import another.
+// The rule constants repeat 2100000002's: a migration cannot import another.
 const AUTH = '@request.auth.id != "" && @request.auth.disabled != true'
 const ME = '@collection.books_access:me.user ?= @request.auth.id'
 const READ = `${AUTH} && ${ME} && @collection.books_access:me.can_read ?= true`
