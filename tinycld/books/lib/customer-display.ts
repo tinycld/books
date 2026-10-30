@@ -1,4 +1,5 @@
 import type { TreeCustomer } from './customer-tree'
+import { recordTitle } from './record-display'
 
 // The company under the display name, only when it says something the name does not.
 export function companyLine(customer: Pick<TreeCustomer, 'display_name' | 'company'>): string {
@@ -63,18 +64,8 @@ export function customerTitle({
     isSubCustomer: boolean
     canWrite: boolean
 }): string {
-    if (!canWrite) return 'Customer'
-    if (mode === 'edit') return 'Edit customer'
-    return isSubCustomer ? 'New sub-customer' : 'New customer'
+    if (canWrite && mode === 'new' && isSubCustomer) return 'New sub-customer'
+    return recordTitle('customer', { mode, canWrite })
 }
 
-// The footer buttons: a writer gets Cancel and Save (and Save and new on a new
-// customer); a read-only user gets only Close.
-export function customerFooter({ mode, canWrite }: { mode: 'new' | 'edit'; canWrite: boolean }) {
-    return {
-        cancel: canWrite,
-        save: canWrite,
-        saveAndNew: canWrite && mode === 'new',
-        close: !canWrite,
-    }
-}
+export { recordFooter as customerFooter } from './record-display'

@@ -261,7 +261,7 @@ function useCustomerRowMenus(openId: string, canWrite: boolean, navigation: Navi
     const actions = useCustomerActions()
     const isShowingCustomer = useIsShowingCustomer()
     const [deleteTarget, setDeleteTarget] = useState<CustomerRecord | null>(null)
-    const dirtyCustomerId = useCustomerFormStore(s => s.dirtyCustomerId)
+    const dirtyCustomerId = useCustomerFormStore(s => s.dirtyRecordId)
     const targetId = deleteTarget?.id ?? ''
     const isTargetOpen = targetId !== '' && targetId === openId
 

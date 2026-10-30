@@ -26,6 +26,8 @@
 - cp0 reviewer A NOTE: `lib/account-register-fixture.ts:39` and `lib/setup-wizard-fixture.ts:19` keep `'' as BooksSettings['ownership']`; the type now holds `''`, so the casts do nothing. Driver: remove both in checkpoint 1 (books branch), listed under Out-of-plan changes then.
 - cp0 reviewer A NOTE: a select with no `Values` would generate `name:  | ''` (and `z.enum([])`, already invalid before this change); no migration has one.
 - cp1 reviewer A NOTE: `lib/account-register-fixture.ts:38` `SETTINGS` uses `satisfies`, so with the cast gone `typeof SETTINGS` types `ownership` as `''`, not the union; `tests/register-realtime.test.ts:155` types its parameter from it. Tighter, not weaker; tsc passes.
+- cp1 fix review NOTEs: `server/names.go` nameKey comment now has two colons in one sentence and an early line break; the new no-join alias comment in `searchParties` partly repeats the `withParent` branch comment.
+- cp2 reviewer A NOTE: `lib/record-refusals.ts` and `lib/record-save.ts` import each other; the record-refusals → record-save import is type-only (`RefusalForm`, which the checkpoint puts in record-save), so it is safe at runtime.
 
 ## Out-of-plan changes
 - cp1: `tinycld/books/lib/account-register-fixture.ts`, `tinycld/books/lib/setup-wizard-fixture.ts` — removed the `'' as BooksSettings['ownership']` casts and their now-false comments, since core #397 types the field with `''` (cp0 reviewer A NOTE).
@@ -65,6 +67,22 @@
 - fix review: round 1: clean (no BLOCK) · NOTEs to Design notes: nameKey comment has two colons and an early line break; the new no-join alias comment partly repeats the withParent one
 - gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: none
+- commit: 7357429
+- human: n/a (review mode C)
+
+## Checkpoint 2
+- test writer: tests/record-save.test.ts, tests/record-refusals.test.ts, tests/record-display.test.ts; red for the right reason: yes (each `Cannot find module` of its new lib); untestable: none (moved components/hooks guarded by customer e2e, per the checkpoint)
+- implementer: 12 shared parts created (RecordSurface, RecordNotFound, RecordByIdScreen, RecordChild, useRecordForm, useRecordSave, record-save, record-refusals, record-display, record-columns, record-form-store, contact-fields); CustomerSurface renamed to RecordSurface, CustomerNotFound deleted; customer files moved onto them; DONE
+- test disputes: none
+- self-declared differences: useRecordForm return type inferred; useEscapeToLeave takes testIdPrefix (shortcut id + description); customer-only refusal comment stays above customerRefusalHandler; RecordChild doc says the caller holds the form; RecordByIdScreen tests `record !== undefined` (generic R); renderCustomer takes BooksCustomers; CUSTOMER_SAVE_FAILED replaces local CLIENT_SAVE_FAILED; biome --write on 6 own files
+- gate 1: tests unedited: yes · pass (driver: tinycld-pkg check; implementer's customer-form guard 24 passed)
+- gate 2: n/a (nothing new renders)
+- gate 3 A (correctness): no BLOCK; NOTEs: screens/customers/[id].tsx repeats RecordByIdScreen's delete-snapshot doc comment (accepted+fixed: cut to its first line); record-refusals.ts ↔ record-save.ts import each other, the record-refusals side type-only (Design notes)
+- gate 3 B (conformance): no rule broken; NOTE the same repeated doc comment (accepted+fixed)
+- fix review: round 1: clean
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
+- human: n/a (review mode C)
 
 ## Final review
 - eval:
