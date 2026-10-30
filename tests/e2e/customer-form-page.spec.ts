@@ -1,15 +1,24 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
+    boxOf,
     customerIdOf,
+    customersBase,
     DESKTOP,
     field,
+    fieldCellsOutOfOrder,
+    inputKinds,
+    isDisabled,
     isPhone,
+    navigateInApp,
     openCustomer,
     openCustomersList,
     openNewCustomer,
     PHONE,
     searchCustomers,
+    sideBySide,
+    stacked,
+    takesClickAtCenter,
 } from './customer-form-helpers'
 
 // The customer page (the surface below 1360 px) and the layout of the form on it. It
@@ -62,57 +71,7 @@ const ASPEN = 'Aspen Ridge Dental'
 // `z.string().max(200)` with no message of its own).
 const PART_TOO_LONG = 'Too big: expected string to have <=200 characters'
 
-async function boxOf(locator: Locator) {
-    return locator.boundingBox()
-}
-
-// Keys whose field cell starts above the cell before it (a pair may share a top).
-async function cellsOutOfOrder(page: Page) {
-    const tops = await Promise.all(
-        FIELD_ORDER.map(async key => (await boxOf(page.getByTestId(`form-field-${key}`)))?.y ?? -1)
-    )
-    return FIELD_ORDER.filter((_key, i) => tops[i] < 0 || (i > 0 && tops[i] < tops[i - 1]))
-}
-
-async function sideBySide(left: Locator, right: Locator) {
-    const [a, b] = await Promise.all([boxOf(left), boxOf(right)])
-    if (!a || !b) return false
-    return Math.abs(a.y - b.y) < 1 && b.x >= a.x + a.width - 1
-}
-
-async function stacked(upper: Locator, lower: Locator) {
-    const [a, b] = await Promise.all([boxOf(upper), boxOf(lower)])
-    if (!a || !b) return false
-    return b.y >= a.y + a.height - 1
-}
-
-// The type or inputmode the browser gives the input, for its on-screen keyboard.
-function inputKinds(locator: Locator) {
-    return locator.evaluate(el => [el.getAttribute('type'), el.getAttribute('inputmode')])
-}
-
-// True when a click at the element's center reaches the element itself, not a layer above it.
-function takesClickAtCenter(locator: Locator) {
-    return locator.evaluate(el => {
-        const box = el.getBoundingClientRect()
-        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
-        return hit !== null && (hit === el || el.contains(hit))
-    })
-}
-
-// `/a/.../books/customers`, read from the current URL so an org segment is kept.
-function customersBase(page: Page) {
-    const { pathname } = new URL(page.url())
-    return `${pathname.slice(0, pathname.indexOf('/books/'))}/books/customers`
-}
-
-// An in-app navigation (no reload), as a link from outside the list would make.
-async function navigateInApp(page: Page, path: string) {
-    await page.evaluate(url => {
-        window.history.pushState({}, '', url)
-        window.dispatchEvent(new PopStateEvent('popstate'))
-    }, path)
-}
+const cellsOutOfOrder = (page: Page) => fieldCellsOutOfOrder(page, FIELD_ORDER)
 
 function parentOptions(page: Page) {
     return page.locator('[data-testid^="customer-parent-option-"]')
@@ -168,12 +127,6 @@ async function sitsUnder(input: Locator, text: Locator, next: Locator) {
         textBox.x >= inputBox.x - 1 &&
         textBox.x < inputBox.x + inputBox.width &&
         textBox.y + textBox.height <= nextBox.y + 1
-    )
-}
-
-function isDisabled(locator: Locator) {
-    return locator.evaluate(
-        el => el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('disabled')
     )
 }
 

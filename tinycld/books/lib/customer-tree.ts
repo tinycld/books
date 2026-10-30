@@ -1,4 +1,11 @@
 import type { BooksCustomers } from '../types'
+import {
+    comparePartyNames,
+    type PartyListRow,
+    type PartyListViewState,
+    partyListViewState,
+    partyMatches,
+} from './party-list'
 
 export type TreeCustomer = Pick<
     BooksCustomers,
@@ -7,22 +14,9 @@ export type TreeCustomer = Pick<
 
 export type CustomerListRow<T extends TreeCustomer> = { customer: T; depth: 0 | 1 }
 
-export function compareCustomerNames(a: TreeCustomer, b: TreeCustomer): number {
-    const byName = a.display_name.localeCompare(b.display_name, undefined, {
-        sensitivity: 'base',
-    })
-    if (byName !== 0) return byName
-    if (a.id === b.id) return 0
-    return a.id < b.id ? -1 : 1
-}
+export const compareCustomerNames = comparePartyNames
 
-export function customerMatches(customer: TreeCustomer, query: string): boolean {
-    const term = query.trim().toLowerCase()
-    if (term === '') return true
-    const fields = [customer.display_name, customer.company, customer.email, customer.phone]
-    // A row can arrive without company, email or phone; searching must not throw on it.
-    return fields.some(value => (value ?? '').toLowerCase().includes(term))
-}
+export const customerMatches = partyMatches
 
 // Top-level customers sorted by name, each followed by its sub-customers. A search
 // keeps a parent that matches or has a matching sub-customer, and under it only the
@@ -58,16 +52,19 @@ export function customerRows<T extends TreeCustomer>(
     return rows
 }
 
-export type CustomerListViewState =
-    | 'loading'
-    | 'error'
-    | 'empty'
-    | 'no-match'
-    | 'all-inactive'
-    | 'ready'
+// The customer tree in the shared list's row shape.
+export function customerPartyRows<T extends TreeCustomer>(
+    customers: readonly T[],
+    filters: { query: string; showInactive: boolean }
+): PartyListRow<T>[] {
+    return customerRows(customers, filters).map(row => ({
+        party: row.customer,
+        depth: row.depth,
+    }))
+}
 
-// 'all-inactive' is only the default view hiding every customer: a search that finds
-// nothing is 'no-match' whatever the inactive filter.
+export type CustomerListViewState = PartyListViewState
+
 export function customerListViewState(input: {
     isReady: boolean
     isError: boolean
@@ -76,14 +73,7 @@ export function customerListViewState(input: {
     query: string
     showInactive: boolean
 }): CustomerListViewState {
-    if (input.isError) return 'error'
-    if (!input.isReady) return 'loading'
-    if (input.customers.length === 0) return 'empty'
-    if (input.rowCount > 0) return 'ready'
-    const hidesOnlyInactive =
-        input.query.trim() === '' && !input.showInactive && input.customers.every(c => c.inactive)
-    if (hidesOnlyInactive) return 'all-inactive'
-    return 'no-match'
+    return partyListViewState({ ...input, records: input.customers })
 }
 
 // The parent picker shows this many customers at a time.
