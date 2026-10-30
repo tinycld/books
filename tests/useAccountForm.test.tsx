@@ -2,8 +2,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { notify } from '@tinycld/core/lib/notify/dispatcher'
-import { type UseFormReturn, useForm } from '@tinycld/core/ui/form'
+import { useForm } from '@tinycld/core/ui/form'
 import type { ReactNode } from 'react'
+import type { UseFormReturn } from 'react-hook-form'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAccountForm } from '../tinycld/books/hooks/useAccountForm'
 import { useBooksAccess } from '../tinycld/books/hooks/useBooksAccess'
@@ -85,7 +86,8 @@ const newAccount = {
     detail_type: 'cash_on_hand',
 } as const
 
-const blankNew: PanelTarget = { mode: 'new', parentId: '' }
+// The store numbers its own opens from 1, so seq 0 never collides with one.
+const blankNew: PanelTarget = { mode: 'new', parentId: '', seq: 0 }
 
 beforeEach(() => {
     seedBooks()
@@ -106,7 +108,7 @@ describe('useAccountForm defaults', () => {
     })
 
     it('pre-fills parent and type from the parent of a new sub-account', () => {
-        const { result } = renderForm({ mode: 'new', parentId: 'acct_bank_0001' })
+        const { result } = renderForm({ mode: 'new', parentId: 'acct_bank_0001', seq: 0 })
         expect(result.current.form.getValues()).toMatchObject({
             parent: 'acct_bank_0001',
             type: 'bank',
@@ -115,7 +117,7 @@ describe('useAccountForm defaults', () => {
     })
 
     it('resets the form to row B when the edit target changes from row A to row B', async () => {
-        const rendered = renderForm({ mode: 'edit', id: 'acct_bank_0002' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_bank_0002', seq: 0 })
         expect(rendered.result.current.isEditing).toBe(true)
         expect(rendered.result.current.form.getValues()).toMatchObject({
             name: 'Operating checking',
@@ -125,7 +127,7 @@ describe('useAccountForm defaults', () => {
             parent: 'acct_bank_0001',
         })
 
-        rendered.rerender({ target: { mode: 'edit', id: 'acct_ar_00001' } })
+        rendered.rerender({ target: { mode: 'edit', id: 'acct_ar_00001', seq: 0 } })
 
         await waitFor(() =>
             expect(rendered.result.current.form.getValues()).toMatchObject({
@@ -164,7 +166,7 @@ describe('useAccountForm options', () => {
     })
 
     it('excludes the edited account and its descendants from parentOptions', () => {
-        const rendered = renderForm({ mode: 'edit', id: 'acct_fa_00002' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_fa_00002', seq: 0 })
         const ids = rendered.result.current.parentOptions.map(a => a.id)
 
         const expected = parentChoices(rows, { type: 'fixed_asset', editingId: 'acct_fa_00002' })
@@ -188,7 +190,7 @@ describe('useAccountForm type lock', () => {
         // The fixture must tell "all sub-accounts" from "active sub-accounts".
         expect(children).toBeGreaterThan(activeChildCount(rows, id))
 
-        const { result } = renderForm({ mode: 'edit', id })
+        const { result } = renderForm({ mode: 'edit', id, seq: 0 })
 
         await waitFor(() =>
             expect(result.current.typeLockReason).toBe(typeLockMessage({ lines: 0, children }))
@@ -197,7 +199,7 @@ describe('useAccountForm type lock', () => {
 
     it('gives the line message with the count for an edited account with journal lines', async () => {
         seedBooks({ linesOn: { acct_oca_0001: 4 } })
-        const { result } = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const { result } = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
 
         await waitFor(() =>
             expect(result.current.typeLockReason).toBe(typeLockMessage({ lines: 4, children: 0 }))
@@ -209,7 +211,7 @@ describe('useAccountForm type lock', () => {
 describe('useAccountForm save', () => {
     it('is read-only for a read-only user and save writes nothing', async () => {
         seedBooks({ level: 'read_only' })
-        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await ready(rendered)
         const before = JSON.stringify(storedAccounts())
         const insert = vi.spyOn(accountsStore(), 'insert')
@@ -255,7 +257,7 @@ describe('useAccountForm save', () => {
     })
 
     it('calls update with only the form fields for an edit target', async () => {
-        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await ready(rendered)
         const update = vi.spyOn(accountsStore(), 'update')
         fill(rendered, { name: 'Renamed funds' })
@@ -295,7 +297,7 @@ describe('useAccountForm edit seeding', () => {
     it('keeps typed values when the rows re-render with a changed description', async () => {
         const rendered = renderHook(
             ({ accounts }: { accounts: typeof rows }) =>
-                useAccountForm({ mode: 'edit', id: 'acct_oca_0001' }, accounts, true),
+                useAccountForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 }, accounts, true),
             { wrapper, initialProps: { accounts: rows } }
         )
         act(() => rendered.result.current.form.setValue('name', 'Typed name'))
@@ -311,7 +313,7 @@ describe('useAccountForm edit seeding', () => {
 
     it('keeps the typed values and sets the field error when the server refuses an edit', async () => {
         seedBooks({ refusal: serverRefusal('number', 'Another account already uses number 1010.') })
-        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await ready(rendered)
         fill(rendered, { name: 'Typed name', number: '1010' })
 
@@ -334,14 +336,14 @@ describe('useAccountForm edit seeding', () => {
 describe('useAccountForm type lock while usage loads', () => {
     it('exposes typeLocked true while the usage query is not ready for an edit target', async () => {
         seedBooks({ linesNeverReady: true })
-        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await ready(rendered)
         await tick()
         expect(rendered.result.current.typeLocked).toBe(true)
     })
 
     it('exposes typeLocked false for an unused account once usage is ready, and for a new target', async () => {
-        const edit = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const edit = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(edit.result.current.typeLocked).toBe(false))
         const created = renderForm(blankNew)
         expect(created.result.current.typeLocked).toBe(false)
@@ -349,7 +351,7 @@ describe('useAccountForm type lock while usage loads', () => {
 
     it('exposes typeLocked true for an account with journal lines', async () => {
         seedBooks({ linesOn: { acct_oca_0001: 2 } })
-        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await waitFor(() => expect(rendered.result.current.typeLocked).toBe(true))
     })
 })
@@ -465,7 +467,7 @@ describe('useAccountForm save completion', () => {
     })
 
     it('sends no currency, and only form fields, in the update draft', async () => {
-        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001' })
+        const rendered = renderForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 })
         await ready(rendered)
         const store = accountsStore()
         const original = store.update.bind(store) as (
@@ -536,7 +538,7 @@ describe('useAccountForm after a refused save', () => {
     })
 
     it('keeps the parent and the type, and blanks the rest, after saveAndNew for a new sub-account', async () => {
-        const rendered = renderForm({ mode: 'new', parentId: 'acct_bank_0001' })
+        const rendered = renderForm({ mode: 'new', parentId: 'acct_bank_0001', seq: 0 })
         await ready(rendered)
         fill(rendered, { name: 'Petty cash', detail_type: 'cash_on_hand' })
 
@@ -557,8 +559,8 @@ describe('useAccountForm after a refused save', () => {
 
 describe('useAccountForm save in flight while the target changes', () => {
     it('leaves the store target alone when the write of the old target completes', async () => {
-        const first: PanelTarget = { mode: 'edit', id: 'acct_oca_0001' }
-        const second: PanelTarget = { mode: 'edit', id: 'acct_bank_0002' }
+        const first: PanelTarget = { mode: 'edit', id: 'acct_oca_0001', seq: 0 }
+        const second: PanelTarget = { mode: 'edit', id: 'acct_bank_0002', seq: 0 }
         act(() => useAccountsPanelStore.setState({ target: first }))
         const rendered = renderForm(first)
         await ready(rendered)
@@ -602,7 +604,7 @@ describe('useAccountForm retarget detection by object identity', () => {
 
     it('does not close or reset anything when a save succeeds after the panel was closed', async () => {
         const close = closeSpy()
-        const t1: PanelTarget = { mode: 'new', parentId: '' }
+        const t1: PanelTarget = { mode: 'new', parentId: '', seq: 0 }
         openStore(t1)
         const rendered = renderForm(t1)
         await ready(rendered)
@@ -625,7 +627,7 @@ describe('useAccountForm retarget detection by object identity', () => {
     })
 
     it('does not reset the form when a saveAndNew succeeds after the panel was closed', async () => {
-        const t1: PanelTarget = { mode: 'new', parentId: '' }
+        const t1: PanelTarget = { mode: 'new', parentId: '', seq: 0 }
         openStore(t1)
         const rendered = renderForm(t1)
         await ready(rendered)
@@ -649,7 +651,7 @@ describe('useAccountForm retarget detection by object identity', () => {
     it('sends a refusal to notify, not to the dead form, when the panel was closed during the save', async () => {
         const emit = vi.spyOn(notify, 'emit').mockImplementation(() => {})
         seedBooks({ refusal: serverRefusal('number', 'Another account already uses number 1005.') })
-        const t1: PanelTarget = { mode: 'new', parentId: '' }
+        const t1: PanelTarget = { mode: 'new', parentId: '', seq: 0 }
         openStore(t1)
         const rendered = renderForm(t1)
         await ready(rendered)
@@ -676,7 +678,7 @@ describe('useAccountForm retarget detection by object identity', () => {
         'save',
         'saveAndNew',
     ] as const)('leaves the fresh panel open and its form untouched when %s completes after Cancel and a new New account', async method => {
-        const t1: PanelTarget = { mode: 'new', parentId: '' }
+        const t1: PanelTarget = { mode: 'new', parentId: '', seq: 0 }
         openStore(t1)
         const rendered = renderForm(t1)
         await ready(rendered)
@@ -688,8 +690,8 @@ describe('useAccountForm retarget detection by object identity', () => {
         })
         await tick(30)
 
-        // Same key as t1, but a new object: this is a different panel.
-        const t2: PanelTarget = { mode: 'new', parentId: '' }
+        // Same key and seq as t1, but a new object: this is a different panel.
+        const t2: PanelTarget = { mode: 'new', parentId: '', seq: 0 }
         act(() => useAccountsPanelStore.setState({ target: null }))
         openStore(t2)
         rendered.rerender({ target: t2 })
@@ -712,7 +714,7 @@ describe('useAccountForm when the edited row is gone', () => {
                 const access = useBooksAccess()
                 return {
                     access,
-                    ...useAccountForm({ mode: 'edit', id: 'acct_oca_0001' }, without, true),
+                    ...useAccountForm({ mode: 'edit', id: 'acct_oca_0001', seq: 0 }, without, true),
                 }
             },
             { wrapper }
@@ -774,7 +776,7 @@ describe('useAccountForm root error clearing', () => {
 })
 
 describe('useAccountForm isMissing while the accounts query loads', () => {
-    const target: PanelTarget = { mode: 'edit', id: 'acct_oca_0001' }
+    const target: PanelTarget = { mode: 'edit', id: 'acct_oca_0001', seq: 0 }
 
     function renderMissing(initial: { accounts: typeof rows; isReady: boolean }) {
         return renderHook(

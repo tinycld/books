@@ -1,20 +1,6 @@
 import { z } from '@tinycld/core/ui/form'
-import type { AddressPart } from './address'
-
-// A stored address has exactly the six parts, each a string. Only the shape is checked
-// here. The 200-character limit belongs to the server, which refuses a longer part on
-// the address field with its own message, and to the address inputs' local schemas
-// (lib/host-value-schemas.ts), which show the length error under the part.
-const address = z.strictObject({
-    line1: z.string(),
-    line2: z.string(),
-    city: z.string(),
-    region: z.string(),
-    postal_code: z.string(),
-    country: z.string(),
-} satisfies Record<AddressPart, z.ZodString>)
-
-const text = z.string().optional()
+import { storedAddressSchema } from './address'
+import { type ColumnsParse, optionalText, parseColumns } from './record-columns'
 
 /**
  * The built-in customer columns the form writes. Every key is optional: core
@@ -22,28 +8,26 @@ const text = z.string().optional()
  * the dirty keys. Strict, so a column the customer does not have is refused.
  */
 export const customerColumnsSchema = z.strictObject({
-    display_name: text,
-    company: text,
-    first_name: text,
-    last_name: text,
-    email: text,
-    phone: text,
-    mobile: text,
-    website: text,
-    parent: text,
-    billing_address: address.nullable().optional(),
-    shipping_address: address.nullable().optional(),
-    notes: text,
+    display_name: optionalText,
+    company: optionalText,
+    first_name: optionalText,
+    last_name: optionalText,
+    email: optionalText,
+    phone: optionalText,
+    mobile: optionalText,
+    website: optionalText,
+    parent: optionalText,
+    billing_address: storedAddressSchema.nullable().optional(),
+    shipping_address: storedAddressSchema.nullable().optional(),
+    notes: optionalText,
 })
 
 export type CustomerColumns = z.infer<typeof customerColumnsSchema>
 
 export function customerColumnsFrom(
     columns: Record<string, unknown>
-): { success: true; columns: CustomerColumns } | { success: false; error: z.ZodError } {
-    const parsed = customerColumnsSchema.safeParse(columns)
-    if (!parsed.success) return { success: false, error: parsed.error }
-    return { success: true, columns: parsed.data }
+): ColumnsParse<CustomerColumns> {
+    return parseColumns(customerColumnsSchema, columns)
 }
 
 // Every form field of a new customer, empty. The create form starts from these: a field

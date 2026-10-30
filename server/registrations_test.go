@@ -122,6 +122,21 @@ func TestAudit_LabelsACustomerByDisplayName(t *testing.T) {
 	}
 }
 
+// A vendor's audit row names it as people know it: by its display name.
+func TestAudit_LabelsAVendorByDisplayName(t *testing.T) {
+	app := newBooksApp(t)
+	config, ok := auditedCollections(app)["books_vendors"]
+	if !ok {
+		t.Fatal("books_vendors is not audited")
+	}
+	vendor := saveRecord(t, app, "books_vendors", map[string]any{
+		"display_name": "Office Supply World", "company": "Office Supply World Inc.",
+	})
+	if got, want := config.ExtractLabel(vendor), "Office Supply World"; got != want {
+		t.Errorf("vendor label = %q, want %q", got, want)
+	}
+}
+
 // waitFor polls an asynchronous write: core writes audit rows off the request
 // goroutine, so a row lands just after the response.
 func waitFor(t testing.TB, done func() bool) {
@@ -159,7 +174,7 @@ func TestAudit_LogsAnAccountCreate(t *testing.T) {
 func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
-	for _, c := range []string{"books_accounts", "books_journal_entries", "books_journal_lines", "books_customers"} {
+	for _, c := range []string{"books_accounts", "books_journal_entries", "books_journal_lines", "books_customers", "books_vendors"} {
 		path := "/api/collections/" + c + "/records"
 		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
 			t.Errorf("GET %s: books:read must read", path)

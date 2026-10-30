@@ -23,6 +23,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
 		"books_accounts":        {ExtractLabel: accountLabel},
 		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name")},
+		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name")},
 		"books_journal_entries": {ExtractLabel: entryLabel},
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},
 		"books_settings":        {ExtractLabel: func(*core.Record) string { return "Books settings" }},

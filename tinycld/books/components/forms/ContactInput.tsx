@@ -12,12 +12,14 @@ interface ContactInputProps {
     keyboardType: KeyboardTypeOptions
     autoComplete: TextInputProps['autoComplete']
     maxLength?: number
+    hint?: string
 }
 
 /**
- * Email, phone and website: a text input with the keyboard native shows for the kind.
+ * Email, phone, website and account number: a text input with the keyboard native shows for the kind.
  * The core cell draws the label and the field's one error, so a local length error
- * only colours the border, and `maxLength` stops typing past the server's limit.
+ * only colours the border, and `maxLength` stops typing past the server's limit. A
+ * `hint` shows under the input while it has no local error.
  */
 export function ContactInput({
     fieldKey,
@@ -28,6 +30,7 @@ export function ContactInput({
     keyboardType,
     autoComplete,
     maxLength,
+    hint,
 }: ContactInputProps) {
     const form = useHostValueForm(contactValueSchema(maxLength), {
         text: typeof value === 'string' ? value : '',
@@ -37,6 +40,7 @@ export function ContactInput({
             name="text"
             control={form.control}
             hideError
+            hint={hint}
             maxLength={maxLength}
             testID={`form-input-${fieldKey}`}
             accessibilityLabel={label}

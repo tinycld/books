@@ -12,3 +12,5 @@ To write and review entries, which you open from the sidebar, see [Journal entri
 To run a report, choose Reports in the sidebar; see [Reports](help://books:reports).
 
 To keep the people and companies you sell to, see [Customers](help://books:customers).
+
+To keep the people and companies you buy from, see [Vendors](help://books:vendors).

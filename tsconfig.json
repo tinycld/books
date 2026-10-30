@@ -1,10 +1,12 @@
 {
     "extends": "@tinycld/core/tsconfig.package-base.json",
     "compilerOptions": {
+        // Playwright specs import core's e2e-helpers, which import with a `.ts` extension.
+        "allowImportingTsExtensions": true,
         "paths": {
             "~/tinycld/books/*": ["./tinycld/books/*"]
         }
     },
-    "include": ["tinycld/**/*.ts", "tinycld/**/*.tsx"],
-    "exclude": ["node_modules", "server", "pb-migrations", "tests/**/*.spec.ts"]
+    "include": ["tinycld/**/*.ts", "tinycld/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
+    "exclude": ["node_modules", "server", "pb-migrations"]
 }

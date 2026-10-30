@@ -1,17 +1,28 @@
-import { expect, type Locator, type Page, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
+    backgroundOf,
     createCustomer,
     customerEntry,
+    customerHelpers,
     customerIdOf,
     DESKTOP,
     discardDialog,
+    edges,
     field,
     holdRecordWrite,
+    leftEdgeOf,
+    listSpansContent,
     openCustomersList,
+    panelPlacement,
+    pressEscapeOutsideInputs,
     searchCustomers,
+    seenNotFoundOrDiscard,
+    settle,
+    stacked,
     uniqueName,
     WIDE,
+    watchForNotFoundAndDiscard,
 } from './customer-form-helpers'
 
 // The customer side panel: at a window of 1360 px or more a customer opens in a 480 px
@@ -30,149 +41,15 @@ import {
 // a page is open. Native animation and swipe are not run. A read-only user cannot be
 // driven, because the seed has no read-only Books member.
 
-const PANEL_WIDTH = 480
 const PANEL_HEADER_HEIGHT = 52
 const OLD_MILL = 'Old Mill Bakery'
 
-function boxOf(locator: Locator) {
-    return locator.boundingBox()
-}
-
-// The content area, with the Books sidebar open: from the right edge of the sidebar to
-// the right edge of the window. A collapsed sidebar keeps its content laid out inside a
-// zero-width box, so its edge is read only while it is open.
-async function contentArea(page: Page) {
-    const sidebar = await boxOf(page.getByTestId('package-sidebar-mounted'))
-    const width = page.viewportSize()?.width ?? WIDE.width
-    if (!sidebar) return null
-    return { left: sidebar.x + sidebar.width, right: width }
-}
-
-async function leftEdgeOf(locator: Locator) {
-    return (await edges(locator))?.left ?? Number.NaN
-}
-
-// Edges rounded to whole pixels, for a stable comparison.
-async function edges(locator: Locator) {
-    const box = await boxOf(locator)
-    if (!box) return null
-    return {
-        left: Math.round(box.x),
-        right: Math.round(box.x + box.width),
-        top: Math.round(box.y),
-        width: Math.round(box.width),
-        height: Math.round(box.height),
-    }
-}
-
-// The panel's width and where it sits against the content area and the list.
-async function panelPlacement(page: Page) {
-    const [panel, list, content] = await Promise.all([
-        edges(page.getByTestId('customer-panel')),
-        edges(page.getByTestId('customers-list')),
-        contentArea(page),
-    ])
-    if (!panel || !list || !content) return null
-    return {
-        widthIs480: Math.abs(panel.width - PANEL_WIDTH) <= 1,
-        atContentRight: Math.abs(panel.right - content.right) <= 1,
-        listToItsLeft: list.right <= panel.left + 1 && list.width > 0,
-    }
-}
-
-// True when the list fills the content area from edge to edge.
-async function listSpansContent(page: Page) {
-    const [list, content] = await Promise.all([
-        edges(page.getByTestId('customers-list')),
-        contentArea(page),
-    ])
-    if (!list || !content) return false
-    return Math.abs(list.left - content.left) <= 1 && Math.abs(list.right - content.right) <= 1
-}
-
-// True when `lower` starts below the bottom of `upper` (they do not share a top).
-async function stacked(upper: Locator, lower: Locator) {
-    const [a, b] = await Promise.all([boxOf(upper), boxOf(lower)])
-    if (!a || !b) return false
-    return b.y >= a.y + a.height - 1
-}
-
-// City, State or region and Postal code share a top, and none runs into the next or past
-// the address block (the core `min-w-0` fix on TextInput).
-async function cityLineFits(page: Page) {
-    const part = (name: string) => boxOf(page.getByTestId(`form-input-billing_address-${name}`))
-    const [city, region, postal, block] = await Promise.all([
-        part('city'),
-        part('region'),
-        part('postal_code'),
-        boxOf(page.getByTestId('address-billing_address')),
-    ])
-    if (!city || !region || !postal || !block) return null
-    return {
-        shareTop: Math.abs(city.y - region.y) < 1 && Math.abs(region.y - postal.y) < 1,
-        cityBeforeRegion: city.x + city.width <= region.x + 0.5,
-        regionBeforePostal: region.x + region.width <= postal.x + 0.5,
-        postalInsideBlock: postal.x + postal.width <= block.x + block.width + 0.5,
-    }
-}
-
-function backgroundOf(locator: Locator) {
-    return locator.evaluate(el => getComputedStyle(el).backgroundColor)
-}
-
-// A click on the title moves focus off any input: react-native-web's TextInput stops
-// every keydown from reaching the window, where the Escape shortcut listens.
-async function pressEscapeOutsideInputs(page: Page) {
-    await page.getByTestId('customer-title').click()
-    await page.keyboard.press('Escape')
-}
+const cityLineFits = (page: Page) => customerHelpers.cityLineFits(page, 'billing_address')
 
 const UNSAVED_DELETE_WARNING = 'Unsaved changes to this customer will be lost.'
 const DELETE_REFUSAL = 'This customer is used on an invoice.'
 
-// From now on, records whether the not-found message or the Discard changes? question
-// ever appears, even for one frame.
-function watchForNotFoundAndDiscard(page: Page) {
-    return page.evaluate(() => {
-        const seen = { notFound: false, discard: false }
-        new MutationObserver(() => {
-            if (document.querySelector('[data-testid="customer-not-found"]')) seen.notFound = true
-            if (document.body.textContent?.includes('Discard changes?')) seen.discard = true
-        }).observe(document.body, {
-            subtree: true,
-            childList: true,
-            attributes: true,
-            characterData: true,
-        })
-        Object.assign(window, { __customerSeen: seen })
-    })
-}
-
-// To the Books Lists hub with the `t k` jump, the way out while a dialog's backdrop takes
-// the pointer off the sidebar, and waits until the hub shows.
-async function jumpToBooksLists(page: Page) {
-    await page.keyboard.press('t')
-    await page.keyboard.press('k')
-    await expect(page).toHaveURL(/\/books\/lists$/)
-    await expect(page.getByTestId('books-list-card-customers')).toBeVisible()
-}
-
-// Two frames and a task in the page, so work queued by a response that just arrived (a
-// mutation's onSuccess and any navigation it starts) has run.
-function settle(page: Page) {
-    return page.evaluate(
-        () =>
-            new Promise<void>(resolve =>
-                requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve)))
-            )
-    )
-}
-
-function seenNotFoundOrDiscard(page: Page) {
-    return page.evaluate(
-        () => (window as unknown as { __customerSeen: Record<string, boolean> }).__customerSeen
-    )
-}
+const jumpToBooksLists = customerHelpers.jumpToLists
 
 test.describe('customer-form: side panel', () => {
     test('opens customers beside the list and survives a resize', async ({ page }) => {

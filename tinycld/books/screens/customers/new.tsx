@@ -2,7 +2,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { useLocalSearchParams } from 'expo-router'
 import { CustomerChild } from '../../components/customers/CustomerChild'
-import { CustomerLoadingBody, CustomerSurface } from '../../components/customers/CustomerSurface'
+import { RecordLoadingBody, RecordSurface } from '../../components/RecordSurface'
 import { useCustomerNavigation } from '../../hooks/useCustomerNavigation'
 import { useDetailSurface } from '../../hooks/useDetailSurface'
 import { usableParentId } from '../../lib/customer-tree'
@@ -22,13 +22,15 @@ export default function NewCustomerScreen() {
         return <CustomerChild target={{ mode: 'new', parentId: usableParentId(record) }} />
     }
     return (
-        <CustomerSurface
+        <RecordSurface
             surface={surface}
+            testIdPrefix="customer"
+            backLabel="Customers"
             title="New customer"
             onLeave={navigation.leave}
             footer={null}
         >
-            <CustomerLoadingBody />
-        </CustomerSurface>
+            <RecordLoadingBody testIdPrefix="customer" />
+        </RecordSurface>
     )
 }

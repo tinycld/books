@@ -35,13 +35,17 @@ describe('accountOptionList', () => {
         expect(options.map(o => o.value)).toEqual(['a', 'b', 'c'])
     })
 
-    it('indents two spaces per depth level below top', () => {
+    it('labels each account number name and indents it one level per depth below top', () => {
         const { options } = accountOptionList([
             row({ id: 'p', number: '1000', name: 'Top' }),
             row({ id: 'c', number: '1010', name: 'Mid', parent: 'p' }),
             row({ id: 'g', number: '1011', name: 'Low', parent: 'c' }),
         ])
-        expect(options.map(o => o.label)).toEqual(['1000 Top', '  1010 Mid', '    1011 Low'])
+        expect(options).toEqual([
+            { value: 'p', label: '1000 Top', indent: 0 },
+            { value: 'c', label: '1010 Mid', indent: 1 },
+            { value: 'g', label: '1011 Low', indent: 2 },
+        ])
     })
 
     it('names every account, including inactive ones', () => {

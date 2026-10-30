@@ -1,6 +1,8 @@
 import type PocketBase from 'pocketbase'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
+import { SEED_ACCOUNTS } from './lib/seed-accounts'
+import { VENDORS } from './lib/vendor-form-fixture'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
 // the seeded user. Entries are posted through the same update the app makes,
@@ -10,76 +12,6 @@ import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 interface SeedContext {
     user: { id: string; email: string; name: string }
 }
-
-interface SeedAccount {
-    key: string
-    name: string
-    number: string
-    type: string
-    detail_type: string
-    parent?: string
-}
-
-const ACCOUNTS: SeedAccount[] = [
-    {
-        key: 'checking',
-        name: 'Business Checking',
-        number: '1000',
-        type: 'bank',
-        detail_type: 'checking',
-    },
-    {
-        key: 'receivable',
-        name: 'Accounts receivable',
-        number: '1100',
-        type: 'accounts_receivable',
-        detail_type: 'accounts_receivable',
-    },
-    {
-        key: 'equipment',
-        name: 'Office Equipment',
-        number: '1500',
-        type: 'fixed_asset',
-        detail_type: 'machinery_equipment',
-    },
-    {
-        key: 'card',
-        name: 'Company Card',
-        number: '2100',
-        type: 'credit_card',
-        detail_type: 'credit_card',
-    },
-    {
-        key: 'equity',
-        name: "Owner's Equity",
-        number: '3000',
-        type: 'equity',
-        detail_type: 'owners_equity',
-    },
-    {
-        key: 'consulting',
-        name: 'Consulting Income',
-        number: '4000',
-        type: 'income',
-        detail_type: 'service_income',
-    },
-    { key: 'rent', name: 'Rent', number: '6100', type: 'expense', detail_type: 'rent_lease' },
-    {
-        key: 'software',
-        name: 'Software Subscriptions',
-        number: '6200',
-        type: 'expense',
-        detail_type: 'dues_subscriptions',
-    },
-    {
-        key: 'design-tools',
-        name: 'Design Tools',
-        number: '6210',
-        type: 'expense',
-        detail_type: 'dues_subscriptions',
-        parent: 'software',
-    },
-]
 
 // [account key, debit, credit] in cents
 type SeedLine = [string, number, number]
@@ -157,7 +89,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // The settings row keeps setup_started and setup_completed false, so the seeded book (which already has accounts) shows the wizard's populated-book path.
     const year = new Date().getFullYear()
     const ids = new Map<string, string>()
-    for (const account of ACCOUNTS) {
+    const accountIds = new Map<string, string>()
+    for (const account of SEED_ACCOUNTS) {
         const created = await pb.collection('books_accounts').create({
             name: account.name,
             number: account.number,
@@ -166,16 +99,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
             parent: account.parent ? ids.get(account.parent) : '',
         })
         ids.set(account.key, created.id)
+        accountIds.set(account.number, created.id)
     }
-    // Created active, then deactivated, because the app makes an account inactive by updating it.
-    const petty = await pb.collection('books_accounts').create({
-        name: 'Old Petty Cash',
-        number: '6900',
-        type: 'other_expense',
-        detail_type: 'other_misc_expense',
-        parent: '',
-    })
-    await pb.collection('books_accounts').update(petty.id, { inactive: true })
     // The server ships an empty prefix; the list shows numbers as "JE-n", so every seeded post takes it.
     await pb.collection('books_doc_sequences').update('booksseqjournal', { prefix: 'JE-' })
     for (const entry of ENTRIES) {
@@ -205,37 +130,64 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedRegisterEntries(pb, ctx, ids)
     await seedJournalEntries(pb, ctx, ids)
     await seedCustomers(pb)
+    await seedVendors(pb, accountIds)
+    // Created active and deactivated last, because the app makes an account
+    // inactive by updating it, and the vendor guard refuses a vendor that
+    // names an inactive account when it is saved.
+    for (const account of SEED_ACCOUNTS.filter(a => a.inactive)) {
+        const id = ids.get(account.key)
+        if (id === undefined) throw new Error(`seed: account ${account.key} was not created`)
+        await pb.collection('books_accounts').update(id, { inactive: true })
+    }
+}
+
+// The columns a seed sends: form, fields and the autodates are the server's.
+export function seedValues<
+    Row extends { form: string; fields: unknown; created: string; updated: string },
+>(row: Row): Omit<Row, 'form' | 'fields' | 'created' | 'updated'> {
+    const { form: _form, fields: _fields, created: _created, updated: _updated, ...values } = row
+    return values
 }
 
 // Top-level customers first, so each sub-customer's parent exists when it is
 // created. The fixture ids hold `_`, which a PocketBase id refuses, so the
 // server assigns ids and `parent` is mapped from fixture id to created id.
-// form, fields and the autodates are left to the server. A fixture row has no
-// name_key (CustomerFixtureRecord omits it), so the seed never sends one: the
-// server's guard sets it.
+// A fixture row has no name_key (CustomerFixtureRecord omits it), so the seed
+// never sends one: the server's guard sets it.
 export async function seedCustomers(pb: PocketBase): Promise<void> {
     const ids = new Map<string, string>()
     const topLevelFirst = [
         ...CUSTOMERS.filter(c => c.parent === ''),
         ...CUSTOMERS.filter(c => c.parent !== ''),
     ]
-    for (const {
-        id,
-        parent,
-        form: _form,
-        fields: _fields,
-        created: _created,
-        updated: _updated,
-        ...values
-    } of topLevelFirst) {
+    for (const { id, parent, ...row } of topLevelFirst) {
         const parentId = parent ? ids.get(parent) : ''
         if (parentId === undefined) {
             throw new Error(`seed: the parent ${parent} of customer ${id} was not created first`)
         }
         const created = await pb
             .collection('books_customers')
-            .create({ ...values, parent: parentId })
+            .create({ ...seedValues(row), parent: parentId })
         ids.set(id, created.id)
+    }
+}
+
+// The fixture ids are valid PocketBase ids, so the seed sends them. A fixture
+// row names its default expense account by number; `accountIds` maps the
+// number to the created account's id. A number with no account is a fixture
+// bug, so it throws before the create.
+export async function seedVendors(pb: PocketBase, accountIds: Map<string, string>): Promise<void> {
+    for (const vendor of VENDORS) {
+        const { expense_account_number: number, ...row } = vendor
+        const accountId = number ? accountIds.get(number) : ''
+        if (accountId === undefined) {
+            throw new Error(
+                `seed: vendor ${vendor.id} names account ${number}, which was not created`
+            )
+        }
+        await pb
+            .collection('books_vendors')
+            .create({ ...seedValues(row), expense_account: accountId })
     }
 }
 

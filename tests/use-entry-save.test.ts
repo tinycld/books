@@ -418,10 +418,9 @@ describe('useEntrySave: post while a draft save is in flight', () => {
             post = hook.result.current.post(form)
         })
         release()
-        let outcome: PromiseSettledResult<string> = { status: 'rejected', reason: null }
-        await act(async () => {
+        const [outcome] = await act(async () => {
             await draft
-            outcome = (await Promise.allSettled([post]))[0]
+            return Promise.allSettled([post])
         })
 
         // A post may wait for the draft and then post, or be refused; it must not resolve as if
