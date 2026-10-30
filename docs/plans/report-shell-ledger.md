@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/report-shell-checkpoints.md
 - reference: docs/plans/report-shell-reference/
 - evidence: docs/plans/report-shell-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs, 2026-10-29)
 - capture manifest: docs/plans/report-shell-capture.json
 - review mode: C — none (unattended)
 - core extension: tinycld PR #381 (DateField calendar width, found at the eval gate; merged by the human); tinycld PR #380 (useRecord queryKey, merged eaf01844); tinycld PR #379 (branch books/p5-report-shell) — checkpoint 0, recoverLiveQueries fix (human decision 2026-10-26, option 1)
@@ -178,4 +178,5 @@
 
 ## Final review
 - eval: revised (2026-10-26) → (1) the As-of DateField's calendar spans nearly the whole window from inside the period popover; it needs a bounded width; (2) open the period popover, navigate away from Reports and back → two period popovers render (the surface lives in the Zustand UI store, and the stacked earlier screen instance still renders it). Fix sha: f377e75.
+- eval: approved (2026-10-29) after revise fix f377e75.
 - native: not executed in this run
