@@ -92,6 +92,17 @@ describe('registries', () => {
             available: true,
         })
     })
+
+    it('LIST_ENTRIES has an available Vendors card', () => {
+        const vendors = LIST_ENTRIES.find(e => e.id === 'vendors')
+        expect(vendors).toEqual({
+            id: 'vendors',
+            label: 'Vendors',
+            description: 'People and companies you buy from',
+            href: 'books/vendors',
+            available: true,
+        })
+    })
 })
 
 describe('settings sidebar entry', () => {

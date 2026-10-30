@@ -36,6 +36,10 @@
 - cp3 fix review NOTE: `DeleteCustomerDialog` `linesOf` now drops a line with an empty display name too (the old dialog showed the name with no condition); the server requires a display name, so no user reaches it.
 - cp4 reviewer B: `CUSTOMER_ROW_HEIGHT` and `isShownLine` (customer-display re-exports) are read only by the git-excluded scratch route; when finish.mjs deletes it they have no importer.
 - cp5 implementer: the git-excluded scratch route reads `FIXTURE_ACCOUNTS[].parent` as an `a<number>` id, but it is now an account key, so Design Tools loses its indent in the mockup only (the route is deleted before the PR).
+- cp7 reviewer A NOTE: `useVendorsQuery` returns `query.data ?? []`, a new array each render before the query is ready, so the `useRecordList` memo reruns; customers do the same and the cost is small.
+- cp7 reviewer B: the merged customer specs (`tests/e2e/customer-form-*.spec.ts`) have the same phone loops over steps whose code is the same at both sizes; the vendor spec was fixed, the customer specs were left unchanged as the extraction guard (for the human).
+- cp7 critic NOTE: on phones the Books New FAB covers the right end of the vendor card rows under it (a reference decision).
+- cp7 critic NOTE: the phone empty state shows three ways to add a vendor (header button, empty-state button, FAB) (reference and spec decision).
 - cp5 fix review NOTE: `lib/vendor-messages.ts` line 1 says its strings mirror server refusals, but the file also holds client-only texts (`VENDOR_DISCARD_MESSAGE` and others).
 
 ## Out-of-plan changes
@@ -151,6 +155,22 @@
 - gate 3 B (conformance): no rule broken; the same comment wrap (accepted+fixed)
 - fix review: round 1: clean (gofmt, go vet green after the fix)
 - gate 3 A notes: none open
+- reviewer-caught deferrals: none
+- commit: b35c6b6
+- human: n/a (review mode C)
+
+## Checkpoint 7
+- test writer: tests/vendor-route.test.ts, tests/vendor-display.test.ts, tests/shell-nav.test.ts (vendors case), tests/e2e/vendor-form-list.spec.ts (steps 0-11, desktop and phone); red for the right reason: yes (missing lib/vendor-route and lib/vendor-display; no vendors nav entry; e2e `books-list-card-vendors` not found, run with a temporary vendor-form-helpers.ts it then deleted); untestable: none; e2e runs: 1. Difference: `headerCellTexts` steps down through one-child wrappers (react-native-web may wrap a sticky header) instead of the bare `firstElementChild` row
+- implementer: lib/vendor-route.ts, lib/vendor-display.ts, hooks/useVendorNavigation.ts, hooks/useVendorsQuery.ts, components/vendors/VendorsList.tsx, screens/vendors/_layout.tsx, screens/vendors/index.tsx, tests/e2e/vendor-form-helpers.ts; lib/shell-nav.ts (vendors after customers); DONE
+- test disputes: none
+- self-declared differences: Do step 7's capture left to the loop (gate 2); vendor-form-helpers.ts also exports `vendorHelpers` (named in Produces) and not `recordUrl` (not listed); short why-comments on the openNew wrapper, the list retry, noMenu/noop, NO_DETAIL_SCREENS, cityLineFits
+- gate 1: tests unedited: yes · pass (driver: tinycld-pkg check; implementer e2e: vendor-form-list.spec.ts 2 passed (29.3s); customer-form guard first run failed in global-setup seeding with ClientResponseError 0 because it started while the previous run's 7200 server was still shutting down (its port check did not gate the run) → second run after a confirmed-free port check 24 passed (1.7m)); e2e runs so far: 3 vendor-budget (test writer 1, list spec 1, capture 1) + 2 customer guard
+- gate 2 capture: evidence/cp7/capture.json at /a/books/vendors; the capture spec (git-excluded scratch) gained `fakeRecords: { collection, status?, items? }` for the error (400) and all-inactive (the two inactive fixture vendors) states; 18 shots, 5 passed; list-empty-read-only cannot be captured (no read-only member), critique reads vendorsEmptyHint/listWriteControls
+- gate 2: invalid shots: none · blocking: none · notes: 2, listed under Design notes (critique: evidence/cp7/critique.md; 12 of 18 shots byte-identical to the reference, since the mockup rendered the same shared components with the same fakes; captured fresh 2026-10-30 13:15)
+- gate 3 A (correctness): no BLOCK; NOTEs: row/New presses go to books/vendors/[id] and /new, which checkpoint 8 adds (planned, Do 7); windowing step assumed "Zenith Telecom" sits near the end of the shared list (accepted: a test-isolation bug per lesson 3; fresh test-writer fix); headerCellTexts one-child walk is needed for react-native-web's sticky-header wrapper (accepted; the plan text was wrong); useVendorsQuery `data ?? []` makes a new array per render before ready (Design notes; customers do the same)
+- gate 3 B (conformance): the phone loop repeats steps (0), (1), (1b), (2), (5), (6), (10) whose code is the same at both sizes, against CLAUDE.md "a phone run of the same logic as the desktop run is a duplicate" (accepted although the plan sets the loop: the plan copied the customer spec, and CLAUDE.md overrides the plan; fresh test-writer fix); customer guard second run (cause found first; tooling gap raised in retro); unmatched vendor routes until checkpoint 8 (planned)
+- fix review: n/a (both fixes were test-only, by a fresh test writer): the phone run now covers steps (3), (4), (7), (8) and (9)'s card check only (FAB, PartyCard, narrow ListToolbar); the desktop run keeps every step; (11) also desktop-only (ListsHub has no breakpoint code). Windowing asserts by mounted ids: a new row mounts on scroll, the first row drops, and the mounted count stays below the 20 seeded active vendors. Gate 1 after: vendor-form-list.spec.ts 2 passed (24.1s); e2e vendor-budget runs: 4
+- gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: none
 - human: n/a (review mode C)
 

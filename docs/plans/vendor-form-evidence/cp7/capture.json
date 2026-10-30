@@ -1,0 +1,101 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "list",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list"
+        },
+        {
+            "name": "list-empty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-empty",
+            "fakeRecords": {
+                "collection": "books_vendors",
+                "items": []
+            }
+        },
+        {
+            "name": "list-no-match",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Zephyr Logistics"
+                },
+                {
+                    "waitFor": "vendors-no-match"
+                }
+            ]
+        },
+        {
+            "name": "list-all-inactive",
+            "url": "/a/books/vendors",
+            "ready": "vendors-all-inactive",
+            "fakeRecords": {
+                "collection": "books_vendors",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_vendors",
+                        "collectionName": "books_vendors",
+                        "company": "",
+                        "first_name": "",
+                        "last_name": "",
+                        "email": "wholesale@coastalcoffee.example",
+                        "phone": "(541) 555-0183",
+                        "mobile": "",
+                        "website": "",
+                        "address": null,
+                        "terms": "net_15",
+                        "account_number": "",
+                        "notes": "Switched suppliers in 2025.",
+                        "inactive": true,
+                        "form": "",
+                        "fields": null,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z",
+                        "id": "vendcoastalcf01",
+                        "display_name": "Coastal Coffee Roasters",
+                        "expense_account": ""
+                    },
+                    {
+                        "collectionId": "pbc_books_vendors",
+                        "collectionName": "books_vendors",
+                        "company": "",
+                        "first_name": "",
+                        "last_name": "",
+                        "email": "orders@oldtownprint.example",
+                        "phone": "(503) 555-0109",
+                        "mobile": "",
+                        "website": "",
+                        "address": null,
+                        "terms": "",
+                        "account_number": "",
+                        "notes": "",
+                        "inactive": true,
+                        "form": "",
+                        "fields": null,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z",
+                        "id": "vendoldtownpr01",
+                        "display_name": "Old Town Print Shop",
+                        "expense_account": ""
+                    }
+                ]
+            }
+        },
+        {
+            "name": "list-error",
+            "url": "/a/books/vendors",
+            "ready": "vendors-banner",
+            "widths": [
+                1280
+            ],
+            "fakeRecords": {
+                "collection": "books_vendors",
+                "status": 400
+            }
+        }
+    ]
+}
