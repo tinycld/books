@@ -49,12 +49,18 @@
 - cp8 reviewer A NOTE: core `BuiltinFieldProps` has no `onBlur`, so in edit mode (`mode: 'onBlur'`) a malformed amount shows its message only at Save, not on blur (a core prop would fix it).
 - cp8 reviewer A NOTE: `IncomeAccountField` draws an empty trigger when the value is '' (a book with no active Income account); a placeholder such as "Choose an income account" would help.
 - cp8 reviewer A NOTE: `HostMoneyInput`'s typed text is not cleared on an outer reset; on native, Save without a blur can keep "1250" in place of "1,250.00" (cosmetic).
+- cp9 reviewer A NOTE: Save and new resets to the type in the URL, not the type the form holds: choose Service, change Type to Non-inventory, Save and new → the next form is "New service". The spec ("resets to the starting values of the same type and stays on `products/new?type=<type>`") reads either way; a human decision at the eval gate.
+- cp9 reviewer A NOTE: if the accounts query fails, `new?type=` shows its loading body for ever (`useFormAccounts` drops `isError`); needs a 4xx on the accounts read.
+- cp9 reviewer A NOTE: the e2e helpers export `selectItems` and `purchasesSwitch`, which Produces did not list (harmless).
+- cp9 fix review NOTE: without a currency, a NaN or ±Infinity amount now shows blank (formatMoney showed '—' with a warning); only a corrupt optimistic row reaches it.
+- cp9 fix review NOTE: no unit case covers the blank branch for a no-currency, non-whole-cent amount.
 - cp8 reviewer B NOTE: the money input's border does not turn red on a refusal (core `TextInput` does); core `BuiltinFieldProps` has no `error` prop, so a fix needs a core change. The message under the input still shows.
 
 ## Out-of-plan changes
 - docs/plans/products-services-checkpoints.md (cp3): driver edit, e2e ports 7200/7201 → 7230/7231 (the lane moved; human, 2026-10-30)
 - docs/plans/products-services-evidence/cp6/capture.json (cp7): biome format, whitespace only (cp6 committed it unformatted)
 - tinycld/books/lib/expense-account-options.ts, tinycld/books/lib/account-options.ts (cp7): `filteredAccountOptions` extracted so income and expense options share one body (reviewer B, lesson 13)
+- tinycld/books/lib/product-list.ts, tests/product-list.test.ts (cp9): money text for a row with no `currency` (carried from cp6 reviewer A)
 
 ## Phase notes
 - phase 1: intake and the first design gate ran 2026-10-29 in lane reports (packet against books 3c32b22, core 12759a7): direction A, Q1-Q18 accepted as recommended, platform item 1 (no slide on web) signed off; the unit then waited for p3-vendors. Look-ahead packet regenerated 2026-10-30 against books/p3-vendors 2208ad9, core 5217753; kept by the discard rule at books 91ce648, core 1bda334.
@@ -188,6 +194,20 @@
 - gate 3 B (conformance): 1 local query hook vs "Prefer inline queries" → rebutted (see Rebuttals); 2 `useStore` twice → accepted+fixed; 3 limit + 1 with no row left out → accepted+fixed (`limit(PRODUCT_PICKER_LIMIT)`); NOTE money input border not red on a refusal (core `BuiltinFieldProps` has no `error`) → Design notes
 - fix review: round 1: clean · gate 1 after: check 3163
 - gate 3 A notes: 3 (Design notes)
+- reviewer-caught deferrals: none
+- commit: dffa5af
+
+## Checkpoint 9
+- test writer: tests/product-display.test.ts (`productTitle`), tests/shell-nav.test.ts (`product` New action, Other column order, `hidesNewFab` for product pages), tests/product-list.test.ts (driver addition, carried from cp6 reviewer A: a row with no `currency` never renders "undefined"), tests/e2e/products-services-helpers.ts (new), tests/e2e/products-services-form.spec.ts (tests 1, 2, 5), tests/e2e/products-services-page.spec.ts (tests 10, 11); red for the right reason: yes (missing export / entries; e2e: no product page or not-found screen yet; "189.00 undefined"); untestable: none
+- implementer: `product-form-store`, `useProductForm`, `ProductChild`, `ProductTypeChooser`, `screens/products/new.tsx` + `[id].tsx`, `PRODUCT_DETAIL_SCREENS` in the layout, `productTitle`, `product` New action and `hidesNewFab` for products; carried cp9 fix: a row with no `currency` formats its money without a code (`centsToText`); DONE
+- test disputes: none
+- self-declared differences: missing-currency money uses `centsToText` (helpers are pure; the staged case calls them without a currency); `new.tsx` picks its branches above one return with a local `NewProductLoading` (it needs `onLeave` / `backLabel`); a `fallback` const in `useProductForm`; chooser rows built from `PRODUCT_TYPES`
+- gate 1: tests unedited: yes · pass (check 3176; e2e products-services: 5 + guard 36 = 41 passed)
+- gate 2: invalid shots: none (12 shots; the capture spec gained `clickLabel` and `navigateInApp`) · blocking: none · every pair pixel-identical to its reference outside the cp11 row-menu cell; read-only references matched in code · notes: 1 (the 560 px sideways scroll needs a 1360 px capture → carried to cp11)
+- gate 3 A (correctness): no BLOCK; NOTE test 2's income check could not fail on the seed → accepted (fresh test writer: picks 6200 expense before the type change and asserts it stays; shown to fail with defaults re-applied); NOTE test 10's error-summary check always true → accepted (removed; the list after save and the PATCH keys are the proof); NOTE missing-currency non-integer warning → fixed with B2; NOTEs Save and new resets to the URL type, accounts-query error leaves `new?type=` loading for ever, extra helper exports → Design notes
+- gate 3 B (conformance): 1 product-list.ts + test out of the Files block → recorded (driver carry from cp6); 2 `formatMoney(cents, '')` sends an "invalid currency code" warning for a row that only lacks a currency → accepted+fixed (blank for a non-whole-cent amount without a currency)
+- fix review: round 1: clean · NOTEs: NaN/Infinity without a currency now blank (was '—'); no unit case for the blank branch → Design notes · gate 1 after: check 3176, products-services: 5 passed
+- gate 3 A notes: 4 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review

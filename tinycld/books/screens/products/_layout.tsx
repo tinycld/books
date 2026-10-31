@@ -1,10 +1,7 @@
 import { ListDetailLayout } from '../../components/ListDetailLayout'
 import { ProductsList } from '../../components/products/ProductsList'
 import { useOpenRecord } from '../../hooks/useRecordNavigation'
-import { PRODUCTS_PATH } from '../../lib/product-route'
-
-// The product screens arrive with the product form, so the child stack holds only `index`.
-const NO_DETAIL_SCREENS: readonly string[] = []
+import { PRODUCT_DETAIL_SCREENS, PRODUCTS_PATH } from '../../lib/product-route'
 
 /**
  * The Products and services list — `/a/books/products` — and the product open over or
@@ -20,7 +17,7 @@ export default function ProductsLayout() {
         <ListDetailLayout
             list={<ProductsList openId={openId} />}
             isDetailOpen={open.kind !== 'none'}
-            detailScreens={NO_DETAIL_SCREENS}
+            detailScreens={PRODUCT_DETAIL_SCREENS}
         />
     )
 }

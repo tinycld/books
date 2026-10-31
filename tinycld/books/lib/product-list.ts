@@ -1,5 +1,5 @@
 import type { BooksProducts } from '../types'
-import { formatMoney } from './money'
+import { centsToText, formatMoney } from './money'
 import { recordCardHeight } from './party-list'
 import { productTypeLabel } from './product-types'
 
@@ -85,16 +85,26 @@ export function productRows<T extends ProductListFields>(
         .sort(compareProductNames)
 }
 
+// The server stamps `currency` on create, so an optimistic insert has none until the
+// server answers; until then the amount shows without a currency symbol. The server
+// stores whole cents only, so an amount that is not one shows blank rather than
+// sending formatMoney's "invalid currency code" warning for a row that only lacks one.
+function productMoneyText(cents: number, currency: string | undefined): string {
+    if (currency) return formatMoney(cents, currency)
+    if (Number.isSafeInteger(cents)) return centsToText(cents)
+    return ''
+}
+
 // A bundle has no price of its own, and a price of 0 shows blank.
 export function productPriceText(product: PriceFields): string {
     if (product.type === 'bundle' || product.price === 0) return ''
-    return formatMoney(product.price, product.currency)
+    return productMoneyText(product.price, product.currency)
 }
 
 // A cost shows only while purchasing is on; a bundle has none, and 0 shows blank.
 export function productCostText(product: CostFields): string {
     if (product.type === 'bundle' || !product.purchases || product.cost === 0) return ''
-    return formatMoney(product.cost, product.currency)
+    return productMoneyText(product.cost, product.currency)
 }
 
 // The card's "Type · price" line.

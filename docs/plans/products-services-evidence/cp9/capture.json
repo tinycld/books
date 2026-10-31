@@ -1,0 +1,72 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "chooser",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "widths": [1600],
+            "actions": [{ "click": "product-new-header" }, { "waitFor": "product-type-chooser" }]
+        },
+        {
+            "name": "chooser",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "widths": [390],
+            "actions": [
+                { "clickLabel": "New" },
+                { "click": "books-new-product" },
+                { "waitFor": "product-type-chooser" }
+            ]
+        },
+        {
+            "name": "service-new",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "height": 1000,
+            "widths": [1100],
+            "actions": [
+                { "click": "product-new-header" },
+                { "waitFor": "product-type-chooser" },
+                { "click": "product-type-service" },
+                { "waitFor": "product-form" }
+            ]
+        },
+        {
+            "name": "service-edit",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "height": 1000,
+            "widths": [1100],
+            "actions": [
+                { "fill": "products-search", "value": "Year-end tax preparation" },
+                { "click": "product-row-prodtaxprep0001" },
+                { "waitFor": "product-form" }
+            ]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "height": 1300,
+            "widths": [1600],
+            "actions": [
+                { "fill": "products-search", "value": "Design software license (annual)" },
+                { "click": "product-row-proddesignlic01" },
+                { "waitFor": "product-form" },
+                { "fill": "products-search", "value": "" },
+                { "waitFor": "product-row-prodcat6patch01" }
+            ]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "widths": [1100],
+            "actions": [
+                { "navigateInApp": "/a/books/products/doesnotexist000" },
+                { "waitFor": "product-not-found" }
+            ]
+        }
+    ]
+}
