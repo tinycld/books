@@ -22,6 +22,17 @@ export function listViewState(input: {
     return hidesOnlyInactive ? 'all-inactive' : 'no-match'
 }
 
+// Whether the list is still catching up with its filters: the typed search has not been
+// applied yet (it waits for a pause in typing), or the query for the applied filters is
+// loading (the last settled rows may be on screen meanwhile, see keepLastSettled).
+export function listIsBusy(input: {
+    typed: string
+    applied: string
+    viewState: PartyListViewState
+}): boolean {
+    return input.typed !== input.applied || input.viewState === 'loading'
+}
+
 // The rows and state of a list, with the filters its query ran with.
 export type ShownList<Row> = {
     rows: readonly Row[]

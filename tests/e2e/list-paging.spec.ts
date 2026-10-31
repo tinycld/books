@@ -56,14 +56,10 @@ const isListPage = (url: URL) => url.searchParams.get('sort') === 'sort_key,id'
 const textFilter = (term: string) =>
     `display_name ~ "%${term}%" || company ~ "%${term}%" || email ~ "%${term}%" || phone ~ "%${term}%"`
 
-// The first page's request for a search: sorted, no cursor, filtered on the term. The list
-// sends it after a pause in typing, and the rows already on screen can hold the row a step
-// waits for, so this waits for the request itself.
-async function searchRequest(seen: readonly URL[], term: string) {
-    const find = () =>
-        seen.find(url => isListPage(url) && !isCursor(url) && filterOf(url).includes(term))
-    await expect.poll(() => find() !== undefined).toBe(true)
-    return find()
+// The first page's request for a search: sorted, no cursor, filtered on the term. The
+// search helpers wait until the list has answered the search, so the request is out.
+function searchRequest(seen: readonly URL[], term: string) {
+    return seen.find(url => isListPage(url) && !isCursor(url) && filterOf(url).includes(term))
 }
 
 async function scrollToEnd(page: Page, testId: string) {
@@ -116,8 +112,8 @@ test.describe('vendors list pages from the server', () => {
         // (1) The search is a request filter (`~` on every text column, active rows only)
         //     for one page of 50 and a row to look ahead, sorted by the server.
         await searchVendors(page, stamp)
-        const searched = await searchRequest(seen, stamp)
         await expect(vendorEntry(page, vendor('Eagle'))).toBeVisible()
+        const searched = searchRequest(seen, stamp)
         expect(searched?.searchParams.get('perPage')).toBe('51')
         expect(filterOf(searched)).toBe(`((${textFilter(stamp)}) && inactive = false)`)
 
@@ -267,9 +263,8 @@ test.describe('customers list pages its tree from the server', () => {
         const seen = watchListRequests(page, 'books_customers')
         await openCustomersList(page)
         await searchCustomers(page, stamp)
-        const searched = await searchRequest(seen, stamp)
         await expect(customerEntry(page, customer(1))).toBeVisible()
-        expect(searched?.searchParams.get('perPage')).toBe('51')
+        expect(searchRequest(seen, stamp)?.searchParams.get('perPage')).toBe('51')
         expect(seen.some(isCursor)).toBe(false)
 
         await expect
@@ -328,8 +323,8 @@ test.describe('products list pages from the server', () => {
         const seen = watchListRequests(page, 'books_products')
         await openProductsList(page)
         await searchProducts(page, stamp)
-        const searched = await searchRequest(seen, stamp)
         await expect(productEntry(page, product(1))).toBeVisible()
+        const searched = searchRequest(seen, stamp)
         expect(searched?.searchParams.get('perPage')).toBe('51')
         expect(filterOf(searched)).toBe(
             `((name ~ "%${stamp}%" || sku ~ "%${stamp}%" || sales_description ~ "%${stamp}%") && inactive = false)`

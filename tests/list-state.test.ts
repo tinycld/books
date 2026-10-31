@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { keepLastSettled, listViewState } from '../tinycld/books/lib/list-state'
+import { keepLastSettled, listIsBusy, listViewState } from '../tinycld/books/lib/list-state'
 import type { PartyListViewState } from '../tinycld/books/lib/party-list'
 
 const viewState = (input: Partial<Parameters<typeof listViewState>[0]>) =>
@@ -43,6 +43,23 @@ describe('listViewState', () => {
     it('says no-match for a search or with Show inactive on', () => {
         expect(viewState({ search: 'harbor' })).toBe('no-match')
         expect(viewState({ showInactive: true })).toBe('no-match')
+    })
+})
+
+describe('listIsBusy', () => {
+    it('is busy while the typed search waits to be applied', () => {
+        expect(listIsBusy({ typed: 'harb', applied: 'har', viewState: 'ready' })).toBe(true)
+        expect(listIsBusy({ typed: '', applied: 'harbor', viewState: 'no-match' })).toBe(true)
+    })
+
+    it('is busy while the query for the applied filters loads', () => {
+        expect(listIsBusy({ typed: 'harbor', applied: 'harbor', viewState: 'loading' })).toBe(true)
+    })
+
+    it('is not busy once the applied search has an answer, an error included', () => {
+        for (const state of ['ready', 'empty', 'no-match', 'all-inactive', 'error'] as const) {
+            expect(listIsBusy({ typed: 'harbor', applied: 'harbor', viewState: state })).toBe(false)
+        }
     })
 })
 
