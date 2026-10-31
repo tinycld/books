@@ -37,6 +37,11 @@
 - cp 2 · reviewer A NOTE: validateAccount's box check runs before checkAccountChange, so a direct API type change of a mapped account that also has lines gets the box refusal first, and after clearing the box the lines refusal; the Account panel locks the type select when lines > 0 or children > 0 (useAccountForm.ts `typeLocked`), so no UI path reaches it.
 - cp 2 · reviewer A NOTE: normalizeTaxID removes only ASCII space and hyphen-minus (as the plan says); a tax ID pasted with an en dash or a no-break space is refused "A tax ID has 9 digits.". Possible fix: strip unicode.IsSpace runes and Pd dashes.
 - cp 2 · reviewer A NOTE: an unknown tax_id_type (API only) gives two errors (type schema refusal and tax_id pattern), since dashTaxID returns bare digits.
+- cp 7 · settings-*-390: the long Willamette name and legal name truncate with an ellipsis (as the reference).
+- cp 7 · gate 2 observation: Accounts dims an inactive row (opacity-60); the vendors card marks it with "· Inactive" only (spec and reference agree).
+- cp 7 · reviewer A NOTEs: help-1099-tracking.test.ts checks "9 digits" and "dashes" in two sentences; tracked-vendors.ts compares the trimmed legal name with an untrimmed display name; the FAB locator has no `:visible` scope.
+- cp 7 · fix review NOTE: ThresholdCard's note ("left out of the 1099 report") states the future report's rule and does not say the report is not available yet (spec copy).
+- cp 7 · core gap (for the human): core FAB (core/components/FAB.tsx) has no `accessibilityRole="button"`; specs find it by label.
 - cp 6 · settings-refusal: the held row's select looks idle (core SelectInput has no disabled look; e2e asserts disabled).
 - cp 6 · dark shots: the 6900 "Inactive" caption is low contrast (same as the reference).
 - cp 6 · reviewer A NOTEs: RHF `values` reset relies on two renders (theoretical); "Not reported" sends no write — now asserted.
@@ -165,6 +170,19 @@
 - gate 3 B: 1 form1099Accounts copied buildAccountTree → accepted+fixed (lib/form-1099-accounts.ts on buildAccountTree); 2 refusalOf duplicated writeRefusalText → fixed; 3 holdAccountWrite copied holdRecordWrite → fixed (`holdWrite`); 4 new schema test file → kept, recorded
 - fix: tests first (moved cases, e2e inactive-clear step red at the vanished row, PATCH count, helper), implementer; gate 1 rerun: check 3070; e2e 73 passed
 - fix review: round 1: BLOCK — refused ids kept rows listed, so a stale refusal showed on an account later made inactive or changed elsewhere → fixed in round 2 (only pending ids hold a row; refusals stored with `fromBox`, shown only while the live box equals it; `visibleRefusal` + `heldAccountIds` unit-tested); round 2: PASS, NOTE (stale refusal can reappear) → Design notes. Gate 1 after round 2: check 3076; e2e 22 passed. Round count: 2.
+- reviewer-caught deferrals: none
+- commit: 9205d1e
+
+## Checkpoint 7
+- test writer: tests/tracked-vendors.test.ts (amendment), help-1099-tracking.test.ts, help-vendors/help-settings cases, e2e vendor-1099-vendors.spec.ts (test 1 desktop + phone, test 2), books-settings read-only test, `trackedVendorsSnapshot`; red for the right reason: yes; untestable: none
+- implementer: lib/tracked-vendors.ts, Tracked1099VendorsCard, openVendor/openVendors, help/1099-tracking.md, help/vendors.md (legal-name search, never by tax ID), help/settings.md; DONE after one dispute
+- test disputes: the phone FAB locator `getByRole('button', { name: 'New' })` — core FAB has no button role (vendor-form-list.spec.ts:346) → test wrong; a fresh test writer changed it to `getByLabel('New', { exact: true })`
+- gate 1: pass (check 3103; e2e `vendor-1099:|books-settings:|vendor-form:` 38 passed; new tests 3.2-6.3 s)
+- gate 2: no BLOCKING; NOTEs → Design notes. Evidence docs/plans/vendor-1099-evidence/cp7/ (16 shots, critique.md)
+- gate 3 A: no BLOCK; NOTE (help omits ITIN) → fixed as text; others → Design notes
+- gate 3 B: 1 help named a 1099 report that does not exist yet → fixed (1099-tracking.md, settings.md); 2 help did not say hidden values are still checked on Save → fixed; 3 ITIN → fixed; 4 inactive accounts show only with a box → fixed; 5 vendors.md frontmatter → not required, left
+- fix review: round 1: PASS (help-only diff; help tests 21 passed); NOTE → Design notes
+- earlier items confirmed: help/vendors.md names legal-name search (cp3); FAB clearance on the phone scroller with three cards, driven by the phone e2e (cp5)
 - reviewer-caught deferrals: none
 
 ## Final review

@@ -136,6 +136,28 @@ export function accountPatches(page: Page, id: string): string[] {
     return bodies
 }
 
+// The visible 1099 vendors card read in one snapshot, because other specs track vendors
+// too: the count line, the row ids and names in DOM order, and how many chips show
+// Missing tax ID.
+export async function trackedVendorsSnapshot(
+    page: Page
+): Promise<{ summary: string; names: string[]; ids: string[]; missing: number }> {
+    const card = visible(page, 'books-1099-vendors')
+    await expect(card).toHaveCount(1)
+    return card.evaluate(el => {
+        const all = (prefix: string) =>
+            Array.from(el.querySelectorAll<HTMLElement>(`[data-testid^="${prefix}"]`))
+        const rowPrefix = 'books-1099-vendor-row-'
+        return {
+            summary:
+                el.querySelector('[data-testid="books-1099-vendors-summary"]')?.textContent ?? '',
+            ids: all(rowPrefix).map(row => (row.dataset.testid ?? '').slice(rowPrefix.length)),
+            names: all('books-1099-vendor-name-').map(name => name.textContent ?? ''),
+            missing: all('books-1099-vendor-missing-').length,
+        }
+    })
+}
+
 export const EMPTY_LIST = { page: 1, perPage: 500, totalItems: 0, totalPages: 0, items: [] }
 
 // Answers every list of `collection` with no rows. Realtime is aborted, so no event from

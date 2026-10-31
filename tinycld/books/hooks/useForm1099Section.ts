@@ -1,11 +1,14 @@
 import { eq, inArray } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { router } from 'expo-router'
 import { EXPENSE_GROUP_TYPES, form1099Controls } from '../lib/form-1099'
 import type { LiveRecovery } from '../lib/report-definition'
 import { mergeRecoveries } from '../lib/report-state'
+import { VENDORS_PATH, vendorPath } from '../lib/vendor-route'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
 
@@ -35,6 +38,7 @@ function sectionPart(states: { isReady: boolean; isError: boolean }[]) {
 }
 
 export function useForm1099Section() {
+    const orgHref = useOrgHref()
     const access = useBooksAccess()
     const booksSettings = useBooksSettings()
     const accounts = useExpenseGroupAccounts()
@@ -62,6 +66,12 @@ export function useForm1099Section() {
         accounts: accounts.rows,
         vendors,
         controls: form1099Controls(access),
+        // A push from outside the Vendors list: the vendor's own back still lands on the list.
+        openVendor: (id: string) => {
+            const route = vendorPath(id)
+            router.push(orgHref(route.path, route.params))
+        },
+        openVendors: () => router.push(orgHref(VENDORS_PATH)),
         // One call over every failed query, so a retry rebuilds them together.
         retry: () => {
             void recoverLiveQueries({
