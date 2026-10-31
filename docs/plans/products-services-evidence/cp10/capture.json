@@ -1,0 +1,38 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "bundle",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "height": 1000,
+            "widths": [1100],
+            "actions": [
+                {
+                    "fill": "products-search",
+                    "value": "Small office network install, up to ten workstations"
+                },
+                { "click": "product-row-bndlofficenet01" },
+                { "waitFor": "product-form" },
+                { "waitFor": "form-table-items-grid" }
+            ]
+        },
+        {
+            "name": "bundle-phone",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "height": 1800,
+            "widths": [390],
+            "actions": [
+                {
+                    "fill": "products-search",
+                    "value": "Small office network install, up to ten workstations"
+                },
+                { "click": "product-card-bndlofficenet01" },
+                { "waitFor": "product-form" },
+                { "waitFor": "form-table-items-cards" }
+            ]
+        }
+    ]
+}

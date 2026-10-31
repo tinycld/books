@@ -54,6 +54,15 @@
 - cp9 reviewer A NOTE: the e2e helpers export `selectItems` and `purchasesSwitch`, which Produces did not list (harmless).
 - cp9 fix review NOTE: without a currency, a NaN or ±Infinity amount now shows blank (formatMoney showed '—' with a warning); only a corrupt optimistic row reaches it.
 - cp9 fix review NOTE: no unit case covers the blank branch for a no-currency, non-whole-cent amount.
+- cp10 · bundle-1100: core `TableField` row actions sit top-aligned against 44 px inputs; the Qty "+" button sits ~8 px from the ↑ arrow; the column heads are inset 3-4 px and use a plain asterisk (the approved reference shows the same; a core follow-up if wanted).
+- cp10 reviewer A NOTE: stored positions that are not dense are not renumbered (core `TableRowMapper` asks a host to); after a save that fails between a remove and the updates, "Save again" writes nothing and a later added row can share a position, so rows may show in the wrong order. Fix: an update for each kept row whose stored position is not its index.
+- cp10 reviewer A NOTE: `useIsShowingNewRecord` matches any `products/new` URL; a user who opens New again during an in-flight bundle create can be moved to the bundle (and lose what they typed) when a row is refused.
+- cp10 reviewer A NOTE: a partial create that fails on the network reads "The bundle was saved, but an item was not: Your change wasn't saved: the server could not be reached." (the plan's text).
+- cp10 reviewer A NOTE: an edit row refused after the user left shows "The product was not saved." with no item number, though the record and earlier rows landed (cp3 code).
+- cp10 reviewer A NOTE: a Service or Non-inventory product's edit runs a bundle-items query and subscription that always returns 0 rows.
+- cp10 reviewer A NOTE: after a refused row, "Save again" sends the dirty record columns again (a harmless duplicate PATCH).
+- cp10 reviewer A NOTE: no test drives "the user left the new form before a row was refused, so they are not moved" (declared in the spec header and the carry note).
+- cp10 reviewer B NOTE: e2e test 4 has no comment saying why it runs at phone size (core `TableField` cards and the one-column form below 640 px).
 - cp8 reviewer B NOTE: the money input's border does not turn red on a refusal (core `TextInput` does); core `BuiltinFieldProps` has no `error` prop, so a fix needs a core change. The message under the input still shows.
 
 ## Out-of-plan changes
@@ -61,6 +70,7 @@
 - docs/plans/products-services-evidence/cp6/capture.json (cp7): biome format, whitespace only (cp6 committed it unformatted)
 - tinycld/books/lib/expense-account-options.ts, tinycld/books/lib/account-options.ts (cp7): `filteredAccountOptions` extracted so income and expense options share one body (reviewer B, lesson 13)
 - tinycld/books/lib/product-list.ts, tests/product-list.test.ts (cp9): money text for a row with no `currency` (carried from cp6 reviewer A)
+- docs/plans/products-services-checkpoints.md (cp10): driver plan edit — test 4's inactive step and "(inactive)" check moved to checkpoint 11 test 7 (the row menu is built there); a stale fixture type name in checkpoint 4 text reworded so plan-check passes
 
 ## Phase notes
 - phase 1: intake and the first design gate ran 2026-10-29 in lane reports (packet against books 3c32b22, core 12759a7): direction A, Q1-Q18 accepted as recommended, platform item 1 (no slide on web) signed off; the unit then waited for p3-vendors. Look-ahead packet regenerated 2026-10-30 against books/p3-vendors 2208ad9, core 5217753; kept by the discard rule at books 91ce648, core 1bda334.
@@ -208,6 +218,20 @@
 - gate 3 B (conformance): 1 product-list.ts + test out of the Files block → recorded (driver carry from cp6); 2 `formatMoney(cents, '')` sends an "invalid currency code" warning for a row that only lacks a currency → accepted+fixed (blank for a non-whole-cent amount without a currency)
 - fix review: round 1: clean · NOTEs: NaN/Infinity without a currency now blank (was '—'); no unit case for the blank branch → Design notes · gate 1 after: check 3176, products-services: 5 passed
 - gate 3 A notes: 4 (Design notes)
+- reviewer-caught deferrals: none
+- commit: 63aa64c
+
+## Checkpoint 10
+- test writer: tests/bundle-item-writes.test.ts (new), tests/e2e/products-services-bundle.spec.ts (tests 3 reorder, 4 phone, 12 partial create; local helpers); red for the right reason: tests 3 and 12 yes (no row writes, no partial-create toast), the unit file yes (missing module); test 4: plan defect — it made the item inactive through the product row menu, which checkpoint 11 builds, so checkpoint 10 could not make it green. Driver fix (2026-10-30, plan edited in both cp10 and cp11): test 4 keeps the phone cards / one column / clean Cancel; the "(inactive)" row label check moves into checkpoint 11's test 7 (its bundle now holds the item it makes inactive). A fresh test writer rewrites test 4. Not covered (carry note cp10): leaving the new form before a row is refused (e2e cap 12 of 12; no unit case named).
+- implementer: `useBundleItems`, `lib/bundle-item-writes.ts`, `useProductForm` (tables + rows config; `onPartialCreate` shows the toast and routes only while `useIsShowingNewProduct()`), `useIsShowingNewRecord`, `useIsShowingNewProduct`; DONE
+- test disputes: none
+- self-declared differences: one `useStore` call for both collections; `refusalMessage` kept in a local; `navigation.leave`; `useBundleItems('')` returns rows [] / not ready with a null query; no unit test for `useIsShowingNewRecord` (none named)
+- gate 1: tests unedited: yes (test 4 rewritten by a fresh test writer after the plan fix, before the implementer) · pass (check 3179; e2e products-services: 8 + guard 36 = 44 passed)
+- gate 2: invalid shots: none (4 shots) · blocking: none · 1100 shots byte-identical to the reference, phone shots differ by sub-pixel anti-aliasing · notes: 3, all core `TableField` (Design notes)
+- gate 3 A (correctness): no BLOCK; 7 NOTEs → Design notes
+- gate 3 B (conformance): no findings; NOTE test 4 has no comment saying why it runs at phone size (a test file; Design notes)
+- fix review: n/a
+- gate 3 A notes: 7 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review
