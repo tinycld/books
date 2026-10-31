@@ -1,13 +1,7 @@
 import { useMemo, useState } from 'react'
-import { type PartyListViewState, type PartyRecord, partyListViewState } from '../lib/party-list'
+import { type ListRecord, type PartyListViewState, partyListViewState } from '../lib/party-list'
 
-// The search text and Show inactive are local state of the list's layout, which stays
-// mounted while records open and close, so they survive that. `rowsOf` must be a stable
-// (module-level) function: it is a memo dependency, and a new one each render rebuilds the rows.
-export function useRecordList<T extends PartyRecord, Row>(
-    source: { records: readonly T[]; isReady: boolean; isError: boolean },
-    rowsOf: (records: readonly T[], filters: { query: string; showInactive: boolean }) => Row[]
-): {
+export type RecordListState<Row> = {
     rows: Row[]
     viewState: PartyListViewState
     query: string
@@ -15,7 +9,15 @@ export function useRecordList<T extends PartyRecord, Row>(
     clearSearch(): void
     showInactive: boolean
     setShowInactive(value: boolean): void
-} {
+}
+
+// The search text and Show inactive are local state of the list's layout, which stays
+// mounted while records open and close, so they survive that. `rowsOf` must be a stable
+// (module-level) function: it is a memo dependency, and a new one each render rebuilds the rows.
+export function useRecordList<T extends ListRecord, Row>(
+    source: { records: readonly T[]; isReady: boolean; isError: boolean },
+    rowsOf: (records: readonly T[], filters: { query: string; showInactive: boolean }) => Row[]
+): RecordListState<Row> {
     const [query, setQuery] = useState('')
     const [showInactive, setShowInactive] = useState(false)
     const rows = useMemo(

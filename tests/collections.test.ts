@@ -13,6 +13,8 @@ const NAMES = [
     'books_access',
     'books_customers',
     'books_vendors',
+    'books_products',
+    'books_bundle_items',
 ]
 
 function register() {
@@ -95,5 +97,28 @@ describe('registerCollections', () => {
         const { calls } = register()
         expect(calls.has('books_vendors')).toBe(true)
         expect(calls.get('books_vendors')?.relations).toBeUndefined()
+    })
+
+    // The guard sets name_key and the server stamps currency, so the client
+    // never sends either on a product; a bundle row sends every column it has.
+    it('never inserts a product or bundle row column the server sets', () => {
+        const { calls } = register()
+        expect(calls.get('books_products')?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'name_key',
+            'currency',
+        ])
+        expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
+    })
+
+    // The products list loads every product in one query; a bundle's rows,
+    // the product picker and the account pickers read their own collections.
+    it('declares no relations on products or bundle rows', () => {
+        const { calls } = register()
+        for (const name of ['books_products', 'books_bundle_items']) {
+            expect(calls.has(name), name).toBe(true)
+            expect(calls.get(name)?.relations, name).toBeUndefined()
+        }
     })
 })

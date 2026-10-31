@@ -17,8 +17,9 @@ import (
 // part of that same logged update. registrations_test.go fails when a new
 // collection is neither here nor declared server-only.
 //
-// It takes the app because two labels read another row: an admin grant is
-// labeled by the user it grants, and a line by its account.
+// It takes the app because three labels read another row: an admin grant is
+// labeled by the user it grants, a line by its account, and a bundle row by
+// its bundle and product.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -28,6 +29,8 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_accounts":        {ExtractLabel: accountLabel},
 		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name")},
 		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id"}},
+		"books_products":        {ExtractLabel: audit.LabelFromField("name")},
+		"books_bundle_items":    {ExtractLabel: func(r *core.Record) string { return bundleItemLabel(app, r) }},
 		"books_journal_entries": {ExtractLabel: entryLabel},
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},
 		"books_settings": {
@@ -68,6 +71,20 @@ func lineLabel(app core.App, r *core.Record) string {
 		return account + " debit " + formatMinor(debit)
 	}
 	return account + " credit " + formatMinor(r.GetInt("credit"))
+}
+
+// bundleItemLabel names a bundle row by its bundle and product: "Home office
+// setup kit: Wireless access point". A product that cannot be read falls back
+// to its id, so the audit row is still written.
+func bundleItemLabel(app core.App, r *core.Record) string {
+	return productName(app, r.GetString("bundle")) + ": " + productName(app, r.GetString("product"))
+}
+
+func productName(app core.App, id string) string {
+	if p, err := app.FindRecordById("books_products", id); err == nil {
+		return p.GetString("name")
+	}
+	return id
 }
 
 // userLabel names a user as "Name <email>" (users require both). A user that

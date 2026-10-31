@@ -50,6 +50,21 @@ export function useIsShowingRecord(listPath: string) {
     }
 }
 
+/**
+ * Asks, when called, whether the user still sees the new record form under `listPath`:
+ * the screen that calls this hook is focused and the URL is `<listPath>/new`. Read at
+ * the call, for the same reason as `useIsShowingRecord`.
+ */
+export function useIsShowingNewRecord(listPath: string) {
+    const navigation = useNavigation()
+    const container = useNavigationContainerRef()
+    return () => {
+        if (!container.isReady() || !navigation.isFocused()) return false
+        const open = openRecordFromPath(listPath, urlFromState(container.getRootState()).pathname)
+        return open.kind === 'new'
+    }
+}
+
 // The record the URL opens under `listPath`; `openId` is its id, or '' when none or new.
 export function useOpenRecord(listPath: string) {
     const open = openRecordFromPath(listPath, useUrl().pathname)

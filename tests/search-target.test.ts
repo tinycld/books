@@ -30,6 +30,13 @@ describe('searchTarget', () => {
         })
     })
 
+    it('routes a product hit to the product', () => {
+        expect(searchTarget('product:abc123')).toEqual({
+            path: 'books/products/[id]',
+            id: 'abc123',
+        })
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('invoice:1')).toBeNull()
         expect(searchTarget('account:')).toBeNull()

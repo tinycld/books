@@ -1,18 +1,11 @@
 import { and, eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
 import { useRecord } from '@tinycld/core/lib/use-record'
-import { Menu } from '@tinycld/core/ui/menu'
-import { PlainInput } from '@tinycld/core/ui/PlainInput'
-import { ChevronDown } from 'lucide-react-native'
-import { forwardRef, useState } from 'react'
-import { Pressable, type PressableInstance, Text } from 'react-native'
 import { PICKER_LIMIT, pickerOptions } from '../../lib/customer-tree'
+import { SearchPicker, useSearchPicker } from '../SearchPicker'
 
 const NONE_LABEL = 'None (top level)'
-const SEARCH_DELAY_MS = 250
 
 interface CustomerPickerProps {
     value: string
@@ -51,92 +44,31 @@ function usePickerLabel(value: string) {
     return record?.display_name ?? ''
 }
 
-interface TriggerProps {
-    label: string
-    disabled: boolean
-    onPress?: () => void
-}
-
-// A forwardRef around the Pressable: the menu measures its trigger through the ref.
-const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function PickerTrigger(
-    { label, disabled, onPress },
-    ref
-) {
-    const chevron = useThemeColor('muted-foreground')
-    const look = disabled ? 'opacity-60' : ''
-    return (
-        <Pressable
-            ref={ref}
-            onPress={onPress}
-            testID="customer-parent"
-            accessibilityRole="button"
-            accessibilityLabel={`Parent customer: ${label}`}
-            disabled={disabled}
-            className={`min-h-11 flex-row items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5 ${look}`}
-        >
-            <Text numberOfLines={1} className="shrink text-sm text-foreground">
-                {label}
-            </Text>
-            <ChevronDown size={14} color={chevron} />
-        </Pressable>
-    )
-})
-
 /**
  * The Parent customer picker: a searchable menu whose first item is "None (top
  * level)", then the active top-level customers other than this one, 50 at a time,
- * searched by display name. Escape closes the menu only (the menu is its own layer).
+ * searched by display name.
  */
 export function CustomerPicker({ value, onChange, selfId, disabled }: CustomerPickerProps) {
-    // Local, synchronous UI state that nothing else reads.
-    const [isOpen, setIsOpen] = useState(false)
-    const [term, setTerm] = useState('')
-    const debouncedTerm = useDebouncedValue(term, SEARCH_DELAY_MS)
-    const options = usePickerOptions(debouncedTerm, selfId, isOpen)
+    const picker = useSearchPicker()
+    const options = usePickerOptions(picker.debouncedTerm, selfId, picker.isOpen)
     const label = usePickerLabel(value)
-    const placeholderColor = useThemeColor('field-placeholder')
-    const onOpenChange = (next: boolean) => {
-        setIsOpen(next)
-        if (!next) setTerm('')
-    }
-    const items = options.map(option => (
-        <Menu.Item
-            key={option.id}
-            label={option.display_name}
-            testID={`customer-parent-option-${option.id}`}
-            isSelected={option.id === value}
-            onSelect={() => onChange(option.id)}
-        />
-    ))
+    const choices = options.map(o => ({ id: o.id, label: o.display_name }))
     return (
-        <Menu
-            trigger={<PickerTrigger label={label} disabled={disabled} />}
-            isOpen={isOpen}
-            onOpenChange={onOpenChange}
+        <SearchPicker
+            picker={picker}
             title="Parent customer"
-            width={320}
-        >
-            <Menu.Custom>
-                <PlainInput
-                    testID="customer-parent-search"
-                    value={term}
-                    onChangeText={setTerm}
-                    placeholder="Search customers"
-                    placeholderTextColor={placeholderColor}
-                    accessibilityLabel="Search customers"
-                    autoFocus
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground"
-                />
-            </Menu.Custom>
-            <Menu.Item
-                label={NONE_LABEL}
-                testID="customer-parent-none"
-                isSelected={value === ''}
-                onSelect={() => onChange('')}
-            />
-            {items}
-        </Menu>
+            triggerLabel={label}
+            triggerAccessibilityLabel={`Parent customer: ${label}`}
+            triggerTestId="customer-parent"
+            disabled={disabled}
+            searchPlaceholder="Search customers"
+            searchTestId="customer-parent-search"
+            options={choices}
+            optionTestIdPrefix="customer-parent-option"
+            value={value}
+            onChange={onChange}
+            noneOption={{ label: NONE_LABEL, testID: 'customer-parent-none' }}
+        />
     )
 }

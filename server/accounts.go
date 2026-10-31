@@ -12,6 +12,14 @@ import (
 // maxAccountDepth bounds sub-account nesting, counting the top account.
 const maxAccountDepth = 5
 
+// Account delete refusals while products name the account.
+// tinycld/books/lib/product-messages.ts copies them;
+// tests/product-messages.test.ts fails when this wording drifts.
+const (
+	msgAccountUsedByOneProduct = "This account is used by 1 product or service and cannot be deleted. Make it inactive instead."
+	msgAccountUsedByProducts   = "This account is used by %d products and services and cannot be deleted. Make it inactive instead."
+)
+
 // tinycld/books/lib/account-messages.ts copies this refusal;
 // tests/account-messages.test.ts fails when this wording drifts.
 const msgBoxNeedsExpenseType = "Only expense accounts can be reported on a 1099. Set this account to Not reported in Settings → 1099s first."
@@ -174,6 +182,19 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if lines > 0 {
 		return refuse("This account is used on %d journal lines and cannot be deleted. Make it inactive instead.", lines)
+	}
+	// PocketBase would clear a non-required relation when its account is
+	// deleted, so the account would silently drop off the product.
+	products, err := app.CountRecords("books_products",
+		dbx.Or(dbx.HashExp{"income_account": r.Id}, dbx.HashExp{"expense_account": r.Id}))
+	if err != nil {
+		return err
+	}
+	if products == 1 {
+		return refuse(msgAccountUsedByOneProduct)
+	}
+	if products > 1 {
+		return refuse(msgAccountUsedByProducts, products)
 	}
 	children, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": r.Id})
 	if err != nil {

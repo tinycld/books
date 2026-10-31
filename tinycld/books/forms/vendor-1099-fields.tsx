@@ -1,7 +1,7 @@
 import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
 import { ContactInput } from '../components/forms/ContactInput'
 import { TAX_ID_TYPE_OPTIONS } from '../lib/tax-id'
-import { HostSelect } from './vendor-fields'
+import { HostSelect } from './account-fields'
 
 // The `books:vendor` 1099 host components (hosts.ts). Track payments for 1099 is a core
 // `toggle` built-in and needs none. The core cell draws each one's label and error.

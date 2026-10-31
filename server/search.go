@@ -11,10 +11,10 @@ import (
 	"tinycld.org/core/search"
 )
 
-// searchSource contributes accounts, journal entries, customers and vendors to
-// core's federated /api/search. Rows are shaped here so the palette and the CLI
-// show the same thing; the client adapter (tinycld/books/search-adapter.ts)
-// only navigates.
+// searchSource contributes accounts, journal entries, customers, vendors and
+// products to core's federated /api/search. Rows are shaped here so the
+// palette and the CLI show the same thing; the client adapter
+// (tinycld/books/search-adapter.ts) only navigates.
 func searchSource() search.Source {
 	return search.Source{
 		Slug:  "books",
@@ -62,8 +62,12 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors)
-	total := accountTotal + entryTotal + customerTotal + vendorTotal
+	products, productTotal, err := searchProducts(ctx, app, q, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors, products)
+	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -250,6 +254,46 @@ func searchParties(ctx context.Context, app core.App, q search.Query, window int
 			Subtitle: subtitle,
 			Meta:     src.meta,
 			Fields:   map[string]any{"kind": src.kind, "inactive": h.Inactive},
+		})
+	}
+	return rows, total, nil
+}
+
+type productHit struct {
+	ID       string `db:"id"`
+	Name     string `db:"name"`
+	Sku      string `db:"sku"`
+	Type     string `db:"type"`
+	Inactive bool   `db:"inactive"`
+}
+
+// searchProducts matches the sales description but not the purchase one: the
+// sales text is what a customer reads and what a person recalls an item by.
+func searchProducts(ctx context.Context, app core.App, q search.Query, window int) ([]search.Row, int, error) {
+	where, params := likeWhere([]string{"name", "sku", "sales_description"}, q)
+	var total int
+	if err := app.DB().NewQuery("SELECT COUNT(*) FROM books_products WHERE " + where).
+		WithContext(ctx).Bind(params).Row(&total); err != nil {
+		return nil, 0, fmt.Errorf("books: count product hits: %w", err)
+	}
+	params["window"] = window
+	var hits []productHit
+	if err := app.DB().NewQuery("SELECT id, name, sku, type, inactive FROM books_products WHERE " + where +
+		" ORDER BY name, id LIMIT {:window}").WithContext(ctx).Bind(params).All(&hits); err != nil {
+		return nil, 0, fmt.Errorf("books: search products: %w", err)
+	}
+	rows := make([]search.Row, 0, len(hits))
+	for _, h := range hits {
+		subtitle := h.Sku
+		if subtitle == "" {
+			subtitle = productTypeLabel(h.Type)
+		}
+		rows = append(rows, search.Row{
+			ID:       "product:" + h.ID,
+			Title:    h.Name,
+			Subtitle: subtitle,
+			Meta:     "Product or service",
+			Fields:   map[string]any{"kind": "product", "inactive": h.Inactive},
 		})
 	}
 	return rows, total, nil

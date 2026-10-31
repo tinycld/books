@@ -1,7 +1,7 @@
 import type { BooksAccounts } from '../types'
 import { buildAccountTree, defaultSort, type TreeAccount, type TreeNode } from './account-tree'
 import { accountTypeDef } from './account-types'
-import { isWellFormedMoney, maxStoredAmount, parseMoney } from './money'
+import { centsToText, isWellFormedMoney, maxStoredAmount, parseMoney } from './money'
 import type { OpeningPreset } from './opening-balances-schema'
 import { formatDay, isIsoDay, rangeForPreset } from './register-range'
 import type { SidebarEntry } from './shell-nav'
@@ -285,11 +285,8 @@ export function diffLines(saved: readonly SavedLine[], next: readonly OpeningLin
     return diff
 }
 
-export function centsToText(cents: number): string {
-    const digits = BigInt(Math.abs(cents)).toString().padStart(3, '0')
-    const whole = digits.slice(0, -2).replace(/\B(?=(\d{3})+$)/g, ',')
-    return `${cents < 0 ? '-' : ''}${whole}.${digits.slice(-2)}`
-}
+// It lives in ./money; MoneyInput and the opening balance tests still import it here.
+export { centsToText } from './money'
 
 export function amountsFromLines(
     accounts: readonly OpeningAccount[],

@@ -40,7 +40,7 @@ func validateVendor(app core.App, stored, r *core.Record) error {
 	if err := validate1099Fields(r); err != nil {
 		return err
 	}
-	if err := validateExpenseAccount(app, stored, r); err != nil {
+	if err := validateExpenseAccount(app, stored, r, msgExpenseAccountLedger); err != nil {
 		return err
 	}
 	// name_key belongs to the guard: it overwrites whatever the request sent.
@@ -110,10 +110,14 @@ func dashTaxID(digits, taxType string) string {
 	return digits
 }
 
-// validateExpenseAccount checks the default expense account only when the
-// write changes it: a vendor keeps an account that became inactive after it
-// was saved. stored is the record before an update, nil on a create.
-func validateExpenseAccount(app core.App, stored, r *core.Record) error {
+// validateExpenseAccount checks an expense account only when the write
+// changes it: a vendor or a product keeps an account that became inactive
+// after it was saved. Its callers are validateVendor (the default expense
+// account, msgExpenseAccountLedger) and validateProduct (the purchase expense
+// account, msgProductExpenseAccountLedger); ledgerMessage is the caller's
+// refusal of Accounts receivable and Accounts payable. stored is the record
+// before an update, nil on a create.
+func validateExpenseAccount(app core.App, stored, r *core.Record, ledgerMessage string) error {
 	id := r.GetString("expense_account")
 	if id == "" || (stored != nil && stored.GetString("expense_account") == id) {
 		return nil
@@ -130,7 +134,8 @@ func validateExpenseAccount(app core.App, stored, r *core.Record) error {
 	}
 	switch account.GetString("type") {
 	case "accounts_receivable", "accounts_payable":
-		return refuseField("expense_account", msgExpenseAccountLedger)
+		// "%s": the message is data, and a refusal never formats it.
+		return refuseField("expense_account", "%s", ledgerMessage)
 	}
 	return nil
 }

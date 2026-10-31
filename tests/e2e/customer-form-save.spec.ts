@@ -562,7 +562,11 @@ test.describe('customer-form: save and discard', () => {
             await page.getByTestId('customers-back').click()
             await expect(hubCard).toBeVisible()
             await page.keyboard.press('/')
-            await expect(page.getByRole('dialog', { name: 'Search' })).toBeVisible()
+            // The palette focuses its input a frame after it shows; keys typed before
+            // that frame are lost.
+            await expect(
+                page.getByRole('dialog', { name: 'Search' }).getByRole('textbox')
+            ).toBeFocused()
             const searched = page.waitForResponse(
                 r =>
                     r.url().includes('/api/search') &&

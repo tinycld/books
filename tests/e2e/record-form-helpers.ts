@@ -146,6 +146,26 @@ export function backgroundOf(locator: Locator) {
     return locator.evaluate(el => getComputedStyle(el).backgroundColor)
 }
 
+// `bg-accent` resolved in the page: tinycld/global.css declares `--accent` as an RGB
+// triple per theme.
+export function accentOf(page: Page, testId: string) {
+    return page
+        .getByTestId(testId)
+        .evaluate(
+            el =>
+                `rgb(${getComputedStyle(el).getPropertyValue('--accent').trim().split(/\s+/).join(', ')})`
+        )
+}
+
+export function escapeRegExp(text: string) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Matches an element whose whole text, trimmed, is `text`.
+export function exactText(text: string) {
+    return new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`)
+}
+
 export async function textLeft(entry: Locator, name: string) {
     return (await entry.getByText(name, { exact: true }).boundingBox())?.x ?? 0
 }
@@ -412,17 +432,27 @@ export function recordFormHelpers(kind: RecordKind) {
             list.or(pageBack).or(panelClose).or(notFoundBack).or(listCard).first()
         ).toBeAttached()
 
-        // The list renders before the record's screen over it (a lazy route), so when the
-        // URL names a record, wait for that screen's way out instead of taking the list as
-        // shown.
+        // The URL and the record's screen do not change together. A record arriving: the
+        // list renders before the record's screen over it (a lazy route). A record leaving
+        // (Cancel, then dismissTo): the screen goes before the URL leaves the record path.
+        // So wait until the screen's way out shows or the URL no longer names a record,
+        // reading both again on each poll, instead of trusting one read of the URL.
         const recordPath = new RegExp(`/books/${kind.pathSegment}/[^/]+$`)
-        if (recordPath.test(new URL(page.url()).pathname)) {
-            await expect(
-                pageBack.or(panelClose).or(notFoundBack).filter({ visible: true }).first()
-            ).toBeVisible()
-        }
+        const wayOut = pageBack.or(panelClose).or(notFoundBack).filter({ visible: true }).first()
+        await expect
+            .poll(
+                async () =>
+                    (await wayOut.isVisible()) || !recordPath.test(new URL(page.url()).pathname)
+            )
+            .toBe(true)
 
+        // A disabled way out means a save is in flight: the screen leaves, or enables the
+        // control again, by itself. A click on it waits for an enabled control that may
+        // detach first, so wait until it is hidden or enabled, then click only if it shows.
+        // Counting a locator never waits on a detached element; isEnabled() would.
+        const disabled = page.locator('[aria-disabled="true"], [disabled]')
         for (const leave of [pageBack, panelClose, notFoundBack]) {
+            await expect(leave.and(disabled).filter({ visible: true })).toHaveCount(0)
             if (await leave.isVisible()) {
                 await leave.click()
                 await expect(leave).toBeHidden()
