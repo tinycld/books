@@ -71,7 +71,7 @@ func runAutoReversals(ctx context.Context, app core.App, now time.Time) (int, er
 	for _, entry := range due {
 		// A sweep writes without a request, so read-only mode cannot refuse
 		// it; it stops instead.
-		if ctx.Err() != nil || readonly.Active() {
+		if ctx.Err() != nil || readonly.Active(app) {
 			break
 		}
 		done, err := reverseIfPending(app, entry.Id, today)
