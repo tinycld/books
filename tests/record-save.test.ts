@@ -6,7 +6,9 @@ import type { ColumnsParse } from '../tinycld/books/lib/record-columns'
 import {
     applyPatch,
     columnsOrThrow,
+    hasRecordChanges,
     insertRow,
+    rowRefusalHandler,
     runLocked,
     saveRefusalHandler,
     startFailed,
@@ -286,5 +288,66 @@ describe('applyPatch', () => {
         applyPatch<{ name?: string; note?: string }>(draft, { name: 'B' }, { color: 'blue' })
 
         expect(draft).toStrictEqual({ name: 'B', note: 'n', fields: { color: 'blue' } })
+    })
+})
+
+describe('hasRecordChanges', () => {
+    it('is false when no column and no custom field changed', () => {
+        expect(hasRecordChanges({}, {})).toBe(false)
+    })
+
+    it('is true when a column changed', () => {
+        expect(hasRecordChanges({ name: 'A' }, {})).toBe(true)
+    })
+
+    it('is true when only a custom field changed', () => {
+        expect(hasRecordChanges({}, { color: 'red' })).toBe(true)
+    })
+})
+
+describe('rowRefusalHandler', () => {
+    it("puts a message-only refusal on the root under the row's label, not on the host", () => {
+        const { form, hostOnError } = outlets()
+
+        rowRefusalHandler(
+            form,
+            hostOnError,
+            'Item 2'
+        )(messageOnly('A bundle holds at most 50 items.'))
+
+        expect(form.setError).toHaveBeenCalledTimes(1)
+        expect(form.setError).toHaveBeenCalledWith('root', {
+            type: 'server',
+            message: 'Item 2: A bundle holds at most 50 items.',
+        })
+        expect(hostOnError).not.toHaveBeenCalled()
+    })
+
+    it("puts a row's field refusal on the root under the row's label, since no form field names one cell", () => {
+        const { form, hostOnError } = outlets()
+
+        rowRefusalHandler(
+            form,
+            hostOnError,
+            'Item 2'
+        )(fieldRefusal('quantity', 'Enter a quantity above 0 with at most 2 decimals.'))
+
+        expect(form.setError).toHaveBeenCalledTimes(1)
+        expect(form.setError).toHaveBeenCalledWith('root', {
+            type: 'server',
+            message: 'Item 2: Enter a quantity above 0 with at most 2 decimals.',
+        })
+        expect(hostOnError).not.toHaveBeenCalled()
+    })
+
+    it('hands a network error to the host handler and sets no root error', () => {
+        const error = networkError()
+        const { form, hostOnError } = outlets()
+
+        rowRefusalHandler(form, hostOnError, 'Item 2')(error)
+
+        expect(hostOnError).toHaveBeenCalledTimes(1)
+        expect(hostOnError).toHaveBeenCalledWith(error)
+        expect(form.setError).not.toHaveBeenCalled()
     })
 })

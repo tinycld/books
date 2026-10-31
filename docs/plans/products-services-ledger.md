@@ -28,9 +28,15 @@
 - cp0 reviewer B: the fictional `gizmos:gadget` host is copied into 4 core test files; `core/lib/forms/__tests__/fixtures.ts` was not in the Files block.
 - cp1 reviewer A NOTE: `ListTable`/`ListCards` now remount when the list leaves `ready` or the breakpoint flips, so the row window starts at row 0 again. Before, the window index survived while the ScrollView remounted at the top (a blank top after a no-match search was cleared on a scrolled list). No guard spec covers either.
 - cp1 reviewer A NOTE: `useTableMinWidth`'s gutter remeasures on remount; under classic scrollbars at most one frame draws the table without the gutter.
+- cp3 reviewer A NOTE: `useRecordSave` create `onError` calls `onPartialCreate` and resets the form even when the user already left; checkpoint 10's `onPartialCreate` must route only while the user is present (driver: passed to the cp10 implementer).
+- cp3 reviewer A NOTE: a row refused after the user left an edit shows the closed toast "<not saved title>: <message>" with no row label, though the record update and earlier rows landed.
+- cp3 reviewer A NOTE: an edit that changes a column and a row, where the row is refused: the record update landed but `markSaved` does not run, so the column stays dirty and the next Save writes it again (harmless).
+- cp3 reviewer A NOTE: a refused row remove has no label, so a field error on it would map to form fields by key (no server rule refuses a delete with field data).
+- cp3 reviewer A NOTE: nothing makes sure a dirty table's live rows are present before planning; an absent table plans every row as an insert (reachable only if the live query becomes not ready after an edit).
+- cp3 reviewer A NOTE: the create path sets `progress.rowLabel` and never reads it.
 
 ## Out-of-plan changes
-(none yet)
+- docs/plans/products-services-checkpoints.md (cp3): driver edit, e2e ports 7200/7201 → 7230/7231 (the lane moved; human, 2026-10-30)
 
 ## Phase notes
 - phase 1: intake and the first design gate ran 2026-10-29 in lane reports (packet against books 3c32b22, core 12759a7): direction A, Q1-Q18 accepted as recommended, platform item 1 (no slide on web) signed off; the unit then waited for p3-vendors. Look-ahead packet regenerated 2026-10-30 against books/p3-vendors 2208ad9, core 5217753; kept by the discard rule at books 91ce648, core 1bda334.
@@ -80,6 +86,20 @@
 - gate 3 B (conformance): 1 suffix placement (= A NOTE) → accepted+fixed (label + suffix in one `min-w-0 flex-1 flex-row` view, chevron `shrink-0`); 2 lesson 8, items render while closed → accepted+fixed (options and the none item only while `picker.isOpen`); 3 ledger not in Files block (loop's own file)
 - fix review: round 1: clean · gate 1 after the fix: check 2986, customer-form: 24 passed
 - gate 3 A notes: 0 open
+- reviewer-caught deferrals: none
+- commit: e567837
+
+## Checkpoint 3
+- test writer: tests/table-writes.test.ts, tests/use-record-save-rows.test.tsx (cases a-j), added cases in record-save.test.ts and record-refusals.test.ts, harness `seedFormRecords` / `guardedStore`; red for the right reason: yes (missing module/exports; behavior proven against a scratch reference and against today's hook, then deleted); untestable: none. Rows written cells-first because core `markSaved` compared rows by JSON text (core fix in progress, human chose it 2026-10-30).
+- implementer: `lib/table-writes.ts`, `refusalMessage`, `hasRecordChanges`, `rowRefusalHandler`, rows step in `useRecordSave`, `tables` + `ui?.schemas` in `useRecordForm`; DONE
+- test disputes: none
+- self-declared differences: `refused` handler built once above `useMutation`; short "why" comments on `createTablePlans`, `refusalMessage`, `hasRecordChanges`, `tableWriteSteps`
+- gate 1: tests unedited: yes · pass (check 3014; guard 36 passed on 7230/7231 — the first run failed: another workspace's server held 7200/7201; the human moved this lane to 7230/7231)
+- gate 2: n/a
+- gate 3 A (correctness): no BLOCK; 6 NOTEs → Design notes
+- gate 3 B (conformance): no BLOCK; ledger and plan port edit not in the Files block (loop bookkeeping)
+- fix review: n/a
+- gate 3 A notes: 6 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review
