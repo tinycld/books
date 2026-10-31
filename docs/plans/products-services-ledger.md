@@ -251,6 +251,7 @@
 - fix review: round 1: BLOCK — the driver's navigating-books fix "All lists at the top of a list" is false for Journal entries (no link) → fixed (names the Chart of Accounts, Customers, Vendors and Products and services lists); the custom-field sentence clean · round 2: clean · gate 1 after: check 3205, e2e 48 passed, help tests 132 passed
 - gate 3 A notes: 1 (Design notes)
 - reviewer-caught deferrals: none
+- commit: bc36cc7
 
 ## Final review
 - eval:
