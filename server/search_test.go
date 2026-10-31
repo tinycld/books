@@ -1,6 +1,8 @@
 package books
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -28,7 +30,7 @@ func rowIDs(rows []search.Row) string {
 }
 
 func TestSearch_FindsAccountsAndEntries(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	acct := mkAccount(t, env.app, "Office Supplies", "expense", "office_general")
 	draft := env.sale(t, "2026-05-01", 100)
 	setMemo(t, env, draft.Id, "Office party deposit")
@@ -64,7 +66,7 @@ func customerRows(rows []search.Row) []search.Row {
 }
 
 func TestSearch_FindsCustomers(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	withCompany := mkSearchCustomer(t, env, map[string]any{
 		"display_name": "Zephyr Studio", "company": "Quillworks Ltd", "email": "Mira@Kestrel.example",
 		"phone": "555-0199", "notes": "Prefers orchid invoices",
@@ -110,7 +112,7 @@ func TestSearch_FindsCustomers(t *testing.T) {
 // Two of each kind match "nimbus"; the first page takes one of each kind in
 // turn, so no kind starves the others.
 func TestSearch_InterleavesAllThreeKinds(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	acctA := mkAccount(t, env.app, "Nimbus Alpha Fund", "bank", "checking")
 	acctB := mkAccount(t, env.app, "Nimbus Beta Fund", "bank", "checking")
 	newer := env.sale(t, "2026-05-02", 100)
@@ -152,7 +154,7 @@ func vendorRows(rows []search.Row) []search.Row {
 }
 
 func TestSearch_FindsVendors(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	withCompany := mkSearchVendor(t, env, map[string]any{
 		"display_name": "Tamarind Paper", "company": "Halcyon Mills Ltd", "email": "Billing@Corvid.example",
 		"phone": "555-0177", "account_number": "ACCT-88412", "notes": "Ships in saffron crates",
@@ -206,7 +208,7 @@ func TestSearch_FindsVendors(t *testing.T) {
 // A vendor is found by the name on its W-9 (its legal name), never by its tax
 // ID, and the hit shows neither. Customers keep their own three columns.
 func TestSearch_FindsVendorsByLegalName(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	okafor := mkSearchVendor(t, env, map[string]any{
 		"display_name": "Okafor Design", "company": "", "email": "billing@okafor.example",
 		"legal_name": "Jamal A. Okafor", "tax_id_type": "ssn", "tax_id": "987-65-4321",
@@ -257,7 +259,7 @@ func TestSearch_FindsVendorsByLegalName(t *testing.T) {
 // Two of each kind match "quokka"; the first page takes one of each kind in
 // turn, vendors after customers, so no kind starves the others.
 func TestSearch_InterleavesAllFourKinds(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	acctA := mkAccount(t, env.app, "Quokka Alpha Fund", "bank", "checking")
 	acctB := mkAccount(t, env.app, "Quokka Beta Fund", "bank", "checking")
 	newer := env.sale(t, "2026-05-02", 100)
@@ -301,7 +303,7 @@ func productRows(rows []search.Row) []search.Row {
 }
 
 func TestSearch_FindsProducts(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	income := mkIncomeAccount(t, env.app)
 	withSku := mkSearchProduct(t, env, map[string]any{
 		"type": "service", "name": "Zircon Consulting", "sku": "ZC-4471", "income_account": income.Id,
@@ -355,7 +357,7 @@ func TestSearch_FindsProducts(t *testing.T) {
 // Two of each kind match "pangolin"; the first page takes one of each kind in
 // turn, products after vendors, so no kind starves the others.
 func TestSearch_InterleavesAllFiveKinds(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	acctA := mkAccount(t, env.app, "Pangolin Alpha Fund", "bank", "checking")
 	acctB := mkAccount(t, env.app, "Pangolin Beta Fund", "bank", "checking")
 	newer := env.sale(t, "2026-05-02", 100)
@@ -383,7 +385,7 @@ func TestSearch_InterleavesAllFiveKinds(t *testing.T) {
 }
 
 func TestSearch_NoAccessFindsNothing(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	mkSearchCustomer(t, env, map[string]any{
 		"display_name": "Checking Partners", "company": "Checking Holdings", "email": "checking@example.com",
 	})
@@ -403,26 +405,98 @@ func TestSearch_NoAccessFindsNothing(t *testing.T) {
 	}
 }
 
-func TestSearch_ExcludesAndEscapesWildcards(t *testing.T) {
-	env := newLedgerEnv(t)
+// A term matches the start of a word: "100%" is the word 100, so it finds both
+// accounts, and a term inside a word finds nothing. An excluded term drops
+// every row it matches.
+func TestSearch_MatchesWordStartsAndExcludes(t *testing.T) {
+	env := newSearchEnv(t)
 	club := mkAccount(t, env.app, "100% Club", "expense", "other_business_expenses")
-	mkAccount(t, env.app, "1000 Widgets", "cost_of_goods_sold", "supplies_materials")
-	res, _ := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"100%"}, Limit: 10})
-	if rowIDs(res.Rows) != "account:"+club.Id {
-		t.Fatalf("100%% matched %s", rowIDs(res.Rows))
+	widgets := mkAccount(t, env.app, "1000 Widgets", "cost_of_goods_sold", "supplies_materials")
+	find := func(include, exclude []string) search.Result {
+		t.Helper()
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: include, Exclude: exclude, Limit: 10})
+		if err != nil {
+			t.Fatalf("%v -%v: %v", include, exclude, err)
+		}
+		return res
 	}
-	res, _ = searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"income"}, Exclude: []string{"consulting"}, Limit: 10})
-	if len(res.Rows) != 0 {
-		t.Fatalf("exclude kept %s", rowIDs(res.Rows))
+	if got, want := rowIDs(find([]string{"100%"}, nil).Rows), "account:"+club.Id+",account:"+widgets.Id; got != want {
+		t.Fatalf("100%% matched %s, want %s", got, want)
 	}
-	res, _ = searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"income"}, Limit: 10})
-	if len(res.Rows) != 1 {
-		t.Fatalf("without the exclude, income matched %s", rowIDs(res.Rows))
+	if got := rowIDs(find([]string{"sulting"}, nil).Rows); got != "" {
+		t.Fatalf("a term inside a word matched %s", got)
+	}
+	if got := rowIDs(find([]string{"income"}, []string{"consulting"}).Rows); got != "" {
+		t.Fatalf("exclude kept %s", got)
+	}
+	if got := rowIDs(find([]string{"income"}, nil).Rows); got != "account:"+env.revenue.Id {
+		t.Fatalf("without the exclude, income matched %s", got)
+	}
+}
+
+// A term with no word in it leaves FTS5 nothing to match. Books finds nothing
+// and does not fail: a failed source shows Books as failed in the palette.
+func TestSearch_SymbolOnlyTermsFindNothing(t *testing.T) {
+	env := newSearchEnv(t)
+	for _, term := range []string{`"`, "*", "-", "()", "^", "%"} {
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{term}, Limit: 10})
+		if err != nil || len(res.Rows) != 0 || res.Total != 0 {
+			t.Fatalf("%q: rows %s total %d err %v", term, rowIDs(res.Rows), res.Total, err)
+		}
+	}
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"rent"}, Exclude: []string{"*"}, Limit: 10})
+	if err != nil || rowIDs(res.Rows) != "account:"+env.rent.Id {
+		t.Fatalf("an excluded symbol changed the hits: rows %s err %v", rowIDs(res.Rows), err)
+	}
+}
+
+func TestSearch_IgnoresCaseAndAccents(t *testing.T) {
+	env := newSearchEnv(t)
+	cafe := mkSearchCustomer(t, env, map[string]any{"display_name": "Café Olé"})
+	for _, term := range []string{"cafe", "CAFÉ", "ole"} {
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{term}, Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := rowIDs(customerRows(res.Rows)); got != "customer:"+cafe.Id {
+			t.Fatalf("%q found customers %q, want customer:%s", term, got, cafe.Id)
+		}
+	}
+}
+
+// A renamed vendor is found by its new name only.
+func TestSearch_FollowsARename(t *testing.T) {
+	env := newSearchEnv(t)
+	v := mkSearchVendor(t, env, map[string]any{"display_name": "Quillon Freight"})
+	renamed := reload(t, env.app, "books_vendors", v.Id)
+	renamed.Set("display_name", "Tamsin Freight")
+	if err := env.app.Save(renamed); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"quillon"}, Limit: 10})
+	if len(vendorRows(old.Rows)) != 0 {
+		t.Fatalf("the old name still finds %s", rowIDs(old.Rows))
+	}
+	res, _ := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"tamsin"}, Limit: 10})
+	if rows := vendorRows(res.Rows); rowIDs(rows) != "vendor:"+v.Id || rows[0].Title != "Tamsin Freight" {
+		t.Fatalf("tamsin found %s", rowIDs(res.Rows))
+	}
+}
+
+// The aggregator ends a source's context when its time is up; the source must
+// not run its queries after that.
+func TestSearch_StopsWhenTheContextEnded(t *testing.T) {
+	env := newSearchEnv(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"rent"}, Limit: 10, Ctx: ctx})
+	if !errors.Is(err, context.Canceled) || len(res.Rows) != 0 {
+		t.Fatalf("rows %s err %v, want context.Canceled", rowIDs(res.Rows), err)
 	}
 }
 
 func TestSearch_HidesVoidReversals(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	sale := mustPost(t, env.app, env.sale(t, "2026-05-10", 100).Id, "")
 	if err := setStatus(env.app, sale.Id, statusVoid, ""); err != nil {
 		t.Fatal(err)
@@ -436,7 +510,7 @@ func TestSearch_HidesVoidReversals(t *testing.T) {
 // A query that matches many accounts still shows entries on its first page:
 // accounts and entries take turns, so neither kind starves the other.
 func TestSearch_AccountsDoNotCrowdOutEntries(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	var accounts []string
 	for _, n := range []string{"101", "102", "103"} {
 		a := saveRecord(t, env.app, "books_accounts", map[string]any{
@@ -460,7 +534,7 @@ func TestSearch_AccountsDoNotCrowdOutEntries(t *testing.T) {
 }
 
 func TestSearch_LimitOffsetAndTheDefaultLimit(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	var ids []string
 	for i := range defaultSearchLimit + 5 {
 		a := mkAccount(t, env.app, fmt.Sprintf("Fund %02d", i), "bank", "checking")
@@ -497,7 +571,7 @@ func TestSearch_LimitOffsetAndTheDefaultLimit(t *testing.T) {
 // Two sub-customers share the name "Phase 1" under different parents; the
 // hit title names the parent, as customerLabel does, so they are told apart.
 func TestSearch_SubCustomerTitleNamesItsParent(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	alder := mkSearchCustomer(t, env, map[string]any{"display_name": "Alder Farms"})
 	birch := mkSearchCustomer(t, env, map[string]any{"display_name": "Birch Mills"})
 	alderPhase := mkSearchCustomer(t, env, map[string]any{
@@ -545,7 +619,7 @@ func TestSearch_SubCustomerTitleNamesItsParent(t *testing.T) {
 // Page 1 and page 2 together are the whole interleaved list: no row repeats
 // and none goes missing, even though the account list is longer than a page.
 func TestSearch_PagesAcrossAllThreeKinds(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	var accounts, entries, customers []string
 	for i := range 7 {
 		a := mkAccount(t, env.app, fmt.Sprintf("Wombat Fund %d", i), "bank", "checking")
@@ -588,7 +662,7 @@ func TestSearch_PagesAcrossAllThreeKinds(t *testing.T) {
 }
 
 func TestSearch_FindsInactiveCustomers(t *testing.T) {
-	env := newLedgerEnv(t)
+	env := newSearchEnv(t)
 	dormant := mkSearchCustomer(t, env, map[string]any{"display_name": "Juniper Hollow", "inactive": true})
 	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"juniper"}, Limit: 10})
 	if err != nil {
