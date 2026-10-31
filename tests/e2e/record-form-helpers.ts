@@ -392,15 +392,19 @@ export function recordFormHelpers(kind: RecordKind) {
             list.or(pageBack).or(panelClose).or(notFoundBack).or(listCard).first()
         ).toBeAttached()
 
-        // The list renders before the record's screen over it (a lazy route), so when the
-        // URL names a record, wait for that screen's way out instead of taking the list as
-        // shown.
+        // The URL and the record's screen do not change together. A record arriving: the
+        // list renders before the record's screen over it (a lazy route). A record leaving
+        // (Cancel, then dismissTo): the screen goes before the URL leaves the record path.
+        // So wait until the screen's way out shows or the URL no longer names a record,
+        // reading both again on each poll, instead of trusting one read of the URL.
         const recordPath = new RegExp(`/books/${kind.pathSegment}/[^/]+$`)
-        if (recordPath.test(new URL(page.url()).pathname)) {
-            await expect(
-                pageBack.or(panelClose).or(notFoundBack).filter({ visible: true }).first()
-            ).toBeVisible()
-        }
+        const wayOut = pageBack.or(panelClose).or(notFoundBack).filter({ visible: true }).first()
+        await expect
+            .poll(
+                async () =>
+                    (await wayOut.isVisible()) || !recordPath.test(new URL(page.url()).pathname)
+            )
+            .toBe(true)
 
         for (const leave of [pageBack, panelClose, notFoundBack]) {
             if (await leave.isVisible()) {
