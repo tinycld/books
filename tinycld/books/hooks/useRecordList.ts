@@ -35,6 +35,8 @@ export function useRecordList<Row>(
     filters: ListFilterState,
     source: PagedListSource<Row>
 ): RecordListState<Row> {
+    // The state describes the query's result, so it reads the filters the query ran with,
+    // not the text still being typed.
     const now: ShownList<Row> = {
         rows: source.rows,
         viewState: listViewState({
@@ -42,9 +44,10 @@ export function useRecordList<Row>(
             isError: source.isError,
             rowCount: source.rows.length,
             anyRecord: source.anyRecord,
-            search: filters.query,
-            showInactive: filters.showInactive,
+            search: filters.listFilters.search,
+            showInactive: filters.listFilters.showInactive,
         }),
+        filters: filters.listFilters,
     }
     const [kept, setKept] = useState<ShownList<Row>>()
     const { next, shown } = keepLastSettled(kept, now)

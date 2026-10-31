@@ -76,7 +76,7 @@ export function ProductsList({ openId }: { openId: string }) {
         menu: PRODUCT_MENU,
     })
     const filters = useListFilters()
-    const source = useProductsQuery({ search: filters.query, showInactive: filters.showInactive })
+    const source = useProductsQuery(filters.listFilters)
     const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? PRODUCT_LOAD_ERROR : null
     const dialog = (

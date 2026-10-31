@@ -4,12 +4,18 @@ import { and, type eq, ilike, or } from '@tanstack/db'
 // another page follows.
 export const LIST_PAGE_SIZE = 50
 
-// Books lists order by sort_key, then id. The order is lexical (by code unit): TanStack
-// DB builds a string cursor for the next page only for a lexical order, and the store
-// then sorts as SQLite does on the server. A row the server has not answered yet has no
-// sort_key and sorts first until the server's row lands.
+// Books lists order by sort_key, then id. The order is lexical: TanStack DB builds a
+// string cursor for the next page only for a lexical order. The store compares UTF-16
+// code units and SQLite (BINARY) compares UTF-8 bytes, which is code-point order. The
+// two agree except for a character above U+FFFF (an emoji) against one in
+// U+E000-U+FFFF (such as a fullwidth form): JS puts the first before the second, SQLite
+// after. Such names at a page boundary can show out of order. A row the server has not
+// answered yet has no sort_key and sorts first until the server's row lands.
 export const SORT_KEY_ORDER = { direction: 'asc', stringSort: 'lexical', nulls: 'first' } as const
 export const ID_ORDER = { direction: 'asc', stringSort: 'lexical' } as const
+
+// The pause in typing before a search runs, so the server gets one request per pause.
+export const SEARCH_DELAY_MS = 250
 
 export type ListFilters = { search: string; showInactive: boolean }
 
@@ -36,6 +42,11 @@ export function hasListFilter(filters: ListFilters): boolean {
 // filter, and TanStack DB applies it to the rows in the store. `and` and `or` never get
 // one argument: pbtsdb turns a one-argument `or` into a broken filter. Call it only when
 // `hasListFilter` is true.
+// The two sides fold case differently: TanStack DB's local `ilike` lowercases all of
+// Unicode, and PocketBase `~` (SQLite LIKE) folds A-Z only. So a row already in the
+// store (the open record, a materialized parent, a picker row) can show in a non-ASCII
+// search that the server would not answer ("école" finds a loaded "ÉCOLE"). The local
+// result is a superset of the server's, so no row the server sends is dropped.
 export function listFilter(
     columns: { isActive: Clause; text: readonly [TextColumn, TextColumn, ...TextColumn[]] },
     filters: ListFilters
