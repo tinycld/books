@@ -9,6 +9,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/appstate"
 )
 
 // Corrections are reversing entries (spec, Ledger rules). A void
@@ -24,7 +25,21 @@ var voidEditable = map[string]bool{"status": true, "voided_by": true, "voided_at
 // from that void; posted any other way it would cancel an entry that still
 // reads as posted. PocketBase has one write connection, so posting
 // transactions do not overlap and the mark cannot leak to another void.
+// Keys are appstate.Scoped(app, entryID): an entry id is unique only in its app.
 var voiding sync.Map
+
+// markVoiding records that entryID's void is running in app, and returns the
+// func that clears the mark.
+func markVoiding(app core.App, entryID string) func() {
+	key := appstate.Scoped(app, entryID)
+	voiding.Store(key, true)
+	return func() { voiding.Delete(key) }
+}
+
+func isVoiding(app core.App, entryID string) bool {
+	_, ok := voiding.Load(appstate.Scoped(app, entryID))
+	return ok
+}
 
 // postedReversalQuery selects the posted reversal of an entry. It repeats
 // the partial index's own conditions (reverses is not empty, status is
@@ -65,7 +80,7 @@ func reversalTarget(tx core.App, entry *core.Record) (*core.Record, error) {
 	if target.GetString("origin") == originVoidReversal {
 		return nil, refuse("%s records a void and cannot be reversed.", entryName(target))
 	}
-	if _, ok := voiding.Load(target.Id); entry.GetString("origin") == originVoidReversal && !ok {
+	if entry.GetString("origin") == originVoidReversal && !isVoiding(tx, target.Id) {
 		return nil, refuse("Books writes a void's reversal when it voids an entry. Void %s instead.", entryName(target))
 	}
 	if entry.GetString("date") < target.GetString("date") {
@@ -157,8 +172,7 @@ func voidEntry(tx core.App, entry *core.Record, now time.Time) error {
 	if existing != nil {
 		return refuse("%s is reversed by entry %s. Void that reversal first.", entryName(entry), existing.GetString("number"))
 	}
-	voiding.Store(entry.Id, true)
-	defer voiding.Delete(entry.Id)
+	defer markVoiding(tx, entry.Id)()
 	actor := entry.GetString("voided_by")
 	rev, err := newReversalDraft(tx, entry, originVoidReversal, entry.GetString("date"), "Void of "+entry.GetString("number"), actor)
 	if err != nil {
