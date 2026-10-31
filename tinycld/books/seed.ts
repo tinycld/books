@@ -1,6 +1,7 @@
 import type PocketBase from 'pocketbase'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
+import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
 import { VENDORS } from './lib/vendor-form-fixture'
 
@@ -131,9 +132,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedJournalEntries(pb, ctx, ids)
     await seedCustomers(pb)
     await seedVendors(pb, accountIds)
+    await seedProducts(pb, accountIds)
     // Created active and deactivated last, because the app makes an account
-    // inactive by updating it, and the vendor guard refuses a vendor that
-    // names an inactive account when it is saved.
+    // inactive by updating it, and the vendor and product guards refuse a row
+    // that names an inactive account when it is saved.
     for (const account of SEED_ACCOUNTS.filter(a => a.inactive)) {
         const id = ids.get(account.key)
         if (id === undefined) throw new Error(`seed: account ${account.key} was not created`)
@@ -188,6 +190,49 @@ export async function seedVendors(pb: PocketBase, accountIds: Map<string, string
         await pb
             .collection('books_vendors')
             .create({ ...seedValues(row), expense_account: accountId })
+    }
+}
+
+// The created account's id for a fixture account number ('' for none). A
+// number with no account is a fixture bug, so it throws before the create.
+function seededAccountId(
+    accountIds: Map<string, string>,
+    number: string,
+    productId: string
+): string {
+    const accountId = number ? accountIds.get(number) : ''
+    if (accountId === undefined) {
+        throw new Error(`seed: product ${productId} names account ${number}, which was not created`)
+    }
+    return accountId
+}
+
+// The fixture ids are valid PocketBase ids, so the seed sends them; `currency`
+// is the server's. Every product is created active, then its bundle rows, and
+// the inactive products are made inactive last: the item guard refuses a row
+// whose product is inactive when the row is created, so rows come first.
+export async function seedProducts(pb: PocketBase, accountIds: Map<string, string>): Promise<void> {
+    for (const product of PRODUCTS) {
+        const {
+            income_account_number: income,
+            expense_account_number: expense,
+            currency: _currency,
+            inactive: _inactive,
+            ...row
+        } = product
+        const income_account = seededAccountId(accountIds, income, product.id)
+        const expense_account = seededAccountId(accountIds, expense, product.id)
+        await pb
+            .collection('books_products')
+            .create({ ...seedValues(row), income_account, expense_account, inactive: false })
+    }
+    for (const { id, bundle, product, quantity, position } of BUNDLE_ITEMS) {
+        await pb
+            .collection('books_bundle_items')
+            .create({ id, bundle, product, quantity, position })
+    }
+    for (const product of PRODUCTS.filter(p => p.inactive)) {
+        await pb.collection('books_products').update(product.id, { inactive: true })
     }
 }
 

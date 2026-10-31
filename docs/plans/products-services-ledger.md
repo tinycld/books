@@ -34,6 +34,8 @@
 - cp3 reviewer A NOTE: a refused row remove has no label, so a field error on it would map to form fields by key (no server rule refuses a delete with field data).
 - cp3 reviewer A NOTE: nothing makes sure a dirty table's live rows are present before planning; an absent table plans every row as an insert (reachable only if the live query becomes not ready after an edit).
 - cp3 reviewer A NOTE: the create path sets `progress.rowLabel` and never reads it.
+- cp4 reviewer A NOTE: core audit binds request hooks only, so a bundle delete's cascaded rows get no audit row each (the bundle's own delete row is the record; journal lines behave the same).
+- cp4 fix review NOTE: `TestBundleItem_QuantityRules` has no large three-decimal refuse case (e.g. 999999.999); the code refuses it.
 
 ## Out-of-plan changes
 - docs/plans/products-services-checkpoints.md (cp3): driver edit, e2e ports 7200/7201 → 7230/7231 (the lane moved; human, 2026-10-30)
@@ -100,6 +102,20 @@
 - gate 3 B (conformance): no BLOCK; ledger and plan port edit not in the Files block (loop bookkeeping)
 - fix review: n/a
 - gate 3 A notes: 6 (Design notes)
+- reviewer-caught deferrals: none
+- commit: 3b8a7ec
+
+## Checkpoint 4
+- test writer: server/products_test.go (new; product and bundle-item guards, messages, delete refusals, rules by level, hidden name_key), server/accounts_test.go (account delete refused while products use it), server/registrations_test.go (OAuth rw, audit labels), tests/product-types.test.ts, tests/product-messages.test.ts (drift against products.go / accounts.go), tests/products-fixture.test.ts, tests/collections.test.ts; red for the right reason: yes (Go: missing names and `validateExpenseAccount`'s extra argument; with a scratchpad stub overlay all 42 named tests fail on the missing collection or wrong values; TS: missing modules / collections); untestable: none. `runLevelCases` added because `runRulesByLevel` hard-codes `display_name`.
+- implementer: migration 2100000005, server/products.go (guards, delete refusals, `productReferences`), `validateExpenseAccount` message argument, account-delete refusal, audit / OAuth registrations, collections + types, `product-types.ts`, `product-messages.ts`, fixture on generated types, `seedProducts`; DONE
+- test disputes: none
+- self-declared differences: `refuseField(..., "%s", msg)` / `refuse("%s", ...)` because go vet (Go 1.27) refuses a non-constant format; more read errors wrapped (bundle, item's product, bundle row count, delete count); helpers `bundleHasOwn`, `validateProductAccounts`; `productName` falls back to the id; seed helper `seededAccountId` throws before create on an unknown number; small naming differences
+- gate 1: tests unedited: yes · pass (check 3043; go vet + go test; guard 36 passed on 7230/7231; seed 24 products, 14 bundle rows, no error)
+- gate 2: n/a
+- gate 3 A (correctness): BLOCK 1 bundle quantity tolerance 1e-9 refused valid quantities ≥ 131072 (e.g. 131072.02) → accepted+fixed (1e-6; a reviewer probe over every 2-decimal value found 0 false refusals); BLOCK 2 turning purchases on kept an unchecked A/P or inactive expense account → accepted+fixed (a stored record with purchases off counts as no stored account); a fresh test writer added the failing cases first; NOTE cascade-deleted bundle rows get no audit row each (same as journal lines) → Design notes
+- gate 3 B (conformance): 1 = A's BLOCK 2 (fixed); 2 ledger not in Files block (loop's own file)
+- fix review: round 1: clean · NOTE doc comment of `validateProductAccounts` still said "only when the write changes it" → corrected (comment only); NOTE no large three-decimal refuse case (999999.999) → Design notes
+- gate 3 A notes: 2 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review
