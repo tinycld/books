@@ -13,6 +13,11 @@ export const EXPENSE_ACCOUNT_INACTIVE = 'The expense account is inactive.'
 export const EXPENSE_ACCOUNT_LEDGER =
     "A vendor's default expense account cannot be Accounts receivable or Accounts payable."
 
+// msgTaxIDDigits and msgTaxIDType in server/vendors.go.
+export const TAX_ID_DIGITS = 'A tax ID has 9 digits.'
+
+export const TAX_ID_TYPE_MISSING = 'Choose whether the tax ID is an EIN or an SSN.'
+
 export const VENDOR_NOT_SAVED = 'The vendor was not saved.'
 
 // The root error of a save that threw before the write.

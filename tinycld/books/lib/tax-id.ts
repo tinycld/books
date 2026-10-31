@@ -1,5 +1,6 @@
 // A vendor's tax ID type and the display forms of its tax ID. The keys must
-// equal the tax_id_type values of migration 2100000004 (tests/tax-id.test.ts).
+// equal the tax_id_type values of migration 2100000004 (tests/tax-id.test.ts)
+// and taxIDTypes in server/form1099.go (server/form1099_test.go).
 
 import type { BooksVendors } from '../types'
 
