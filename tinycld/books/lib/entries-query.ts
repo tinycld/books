@@ -45,10 +45,12 @@ export function entriesWhere(
     return clauses
 }
 
-// pbtsdb pushes only `like` to PocketBase and cannot push `ilike`, so the
-// search runs client-side. It matches case-insensitively like the `ilike`
-// clause, but treats `%` and `_` literally, which `ilike` treats as wildcards.
-// The caller must not push a limit to the server while searching.
+// The entries search runs client-side: it was written when pbtsdb could not push
+// `ilike`. pbtsdb 2.1.0 does push `ilike` to PocketBase as `~` (the Books lists search
+// on the server that way, lib/list-search.ts), so this search can move to the server
+// later. It matches case-insensitively like the `ilike` clause, but treats `%` and `_`
+// literally, which `ilike` treats as wildcards. The caller must not push a limit to
+// the server while searching.
 export function entryMatchesSearch(
     entry: Pick<BooksJournalEntries, 'number' | 'memo'>,
     search: string
