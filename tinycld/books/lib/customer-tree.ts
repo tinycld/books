@@ -63,6 +63,31 @@ export function customerPartyRows<T extends TreeCustomer>(
     }))
 }
 
+// The list's rows from the server, in sort_key order, which is already the tree: each
+// top-level customer is followed by its sub-customers (server/sort_keys.go). A search
+// keeps only matching rows, so a matching sub-customer whose parent did not match
+// brings `parentRow` (the query's materialized parent), shown above it once. A
+// sub-customer whose parent has not loaded yet is a top-level row.
+export function customerTreeRows<T extends TreeCustomer>(
+    rows: readonly (T & { parentRow: T | undefined })[]
+): PartyListRow<T>[] {
+    const out: PartyListRow<T>[] = []
+    let shownParent = ''
+    for (const row of rows) {
+        if (row.parent === '') {
+            out.push({ party: row, depth: 0 })
+            shownParent = row.id
+            continue
+        }
+        if (row.parent !== shownParent && row.parentRow) {
+            out.push({ party: row.parentRow, depth: 0 })
+            shownParent = row.parentRow.id
+        }
+        out.push({ party: row, depth: row.parent === shownParent ? 1 : 0 })
+    }
+    return out
+}
+
 export type CustomerListViewState = PartyListViewState
 
 export function customerListViewState(input: {

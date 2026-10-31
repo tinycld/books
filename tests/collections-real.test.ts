@@ -3,6 +3,7 @@ import { createCollection, disconnectRealtime, materialize } from 'pbtsdb/core'
 import PocketBase from 'pocketbase'
 import { describe, expect, it } from 'vitest'
 import { registerCollections } from '../tinycld/books/collections'
+import { OfflinePocketBase } from './offline-pocketbase'
 
 // The real pbtsdb factory against a client that is never contacted: building a
 // collection makes no request, so this checks what the package really registers.
@@ -31,34 +32,6 @@ describe('registerCollections with the real pbtsdb', () => {
 const STAMP = '2026-10-01 00:00:00.000Z'
 const ADA = { id: 'userada0000001', name: 'Ada Admin', email: 'ada@example.test' }
 const BOB = { id: 'userbob0000001', name: 'Bob Books', email: 'bob@example.test' }
-
-// A PocketBase client whose network layer serves in-memory tables, so the real
-// pbtsdb collections sync and filter exactly as they do against a server.
-class OfflinePocketBase extends PocketBase {
-    tables: Record<string, Record<string, unknown>[]> = {}
-    requests: string[] = []
-
-    constructor() {
-        super('http://127.0.0.1:1')
-        this.autoCancellation(false)
-    }
-
-    override async send<T = unknown>(
-        path: string,
-        options: { query?: Record<string, unknown> }
-    ): Promise<T> {
-        this.requests.push(path)
-        const name = path.split('/')[3]
-        const items = this.tables[name] ?? []
-        const filter = String(options.query?.filter ?? '')
-        const ids = [...filter.matchAll(/id\s*=\s*['"]([^'"]+)['"]/g)].map(m => m[1])
-        const matching = ids.length > 0 ? items.filter(r => ids.includes(String(r.id))) : items
-        const page = Number(options.query?.page ?? 1)
-        const perPage = Number(options.query?.perPage ?? 30)
-        const rows = matching.slice((page - 1) * perPage, page * perPage)
-        return { page, perPage, totalItems: matching.length, totalPages: 1, items: rows } as T
-    }
-}
 
 function realBooksWithUsers() {
     const pb = new OfflinePocketBase()
