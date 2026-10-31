@@ -1,18 +1,10 @@
 import { useRef, useState } from 'react'
-import { isNearEnd } from '../lib/near-end'
+import { isNearEnd, type ScrollMetrics } from '../lib/near-end'
 import { indexAt, itemTop, windowRange } from '../lib/opening-window'
 
 export const ROW_OVERSCAN = 6
 
-// React Native's scroll event carries all three; only the offset moves the window, so a
-// caller with no `onNearEnd` may send the offset alone.
-type ScrollEvent = {
-    nativeEvent: {
-        contentOffset: { y: number }
-        layoutMeasurement?: { height: number }
-        contentSize?: { height: number }
-    }
-}
+type ScrollEvent = { nativeEvent: ScrollMetrics }
 type LayoutEvent = { nativeEvent: { layout: { height: number } } }
 
 export function rowWindowBounds({
@@ -39,17 +31,48 @@ export function rowWindowBounds({
 type RowWindowOptions = {
     total: number
     viewHeight: number
-    // Called on each scroll that ends near the end of the content (lib/near-end.ts).
+    // Called whenever the view ends near the end of the content (lib/near-end.ts).
     onNearEnd?(): void
 } & (
     | { rowHeight: number; heights?: undefined }
     | { heights: readonly number[]; rowHeight?: undefined }
 )
 
-function reportNearEnd(event: ScrollEvent, onNearEnd: (() => void) | undefined) {
-    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent
-    if (!onNearEnd || !layoutMeasurement || !contentSize) return
-    if (isNearEnd({ contentOffset, layoutMeasurement, contentSize })) onNearEnd()
+// The scroller's last offset and measured heights. The view is checked after a scroll, a
+// layout and a content size change, so a first page that fits the view (nothing to
+// scroll) still asks for the next one. Nothing is asked until both heights are measured.
+function useNearEnd(onNearEnd: (() => void) | undefined) {
+    const metrics = useRef<{ offset: number; view?: number; content?: number }>({ offset: 0 })
+    const check = () => {
+        const { offset, view, content } = metrics.current
+        if (!onNearEnd || view === undefined || content === undefined) return
+        const near = isNearEnd({
+            contentOffset: { y: offset },
+            layoutMeasurement: { height: view },
+            contentSize: { height: content },
+        })
+        if (near) onNearEnd()
+    }
+    return {
+        // A list that does not page has nothing to track.
+        track: ({ nativeEvent }: ScrollEvent) => {
+            if (!onNearEnd) return
+            metrics.current = {
+                offset: nativeEvent.contentOffset.y,
+                view: nativeEvent.layoutMeasurement.height,
+                content: nativeEvent.contentSize.height,
+            }
+            check()
+        },
+        onViewLayout: (event: LayoutEvent) => {
+            metrics.current.view = event.nativeEvent.layout.height
+            check()
+        },
+        onContentSizeChange: (_width: number, height: number) => {
+            metrics.current.content = height
+            check()
+        },
+    }
 }
 
 // Mounts only the rows near the scroll position. The rest are stood in for by two spacers
@@ -68,6 +91,7 @@ export function useRowWindow(options: RowWindowOptions) {
     // viewport, so the item just below it is the one at `scrollY - leading`; the header
     // height cancels out of `scrollY - (leading + header) + header`.
     const leading = useRef(0)
+    const { track, onViewLayout, onContentSizeChange } = useNearEnd(onNearEnd)
 
     if (heights) {
         const range = windowRange({
@@ -83,11 +107,13 @@ export function useRowWindow(options: RowWindowOptions) {
                 setFirstVisible(
                     indexAt(heights, event.nativeEvent.contentOffset.y - leading.current)
                 )
-                reportNearEnd(event, onNearEnd)
+                track(event)
             },
             onLeadingLayout: (event: LayoutEvent) => {
                 leading.current = event.nativeEvent.layout.height
             },
+            onViewLayout,
+            onContentSizeChange,
         }
     }
 
@@ -97,8 +123,10 @@ export function useRowWindow(options: RowWindowOptions) {
         ...rowWindowBounds({ firstVisible, total, rowHeight: height, viewHeight }),
         onScroll: (event: ScrollEvent) => {
             setFirstVisible(Math.floor(event.nativeEvent.contentOffset.y / height))
-            reportNearEnd(event, onNearEnd)
+            track(event)
         },
         onLeadingLayout: () => {},
+        onViewLayout,
+        onContentSizeChange,
     }
 }

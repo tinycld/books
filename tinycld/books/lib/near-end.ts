@@ -2,7 +2,7 @@
 // so the rows are there before the person reaches the end.
 export const NEAR_END_PX = 600
 
-type ScrollMetrics = {
+export type ScrollMetrics = {
     contentOffset: { y: number }
     layoutMeasurement: { height: number }
     contentSize: { height: number }

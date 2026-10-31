@@ -1,6 +1,6 @@
 import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
 import { Fragment, type ReactNode } from 'react'
-import { ScrollView, Text, View, type ViewStyle } from 'react-native'
+import { type LayoutChangeEvent, ScrollView, Text, View, type ViewStyle } from 'react-native'
 import { useRowWindow } from '../hooks/useRowWindow'
 import { useTableMinWidth } from '../hooks/useTableMinWidth'
 import { PARTY_ROW_CLASS } from '../lib/party-list'
@@ -17,7 +17,8 @@ type ListTableProps<Row> = {
 }
 
 // A windowed table: below `minWidth` it scrolls sideways, the header stays on top while the
-// rows scroll under it, and nearing the end asks for the next page (`onNearEnd`).
+// rows scroll under it, and nearing the end (or rows that fit the view) asks for the next
+// page (`onNearEnd`).
 export function ListTable<Row>({
     testID,
     minWidth,
@@ -36,6 +37,10 @@ export function ListTable<Row>({
         .map(row => <Fragment key={keyOf(row)}>{renderRow(row)}</Fragment>)
     const topSpacer = { height: rowWindow.topSpace }
     const bottomSpacer = { height: rowWindow.bottomSpace }
+    const onRowsLayout = (event: LayoutChangeEvent) => {
+        table.onRowsLayout()
+        rowWindow.onViewLayout(event)
+    }
     return (
         <ScrollView
             horizontal
@@ -47,7 +52,8 @@ export function ListTable<Row>({
                 <ScrollView
                     testID={`${testID}-rows`}
                     ref={table.rowsScrollRef}
-                    onLayout={table.onRowsLayout}
+                    onLayout={onRowsLayout}
+                    onContentSizeChange={rowWindow.onContentSizeChange}
                     className="flex-1 web:[scrollbar-gutter:stable]"
                     stickyHeaderIndices={[0]}
                     onScroll={rowWindow.onScroll}
