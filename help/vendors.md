@@ -9,7 +9,7 @@ A vendor is a person or a company that you buy from. To see your vendors, choose
 
 ## Find a vendor
 
-To find a vendor in the list, type in the search field above the list. The list shows the vendors whose display name, company, email or phone contains the text. The list loads more vendors as you scroll down.
+To find a vendor in the list, type in the search field above the list. The list shows the vendors whose display name, company, email or phone contains the text. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. The list loads more vendors as you scroll down.
 
 To find a vendor from anywhere in the app, use the app search. Search finds vendors by display name, company, email or legal name. Search never finds a vendor by its tax ID. It matches words that start with what you type, so “harb” finds “Harbor Freight Logistics” but “bor” does not, and it ignores case and accents. Choose a result to open that vendor.
 

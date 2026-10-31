@@ -49,7 +49,7 @@ A bundle holds Services and Non-inventory items only, so a bundle cannot contain
 
 ## Find a product or service
 
-To find a product or service, type in the search field above the list. Search finds products by name, SKU or sales description. The list loads more items as you scroll down.
+To find a product or service, type in the search field above the list. Search finds products by name, SKU or sales description. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. The list loads more items as you scroll down.
 
 To find a product or service from anywhere in the app, use the app search. It matches words that start with what you type, and it ignores case and accents. Choose a result to open that item.
 
