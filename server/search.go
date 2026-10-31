@@ -179,11 +179,20 @@ type partyHit struct {
 type partySource struct {
 	table, kind, meta string
 	withParent        bool
+	// matchColumns are the columns a term may match, qualified with c.: a
+	// vendor's legal name, never its tax ID.
+	matchColumns []string
 }
 
-var customerSource = partySource{table: "books_customers", kind: "customer", meta: "Customer", withParent: true}
+var customerSource = partySource{
+	table: "books_customers", kind: "customer", meta: "Customer", withParent: true,
+	matchColumns: []string{"c.display_name", "c.company", "c.email"},
+}
 
-var vendorSource = partySource{table: "books_vendors", kind: "vendor", meta: "Vendor", withParent: false}
+var vendorSource = partySource{
+	table: "books_vendors", kind: "vendor", meta: "Vendor", withParent: false,
+	matchColumns: []string{"c.display_name", "c.company", "c.email", "c.legal_name"},
+}
 
 // partyHitTitle uses the client's "Parent : Child" label form, so two rows of
 // the same name under different parents are told apart.
@@ -206,7 +215,7 @@ func searchVendors(ctx context.Context, app core.App, q search.Query, window int
 func searchParties(ctx context.Context, app core.App, q search.Query, window int, src partySource) ([]search.Row, int, error) {
 	// Qualified with c. in both forms, so the query with no parent join and
 	// the one with it share one match clause.
-	where, params := likeWhere([]string{"c.display_name", "c.company", "c.email"}, q)
+	where, params := likeWhere(src.matchColumns, q)
 	var total int
 	if err := app.DB().NewQuery("SELECT COUNT(*) FROM " + src.table + " c WHERE " + where).
 		WithContext(ctx).Bind(params).Row(&total); err != nil {

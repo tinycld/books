@@ -1,7 +1,9 @@
 package books
 
 import (
+	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -167,6 +169,129 @@ func TestAudit_LogsAnAccountCreate(t *testing.T) {
 					"resource_type = 'books_accounts' && action = 'created'", dbx.Params{})
 				return err == nil && row.GetString("resource_label") == "1010:Petty Cash" && row.GetString("actor") == users.bookkeeper.Id
 			})
+		},
+	}.run(t, app)
+}
+
+// newAuditedApp is an app with the ledger guards and the audit hooks bound, as
+// production binds them, and one user per level.
+func newAuditedApp(t testing.TB) (*tests.TestApp, levelUsers) {
+	t.Helper()
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerAudit(&pocketbase.PocketBase{App: app})
+	return app, newLevelUsers(t, app)
+}
+
+// awaitAuditRow waits for the one audit row of action on a record, since core
+// writes it off the request goroutine.
+func awaitAuditRow(t testing.TB, app core.App, collection, action, id string) *core.Record {
+	t.Helper()
+	var row *core.Record
+	waitFor(t, func() bool {
+		r, err := app.FindFirstRecordByFilter("audit_logs",
+			"resource_type = {:c} && action = {:a} && resource_id = {:id}",
+			dbx.Params{"c": collection, "a": action, "id": id})
+		row = r
+		return err == nil
+	})
+	return row
+}
+
+// requireNoLeak fails when the audit row's JSON holds any of the fragments.
+func requireNoLeak(t testing.TB, row *core.Record, fragments ...string) {
+	t.Helper()
+	raw, err := json.Marshal(row)
+	if err != nil {
+		t.Fatalf("marshal the audit row: %v", err)
+	}
+	for _, f := range fragments {
+		if strings.Contains(string(raw), f) {
+			t.Errorf("the audit row holds %q: %s", f, raw)
+		}
+	}
+}
+
+func auditJSONField(t testing.TB, row *core.Record, field string) map[string]any {
+	t.Helper()
+	var out map[string]any
+	if err := row.UnmarshalJSONField(field, &out); err != nil {
+		t.Fatalf("audit %s is not JSON: %v (%s)", field, err, row.GetString(field))
+	}
+	return out
+}
+
+var redactedChange = map[string]any{"before": "[redacted]", "after": "[redacted]", "redacted": true}
+
+// A tax ID (an SSN for a sole proprietor) must not stay readable in the audit
+// log after it is corrected: the change is logged with the marker for both
+// values, while the vendor's other fields keep theirs.
+func TestAudit_RedactsAVendorTaxIDChange(t *testing.T) {
+	app, users := newAuditedApp(t)
+	vendor := saveRecord(t, app, "books_vendors", map[string]any{
+		"display_name": "Redact Co", "tax_id_type": "ein", "tax_id": "12-3456789",
+	})
+	apiReq{
+		method: http.MethodPatch,
+		url:    "/api/collections/books_vendors/records/" + vendor.Id,
+		token:  tokenFor(t, users.bookkeeper),
+		body:   `{"tax_id":"987654321","legal_name":"Redact Company LLC"}`,
+		want:   http.StatusOK,
+		after: func(t testing.TB, app *tests.TestApp) {
+			row := awaitAuditRow(t, app, "books_vendors", "updated", vendor.Id)
+			changes := auditJSONField(t, row, "changes")
+			if !reflect.DeepEqual(changes["tax_id"], redactedChange) {
+				t.Errorf("changes.tax_id = %#v, want %#v", changes["tax_id"], redactedChange)
+			}
+			if want := map[string]any{"before": "", "after": "Redact Company LLC"}; !reflect.DeepEqual(changes["legal_name"], want) {
+				t.Errorf("changes.legal_name = %#v, want %#v", changes["legal_name"], want)
+			}
+			requireNoLeak(t, row, "3456789", "7654321")
+		},
+	}.run(t, app)
+}
+
+// A deleted vendor's snapshot keeps its other fields but not its tax ID.
+func TestAudit_RedactsADeletedVendorsTaxID(t *testing.T) {
+	app, users := newAuditedApp(t)
+	vendor := saveRecord(t, app, "books_vendors", map[string]any{
+		"display_name": "Redact Co", "tax_id_type": "ein", "tax_id": "12-3456789",
+	})
+	apiReq{
+		method: http.MethodDelete,
+		url:    "/api/collections/books_vendors/records/" + vendor.Id,
+		token:  tokenFor(t, users.bookkeeper),
+		want:   http.StatusNoContent,
+		after: func(t testing.TB, app *tests.TestApp) {
+			row := awaitAuditRow(t, app, "books_vendors", "deleted", vendor.Id)
+			snapshot := auditJSONField(t, row, "snapshot")
+			if snapshot["tax_id"] != "[redacted]" {
+				t.Errorf("snapshot.tax_id = %#v, want %q", snapshot["tax_id"], "[redacted]")
+			}
+			if snapshot["display_name"] != "Redact Co" {
+				t.Errorf("snapshot.display_name = %#v, want %q", snapshot["display_name"], "Redact Co")
+			}
+			requireNoLeak(t, row, "3456789")
+		},
+	}.run(t, app)
+}
+
+// The company's own tax ID in Books settings is logged the same way.
+func TestAudit_RedactsTheCompanyTaxID(t *testing.T) {
+	app, users := newAuditedApp(t)
+	apiReq{
+		method: http.MethodPatch,
+		url:    "/api/collections/books_settings/records/" + settingsID,
+		token:  tokenFor(t, users.admin),
+		body:   `{"tax_id":"55-5555555"}`,
+		want:   http.StatusOK,
+		after: func(t testing.TB, app *tests.TestApp) {
+			row := awaitAuditRow(t, app, "books_settings", "updated", settingsID)
+			changes := auditJSONField(t, row, "changes")
+			if !reflect.DeepEqual(changes["tax_id"], redactedChange) {
+				t.Errorf("changes.tax_id = %#v, want %#v", changes["tax_id"], redactedChange)
+			}
+			requireNoLeak(t, row, "5555555")
 		},
 	}.run(t, app)
 }
