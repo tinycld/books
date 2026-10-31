@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/vendor-1099-checkpoints.md
 - reference: docs/plans/vendor-1099-reference/
 - evidence: docs/plans/vendor-1099-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen, 2026-10-31; the extended capture spec is saved at ~/tmp/tinycld/auto-helix-books/staging/p3-vendor-1099/helix-capture.spec.ts)
 - capture manifest: docs/plans/vendor-1099-capture.json
 - review mode: C — none (unattended)
 - core extension: audit `CollectionConfig.Redact` — tinycld PR (pending, branch books/p3-vendor-1099); checkpoint 0, merges before checkpoint 1; no `exclusive` (small core change)
@@ -186,4 +186,4 @@
 - reviewer-caught deferrals: none
 
 ## Final review
-- eval:
+- eval: APPROVED by the human 2026-10-31. Local full suite at 1e67752 was red (4 first-on-worker login timeouts on a truncated 4.3 MB JS chunk from the e2e static server); the human ruled the local run invalid ("you are not running e2e properly or someone else interfered with your server") and directed CI instead: PR tinycld/books#23 at 1e67752 green (E2E shards 1-4, Typecheck & Unit). Deferrals: none. Rebuttals: none. native: not executed.
