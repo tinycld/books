@@ -6,6 +6,7 @@ import { useForm1099Section } from '../../hooks/useForm1099Section'
 import type { BooksSettings } from '../../types'
 import { AccountBoxesCard } from './AccountBoxesCard'
 import { ThresholdCard } from './ThresholdCard'
+import { Tracked1099VendorsCard } from './Tracked1099VendorsCard'
 
 function SectionLoading({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
@@ -37,14 +38,30 @@ interface SectionReadyProps {
     settings: BooksSettings | undefined
     accounts: ComponentProps<typeof AccountBoxesCard>['accounts']
     controls: ComponentProps<typeof AccountBoxesCard>['controls']
+    vendors: ComponentProps<typeof Tracked1099VendorsCard>['vendors']
+    onOpenVendor(id: string): void
+    onOpenVendors(): void
 }
 
-function SectionReady({ isVisible, settings, accounts, controls }: SectionReadyProps) {
+function SectionReady({
+    isVisible,
+    settings,
+    accounts,
+    controls,
+    vendors,
+    onOpenVendor,
+    onOpenVendors,
+}: SectionReadyProps) {
     if (!isVisible || !settings) return null
     return (
         <View className="gap-4" testID="books-1099-section">
             <ThresholdCard settings={settings} editsThreshold={controls.editsThreshold} />
             <AccountBoxesCard accounts={accounts} controls={controls} />
+            <Tracked1099VendorsCard
+                vendors={vendors}
+                onOpen={onOpenVendor}
+                onOpenVendors={onOpenVendors}
+            />
         </View>
     )
 }
@@ -52,16 +69,19 @@ function SectionReady({ isVisible, settings, accounts, controls }: SectionReadyP
 // It takes no isAdmin from SectionBody: the threshold is admin-only but the boxes are for
 // every writer, so the section reads the full access level through useForm1099Section.
 export function Form1099Section() {
-    const { part, settings, accounts, controls, retry } = useForm1099Section()
+    const section = useForm1099Section()
     return (
         <>
-            <SectionLoading isVisible={part === 'loading'} />
-            <SectionError isVisible={part === 'error'} onRetry={retry} />
+            <SectionLoading isVisible={section.part === 'loading'} />
+            <SectionError isVisible={section.part === 'error'} onRetry={section.retry} />
             <SectionReady
-                isVisible={part === 'ready'}
-                settings={settings}
-                accounts={accounts}
-                controls={controls}
+                isVisible={section.part === 'ready'}
+                settings={section.settings}
+                accounts={section.accounts}
+                controls={section.controls}
+                vendors={section.vendors}
+                onOpenVendor={section.openVendor}
+                onOpenVendors={section.openVendors}
             />
         </>
     )

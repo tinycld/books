@@ -45,8 +45,12 @@ describe('help/vendors.md', () => {
     // The list-search sentence also names display name, company and email, so match the app-search sentence itself.
     it('explains finding a vendor from search', () => {
         expect(body.replace(/\s+/g, ' ')).toContain(
-            'use the app search. Search finds vendors by display name, company or email.'
+            'use the app search. Search finds vendors by display name, company, email or legal name.'
         )
+    })
+
+    it('links the 1099 tracking topic', () => {
+        expect(body).toContain('help://books:1099-tracking')
     })
 
     it('explains payment terms and names every term', () => {

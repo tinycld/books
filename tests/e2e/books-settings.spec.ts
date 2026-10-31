@@ -734,6 +734,45 @@ test.describe('vendor-1099: Settings → 1099s', () => {
             ])
         }
     })
+
+    // The seeded admin is a writer, so read-only 1099s are shown to the collaborator at
+    // read_only; their access level is put back from the admin's Access section.
+    test('a read-only member sees 1099s without edit controls', async ({ page }) => {
+        await openSettings(page)
+        await openRailSection(page, 'access')
+        const started = await levelOf(accessRow(page, TEST_COLLABORATOR_EMAIL))
+
+        try {
+            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, 'read_only')
+            const reader = await signInAsCollaborator(page)
+            try {
+                const view = reader.page
+                await navigateToPackage(view, 'books')
+                await id(view, 'books-nav-settings').click()
+                await id(view, 'books-settings-section-form-1099').click()
+
+                await expect(id(view, 'books-1099-threshold-value')).toHaveText(/^\$[\d,]+\.\d{2}$/)
+                await expect(view.getByTestId('books-1099-threshold')).toHaveCount(0)
+
+                await expect
+                    .poll(() => view.locator('[data-testid^="books-1099-box-text-"]').count())
+                    .toBeGreaterThan(0)
+                await expect(id(view, 'books-1099-accounts')).toContainText('MISC 1 · Rents')
+                await expect(view.locator('[data-testid^="books-1099-box-select-"]')).toHaveCount(0)
+
+                await expect(id(view, 'books-1099-vendor-last-four-vendkeystonel01')).toHaveText(
+                    '•••2741'
+                )
+            } finally {
+                await reader.close()
+            }
+        } finally {
+            await runRestores([
+                () => openRailSection(page, 'access'),
+                () => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started),
+            ])
+        }
+    })
 })
 
 async function openCompanySettings(page: Page) {
