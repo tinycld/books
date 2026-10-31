@@ -119,4 +119,43 @@ describe('customerTreeRows', () => {
     it('shows a sub-customer whose parent has not loaded as a top-level row', () => {
         expect(shape(customerTreeRows([loaded(annex)]))).toEqual([['annex', 0]])
     })
+
+    // A new sub-customer has no sort_key until the server answers, so it sorts first.
+    it('shows the parent once when an unsaved sub-customer sorts before it', () => {
+        const added = treeCustomer({ id: 'added', display_name: 'Added', parent: 'alder' })
+        const rows = customerTreeRows([
+            loaded(added, alder),
+            loaded(alder),
+            loaded(annex, alder),
+            loaded(birch),
+        ])
+        expect(shape(rows)).toEqual([
+            ['alder', 0],
+            ['added', 1],
+            ['annex', 1],
+            ['birch', 0],
+        ])
+    })
+
+    // A renamed parent's new sort_key can land before its sub-customers are re-keyed.
+    it('shows the parent once when it sorts after its own sub-customers', () => {
+        const rows = customerTreeRows([
+            loaded(annex, alder),
+            loaded(barn, alder),
+            loaded(birch),
+            loaded(alder),
+        ])
+        expect(shape(rows)).toEqual([
+            ['alder', 0],
+            ['annex', 1],
+            ['barn', 1],
+            ['birch', 0],
+        ])
+    })
+
+    it('gives every row its own id', () => {
+        const rows = customerTreeRows([loaded(annex, alder), loaded(birch), loaded(alder)])
+        const ids = rows.map(row => row.party.id)
+        expect(new Set(ids).size).toBe(ids.length)
+    })
 })

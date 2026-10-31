@@ -11,22 +11,32 @@ export type TreeCustomer = Pick<
 // keeps only matching rows, so a matching sub-customer whose parent did not match
 // brings `parentRow` (the query's materialized parent), shown above it once. A
 // sub-customer whose parent has not loaded yet is a top-level row.
+// For a moment the order can break the tree: a new sub-customer has no sort_key until
+// the server answers, so it sorts first, and a renamed parent's new key can land before
+// its sub-customers are re-keyed. A customer already shown is then not shown again, so
+// no row repeats (the row key is the id).
 export function customerTreeRows<T extends TreeCustomer>(
     rows: readonly (T & { parentRow: T | undefined })[]
 ): PartyListRow<T>[] {
     const out: PartyListRow<T>[] = []
+    const shown = new Set<string>()
+    const show = (party: T, depth: 0 | 1) => {
+        out.push({ party, depth })
+        shown.add(party.id)
+    }
     let shownParent = ''
     for (const row of rows) {
+        if (shown.has(row.id)) continue
         if (row.parent === '') {
-            out.push({ party: row, depth: 0 })
+            show(row, 0)
             shownParent = row.id
             continue
         }
-        if (row.parent !== shownParent && row.parentRow) {
-            out.push({ party: row.parentRow, depth: 0 })
+        if (row.parent !== shownParent && row.parentRow && !shown.has(row.parentRow.id)) {
+            show(row.parentRow, 0)
             shownParent = row.parentRow.id
         }
-        out.push({ party: row, depth: row.parent === shownParent ? 1 : 0 })
+        show(row, row.parent === shownParent ? 1 : 0)
     }
     return out
 }
