@@ -18,3 +18,7 @@ export const selectValueSchema = z.object({ value: z.string() })
 
 // The shipping address parts plus the "Same as billing address" toggle.
 export const shippingValueSchema = addressPartsSchema.extend({ same: z.boolean() })
+
+// The money input's typed text. It has no rules of its own: the engine shows the
+// amount's messages through MONEY_VALUE_SCHEMA (lib/money-input.ts).
+export const moneyTextSchema = z.object({ text: z.string() })

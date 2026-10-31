@@ -1,4 +1,5 @@
 import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
+import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
@@ -45,6 +46,35 @@ const VENDOR_LAYOUT = {
                 { action: 'hide', field: 'legal_name' },
                 { action: 'hide', field: 'tax_id_type' },
                 { action: 'hide', field: 'tax_id' },
+            ],
+        },
+    ],
+} satisfies FormHostDefInput['layout']
+
+export const PRODUCT_HOST_KEY = 'books:product'
+
+// The default Product or service form: one page, with Name and SKU, Sales price and
+// Income account, and Cost and Expense account side by side wherever the form is 640 px
+// wide or more. The purchase fields hide while "I purchase this from a vendor" is off;
+// that is a rule of the form, so admins see it and may change it in Settings → Forms.
+const PRODUCT_LAYOUT = {
+    pages: [{ key: 'main', title: 'Product or service' }],
+    fields: {
+        name: { width: 'half' },
+        sku: { width: 'half' },
+        price: { width: 'half' },
+        income_account: { width: 'half' },
+        cost: { width: 'half' },
+        expense_account: { width: 'half' },
+    },
+    rules: [
+        {
+            key: 'purchase_fields',
+            when: [{ field: 'purchases', op: 'is_false' }],
+            actions: [
+                { action: 'hide', field: 'purchase_description' },
+                { action: 'hide', field: 'cost' },
+                { action: 'hide', field: 'expense_account' },
             ],
         },
     ],
@@ -353,6 +383,114 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'notes',
         layout: VENDOR_LAYOUT,
+    },
+    {
+        key: PRODUCT_HOST_KEY,
+        label: 'Product or service',
+        collection: 'books_products',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, `id` and the server-only `name_key` and `currency` too: a custom key
+        // must never shadow a column.
+        columns: [
+            'id',
+            'type',
+            'name',
+            'sku',
+            'sales_description',
+            'price',
+            'income_account',
+            'purchases',
+            'purchase_description',
+            'cost',
+            'expense_account',
+            'inactive',
+            'currency',
+            'form',
+            'fields',
+            'name_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'type',
+                label: 'Type',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                component: 'ProductTypeField',
+                chrome: 'cell',
+            },
+            { key: 'name', label: 'Name', kind: 'text', storage: 'column', required: true },
+            { key: 'sku', label: 'SKU', kind: 'text', storage: 'column', required: false },
+            {
+                key: 'sales_description',
+                label: 'Sales description',
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'items',
+                label: 'Bundle items',
+                kind: 'table',
+                storage: 'rows',
+                required: false,
+                columns: [...BUNDLE_ITEM_COLUMNS],
+            },
+            {
+                key: 'price',
+                label: 'Sales price',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'MoneyField',
+                chrome: 'cell',
+            },
+            {
+                key: 'income_account',
+                label: 'Income account',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'IncomeAccountField',
+                chrome: 'cell',
+            },
+            {
+                key: 'purchases',
+                label: 'I purchase this from a vendor',
+                kind: 'toggle',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'purchase_description',
+                label: 'Purchase description',
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'cost',
+                label: 'Cost',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'MoneyField',
+                chrome: 'cell',
+            },
+            {
+                key: 'expense_account',
+                label: 'Expense account',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'ExpenseAccountField',
+                chrome: 'cell',
+            },
+        ],
+        layout: PRODUCT_LAYOUT,
     },
 ]
 

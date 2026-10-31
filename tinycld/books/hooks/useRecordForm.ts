@@ -1,6 +1,7 @@
 import { useAuth } from '@tinycld/core/lib/auth'
 import type { EvalContext } from '@tinycld/core/lib/forms/logic'
 import { type FormHost, useFormHost } from '@tinycld/core/lib/forms/use-form-hosts'
+import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
 import { useFormCreate, useFormEdit, useHostUi } from '@tinycld/core/ui/forms'
 import { useMemo } from 'react'
@@ -27,6 +28,8 @@ interface RecordFormConfig<R extends { id: string }> {
     record: R | undefined
     // The create form's starting values.
     createValues: Record<string, unknown>
+    // A host table's rows, from the caller's own live query; absent until they load.
+    tables?: Record<string, TableRow[]>
 }
 
 /**
@@ -42,10 +45,20 @@ export function useRecordForm<R extends { id: string }>(config: RecordFormConfig
     const userId = user?.id ?? ''
     // Memoized so the form's rules do not re-evaluate against a new object every render.
     const context = useMemo<EvalContext>(() => ({ today: todayIso(), userId }), [userId])
-    const create = useFormCreate(host, undefined, context, config.createValues)
+    // A host component's own value rules, `FormHostUi.schemas`. The form waits for `ui`
+    // anyway (`isReady`).
+    const schemas = ui?.schemas
+    const create = useFormCreate(host, undefined, context, config.createValues, schemas)
     // Spread: the engine reads the row as a plain record, and a generated row
     // interface carries no index signature.
-    const edit = useFormEdit(host, config.record ? { ...config.record } : { id: '' }, context)
+    const edit = useFormEdit(
+        host,
+        config.record ? { ...config.record } : { id: '' },
+        context,
+        {},
+        config.tables,
+        schemas
+    )
     const chosen = config.mode === 'edit' ? edit : create
     const readOnly = !access.canWrite
     // Read through the form state proxy, so a change to it re-renders the guard. Not

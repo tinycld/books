@@ -10,6 +10,8 @@ import {
     partyCardHeight,
     partyListViewState,
     partyRows,
+    partyTitle,
+    recordCardHeight,
     showsToolbar,
 } from '../tinycld/books/lib/party-list'
 
@@ -107,6 +109,34 @@ describe('partyCardHeight', () => {
         const emailOnly = { ...nameOnly, email: 'ap@kestrel.example' }
         expect(partyCardHeight(emailOnly, 2)).toBe(24 + (20 + 16) * 2)
         expect(partyCardHeight(nameOnly, 2)).toBe(24 + 20 * 2)
+    })
+})
+
+describe('recordCardHeight', () => {
+    it('is 44 px for a card with no line under the name', () => {
+        expect(recordCardHeight([])).toBe(44)
+    })
+
+    it('counts only the lines that are not empty or missing', () => {
+        expect(recordCardHeight(['a', '', undefined, 'b'])).toBe(76)
+    })
+
+    it('scales the text part with the font scale and keeps the 24 px padding', () => {
+        expect(recordCardHeight(['a'], 2)).toBe(96)
+    })
+
+    it('gives every fixture customer the same height as partyCardHeight', () => {
+        for (const customer of CUSTOMERS) {
+            const lines = [companyLine(customer), customer.email, customer.phone]
+            expect(partyCardHeight(customer)).toBe(recordCardHeight(lines))
+            expect(partyCardHeight(customer, 1.5)).toBe(recordCardHeight(lines, 1.5))
+        }
+    })
+})
+
+describe('partyTitle', () => {
+    it('is the display name', () => {
+        expect(partyTitle({ display_name: 'Acme' })).toBe('Acme')
     })
 })
 
@@ -259,6 +289,19 @@ describe('partyListViewState', () => {
     it('is no-match when a query leaves none, also when every record is inactive', () => {
         expect(viewState({ query: 'Zephyr Logistics' })).toBe('no-match')
         expect(viewState({ records: INACTIVE, query: 'Old Mill' })).toBe('no-match')
+    })
+
+    it('accepts records that carry only id and inactive', () => {
+        expect(
+            partyListViewState({
+                isReady: true,
+                isError: false,
+                records: [{ id: 'a1', inactive: true }],
+                rowCount: 0,
+                query: '',
+                showInactive: false,
+            })
+        ).toBe('all-inactive')
     })
 })
 

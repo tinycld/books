@@ -4,6 +4,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import {
     closedRecordRefusalHandler,
     recordRefusalHandler,
+    refusalMessage,
 } from '../tinycld/books/lib/record-refusals'
 
 const RECORDS_URL = 'http://127.0.0.1:7100/api/collections/books_widgets/records'
@@ -160,5 +161,40 @@ describe('closedRecordRefusalHandler', () => {
         expect(hostOnError).toHaveBeenCalledTimes(1)
         expect(hostOnError).toHaveBeenCalledWith(error)
         expect(emit).not.toHaveBeenCalled()
+    })
+})
+
+describe('refusalMessage', () => {
+    it('is the message of a refusal with no field', () => {
+        expect(refusalMessage(messageOnly('This widget is locked.'))).toBe('This widget is locked.')
+    })
+
+    it("is a refusal's field messages joined by one space when it names fields", () => {
+        const error = new ClientResponseError({
+            url: RECORDS_URL,
+            status: 400,
+            response: {
+                code: 400,
+                message: 'Failed to create record.',
+                data: {
+                    product: {
+                        code: 'validation_invalid',
+                        message: 'A bundle cannot contain another bundle.',
+                    },
+                    quantity: {
+                        code: 'validation_invalid',
+                        message: 'Enter a quantity above 0 with at most 2 decimals.',
+                    },
+                },
+            },
+        })
+
+        expect(refusalMessage(error)).toBe(
+            'A bundle cannot contain another bundle. Enter a quantity above 0 with at most 2 decimals.'
+        )
+    })
+
+    it('is null for a network error, which has no message to show', () => {
+        expect(refusalMessage(networkError())).toBeNull()
     })
 })

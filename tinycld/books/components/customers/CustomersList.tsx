@@ -7,10 +7,12 @@ import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import {
     CUSTOMER_MENU_LABELS,
     CUSTOMER_MENU_TEST_IDS,
+    type CustomerMenuItem,
     customerMenuItems,
 } from '../../lib/customer-actions'
 import { CUSTOMER_INDENT, customerListCopy } from '../../lib/customer-display'
 import { CUSTOMERS_PATH } from '../../lib/customer-route'
+import { partyTitle } from '../../lib/party-list'
 import { useCustomerFormStore } from '../../stores/customer-form-store'
 import { PartyList } from '../party/PartyList'
 import { DeleteCustomerDialog } from './DeleteCustomerDialog'
@@ -29,7 +31,7 @@ export function CustomersList({ openId }: { openId: string }) {
     // The one actions instance lives here, so the list's banner and the Delete customer
     // dialog read the same refusals.
     const actions = useCustomerActions()
-    const menus = useRecordRowMenus({
+    const menus = useRecordRowMenus<CustomerRecord, CustomerMenuItem>({
         actions,
         store: useCustomerFormStore,
         openId,
@@ -37,6 +39,7 @@ export function CustomersList({ openId }: { openId: string }) {
         navigation,
         canWrite,
         itemsFor: customerItemsFor,
+        titleOf: partyTitle,
         onExtra: (customer, item) => {
             if (item === 'add-sub') navigation.openNew(customer.id)
         },

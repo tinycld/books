@@ -1,0 +1,135 @@
+{
+    "outDir": "products-services-reference",
+    "shots": [
+        {
+            "name": "list",
+            "url": "/a/books/helix-mockup?state=list",
+            "ready": "products-list",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/helix-mockup?state=panel",
+            "ready": "product-form",
+            "height": 1300,
+            "widths": [1600]
+        },
+        {
+            "name": "show-inactive",
+            "url": "/a/books/helix-mockup?state=show-inactive",
+            "ready": "products-table",
+            "widths": [1280]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/helix-mockup?state=list",
+            "ready": "products-table",
+            "widths": [1280],
+            "actions": [
+                { "click": "product-menu-prodcat6patch01" },
+                { "waitFor": "product-menu-delete" }
+            ]
+        },
+        {
+            "name": "list-empty",
+            "url": "/a/books/helix-mockup?state=list-empty",
+            "ready": "products-empty",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "list-empty-read-only",
+            "url": "/a/books/helix-mockup?state=list-empty-read-only",
+            "ready": "products-empty",
+            "widths": [1280]
+        },
+        {
+            "name": "list-no-match",
+            "url": "/a/books/helix-mockup?state=list-no-match",
+            "ready": "products-no-match",
+            "widths": [1280]
+        },
+        {
+            "name": "list-all-inactive",
+            "url": "/a/books/helix-mockup?state=list-all-inactive",
+            "ready": "products-all-inactive",
+            "widths": [1280]
+        },
+        {
+            "name": "list-error",
+            "url": "/a/books/helix-mockup?state=list-error",
+            "ready": "products-banner",
+            "widths": [1280]
+        },
+        {
+            "name": "chooser",
+            "url": "/a/books/helix-mockup?state=chooser",
+            "ready": "product-type-chooser",
+            "widths": [1600, 390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "chooser-read-only",
+            "url": "/a/books/helix-mockup?state=chooser-read-only",
+            "ready": "product-type-chooser",
+            "widths": [1100]
+        },
+        {
+            "name": "service-new",
+            "url": "/a/books/helix-mockup?state=service-new",
+            "ready": "product-form",
+            "height": 1000,
+            "widths": [1100]
+        },
+        {
+            "name": "service-edit",
+            "url": "/a/books/helix-mockup?state=service-edit",
+            "ready": "product-form",
+            "height": 1000,
+            "widths": [1100]
+        },
+        {
+            "name": "bundle",
+            "url": "/a/books/helix-mockup?state=bundle",
+            "ready": "product-form",
+            "height": 1000,
+            "widths": [1100]
+        },
+        {
+            "name": "bundle-phone",
+            "url": "/a/books/helix-mockup?state=bundle",
+            "ready": "product-form",
+            "height": 1800,
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "product-form",
+            "height": 1300,
+            "widths": [1600]
+        },
+        {
+            "name": "delete-refused",
+            "url": "/a/books/helix-mockup?state=delete-refused",
+            "ready": "delete-product-dialog-body",
+            "opaque": "delete-product-dialog-body",
+            "actions": [{ "pause": 800 }],
+            "widths": [1280]
+        },
+        {
+            "name": "delete-refused-phone",
+            "url": "/a/books/helix-mockup?state=delete-refused",
+            "ready": "delete-product-dialog-body",
+            "opaque": "delete-product-dialog-body",
+            "actions": [{ "pause": 800 }],
+            "widths": [390]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "product-not-found",
+            "widths": [1100]
+        }
+    ]
+}

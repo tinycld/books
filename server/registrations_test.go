@@ -139,6 +139,37 @@ func TestAudit_LabelsAVendorByDisplayName(t *testing.T) {
 	}
 }
 
+// A product's audit row names it by its name; a bundle row names its bundle
+// and its product, since the row itself holds only two ids and a quantity.
+func TestAudit_LabelsAProductAndABundleItem(t *testing.T) {
+	app := newBooksApp(t)
+	audited := auditedCollections(app)
+	products, ok := audited["books_products"]
+	if !ok {
+		t.Fatal("books_products is not audited")
+	}
+	items, ok := audited["books_bundle_items"]
+	if !ok {
+		t.Fatal("books_bundle_items is not audited")
+	}
+	ap := saveRecord(t, app, "books_products", map[string]any{
+		"type": "non_inventory", "name": "Wireless access point", "sku": "HW-WAP-6E",
+		"currency": "USD", "name_key": "wireless access point",
+	})
+	kit := saveRecord(t, app, "books_products", map[string]any{
+		"type": "bundle", "name": "Home office setup kit", "currency": "USD", "name_key": "home office setup kit",
+	})
+	row := saveRecord(t, app, "books_bundle_items", map[string]any{
+		"bundle": kit.Id, "product": ap.Id, "quantity": 2, "position": 0,
+	})
+	if got, want := products.ExtractLabel(ap), "Wireless access point"; got != want {
+		t.Errorf("product label = %q, want %q", got, want)
+	}
+	if got, want := items.ExtractLabel(row), "Home office setup kit: Wireless access point"; got != want {
+		t.Errorf("bundle item label = %q, want %q", got, want)
+	}
+}
+
 // waitFor polls an asynchronous write: core writes audit rows off the request
 // goroutine, so a row lands just after the response.
 func waitFor(t testing.TB, done func() bool) {
@@ -299,7 +330,10 @@ func TestAudit_RedactsTheCompanyTaxID(t *testing.T) {
 func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
-	for _, c := range []string{"books_accounts", "books_journal_entries", "books_journal_lines", "books_customers", "books_vendors"} {
+	for _, c := range []string{
+		"books_accounts", "books_journal_entries", "books_journal_lines", "books_customers", "books_vendors",
+		"books_products", "books_bundle_items",
+	} {
 		path := "/api/collections/" + c + "/records"
 		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
 			t.Errorf("GET %s: books:read must read", path)

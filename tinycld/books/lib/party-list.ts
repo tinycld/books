@@ -5,6 +5,9 @@ export type PartyField = 'id' | 'display_name' | 'company' | 'email' | 'phone' |
 // A vendor row carries the same columns with the same types.
 export type PartyRecord = Pick<BooksCustomers, PartyField>
 
+// What every list's records carry: the list frame and the row menus need no other column.
+export type ListRecord = { id: string; inactive: boolean }
+
 export type PartyListRow<T extends PartyRecord> = { party: T; depth: 0 | 1 }
 
 export type PartyListCopy = {
@@ -58,10 +61,18 @@ export function isShownLine(value: string | undefined): value is string {
 // The windowed card list needs every card's height before it renders, so the card is
 // drawn at exactly this height. The name line and the muted lines grow with the native
 // font scale and the padding does not, so a card is never shorter than its text.
-export function partyCardHeight(party: PartyRecord, fontScale = 1): number {
-    const lines = [companyLine(party), party.email, party.phone].filter(isShownLine)
-    const textHeight = CARD_NAME_LINE_HEIGHT + lines.length * CARD_MUTED_LINE_HEIGHT
+export function recordCardHeight(lines: readonly (string | undefined)[], fontScale = 1): number {
+    const shownLines = lines.filter(isShownLine).length
+    const textHeight = CARD_NAME_LINE_HEIGHT + shownLines * CARD_MUTED_LINE_HEIGHT
     return CARD_PADDING + textHeight * fontScale
+}
+
+export function partyCardHeight(party: PartyRecord, fontScale = 1): number {
+    return recordCardHeight([companyLine(party), party.email, party.phone], fontScale)
+}
+
+export function partyTitle(party: Pick<PartyRecord, 'display_name'>): string {
+    return party.display_name
 }
 
 export function comparePartyNames(a: PartyRecord, b: PartyRecord): number {
@@ -106,7 +117,7 @@ export type PartyListViewState =
 export function partyListViewState(input: {
     isReady: boolean
     isError: boolean
-    records: readonly PartyRecord[]
+    records: readonly ListRecord[]
     rowCount: number
     query: string
     showInactive: boolean

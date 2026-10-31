@@ -76,6 +76,24 @@ describe('registries', () => {
         })
     })
 
+    it('NEW_ACTIONS has an available Product or service action in the other column, after Journal entry', () => {
+        const product = NEW_ACTIONS.find(a => a.id === 'product')
+        expect(product).toEqual({
+            id: 'product',
+            label: 'Product or service',
+            href: 'books/products/new',
+            column: 'other',
+            available: true,
+        })
+        const ids = NEW_ACTIONS.map(a => a.id)
+        expect(ids.indexOf('product')).toBe(ids.indexOf('journal-entry') + 1)
+    })
+
+    it('the New menu Other column lists Journal entry, then Product or service', () => {
+        const other = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Other')
+        expect(other?.actions.map(a => a.label)).toEqual(['Journal entry', 'Product or service'])
+    })
+
     it('the New menu starts with the Customers column holding Customer', () => {
         const columns = newMenuColumns(NEW_ACTIONS)
         expect(columns[0]?.heading).toBe('Customers')
@@ -115,6 +133,19 @@ describe('registries', () => {
             href: 'books/vendors',
             available: true,
         })
+    })
+
+    it('LIST_ENTRIES has an available Products and services card after Vendors', () => {
+        const products = LIST_ENTRIES.find(e => e.id === 'products')
+        expect(products).toEqual({
+            id: 'products',
+            label: 'Products and services',
+            description: 'What you sell and buy',
+            href: 'books/products',
+            available: true,
+        })
+        const ids = LIST_ENTRIES.map(e => e.id)
+        expect(ids.indexOf('products')).toBe(ids.indexOf('vendors') + 1)
     })
 })
 
@@ -307,6 +338,8 @@ describe('hidesNewFab', () => {
         '/a/books/customers/',
         '/a/books/vendors',
         '/a/books/vendors/',
+        '/a/books/products',
+        '/a/books/products/',
     ])('keeps the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(false)
     })
@@ -320,6 +353,8 @@ describe('hidesNewFab', () => {
         '/a/books/customers/new',
         '/a/books/vendors/abc',
         '/a/books/vendors/new',
+        '/a/books/products/abc',
+        '/a/books/products/new',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

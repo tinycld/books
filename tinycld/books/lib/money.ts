@@ -106,8 +106,13 @@ const legacyPattern = new RegExp(
 )
 let allCurrencyPatterns: RegExp[] | undefined
 
+// Hermes (native) may lack Intl.supportedValuesOf; `legacyPattern` alone still
+// parses every amount typed in the Books form.
 function anyCurrencyPatterns(): RegExp[] {
-    allCurrencyPatterns ??= Intl.supportedValuesOf('currency').map(patternFor)
+    allCurrencyPatterns ??=
+        typeof Intl.supportedValuesOf === 'function'
+            ? Intl.supportedValuesOf('currency').map(patternFor)
+            : []
     return allCurrencyPatterns
 }
 
@@ -140,4 +145,10 @@ export function parseMoney(text: string, currency?: string): number | null {
 // A zero side of a line shows nothing, so a debit-only line has a blank credit cell.
 export function amountText(cents: number, currency: string): string {
     return cents === 0 ? '' : formatMoney(cents, currency)
+}
+
+export function centsToText(cents: number): string {
+    const digits = BigInt(Math.abs(cents)).toString().padStart(3, '0')
+    const whole = digits.slice(0, -2).replace(/\B(?=(\d{3})+$)/g, ',')
+    return `${cents < 0 ? '-' : ''}${whole}.${digits.slice(-2)}`
 }

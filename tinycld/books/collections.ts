@@ -126,6 +126,21 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // No relations: the products list loads every product in one query; a
+    // bundle's rows, the product picker and the account pickers read their own
+    // collections. The guard sets name_key and the server stamps currency.
+    const books_products = newCollection('books_products', {
+        omitOnInsert: ['created', 'updated', 'name_key', 'currency'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    const books_bundle_items = newCollection('books_bundle_items', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_journal_lines,
@@ -138,5 +153,7 @@ export function registerCollections(
         books_access,
         books_customers,
         books_vendors,
+        books_products,
+        books_bundle_items,
     }
 }
