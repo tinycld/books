@@ -232,6 +232,13 @@ func newLedgerEnv(t *testing.T) *ledgerEnv {
 	t.Helper()
 	app := newBooksApp(t)
 	registerLedger(app)
+	return ledgerEnvOn(t, app)
+}
+
+// ledgerEnvOn adds one user per level and three accounts to an app whose hooks
+// are already bound, so the accounts pass through them.
+func ledgerEnvOn(t *testing.T, app *tests.TestApp) *ledgerEnv {
+	t.Helper()
 	return &ledgerEnv{
 		app:      app,
 		users:    newLevelUsers(t, app),
