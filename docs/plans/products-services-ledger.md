@@ -253,6 +253,10 @@
 - reviewer-caught deferrals: none
 - commit: bc36cc7
 
+## Eval-gate integration (2026-10-31)
+- members pulled (core main b4b061e: server, docs, `@playwright/test` ~1.60 → ~1.64.1 with a newer Chromium), `pnpm install`, books origin/main fbe70d2 (#22, server and CI only) merged into the step branch (clean); check 3205, Go tests green
+- feature e2e after the merge: bundle test 3 failed — root cause (probe, trace): a race in the shared e2e helper `openList` (record-form-helpers.ts): after Cancel → `router.dismissTo`, React removes the record screen 20-50 ms before expo-router's async `go(-1)` updates the URL; the helper read the URL once in that window and waited for a back control that a closed screen never shows. A user does not see it (the URL is right 20-50 ms later). Fixed by a fresh test writer: `openList` polls "a way-out control is visible, or the URL no longer names a record" (default timeout, no timeout change); the bundle spec asserts Cancel returns the URL to the list. The run then showed a second test race: customer and vendor search specs typed before core SearchPalette focused its input (one animation frame after the dialog shows); both now wait for focus. products-services: + customer-form: + vendor-form: 48 passed.
+
 ## Final review
 - eval:
 - native: not executed in this run

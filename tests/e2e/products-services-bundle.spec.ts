@@ -130,6 +130,7 @@ test.describe('products-services: bundles', () => {
         }
         await expect(page.getByTestId('form-table-items-empty')).toBeVisible()
         await page.getByTestId('product-cancel').click()
+        await expect(page).toHaveURL(/\/books\/products$/)
 
         // A new bundle writes its rows after the product, in row order.
         const posts = itemPosts(page)
