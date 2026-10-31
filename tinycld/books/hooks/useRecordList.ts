@@ -3,7 +3,7 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { useState } from 'react'
 import { retryListQuery } from '../lib/list-query'
 import { anyRecordState } from '../lib/list-search'
-import { keepLastSettled, listViewState, type ShownList } from '../lib/list-state'
+import { keepLastSettled, listIsBusy, listViewState, type ShownList } from '../lib/list-state'
 import type { PartyListViewState } from '../lib/party-list'
 import type { ListFilterState } from './useListFilters'
 
@@ -15,6 +15,9 @@ export type RecordListState<Row> = {
     clearSearch(): void
     showInactive: boolean
     setShowInactive(value: boolean): void
+    // The rows on screen are not yet the answer to the search and filter as they stand
+    // (see listIsBusy); the list says so as aria-busy.
+    isBusy: boolean
     // Asks for the next page; the table and the cards call it as they scroll near the end.
     onNearEnd(): void
 }
@@ -60,6 +63,11 @@ export function useRecordList<Row>(
         clearSearch: filters.clearSearch,
         showInactive: filters.showInactive,
         setShowInactive: filters.setShowInactive,
+        isBusy: listIsBusy({
+            typed: filters.query,
+            applied: filters.listFilters.search,
+            viewState: now.viewState,
+        }),
         onNearEnd: source.loadMore,
     }
 }
