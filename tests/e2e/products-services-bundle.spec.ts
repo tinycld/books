@@ -6,6 +6,7 @@ import {
     DESKTOP,
     discardDialog,
     exactText,
+    expectSavedToList,
     field,
     isBundleItemsUrl,
     isRecordUrl,
@@ -161,7 +162,7 @@ test.describe('products-services: bundles', () => {
         await expect.poll(() => bundleRowNames(page)).toEqual([nameB, nameA])
 
         await page.getByTestId('product-save').click()
-        await expect(page.getByTestId('products-list')).toBeVisible()
+        await expectSavedToList(page)
         await expect.poll(() => patches.length).toBe(2)
         const positions = Object.fromEntries(patches.map(patch => [patch.id, patch.body.position]))
         expect(positions).toEqual({ [rowOfB]: 0, [rowOfA]: 1 })
