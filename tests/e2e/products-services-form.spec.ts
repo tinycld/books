@@ -31,6 +31,12 @@ import {
 // `chosenProductType`, `productTitle` and `recordFooter` are unit-tested. The e2e book has
 // no Product sales and no Cost of goods sold account, so the Non-inventory income default
 // and the expense default are tests/product-defaults.test.ts.
+//
+// The accounts-error test refuses the books_accounts read with `route.fulfill` and
+// reloads on the open new form, so the new route's accounts query is not served from
+// rows another screen loaded; the reload keeps the route, and nothing is written. The
+// access-error test refuses the books_access read the same way: the sidebar, the New menu
+// and the list read only `canWrite` from it, which stays false, so they still render.
 
 const CONSULTING_INCOME = '4000 Consulting Income'
 const SOFTWARE = '6200 Software Subscriptions'
@@ -47,6 +53,8 @@ function purchaseCells(page: Page) {
 }
 
 const NEW_URL = /\/books\/products\/new(\?|$)/
+const ACCOUNTS = '**/api/collections/books_accounts/records*'
+const ACCESS = '**/api/collections/books_access/records*'
 
 test.describe('products-services: product form', () => {
     test('creates a service through the chooser and Save and new keeps the type (desktop)', async ({
@@ -167,6 +175,95 @@ test.describe('products-services: product form', () => {
         await expect(field(page, 'cost')).toHaveValue('310.00')
         await expect(expense).toContainText(SOFTWARE)
         await page.getByTestId('product-cancel').click()
+    })
+
+    test('Save and new after a change to Non-inventory starts a new non-inventory item (desktop)', async ({
+        page,
+    }) => {
+        await openBooksAtDesktop(page)
+        const title = page.getByTestId('product-title')
+
+        await openNewProduct(page, 'service')
+        await expect(title).toHaveText('New service')
+        await pickOption(page, 'type', 'Non-inventory')
+        await expect(title).toHaveText('New non-inventory item')
+        const name = uniqueName(page, 'Kit')
+        await field(page, 'name').fill(name)
+
+        const insert = page.waitForRequest(
+            r => r.method() === 'POST' && isRecordsUrl(new URL(r.url()))
+        )
+        await page.getByTestId('product-save-new').click()
+        expect((await insert).postDataJSON().type).toBe('non_inventory')
+
+        // The next form starts from the saved type, not the type the URL was opened with.
+        // The e2e book has no Product sales account, so the Non-inventory income default
+        // falls back to the first active Income account.
+        await expect.poll(() => new URL(page.url()).searchParams.get('type')).toBe('non_inventory')
+        await expect(title).toHaveText('New non-inventory item')
+        await expect(page.getByTestId('form-input-type')).toContainText('Non-inventory')
+        await expect(field(page, 'name')).toHaveValue('')
+        await expect(page.getByTestId('form-input-income_account')).toContainText(CONSULTING_INCOME)
+
+        await page.getByTestId('product-cancel').click()
+        await expectSavedToList(page)
+        await searchProducts(page, name)
+        await expect(productEntry(page, name)).toContainText('Non-inventory')
+    })
+
+    test('a failed accounts read on a new product shows an error, and Retry mounts the form (desktop)', async ({
+        page,
+    }) => {
+        await openBooksAtDesktop(page)
+        await openNewProduct(page, 'service')
+        await expect.poll(() => new URL(page.url()).searchParams.get('type')).toBe('service')
+
+        // The reload keeps the route, so the new route's accounts query is a fresh request
+        // that the route refuses (a read-side fault; nothing is written).
+        await page.route(ACCOUNTS, route =>
+            route.fulfill({ status: 400, contentType: 'application/json', body: '{}' })
+        )
+        await page.reload()
+
+        const retry = page.getByTestId('product-retry')
+        await expect(productSurface(page).getByRole('alert')).toBeVisible()
+        await expect(retry).toHaveText('Retry')
+        await expect(page.getByTestId('product-loading')).toHaveCount(0)
+        await expect(page.getByTestId('product-form')).toHaveCount(0)
+
+        await page.unroute(ACCOUNTS)
+        await retry.click()
+        await expect(page.getByTestId('product-form')).toBeVisible()
+        await expect(page.getByTestId('product-title')).toHaveText('New service')
+        await expect(page.getByTestId('form-input-income_account')).toContainText(CONSULTING_INCOME)
+        await expect(productSurface(page).getByRole('alert')).toHaveCount(0)
+    })
+
+    test('a failed access read on a new product shows an error, and Retry mounts the form (desktop)', async ({
+        page,
+    }) => {
+        await openBooksAtDesktop(page)
+        await openNewProduct(page, 'service')
+        await expect.poll(() => new URL(page.url()).searchParams.get('type')).toBe('service')
+
+        await page.route(ACCESS, route =>
+            route.fulfill({ status: 400, contentType: 'application/json', body: '{}' })
+        )
+        await page.reload()
+
+        const retry = page.getByTestId('product-retry')
+        await expect(productSurface(page).getByRole('alert')).toContainText(
+            'Could not check your access to Books'
+        )
+        await expect(retry).toHaveText('Retry')
+        await expect(page.getByTestId('product-loading')).toHaveCount(0)
+        await expect(page.getByTestId('product-form')).toHaveCount(0)
+
+        await page.unroute(ACCESS)
+        await retry.click()
+        await expect(page.getByTestId('product-form')).toBeVisible()
+        await expect(page.getByTestId('product-title')).toHaveText('New service')
+        await expect(productSurface(page).getByRole('alert')).toHaveCount(0)
     })
 
     test('refuses values the save must not write: a bad amount and a duplicate name (desktop)', async ({

@@ -86,6 +86,13 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
                     if (isShowingNew()) navigation.open(recordId)
                 },
             },
+            // The next form starts from the type just saved, which a Service ↔
+            // Non-inventory change can make differ from the route's.
+            onSavedAndNew: columns => {
+                if (target.mode === 'new' && columns.type && columns.type !== target.type) {
+                    navigation.switchNewType(columns.type)
+                }
+            },
         },
         {
             mode: target.mode,

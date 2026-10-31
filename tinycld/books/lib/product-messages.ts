@@ -75,6 +75,12 @@ export const PRODUCT_DISCARD_MESSAGE = 'This product has changes that are not sa
 
 export const PRODUCT_LOAD_ERROR = 'Could not load products and services'
 
+// Shown in place of a new product's form when its accounts (the defaults) fail to load.
+export const PRODUCT_ACCOUNTS_LOAD_ERROR = 'Could not load the accounts'
+
+// Shown in place of the new product route when the caller's Books access fails to load.
+export const PRODUCT_ACCESS_LOAD_ERROR = 'Could not check your access to Books'
+
 export const PRODUCT_NOT_FOUND = "This product or service doesn't exist or was removed"
 
 export const BUNDLE_KEEPS_TYPE = 'A bundle keeps its type.'
