@@ -7,10 +7,8 @@ import {
     type ProductListFields,
     productCardHeight,
     productCostText,
-    productMatches,
     productPickerOptions,
     productPriceText,
-    productRows,
     productTypeLine,
 } from '../tinycld/books/lib/product-list'
 import { PRODUCT_IDS, PRODUCTS } from '../tinycld/books/lib/products-services-fixture'
@@ -55,74 +53,6 @@ function withoutCurrency(source: Row): Row {
     const { currency: _currency, ...rest } = source
     return rest as Row
 }
-
-// The row type says sku is a string, but a row can arrive without it.
-function withoutSku(source: Row): Row {
-    const { sku: _sku, ...rest } = source
-    return rest as Row
-}
-
-function names(records: readonly Row[], query = '', showInactive = false) {
-    return productRows(records, { query, showInactive }).map(product => product.name)
-}
-
-function ids(records: readonly Row[], query = '', showInactive = false) {
-    return productRows(records, { query, showInactive }).map(product => product.id)
-}
-
-describe('productRows sorting', () => {
-    it('sorts by name ignoring case', () => {
-        const banana = row({ id: 'prodbanana00001', name: 'Banana' })
-        const apple = row({ id: 'prodapple000001', name: 'apple' })
-        expect(names([banana, apple])).toEqual(['apple', 'Banana'])
-    })
-
-    it('sorts rows whose names differ only in case by id', () => {
-        const upper = row({ id: 'awidget00000001', name: 'Widget' })
-        const lower = row({ id: 'bwidget00000001', name: 'widget' })
-        expect(ids([lower, upper])).toEqual(['awidget00000001', 'bwidget00000001'])
-        expect(ids([upper, lower])).toEqual(['awidget00000001', 'bwidget00000001'])
-    })
-})
-
-describe('productRows filters', () => {
-    it('drops inactive rows unless Show inactive is on', () => {
-        const shown = ids(PRODUCTS)
-        expect(shown).not.toContain(PRODUCT_IDS.faxSetup)
-        expect(shown).not.toContain(PRODUCT_IDS.cableTies)
-        expect(shown).toContain(PRODUCT_IDS.accessPoint)
-
-        const all = ids(PRODUCTS, '', true)
-        expect(all).toContain(PRODUCT_IDS.faxSetup)
-        expect(all).toContain(PRODUCT_IDS.cableTies)
-        expect(all).toHaveLength(PRODUCTS.length)
-    })
-
-    it('matches the name ignoring case', () => {
-        expect(ids(PRODUCTS, 'WIRELESS ACCESS')).toEqual([PRODUCT_IDS.accessPoint])
-    })
-
-    it('matches the SKU ignoring case', () => {
-        expect(ids(PRODUCTS, 'hw-wap')).toEqual([PRODUCT_IDS.accessPoint])
-    })
-
-    it('matches the sales description ignoring case', () => {
-        expect(ids(PRODUCTS, 'CEILING-MOUNT')).toEqual([PRODUCT_IDS.accessPoint])
-    })
-
-    it('does not match the purchase description', () => {
-        // "PoE powered" is only in the access point's purchase description.
-        expect(ids(PRODUCTS, 'PoE powered', true)).toEqual([])
-        expect(productMatches(ACCESS_POINT, 'poe powered')).toBe(false)
-    })
-
-    it('does not throw on a row whose sku is missing at run time', () => {
-        const missing = withoutSku(row({ id: 'prodnosku000001', name: 'No SKU here' }))
-        expect(() => productRows([missing], { query: 'zzz', showInactive: false })).not.toThrow()
-        expect(ids([missing], 'no sku')).toEqual(['prodnosku000001'])
-        expect(productMatches(missing, 'zzz')).toBe(false)
-    })
-})
 
 describe('productPriceText', () => {
     it('formats the sales price with the row currency', () => {

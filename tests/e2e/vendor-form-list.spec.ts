@@ -52,6 +52,8 @@ function asRecord({ expense_account_number: _number, ...row }: VendorFixtureReco
         collectionName: 'books_vendors',
         ...row,
         expense_account: '',
+        // The guard's key (server/sort_keys.go).
+        sort_key: row.display_name.toLowerCase(),
     }
 }
 

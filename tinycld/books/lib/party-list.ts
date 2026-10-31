@@ -75,35 +75,6 @@ export function partyTitle(party: Pick<PartyRecord, 'display_name'>): string {
     return party.display_name
 }
 
-export function comparePartyNames(a: PartyRecord, b: PartyRecord): number {
-    const byName = a.display_name.localeCompare(b.display_name, undefined, {
-        sensitivity: 'base',
-    })
-    if (byName !== 0) return byName
-    if (a.id === b.id) return 0
-    return a.id < b.id ? -1 : 1
-}
-
-export function partyMatches(party: PartyRecord, query: string): boolean {
-    const term = query.trim().toLowerCase()
-    if (term === '') return true
-    const fields = [party.display_name, party.company, party.email, party.phone]
-    // A row can arrive without company, email or phone; searching must not throw on it.
-    return fields.some(value => (value ?? '').toLowerCase().includes(term))
-}
-
-// One flat level: inactive rows dropped unless shown, then matched, then sorted by name.
-export function partyRows<T extends PartyRecord>(
-    records: readonly T[],
-    filters: { query: string; showInactive: boolean }
-): PartyListRow<T>[] {
-    return records
-        .filter(r => filters.showInactive || !r.inactive)
-        .filter(r => partyMatches(r, filters.query))
-        .sort(comparePartyNames)
-        .map(party => ({ party, depth: 0 }))
-}
-
 export type PartyListViewState =
     | 'loading'
     | 'error'
@@ -111,26 +82,6 @@ export type PartyListViewState =
     | 'no-match'
     | 'all-inactive'
     | 'ready'
-
-// 'all-inactive' is only the default view hiding every record: a search that finds
-// nothing is 'no-match' whatever the inactive filter.
-export function partyListViewState(input: {
-    isReady: boolean
-    isError: boolean
-    records: readonly ListRecord[]
-    rowCount: number
-    query: string
-    showInactive: boolean
-}): PartyListViewState {
-    if (input.isError) return 'error'
-    if (!input.isReady) return 'loading'
-    if (input.records.length === 0) return 'empty'
-    if (input.rowCount > 0) return 'ready'
-    const hidesOnlyInactive =
-        input.query.trim() === '' && !input.showInactive && input.records.every(r => r.inactive)
-    if (hidesOnlyInactive) return 'all-inactive'
-    return 'no-match'
-}
 
 export function emptyKindFor(
     viewState: PartyListViewState

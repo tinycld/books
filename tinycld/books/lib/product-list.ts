@@ -37,27 +37,6 @@ export const PRODUCT_TABLE_MIN_WIDTH = 560
 
 export const PRODUCT_ROW_HEIGHT = 56
 
-export function compareProductNames(
-    a: Pick<ProductListFields, 'id' | 'name'>,
-    b: Pick<ProductListFields, 'id' | 'name'>
-): number {
-    const byName = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-    if (byName !== 0) return byName
-    if (a.id === b.id) return 0
-    return a.id < b.id ? -1 : 1
-}
-
-export function productMatches(
-    product: Pick<ProductListFields, 'name' | 'sku' | 'sales_description'>,
-    query: string
-): boolean {
-    const term = query.trim().toLowerCase()
-    if (term === '') return true
-    const fields = [product.name, product.sku, product.sales_description]
-    // A row can arrive without a SKU or sales description; searching must not throw on it.
-    return fields.some(value => (value ?? '').toLowerCase().includes(term))
-}
-
 // The bundle item picker offers this many products while not searching.
 export const PRODUCT_PICKER_LIMIT = 50
 
@@ -72,17 +51,6 @@ export function productPickerOptions<T extends Pick<ProductListFields, 'id' | 'n
     const matches = (row: T) =>
         [row.name, row.sku].some(value => (value ?? '').toLowerCase().includes(needle))
     return rows.filter(matches).slice(0, PRODUCT_PICKER_LIMIT)
-}
-
-// One flat list: inactive rows dropped unless shown, then matched, then sorted by name.
-export function productRows<T extends ProductListFields>(
-    records: readonly T[],
-    filters: { query: string; showInactive: boolean }
-): T[] {
-    return records
-        .filter(r => filters.showInactive || !r.inactive)
-        .filter(r => productMatches(r, filters.query))
-        .sort(compareProductNames)
 }
 
 // The server stamps `currency` on create, so an optimistic insert has none until the

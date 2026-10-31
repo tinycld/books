@@ -83,16 +83,16 @@ describe('registerCollections', () => {
         )
     })
 
-    // The customers list loads every customer in one query and builds the
-    // tree itself, so the collection files no related rows.
+    // The customers list materializes each row's parent through a subquery on the
+    // same collection, so the collection files no related rows.
     it('declares no relations on customers', () => {
         const { calls } = register()
         expect(calls.has('books_customers')).toBe(true)
         expect(calls.get('books_customers')?.relations).toBeUndefined()
     })
 
-    // The vendors list loads every vendor in one query, and the expense
-    // account picker reads books_accounts itself.
+    // The vendors list loads one page at a time, and the expense account picker
+    // reads books_accounts itself.
     it('declares no relations on vendors', () => {
         const { calls } = register()
         expect(calls.has('books_vendors')).toBe(true)
@@ -113,7 +113,7 @@ describe('registerCollections', () => {
         expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
     })
 
-    // The products list loads every product in one query; a bundle's rows,
+    // The products list loads one page at a time; a bundle's rows,
     // the product picker and the account pickers read their own collections.
     it('declares no relations on products or bundle rows', () => {
         const { calls } = register()

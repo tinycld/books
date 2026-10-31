@@ -11,10 +11,19 @@ type ListCardsProps<Row> = {
     heightOf(row: Row, fontScale: number): number
     keyOf(row: Row): string
     renderCard(row: Row, height: number): ReactNode
+    onNearEnd(): void
 }
 
-// A windowed card list for phones: every card is drawn at the height `heightOf` gives it.
-export function ListCards<Row>({ testID, rows, heightOf, keyOf, renderCard }: ListCardsProps<Row>) {
+// A windowed card list for phones: every card is drawn at the height `heightOf` gives it,
+// and nearing the end asks for the next page (`onNearEnd`).
+export function ListCards<Row>({
+    testID,
+    rows,
+    heightOf,
+    keyOf,
+    renderCard,
+    onNearEnd,
+}: ListCardsProps<Row>) {
     const fabClearanceStyle = useFabClearanceStyle()
     const viewHeight = useWindowHeight()
     // Reactive, so a change of the system text size while the list is open re-sizes the cards
@@ -25,7 +34,7 @@ export function ListCards<Row>({ testID, rows, heightOf, keyOf, renderCard }: Li
         () => rows.map(row => heightOf(row, fontScale)),
         [rows, heightOf, fontScale]
     )
-    const rowWindow = useRowWindow({ total: heights.length, heights, viewHeight })
+    const rowWindow = useRowWindow({ total: heights.length, heights, viewHeight, onNearEnd })
     const visible = rows
         .slice(rowWindow.first, rowWindow.last)
         .map((row, offset) => (

@@ -1,9 +1,18 @@
 import { useRef, useState } from 'react'
+import { isNearEnd } from '../lib/near-end'
 import { indexAt, itemTop, windowRange } from '../lib/opening-window'
 
 export const ROW_OVERSCAN = 6
 
-type ScrollEvent = { nativeEvent: { contentOffset: { y: number } } }
+// React Native's scroll event carries all three; only the offset moves the window, so a
+// caller with no `onNearEnd` may send the offset alone.
+type ScrollEvent = {
+    nativeEvent: {
+        contentOffset: { y: number }
+        layoutMeasurement?: { height: number }
+        contentSize?: { height: number }
+    }
+}
 type LayoutEvent = { nativeEvent: { layout: { height: number } } }
 
 export function rowWindowBounds({
@@ -27,16 +36,27 @@ export function rowWindowBounds({
     return { first, last, topSpace: first * rowHeight, bottomSpace: (total - last) * rowHeight }
 }
 
-type RowWindowOptions = { total: number; viewHeight: number } & (
+type RowWindowOptions = {
+    total: number
+    viewHeight: number
+    // Called on each scroll that ends near the end of the content (lib/near-end.ts).
+    onNearEnd?(): void
+} & (
     | { rowHeight: number; heights?: undefined }
     | { heights: readonly number[]; rowHeight?: undefined }
 )
+
+function reportNearEnd(event: ScrollEvent, onNearEnd: (() => void) | undefined) {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent
+    if (!onNearEnd || !layoutMeasurement || !contentSize) return
+    if (isNearEnd({ contentOffset, layoutMeasurement, contentSize })) onNearEnd()
+}
 
 // Mounts only the rows near the scroll position. The rest are stood in for by two spacers
 // and the scroll bar still spans the whole list. Rows have one fixed `rowHeight`, or, for
 // a list that mixes heights, per-item `heights` (then `total` is `heights.length`).
 export function useRowWindow(options: RowWindowOptions) {
-    const { total, viewHeight, heights, rowHeight } = options
+    const { total, viewHeight, heights, rowHeight, onNearEnd } = options
     // The row index, not the pixel offset, so scrolling within one row causes no render.
     const [firstVisible, setFirstVisible] = useState(0)
     // Height of the content above the sticky header (date block, helper, errors). It is a
@@ -59,10 +79,12 @@ export function useRowWindow(options: RowWindowOptions) {
         })
         return {
             ...range,
-            onScroll: (event: ScrollEvent) =>
+            onScroll: (event: ScrollEvent) => {
                 setFirstVisible(
                     indexAt(heights, event.nativeEvent.contentOffset.y - leading.current)
-                ),
+                )
+                reportNearEnd(event, onNearEnd)
+            },
             onLeadingLayout: (event: LayoutEvent) => {
                 leading.current = event.nativeEvent.layout.height
             },
@@ -73,8 +95,10 @@ export function useRowWindow(options: RowWindowOptions) {
     return {
         firstVisible,
         ...rowWindowBounds({ firstVisible, total, rowHeight: height, viewHeight }),
-        onScroll: (event: ScrollEvent) =>
-            setFirstVisible(Math.floor(event.nativeEvent.contentOffset.y / height)),
+        onScroll: (event: ScrollEvent) => {
+            setFirstVisible(Math.floor(event.nativeEvent.contentOffset.y / height))
+            reportNearEnd(event, onNearEnd)
+        },
         onLeadingLayout: () => {},
     }
 }
