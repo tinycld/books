@@ -66,7 +66,21 @@
 - fix review: n/a
 - gate 3 A notes: 2 (Design notes)
 - reviewer-caught deferrals: none
+- commit: 1199906
 - review input: review-diff.mjs listed the 9 planned files as out-of-plan (its parser drops a path after `Create:`/`Modify:`); the driver checked them against the Files block (none out of plan) and corrected the input
+
+## Checkpoint 2
+- test writer: no new test (the checkpoint says so); confirmed the guard covers the moved parts: customer parent picker (customer-form-page.spec.ts 85-98, 337-355; customer-form-panel.spec.ts 250-257), vendor expense account trigger and options (vendor-form-page.spec.ts 147, 185, 189; vendor-form-save.spec.ts 129-171), unit tests vendor-host.test.ts, expense-account-options.test.ts; untestable: none
+- implementer: `SearchPicker` / `useSearchPicker` / `SearchPickerOption`, `CustomerPicker` on it; `forms/account-fields.tsx` (`HostSelect` exported with `indent?`, `ExpenseAccountField` moved), `hooks/useFormAccounts.ts` (key `books.form.accounts`); DONE
+- test disputes: none
+- self-declared differences: `NoneItem` / `TriggerSuffix` small components that return null; the search field's accessibilityLabel is its placeholder (same text as before); comments moved; vendor-fields file comment no longer names `ExpenseAccountField`; old key `books.vendor-form.accounts` removed (G5); the git-excluded scratch route keeps its own copies
+- gate 1: no test-writer files · pass (check 2986; guard customer-form:|vendor-form: 36 passed); all staged files in the Files block
+- gate 2: n/a
+- gate 3 A (correctness): no BLOCK; NOTE trigger suffix sits mid-row (`justify-between`), not "after the label" as Produces says → accepted+fixed with B1; NOTE `useFormAccounts` `isReady`/`FormAccount` unused until cp8 (asked for by Produces)
+- gate 3 B (conformance): 1 suffix placement (= A NOTE) → accepted+fixed (label + suffix in one `min-w-0 flex-1 flex-row` view, chevron `shrink-0`); 2 lesson 8, items render while closed → accepted+fixed (options and the none item only while `picker.isOpen`); 3 ledger not in Files block (loop's own file)
+- fix review: round 1: clean · gate 1 after the fix: check 2986, customer-form: 24 passed
+- gate 3 A notes: 0 open
+- reviewer-caught deferrals: none
 
 ## Final review
 - eval:
