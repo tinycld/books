@@ -39,3 +39,22 @@ export function accountOptionList(accounts: readonly OptionAccount[]) {
     for (const root of tree) walk(root)
     return { options, names }
 }
+
+/**
+ * The chart's options for one account field: the accounts `keep` accepts, in chart
+ * order and depth (the walk covers every account, so an offered child keeps its depth),
+ * and a `triggerLabel` that names a stored account the list does not offer (it became
+ * inactive, or its type no longer fits), which the select shows while no option matches.
+ */
+export function filteredAccountOptions<A extends OptionAccount>(
+    accounts: readonly A[],
+    storedId: string,
+    keep: (account: A) => boolean
+) {
+    const kept = new Set(accounts.filter(keep).map(account => account.id))
+    const { options: chart, names } = accountOptionList(accounts)
+    const options = chart.filter(option => kept.has(option.value))
+    const isOffered = options.some(option => option.value === storedId)
+    const triggerLabel = isOffered ? '' : (names.get(storedId) ?? '')
+    return { options, triggerLabel }
+}

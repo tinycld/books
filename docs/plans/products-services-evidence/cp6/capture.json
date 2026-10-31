@@ -12,7 +12,10 @@
             "url": "/a/books/products",
             "ready": "products-table",
             "widths": [1280],
-            "actions": [{ "click": "products-show-inactive" }, { "waitFor": "product-row-prodcableties01" }]
+            "actions": [
+                { "click": "products-show-inactive" },
+                { "waitFor": "product-row-prodcableties01" }
+            ]
         },
         {
             "name": "list-empty",

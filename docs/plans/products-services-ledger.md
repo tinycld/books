@@ -43,9 +43,13 @@
 - cp6 · list-error-1280-dark: the Retry outline button's border is faint on the dark error banner (the reference has the same edge).
 - cp6 reviewer A NOTE: product rows, New and a product search hit reach "Page not found" until checkpoint 9 adds the product routes (planned).
 - cp6 reviewer A NOTE: the shared `ListHeaderCell` money headers are right-aligned but not `tabular-nums` (the labels are words).
+- cp7 reviewer A NOTE: `MONEY_VALUE_SCHEMA` has no currency, so a very long other-currency text (e.g. `€99999999999999999999` in a USD book) says "Too large" and a shorter one says "Enter an amount such as 1,250.00"; the save is blocked either way.
+- cp7 reviewer A NOTE: the product-form case "never hides type or name" passes without the host-required guard (no hidden list names them); form-definition.test.ts covers the guard.
 
 ## Out-of-plan changes
 - docs/plans/products-services-checkpoints.md (cp3): driver edit, e2e ports 7200/7201 → 7230/7231 (the lane moved; human, 2026-10-30)
+- docs/plans/products-services-evidence/cp6/capture.json (cp7): biome format, whitespace only (cp6 committed it unformatted)
+- tinycld/books/lib/expense-account-options.ts, tinycld/books/lib/account-options.ts (cp7): `filteredAccountOptions` extracted so income and expense options share one body (reviewer B, lesson 13)
 
 ## Phase notes
 - phase 1: intake and the first design gate ran 2026-10-29 in lane reports (packet against books 3c32b22, core 12759a7): direction A, Q1-Q18 accepted as recommended, platform item 1 (no slide on web) signed off; the unit then waited for p3-vendors. Look-ahead packet regenerated 2026-10-30 against books/p3-vendors 2208ad9, core 5217753; kept by the discard rule at books 91ce648, core 1bda334.
@@ -151,6 +155,20 @@
 - gate 3 B (conformance): no findings
 - fix review: n/a
 - gate 3 A notes: 3 (Design notes / carried)
+- reviewer-caught deferrals: none
+- commit: b5003a7
+
+## Checkpoint 7
+- test writer: tests/form-definition.test.ts, product-form.test.ts, product-columns.test.ts, product-defaults.test.ts, income-account-options.test.ts, bundle-items.test.ts, money-input.test.ts (new); guard opening-balances.test.ts unchanged and green; red for the right reason: yes (missing modules); fixtures checked against real core `hostDefSchema` / `definitionSchema` / `tableRowsOf`; untestable: none
+- implementer: `form-definition` (`hideBuiltins`, `requireBuiltins`), `product-form`, `product-columns`, `product-defaults`, `income-account-options`, `bundle-items`, `money-input` (`MONEY_VALUE_SCHEMA`, `moneyFieldValue`, …), `centsToText` moved to `money.ts` (re-exported by opening-balances), `moneyTextSchema`; DONE
+- test disputes: none
+- self-declared differences: `MONEY_VALUE_SCHEMA` says "Too large" only for well-formed text the Books currency cannot parse (other-currency text such as `€5` gets the malformed message; accepted, the agreed contract said `isWellFormedMoney` alone); whitespace-only input → 0 (as `amountCents`); a bundle with malformed money text sends no price key; `host` argument on `hideBuiltins` / `productDefinitionFor` (Decisions, not the spec's Libs line); a comment on the re-export
+- gate 1: tests unedited: yes · pass (check 3146)
+- gate 2: n/a
+- gate 3 A (correctness): no BLOCK; NOTEs: very long other-currency text still says "Too large" (save blocked, nothing wrong written); the product-form "never hides type or name" case cannot fail on its own (form-definition.test.ts covers the guard); cp6 capture.json reformat → Design notes / Out-of-plan
+- gate 3 B (conformance): 1 cp6 capture.json reformat → recorded under Out-of-plan changes; 2 money schema contract deviation → accepted (declared difference above); 3 `Intl.supportedValuesOf` unguarded on a new native save path → accepted+fixed (falls back to `legacyPattern`; a fresh test writer added the failing test first); 4 income options copied expense options (lesson 13) → accepted+fixed (`filteredAccountOptions` in account-options.ts; expense-account-options.ts changed, Out-of-plan); 5 comment restated the name → says why
+- fix review: round 1: clean · NOTE comment named the wrong pattern → corrected (comment only) · gate 1 after: check 3147, vendor-form: 12 passed
+- gate 3 A notes: 2 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review

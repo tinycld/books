@@ -1,5 +1,5 @@
 import type { BooksAccounts } from '../types'
-import { accountOptionList } from './account-options'
+import { filteredAccountOptions } from './account-options'
 
 export type ExpenseOptionAccount = Pick<
     BooksAccounts,
@@ -24,12 +24,10 @@ export function expenseAccountOptions(
     accounts: readonly ExpenseOptionAccount[],
     storedId: string
 ): { options: { value: string; label: string; indent?: number }[]; triggerLabel: string } {
-    const refused = new Set(
-        accounts.filter(account => REFUSED_TYPES.includes(account.type)).map(account => account.id)
+    const { options, triggerLabel } = filteredAccountOptions(
+        accounts,
+        storedId,
+        account => !REFUSED_TYPES.includes(account.type)
     )
-    const { options: chart, names } = accountOptionList(accounts)
-    const options = chart.filter(option => !refused.has(option.value))
-    const isOffered = options.some(option => option.value === storedId)
-    const triggerLabel = isOffered ? '' : (names.get(storedId) ?? '')
     return { options: [{ value: '', label: 'None' }, ...options], triggerLabel }
 }
