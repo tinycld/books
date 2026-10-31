@@ -1,9 +1,22 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { inactiveRefusalMessage, typeLockMessage } from '../tinycld/books/lib/account-messages'
+import {
+    BOX_NEEDS_EXPENSE_TYPE,
+    inactiveRefusalMessage,
+    typeLockMessage,
+} from '../tinycld/books/lib/account-messages'
 
 const serverSource = readFileSync(join(__dirname, '..', 'server', 'accounts.go'), 'utf8')
+
+const BOX_NEEDS_EXPENSE_TYPE_TEXT =
+    'Only expense accounts can be reported on a 1099. Set this account to Not reported in Settings → 1099s first.'
+
+describe('BOX_NEEDS_EXPENSE_TYPE', () => {
+    it('is the text of the plan Decisions', () => {
+        expect(BOX_NEEDS_EXPENSE_TYPE).toBe(BOX_NEEDS_EXPENSE_TYPE_TEXT)
+    })
+})
 
 describe('typeLockMessage', () => {
     it('words the journal line reason', () => {
@@ -48,5 +61,9 @@ describe('server drift', () => {
 
     it('server/accounts.go holds the same inactive format string', () => {
         expect(serverSource).toContain('Make the %d active sub-accounts inactive first.')
+    })
+
+    it('server/accounts.go holds the 1099 box text', () => {
+        expect(serverSource).toContain(BOX_NEEDS_EXPENSE_TYPE_TEXT)
     })
 })

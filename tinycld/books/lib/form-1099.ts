@@ -1,7 +1,8 @@
 // The 1099-NEC and 1099-MISC boxes an expense account can report to. The keys
 // must equal the form_1099_box values of migration 2100000002 and boxes1099 in
-// server/form1099.go; tests/form-1099.test.ts and the Go test check both, so
-// a box added in one place and not the others fails a test.
+// server/form1099.go, and EXPENSE_GROUP_TYPES must equal its expenseGroupTypes;
+// tests/form-1099.test.ts and the Go test (server/form1099_test.go) check
+// them, so a box added in one place and not the others fails a test.
 
 import type { BooksAccounts } from '../types'
 

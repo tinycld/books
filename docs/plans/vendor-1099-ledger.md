@@ -34,8 +34,14 @@
 - cp 1 · reviewer A NOTE: the `...EMPTY_VENDOR_COLUMNS` spread in useVendorForm.ts is type-only (runtime already gets the keys); cp4 removes it as planned.
 - cp 1 · reviewer A NOTE (for cp4): `EMPTY_1099_COLUMNS` uses `satisfies`, so its type keeps literals (`tax_id_type: ''`, `track_1099: false`) and the `EMPTY_VENDOR_COLUMNS` intersection carries them; if cp4 types a value from it, declare an explicit `Pick<…>` annotation.
 - cp 1 · reviewer B NIT: server/company_settings_test.go:225 uses the literal "bookssettings01" where the same test uses `settingsID`; the plan wrote the literal.
+- cp 2 · reviewer A NOTE: validateAccount's box check runs before checkAccountChange, so a direct API type change of a mapped account that also has lines gets the box refusal first, and after clearing the box the lines refusal; the Account panel locks the type select when lines > 0 or children > 0 (useAccountForm.ts `typeLocked`), so no UI path reaches it.
+- cp 2 · reviewer A NOTE: normalizeTaxID removes only ASCII space and hyphen-minus (as the plan says); a tax ID pasted with an en dash or a no-break space is refused "A tax ID has 9 digits.". Possible fix: strip unicode.IsSpace runes and Pd dashes.
+- cp 2 · reviewer A NOTE: an unknown tax_id_type (API only) gives two errors (type schema refusal and tax_id pattern), since dashTaxID returns bare digits.
+- cp 1 → cp 2 · reviewers A + B confirmed: the cp1 comments (lib/form-1099.ts, migrations 2100000002/2100000004) match the Go names built in cp2; the 2100000001 "Settings → 1099s" comment waits for cp5.
 
 ## Out-of-plan changes
+- cp 2: `docs/plans/vendor-1099-checkpoints.md` — driver fix of the UNTESTABLE `TestAccount1099_BoxesPerAccount` bullet: PocketBase `SelectField.PrepareValue` keeps the last value of a single select, so a two-box write cannot be refused; the bullet now asserts a write of `["nec_1","misc_1"]` stores exactly `"misc_1"` (one account, at most one box). plan-check re-run: exit 0.
+- cp 2: `tinycld/books/lib/tax-id.ts` — comment only: `TAX_ID_TYPE_KEYS` must equal Go `taxIDTypes` (checked by server/form1099_test.go).
 - cp 1: `tests/migration-field.ts` (test helper) — shared migration-field parser for the drift tests in form-1099.test.ts and tax-id.test.ts; added by the cp1 test writer; weakens no test.
 - cp 0: `core/docs/audit-log.md` (core) — Redacted fields section and the `CollectionConfig` API list updated for `Redact` and the new marker map (reviewer B finding 2; the doc of the API this checkpoint changes).
 
@@ -68,6 +74,19 @@
 - gate 2: n/a (logic)
 - gate 3 A (correctness): no BLOCK; 6 NOTEs → Design notes (one is the out-of-plan helper, recorded)
 - gate 3 B (conformance): 1 tests/migration-field.ts out of plan → accepted (Out-of-plan changes); 2 forward-looking comments → Design notes; 3 nit → Design notes
+- fix review: n/a (no fix touched source)
+- reviewer-caught deferrals: none
+- commit: e67f65c
+
+## Checkpoint 2
+- test writer: server/vendors_test.go (9 tests + 2 message texts), server/accounts_test.go (6 tests), server/form1099_test.go (3 tests, `listIn`), tests/vendor-messages.test.ts and tests/account-messages.test.ts (2 cases each); red for the right reason: yes (build failure on the cp2 names; behavior reds proven with temporary wrong-value stubs, deleted); untestable: 1 — "`["nec_1","misc_1"]` is refused by the schema" (PocketBase keeps the last single-select value) → plan bullet fixed (Out-of-plan changes), the test writer added the corrected assertion (green: guards existing schema behavior)
+- implementer: server/form1099.go (boxes1099, expenseGroupTypes, taxIDTypes, isExpenseGroupType); vendors.go validate1099Fields/normalizeTaxID/dashTaxID + messages; accounts.go box/type check in validateAccount; client message copies; comment pointers; DONE
+- test disputes: none
+- self-declared differences: comment-only edits in lib/form-1099.ts and lib/tax-id.ts
+- gate 1: tests unedited: yes · pass (tinycld-pkg check 3013 tests; go test -count=1 ./... ok; go vet clean; implementer's seed boot vendor-form-list.spec.ts 2 passed with the seeded tax IDs stored dashed)
+- gate 2: n/a (logic)
+- gate 3 A (correctness): no BLOCK; NOTEs → Design notes; out-of-plan pair judged harmless
+- gate 3 B (conformance): 1 plan file out of plan → accepted (Out-of-plan changes); 2 tax-id.ts comment → accepted (Out-of-plan changes); serialized memory rule satisfied
 - fix review: n/a (no fix touched source)
 - reviewer-caught deferrals: none
 
