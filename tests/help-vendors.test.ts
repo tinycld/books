@@ -53,6 +53,14 @@ describe('help/vendors.md', () => {
         expect(body).toContain('It matches words that start with what you type')
     })
 
+    it('says how %, _ and \\ split a list search and which case it ignores', () => {
+        expect(body).toContain(
+            'In the list search, `%`, `_` and `\\` split the text into parts that must all appear'
+        )
+        expect(body).toContain('the list search ignores case for the letters A to Z only')
+        expect(body).toContain('the app search ignores all case and accents')
+    })
+
     it('links the 1099 tracking topic', () => {
         expect(body).toContain('help://books:1099-tracking')
     })
