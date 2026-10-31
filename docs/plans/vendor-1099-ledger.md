@@ -37,6 +37,11 @@
 - cp 2 · reviewer A NOTE: validateAccount's box check runs before checkAccountChange, so a direct API type change of a mapped account that also has lines gets the box refusal first, and after clearing the box the lines refusal; the Account panel locks the type select when lines > 0 or children > 0 (useAccountForm.ts `typeLocked`), so no UI path reaches it.
 - cp 2 · reviewer A NOTE: normalizeTaxID removes only ASCII space and hyphen-minus (as the plan says); a tax ID pasted with an en dash or a no-break space is refused "A tax ID has 9 digits.". Possible fix: strip unicode.IsSpace runes and Pd dashes.
 - cp 2 · reviewer A NOTE: an unknown tax_id_type (API only) gives two errors (type schema refusal and tax_id pattern), since dashTaxID returns bare digits.
+- cp 3 · reviewer A NOTE: search_test.go:273's term `987654321` can never match (stored dashed); the dashed terms do the work (mutation-probed).
+- cp 3 · reviewer A NOTE: a `tax_id_type` change is logged in clear text; the spec redacts only the value.
+- cp 3 · reviewer B NOTE: help/vendors.md:14 does not yet name legal-name search; cp7's Files block owns it — cp7 gate 3 must confirm it lands.
+- cp 3 · reviewer B NOTE: the tests pin the literal `"[redacted]"` instead of consuming `audit.RedactedValue`.
+- cp 0 wiring: proven end to end by cp3's Books audit tests (reviewer A mutation probe: removing the Redact entries fails all three).
 - cp 1 → cp 2 · reviewers A + B confirmed: the cp1 comments (lib/form-1099.ts, migrations 2100000002/2100000004) match the Go names built in cp2; the 2100000001 "Settings → 1099s" comment waits for cp5.
 
 ## Out-of-plan changes
@@ -88,6 +93,19 @@
 - gate 3 A (correctness): no BLOCK; NOTEs → Design notes; out-of-plan pair judged harmless
 - gate 3 B (conformance): 1 plan file out of plan → accepted (Out-of-plan changes); 2 tax-id.ts comment → accepted (Out-of-plan changes); serialized memory rule satisfied
 - fix review: n/a (no fix touched source)
+- reviewer-caught deferrals: none
+- commit: 336e9db
+
+## Checkpoint 3
+- test writer: server/search_test.go (TestSearch_FindsVendorsByLegalName), server/registrations_test.go (three TestAudit_Redacts… tests + helpers); red for the right reason: yes (legal_name not matched; tax_id stored and snapshotted in clear); untestable: none. It proved the tests can go green with a temporary source edit, then reverted (retro log).
+- implementer: partySource.matchColumns (vendors add c.legal_name), searchParties uses it; Redact tax_id on books_vendors and books_settings with a why-comment; DONE
+- test disputes: none
+- self-declared differences: one more comment sentence (labels read no redacted field)
+- gate 1: tests unedited: yes · pass (go test -count=1 ./... ok; go vet clean; tinycld-pkg check green)
+- gate 2: n/a (logic)
+- gate 3 A (correctness): no BLOCK; mutation probes confirm every test; 2 NOTEs → Design notes
+- gate 3 B (conformance): nothing found; 2 notes → Design notes
+- fix review: n/a
 - reviewer-caught deferrals: none
 
 ## Final review
