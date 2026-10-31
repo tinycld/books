@@ -39,6 +39,10 @@
 - cp5 reviewer A NOTE: a product search hit routes to `books/products/[id]`, which exists only from checkpoint 9 (planned).
 - cp5 reviewer A NOTE: `TestSearch_NoAccessFindsNothing`'s `productRows` check adds nothing beyond its length check; the level check in `searchBooks` is the real guard.
 - cp5 reviewer A NOTE: no product case for exclude or `%`/`_` terms; products use the shared `likeWhere` / `escapeLike`, tested for the other kinds.
+- cp6 · list-390: the search placeholder clips "Search products and services" to "…service" at 390 (shared `ListToolbar`; the reference shows the same; a fix is a shorter phone placeholder or a wider field).
+- cp6 · list-error-1280-dark: the Retry outline button's border is faint on the dark error banner (the reference has the same edge).
+- cp6 reviewer A NOTE: product rows, New and a product search hit reach "Page not found" until checkpoint 9 adds the product routes (planned).
+- cp6 reviewer A NOTE: the shared `ListHeaderCell` money headers are right-aligned but not `tabular-nums` (the labels are words).
 
 ## Out-of-plan changes
 - docs/plans/products-services-checkpoints.md (cp3): driver edit, e2e ports 7200/7201 → 7230/7231 (the lane moved; human, 2026-10-30)
@@ -133,6 +137,20 @@
 - gate 3 B (conformance): no BLOCK; NOTE the `searchSource` comment was not rewrapped → rewrapped (comment only)
 - fix review: n/a (comment only)
 - gate 3 A notes: 3 (Design notes)
+- reviewer-caught deferrals: none
+- commit: 485548e
+
+## Checkpoint 6
+- test writer: tests/product-route.test.ts, tests/product-list.test.ts, tests/product-display.test.ts (new), tests/shell-nav.test.ts (products list entry right after vendors); red for the right reason: yes (missing modules; shell-nav entry undefined); the Retry bullet has no new test (the shared vendor list spec drives `retryListQuery`, plan review A8); untestable: none
+- implementer: `product-route`, `product-list`, `product-display`, `useProductNavigation`, `useProductsQuery`, `ProductsList` / `ProductRow` / `ProductCard`, `screens/products/_layout` + `index`, `RecordListFrame` title `min-w-0 shrink` (G8), shell-nav `products` entry; DONE
+- test disputes: none
+- self-declared differences: `SkuText` / `MoneyCell` local helpers; row height `PRODUCT_ROW_HEIGHT` without PartyRow's `minHeight: 44`; narrow `Pick` parameter types; two "why" comments
+- gate 1: tests unedited: yes · pass (check 3084; guard customer-form:|vendor-form: 36 passed)
+- gate 2: invalid shots: none (16 shots; the capture spec gained `fakeRecords` for the empty / all-inactive / error states, aborting realtime on that page) · blocking: none · notes: 2 (Design notes); money right-aligned within 1 px of its header; the 560 px sideways scroll is not observable at 1280 (falls to cp9's panel capture)
+- gate 3 A (correctness): no BLOCK; NOTEs: product row / New targets show "Page not found" until cp9 adds the routes (planned); optimistic insert has no `currency` so the money helpers would print "undefined" → carried to cp9 as a requirement (staging cp/carry-notes.md); money header cells lack `tabular-nums` (labels are words) → Design notes
+- gate 3 B (conformance): no findings
+- fix review: n/a
+- gate 3 A notes: 3 (Design notes / carried)
 - reviewer-caught deferrals: none
 
 ## Final review

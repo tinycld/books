@@ -1,0 +1,95 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "list",
+            "url": "/a/books/products",
+            "ready": "products-table",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "show-inactive",
+            "url": "/a/books/products",
+            "ready": "products-table",
+            "widths": [1280],
+            "actions": [{ "click": "products-show-inactive" }, { "waitFor": "product-row-prodcableties01" }]
+        },
+        {
+            "name": "list-empty",
+            "url": "/a/books/products",
+            "ready": "products-empty",
+            "widths": [1280, 390],
+            "fakeRecords": { "collection": "books_products", "items": [] }
+        },
+        {
+            "name": "list-no-match",
+            "url": "/a/books/products",
+            "ready": "products-table",
+            "widths": [1280],
+            "actions": [
+                { "fill": "products-search", "value": "Espresso machine" },
+                { "waitFor": "products-no-match" }
+            ]
+        },
+        {
+            "name": "list-all-inactive",
+            "url": "/a/books/products",
+            "ready": "products-all-inactive",
+            "widths": [1280],
+            "fakeRecords": {
+                "collection": "books_products",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_products",
+                        "collectionName": "books_products",
+                        "id": "prodfaxsetup001",
+                        "type": "service",
+                        "name": "Fax line setup",
+                        "sku": "SVC-FAX",
+                        "sales_description": "",
+                        "price": 6500,
+                        "income_account": "",
+                        "purchases": false,
+                        "purchase_description": "",
+                        "cost": 0,
+                        "expense_account": "",
+                        "inactive": true,
+                        "currency": "USD",
+                        "form": "",
+                        "fields": null,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "collectionId": "pbc_books_products",
+                        "collectionName": "books_products",
+                        "id": "prodcableties01",
+                        "type": "non_inventory",
+                        "name": "Cable ties, 100 pack",
+                        "sku": "HW-CT-100",
+                        "sales_description": "",
+                        "price": 1250,
+                        "income_account": "",
+                        "purchases": true,
+                        "purchase_description": "",
+                        "cost": 620,
+                        "expense_account": "",
+                        "inactive": true,
+                        "currency": "USD",
+                        "form": "",
+                        "fields": null,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "list-error",
+            "url": "/a/books/products",
+            "ready": "products-banner",
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_products", "status": 400 }
+        }
+    ]
+}
