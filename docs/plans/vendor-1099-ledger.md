@@ -37,6 +37,10 @@
 - cp 2 · reviewer A NOTE: validateAccount's box check runs before checkAccountChange, so a direct API type change of a mapped account that also has lines gets the box refusal first, and after clearing the box the lines refusal; the Account panel locks the type select when lines > 0 or children > 0 (useAccountForm.ts `typeLocked`), so no UI path reaches it.
 - cp 2 · reviewer A NOTE: normalizeTaxID removes only ASCII space and hyphen-minus (as the plan says); a tax ID pasted with an en dash or a no-break space is refused "A tax ID has 9 digits.". Possible fix: strip unicode.IsSpace runes and Pd dashes.
 - cp 2 · reviewer A NOTE: an unknown tax_id_type (API only) gives two errors (type schema refusal and tax_id pattern), since dashTaxID returns bare digits.
+- cp 4 · vendor-tracking-off-1280-dark / -390-dark: Track payments for 1099 row — the off toggle track is low-contrast on the dark background (core Toggle, same in the reference).
+- cp 4 · reviewer A NOTE: under a server refusal, Tax ID shows both its hint and the refusal (ContactInput hides the hint only for a local error; same as the account-number field).
+- cp 4 · fix review NOTE: a mixed refusal (hidden + visible keys) is untested and cannot happen with today's server (one field per refusal); if a shown key is unknown the toast body repeats the hidden messages; if a shown key is the host's formColumn the host's root message replaces the hidden one.
+- cp 4 · reviewer B NOTE: the e2e uses `insertAnswered`/`patchAnswered` (read-only response waits) not listed in Consumes.
 - cp 3 · reviewer A NOTE: search_test.go:273's term `987654321` can never match (stored dashed); the dashed terms do the work (mutation-probed).
 - cp 3 · reviewer A NOTE: a `tax_id_type` change is logged in clear text; the spec redacts only the value.
 - cp 3 · reviewer B NOTE: help/vendors.md:14 does not yet name legal-name search; cp7's Files block owns it — cp7 gate 3 must confirm it lands.
@@ -45,6 +49,8 @@
 - cp 1 → cp 2 · reviewers A + B confirmed: the cp1 comments (lib/form-1099.ts, migrations 2100000002/2100000004) match the Go names built in cp2; the 2100000001 "Settings → 1099s" comment waits for cp5.
 
 ## Out-of-plan changes
+- cp 4: `docs/specs/vendor-1099-design.md`, `docs/plans/vendor-1099-checkpoints.md` — the layout rule key renamed `hide-1099-details` → `hide_1099_details` after a test dispute (core keySchema `/^[a-z][a-z0-9_]{0,39}$/`, core/lib/forms/key.ts:5, refuses dashes).
+- cp 4 (gate 3 fix): `tinycld/books/lib/record-refusals.ts` (`recordRefusalHandler` optional `hiddenFields`, `hiddenRefusalKeys`), `lib/record-save.ts` (`saveRefusalHandler` optional 5th param), `hooks/useRecordSave.ts` (forms arg takes host and context), `hooks/useCustomerForm.ts` (passes host/context), `tests/record-refusals.test.ts` — a server refusal on a field the form does not draw goes to the root summary (customers and vendors).
 - cp 2: `docs/plans/vendor-1099-checkpoints.md` — driver fix of the UNTESTABLE `TestAccount1099_BoxesPerAccount` bullet: PocketBase `SelectField.PrepareValue` keeps the last value of a single select, so a two-box write cannot be refused; the bullet now asserts a write of `["nec_1","misc_1"]` stores exactly `"misc_1"` (one account, at most one box). plan-check re-run: exit 0.
 - cp 2: `tinycld/books/lib/tax-id.ts` — comment only: `TAX_ID_TYPE_KEYS` must equal Go `taxIDTypes` (checked by server/form1099_test.go).
 - cp 1: `tests/migration-field.ts` (test helper) — shared migration-field parser for the drift tests in form-1099.test.ts and tax-id.test.ts; added by the cp1 test writer; weakens no test.
@@ -106,6 +112,21 @@
 - gate 3 A (correctness): no BLOCK; mutation probes confirm every test; 2 NOTEs → Design notes
 - gate 3 B (conformance): nothing found; 2 notes → Design notes
 - fix review: n/a
+- reviewer-caught deferrals: none
+- commit: 55c5df2
+
+## Checkpoint 4
+- test writer: tests/vendor-host.test.ts, tests/vendor-columns.test.ts (changed); tests/e2e/vendor-1099-helpers.ts, tests/e2e/vendor-1099-form.spec.ts (2 desktop tests); red for the right reason: yes (14 vitest, tsc TS2339, e2e switch not found); untestable: none
+- implementer: four built-ins before notes, half widths, layout rule, vendor-1099-fields.tsx (LegalNameField, TaxIdTypeField, TaxIdField, hints), ui.ts, ContactInput `autoCapitalize`, `export` on HostSelect only (books main has no forms/account-fields.tsx), schema + EMPTY_VENDOR_FIELDS, insert spread removed; DONE after one dispute
+- test disputes: vendor-host.test.ts:141 asserted rule key `hide-1099-details`; core keySchema refuses dashes (core/lib/forms/key.ts:5) → test wrong; spec/plan renamed to `hide_1099_details`; a fresh test writer changed the assertion and title
+- self-declared differences: rule key; EMPTY_1099_COLUMNS declared before EMPTY_VENDOR_FIELDS (TDZ); schema key order + one comment; ContactInput doc line; JSX wrap
+- gate 1: tests unedited: yes (after the dispute fix) · pass (check 3023; e2e vendor-1099: 2 passed; implementer's guard vendor-form: 12 passed)
+- gate 2: invalid shots: none · blocking: none · notes: 1 (dark off-toggle contrast, core Toggle) → Design notes. Evidence docs/plans/vendor-1099-evidence/cp4/ (capture.json, 8 shots, critique.md)
+- gate 3 A (correctness): BLOCK 1 — a server refusal on a rule-hidden 1099 field showed nowhere (tracking on → bad Tax ID → tracking off → Save; setError on an unmounted field, root-only summary, no toast) → accepted+fixed (driver ruling: route it to the root summary; server unchanged); NOTE 2 (stale digits error) → added as a test assertion with the fix tests; NOTE 3 → Design notes; NOTE 4 (vendor-form guard) → run at gate 1 rerun
+- gate 3 B (conformance): 1 same hidden-field refusal → same fix; 2 out-of-plan rename/evidence → recorded; 3 Consumes list → Design notes; deferral "vendor-form guard not run" → run (14 passed)
+- fix: tests first by a fresh test writer (record-refusals.test.ts two cases; e2e test 2 hidden-field steps + stale-error check; red: setError('root') not called, summary not found), then a fresh implementer (record-refusals.ts, record-save.ts, useRecordSave.ts, useVendorForm.ts, useCustomerForm.ts); declared extras: hidden = evaluate visible false, mixed refusal split, joined messages, hidden set read on refusal, stale hidden error unchanged
+- gate 1 rerun: check 3025 passed; e2e `vendor-1099:|vendor-form:` 14 passed; implementer's guard customer-form: 24 passed
+- fix review: round 1: no BLOCK; the five extras accepted; mixed-refusal NOTE → Design notes
 - reviewer-caught deferrals: none
 
 ## Final review
