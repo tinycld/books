@@ -23,6 +23,7 @@ export const FRESH_SETTINGS: BooksSettings = {
     website: '',
     setup_started: false,
     setup_completed: false,
+    threshold_1099: 200000,
     created: '2026-10-01 00:00:00.000Z',
     updated: '2026-10-01 00:00:00.000Z',
 }
@@ -55,6 +56,7 @@ function build(ownership: Ownership): BooksAccounts[] {
             detail_type: item.detail_type,
             description: '',
             inactive: false,
+            form_1099_box: '',
             parent: parentNumber ? seedId(parentNumber) : '',
             currency: 'USD',
             created: STAMP,

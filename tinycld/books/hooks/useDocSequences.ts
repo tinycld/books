@@ -21,10 +21,16 @@ export function useDocSequences() {
         })
     }
 
+    // What a screen with other failed reads merges into its one recovery call.
+    const recovery = sequencesQuery.isError
+        ? { queries: [sequencesQuery.collection], sources: [sequencesCollection] }
+        : { queries: [], sources: [] }
+
     return {
         sequences: sequencesQuery.data,
         isReady: sequencesQuery.isReady,
         hasLoadError: sequencesQuery.isError,
         retryLoad,
+        recovery,
     }
 }

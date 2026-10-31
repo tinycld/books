@@ -40,6 +40,8 @@ export function useVendorForm(target: VendorFormTarget): RecordChildState {
             edit: base.edit,
             recordId: record?.id ?? '',
             leave,
+            host: base.host,
+            context: base.context,
         }
     )
     return {

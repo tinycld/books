@@ -49,6 +49,7 @@ function blankSettings(): BooksSettings {
         website: '',
         setup_completed: false,
         setup_started: false,
+        threshold_1099: 200000,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }
@@ -259,6 +260,7 @@ function startedRow(account: ReturnType<typeof starterChart>[number]): BooksAcco
         inactive: false,
         parent: '',
         currency: 'USD',
+        form_1099_box: '',
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }

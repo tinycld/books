@@ -1,11 +1,13 @@
 import type { Transaction } from '@tanstack/react-db'
-import { captureException, errorToString } from '@tinycld/core/lib/errors'
+import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useConnectivityStore } from '@tinycld/core/lib/stores/connectivity-store'
 import { writesAvailability } from '@tinycld/core/lib/writes-available'
 import { useRef } from 'react'
-import { messageOnlyRefusal } from '../lib/refusal'
+import { errorStatus, writeRefusalText } from '../lib/refusal'
 import type { RecordFormStore } from '../stores/record-form-store'
+
+export { SERVER_UNREACHED } from '../lib/refusal'
 
 type InactiveVariables = { id: string; inactive: boolean }
 
@@ -24,20 +26,9 @@ export type RecordActionsConfig<R extends { id: string }> = {
     logContext: string
 }
 
-function statusOf(error: unknown): number | undefined {
-    if (typeof error !== 'object' || error === null || !('status' in error)) return undefined
-    return typeof error.status === 'number' ? error.status : undefined
-}
-
-// A write that got no answer from the server (status 0): one fixed message in place of the
-// browser's raw fetch error. It does not read the live connectivity state, so it stays
-// the same on every render while it shows.
-export const SERVER_UNREACHED = "Your change wasn't saved: the server could not be reached."
-
 function refusalOf(error: unknown, id: string | undefined): RecordRefusal | null {
     if (!error || id === undefined) return null
-    if (statusOf(error) === 0) return { id, message: SERVER_UNREACHED }
-    return { id, message: messageOnlyRefusal(error) ?? errorToString(error) }
+    return { id, message: writeRefusalText(error) }
 }
 
 // A refusal shows from the mutation's state (`actionError`), in the banner or the dialog,
@@ -45,7 +36,7 @@ function refusalOf(error: unknown, id: string | undefined): RecordRefusal | null
 // while the app thought it was online, or a client error with no status is still a bug
 // to report.
 function reportUnexpected(logContext: string, error: unknown) {
-    const status = statusOf(error)
+    const status = errorStatus(error)
     const isClientError = status === undefined
     const isServerFailure = status !== undefined && status >= 500
     const isLostRequest =

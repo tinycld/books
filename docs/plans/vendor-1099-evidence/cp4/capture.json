@@ -1,0 +1,41 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "vendor-tracking-on",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 2300,
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Keystone Legal Group"
+                },
+                {
+                    "clickText": "Keystone Legal Group"
+                },
+                {
+                    "waitFor": "form-field-tax_id"
+                }
+            ]
+        },
+        {
+            "name": "vendor-tracking-off",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "height": 1800,
+            "actions": [
+                {
+                    "fill": "vendors-search",
+                    "value": "Office Supply World"
+                },
+                {
+                    "clickText": "Office Supply World"
+                },
+                {
+                    "waitFor": "form-field-track_1099"
+                }
+            ]
+        }
+    ]
+}

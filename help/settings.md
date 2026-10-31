@@ -1,7 +1,7 @@
 ---
 title: Settings
-summary: Company details, the close date and overrides, document numbering, and who can open Books.
-tags: [settings, close date, override, numbering, access]
+summary: Company details, the close date and overrides, document numbering, 1099s, and who can open Books.
+tags: [settings, close date, override, numbering, 1099s, access]
 order: 20
 ---
 
@@ -21,13 +21,23 @@ To change the month the fiscal year starts, open Settings, choose Accounting, pi
 
 To change how entries are numbered, open Settings and choose Numbering. Each document type has a prefix and a next number. A new prefix applies to entries posted from now on, and numbers already issued do not change. The next number can move forward only, so it never repeats a number. If a number is already used, Books shows a message under Next number.
 
+## 1099s
+
+To set up 1099 reporting, open Settings and choose 1099s. The section has three cards:
+
+- Reporting threshold: the amount that the 1099 report will use, when it is available. Only a Books admin can change it.
+- Accounts reported on 1099s: the 1099 box of each expense account. A bookkeeper or an admin can change the boxes.
+- 1099 vendors: the vendors that you track for 1099, with the last four digits of each tax ID, or Missing tax ID. Choose a vendor to open it.
+
+For the full steps, see [1099 tracking](help://books:1099-tracking).
+
 ## Access levels
 
 To change who can use Books, open Settings and choose Access. Only a Books admin sees this section. Each person has one of four levels:
 
 - None: Cannot open Books.
 - Read-only: Can see everything and change nothing.
-- Bookkeeper: Can enter and post entries and manage accounts. Cannot change settings.
+- Bookkeeper: Can enter and post entries and manage accounts. Cannot change settings, except the 1099 boxes of accounts.
 - Admin: Everything a bookkeeper can do, plus settings, access, and close-date overrides.
 
 Organization owners and admins always have Admin access, and their rows are locked. You cannot change your own access. A Books admin who is not an organization owner or admin can only switch a bookkeeper to admin and back. To search, type a name or an email address.

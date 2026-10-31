@@ -27,6 +27,10 @@
 // zone, and a PocketBase datetime would shift it a day for anyone west of UTC.
 // Lexical order is date order, so indexes and range filters work on the text.
 //
+// 1099 BOX. An account's form_1099_box is the 1099-NEC or 1099-MISC box its
+// payments count toward; empty is "Not reported". Only an expense-group
+// account (cost of goods sold, expense, other expense) may have one.
+//
 // UNIQUENESS. One posted entry holds a number per document type; a void's
 // reversal shares the voided entry's number, and an edit's correction takes
 // the number of the voided original, so the index counts only posted entries
@@ -106,6 +110,26 @@ migrate(
                     { name: 'description', type: 'text', max: 1000 },
                     { name: 'inactive', type: 'bool' },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
+                    // Must equal BOX_1099_KEYS (lib/form-1099.ts) and boxes1099
+                    // (server/form1099.go). Go allows a box only on an
+                    // expense-group type.
+                    {
+                        name: 'form_1099_box',
+                        type: 'select',
+                        maxSelect: 1,
+                        values: [
+                            'nec_1',
+                            'misc_1',
+                            'misc_2',
+                            'misc_3',
+                            'misc_5',
+                            'misc_6',
+                            'misc_8',
+                            'misc_9',
+                            'misc_10',
+                            'misc_11',
+                        ],
+                    },
                     ...AUTODATES,
                 ],
             })
