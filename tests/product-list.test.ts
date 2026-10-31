@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
     PRODUCT_COLUMNS,
+    PRODUCT_PICKER_LIMIT,
     PRODUCT_ROW_HEIGHT,
     PRODUCT_TABLE_MIN_WIDTH,
+    type ProductListFields,
     productCardHeight,
     productCostText,
     productMatches,
+    productPickerOptions,
     productPriceText,
     productRows,
     productTypeLine,
@@ -168,6 +171,43 @@ describe('productCardHeight', () => {
     it('scales the text lines, not the padding', () => {
         expect(productCardHeight(ACCESS_POINT, 2)).toBe(24 + (20 + 16 + 16) * 2)
         expect(productCardHeight(ACCESS_POINT, 2)).toBe(128)
+    })
+})
+
+type PickerRow = Pick<ProductListFields, 'id' | 'name' | 'sku'>
+
+function pickerIds(rows: readonly PickerRow[], term: string) {
+    return productPickerOptions(rows, term).map(option => option.id)
+}
+
+describe('productPickerOptions', () => {
+    it('returns the first 50 rows, in the order given, for an empty term', () => {
+        const rows: PickerRow[] = Array.from({ length: 60 }, (_, i) => ({
+            id: `pickrow${String(i).padStart(8, '0')}`,
+            // Names in reverse order, so a sort would change which rows come first.
+            name: `Item ${String(60 - i).padStart(2, '0')}`,
+            sku: `SKU-${i}`,
+        }))
+        expect(PRODUCT_PICKER_LIMIT).toBe(50)
+        expect(productPickerOptions(rows, '')).toEqual(rows.slice(0, 50))
+    })
+
+    it('matches the SKU and the name, ignoring case', () => {
+        const router = { id: 'pickrouter00001', name: 'Router', sku: 'HW-RT-1' }
+        const cable = { id: 'pickcable000001', name: 'Patch CABLE, 10 ft', sku: 'NET-10' }
+        const switchRow = { id: 'pickswitch00001', name: 'Switch', sku: 'hw-sw-2' }
+        const service = { id: 'pickservice0001', name: 'Consulting', sku: 'SVC-1' }
+        const rows = [router, cable, switchRow, service]
+        expect(pickerIds(rows, 'hw-')).toEqual([router.id, switchRow.id])
+        expect(pickerIds(rows, 'cable')).toEqual([cable.id])
+    })
+
+    it('does not throw on a row whose sku is missing at run time', () => {
+        // The row type says sku is a string, but a row can arrive without it.
+        const missing = { id: 'picknosku000001', name: 'No SKU here' } as PickerRow
+        expect(() => productPickerOptions([missing], 'zzz')).not.toThrow()
+        expect(pickerIds([missing], 'zzz')).toEqual([])
+        expect(pickerIds([missing], 'no sku')).toEqual([missing.id])
     })
 })
 

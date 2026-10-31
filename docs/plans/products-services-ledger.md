@@ -20,7 +20,8 @@
 (none yet)
 
 ## Rebuttals
-(none yet)
+- **finding:** reviewer B, checkpoint 8: "`ProductPicker.tsx:21-37`. Rule broken: CLAUDE.md 'Prefer inline queries in the screen component' … The query is wrapped in a local `usePickerProducts` hook."
+  **rebutted because:** the hook is file-local, not a shared hook, and CLAUDE.md also says "Move all state, event handling, and data processing into custom hooks (`useFeatureName`) or helpers above the JSX"; the existing `CustomerPicker.tsx` keeps its picker query in a local hook the same way, and `ProductPicker` is a component, not a screen.
 
 ## Design notes
 - cp0 reviewer A NOTE: no test covers `schemas` on the first schema `useFormCreate` / `useFormEdit` build; `components/forms-builder/PreviewDialog.tsx` still builds its first schema without `schemas`. Harmless: `FormRenderer` replaces `schemaRef.current` on every render before any validation.
@@ -45,6 +46,10 @@
 - cp6 reviewer A NOTE: the shared `ListHeaderCell` money headers are right-aligned but not `tabular-nums` (the labels are words).
 - cp7 reviewer A NOTE: `MONEY_VALUE_SCHEMA` has no currency, so a very long other-currency text (e.g. `€99999999999999999999` in a USD book) says "Too large" and a shorter one says "Enter an amount such as 1,250.00"; the save is blocked either way.
 - cp7 reviewer A NOTE: the product-form case "never hides type or name" passes without the host-required guard (no hidden list names them); form-definition.test.ts covers the guard.
+- cp8 reviewer A NOTE: core `BuiltinFieldProps` has no `onBlur`, so in edit mode (`mode: 'onBlur'`) a malformed amount shows its message only at Save, not on blur (a core prop would fix it).
+- cp8 reviewer A NOTE: `IncomeAccountField` draws an empty trigger when the value is '' (a book with no active Income account); a placeholder such as "Choose an income account" would help.
+- cp8 reviewer A NOTE: `HostMoneyInput`'s typed text is not cleared on an outer reset; on native, Save without a blur can keep "1250" in place of "1,250.00" (cosmetic).
+- cp8 reviewer B NOTE: the money input's border does not turn red on a refusal (core `TextInput` does); core `BuiltinFieldProps` has no `error` prop, so a fix needs a core change. The message under the input still shows.
 
 ## Out-of-plan changes
 - docs/plans/products-services-checkpoints.md (cp3): driver edit, e2e ports 7200/7201 → 7230/7231 (the lane moved; human, 2026-10-30)
@@ -169,6 +174,20 @@
 - gate 3 B (conformance): 1 cp6 capture.json reformat → recorded under Out-of-plan changes; 2 money schema contract deviation → accepted (declared difference above); 3 `Intl.supportedValuesOf` unguarded on a new native save path → accepted+fixed (falls back to `legacyPattern`; a fresh test writer added the failing test first); 4 income options copied expense options (lesson 13) → accepted+fixed (`filteredAccountOptions` in account-options.ts; expense-account-options.ts changed, Out-of-plan); 5 comment restated the name → says why
 - fix review: round 1: clean · NOTE comment named the wrong pattern → corrected (comment only) · gate 1 after: check 3147, vendor-form: 12 passed
 - gate 3 A notes: 2 (Design notes)
+- reviewer-caught deferrals: none
+- commit: d3ea96c
+
+## Checkpoint 8
+- test writer: tests/product-host.test.ts (new: host parse, columns, built-ins in order, rows table, chrome, layout and purchase rule, components, `ui.schemas.MoneyField`, the engine refusing malformed price text through `buildSchema`), tests/product-list.test.ts (picker limit, search, missing SKU); red for the right reason: yes (no `books:product` host, missing picker exports); the customer/vendor host guard passes; untestable: none
+- implementer: `books:product` host (`PRODUCT_HOST_KEY`, layout, purchase rule), `ProductTypeField`, `BundleProductCell`, `MoneyField` + `HostMoneyInput`, `IncomeAccountField`, `ProductPicker` on `SearchPicker`, `productPickerOptions`, `ui.schemas.MoneyField = MONEY_VALUE_SCHEMA`; DONE
+- test disputes: none
+- self-declared differences: `HostMoneyInput` takes the core input look and `iosInputCenteringStyle(16)` with input props; the picker query in a local `usePickerProducts` hook (as CustomerPicker); `ProductTypeField` uses isVisible wrappers; the picker search term is trimmed
+- gate 1: tests unedited: yes · pass (check 3163; guard customer-form:|vendor-form: 36 passed; `server/form_hosts.json` has `books:product`)
+- gate 2: n/a (nothing renders a product form until cp9)
+- gate 3 A (correctness): no BLOCK; NOTE 1 placeholder flash while a chosen product loads → accepted+fixed; NOTEs 2-4 → Design notes
+- gate 3 B (conformance): 1 local query hook vs "Prefer inline queries" → rebutted (see Rebuttals); 2 `useStore` twice → accepted+fixed; 3 limit + 1 with no row left out → accepted+fixed (`limit(PRODUCT_PICKER_LIMIT)`); NOTE money input border not red on a refusal (core `BuiltinFieldProps` has no `error`) → Design notes
+- fix review: round 1: clean · gate 1 after: check 3163
+- gate 3 A notes: 3 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review

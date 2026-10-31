@@ -58,6 +58,22 @@ export function productMatches(
     return fields.some(value => (value ?? '').toLowerCase().includes(term))
 }
 
+// The bundle item picker offers this many products while not searching.
+export const PRODUCT_PICKER_LIMIT = 50
+
+// The picker's options: rows whose name or SKU holds the term, any case, the first 50
+// in the order given (the picker's query sorts them by name).
+export function productPickerOptions<T extends Pick<ProductListFields, 'id' | 'name' | 'sku'>>(
+    rows: readonly T[],
+    term: string
+): T[] {
+    const needle = term.trim().toLowerCase()
+    // A row can arrive without a SKU; searching must not throw on it.
+    const matches = (row: T) =>
+        [row.name, row.sku].some(value => (value ?? '').toLowerCase().includes(needle))
+    return rows.filter(matches).slice(0, PRODUCT_PICKER_LIMIT)
+}
+
 // One flat list: inactive rows dropped unless shown, then matched, then sorted by name.
 export function productRows<T extends ProductListFields>(
     records: readonly T[],

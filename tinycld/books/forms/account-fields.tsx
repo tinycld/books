@@ -4,6 +4,7 @@ import { useHostValueForm } from '../components/forms/use-host-value-form'
 import { useFormAccounts } from '../hooks/useFormAccounts'
 import { expenseAccountOptions } from '../lib/expense-account-options'
 import { selectValueSchema } from '../lib/host-value-schemas'
+import { incomeAccountOptions } from '../lib/income-account-options'
 
 // Account pickers any Books host may name. The core cell draws each one's label and
 // error.
@@ -59,6 +60,34 @@ export function ExpenseAccountField({
 }: BuiltinFieldProps) {
     const { accounts } = useFormAccounts()
     const { options, triggerLabel } = expenseAccountOptions(
+        accounts,
+        typeof value === 'string' ? value : ''
+    )
+    return (
+        <HostSelect
+            fieldKey={fieldKey}
+            label={label}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            options={options}
+            placeholder={triggerLabel}
+        />
+    )
+}
+
+// A stored account that is not offered (it became inactive, or changed type) shows its
+// name in the trigger; an untouched field is not dirty, so the save leaves it out of
+// the patch.
+export function IncomeAccountField({
+    fieldKey,
+    label,
+    value,
+    onChange,
+    disabled,
+}: BuiltinFieldProps) {
+    const { accounts } = useFormAccounts()
+    const { options, triggerLabel } = incomeAccountOptions(
         accounts,
         typeof value === 'string' ? value : ''
     )
