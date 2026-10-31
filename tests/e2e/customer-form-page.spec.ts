@@ -132,8 +132,12 @@ async function sitsUnder(input: Locator, text: Locator, next: Locator) {
 
 const CUSTOMER_RECORDS = '**/api/collections/books_customers/records**'
 
-// Holds every customers load that could answer "has sub-customers": the whole list (no
-// filter) and any load filtered on `parent`. A load by id (the open record) goes through.
+// A page of the customers list: the list's pages, and only they, sort by sort_key.
+const isListPage = (url: URL) => url.searchParams.get('sort') === 'sort_key,id'
+
+// Holds every customers load that could answer "has sub-customers": any load filtered on
+// `parent` (the check), any load with no filter, and the list's pages, which put the open
+// customer's sub-customers in the store too. A load by id (the open record) goes through.
 // `filters` lists the held loads' filters; `release` lets them all through.
 async function holdSubCustomerLoads(page: Page) {
     let open = () => {}
@@ -142,8 +146,9 @@ async function holdSubCustomerLoads(page: Page) {
     })
     const filters: string[] = []
     const handler = async (route: Route) => {
-        const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
-        if (filter === '' || filter.includes('parent')) {
+        const url = new URL(route.request().url())
+        const filter = url.searchParams.get('filter') ?? ''
+        if (filter === '' || filter.includes('parent') || isListPage(url)) {
             filters.push(filter)
             await released
         }
@@ -162,7 +167,8 @@ async function holdSubCustomerLoads(page: Page) {
 }
 
 // Fails the has-sub-customers check for one customer (the load filtered on
-// `parent = customerId`) and holds the unfiltered list load, so only the failed check can
+// `parent = customerId`) and holds any load with no filter and the list's pages, which
+// could put that customer's sub-customers in the store too, so only the failed check can
 // settle the lock. `failed` lists the failed loads' filters; `release` removes the route.
 async function failSubCustomerCheck(page: Page, customerId: string) {
     let open = () => {}
@@ -171,7 +177,8 @@ async function failSubCustomerCheck(page: Page, customerId: string) {
     })
     const failed: string[] = []
     const handler = async (route: Route) => {
-        const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
+        const url = new URL(route.request().url())
+        const filter = url.searchParams.get('filter') ?? ''
         if (filter.replace(/\s/g, '').includes(`parent="${customerId}"`)) {
             failed.push(filter)
             await route.fulfill({
@@ -181,7 +188,7 @@ async function failSubCustomerCheck(page: Page, customerId: string) {
             })
             return
         }
-        if (filter === '') await released
+        if (filter === '' || isListPage(url)) await released
         await route.continue()
     }
     await page.route(CUSTOMER_RECORDS, handler)
@@ -502,8 +509,8 @@ test.describe('customer-form: customer page and form', () => {
             await back.click()
             await expectListShown(page)
 
-            // The picker stays locked while the has-sub-customers check loads. The list's
-            // load and the check are held, so the form shows before the check answers.
+            // The picker stays locked while the has-sub-customers check loads. The check
+            // and the list's pages are held, so the form shows before either answers.
             await openCustomer(page, HARBORVIEW)
             const held = await holdSubCustomerLoads(page)
             await page.reload()

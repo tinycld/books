@@ -59,6 +59,8 @@ function inactiveRecord(id: string, displayName: string) {
         form: '',
         fields: null,
         parent: '',
+        // The guard's key for a top-level customer (server/sort_keys.go).
+        sort_key: `${displayName.toLowerCase()}\u001f${id}`,
         created: '2026-01-05 10:00:00.000Z',
         updated: '2026-01-05 10:00:00.000Z',
     }

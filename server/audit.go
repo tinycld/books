@@ -27,9 +27,9 @@ import (
 func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
 		"books_accounts":        {ExtractLabel: accountLabel},
-		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name")},
-		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id"}},
-		"books_products":        {ExtractLabel: audit.LabelFromField("name")},
+		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"sort_key"}},
+		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id", "sort_key"}},
+		"books_products":        {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_bundle_items":    {ExtractLabel: func(r *core.Record) string { return bundleItemLabel(app, r) }},
 		"books_journal_entries": {ExtractLabel: entryLabel},
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},

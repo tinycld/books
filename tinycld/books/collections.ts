@@ -110,27 +110,27 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
-    // No relations: the customers list loads every customer in one query and
-    // builds the parent tree itself.
+    // No relations: the customers list materializes each row's parent with a
+    // subquery on this same collection, so nothing is filed through a relation.
     const books_customers = newCollection('books_customers', {
-        omitOnInsert: ['created', 'updated', 'name_key'] as const,
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
 
-    // No relations: the list loads every vendor in one query; the expense
+    // No relations: the list loads one page of vendors at a time; the expense
     // account picker reads books_accounts itself.
     const books_vendors = newCollection('books_vendors', {
-        omitOnInsert: ['created', 'updated', 'name_key'] as const,
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
 
-    // No relations: the products list loads every product in one query; a
-    // bundle's rows, the product picker and the account pickers read their own
-    // collections. The guard sets name_key and the server stamps currency.
+    // No relations: the list loads one page of products at a time; a bundle's
+    // rows, the product picker and the account pickers read their own
+    // collections. The guard sets name_key and sort_key, and the server stamps currency.
     const books_products = newCollection('books_products', {
-        omitOnInsert: ['created', 'updated', 'name_key', 'currency'] as const,
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key', 'currency'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })

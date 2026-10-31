@@ -5,8 +5,7 @@ import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { ChevronDown } from 'lucide-react-native'
 import { forwardRef, useState } from 'react'
 import { Pressable, type PressableInstance, Text, View } from 'react-native'
-
-const SEARCH_DELAY_MS = 250
+import { SEARCH_DELAY_MS } from '../lib/list-search'
 
 export type SearchPickerOption = { id: string; label: string }
 
@@ -113,8 +112,9 @@ interface SearchPickerProps {
 /**
  * A searchable record picker: a menu with a search field, an optional "none" item,
  * then the options the caller found for `picker.debouncedTerm`. The caller runs the
- * search, because pbtsdb pushes only `like` to PocketBase, never `ilike`, so a name
- * search runs on the client. Escape closes the menu only (the menu is its own layer).
+ * search (today on the client: the pickers were written when pbtsdb could not push
+ * `ilike`; pbtsdb 2.1.0 pushes it as PocketBase `~`). Escape closes the menu only (the
+ * menu is its own layer).
  */
 export function SearchPicker({
     picker,

@@ -13,15 +13,14 @@ import type { ColumnOf } from './fixture-columns'
 export type { CustomerAddress } from './address'
 
 type JsonColumn = ColumnOf<BooksCustomers, 'billing_address' | 'shipping_address' | 'fields'>
-type ServerOnlyColumn = ColumnOf<BooksCustomers, 'name_key'>
+type ServerOnlyColumn = ColumnOf<BooksCustomers, 'name_key' | 'sort_key'>
 
 // The generated type holds JSON columns as `any`, which would reach every
 // reader of a fixture row untyped. The fixture row keeps them typed and is
-// still assignable to `BooksCustomers` without `name_key`. A null
-// shipping_address means "same as billing address". The row never carries
-// `name_key`, as a live query sees the row: the generated type has the
-// column, but it is hidden, so a non-superuser never receives it, and the
-// server's guard sets it on every write.
+// still assignable to `BooksCustomers` without `name_key` and `sort_key`. A
+// null shipping_address means "same as billing address". The row never
+// carries `name_key` (hidden, so a non-superuser never receives it) or
+// `sort_key`: the server's guard sets both on every write.
 export type CustomerFixtureRecord = Omit<BooksCustomers, JsonColumn | ServerOnlyColumn> & {
     billing_address: CustomerAddress | null
     shipping_address: CustomerAddress | null

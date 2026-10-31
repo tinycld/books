@@ -22,6 +22,10 @@
 // unique name_key index, and the index is the backstop for that check. A SKU
 // may repeat.
 //
+// SORT KEY. sort_key is the name case- and accent-folded (server/sort_keys.go).
+// Only the Go guard sets it, on every create and update. The products list
+// sorts and pages on (sort_key, id), so it is not hidden.
+//
 // BUNDLE ROWS. books_bundle_items holds a bundle's items in position order.
 // The Go guard checks that a row's bundle is a bundle and never changes, that
 // its product exists, is not a bundle and is active when the row is created or
@@ -98,11 +102,13 @@ migrate(
                 },
                 { name: 'fields', type: 'json', maxSize: 1000000 },
                 { name: 'name_key', type: 'text', hidden: true, max: 1000 },
+                { name: 'sort_key', type: 'text', max: 1000 },
                 ...AUTODATES,
             ],
             indexes: [
                 'CREATE UNIQUE INDEX idx_books_products_name ON books_products (name_key)',
                 'CREATE INDEX idx_books_products_form ON books_products (form)',
+                'CREATE INDEX idx_books_products_sort ON books_products (sort_key, id)',
             ],
         })
         app.save(products)

@@ -9,9 +9,9 @@ A customer is a person or a company that you sell to. To see your customers, cho
 
 ## Find a customer
 
-To find a customer in the list, type in the search field above the list. The list shows the customers whose display name, company, email or phone contains the text. A sub-customer that matches keeps its parent in view.
+To find a customer in the list, type in the search field above the list. The list shows the customers whose display name, company, email or phone contains the text. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. A sub-customer that matches keeps its parent in view. The list loads more customers as you scroll down.
 
-To find a customer from anywhere in the app, use the app search. Search finds customers by display name, company or email. Choose a result to open that customer.
+To find a customer from anywhere in the app, use the app search. Search finds customers by display name, company or email. It matches words that start with what you type, so “north” finds “Northwind Traders” but “wind” does not, and it ignores case and accents. Choose a result to open that customer.
 
 ## Create a customer
 

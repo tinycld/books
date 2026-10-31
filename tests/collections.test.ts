@@ -74,45 +74,46 @@ describe('registerCollections', () => {
         expect(calls.get('books_journal_lines')?.omitOnInsert).toEqual(
             expect.arrayContaining(['posted', 'date', 'currency'])
         )
-        // The guard sets name_key on every write, so the client never sends it.
+        // The guard sets name_key and sort_key on every write, so the client never sends them.
         expect(calls.get('books_customers')?.omitOnInsert).toEqual(
-            expect.arrayContaining(['created', 'updated', 'name_key'])
+            expect.arrayContaining(['created', 'updated', 'name_key', 'sort_key'])
         )
         expect(calls.get('books_vendors')?.omitOnInsert).toEqual(
-            expect.arrayContaining(['created', 'updated', 'name_key'])
+            expect.arrayContaining(['created', 'updated', 'name_key', 'sort_key'])
         )
     })
 
-    // The customers list loads every customer in one query and builds the
-    // tree itself, so the collection files no related rows.
+    // The customers list materializes each row's parent through a subquery on the
+    // same collection, so the collection files no related rows.
     it('declares no relations on customers', () => {
         const { calls } = register()
         expect(calls.has('books_customers')).toBe(true)
         expect(calls.get('books_customers')?.relations).toBeUndefined()
     })
 
-    // The vendors list loads every vendor in one query, and the expense
-    // account picker reads books_accounts itself.
+    // The vendors list loads one page at a time, and the expense account picker
+    // reads books_accounts itself.
     it('declares no relations on vendors', () => {
         const { calls } = register()
         expect(calls.has('books_vendors')).toBe(true)
         expect(calls.get('books_vendors')?.relations).toBeUndefined()
     })
 
-    // The guard sets name_key and the server stamps currency, so the client
-    // never sends either on a product; a bundle row sends every column it has.
+    // The guard sets name_key and sort_key and the server stamps currency, so the client
+    // never sends them on a product; a bundle row sends every column it has.
     it('never inserts a product or bundle row column the server sets', () => {
         const { calls } = register()
         expect(calls.get('books_products')?.omitOnInsert).toEqual([
             'created',
             'updated',
             'name_key',
+            'sort_key',
             'currency',
         ])
         expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
     })
 
-    // The products list loads every product in one query; a bundle's rows,
+    // The products list loads one page at a time; a bundle's rows,
     // the product picker and the account pickers read their own collections.
     it('declares no relations on products or bundle rows', () => {
         const { calls } = register()

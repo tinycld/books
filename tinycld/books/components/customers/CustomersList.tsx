@@ -1,8 +1,9 @@
 import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useCustomerActions } from '../../hooks/useCustomerActions'
 import { useCustomerNavigation } from '../../hooks/useCustomerNavigation'
-import { useCustomersList } from '../../hooks/useCustomersList'
 import { type CustomerRecord, useCustomersQuery } from '../../hooks/useCustomersQuery'
+import { useListFilters } from '../../hooks/useListFilters'
+import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import {
     CUSTOMER_MENU_LABELS,
@@ -50,8 +51,9 @@ export function CustomersList({ openId }: { openId: string }) {
             testIds: CUSTOMER_MENU_TEST_IDS,
         },
     })
-    const source = useCustomersQuery()
-    const list = useCustomersList(source)
+    const filters = useListFilters()
+    const source = useCustomersQuery(filters.listFilters)
+    const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? LOAD_ERROR : null
     // Unwrapped, the press event would reach `openNew(parentId?)` as a parent id.
     const openNew = () => navigation.openNew()

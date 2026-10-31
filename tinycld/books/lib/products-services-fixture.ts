@@ -17,15 +17,18 @@ export type { ProductType } from './product-types'
 
 // The generated type holds the JSON column as `any`, which would reach every
 // reader of a fixture row untyped, so the fixture keeps it typed. The row never
-// carries `name_key`: it is hidden, so a live query never receives it, and the
-// server's guard sets it on every write. `currency` is stamped by the server on
+// carries `name_key` (hidden, so a live query never receives it) or `sort_key`:
+// the server's guard sets both on every write. `currency` is stamped by the server on
 // create, so the seed leaves it out; the reference route reads it as a live row
 // would. The account columns are relation ids, known only after the seed creates
 // the accounts, so the fixture names them by seed account number instead (empty
 // for none); the seed maps each number to the created account's id.
 export type ProductFixtureRecord = Omit<
     BooksProducts,
-    ColumnOf<BooksProducts, 'fields' | 'name_key' | 'income_account' | 'expense_account'>
+    ColumnOf<
+        BooksProducts,
+        'fields' | 'name_key' | 'sort_key' | 'income_account' | 'expense_account'
+    >
 > & {
     fields: Record<string, unknown> | null
     income_account_number: string
