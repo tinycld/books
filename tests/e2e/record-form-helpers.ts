@@ -146,6 +146,26 @@ export function backgroundOf(locator: Locator) {
     return locator.evaluate(el => getComputedStyle(el).backgroundColor)
 }
 
+// `bg-accent` resolved in the page: tinycld/global.css declares `--accent` as an RGB
+// triple per theme.
+export function accentOf(page: Page, testId: string) {
+    return page
+        .getByTestId(testId)
+        .evaluate(
+            el =>
+                `rgb(${getComputedStyle(el).getPropertyValue('--accent').trim().split(/\s+/).join(', ')})`
+        )
+}
+
+export function escapeRegExp(text: string) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Matches an element whose whole text, trimmed, is `text`.
+export function exactText(text: string) {
+    return new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`)
+}
+
 export async function textLeft(entry: Locator, name: string) {
     return (await entry.getByText(name, { exact: true }).boundingBox())?.x ?? 0
 }

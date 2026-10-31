@@ -63,6 +63,10 @@
 - cp10 reviewer A NOTE: after a refused row, "Save again" sends the dirty record columns again (a harmless duplicate PATCH).
 - cp10 reviewer A NOTE: no test drives "the user left the new form before a row was refused, so they are not moved" (declared in the spec header and the carry note).
 - cp10 reviewer B NOTE: e2e test 4 has no comment saying why it runs at phone size (core `TableField` cards and the one-column form below 640 px).
+- cp11 · delete-refused-phone-390: the Delete button is captured in its hover tint (the pointer stays on it after the click in a bottom sheet); a capture artefact.
+- cp11 · delete-refused-phone-390-dark: core `Button` dark destructive resting vs hover is a large step (resting reads as the danger colour at about two-thirds opacity); shared by every delete dialog.
+- cp11 · list-390: the phone FAB covers the row menu of the card under it; confirm the card list has a bottom inset of the FAB's height so the last card's menu is reachable (the reference shows the same).
+- cp11 reviewer A NOTE: tests/help-products-services.test.ts checks editing only with `/\bedit\b/i`, which a heading alone passes.
 - cp8 reviewer B NOTE: the money input's border does not turn red on a refusal (core `TextInput` does); core `BuiltinFieldProps` has no `error` prop, so a fix needs a core change. The message under the input still shows.
 
 ## Out-of-plan changes
@@ -232,6 +236,20 @@
 - gate 3 B (conformance): no findings; NOTE test 4 has no comment saying why it runs at phone size (a test file; Design notes)
 - fix review: n/a
 - gate 3 A notes: 7 (Design notes)
+- reviewer-caught deferrals: none
+- commit: 1e90aa0
+
+## Checkpoint 11
+- test writer: tests/product-display.test.ts (`productDeleteLines`), tests/help-products-services.test.ts (new), tests/e2e/products-services-actions.spec.ts (tests 6, 7 — 7 now checks the bundle row's "(inactive)"), tests/e2e/products-services-list.spec.ts (tests 8 wide, 9 phone); screen total 12 e2e tests; red for the right reason: yes for the unit cases, the help topic and tests 6-8 (no row menu, no help file); test 9 passes already — its cards, FAB and `hidesNewFab` shipped in cp6/cp9, the bullet adds nothing cp11 builds, so it stays as a regression guard (accepted); untestable: none
+- implementer: `useProductActions`, `DeleteProductDialog`, `productDeleteLines`, the row menu on rows and cards in `ProductsList` (banner refusals, delete dialog), help/products-services.md, the navigating-books link; DONE
+- test disputes: none
+- self-declared differences: extra help sentences, each true of the build (read-only users, an item cannot become a bundle, Discard changes?, the income account is required, a bundle's delete removes its item list, the dialog counts the bundles, remove a row to take an item out); inactive items were already left out of the bundle picker and shown "(inactive)" since checkpoints 8-10
+- gate 1: tests unedited: yes · pass (check 3205; e2e products-services: 12 + guard 36 = 48 passed)
+- gate 2: invalid shots: none (14 shots, including `panel-narrow-1360`, carried from cp9) · blocking: none · every reference pair pixel-identical except the phone delete sheet's hover tint (a capture artefact) · all Decisions layout points pass, the 556 px column included · notes: 3 (Design notes)
+- gate 3 A (correctness): no BLOCK; NOTE 1 custom-field help sentence lacked the per-form qualifier → fixed (help text); NOTE 2 navigating-books named only Customers and Chart of Accounts for All lists → fixed ("at the top of a list"); NOTE 3 the help test's edit check is weak → Design notes
+- gate 3 B (conformance): no rule breaks; 1-2 copied e2e helpers (`escapeRegExp`, `exactText`, `accentOf`) → accepted+fixed by a fresh test writer (shared in record-form-helpers.ts; 11 affected e2e passed); 3 `openBooksAtDefaultViewport` copy → kept (it omits the resize on purpose); 4 untracked scratch route → finish.mjs deletes it
+- fix review: round 1: BLOCK — the driver's navigating-books fix "All lists at the top of a list" is false for Journal entries (no link) → fixed (names the Chart of Accounts, Customers, Vendors and Products and services lists); the custom-field sentence clean · round 2: clean · gate 1 after: check 3205, e2e 48 passed, help tests 132 passed
+- gate 3 A notes: 1 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review

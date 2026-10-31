@@ -1,0 +1,88 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "row-menu",
+            "url": "/a/books/products",
+            "ready": "products-table",
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "product-row-prodcat6patch01" },
+                { "click": "product-menu-prodcat6patch01" },
+                { "waitFor": "product-menu-delete" }
+            ]
+        },
+        {
+            "name": "delete-refused",
+            "url": "/a/books/products",
+            "ready": "products-table",
+            "opaque": "delete-product-dialog-body",
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "product-row-prodcat6patch01" },
+                { "click": "product-menu-prodcat6patch01" },
+                { "click": "product-menu-delete" },
+                { "waitFor": "delete-product-dialog-body" },
+                { "click": "delete-product-confirm" },
+                {
+                    "waitFor": "This item is in 2 bundles. Take it out of them first, or make it inactive."
+                },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "delete-refused-phone",
+            "url": "/a/books/products",
+            "ready": "products-cards",
+            "opaque": "delete-product-dialog-body",
+            "widths": [390],
+            "actions": [
+                { "waitFor": "product-menu-prodcat6patch01" },
+                { "click": "product-menu-prodcat6patch01" },
+                { "click": "product-menu-delete" },
+                { "waitFor": "delete-product-dialog-body" },
+                { "click": "delete-product-confirm" },
+                {
+                    "waitFor": "This item is in 2 bundles. Take it out of them first, or make it inactive."
+                },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "list",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "widths": [1280, 390],
+            "actions": [{ "waitFor": "product-menu-prodcat6patch01" }]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "height": 1300,
+            "widths": [1600],
+            "actions": [
+                { "fill": "products-search", "value": "Design software license (annual)" },
+                { "click": "product-row-proddesignlic01" },
+                { "waitFor": "product-form" },
+                { "fill": "products-search", "value": "" },
+                { "waitFor": "product-row-prodcat6patch01" }
+            ]
+        },
+        {
+            "name": "panel-narrow",
+            "note": "No reference exists for this shot (driver note cp11, from the cp9 critic). At a 1360 px window with a product open in the panel the list column is about 556 px, below the 560 px table minimum, so the critique judges the sideways scroll and Name's ellipsis here.",
+            "url": "/a/books/products",
+            "ready": "products-list",
+            "widths": [1360],
+            "actions": [
+                { "fill": "products-search", "value": "Design software license (annual)" },
+                { "click": "product-row-proddesignlic01" },
+                { "waitFor": "product-form" },
+                { "fill": "products-search", "value": "" },
+                { "waitFor": "product-row-prodcat6patch01" }
+            ]
+        }
+    ]
+}
