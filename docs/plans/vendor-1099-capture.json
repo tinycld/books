@@ -1,0 +1,69 @@
+{
+    "outDir": "vendor-1099-reference",
+    "shots": [
+        {
+            "name": "settings-admin",
+            "url": "/a/books/helix-mockup?state=admin",
+            "ready": "books-1099-section",
+            "height": 1500
+        },
+        {
+            "name": "settings-writer",
+            "url": "/a/books/helix-mockup?state=writer",
+            "ready": "books-1099-section",
+            "height": 1500
+        },
+        {
+            "name": "settings-read-only",
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "books-1099-section",
+            "height": 1500
+        },
+        {
+            "name": "settings-refusal",
+            "url": "/a/books/helix-mockup?state=refusal",
+            "ready": "books-1099-section",
+            "height": 1500
+        },
+        {
+            "name": "settings-empty-accounts",
+            "url": "/a/books/helix-mockup?state=empty-accounts",
+            "ready": "books-1099-section",
+            "height": 1200
+        },
+        {
+            "name": "settings-empty-vendors",
+            "url": "/a/books/helix-mockup?state=empty-vendors",
+            "ready": "books-1099-section",
+            "height": 1200
+        },
+        {
+            "name": "settings-loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "helix-mockup"
+        },
+        {
+            "name": "settings-error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "helix-mockup"
+        },
+        {
+            "name": "settings-list",
+            "url": "/a/books/helix-mockup?state=sections",
+            "ready": "helix-mockup",
+            "widths": [390]
+        },
+        {
+            "name": "vendor-tracking-on",
+            "url": "/a/books/helix-mockup?state=vendor-on",
+            "ready": "helix-mockup",
+            "height": 1300
+        },
+        {
+            "name": "vendor-tracking-off",
+            "url": "/a/books/helix-mockup?state=vendor-off",
+            "ready": "helix-mockup",
+            "height": 1300
+        }
+    ]
+}
