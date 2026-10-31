@@ -1,5 +1,6 @@
 import { View } from 'react-native'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
+import { useListFilters } from '../../hooks/useListFilters'
 import { useProductActions } from '../../hooks/useProductActions'
 import { useProductNavigation } from '../../hooks/useProductNavigation'
 import { type ProductRecord, useProductsQuery } from '../../hooks/useProductsQuery'
@@ -12,7 +13,6 @@ import {
     PRODUCT_TABLE_MIN_WIDTH,
     type ProductListFields,
     productCardHeight,
-    productRows,
 } from '../../lib/product-list'
 import { PRODUCT_LOAD_ERROR } from '../../lib/product-messages'
 import { PRODUCTS_PATH } from '../../lib/product-route'
@@ -75,11 +75,9 @@ export function ProductsList({ openId }: { openId: string }) {
         titleOf: productName,
         menu: PRODUCT_MENU,
     })
-    const source = useProductsQuery()
-    const list = useRecordList(
-        { records: source.products, isReady: source.isReady, isError: source.isError },
-        productRows
-    )
+    const filters = useListFilters()
+    const source = useProductsQuery(filters.listFilters)
+    const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? PRODUCT_LOAD_ERROR : null
     const dialog = (
         <DeleteProductDialog
@@ -101,6 +99,7 @@ export function ProductsList({ openId }: { openId: string }) {
             header={<ProductTableHeader testID="products-header" />}
             rows={list.rows}
             keyOf={productKey}
+            onNearEnd={list.onNearEnd}
             renderRow={product => (
                 <ProductRow
                     product={product}
@@ -117,6 +116,7 @@ export function ProductsList({ openId }: { openId: string }) {
             rows={list.rows}
             heightOf={productHeightOf}
             keyOf={productKey}
+            onNearEnd={list.onNearEnd}
             renderCard={(product, height) => (
                 <ProductCard
                     product={product}

@@ -1,10 +1,11 @@
 import { useBooksAccess } from '../../hooks/useBooksAccess'
+import { useListFilters } from '../../hooks/useListFilters'
 import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import { useVendorActions } from '../../hooks/useVendorActions'
 import { useVendorNavigation } from '../../hooks/useVendorNavigation'
 import { useVendorsQuery, type VendorRecord } from '../../hooks/useVendorsQuery'
-import { partyRows, partyTitle } from '../../lib/party-list'
+import { partyTitle } from '../../lib/party-list'
 import {
     RECORD_MENU_LABELS,
     type RecordMenuItem,
@@ -44,11 +45,9 @@ export function VendorsList({ openId }: { openId: string }) {
         titleOf: partyTitle,
         menu: VENDOR_MENU,
     })
-    const source = useVendorsQuery()
-    const list = useRecordList(
-        { records: source.vendors, isReady: source.isReady, isError: source.isError },
-        partyRows
-    )
+    const filters = useListFilters()
+    const source = useVendorsQuery(filters.listFilters)
+    const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? VENDOR_LOAD_ERROR : null
     const dialog = (
         <DeleteVendorDialog

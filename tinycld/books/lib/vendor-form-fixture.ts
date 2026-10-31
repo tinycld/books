@@ -16,14 +16,14 @@ import { SEED_ACCOUNTS } from './seed-accounts'
 
 // The generated type holds JSON columns as `any`, which would reach every
 // reader of a fixture row untyped, so the fixture keeps them typed. The row
-// never carries `name_key`: it is hidden, so a live query never receives it,
-// and the server's guard sets it on every write. `expense_account` is a
+// never carries `name_key` (hidden, so a live query never receives it) or
+// `sort_key`: the server's guard sets both on every write. `expense_account` is a
 // relation id, known only after the seed creates the accounts, so the fixture
 // names the default expense account by its seed account number instead (empty
 // for none); the seed maps the number to the created account's id.
 export type VendorFixtureRecord = Omit<
     BooksVendors,
-    ColumnOf<BooksVendors, 'address' | 'fields' | 'name_key' | 'expense_account'>
+    ColumnOf<BooksVendors, 'address' | 'fields' | 'name_key' | 'sort_key' | 'expense_account'>
 > & {
     address: CustomerAddress | null
     fields: Record<string, unknown> | null

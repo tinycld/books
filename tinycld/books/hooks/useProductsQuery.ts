@@ -1,23 +1,51 @@
-import { useLiveQuery } from '@tanstack/react-db'
+import { eq } from '@tanstack/db'
+import { useLiveInfiniteQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { retryListQuery } from '../lib/list-query'
+import {
+    hasListFilter,
+    ID_ORDER,
+    LIST_PAGE_SIZE,
+    type ListFilters,
+    listFilter,
+    SORT_KEY_ORDER,
+} from '../lib/list-search'
+import { usePagedListSource } from './useRecordList'
 
-// Every product in one query, with no `where` (design gate G9): the search and the
-// inactive filter are shaped in lib/product-list.ts.
-export function useProductsQuery() {
+// One page of products at a time, filtered and ordered by the server, so only the pages
+// scrolled into reach the store.
+export function useProductsQuery(filters: ListFilters) {
     const [productsCollection] = useStore('books_products')
-    // An explicit key, so the query's identity is not rebuilt from its IR on every render.
-    const query = useLiveQuery({
-        queryKey: ['books.products.all'],
-        query: q => q.from({ product: productsCollection }),
+    const query = useLiveInfiniteQuery(
+        q => {
+            const all = q.from({ product: productsCollection })
+            const shown = hasListFilter(filters)
+                ? all.where(({ product }) =>
+                      listFilter(
+                          {
+                              isActive: eq(product.inactive, false),
+                              text: [product.name, product.sku, product.sales_description],
+                          },
+                          filters
+                      )
+                  )
+                : all
+            return shown
+                .orderBy(({ product }) => product.sort_key, SORT_KEY_ORDER)
+                .orderBy(({ product }) => product.id, ID_ORDER)
+        },
+        {
+            queryKey: ['books.products.list', filters.search, filters.showInactive],
+            pageSize: LIST_PAGE_SIZE,
+        }
+    )
+    return usePagedListSource(query, query.data, {
+        key: 'books.products',
+        oneRow: q =>
+            q
+                .from({ product: productsCollection })
+                .orderBy(({ product }) => product.id, ID_ORDER)
+                .limit(1),
     })
-    return {
-        products: query.data ?? [],
-        isReady: query.isReady,
-        isError: query.isError,
-        // The open product's record reads the collection too, so the retry leaves it alone.
-        retry: () => retryListQuery(query.collection, 'books.products'),
-    }
 }
 
-export type ProductRecord = ReturnType<typeof useProductsQuery>['products'][number]
+export type ProductRecord = ReturnType<typeof useProductsQuery>['rows'][number]

@@ -30,6 +30,15 @@
 // the index is the backstop for that check: top-level customers share parent
 // '', so they are siblings of each other.
 //
+// SORT KEY. sort_key orders the customers list on the server and in the
+// client's store alike (server/sort_keys.go): a top-level customer's key is its
+// display name case- and accent-folded, then \x1f and its id; a sub-customer's
+// key is its parent's key, \x1e, then its own. So one query ordered by
+// (sort_key, id) is the whole tree, each customer followed by its
+// sub-customers. Only the Go guard sets it, on every create and update;
+// renaming a parent re-keys its sub-customers in the same transaction. It is
+// not hidden: the list sorts, filters and pages on it.
+//
 // form and fields are the core forms engine's host columns (books:customer).
 //
 // The rule constants repeat 2100000002's: a migration cannot import another.
@@ -78,6 +87,7 @@ migrate(
                     },
                     { name: 'fields', type: 'json', maxSize: 1000000 },
                     { name: 'name_key', type: 'text', hidden: true, max: 1000 },
+                    { name: 'sort_key', type: 'text', max: 2000 },
                     ...AUTODATES,
                 ],
             })
@@ -96,6 +106,7 @@ migrate(
         customers.indexes = [
             'CREATE UNIQUE INDEX idx_books_customers_sibling_name ON books_customers (parent, name_key)',
             'CREATE INDEX idx_books_customers_form ON books_customers (form)',
+            'CREATE INDEX idx_books_customers_sort ON books_customers (sort_key, id)',
         ]
         app.save(customers)
     },

@@ -15,11 +15,12 @@ interface CustomerPickerProps {
     disabled: boolean
 }
 
-// Active top-level customers, the only ones that can take a sub-customer. pbtsdb pushes
-// only `like` to PocketBase, never `ilike`, so the name search runs on the client
-// (`pickerOptions`), and the server limit applies only while not searching: a limit
-// pushed during a search would cut matches before the filter sees them. One more
-// than the limit, so the list is still full once the customer itself is left out.
+// Active top-level customers, the only ones that can take a sub-customer. The name
+// search runs on the client (`pickerOptions`): it was written when pbtsdb could not push
+// `ilike`, and pbtsdb 2.1.0 pushes it as PocketBase `~`, so it can move to the server
+// later. The server limit applies only while not searching: a limit pushed during a
+// search would cut matches before the filter sees them. One more than the limit, so
+// the list is still full once the customer itself is left out.
 function usePickerOptions(term: string, selfId: string, isOpen: boolean) {
     const [customersCollection] = useStore('books_customers')
     const isSearching = term.trim() !== ''

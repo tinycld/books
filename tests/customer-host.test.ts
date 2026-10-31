@@ -25,6 +25,7 @@ const ALL_COLUMNS = {
     form: true,
     fields: true,
     name_key: true,
+    sort_key: true,
     created: true,
     updated: true,
 } satisfies Record<keyof BooksCustomers, true>

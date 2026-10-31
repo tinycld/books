@@ -66,6 +66,7 @@ export function PartyList<T extends PartyRecord>(props: PartyListProps<T>) {
             header={<PartyTableHeader testID={`${listPrefix}-header`} />}
             rows={list.rows}
             keyOf={partyKey}
+            onNearEnd={list.onNearEnd}
             renderRow={row => (
                 <PartyRow
                     row={row}
@@ -84,6 +85,7 @@ export function PartyList<T extends PartyRecord>(props: PartyListProps<T>) {
             rows={list.rows}
             heightOf={partyHeightOf}
             keyOf={partyKey}
+            onNearEnd={list.onNearEnd}
             renderCard={(row, height) => (
                 <PartyCard
                     row={row}

@@ -23,6 +23,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerLedger(app)
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())
+	registerSearchIndex(app)
 	search.RegisterSources(searchSource())
 	quota.RegisterSources(quotaSources()...)
 	registerOffboard()

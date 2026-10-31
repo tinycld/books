@@ -90,7 +90,7 @@ const hosts: FormHostDefInput[] = [
         collection: 'books_customers',
         formColumn: 'form',
         fieldsColumn: 'fields',
-        // Every column, `id` and the server-only `name_key` too: a custom key must
+        // Every column, `id` and the server-only `name_key` and `sort_key` too: a custom key must
         // never shadow a column.
         columns: [
             'id',
@@ -110,6 +110,7 @@ const hosts: FormHostDefInput[] = [
             'form',
             'fields',
             'name_key',
+            'sort_key',
             'created',
             'updated',
         ],
@@ -216,7 +217,7 @@ const hosts: FormHostDefInput[] = [
         collection: 'books_vendors',
         formColumn: 'form',
         fieldsColumn: 'fields',
-        // Every column, `id` and the server-only `name_key` too: a custom key must
+        // Every column, `id` and the server-only `name_key` and `sort_key` too: a custom key must
         // never shadow a column.
         columns: [
             'id',
@@ -241,6 +242,7 @@ const hosts: FormHostDefInput[] = [
             'form',
             'fields',
             'name_key',
+            'sort_key',
             'created',
             'updated',
         ],
@@ -390,7 +392,7 @@ const hosts: FormHostDefInput[] = [
         collection: 'books_products',
         formColumn: 'form',
         fieldsColumn: 'fields',
-        // Every column, `id` and the server-only `name_key` and `currency` too: a custom key
+        // Every column, `id` and the server-only `name_key`, `sort_key` and `currency` too: a custom key
         // must never shadow a column.
         columns: [
             'id',
@@ -409,6 +411,7 @@ const hosts: FormHostDefInput[] = [
             'form',
             'fields',
             'name_key',
+            'sort_key',
             'created',
             'updated',
         ],

@@ -468,11 +468,18 @@ export function recordFormHelpers(kind: RecordKind) {
     }
 
     // Clicks the field first, so a layer over the list that takes the pointer fails here.
+    // The list applies the search after a pause in typing and keeps the last rows while the
+    // new query loads, so this waits for the list's aria-busy to clear: the rows on screen
+    // then answer this search.
     async function search(page: Page, text: string) {
         const input = page.getByTestId(`${listPrefix}-search`)
         await input.click()
         await input.fill(text)
         await expect(input).toHaveValue(text)
+        await expect(page.getByTestId(`${listPrefix}-list`)).not.toHaveAttribute(
+            'aria-busy',
+            'true'
+        )
     }
 
     async function idOf(page: Page, name: string): Promise<string> {

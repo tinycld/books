@@ -139,7 +139,11 @@ export function RecordListFrame<Row>(props: RecordListFrameProps<Row>) {
     const backToLists = () => router.dismissTo(orgHref('books/lists'))
 
     return (
-        <View testID={`${listPrefix}-list`} className="min-w-0 flex-1 bg-background">
+        <View
+            testID={`${listPrefix}-list`}
+            aria-busy={list.isBusy}
+            className="min-w-0 flex-1 bg-background"
+        >
             <ListHeader
                 listPrefix={listPrefix}
                 recordPrefix={recordPrefix}

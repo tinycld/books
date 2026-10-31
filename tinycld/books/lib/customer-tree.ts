@@ -1,79 +1,44 @@
 import type { BooksCustomers } from '../types'
-import {
-    comparePartyNames,
-    type PartyListRow,
-    type PartyListViewState,
-    partyListViewState,
-    partyMatches,
-} from './party-list'
+import type { PartyListRow } from './party-list'
 
 export type TreeCustomer = Pick<
     BooksCustomers,
     'id' | 'display_name' | 'company' | 'email' | 'phone' | 'parent' | 'inactive'
 >
 
-export type CustomerListRow<T extends TreeCustomer> = { customer: T; depth: 0 | 1 }
-
-export const compareCustomerNames = comparePartyNames
-
-export const customerMatches = partyMatches
-
-// Top-level customers sorted by name, each followed by its sub-customers. A search
-// keeps a parent that matches or has a matching sub-customer, and under it only the
-// sub-customers that match. A sub-customer whose parent is not in the list (hidden as
-// inactive, or missing) is a top-level row.
-export function customerRows<T extends TreeCustomer>(
-    customers: readonly T[],
-    filters: { query: string; showInactive: boolean }
-): CustomerListRow<T>[] {
-    const shown = customers.filter(c => filters.showInactive || !c.inactive)
-    const ids = new Set(shown.map(c => c.id))
-    const children = new Map<string, T[]>()
-    const topLevel: T[] = []
-    for (const customer of shown) {
-        if (customer.parent === '' || !ids.has(customer.parent)) {
-            topLevel.push(customer)
+// The list's rows from the server, in sort_key order, which is already the tree: each
+// top-level customer is followed by its sub-customers (server/sort_keys.go). A search
+// keeps only matching rows, so a matching sub-customer whose parent did not match
+// brings `parentRow` (the query's materialized parent), shown above it once. A
+// sub-customer whose parent has not loaded yet is a top-level row.
+// For a moment the order can break the tree: a new sub-customer has no sort_key until
+// the server answers, so it sorts first, and a renamed parent's new key can land before
+// its sub-customers are re-keyed. A customer already shown is then not shown again, so
+// no row repeats (the row key is the id).
+export function customerTreeRows<T extends TreeCustomer>(
+    rows: readonly (T & { parentRow: T | undefined })[]
+): PartyListRow<T>[] {
+    const out: PartyListRow<T>[] = []
+    const shown = new Set<string>()
+    const show = (party: T, depth: 0 | 1) => {
+        out.push({ party, depth })
+        shown.add(party.id)
+    }
+    let shownParent = ''
+    for (const row of rows) {
+        if (shown.has(row.id)) continue
+        if (row.parent === '') {
+            show(row, 0)
+            shownParent = row.id
             continue
         }
-        const siblings = children.get(customer.parent) ?? []
-        siblings.push(customer)
-        children.set(customer.parent, siblings)
+        if (row.parent !== shownParent && row.parentRow && !shown.has(row.parentRow.id)) {
+            show(row.parentRow, 0)
+            shownParent = row.parentRow.id
+        }
+        show(row, row.parent === shownParent ? 1 : 0)
     }
-
-    const rows: CustomerListRow<T>[] = []
-    for (const parent of topLevel.sort(compareCustomerNames)) {
-        const subs = (children.get(parent.id) ?? [])
-            .filter(c => customerMatches(c, filters.query))
-            .sort(compareCustomerNames)
-        if (!customerMatches(parent, filters.query) && subs.length === 0) continue
-        rows.push({ customer: parent, depth: 0 })
-        for (const sub of subs) rows.push({ customer: sub, depth: 1 })
-    }
-    return rows
-}
-
-// The customer tree in the shared list's row shape.
-export function customerPartyRows<T extends TreeCustomer>(
-    customers: readonly T[],
-    filters: { query: string; showInactive: boolean }
-): PartyListRow<T>[] {
-    return customerRows(customers, filters).map(row => ({
-        party: row.customer,
-        depth: row.depth,
-    }))
-}
-
-export type CustomerListViewState = PartyListViewState
-
-export function customerListViewState(input: {
-    isReady: boolean
-    isError: boolean
-    customers: readonly TreeCustomer[]
-    rowCount: number
-    query: string
-    showInactive: boolean
-}): CustomerListViewState {
-    return partyListViewState({ ...input, records: input.customers })
+    return out
 }
 
 // The parent picker shows this many customers at a time.
