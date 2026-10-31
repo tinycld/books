@@ -24,6 +24,12 @@
 // superuser does). The Go name check is one lookup on the unique name_key
 // index, and the index is the backstop for that check.
 //
+// 1099. track_1099 marks a vendor for 1099 reporting; legal_name is the name
+// on its W-9, tax_id_type is ein or ssn (empty is none) and tax_id its tax ID.
+// Go (server/vendors.go) trims the legal name and stores the tax ID with the
+// dashes of its type (EIN 12-3456789, SSN 123-45-6789); the pattern is the
+// backstop for that stored form. The rules above do not change for them.
+//
 // form and fields are the core forms engine's host columns (books:vendor).
 //
 // The rule constants repeat 2100000002's: a migration cannot import another.
@@ -76,6 +82,15 @@ migrate(
                         maxSelect: 1,
                     },
                     { name: 'notes', type: 'text', max: 5000 },
+                    { name: 'track_1099', type: 'bool' },
+                    { name: 'legal_name', type: 'text', max: 200 },
+                    { name: 'tax_id_type', type: 'select', maxSelect: 1, values: ['ein', 'ssn'] },
+                    {
+                        name: 'tax_id',
+                        type: 'text',
+                        max: 11,
+                        pattern: '^(\\d{2}-\\d{7}|\\d{3}-\\d{2}-\\d{4})?$',
+                    },
                     { name: 'inactive', type: 'bool' },
                     {
                         name: 'form',

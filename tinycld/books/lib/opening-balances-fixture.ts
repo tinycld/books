@@ -13,6 +13,7 @@ function account(seed: AccountSeed): BooksAccounts {
         number: '',
         description: '',
         inactive: false,
+        form_1099_box: '',
         parent: '',
         currency: 'USD',
         created: '2026-01-01 00:00:00.000Z',

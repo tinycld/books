@@ -23,6 +23,7 @@ export const COMPANY_SETTINGS = {
     phone: '+1 214 555 1234',
     email: 'books@hartwell.example',
     website: 'https://www.hartwell.example',
+    threshold_1099: 200000,
     created: STAMP,
     updated: STAMP,
 } satisfies BooksSettings

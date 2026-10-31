@@ -29,7 +29,10 @@ export function useVendorForm(target: VendorFormTarget): RecordChildState {
         {
             columnsFrom: vendorColumnsFrom,
             emptyColumns: EMPTY_VENDOR_COLUMNS,
-            insert: row => vendorsCollection.insert(row),
+            // Until the 1099 keys join VendorColumns, the row useRecordSave passes has no
+            // 1099 type, and pbtsdb's insert needs every column, so the spread supplies
+            // them. The vendor form's 1099 fields make this spread redundant.
+            insert: row => vendorsCollection.insert({ ...EMPTY_VENDOR_COLUMNS, ...row }),
             update: (id, patch, fields) =>
                 vendorsCollection.update(id, draft => applyPatch(draft, patch, fields)),
             ...VENDOR_SAVE_TEXTS,

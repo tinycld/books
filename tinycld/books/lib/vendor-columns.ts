@@ -1,6 +1,7 @@
 import { z } from '@tinycld/core/ui/form'
 import type { BooksVendors } from '../types'
 import { storedAddressSchema } from './address'
+import type { ColumnOf } from './fixture-columns'
 import { PAYMENT_TERM_KEYS } from './payment-terms'
 import { type ColumnsParse, optionalText, parseColumns } from './record-columns'
 
@@ -52,10 +53,23 @@ export const EMPTY_VENDOR_FIELDS: Required<VendorColumns> = {
     notes: '',
 }
 
+// A new vendor is not tracked for 1099 and has no legal name or tax ID.
+export const EMPTY_1099_COLUMNS = {
+    track_1099: false,
+    legal_name: '',
+    tax_id_type: '',
+    tax_id: '',
+} satisfies Pick<
+    BooksVendors,
+    ColumnOf<BooksVendors, 'track_1099' | 'legal_name' | 'tax_id_type' | 'tax_id'>
+>
+
 // The base of an insert, so a column the form left out is stored empty. The `satisfies`
 // makes tsc refuse it when a parsed column, `terms` above all, drifts from the
 // generated row.
-export const EMPTY_VENDOR_COLUMNS: Required<VendorColumns> & { inactive: boolean } = {
+export const EMPTY_VENDOR_COLUMNS: Required<VendorColumns> &
+    typeof EMPTY_1099_COLUMNS & { inactive: boolean } = {
     ...EMPTY_VENDOR_FIELDS,
+    ...EMPTY_1099_COLUMNS,
     inactive: false,
 } satisfies Partial<BooksVendors>
