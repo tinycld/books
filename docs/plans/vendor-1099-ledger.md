@@ -37,6 +37,9 @@
 - cp 2 · reviewer A NOTE: validateAccount's box check runs before checkAccountChange, so a direct API type change of a mapped account that also has lines gets the box refusal first, and after clearing the box the lines refusal; the Account panel locks the type select when lines > 0 or children > 0 (useAccountForm.ts `typeLocked`), so no UI path reaches it.
 - cp 2 · reviewer A NOTE: normalizeTaxID removes only ASCII space and hyphen-minus (as the plan says); a tax ID pasted with an en dash or a no-break space is refused "A tax ID has 9 digits.". Possible fix: strip unicode.IsSpace runes and Pd dashes.
 - cp 2 · reviewer A NOTE: an unknown tax_id_type (API only) gives two errors (type schema refusal and tax_id pattern), since dashTaxID returns bare digits.
+- cp 5 · reviewer A NOTE: vendor-1099-settings.spec.ts's "vendors query in; loading still visible" step cannot catch a section that ignores the accounts query (a few ms window; `waitForResponse` matches any vendors request). cp7 (vendors card) can assert section count 0 after a tracked vendor row is in the DOM while accounts are held.
+- cp 5 · fix review NOTE: the shell shows its error when settings are ready but no row exists; every recovery is then empty, so Retry does nothing (before the fix it rebuilt the settings query). The row comes from a migration and cannot be deleted.
+- cp 5 · gate 2 observation: FAB clearance on the phone scroller cannot be seen with one card; check at cp7.
 - cp 4 · vendor-tracking-off-1280-dark / -390-dark: Track payments for 1099 row — the off toggle track is low-contrast on the dark background (core Toggle, same in the reference).
 - cp 4 · reviewer A NOTE: under a server refusal, Tax ID shows both its hint and the refusal (ContactInput hides the hint only for a local error; same as the account-number field).
 - cp 4 · fix review NOTE: a mixed refusal (hidden + visible keys) is untested and cannot happen with today's server (one field per refusal); if a shown key is unknown the toast body repeats the hidden messages; if a shown key is the host's formColumn the host's root message replaces the hidden one.
@@ -49,6 +52,7 @@
 - cp 1 → cp 2 · reviewers A + B confirmed: the cp1 comments (lib/form-1099.ts, migrations 2100000002/2100000004) match the Go names built in cp2; the 2100000001 "Settings → 1099s" comment waits for cp5.
 
 ## Out-of-plan changes
+- cp 5: `hooks/useDocSequences.ts` (exposes `recovery`) and `tinycld/books/lib/vendor-1099-fixture.ts` (touched by the first build, restored by the fix) — gate 3 fixes; plan amendment: `Form1099Section` takes no props (reads access through useForm1099Section).
 - cp 4: `docs/specs/vendor-1099-design.md`, `docs/plans/vendor-1099-checkpoints.md` — the layout rule key renamed `hide-1099-details` → `hide_1099_details` after a test dispute (core keySchema `/^[a-z][a-z0-9_]{0,39}$/`, core/lib/forms/key.ts:5, refuses dashes).
 - cp 4 (gate 3 fix): `tinycld/books/lib/record-refusals.ts` (`recordRefusalHandler` optional `hiddenFields`, `hiddenRefusalKeys`), `lib/record-save.ts` (`saveRefusalHandler` optional 5th param), `hooks/useRecordSave.ts` (forms arg takes host and context), `hooks/useCustomerForm.ts` (passes host/context), `tests/record-refusals.test.ts` — a server refusal on a field the form does not draw goes to the root summary (customers and vendors).
 - cp 2: `docs/plans/vendor-1099-checkpoints.md` — driver fix of the UNTESTABLE `TestAccount1099_BoxesPerAccount` bullet: PocketBase `SelectField.PrepareValue` keeps the last value of a single select, so a two-box write cannot be refused; the bullet now asserts a write of `["nec_1","misc_1"]` stores exactly `"misc_1"` (one account, at most one box). plan-check re-run: exit 0.
@@ -127,6 +131,20 @@
 - fix: tests first by a fresh test writer (record-refusals.test.ts two cases; e2e test 2 hidden-field steps + stale-error check; red: setError('root') not called, summary not found), then a fresh implementer (record-refusals.ts, record-save.ts, useRecordSave.ts, useVendorForm.ts, useCustomerForm.ts); declared extras: hidden = evaluate visible false, mixed refusal split, joined messages, hidden set read on refusal, stale hidden error unchanged
 - gate 1 rerun: check 3025 passed; e2e `vendor-1099:|vendor-form:` 14 passed; implementer's guard customer-form: 24 passed
 - fix review: round 1: no BLOCK; the five extras accepted; mixed-refusal NOTE → Design notes
+- reviewer-caught deferrals: none
+- commit: e871750
+
+## Checkpoint 5
+- test writer: tests/threshold-schema.test.ts (new), form-1099.test.ts, settings-sections.test.ts, e2e books-settings.spec.ts (`vendor-1099: Settings → 1099s` threshold test, desktop + one phone step), vendor-1099-settings.spec.ts (section load), vendor-1099-helpers.ts; red for the right reason: yes (13 vitest; e2e no 1099s rail entry); untestable: none
+- implementer: threshold-schema.ts, useThresholdForm, ThresholdCard, useForm1099Section, Form1099Section, settings section + summary, SectionBody, SettingsShell FAB clearance; DONE
+- test disputes: none
+- self-declared differences: Form1099Section takes no props; NO_RECOVERY const; summaryFor data object; thresholdCents throws on negative; ThresholdBody; out-of-plan fixture filter (seed import chain)
+- gate 1: tests unedited: yes · pass (check 3056; e2e `vendor-1099:|books-settings:` 18 passed)
+- gate 2: first capture missed settings-writer/read-only (capture failure, not critiqued around): re-captured with a capture-only `books_access` fake (`$authId` in the scratch capture spec); critic 1 on admin/loading/error/list and critic 2 on writer/read-only: no BLOCKING, no NOTEs. Evidence docs/plans/vendor-1099-evidence/cp5/
+- gate 3 A (correctness): no BLOCK; NOTE 1 (weak loading step) → Design notes; NOTE 2 = B2; NOTE 3 = B1
+- gate 3 B (conformance): 1 form-1099.ts gained a runtime import reached by the seed (the cause of the fixture workaround) → accepted+fixed at the source (form1099Summary moved to settings-sections.ts; form-1099.ts import-free, asserted by a test; fixture restored); 2 shell Retry missed the new accounts query (memory: one merged call) → accepted+fixed (one recoverLiveQueries over three recoveries; useDocSequences exposes recovery); 3 faked load without the realtime abort (decisions rule) → accepted+fixed in the test; 4 no-props Form1099Section → plan amendment recorded
+- fix: tests first (summary cases moved to settings-sections.test.ts; no-runtime-import assertion; realtime abort), then implementer; gate 1 rerun: check 3057; e2e 18 passed
+- fix review: round 1: no BLOCK; NOTE (dead Retry when the settings row is missing) → Design notes
 - reviewer-caught deferrals: none
 
 ## Final review

@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { accessFromRow, type BooksLevel } from '../tinycld/books/lib/access'
 import { ACCOUNT_TYPES } from '../tinycld/books/lib/account-types'
 import {
     BOX_1099_KEYS,
@@ -7,6 +10,7 @@ import {
     box1099Label,
     box1099Options,
     EXPENSE_GROUP_TYPES,
+    form1099Controls,
     isExpenseGroupType,
 } from '../tinycld/books/lib/form-1099'
 import type { BooksAccounts } from '../tinycld/books/types'
@@ -78,5 +82,52 @@ describe('EXPENSE_GROUP_TYPES', () => {
         expect(isExpenseGroupType('expense')).toBe(true)
         expect(isExpenseGroupType('income')).toBe(false)
         expect(isExpenseGroupType('bank')).toBe(false)
+    })
+})
+
+describe('form-1099.ts imports', () => {
+    // The seed and the fixture load this module in plain node; a runtime import pulls in
+    // modules that reach react-native (money.ts → warn-once → the core logger) and the
+    // e2e seed fails to parse.
+    it('has no runtime import, only import type', () => {
+        const source = readFileSync(
+            join(__dirname, '..', 'tinycld', 'books', 'lib', 'form-1099.ts'),
+            'utf8'
+        )
+        const lines = source.split('\n')
+        const runtimeImports = lines.filter(
+            line => /^\s*import\b/.test(line) && !/^\s*import type\s/.test(line)
+        )
+        const runtimeReExports = lines.filter(
+            line => /^\s*export\b.*\bfrom\s/.test(line) && !/^\s*export type\s/.test(line)
+        )
+        expect(runtimeImports).toEqual([])
+        expect(runtimeReExports).toEqual([])
+    })
+})
+
+describe('form1099Controls', () => {
+    const controls = (level: BooksLevel) => form1099Controls(accessFromRow({ level }, true))
+
+    it('gives none and read_only no controls', () => {
+        const none = { editsThreshold: false, editsBoxes: false, showsChartButton: false }
+        expect(controls('none')).toEqual(none)
+        expect(controls('read_only')).toEqual(none)
+    })
+
+    it('lets a bookkeeper edit boxes but not the threshold', () => {
+        expect(controls('bookkeeper')).toEqual({
+            editsThreshold: false,
+            editsBoxes: true,
+            showsChartButton: true,
+        })
+    })
+
+    it('lets an admin edit everything', () => {
+        expect(controls('admin')).toEqual({
+            editsThreshold: true,
+            editsBoxes: true,
+            showsChartButton: true,
+        })
     })
 })

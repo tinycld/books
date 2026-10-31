@@ -5,6 +5,7 @@
 // them, so a box added in one place and not the others fails a test.
 
 import type { BooksAccounts } from '../types'
+import type { BooksAccessState } from './access'
 
 export type Box1099Key = Exclude<BooksAccounts['form_1099_box'], ''>
 
@@ -69,4 +70,18 @@ export const EXPENSE_GROUP_TYPES = [
 
 export function isExpenseGroupType(type: string): boolean {
     return EXPENSE_GROUP_TYPES.some(groupType => groupType === type)
+}
+
+// The threshold is a books_settings column, which only admins update; the boxes are
+// books_accounts columns, which every writer updates.
+export function form1099Controls(access: Pick<BooksAccessState, 'canWrite' | 'isAdmin'>): {
+    editsThreshold: boolean
+    editsBoxes: boolean
+    showsChartButton: boolean
+} {
+    return {
+        editsThreshold: access.isAdmin,
+        editsBoxes: access.canWrite,
+        showsChartButton: access.canWrite,
+    }
 }
