@@ -826,7 +826,8 @@ func TestBundleItemRules_ByLevel(t *testing.T) {
 }
 
 // name_key is the guard's own column: a reader sees the name, never the key,
-// in a view or a list response.
+// in a view or a list response. The folded text is not checked for: sort_key is
+// not hidden and holds it too.
 func TestProductRules_NameKeyIsHidden(t *testing.T) {
 	list := "/api/collections/books_products/records"
 	for _, path := range []string{"", "/view"} {
@@ -848,7 +849,7 @@ func TestProductRules_NameKeyIsHidden(t *testing.T) {
 				Headers:               map[string]string{"Authorization": tokenFor(t, users.readOnly)},
 				ExpectedStatus:        http.StatusOK,
 				ExpectedContent:       []string{`"name":"Harborview"`},
-				NotExpectedContent:    []string{`"name_key"`, `"harborview"`},
+				NotExpectedContent:    []string{`"name_key"`},
 				TestAppFactory:        func(testing.TB) *tests.TestApp { return app },
 				DisableTestAppCleanup: true,
 			}

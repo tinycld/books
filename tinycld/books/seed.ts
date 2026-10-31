@@ -156,8 +156,8 @@ export function seedValues<
 // Top-level customers first, so each sub-customer's parent exists when it is
 // created. The fixture ids hold `_`, which a PocketBase id refuses, so the
 // server assigns ids and `parent` is mapped from fixture id to created id.
-// A fixture row has no name_key (CustomerFixtureRecord omits it), so the seed
-// never sends one: the server's guard sets it.
+// A fixture row has no name_key or sort_key (CustomerFixtureRecord omits them),
+// so the seed never sends them: the server's guard sets both.
 export async function seedCustomers(pb: PocketBase): Promise<void> {
     const ids = new Map<string, string>()
     const topLevelFirst = [

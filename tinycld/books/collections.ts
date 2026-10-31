@@ -113,7 +113,7 @@ export function registerCollections(
     // No relations: the customers list loads every customer in one query and
     // builds the parent tree itself.
     const books_customers = newCollection('books_customers', {
-        omitOnInsert: ['created', 'updated', 'name_key'] as const,
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
@@ -121,16 +121,16 @@ export function registerCollections(
     // No relations: the list loads every vendor in one query; the expense
     // account picker reads books_accounts itself.
     const books_vendors = newCollection('books_vendors', {
-        omitOnInsert: ['created', 'updated', 'name_key'] as const,
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
 
     // No relations: the products list loads every product in one query; a
     // bundle's rows, the product picker and the account pickers read their own
-    // collections. The guard sets name_key and the server stamps currency.
+    // collections. The guard sets name_key and sort_key, and the server stamps currency.
     const books_products = newCollection('books_products', {
-        omitOnInsert: ['created', 'updated', 'name_key', 'currency'] as const,
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key', 'currency'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })

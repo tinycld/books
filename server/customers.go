@@ -40,6 +40,9 @@ func activeSubCustomersMessage(n int) string {
 // the check and the write it allows.
 func registerCustomerGuard(app core.App) {
 	bindSerializedGuard(app, "books_customers", func(tx core.App, stored, r *core.Record) error {
+		if stored == nil {
+			ensureRecordID(r)
+		}
 		if err := validateCustomer(tx, stored, r); err != nil {
 			return err
 		}
@@ -47,6 +50,14 @@ func registerCustomerGuard(app core.App) {
 			return nil
 		}
 		return checkCustomerInactive(tx, stored, r)
+	})
+	// Bound after the guard, so it runs inside the guard's transaction (e.App is
+	// the transaction there) and after the write it wraps.
+	app.OnRecordUpdate("books_customers").BindFunc(func(e *core.RecordEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		return rekeySubCustomers(e.App, e.Record)
 	})
 	app.OnRecordDelete("books_customers").BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
@@ -63,8 +74,8 @@ func registerCustomerGuard(app core.App) {
 }
 
 // validateCustomer stores the display name trimmed, then checks the parent,
-// both addresses and the name among the customer's siblings. stored is the
-// record before an update, nil on a create.
+// both addresses and the name among the customer's siblings, and sets the
+// sort key. stored is the record before an update, nil on a create.
 func validateCustomer(app core.App, stored, r *core.Record) error {
 	name := strings.TrimSpace(r.GetString("display_name"))
 	r.Set("display_name", name)
@@ -76,7 +87,15 @@ func validateCustomer(app core.App, stored, r *core.Record) error {
 			return refuseField(field, msgAddressShape)
 		}
 	}
-	return validateSiblingName(app, stored, r, name)
+	if err := validateSiblingName(app, stored, r, name); err != nil {
+		return err
+	}
+	key, err := customerSortKey(app, r)
+	if err != nil {
+		return err
+	}
+	r.Set("sort_key", key)
+	return nil
 }
 
 // validateSiblingName sets name_key, overwriting whatever the request sent,

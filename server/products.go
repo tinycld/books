@@ -74,6 +74,8 @@ func registerProductGuards(app core.App) {
 func validateProduct(app core.App, stored, r *core.Record) error {
 	name := strings.TrimSpace(r.GetString("name"))
 	r.Set("name", name)
+	// sort_key belongs to the guard too, set before any early return.
+	r.Set("sort_key", sortName(name))
 	kind := r.GetString("type")
 	if stored != nil {
 		was := stored.GetString("type")

@@ -679,3 +679,25 @@ func TestRegister_OffboardsThroughCore(t *testing.T) {
 	}
 	c.requireOnlyTheLeaverLostAccess(t, app)
 }
+
+// sort_key is the server's list order, not something a person wrote: a rename
+// logs it as the hidden name_key is logged, a redacted change, never the raw key.
+func TestAudit_RedactsTheSortKey(t *testing.T) {
+	app, users := newAuditedApp(t)
+	vendor := saveRecord(t, app, "books_vendors", map[string]any{"display_name": "Sorted Co"})
+	apiReq{
+		method: http.MethodPatch,
+		url:    "/api/collections/books_vendors/records/" + vendor.Id,
+		token:  tokenFor(t, users.bookkeeper),
+		body:   `{"display_name":"Zeta Sorted Co"}`,
+		want:   http.StatusOK,
+		after: func(t testing.TB, app *tests.TestApp) {
+			row := awaitAuditRow(t, app, "books_vendors", "updated", vendor.Id)
+			changes := auditJSONField(t, row, "changes")
+			if !reflect.DeepEqual(changes["sort_key"], redactedChange) {
+				t.Errorf("changes.sort_key = %#v, want %#v", changes["sort_key"], redactedChange)
+			}
+			requireNoLeak(t, row, "zeta sorted co")
+		},
+	}.run(t, app)
+}

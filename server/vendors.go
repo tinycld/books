@@ -34,6 +34,8 @@ func registerVendorGuard(app core.App) {
 func validateVendor(app core.App, stored, r *core.Record) error {
 	name := strings.TrimSpace(r.GetString("display_name"))
 	r.Set("display_name", name)
+	// sort_key belongs to the guard too, set before any early return.
+	r.Set("sort_key", sortName(name))
 	if !isAddress(r.Get("address")) {
 		return refuseField("address", msgAddressShape)
 	}
