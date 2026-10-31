@@ -14,11 +14,11 @@ interface ProductPickerProps {
     testID: string
 }
 
-// Active Service and Non-inventory products, the only ones a bundle may hold. pbtsdb
-// pushes only `like` to PocketBase, never `ilike`, so the name and SKU search runs on
-// the client (`productPickerOptions`), and the server limit applies only while not
-// searching: a limit pushed during a search would cut matches before the filter sees
-// them.
+// Active Service and Non-inventory products, the only ones a bundle may hold. The name
+// and SKU search runs on the client (`productPickerOptions`): it was written when pbtsdb
+// could not push `ilike`, and pbtsdb 2.1.0 pushes it as PocketBase `~`, so it can move
+// to the server later. The server limit applies only while not searching: a limit
+// pushed during a search would cut matches before the filter sees them.
 function usePickerProducts(isOpen: boolean, isSearching: boolean) {
     const [productsCollection] = useStore('books_products')
     const { data } = useLiveQuery({
