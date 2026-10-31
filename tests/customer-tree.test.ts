@@ -5,6 +5,7 @@ import {
     customerListViewState,
     customerMatches,
     customerRows,
+    customerTreeRows,
     pickerOptions,
     type TreeCustomer,
     usableParentId,
@@ -325,5 +326,51 @@ describe('usableParentId', () => {
         expect(usableParentId(undefined)).toBe('')
         expect(usableParentId(candidate({ inactive: true }))).toBe('')
         expect(usableParentId(candidate({ parent: CUSTOMER_IDS.northwind }))).toBe('')
+    })
+})
+
+describe('customerTreeRows', () => {
+    const alder = treeCustomer({ id: 'alder', display_name: 'Alder' })
+    const annex = treeCustomer({ id: 'annex', display_name: 'Annex', parent: 'alder' })
+    const barn = treeCustomer({ id: 'barn', display_name: 'Barn', parent: 'alder' })
+    const birch = treeCustomer({ id: 'birch', display_name: 'Birch' })
+    const loaded = (c: TreeCustomer, parentRow?: TreeCustomer) => ({ ...c, parentRow })
+    const shape = (rows: ReturnType<typeof customerTreeRows<TreeCustomer>>) =>
+        rows.map(row => [row.party.id, row.depth])
+
+    it("keeps the server's order and indents each sub-customer under the parent above it", () => {
+        const rows = customerTreeRows([
+            loaded(alder),
+            loaded(annex, alder),
+            loaded(barn, alder),
+            loaded(birch),
+        ])
+        expect(shape(rows)).toEqual([
+            ['alder', 0],
+            ['annex', 1],
+            ['barn', 1],
+            ['birch', 0],
+        ])
+    })
+
+    it("shows a matching sub-customer's parent above it, once", () => {
+        const rows = customerTreeRows([loaded(annex, alder), loaded(barn, alder), loaded(birch)])
+        expect(shape(rows)).toEqual([
+            ['alder', 0],
+            ['annex', 1],
+            ['barn', 1],
+            ['birch', 0],
+        ])
+    })
+
+    it('does not repeat a parent that matched itself', () => {
+        expect(shape(customerTreeRows([loaded(alder), loaded(annex, alder)]))).toEqual([
+            ['alder', 0],
+            ['annex', 1],
+        ])
+    })
+
+    it('shows a sub-customer whose parent has not loaded as a top-level row', () => {
+        expect(shape(customerTreeRows([loaded(annex)]))).toEqual([['annex', 0]])
     })
 })
