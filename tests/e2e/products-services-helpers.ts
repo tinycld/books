@@ -1,17 +1,19 @@
 import { expect, type Page } from '@playwright/test'
-import { type RecordKind, recordFormHelpers } from './record-form-helpers'
+import { exactText, type RecordKind, recordFormHelpers } from './record-form-helpers'
 
 // Shared by the products-services e2e specs: the product bindings of
 // record-form-helpers.ts. Products are created by driving the form; the one seeded
 // product a spec writes is named in that spec's header.
 
 export {
+    accentOf,
     afterNextFrames,
     backgroundOf,
     CLASSIC_SCROLLBARS,
     DESKTOP,
     edges,
     effectiveOpacity,
+    exactText,
     expectTextInsideCell,
     holdLoads,
     isDisabled,
@@ -104,12 +106,8 @@ export async function pickOption(page: Page, key: string, label: string) {
     await page.getByTestId(`form-input-${key}`).click()
     const items = selectItems(page, key)
     await expect(items.first()).toBeVisible()
-    await items.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`) }).click()
+    await items.filter({ hasText: exactText(label) }).click()
     await expect(items).toHaveCount(0)
-}
-
-function escapeRegExp(text: string) {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 // The "I purchase this from a vendor" switch: the cell's `form-input-purchases` is the
@@ -177,7 +175,7 @@ export async function createBundle(
         await page.getByTestId(`${cell}-product-search`).fill(item.name)
         await page
             .locator(`[data-testid^="${cell}-product-option-"]`)
-            .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(item.name)}\\s*$`) })
+            .filter({ hasText: exactText(item.name) })
             .click()
         await page.getByTestId(`${cell}-quantity`).fill(item.quantity)
     }

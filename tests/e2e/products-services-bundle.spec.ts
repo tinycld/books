@@ -5,6 +5,7 @@ import {
     createProduct,
     DESKTOP,
     discardDialog,
+    exactText,
     field,
     isBundleItemsUrl,
     isRecordUrl,
@@ -84,10 +85,6 @@ async function bundleRowQuantities(page: Page) {
     return quantities
 }
 
-function escapeRegExp(text: string) {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 // Adds a row to the open bundle form and fills it with the product named `name`.
 async function addBundleRow(page: Page, name: string, quantity: string) {
     const count = await bundleRows(page).count()
@@ -99,7 +96,7 @@ async function addBundleRow(page: Page, name: string, quantity: string) {
     await page.getByTestId(`${cell}-product-search`).fill(name)
     await page
         .locator(`[data-testid^="${cell}-product-option-"]`)
-        .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(name)}\\s*$`) })
+        .filter({ hasText: exactText(name) })
         .click()
     await page.getByTestId(`${cell}-quantity`).fill(quantity)
 }

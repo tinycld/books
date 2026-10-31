@@ -4,6 +4,7 @@ import {
     createVendor,
     DESKTOP,
     discardDialog,
+    exactText,
     field,
     holdLoads,
     insertAnswered,
@@ -55,11 +56,6 @@ const FORM_RECORDS = '**/api/collections/forms/records**'
 async function expectListShown(page: Page) {
     await expect(page.getByTestId('vendors-list')).toBeVisible()
     await expect(vendorSurface(page)).toBeHidden()
-}
-
-function exactText(label: string) {
-    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    return new RegExp(`^\\s*${escaped}\\s*$`)
 }
 
 // Opens a core SelectInput and presses the item whose text is `label`: core names each

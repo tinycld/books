@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    productDeleteLines,
     productListCopy,
     productsEmptyHint,
     productTitle,
@@ -7,6 +8,72 @@ import {
 
 const WRITER_HINT = 'Add what you sell and what you buy.'
 const READER_HINT = 'Products and services appear here once a bookkeeper adds them.'
+const REFUSAL = 'This item is in 2 bundles. Take it out of them first, or make it inactive.'
+const NAME_LINE = { key: 'name', text: 'Cable', tone: 'plain' }
+const EXPLANATION_LINE = { key: 'explanation', text: 'This cannot be undone.', tone: 'muted' }
+const BUNDLE_LINE = { key: 'bundle', text: 'Its item list is deleted with it.', tone: 'muted' }
+const UNSAVED_LINE = {
+    key: 'unsaved',
+    text: 'Unsaved changes to this product will be lost.',
+    tone: 'plain',
+}
+const REFUSAL_LINE = { key: 'refusal', text: REFUSAL, tone: 'error' }
+
+const CLEAN_ITEM = { name: 'Cable', isBundle: false, isOpenAndDirty: false, refusal: null }
+
+describe('productDeleteLines', () => {
+    it('names the product and says the delete cannot be undone', () => {
+        expect(productDeleteLines(CLEAN_ITEM)).toEqual([NAME_LINE, EXPLANATION_LINE])
+    })
+
+    it('adds the item-list line third for a bundle', () => {
+        expect(productDeleteLines({ ...CLEAN_ITEM, isBundle: true })).toEqual([
+            NAME_LINE,
+            EXPLANATION_LINE,
+            BUNDLE_LINE,
+        ])
+    })
+
+    it('adds the unsaved-changes line after the bundle line when the open product is dirty', () => {
+        expect(productDeleteLines({ ...CLEAN_ITEM, isOpenAndDirty: true })).toEqual([
+            NAME_LINE,
+            EXPLANATION_LINE,
+            UNSAVED_LINE,
+        ])
+        expect(productDeleteLines({ ...CLEAN_ITEM, isBundle: true, isOpenAndDirty: true })).toEqual(
+            [NAME_LINE, EXPLANATION_LINE, BUNDLE_LINE, UNSAVED_LINE]
+        )
+    })
+
+    it("ends with the server's refusal as an error line", () => {
+        const lines = productDeleteLines({
+            ...CLEAN_ITEM,
+            isBundle: true,
+            isOpenAndDirty: true,
+            refusal: REFUSAL,
+        })
+        expect(lines).toEqual([
+            NAME_LINE,
+            EXPLANATION_LINE,
+            BUNDLE_LINE,
+            UNSAVED_LINE,
+            REFUSAL_LINE,
+        ])
+        expect(lines.at(-1)).toEqual(REFUSAL_LINE)
+        expect(productDeleteLines({ ...CLEAN_ITEM, refusal: REFUSAL })).toEqual([
+            NAME_LINE,
+            EXPLANATION_LINE,
+            REFUSAL_LINE,
+        ])
+    })
+
+    it('shows no refusal line for an empty refusal', () => {
+        expect(productDeleteLines({ ...CLEAN_ITEM, refusal: '' })).toEqual([
+            NAME_LINE,
+            EXPLANATION_LINE,
+        ])
+    })
+})
 
 describe('productsEmptyHint', () => {
     it('asks a writer to add what they sell and buy', () => {

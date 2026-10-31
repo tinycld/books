@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
+    accentOf,
     backgroundOf,
     cityLineFits,
     createVendor,
@@ -103,17 +104,6 @@ async function footerGap(page: Page, surfaceId: string) {
     ])
     if (!footer || !surface) return null
     return Math.abs(footer.top + footer.height - (surface.top + surface.height))
-}
-
-// `bg-accent` resolved in the page: tinycld/global.css declares `--accent` as an RGB
-// triple per theme.
-function accentOf(page: Page, testId: string) {
-    return page
-        .getByTestId(testId)
-        .evaluate(
-            el =>
-                `rgb(${getComputedStyle(el).getPropertyValue('--accent').trim().split(/\s+/).join(', ')})`
-        )
 }
 
 test.describe('vendor-form: side panel', () => {

@@ -1,8 +1,10 @@
 import { View } from 'react-native'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
+import { useProductActions } from '../../hooks/useProductActions'
 import { useProductNavigation } from '../../hooks/useProductNavigation'
 import { type ProductRecord, useProductsQuery } from '../../hooks/useProductsQuery'
 import { useRecordList } from '../../hooks/useRecordList'
+import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import { productListCopy } from '../../lib/product-display'
 import {
     PRODUCT_COLUMNS,
@@ -13,21 +15,34 @@ import {
     productRows,
 } from '../../lib/product-list'
 import { PRODUCT_LOAD_ERROR } from '../../lib/product-messages'
+import { PRODUCTS_PATH } from '../../lib/product-route'
+import {
+    RECORD_MENU_LABELS,
+    type RecordMenuItem,
+    recordMenuItems,
+    recordMenuTestIds,
+} from '../../lib/record-menu'
+import { useProductFormStore } from '../../stores/product-form-store'
 import { ListCards } from '../ListCards'
 import { ListHeaderCell, ListHeaderRow, ListTable } from '../ListTable'
 import { RecordListFrame } from '../RecordListFrame'
+import { DeleteProductDialog } from './DeleteProductDialog'
 import { ProductCard } from './ProductCard'
 import { ProductRow } from './ProductRow'
 
+const PRODUCT_MENU = {
+    triggerPrefix: 'product-menu',
+    triggerLabel: 'Product actions',
+    labels: RECORD_MENU_LABELS,
+    testIds: recordMenuTestIds('product'),
+}
+
 const productKey = (product: ProductListFields) => product.id
+
+const productName = (product: ProductRecord) => product.name
 
 const productHeightOf = (product: ProductListFields, fontScale: number) =>
     productCardHeight(product, fontScale)
-
-// The row menu and its delete dialog arrive with the product actions.
-const noMenu = () => null
-
-const noop = () => {}
 
 function ProductTableHeader({ testID }: { testID: string }) {
     return (
@@ -46,12 +61,36 @@ function ProductTableHeader({ testID }: { testID: string }) {
 export function ProductsList({ openId }: { openId: string }) {
     const navigation = useProductNavigation()
     const { canWrite } = useBooksAccess()
+    // The one actions instance lives here, so the list's banner and the Delete product
+    // or service dialog read the same refusals.
+    const actions = useProductActions()
+    const menus = useRecordRowMenus<ProductRecord, RecordMenuItem>({
+        actions,
+        store: useProductFormStore,
+        openId,
+        listPath: PRODUCTS_PATH,
+        navigation,
+        canWrite,
+        itemsFor: recordMenuItems,
+        titleOf: productName,
+        menu: PRODUCT_MENU,
+    })
     const source = useProductsQuery()
     const list = useRecordList(
         { records: source.products, isReady: source.isReady, isError: source.isError },
         productRows
     )
     const loadError = list.viewState === 'error' ? PRODUCT_LOAD_ERROR : null
+    const dialog = (
+        <DeleteProductDialog
+            product={menus.deleteDialog.record}
+            actions={actions}
+            isOpenAndDirty={menus.deleteDialog.isOpenAndDirty}
+            refusal={menus.deleteDialog.refusal}
+            onClose={menus.deleteDialog.onClose}
+            onDeleted={menus.deleteDialog.onDeleted}
+        />
+    )
     // Unwrapped, the press event would reach `openNew(type?)` as the type.
     const openChooser = () => navigation.openNew()
     const renderTable = (selectedId: string) => (
@@ -67,7 +106,7 @@ export function ProductsList({ openId }: { openId: string }) {
                     product={product}
                     isSelected={product.id === selectedId}
                     onOpen={navigation.open}
-                    menu={noMenu()}
+                    menu={menus.menuFor(product)}
                 />
             )}
         />
@@ -83,7 +122,7 @@ export function ProductsList({ openId }: { openId: string }) {
                     product={product}
                     height={height}
                     onOpen={navigation.open}
-                    menu={noMenu()}
+                    menu={menus.menuFor(product)}
                 />
             )}
         />
@@ -99,12 +138,12 @@ export function ProductsList({ openId }: { openId: string }) {
             openId={openId}
             onNew={openChooser}
             onRetry={source.retry}
-            bannerMessage={loadError}
+            bannerMessage={menus.bannerMessage(loadError)}
             isLoadError={loadError !== null}
-            onDismissBanner={noop}
+            onDismissBanner={menus.dismissRefusal}
             renderTable={renderTable}
             renderCards={renderCards}
-            dialog={null}
+            dialog={dialog}
         />
     )
 }

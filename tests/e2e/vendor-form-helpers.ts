@@ -5,12 +5,14 @@ import { type RecordKind, recordFormHelpers } from './record-form-helpers'
 // Vendors are created by driving the form; a spec never edits a seeded vendor.
 
 export {
+    accentOf,
     afterNextFrames,
     backgroundOf,
     CLASSIC_SCROLLBARS,
     DESKTOP,
     edges,
     effectiveOpacity,
+    exactText,
     expectTextInsideCell,
     holdLoads,
     isDisabled,
