@@ -1,8 +1,10 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import type { ComponentProps } from 'react'
 import { Text, View } from 'react-native'
 import { useForm1099Section } from '../../hooks/useForm1099Section'
 import type { BooksSettings } from '../../types'
+import { AccountBoxesCard } from './AccountBoxesCard'
 import { ThresholdCard } from './ThresholdCard'
 
 function SectionLoading({ isVisible }: { isVisible: boolean }) {
@@ -33,14 +35,16 @@ function SectionError({ isVisible, onRetry }: { isVisible: boolean; onRetry: () 
 interface SectionReadyProps {
     isVisible: boolean
     settings: BooksSettings | undefined
-    editsThreshold: boolean
+    accounts: ComponentProps<typeof AccountBoxesCard>['accounts']
+    controls: ComponentProps<typeof AccountBoxesCard>['controls']
 }
 
-function SectionReady({ isVisible, settings, editsThreshold }: SectionReadyProps) {
+function SectionReady({ isVisible, settings, accounts, controls }: SectionReadyProps) {
     if (!isVisible || !settings) return null
     return (
         <View className="gap-4" testID="books-1099-section">
-            <ThresholdCard settings={settings} editsThreshold={editsThreshold} />
+            <ThresholdCard settings={settings} editsThreshold={controls.editsThreshold} />
+            <AccountBoxesCard accounts={accounts} controls={controls} />
         </View>
     )
 }
@@ -48,7 +52,7 @@ function SectionReady({ isVisible, settings, editsThreshold }: SectionReadyProps
 // It takes no isAdmin from SectionBody: the threshold is admin-only but the boxes are for
 // every writer, so the section reads the full access level through useForm1099Section.
 export function Form1099Section() {
-    const { part, settings, controls, retry } = useForm1099Section()
+    const { part, settings, accounts, controls, retry } = useForm1099Section()
     return (
         <>
             <SectionLoading isVisible={part === 'loading'} />
@@ -56,7 +60,8 @@ export function Form1099Section() {
             <SectionReady
                 isVisible={part === 'ready'}
                 settings={settings}
-                editsThreshold={controls.editsThreshold}
+                accounts={accounts}
+                controls={controls}
             />
         </>
     )

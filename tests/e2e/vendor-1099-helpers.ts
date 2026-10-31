@@ -1,4 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { accountItem, createAccount, openChart } from './account-register-helpers'
+import { boxOf, type HeldWrite, holdWrite } from './record-form-helpers'
 import {
     field,
     insertAnswered,
@@ -75,4 +77,77 @@ export async function createTrackedVendor(
     await expect(vendorSurface(page)).toBeHidden()
     await searchVendors(page, values.name)
     return vendorIdOf(page, values.name)
+}
+
+// Creates a number-less Expense account through the Chart of Accounts panel and returns
+// its id, read from its chart row. Called at the desktop viewport (rows, not cards).
+export async function createExpenseAccount(page: Page, name: string): Promise<string> {
+    await openChart(page)
+    await createAccount(page, name, { type: 'Expense', detailType: 'Advertising and marketing' })
+    const testId = await accountItem(page, name).first().getAttribute('data-testid')
+    const id = (testId ?? '').replace(/^account-row-/, '')
+    expect(id).not.toBe('')
+    return id
+}
+
+// True when `right` starts at or after the right edge of `left` and their vertical ranges
+// overlap, so a label centred beside a taller control passes (`sideBySide` needs equal tops).
+export async function besideCentered(left: Locator, right: Locator): Promise<boolean> {
+    const [a, b] = await Promise.all([boxOf(left), boxOf(right)])
+    if (!a || !b) return false
+    const after = b.x >= a.x + a.width - 1
+    const overlaps = a.y < b.y + b.height && b.y < a.y + a.height
+    return after && overlaps
+}
+
+// The account's box select trigger in the 1099s section.
+export function boxSelect(page: Page, id: string): Locator {
+    return visible(page, `books-1099-box-select-${id}`)
+}
+
+// Opens the account's box select and presses the item whose text is `label`. Core
+// SelectInput is a popover Menu: its items exist only while it is open.
+export async function chooseBox(page: Page, id: string, label: string): Promise<void> {
+    await boxSelect(page, id).click()
+    const item = page.getByRole('menuitem', { name: label, exact: true })
+    await expect(item).toHaveCount(1)
+    await item.click()
+    await expect(page.getByRole('menuitem', { name: label, exact: true })).toHaveCount(0)
+}
+
+// The REST path of one account, where its update PATCHes.
+export function accountRecordPath(id: string): string {
+    return `/api/collections/books_accounts/records/${id}`
+}
+
+// Holds the next PATCH of one account (`holdWrite`).
+export function holdAccountWrite(page: Page, id: string): Promise<HeldWrite> {
+    return holdWrite(page, `**${accountRecordPath(id)}`, 'PATCH')
+}
+
+// Collects the body of every PATCH of one account the page sends from now on, held or not.
+export function accountPatches(page: Page, id: string): string[] {
+    const bodies: string[] = []
+    page.on('request', request => {
+        if (request.method() !== 'PATCH') return
+        if (!new URL(request.url()).pathname.endsWith(accountRecordPath(id))) return
+        bodies.push(request.postData() ?? '')
+    })
+    return bodies
+}
+
+export const EMPTY_LIST = { page: 1, perPage: 500, totalItems: 0, totalPages: 0, items: [] }
+
+// Answers every list of `collection` with no rows. Realtime is aborted, so no event from
+// other specs refills the collection after the empty answer lands.
+export async function fakeEmptyList(page: Page, collection: string): Promise<void> {
+    await page.route('**/api/realtime*', route => route.abort())
+    await page.route(`**/api/collections/${collection}/records**`, async route => {
+        if (route.request().method() !== 'GET') return route.continue()
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(EMPTY_LIST),
+        })
+    })
 }

@@ -435,7 +435,9 @@ Gate 1 here runs `packages:generate` first (host change). Gate 3 runs `-g "vendo
 **Delivers:** the Accounts reported on 1099s card: every expense-group account in chart order with its own box select that saves on choose (disabled while its write runs, refusals under the row), box text for read-only users, stacked rows on a phone, and the empty state.
 
 **Files:**
-- Modify: `tinycld/books/lib/form-1099.ts` (`form1099Accounts`, `Form1099AccountRow`, `box1099ValueSchema`)
+- Modify: `tinycld/books/lib/form-1099.ts` (`form1099Accounts`, `Form1099AccountRow`)
+- Create: `tinycld/books/lib/box-1099-schema.ts` (`box1099ValueSchema`). Amendment 2026-10-30: `lib/form-1099.ts` must stay free of runtime imports (the seed and fixture load it in plain node; cp5 fix, asserted by tests/form-1099.test.ts), so the zod schema lives here. Wherever this checkpoint places `box1099ValueSchema` in `lib/form-1099.ts`, read `lib/box-1099-schema.ts`; tests import it from there.
+- Amendment 2026-10-30 (gate 3 fixes, staging cp6-fix.md): Create `tinycld/books/lib/form-1099-accounts.ts` (`form1099Accounts`, `Form1099AccountRow`, built on `buildAccountTree` — not in form-1099.ts), a package Zustand store under `tinycld/books/stores/` (pending box per account id, set before the mutation, so an inactive row stays listed while its clear is in flight; round 2 (cp6-fix2.md): only pending ids hold a row, and each refusal is stored as `{ message, fromBox }` and shown only while the live box equals `fromBox`, `visibleRefusal`, tested in `tests/account-box-store.test.ts`); Modify `tests/e2e/record-form-helpers.ts` (`holdWrite`); Test `tests/form-1099-accounts.test.ts`, `tests/box-1099-schema.test.ts`.
 - Modify: `tinycld/books/lib/refusal.ts` (`errorStatus`, `SERVER_UNREACHED`, `writeRefusalText`)
 - Modify: `tinycld/books/hooks/useRecordActions.ts` (imports `errorStatus` and `SERVER_UNREACHED` from `../lib/refusal` in place of its local `statusOf` and constant, and re-exports `SERVER_UNREACHED`; no behavior change)
 - Create: `tinycld/books/hooks/useAccountBoxMutation.ts`
@@ -496,7 +498,7 @@ Gate 1 here runs `packages:generate` first (host change). Gate 3 runs `-g "vendo
 **Delivers:** the 1099 vendors card (tracked vendors sorted, last four digits or the Missing tax ID chip, the count line, a row opens the vendor, the empty state), the read-only e2e of the whole section, and the in-app help topic.
 
 **Files:**
-- Modify: `tinycld/books/lib/form-1099.ts` (`trackedVendorRows`, `trackedVendorsSummary`, `TrackedVendorRow`)
+- Create: `tinycld/books/lib/tracked-vendors.ts` (`trackedVendorRows`, `trackedVendorsSummary`, `TrackedVendorRow`). Amendment 2026-10-30: `lib/form-1099.ts` must stay free of runtime imports (cp5 fix, asserted by tests/form-1099.test.ts) and `trackedVendorRows` imports `taxIdLastFour`, so these live here. Wherever this checkpoint places them in `lib/form-1099.ts`, read `lib/tracked-vendors.ts`; their tests go in `tests/tracked-vendors.test.ts`.
 - Create: `tinycld/books/components/settings/Tracked1099VendorsCard.tsx`
 - Modify: `tinycld/books/hooks/useForm1099Section.ts` (`openVendor`, `openVendors`)
 - Modify: `tinycld/books/components/settings/Form1099Section.tsx` (the card last)

@@ -37,6 +37,12 @@
 - cp 2 · reviewer A NOTE: validateAccount's box check runs before checkAccountChange, so a direct API type change of a mapped account that also has lines gets the box refusal first, and after clearing the box the lines refusal; the Account panel locks the type select when lines > 0 or children > 0 (useAccountForm.ts `typeLocked`), so no UI path reaches it.
 - cp 2 · reviewer A NOTE: normalizeTaxID removes only ASCII space and hyphen-minus (as the plan says); a tax ID pasted with an en dash or a no-break space is refused "A tax ID has 9 digits.". Possible fix: strip unicode.IsSpace runes and Pd dashes.
 - cp 2 · reviewer A NOTE: an unknown tax_id_type (API only) gives two errors (type schema refusal and tax_id pattern), since dashTaxID returns bare digits.
+- cp 6 · settings-refusal: the held row's select looks idle (core SelectInput has no disabled look; e2e asserts disabled).
+- cp 6 · dark shots: the 6900 "Inactive" caption is low contrast (same as the reference).
+- cp 6 · reviewer A NOTEs: RHF `values` reset relies on two renders (theoretical); "Not reported" sends no write — now asserted.
+- cp 6 · fix review NOTE (for the human, core gap): the account-box store is not reset on sign-out (core logout has no hook for package stores); a second user on the same browser in the same org could see the first user's refusal while the box is unchanged.
+- cp 6 · fix review NOTE: a write that never settles keeps the select disabled until reload (the store outlives a remount).
+- cp 6 · fix review round 2 NOTE: a stale refusal can reappear if the live box returns to its `fromBox` (refusals drop only on the next write for that account); display only.
 - cp 5 · reviewer A NOTE: vendor-1099-settings.spec.ts's "vendors query in; loading still visible" step cannot catch a section that ignores the accounts query (a few ms window; `waitForResponse` matches any vendors request). cp7 (vendors card) can assert section count 0 after a tracked vendor row is in the DOM while accounts are held.
 - cp 5 · fix review NOTE: the shell shows its error when settings are ready but no row exists; every recovery is then empty, so Retry does nothing (before the fix it rebuilt the settings query). The row comes from a migration and cannot be deleted.
 - cp 5 · gate 2 observation: FAB clearance on the phone scroller cannot be seen with one card; check at cp7.
@@ -52,6 +58,7 @@
 - cp 1 → cp 2 · reviewers A + B confirmed: the cp1 comments (lib/form-1099.ts, migrations 2100000002/2100000004) match the Go names built in cp2; the 2100000001 "Settings → 1099s" comment waits for cp5.
 
 ## Out-of-plan changes
+- cp 6: `docs/plans/vendor-1099-checkpoints.md` amendments (box1099ValueSchema → lib/box-1099-schema.ts; cp7 tracked-vendor helpers → lib/tracked-vendors.ts; gate 3 fix files) — lib/form-1099.ts stays import-free; `tests/box-1099-schema.test.ts` kept as its own file (a missing module fails the whole importing file); `tinycld/books/lib/refusal.ts`, `hooks/useRecordActions.ts` (`refusalOf` reuses `writeRefusalText`), `tests/e2e/record-form-helpers.ts` (`holdWrite`), `tests/e2e/account-register-helpers.ts` (`makeAccountInactive`), `stores/account-box-store.ts`, `lib/form-1099-accounts.ts`, tests/form-1099-accounts.test.ts, tests/account-box-store.test.ts — gate 3 fixes.
 - cp 5: `hooks/useDocSequences.ts` (exposes `recovery`) and `tinycld/books/lib/vendor-1099-fixture.ts` (touched by the first build, restored by the fix) — gate 3 fixes; plan amendment: `Form1099Section` takes no props (reads access through useForm1099Section).
 - cp 4: `docs/specs/vendor-1099-design.md`, `docs/plans/vendor-1099-checkpoints.md` — the layout rule key renamed `hide-1099-details` → `hide_1099_details` after a test dispute (core keySchema `/^[a-z][a-z0-9_]{0,39}$/`, core/lib/forms/key.ts:5, refuses dashes).
 - cp 4 (gate 3 fix): `tinycld/books/lib/record-refusals.ts` (`recordRefusalHandler` optional `hiddenFields`, `hiddenRefusalKeys`), `lib/record-save.ts` (`saveRefusalHandler` optional 5th param), `hooks/useRecordSave.ts` (forms arg takes host and context), `hooks/useCustomerForm.ts` (passes host/context), `tests/record-refusals.test.ts` — a server refusal on a field the form does not draw goes to the root summary (customers and vendors).
@@ -145,6 +152,19 @@
 - gate 3 B (conformance): 1 form-1099.ts gained a runtime import reached by the seed (the cause of the fixture workaround) → accepted+fixed at the source (form1099Summary moved to settings-sections.ts; form-1099.ts import-free, asserted by a test; fixture restored); 2 shell Retry missed the new accounts query (memory: one merged call) → accepted+fixed (one recoverLiveQueries over three recoveries; useDocSequences exposes recovery); 3 faked load without the realtime abort (decisions rule) → accepted+fixed in the test; 4 no-props Form1099Section → plan amendment recorded
 - fix: tests first (summary cases moved to settings-sections.test.ts; no-runtime-import assertion; realtime abort), then implementer; gate 1 rerun: check 3057; e2e 18 passed
 - fix review: round 1: no BLOCK; NOTE (dead Retry when the settings row is missing) → Design notes
+- reviewer-caught deferrals: none
+- commit: 214db36
+
+## Checkpoint 6
+- test writer: tests/form-1099.test.ts cases, tests/box-1099-schema.test.ts, tests/refusal.test.ts, tests/e2e/vendor-1099-boxes.spec.ts (`vendor-1099: account boxes`: test 1 desktop + phone, tests 2-3 desktop), account-register-helpers `createAccount`, vendor-1099-helpers; red for the right reason: yes; untestable: none. It caught a plan conflict: box1099ValueSchema (zod) in import-free form-1099.ts → driver amendment (lib/box-1099-schema.ts); the same conflict in cp7 amended ahead (lib/tracked-vendors.ts).
+- implementer: form1099Accounts, useAccountBoxMutation (save on choose), AccountBoxesCard, AccountBoxRow, CardEmptyState, refusal helpers, capture writes option; DONE
+- test disputes: none
+- gate 1: pass (check 3070; e2e with guards 37 passed)
+- gate 2: no BLOCKING; 2 NOTEs → Design notes. Evidence docs/plans/vendor-1099-evidence/cp6/ (20 shots, critique.md)
+- gate 3 A: BLOCK 1 — clearing the box on an inactive account: the optimistic update drops the row, its mutation unmounts, a refusal shows nowhere → accepted+fixed (Zustand store set before the mutation keeps a pending row listed); NOTE 2 (5xx not logged) → fixed; NOTE 6 (no-write check) → asserted; others → Design notes
+- gate 3 B: 1 form1099Accounts copied buildAccountTree → accepted+fixed (lib/form-1099-accounts.ts on buildAccountTree); 2 refusalOf duplicated writeRefusalText → fixed; 3 holdAccountWrite copied holdRecordWrite → fixed (`holdWrite`); 4 new schema test file → kept, recorded
+- fix: tests first (moved cases, e2e inactive-clear step red at the vanished row, PATCH count, helper), implementer; gate 1 rerun: check 3070; e2e 73 passed
+- fix review: round 1: BLOCK — refused ids kept rows listed, so a stale refusal showed on an account later made inactive or changed elsewhere → fixed in round 2 (only pending ids hold a row; refusals stored with `fromBox`, shown only while the live box equals it; `visibleRefusal` + `heldAccountIds` unit-tested); round 2: PASS, NOTE (stale refusal can reappear) → Design notes. Gate 1 after round 2: check 3076; e2e 22 passed. Round count: 2.
 - reviewer-caught deferrals: none
 
 ## Final review
