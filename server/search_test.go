@@ -473,11 +473,17 @@ func TestSearch_FollowsARename(t *testing.T) {
 	if err := env.app.Save(renamed); err != nil {
 		t.Fatal(err)
 	}
-	old, _ := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"quillon"}, Limit: 10})
+	old, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"quillon"}, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(vendorRows(old.Rows)) != 0 {
 		t.Fatalf("the old name still finds %s", rowIDs(old.Rows))
 	}
-	res, _ := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"tamsin"}, Limit: 10})
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"tamsin"}, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if rows := vendorRows(res.Rows); rowIDs(rows) != "vendor:"+v.Id || rows[0].Title != "Tamsin Freight" {
 		t.Fatalf("tamsin found %s", rowIDs(res.Rows))
 	}
@@ -658,6 +664,41 @@ func TestSearch_PagesAcrossAllThreeKinds(t *testing.T) {
 	}
 	if first.Total != len(want) || second.Total != len(want) {
 		t.Fatalf("totals %d and %d, want %d", first.Total, second.Total, len(want))
+	}
+}
+
+// Customers, vendors and products come in their lists' order (sort_key): case
+// is folded, so "ocelot Cove" sorts among the c's, not after every capital,
+// and a sub-customer comes right after its parent.
+func TestSearch_OrdersPartiesAndProductsAsTheirListsDo(t *testing.T) {
+	env := newSearchEnv(t)
+	alder := mkCustomer(t, env.app, "Ocelot Alder", "")
+	mill := mkCustomer(t, env.app, "Ocelot Mill", "")
+	basin := mkCustomer(t, env.app, "Ocelot Basin", mill.Id)
+	cove := mkCustomer(t, env.app, "ocelot Cove", "")
+	zinc := mkVendor(t, env.app, "Ocelot Zinc")
+	brass := mkVendor(t, env.app, "ocelot Brass")
+	income := mkIncomeAccount(t, env.app)
+	zest := mkService(t, env.app, "Ocelot Zest", income)
+	bolt := mkService(t, env.app, "ocelot Bolt", income)
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"ocelot"}, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"customers": "customer:" + alder.Id + ",customer:" + cove.Id + ",customer:" + mill.Id + ",customer:" + basin.Id,
+		"vendors":   "vendor:" + brass.Id + ",vendor:" + zinc.Id,
+		"products":  "product:" + bolt.Id + ",product:" + zest.Id,
+	}
+	got := map[string]string{
+		"customers": rowIDs(customerRows(res.Rows)),
+		"vendors":   rowIDs(vendorRows(res.Rows)),
+		"products":  rowIDs(productRows(res.Rows)),
+	}
+	for kind := range want {
+		if got[kind] != want[kind] {
+			t.Fatalf("%s in order %s, want %s", kind, got[kind], want[kind])
+		}
 	}
 }
 

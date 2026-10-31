@@ -110,9 +110,11 @@ type indexQuery struct {
 }
 
 // run counts every hit and loads the first window of them into hits. Each
-// kind keeps a fixed order (by name, entries by date) rather than FTS rank:
-// core ranks the merged rows by how well their visible text matches, and a
-// fixed order keeps the pages of one query stable.
+// kind keeps a fixed order rather than FTS rank: core ranks the merged rows by
+// how well their visible text matches, and a fixed order keeps the pages of
+// one query stable. Customers, vendors and products order by sort_key, as
+// their lists do (case and accents folded, each sub-customer under its
+// parent); accounts by name, entries by date.
 func (iq indexQuery) run(ctx context.Context, app core.App, match string, window int, hits any) (int, error) {
 	from := " FROM " + iq.index + " JOIN " + iq.table + " c ON c.id = " + iq.index + ".record_id" + iq.joins +
 		" WHERE " + iq.index + " MATCH {:match}"
@@ -226,7 +228,7 @@ var customerSource = partySource{
 		index: customersIndex, table: "books_customers",
 		joins:   " LEFT JOIN books_customers p ON p.id = c.parent",
 		columns: "c.id, c.display_name, c.company, c.email, c.inactive, COALESCE(p.display_name, '') AS parent_name",
-		order:   "c.display_name, c.id",
+		order:   "c.sort_key, c.id",
 	},
 }
 
@@ -237,7 +239,7 @@ var vendorSource = partySource{
 	query: indexQuery{
 		index: vendorsIndex, table: "books_vendors",
 		columns: "c.id, c.display_name, c.company, c.email, c.inactive, '' AS parent_name",
-		order:   "c.display_name, c.id",
+		order:   "c.sort_key, c.id",
 	},
 }
 
@@ -285,7 +287,7 @@ type productHit struct {
 // text is what a customer reads and what a person recalls an item by.
 var productsQuery = indexQuery{
 	index: productsIndex, table: "books_products",
-	columns: "c.id, c.name, c.sku, c.type, c.inactive", order: "c.name, c.id",
+	columns: "c.id, c.name, c.sku, c.type, c.inactive", order: "c.sort_key, c.id",
 }
 
 func searchProducts(ctx context.Context, app core.App, match string, window int) ([]search.Row, int, error) {
