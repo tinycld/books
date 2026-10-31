@@ -9,7 +9,9 @@
 // and whether it has run (setup_completed). By convention only the setup wizard
 // (client code) writes setup_started; the update rule does not enforce this, since
 // only currency is pinned against admin edits. It marks a batch begun so a half-finished batch is detected without relying on
-// business_name, which the Settings Company form also saves. v0 keeps one currency;
+// business_name, which the Settings Company form also saves. threshold_1099 is
+// the 1099 reporting threshold in integer cents (the row starts it at
+// $2,000.00), edited by admins in Settings → 1099s. v0 keeps one currency;
 // the column exists so multi-currency needs no migration, and it is pinned
 // against edits because changing it under existing entries would misstate every
 // amount.
@@ -69,6 +71,13 @@ migrate(
                 { name: 'ownership', type: 'select', maxSelect: 1, values: ['owners', 'corporation'] },
                 { name: 'setup_started', type: 'bool' },
                 { name: 'setup_completed', type: 'bool' },
+                {
+                    name: 'threshold_1099',
+                    type: 'number',
+                    onlyInt: true,
+                    min: 0,
+                    max: 9007199254740991,
+                },
                 ...AUTODATES,
             ],
         })
@@ -83,6 +92,7 @@ migrate(
         row.set('ownership', '')
         row.set('setup_started', false)
         row.set('setup_completed', false)
+        row.set('threshold_1099', 200000)
         app.save(row)
 
         const sequences = new Collection({

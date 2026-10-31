@@ -1,5 +1,6 @@
 import type { Transaction } from '@tanstack/react-db'
-import type { FormValues } from '@tinycld/core/lib/forms/logic'
+import type { FormHostDef } from '@tinycld/core/lib/forms/host'
+import type { EvalContext, FormValues } from '@tinycld/core/lib/forms/logic'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import type { useFormCreate, useFormEdit } from '@tinycld/core/ui/forms'
 import { useNavigation } from 'expo-router'
@@ -7,6 +8,7 @@ import { newRecordId } from 'pbtsdb/core'
 import { type RefObject, useRef } from 'react'
 import type { ViewInstance } from 'react-native'
 import type { ColumnsParse } from '../lib/record-columns'
+import { type HiddenFields, hiddenRefusalKeys } from '../lib/record-refusals'
 import {
     columnsOrThrow,
     insertRow,
@@ -17,6 +19,19 @@ import {
 
 type CreateForm = ReturnType<typeof useFormCreate>
 type EditForm = ReturnType<typeof useFormEdit>
+
+// What the form's rules read to tell which fields it shows.
+interface RuleInputs {
+    host: FormHostDef
+    context: EvalContext
+}
+
+// Asked when a save's answer arrives, from the values the form holds then: a refusal on
+// a field that is hidden at that moment has no cell to show it.
+function hiddenFieldsOf(form: CreateForm | EditForm, rules: RuleInputs): HiddenFields {
+    return () =>
+        hiddenRefusalKeys(rules.host, form.definition, form.form.getValues(), rules.context)
+}
 
 export type RecordSaveConfig<C extends Record<string, unknown>> = {
     // The built-in columns the form wrote, checked against the collection's columns.
@@ -79,7 +94,8 @@ function useCreateSave<C extends Record<string, unknown>>(
     config: RecordSaveConfig<C>,
     create: CreateForm,
     leave: () => void,
-    isPresent: IsPresent
+    isPresent: IsPresent,
+    rules: RuleInputs
 ) {
     const lock = useRef(false)
     const insert = useMutation({
@@ -98,7 +114,13 @@ function useCreateSave<C extends Record<string, unknown>>(
             create.form.reset(create.form.getValues())
             leave()
         },
-        onError: saveRefusalHandler(create.form, create.onError, isPresent, closedFor(config)),
+        onError: saveRefusalHandler(
+            create.form,
+            create.onError,
+            isPresent,
+            closedFor(config),
+            hiddenFieldsOf(create, rules)
+        ),
         onSettled: () => {
             lock.current = false
         },
@@ -148,7 +170,8 @@ function useEditSave<C extends Record<string, unknown>>(
     edit: EditForm,
     recordId: string,
     leave: () => void,
-    isPresent: IsPresent
+    isPresent: IsPresent,
+    rules: RuleInputs
 ) {
     const lock = useRef(false)
     const update = useMutation({
@@ -159,7 +182,13 @@ function useEditSave<C extends Record<string, unknown>>(
             edit.markSaved(written)
             if (isPresent() && !hasUnsavedEdits(edit)) leave()
         },
-        onError: saveRefusalHandler(edit.form, edit.onError, isPresent, closedFor(config)),
+        onError: saveRefusalHandler(
+            edit.form,
+            edit.onError,
+            isPresent,
+            closedFor(config),
+            hiddenFieldsOf(edit, rules)
+        ),
         onSettled: () => {
             lock.current = false
         },
@@ -199,12 +228,12 @@ export function useRecordSave<C extends Record<string, unknown>>(
         edit: EditForm
         recordId: string
         leave(): void
-    }
+    } & RuleInputs
 ) {
     const surfaceRef = useRef<ViewInstance>(null)
     const isPresent = usePresence(surfaceRef)
-    const createSave = useCreateSave(config, forms.create, forms.leave, isPresent)
-    const editSave = useEditSave(config, forms.edit, forms.recordId, forms.leave, isPresent)
+    const createSave = useCreateSave(config, forms.create, forms.leave, isPresent, forms)
+    const editSave = useEditSave(config, forms.edit, forms.recordId, forms.leave, isPresent, forms)
     const chosen = forms.mode === 'edit' ? editSave : createSave
     return {
         save: chosen.save,

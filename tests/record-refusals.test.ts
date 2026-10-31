@@ -16,6 +16,18 @@ function messageOnly(message: string) {
     })
 }
 
+function fieldRefusal(field: string, message: string) {
+    return new ClientResponseError({
+        url: RECORDS_URL,
+        status: 400,
+        response: {
+            code: 400,
+            message: 'Failed to create record.',
+            data: { [field]: { code: 'validation_invalid', message } },
+        },
+    })
+}
+
 function networkError() {
     return new ClientResponseError({
         url: RECORDS_URL,
@@ -81,6 +93,32 @@ describe('recordRefusalHandler', () => {
         expect(hostOnError).toHaveBeenCalledTimes(1)
         expect(hostOnError).toHaveBeenCalledWith(error)
         expect(form.setError).not.toHaveBeenCalled()
+    })
+
+    // A form rule can hide a field whose value is still sent (the vendor form keeps the
+    // 1099 details while tracking is off). A refusal on such a field has no cell to show
+    // it, and the record form's summary shows root errors only.
+    it('puts a field refusal on a rule-hidden field on the form root, not on the host', () => {
+        const message = 'A tax ID has 9 digits.'
+        const { form, hostOnError } = outlets()
+        const hidden = () => new Set(['legal_name', 'tax_id_type', 'tax_id'])
+
+        recordRefusalHandler(form, hostOnError, hidden)(fieldRefusal('tax_id', message))
+
+        expect(form.setError).toHaveBeenCalledWith('root', { type: 'server', message })
+        expect(form.setError.mock.calls.filter(([name]) => name === 'tax_id')).toEqual([])
+        expect(hostOnError).not.toHaveBeenCalled()
+    })
+
+    it('hands the same field refusal to the host while its field is shown', () => {
+        const error = fieldRefusal('tax_id', 'A tax ID has 9 digits.')
+        const { form, hostOnError } = outlets()
+
+        recordRefusalHandler(form, hostOnError, () => new Set(['notes']))(error)
+
+        expect(hostOnError).toHaveBeenCalledTimes(1)
+        expect(hostOnError).toHaveBeenCalledWith(error)
+        expect(form.setError.mock.calls.filter(([name]) => name === 'root')).toEqual([])
     })
 })
 

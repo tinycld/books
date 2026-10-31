@@ -37,6 +37,7 @@ export const REPORT_SETTINGS = {
     website: '',
     setup_started: true,
     setup_completed: true,
+    threshold_1099: 200000,
     created: '2026-01-01 00:00:00.000Z',
     updated: '2026-01-01 00:00:00.000Z',
 } satisfies BooksSettings
@@ -143,6 +144,7 @@ function account(
         detail_type,
         description: '',
         inactive: false,
+        form_1099_box: '',
         currency: 'USD',
         parent: '',
         created: '2026-01-01 00:00:00.000Z',

@@ -26,7 +26,7 @@ interface HostSelectProps {
 
 // Core SelectInput bound to the host value through a local form. The cell draws the
 // label, so the select keeps it as the trigger's accessible name only.
-function HostSelect({
+export function HostSelect({
     fieldKey,
     label,
     value,

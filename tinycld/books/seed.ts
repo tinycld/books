@@ -2,6 +2,7 @@ import type PocketBase from 'pocketbase'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
+import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
 import { VENDORS } from './lib/vendor-form-fixture'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
@@ -131,6 +132,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedJournalEntries(pb, ctx, ids)
     await seedCustomers(pb)
     await seedVendors(pb, accountIds)
+    await seed1099(pb, accountIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor guard refuses a vendor that
     // names an inactive account when it is saved.
@@ -188,6 +190,25 @@ export async function seedVendors(pb: PocketBase, accountIds: Map<string, string
         await pb
             .collection('books_vendors')
             .create({ ...seedValues(row), expense_account: accountId })
+    }
+}
+
+// The vendors are created by seedVendors from the vendor-form fixture, so the
+// 1099 columns are written after, by update, as a person would set them on a
+// vendor and an account that already exist. `accountIds` maps a seed account
+// number to the created account's id.
+export async function seed1099(pb: PocketBase, accountIds: Map<string, string>): Promise<void> {
+    for (const { number, form_1099_box } of ACCOUNT_BOXES) {
+        if (form_1099_box === '') continue
+        const id = accountIds.get(number)
+        if (id === undefined) {
+            throw new Error(`seed: 1099 box names account ${number}, which was not created`)
+        }
+        await pb.collection('books_accounts').update(id, { form_1099_box })
+    }
+    for (const patch of VENDOR_1099_PATCHES) {
+        const { id, ...columns } = patch
+        await pb.collection('books_vendors').update(id, columns)
     }
 }
 

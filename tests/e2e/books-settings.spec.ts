@@ -16,6 +16,8 @@ import {
 // in parallel workers, so tests that write the same row must live in one file. They run in
 // declaration order in one worker: the Settings screen tests first, the wizard tests last,
 // because the wizard flow completes setup.
+// The 'vendor-1099:' describe writes the shared settings row too (the 1099 reporting
+// threshold), so it lives here, and it puts back the threshold it changed.
 // Known consequence: the seeded business name is blank and the schema requires a name, so the
 // Company tests leave 'E2E Company Co' in the shared database. The UI cannot put a blank back.
 // The setup wizard ignores that name, because it resumes only when the setup_started marker,
@@ -619,6 +621,157 @@ test.describe('books-settings: Settings screens', () => {
         await expect(page).toHaveURL(/\/a\/books\/settings/)
         await expect(settings).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
         await expect(lists).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    })
+})
+
+const SETTINGS_ROW_PATH = '/api/collections/books_settings/records/bookssettings01'
+
+// Answers every PATCH of the settings row with `body` (a 400); other requests go on.
+function refuseSettingsPatch(page: Page, body: object) {
+    return page.route(
+        url => url.pathname === SETTINGS_ROW_PATH,
+        route =>
+            route.request().method() === 'PATCH'
+                ? route.fulfill({
+                      status: 400,
+                      contentType: 'application/json',
+                      body: JSON.stringify(body),
+                  })
+                : route.continue()
+    )
+}
+
+function settingsPatchAnswered(page: Page) {
+    return page.waitForResponse(
+        response =>
+            response.request().method() === 'PATCH' &&
+            new URL(response.url()).pathname === SETTINGS_ROW_PATH
+    )
+}
+
+test.describe('vendor-1099: Settings → 1099s', () => {
+    test('an admin checks and saves the 1099 threshold', async ({ page }) => {
+        await openSettings(page)
+        await openRailSection(page, 'form-1099')
+        const threshold = id(page, 'books-1099-threshold')
+        const save = id(page, 'books-1099-threshold-save')
+        const summary = page.getByTestId('books-1099-threshold-errors')
+        // Core TextInput draws a field error inside the input's wrapper, under the input.
+        const underInput = threshold.locator('xpath=../..')
+        await expect(threshold).toBeVisible()
+        const start = await threshold.inputValue()
+
+        try {
+            await threshold.fill('')
+            await save.click()
+            await expect(underInput).toContainText('Enter an amount, like 2,000.00')
+
+            await threshold.fill('-5')
+            await save.click()
+            await expect(underInput).toContainText('The threshold cannot be negative')
+
+            await threshold.fill('90,071,992,547,409.92')
+            await save.click()
+            await expect(underInput).toContainText('Use a smaller amount')
+
+            const fieldRefusal = 'Must be less than or equal to 9007199254740991.'
+            await refuseSettingsPatch(page, {
+                code: 400,
+                message: 'Failed to update record.',
+                data: {
+                    threshold_1099: {
+                        code: 'validation_max_less_equal_than_required',
+                        message: fieldRefusal,
+                    },
+                },
+            })
+            await threshold.fill('1234.5')
+            await save.click()
+            await expect(underInput).toContainText(fieldRefusal)
+            await expect(summary.filter({ hasText: fieldRefusal })).toHaveCount(0)
+            await expect(
+                page.getByTestId('toast-card').filter({ hasText: fieldRefusal })
+            ).toHaveCount(0)
+            await page.unrouteAll({ behavior: 'wait' })
+
+            const rootRefusal = 'Books cannot save the threshold right now.'
+            await refuseSettingsPatch(page, { code: 400, message: rootRefusal, data: {} })
+            await save.click()
+            await expect(summary).toContainText(rootRefusal)
+            await page.unrouteAll({ behavior: 'wait' })
+
+            await save.click()
+            await expectSaved(page)
+            await expect(threshold).toHaveValue('1,234.50')
+            await expect(save).toBeDisabled()
+
+            await page.setViewportSize(PHONE)
+            await id(page, 'books-settings-back').click()
+            const row = id(page, 'books-settings-section-form-1099')
+            await expect(row).toContainText('1099s')
+            await expect(row).toContainText(
+                /Threshold \$1,234\.50 · (No accounts mapped|1 account mapped|\d+ accounts mapped)/
+            )
+            await page.setViewportSize(DESKTOP)
+        } finally {
+            await runRestores([
+                () => page.unrouteAll({ behavior: 'wait' }),
+                async () => {
+                    await page.setViewportSize(DESKTOP)
+                    await id(page, 'books-nav-settings').click()
+                    await expect(id(page, 'books-settings')).toBeVisible()
+                    await openRailSection(page, 'form-1099')
+                    await expect(threshold).toBeVisible()
+                    await threshold.fill(start)
+                    await expect(threshold).toHaveValue(start)
+                    // Save stays disabled when the stored value is still `start`: nothing
+                    // was saved, so there is nothing to restore.
+                    if (!(await save.isEnabled())) return
+                    const answered = settingsPatchAnswered(page)
+                    await save.click()
+                    expect((await answered).status()).toBe(200)
+                },
+            ])
+        }
+    })
+
+    // The seeded admin is a writer, so read-only 1099s are shown to the collaborator at
+    // read_only; their access level is put back from the admin's Access section.
+    test('a read-only member sees 1099s without edit controls', async ({ page }) => {
+        await openSettings(page)
+        await openRailSection(page, 'access')
+        const started = await levelOf(accessRow(page, TEST_COLLABORATOR_EMAIL))
+
+        try {
+            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, 'read_only')
+            const reader = await signInAsCollaborator(page)
+            try {
+                const view = reader.page
+                await navigateToPackage(view, 'books')
+                await id(view, 'books-nav-settings').click()
+                await id(view, 'books-settings-section-form-1099').click()
+
+                await expect(id(view, 'books-1099-threshold-value')).toHaveText(/^\$[\d,]+\.\d{2}$/)
+                await expect(view.getByTestId('books-1099-threshold')).toHaveCount(0)
+
+                await expect
+                    .poll(() => view.locator('[data-testid^="books-1099-box-text-"]').count())
+                    .toBeGreaterThan(0)
+                await expect(id(view, 'books-1099-accounts')).toContainText('MISC 1 · Rents')
+                await expect(view.locator('[data-testid^="books-1099-box-select-"]')).toHaveCount(0)
+
+                await expect(id(view, 'books-1099-vendor-last-four-vendkeystonel01')).toHaveText(
+                    '•••2741'
+                )
+            } finally {
+                await reader.close()
+            }
+        } finally {
+            await runRestores([
+                () => openRailSection(page, 'access'),
+                () => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started),
+            ])
+        }
     })
 })
 
