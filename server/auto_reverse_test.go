@@ -235,10 +235,10 @@ func TestAutoReverse_RefusesToRunInsideATransaction(t *testing.T) {
 func TestAutoReverse_WaitsWhileReadOnly(t *testing.T) {
 	env := newLedgerEnv(t)
 	accrual(t, env, "2026-05-31", "2026-06-01")
-	readonly.Enter()
-	t.Cleanup(readonly.Leave)
+	readonly.Enter(env.app)
+	t.Cleanup(func() { readonly.Leave(env.app) })
 	requireSweep(t, env.app, at("2026-06-01", 0), 0)
-	readonly.Leave()
+	readonly.Leave(env.app)
 	requireSweep(t, env.app, at("2026-06-01", 0), 1)
 }
 
