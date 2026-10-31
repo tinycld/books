@@ -4,7 +4,7 @@ import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import { useVendorActions } from '../../hooks/useVendorActions'
 import { useVendorNavigation } from '../../hooks/useVendorNavigation'
 import { useVendorsQuery, type VendorRecord } from '../../hooks/useVendorsQuery'
-import { partyRows } from '../../lib/party-list'
+import { partyRows, partyTitle } from '../../lib/party-list'
 import {
     RECORD_MENU_LABELS,
     type RecordMenuItem,
@@ -41,6 +41,7 @@ export function VendorsList({ openId }: { openId: string }) {
         navigation,
         canWrite,
         itemsFor: recordMenuItems,
+        titleOf: partyTitle,
         menu: VENDOR_MENU,
     })
     const source = useVendorsQuery()

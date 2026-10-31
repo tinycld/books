@@ -1,10 +1,11 @@
 import { createElement, type ReactNode, useState } from 'react'
 import { RecordRowMenu } from '../components/RecordRowMenu'
+import type { ListRecord } from '../lib/party-list'
 import type { RecordFormStore } from '../stores/record-form-store'
 import type { useRecordActions } from './useRecordActions'
 import { useIsShowingRecord } from './useRecordNavigation'
 
-type MenuRecord = { id: string; display_name: string; inactive: boolean }
+type MenuRecord = ListRecord
 
 export type RecordRowMenusConfig<R extends MenuRecord, I extends string> = {
     actions: ReturnType<typeof useRecordActions<R>>
@@ -15,6 +16,8 @@ export type RecordRowMenusConfig<R extends MenuRecord, I extends string> = {
     navigation: { open(id: string): void; leave(): void }
     canWrite: boolean
     itemsFor(record: R, canWrite: boolean): readonly I[]
+    // The menu's title; a party shows its display name, a product its name.
+    titleOf(record: R): string
     // An item beyond Edit, Make inactive, Make active and Delete.
     onExtra?(record: R, item: I): void
     menu: {
@@ -62,7 +65,7 @@ export function useRecordRowMenus<R extends MenuRecord, I extends string>(
         const items = config.itemsFor(record, canWrite)
         if (items.length === 0) return null
         return createElement(RecordRowMenu<I>, {
-            title: record.display_name,
+            title: config.titleOf(record),
             triggerTestId: `${menu.triggerPrefix}-${record.id}`,
             triggerLabel: menu.triggerLabel,
             items,
