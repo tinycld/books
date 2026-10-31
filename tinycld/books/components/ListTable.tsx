@@ -13,10 +13,11 @@ type ListTableProps<Row> = {
     rows: readonly Row[]
     keyOf(row: Row): string
     renderRow(row: Row): ReactNode
+    onNearEnd(): void
 }
 
-// A windowed table: below `minWidth` it scrolls sideways, and the header stays on top
-// while the rows scroll under it.
+// A windowed table: below `minWidth` it scrolls sideways, the header stays on top while the
+// rows scroll under it, and nearing the end asks for the next page (`onNearEnd`).
 export function ListTable<Row>({
     testID,
     minWidth,
@@ -25,9 +26,10 @@ export function ListTable<Row>({
     rows,
     keyOf,
     renderRow,
+    onNearEnd,
 }: ListTableProps<Row>) {
     const viewHeight = useWindowHeight()
-    const rowWindow = useRowWindow({ total: rows.length, rowHeight, viewHeight })
+    const rowWindow = useRowWindow({ total: rows.length, rowHeight, viewHeight, onNearEnd })
     const table = useTableMinWidth(minWidth)
     const visible = rows
         .slice(rowWindow.first, rowWindow.last)
@@ -43,6 +45,7 @@ export function ListTable<Row>({
         >
             <View className="flex-1">
                 <ScrollView
+                    testID={`${testID}-rows`}
                     ref={table.rowsScrollRef}
                     onLayout={table.onRowsLayout}
                     className="flex-1 web:[scrollbar-gutter:stable]"
