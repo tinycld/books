@@ -15,7 +15,7 @@ type ListCardsProps<Row> = {
 }
 
 // A windowed card list for phones: every card is drawn at the height `heightOf` gives it,
-// and nearing the end asks for the next page (`onNearEnd`).
+// and nearing the end (or cards that fit the view) asks for the next page (`onNearEnd`).
 export function ListCards<Row>({
     testID,
     rows,
@@ -49,6 +49,8 @@ export function ListCards<Row>({
             testID={testID}
             className="flex-1"
             contentContainerStyle={fabClearanceStyle}
+            onLayout={rowWindow.onViewLayout}
+            onContentSizeChange={rowWindow.onContentSizeChange}
             onScroll={rowWindow.onScroll}
             scrollEventThrottle={16}
         >

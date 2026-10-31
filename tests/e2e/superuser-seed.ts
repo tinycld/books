@@ -24,7 +24,11 @@ export async function deleteSeeded(pb: PocketBase, seeded: readonly Seeded[]) {
 }
 
 // A word unique to one run, put in every seeded name: a search for it shows only that
-// run's rows, whatever other specs add to the shared database meanwhile.
+// run's rows, whatever other specs add to the shared database meanwhile. It holds letters
+// only, so a search for a digit finds only the digits the seeded labels hold.
 export function runStamp(): string {
-    return `pg${Date.now().toString(36)}`
+    const letters = [...Date.now().toString(26)].map(digit =>
+        String.fromCharCode(97 + Number.parseInt(digit, 26))
+    )
+    return `pg${letters.join('')}`
 }

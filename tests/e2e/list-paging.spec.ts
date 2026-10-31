@@ -33,6 +33,13 @@ import { openVendorsList, searchVendors, vendorEntries, vendorEntry } from './ve
 
 const two = (n: number) => String(n).padStart(2, '0')
 
+// The names that hold every piece, ignoring case: what a search cut into `pieces` finds.
+const holdingAll = (names: readonly string[], pieces: readonly string[]) =>
+    names.filter(name => pieces.every(piece => name.toLowerCase().includes(piece.toLowerCase())))
+
+// Taller than a first page of 50 rows, so the table has nothing to scroll.
+const TALL_DESKTOP = { width: 1280, height: 3000 }
+
 // Keeps the URL of every list request the page sends for `collection`.
 function watchListRequests(page: Page, collection: string): URL[] {
     const seen: URL[] = []
@@ -71,12 +78,15 @@ test.describe('vendors list pages from the server', () => {
     const seeded: Seeded[] = []
     const vendor = (label: string) => `Zz Paging ${stamp} ${label}`
     const lowerFable = `zz paging ${stamp} fable`
+    // The names a search with Show inactive off can find.
+    const activeNames: string[] = []
 
     test.beforeAll(async () => {
         const pb = await superuserClient()
         const create = async (display_name: string, inactive = false) => {
             const row = await pb.collection('books_vendors').create({ display_name, inactive })
             seeded.push({ collection: 'books_vendors', id: row.id })
+            if (!inactive) activeNames.push(display_name)
         }
         // Created in reverse order, so the order the list shows is the server's sort.
         for (let n = 57; n >= 1; n--) await create(vendor(`Vendor ${two(n)}`))
@@ -138,10 +148,36 @@ test.describe('vendors list pages from the server', () => {
         )
         await page.getByTestId('vendors-show-inactive').click()
 
-        // (5) `%` is not a wildcard: it cuts the text, and the list keeps working.
-        await searchVendors(page, `${stamp} Vendor 0%`)
-        await expect(vendorEntries(page)).toHaveCount(9)
-        await expect(page.getByTestId('vendors-banner')).toHaveCount(0)
+        // (5) `%`, `_` and `\` are not wildcards or an escape: each cuts the text into
+        //     pieces that must all appear, in any order. Each term finds a different
+        //     number of rows when read the other way (`otherWay`), so the count tells the
+        //     two apart: as a wildcard, `_1` finds only Vendor 01, 11, 21, 31, 41 and 51,
+        //     and the `%` and `\` terms find nothing.
+        const cutTerms = [
+            {
+                term: `${stamp} Vendor _1`,
+                pieces: [`${stamp} Vendor`, '1'],
+                otherWay: new RegExp(`${stamp} Vendor .1`, 'i'),
+            },
+            {
+                term: `1%${stamp} Vendor 3`,
+                pieces: ['1', `${stamp} Vendor 3`],
+                otherWay: new RegExp(`1.*${stamp} Vendor 3`, 'i'),
+            },
+            {
+                term: `3\\${stamp} Vendor 1`,
+                pieces: ['3', `${stamp} Vendor 1`],
+                otherWay: new RegExp(`3${stamp} Vendor 1`, 'i'),
+            },
+        ]
+        for (const { term, pieces, otherWay } of cutTerms) {
+            const expected = holdingAll(activeNames, pieces)
+            expect(expected.length).not.toBe(activeNames.filter(name => otherWay.test(name)).length)
+            await searchVendors(page, term)
+            for (const name of expected) await expect(vendorEntry(page, name)).toBeVisible()
+            await expect(vendorEntries(page)).toHaveCount(expected.length)
+            await expect(page.getByTestId('vendors-banner')).toHaveCount(0)
+        }
 
         // (6) Typing a key at a time keeps the field focused while each answer loads.
         const input = page.getByTestId('vendors-search')
@@ -150,6 +186,21 @@ test.describe('vendors list pages from the server', () => {
         await expect(input).toBeFocused()
         await expect(input).toHaveValue(`${stamp} Vendor 1`)
         await expect(vendorEntries(page)).toHaveCount(10)
+    })
+
+    // A view the first page fits in gives no scroll event: the list asks for the next page
+    // when the rows are measured, not only on a scroll.
+    test('a view taller than the first page loads the next page without a scroll (desktop)', async ({
+        page,
+    }) => {
+        await openBooks(page, TALL_DESKTOP)
+        const seen = watchListRequests(page, 'books_vendors')
+        await openVendorsList(page)
+        await searchVendors(page, stamp)
+        await expect(vendorEntry(page, vendor('Vendor 57'))).toBeVisible()
+        expect(seen.some(isCursor)).toBe(true)
+        const scrollTop = await page.getByTestId('vendors-table-rows').evaluate(el => el.scrollTop)
+        expect(scrollTop).toBe(0)
     })
 
     // At PHONE only for vendors: the phone path renders ListCards, other scrolling code
