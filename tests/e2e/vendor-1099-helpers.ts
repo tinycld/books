@@ -11,6 +11,24 @@ import {
 // Shared by the vendor-1099 e2e specs. Tracked vendors are created by driving the vendor
 // form with a unique name; a spec never edits a seeded vendor.
 
+// A screen covered in the navigation stack stays mounted but hidden, so only the visible
+// match counts (as the settings spec's `id`).
+export function visible(page: Page, testId: string): Locator {
+    return page.locator(`[data-testid="${testId}"]:visible`)
+}
+
+// Opens Settings → 1099s at desktop through the rail, and waits for the section to show
+// one of its parts: the section, its loading state or its load error.
+export async function openForm1099(page: Page): Promise<void> {
+    await visible(page, 'books-nav-settings').click()
+    await visible(page, 'books-settings-section-form-1099').click()
+    await expect(
+        visible(page, 'books-1099-section')
+            .or(visible(page, 'books-1099-loading'))
+            .or(visible(page, 'books-1099-error'))
+    ).toBeVisible()
+}
+
 // The Tax ID type options as the select draws them.
 export const TAX_ID_TYPE_LABEL = { ein: 'EIN (business)', ssn: 'SSN or ITIN (person)' } as const
 
