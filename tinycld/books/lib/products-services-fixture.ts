@@ -1,12 +1,7 @@
 // Synthetic products and services for the seed (seed.ts) and the helix reference
-// route, shaped to the spec's Data section (docs/specs/products-services-design.md).
-//
-// books_products and books_bundle_items do not exist yet, so the rows are typed
-// against the local `ProductRecord` and `BundleItemRecord` below, which mirror the
-// spec's columns. The migration checkpoint creates both collections; it must
-// replace these two interfaces with the generated `BooksProducts` and
-// `BooksBundleItems` (re-exported from '../types', as vendor-form-fixture.ts
-// imports `BooksVendors`), so tsc checks every column against the schema.
+// route, typed against the generated `BooksProducts` and `BooksBundleItems`, as
+// vendor-form-fixture.ts is typed against `BooksVendors`, so tsc checks every
+// column against the schema (migration 2100000005).
 //
 // Accounts are the seeded e2e book's (lib/seed-accounts.ts), not the starter
 // chart: 4000 Consulting Income is the one income account; 6200 Software
@@ -14,58 +9,23 @@
 // Cash is inactive, so the business laptop names an account that became inactive
 // after it was saved. The seed adds no account (design gate G7).
 
+import type { BooksBundleItems, BooksProducts } from '../types'
 import type { ColumnOf } from './fixture-columns'
 import { SEED_ACCOUNTS } from './seed-accounts'
 
-export type ProductType = 'service' | 'non_inventory' | 'bundle'
+export type { ProductType } from './product-types'
 
-// Mirrors books_products (spec, Data). Replaced by the generated type at the
-// migration checkpoint.
-export interface ProductRecord {
-    id: string
-    type: ProductType
-    name: string
-    sku: string
-    sales_description: string
-    // Integer cents.
-    price: number
-    income_account: string
-    purchases: boolean
-    purchase_description: string
-    // Integer cents.
-    cost: number
-    expense_account: string
-    inactive: boolean
-    currency: string
-    form: string
-    fields: unknown
-    name_key: string
-    created: string
-    updated: string
-}
-
-// Mirrors books_bundle_items (spec, Data). Replaced by the generated type at the
-// migration checkpoint.
-export interface BundleItemRecord {
-    id: string
-    bundle: string
-    product: string
-    quantity: number
-    position: number
-    created: string
-    updated: string
-}
-
-// The row never carries `name_key`: it is hidden, so a live query never receives
-// it, and the server's guard sets it on every write. `currency` is stamped by the
-// server on create, so the seed leaves it out; the reference route reads it as a
-// live row would. The account columns are relation ids, known only after the seed
-// creates the accounts, so the fixture names them by seed account number instead
-// (empty for none); the seed maps each number to the created account's id. The
-// JSON column stays typed for every reader of a fixture row.
+// The generated type holds the JSON column as `any`, which would reach every
+// reader of a fixture row untyped, so the fixture keeps it typed. The row never
+// carries `name_key`: it is hidden, so a live query never receives it, and the
+// server's guard sets it on every write. `currency` is stamped by the server on
+// create, so the seed leaves it out; the reference route reads it as a live row
+// would. The account columns are relation ids, known only after the seed creates
+// the accounts, so the fixture names them by seed account number instead (empty
+// for none); the seed maps each number to the created account's id.
 export type ProductFixtureRecord = Omit<
-    ProductRecord,
-    ColumnOf<ProductRecord, 'fields' | 'name_key' | 'income_account' | 'expense_account'>
+    BooksProducts,
+    ColumnOf<BooksProducts, 'fields' | 'name_key' | 'income_account' | 'expense_account'>
 > & {
     fields: Record<string, unknown> | null
     income_account_number: string
@@ -396,7 +356,7 @@ function item(
     product: string,
     quantity: number,
     position: number
-): BundleItemRecord {
+): BooksBundleItems {
     if (PRODUCT_TYPE_BY_ID.get(bundle) !== 'bundle') {
         throw new Error(`product fixture: bundle item ${id} names ${bundle}, not a bundle`)
     }
@@ -433,7 +393,7 @@ export const BUNDLE_ITEMS = [
     item('bitemonboard003', PRODUCT_IDS.onboarding, 'prodtraining001', 2, 2),
     item('bitembackoff001', PRODUCT_IDS.backOffice, 'prodbookkeep001', 1, 0),
     item('bitembackoff002', PRODUCT_IDS.backOffice, 'prodremoteit001', 2, 1),
-] satisfies BundleItemRecord[]
+] satisfies BooksBundleItems[]
 
 export const EMPTY_PRODUCTS: ProductFixtureRecord[] = []
 
