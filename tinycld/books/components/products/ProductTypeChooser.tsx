@@ -1,6 +1,5 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { router } from 'expo-router'
 import { ChevronRight } from 'lucide-react-native'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useDetailSurface } from '../../hooks/useDetailSurface'
@@ -21,13 +20,14 @@ interface ChooserRowProps {
 // Back from the form returns to the list.
 function ChooserRow({ type, label, sentence, isDisabled }: ChooserRowProps) {
     const chevron = useThemeColor('muted-foreground')
+    const { switchNewType } = useProductNavigation()
     const look = isDisabled ? 'opacity-60' : ''
     return (
         <Pressable
             testID={`product-type-${type}`}
             accessibilityRole="button"
             disabled={isDisabled}
-            onPress={() => router.setParams({ type })}
+            onPress={() => switchNewType(type)}
             className={`flex-row items-center gap-3 border-b border-border py-3 active:bg-accent ${look}`}
             style={{ minHeight: 64 }}
         >

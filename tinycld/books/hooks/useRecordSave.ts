@@ -52,6 +52,10 @@ export type RecordSaveConfig<C extends Record<string, unknown>> = {
     clientSaveFailed: string
     // A host table's rows, written after the record, one at a time.
     rows?: RecordRowsConfig
+    // Called after Save and new reset the form, with the columns just saved, while the
+    // user still sees the form: a host whose starting values follow a saved column (a
+    // product's type) moves to the new form those columns start.
+    onSavedAndNew?(columns: C): void
 }
 
 // Whether the user still sees this form, asked when a save's answer arrives.
@@ -91,9 +95,10 @@ interface InsertInput<C> {
 /**
  * Save and Save and new on a new record. Save resets the form to what was saved
  * (clean, so the leave guard lets `leave` through) and leaves; Save and new resets it
- * to its starting values and stays on the new record's form. When the user left the
- * form during the write, it is reset to its starting values and does not leave: moving
- * them would take them away from where they went.
+ * to its starting values, stays on the new record's form and hands the saved columns to
+ * the host's `onSavedAndNew`. When the user left the form during the write, it is reset
+ * to its starting values and does not leave: moving them would take them away from
+ * where they went.
  */
 function useCreateSave<C extends Record<string, unknown>>(
     config: RecordSaveConfig<C>,
@@ -114,11 +119,16 @@ function useCreateSave<C extends Record<string, unknown>>(
                 yield write.run()
             }
         },
-        onSuccess: (_data, { andNew }) => {
+        onSuccess: (_data, { andNew, columns }) => {
             // Left before the insert landed, or Save and new: back to the starting values,
             // so the new record's form never shows a saved record as new.
-            if (!isPresent() || andNew) {
+            if (!isPresent()) {
                 create.form.reset()
+                return
+            }
+            if (andNew) {
+                create.form.reset()
+                config.onSavedAndNew?.(columns)
                 return
             }
             create.form.reset(create.form.getValues())

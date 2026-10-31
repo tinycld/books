@@ -23,7 +23,9 @@ To create one, choose New product or service above the list, or choose New and p
 
 Names must be unique among products and services, and case is ignored, so “Cable” and “CABLE” are the same name.
 
-To save it and go back to the list, choose Save. To save it and start the next one at once, choose Save and new.
+To save it and go back to the list, choose Save. To save it and start the next one at once, choose Save and new. The next one starts with the same type as the item you saved.
+
+If Books cannot load your access or the accounts, it shows an error in place of the form. To try again, choose Retry.
 
 ## Edit a product or service
 
