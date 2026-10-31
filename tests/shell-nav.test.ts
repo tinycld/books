@@ -116,6 +116,19 @@ describe('registries', () => {
             available: true,
         })
     })
+
+    it('LIST_ENTRIES has an available Products and services card after Vendors', () => {
+        const products = LIST_ENTRIES.find(e => e.id === 'products')
+        expect(products).toEqual({
+            id: 'products',
+            label: 'Products and services',
+            description: 'What you sell and buy',
+            href: 'books/products',
+            available: true,
+        })
+        const ids = LIST_ENTRIES.map(e => e.id)
+        expect(ids.indexOf('products')).toBe(ids.indexOf('vendors') + 1)
+    })
 })
 
 describe('settings sidebar entry', () => {

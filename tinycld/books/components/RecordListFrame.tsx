@@ -90,9 +90,10 @@ function ListHeader({ listPrefix, recordPrefix, copy, canWrite, onBack, onNew }:
         <View className="gap-2 px-4 pb-3 pt-4">
             <BackLink testID={`${listPrefix}-back`} onPress={onBack} />
             <View className="flex-row items-center justify-between gap-3">
+                {/* A long title wraps to two lines beside the New button on a phone (G8). */}
                 <Text
                     testID={`${listPrefix}-title`}
-                    className="text-2xl font-semibold text-foreground"
+                    className="min-w-0 shrink text-2xl font-semibold text-foreground"
                 >
                     {copy.title}
                 </Text>
