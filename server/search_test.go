@@ -230,6 +230,107 @@ func TestSearch_InterleavesAllFourKinds(t *testing.T) {
 	}
 }
 
+func mkSearchProduct(t testing.TB, env *ledgerEnv, fields map[string]any) *core.Record {
+	t.Helper()
+	r, err := newProduct(env.app, fields)
+	if err != nil {
+		t.Fatalf("save product %v: %v", fields, err)
+	}
+	return r
+}
+
+func productRows(rows []search.Row) []search.Row {
+	var out []search.Row
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "product:") {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func TestSearch_FindsProducts(t *testing.T) {
+	env := newLedgerEnv(t)
+	income := mkIncomeAccount(t, env.app)
+	withSku := mkSearchProduct(t, env, map[string]any{
+		"type": "service", "name": "Zircon Consulting", "sku": "ZC-4471", "income_account": income.Id,
+		"sales_description": "Quarterly tamarack review", "purchase_description": "Sourced from Wexford",
+	})
+	noSku := mkSearchProduct(t, env, map[string]any{
+		"type": "non_inventory", "name": "Basalt Tiles", "income_account": income.Id,
+	})
+	dormant := mkService(t, env.app, "Obsidian Retainer", income)
+	makeProductInactive(t, env.app, dormant)
+	find := func(term string) []search.Row {
+		t.Helper()
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{term}, Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return productRows(res.Rows)
+	}
+	for _, term := range []string{"ZIRCON", "zc-4471", "TamaRACK"} {
+		rows := find(term)
+		if rowIDs(rows) != "product:"+withSku.Id {
+			t.Fatalf("%q found products %q, want product:%s", term, rowIDs(rows), withSku.Id)
+		}
+		r := rows[0]
+		if r.Title != "Zircon Consulting" || r.Subtitle != "ZC-4471" || r.Meta != "Product or service" {
+			t.Fatalf("%q row title %q subtitle %q meta %q", term, r.Title, r.Subtitle, r.Meta)
+		}
+		if r.Fields["kind"] != "product" || r.Fields["inactive"] != false {
+			t.Fatalf("%q row fields %v", term, r.Fields)
+		}
+	}
+	rows := find("basalt")
+	if rowIDs(rows) != "product:"+noSku.Id {
+		t.Fatalf("basalt found products %q, want product:%s", rowIDs(rows), noSku.Id)
+	}
+	if rows[0].Title != "Basalt Tiles" || rows[0].Subtitle != "Non-inventory" || rows[0].Meta != "Product or service" {
+		t.Fatalf("SKU-less row title %q subtitle %q meta %q", rows[0].Title, rows[0].Subtitle, rows[0].Meta)
+	}
+	if rows := find("wexford"); len(rows) != 0 {
+		t.Fatalf("purchase description term found products %s", rowIDs(rows))
+	}
+	rows = find("obsidian")
+	if rowIDs(rows) != "product:"+dormant.Id {
+		t.Fatalf("obsidian found products %q, want product:%s", rowIDs(rows), dormant.Id)
+	}
+	if rows[0].Fields["kind"] != "product" || rows[0].Fields["inactive"] != true {
+		t.Fatalf("inactive product row fields %v", rows[0].Fields)
+	}
+}
+
+// Two of each kind match "pangolin"; the first page takes one of each kind in
+// turn, products after vendors, so no kind starves the others.
+func TestSearch_InterleavesAllFiveKinds(t *testing.T) {
+	env := newLedgerEnv(t)
+	acctA := mkAccount(t, env.app, "Pangolin Alpha Fund", "bank", "checking")
+	acctB := mkAccount(t, env.app, "Pangolin Beta Fund", "bank", "checking")
+	newer := env.sale(t, "2026-05-02", 100)
+	setMemo(t, env, newer.Id, "Pangolin deposit two")
+	older := env.sale(t, "2026-05-01", 100)
+	setMemo(t, env, older.Id, "Pangolin deposit one")
+	custA := mkCustomer(t, env.app, "Pangolin Analytics", "")
+	custB := mkCustomer(t, env.app, "Pangolin Bakery", "")
+	vendA := mkVendor(t, env.app, "Pangolin Cartage")
+	vendB := mkVendor(t, env.app, "Pangolin Dairy")
+	income := mkIncomeAccount(t, env.app)
+	prodA := mkService(t, env.app, "Pangolin Editing", income)
+	prodB := mkService(t, env.app, "Pangolin Framing", income)
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"pangolin"}, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Join([]string{
+		"account:" + acctA.Id, "entry:" + newer.Id, "customer:" + custA.Id, "vendor:" + vendA.Id, "product:" + prodA.Id,
+		"account:" + acctB.Id, "entry:" + older.Id, "customer:" + custB.Id, "vendor:" + vendB.Id, "product:" + prodB.Id,
+	}, ",")
+	if rowIDs(res.Rows) != want || res.Total != 10 {
+		t.Fatalf("rows %s total %d, want %s total 10", rowIDs(res.Rows), res.Total, want)
+	}
+}
+
 func TestSearch_NoAccessFindsNothing(t *testing.T) {
 	env := newLedgerEnv(t)
 	mkSearchCustomer(t, env, map[string]any{
@@ -238,9 +339,16 @@ func TestSearch_NoAccessFindsNothing(t *testing.T) {
 	mkSearchVendor(t, env, map[string]any{
 		"display_name": "Checking Supply", "company": "Checking Wholesale", "email": "checking@vendor.example",
 	})
+	mkSearchProduct(t, env, map[string]any{
+		"type": "service", "name": "Checking Review", "sku": "CHECKING-1",
+		"sales_description": "Checking account review", "income_account": mkIncomeAccount(t, env.app).Id,
+	})
 	res, err := searchBooks(env.app, env.users.none.Id, search.Query{Include: []string{"checking"}, Limit: 10})
 	if err != nil || len(res.Rows) != 0 || res.Total != 0 {
 		t.Fatalf("none level saw %s (total %d), err %v", rowIDs(res.Rows), res.Total, err)
+	}
+	if rows := productRows(res.Rows); len(rows) != 0 {
+		t.Fatalf("none level saw products %s", rowIDs(rows))
 	}
 }
 

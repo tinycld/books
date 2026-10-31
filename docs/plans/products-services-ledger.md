@@ -36,6 +36,9 @@
 - cp3 reviewer A NOTE: the create path sets `progress.rowLabel` and never reads it.
 - cp4 reviewer A NOTE: core audit binds request hooks only, so a bundle delete's cascaded rows get no audit row each (the bundle's own delete row is the record; journal lines behave the same).
 - cp4 fix review NOTE: `TestBundleItem_QuantityRules` has no large three-decimal refuse case (e.g. 999999.999); the code refuses it.
+- cp5 reviewer A NOTE: a product search hit routes to `books/products/[id]`, which exists only from checkpoint 9 (planned).
+- cp5 reviewer A NOTE: `TestSearch_NoAccessFindsNothing`'s `productRows` check adds nothing beyond its length check; the level check in `searchBooks` is the real guard.
+- cp5 reviewer A NOTE: no product case for exclude or `%`/`_` terms; products use the shared `likeWhere` / `escapeLike`, tested for the other kinds.
 
 ## Out-of-plan changes
 - docs/plans/products-services-checkpoints.md (cp3): driver edit, e2e ports 7200/7201 → 7230/7231 (the lane moved; human, 2026-10-30)
@@ -116,6 +119,20 @@
 - gate 3 B (conformance): 1 = A's BLOCK 2 (fixed); 2 ledger not in Files block (loop's own file)
 - fix review: round 1: clean · NOTE doc comment of `validateProductAccounts` still said "only when the write changes it" → corrected (comment only); NOTE no large three-decimal refuse case (999999.999) → Design notes
 - gate 3 A notes: 2 (Design notes)
+- reviewer-caught deferrals: none
+- commit: 4e482aa
+
+## Checkpoint 5
+- test writer: server/search_test.go (`TestSearch_FindsProducts`, `TestSearch_InterleavesAllFiveKinds`, `TestSearch_NoAccessFindsNothing` extended with a product; helpers `mkSearchProduct`, `productRows`), tests/search-target.test.ts (product hit); red for the right reason: yes (no product source yet); the no-access case is a guard that passes before and after; untestable: none
+- implementer: `productHit`, `searchProducts` (name, SKU, sales description), `searchBooks` interleaves five kinds; search target `product` → `books/products/[id]`; DONE
+- test disputes: none
+- self-declared differences: a "why" comment on `searchProducts` (sales description, not purchase description, is the text a person knows the item by)
+- gate 1: tests unedited: yes · pass (go vet, go test, check 3044)
+- gate 2: n/a
+- gate 3 A (correctness): no BLOCK; NOTEs: the product route does not exist until checkpoint 9 (planned; the branch is not merged before then); the added `productRows` check in the no-access test is covered by the length check before it; no product case for exclude or wildcard terms (shared `likeWhere` path is tested for the other kinds) → Design notes
+- gate 3 B (conformance): no BLOCK; NOTE the `searchSource` comment was not rewrapped → rewrapped (comment only)
+- fix review: n/a (comment only)
+- gate 3 A notes: 3 (Design notes)
 - reviewer-caught deferrals: none
 
 ## Final review
