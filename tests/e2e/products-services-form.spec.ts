@@ -5,6 +5,7 @@ import {
     createProduct,
     DESKTOP,
     discardDialog,
+    expectSavedToList,
     field,
     isRecordsUrl,
     openChooser,
@@ -158,7 +159,7 @@ test.describe('products-services: product form', () => {
         await expect(expense).toContainText(SOFTWARE)
 
         await page.getByTestId('product-save').click()
-        await expect(page.getByTestId('products-list')).toBeVisible()
+        await expectSavedToList(page)
 
         await openProduct(page, name)
         await expect(title).toHaveText('Edit non-inventory item')

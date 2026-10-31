@@ -116,6 +116,14 @@ export function purchasesSwitch(page: Page) {
     return page.getByTestId('form-input-purchases').getByRole('switch')
 }
 
+// After a Save that leaves the record: the URL is the list's again, so the save finished.
+// The list alone proves nothing on desktop, where it stays mounted under the record page
+// while the save is in flight.
+export async function expectSavedToList(page: Page) {
+    await expect(page).toHaveURL(/\/books\/products$/)
+    await expect(page.getByTestId('products-list')).toBeVisible()
+}
+
 // Creates a Service or Non-inventory product through the form and waits for the list.
 export async function createProduct(
     page: Page,
@@ -144,7 +152,7 @@ export async function createProduct(
         }
     }
     await page.getByTestId('product-save').click()
-    await expect(page.getByTestId('products-list')).toBeVisible()
+    await expectSavedToList(page)
     await expect(productSurface(page)).toBeHidden()
 }
 
@@ -180,7 +188,7 @@ export async function createBundle(
         await page.getByTestId(`${cell}-quantity`).fill(item.quantity)
     }
     await page.getByTestId('product-save').click()
-    await expect(page.getByTestId('products-list')).toBeVisible()
+    await expectSavedToList(page)
 }
 
 // The product names the bundle rows' pickers show, in row order.

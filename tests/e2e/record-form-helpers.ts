@@ -406,7 +406,13 @@ export function recordFormHelpers(kind: RecordKind) {
             )
             .toBe(true)
 
+        // A disabled way out means a save is in flight: the screen leaves, or enables the
+        // control again, by itself. A click on it waits for an enabled control that may
+        // detach first, so wait until it is hidden or enabled, then click only if it shows.
+        // Counting a locator never waits on a detached element; isEnabled() would.
+        const disabled = page.locator('[aria-disabled="true"], [disabled]')
         for (const leave of [pageBack, panelClose, notFoundBack]) {
+            await expect(leave.and(disabled).filter({ visible: true })).toHaveCount(0)
             if (await leave.isVisible()) {
                 await leave.click()
                 await expect(leave).toBeHidden()

@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     DESKTOP,
+    expectSavedToList,
     field,
     isRecordUrl,
     navigateInApp,
@@ -62,7 +63,7 @@ test.describe('products-services: product page', () => {
         await page.getByTestId('product-save').click()
         expect(Object.keys((await patch).postDataJSON())).toEqual(['purchase_description'])
 
-        await expect(page.getByTestId('products-list')).toBeVisible()
+        await expectSavedToList(page)
 
         await openProduct(page, LAPTOP)
         await expect(field(page, 'purchase_description')).toHaveValue(description)
