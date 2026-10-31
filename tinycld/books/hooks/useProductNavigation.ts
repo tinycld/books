@@ -1,6 +1,10 @@
 import { PRODUCTS_PATH } from '../lib/product-route'
 import type { ProductType } from '../lib/product-types'
-import { useIsShowingRecord, useRecordNavigation } from './useRecordNavigation'
+import {
+    useIsShowingNewRecord,
+    useIsShowingRecord,
+    useRecordNavigation,
+} from './useRecordNavigation'
 
 export function useProductNavigation() {
     const nav = useRecordNavigation(PRODUCTS_PATH)
@@ -12,3 +16,5 @@ export function useProductNavigation() {
 }
 
 export const useIsShowingProduct = () => useIsShowingRecord(PRODUCTS_PATH)
+
+export const useIsShowingNewProduct = () => useIsShowingNewRecord(PRODUCTS_PATH)
