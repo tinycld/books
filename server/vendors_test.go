@@ -3,6 +3,7 @@ package books
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -56,6 +57,8 @@ func TestVendor_MessagesAreTheDecisionsTexts(t *testing.T) {
 		msgExpenseAccountMissing:                    "The expense account does not exist.",
 		msgExpenseAccountInactive:                   "The expense account is inactive.",
 		msgExpenseAccountLedger:                     "A vendor's default expense account cannot be Accounts receivable or Accounts payable.",
+		msgTaxIDDigits:                              "A tax ID has 9 digits.",
+		msgTaxIDType:                                "Choose whether the tax ID is an EIN or an SSN.",
 	}
 	for got, text := range want {
 		if got != text {
@@ -354,6 +357,192 @@ func TestVendor_DeletingItsAccountClearsTheExpenseAccount(t *testing.T) {
 	if got := reload(t, app, "books_vendors", v.Id).GetString("expense_account"); got != "" {
 		t.Errorf("expense_account = %q after its account was deleted, want empty", got)
 	}
+}
+
+func TestVendor1099_LegalNameIsStoredTrimmed(t *testing.T) {
+	app := newGuardedApp(t)
+	r, err := newVendor(app, map[string]any{"display_name": "Okafor Design", "legal_name": "  Jamal A. Okafor  "})
+	if err != nil {
+		t.Fatalf("save a vendor with a legal name: %v", err)
+	}
+	if got := reload(t, app, "books_vendors", r.Id).GetString("legal_name"); got != "Jamal A. Okafor" {
+		t.Fatalf("legal_name = %q, want %q", got, "Jamal A. Okafor")
+	}
+}
+
+func TestVendor1099_TaxIDIsStoredDashedByType(t *testing.T) {
+	cases := []struct {
+		taxType string
+		inputs  []string
+		want    string
+	}{
+		{"ein", []string{"123456789", "12 345 6789", "12-3456789"}, "12-3456789"},
+		// "123 - 45 - 6789" is 15 characters, over the column's max of 11:
+		// the guard must normalize before the schema check runs.
+		{"ssn", []string{"123456789", "123 45 6789", "123-45-6789", "123 - 45 - 6789"}, "123-45-6789"},
+	}
+	app := newGuardedApp(t)
+	for _, tc := range cases {
+		for i, input := range tc.inputs {
+			t.Run(tc.taxType+" "+input, func(t *testing.T) {
+				r, err := newVendor(app, map[string]any{
+					"display_name": fmt.Sprintf("Vendor %s %d", tc.taxType, i),
+					"track_1099":   true,
+					"tax_id_type":  tc.taxType,
+					"tax_id":       input,
+				})
+				if err != nil {
+					t.Fatalf("tax ID %q (%s) was refused: %v", input, tc.taxType, err)
+				}
+				if got := reload(t, app, "books_vendors", r.Id).GetString("tax_id"); got != tc.want {
+					t.Errorf("tax ID %q (%s) stored as %q, want %q", input, tc.taxType, got, tc.want)
+				}
+			})
+		}
+	}
+}
+
+func TestVendor1099_TypeChangeRedashesTheStoredTaxID(t *testing.T) {
+	app := newGuardedApp(t)
+	r, err := newVendor(app, map[string]any{
+		"display_name": "Keystone", "track_1099": true, "tax_id_type": "ein", "tax_id": "12-3456789",
+	})
+	if err != nil {
+		t.Fatalf("save an EIN vendor: %v", err)
+	}
+	if err := setFields(t, app, "books_vendors", r.Id, map[string]any{"tax_id_type": "ssn"}); err != nil {
+		t.Fatalf("changing the tax ID type alone was refused: %v", err)
+	}
+	if got := reload(t, app, "books_vendors", r.Id).GetString("tax_id"); got != "123-45-6789" {
+		t.Errorf("tax_id after the type change = %q, want %q", got, "123-45-6789")
+	}
+}
+
+func TestVendor1099_TaxIDMustHaveNineDigits(t *testing.T) {
+	bad := []string{"12345678", "1234567890", "12-34A6789", "123.456.789"}
+	for _, input := range bad {
+		t.Run("create "+input, func(t *testing.T) {
+			app := newGuardedApp(t)
+			_, err := newVendor(app, map[string]any{
+				"display_name": "Acme", "tax_id_type": "ein", "tax_id": input,
+			})
+			requireFieldRefusal(t, err, "tax_id", "A tax ID has 9 digits.")
+			if n, _ := app.CountRecords("books_vendors"); n != 0 {
+				t.Errorf("%d vendors after the refusal, want 0", n)
+			}
+		})
+		t.Run("update "+input, func(t *testing.T) {
+			app := newGuardedApp(t)
+			r, err := newVendor(app, map[string]any{
+				"display_name": "Acme", "tax_id_type": "ein", "tax_id": "12-3456789",
+			})
+			if err != nil {
+				t.Fatalf("save the vendor: %v", err)
+			}
+			err = setFields(t, app, "books_vendors", r.Id, map[string]any{"tax_id": input})
+			requireFieldRefusal(t, err, "tax_id", "A tax ID has 9 digits.")
+			if got := reload(t, app, "books_vendors", r.Id).GetString("tax_id"); got != "12-3456789" {
+				t.Errorf("tax_id after the refusal = %q, want %q", got, "12-3456789")
+			}
+		})
+	}
+}
+
+func TestVendor1099_TaxIDNeedsAType(t *testing.T) {
+	app := newGuardedApp(t)
+	_, err := newVendor(app, map[string]any{
+		"display_name": "Acme", "track_1099": true, "tax_id_type": "", "tax_id": "123456789",
+	})
+	requireFieldRefusal(t, err, "tax_id_type", "Choose whether the tax ID is an EIN or an SSN.")
+	if n, _ := app.CountRecords("books_vendors"); n != 0 {
+		t.Errorf("%d vendors after the refusal, want 0", n)
+	}
+}
+
+// A vendor can be tracked before its W-9 arrives (packet Q7).
+func TestVendor1099_TrackedWithoutTaxIDIsAccepted(t *testing.T) {
+	app := newGuardedApp(t)
+	bare, err := newVendor(app, map[string]any{"display_name": "Greenline", "track_1099": true})
+	if err != nil {
+		t.Fatalf("a tracked vendor with no legal name, type or tax ID was refused: %v", err)
+	}
+	stored := reload(t, app, "books_vendors", bare.Id)
+	if !stored.GetBool("track_1099") || stored.GetString("legal_name") != "" ||
+		stored.GetString("tax_id_type") != "" || stored.GetString("tax_id") != "" {
+		t.Errorf("stored vendor = %v", stored.PublicExport())
+	}
+
+	typed, err := newVendor(app, map[string]any{"display_name": "Typed", "track_1099": true, "tax_id_type": "ein"})
+	if err != nil {
+		t.Fatalf("a type with no tax ID was refused: %v", err)
+	}
+	stored = reload(t, app, "books_vendors", typed.Id)
+	if stored.GetString("tax_id_type") != "ein" || stored.GetString("tax_id") != "" {
+		t.Errorf("stored vendor = %v", stored.PublicExport())
+	}
+
+	spaces, err := newVendor(app, map[string]any{"display_name": "Spaces", "track_1099": true, "tax_id": "   "})
+	if err != nil {
+		t.Fatalf("a tax ID of only spaces was refused: %v", err)
+	}
+	if got := reload(t, app, "books_vendors", spaces.Id).GetString("tax_id"); got != "" {
+		t.Errorf("a tax ID of only spaces stored as %q, want empty", got)
+	}
+}
+
+func TestVendor1099_SchemaRules(t *testing.T) {
+	cases := map[string]map[string]any{
+		"tax_id_type": {"display_name": "Acme", "tax_id_type": "itin"},
+		"legal_name":  {"display_name": "Acme", "legal_name": strings.Repeat("x", 201)},
+	}
+	for field, fields := range cases {
+		t.Run(field, func(t *testing.T) {
+			app := newGuardedApp(t)
+			_, err := newVendor(app, fields)
+			requireSchemaRefusal(t, err, field)
+			if n, _ := app.CountRecords("books_vendors"); n != 0 {
+				t.Errorf("%d vendors after the refusal, want 0", n)
+			}
+		})
+	}
+}
+
+// Tracking for 1099 does not make a vendor "in use".
+func TestVendor1099_TrackedVendorCanBeDeleted(t *testing.T) {
+	app := newGuardedApp(t)
+	r, err := newVendor(app, map[string]any{
+		"display_name": "Keystone", "track_1099": true, "legal_name": "Keystone Legal Group, P.C.",
+		"tax_id_type": "ein", "tax_id": "18-5092741",
+	})
+	if err != nil {
+		t.Fatalf("save a tracked vendor: %v", err)
+	}
+	if err := app.Delete(reload(t, app, "books_vendors", r.Id)); err != nil {
+		t.Fatalf("delete a tracked vendor with a tax ID: %v", err)
+	}
+	if n, _ := app.CountRecords("books_vendors"); n != 0 {
+		t.Errorf("%d vendors after the delete, want 0", n)
+	}
+}
+
+// The tax ID shows in full to everyone who can open the vendor (packet Q8).
+func TestVendor1099_ReadOnlyMemberReadsTheTaxIDInFull(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	users := newLevelUsers(t, app)
+	r, err := newVendor(app, map[string]any{
+		"display_name": "Okafor Design", "track_1099": true, "tax_id_type": "ssn", "tax_id": "987-65-4321",
+	})
+	if err != nil {
+		t.Fatalf("save an SSN vendor: %v", err)
+	}
+	apiReq{
+		method:  http.MethodGet,
+		url:     "/api/collections/books_vendors/records/" + r.Id,
+		token:   tokenFor(t, users.readOnly),
+		want:    http.StatusOK,
+		content: []string{`"tax_id":"987-65-4321"`},
+	}.run(t, app)
 }
 
 func TestVendorRules_ByLevel(t *testing.T) {

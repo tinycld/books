@@ -57,6 +57,11 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
     const navigation = useProductNavigation()
     const isShowingNew = useIsShowingNewProduct()
     const [productsCollection, itemsCollection] = useStore('books_products', 'books_bundle_items')
+    const stored = base.definition
+    const definition = useMemo(
+        () => (stored ? productDefinitionFor(stored, type, base.host) : undefined),
+        [stored, type, base.host]
+    )
     const saver = useRecordSave(
         {
             columnsFrom: columns => productColumnsFor(type, columns),
@@ -100,12 +105,10 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
             edit: base.edit,
             recordId: record?.id ?? '',
             leave: navigation.leave,
+            host: base.host,
+            context: base.context,
+            definition,
         }
-    )
-    const stored = base.definition
-    const definition = useMemo(
-        () => (stored ? productDefinitionFor(stored, type, base.host) : undefined),
-        [stored, type, base.host]
     )
     return {
         ...base,

@@ -203,6 +203,57 @@ func TestSearch_FindsVendors(t *testing.T) {
 	}
 }
 
+// A vendor is found by the name on its W-9 (its legal name), never by its tax
+// ID, and the hit shows neither. Customers keep their own three columns.
+func TestSearch_FindsVendorsByLegalName(t *testing.T) {
+	env := newLedgerEnv(t)
+	okafor := mkSearchVendor(t, env, map[string]any{
+		"display_name": "Okafor Design", "company": "", "email": "billing@okafor.example",
+		"legal_name": "Jamal A. Okafor", "tax_id_type": "ssn", "tax_id": "987-65-4321",
+	})
+	importer := mkSearchCustomer(t, env, map[string]any{
+		"display_name": "Harbor Trading", "company": "Jamal Imports",
+	})
+	find := func(term string) search.Result {
+		t.Helper()
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{term}, Limit: 10})
+		if err != nil {
+			t.Fatalf("%q: %v", term, err)
+		}
+		return res
+	}
+	for _, term := range []string{"Jamal", "jamal a."} {
+		rows := vendorRows(find(term).Rows)
+		if rowIDs(rows) != "vendor:"+okafor.Id {
+			t.Fatalf("%q found vendors %q, want vendor:%s", term, rowIDs(rows), okafor.Id)
+		}
+		r := rows[0]
+		if r.Title != "Okafor Design" || r.Subtitle != "billing@okafor.example" || r.Meta != "Vendor" {
+			t.Fatalf("%q row title %q subtitle %q meta %q", term, r.Title, r.Subtitle, r.Meta)
+		}
+		if len(r.Fields) != 2 || r.Fields["kind"] != "vendor" || r.Fields["inactive"] != false {
+			t.Fatalf("%q row fields %v, want only kind and inactive", term, r.Fields)
+		}
+		if _, ok := r.Fields["tax_id"]; ok {
+			t.Fatalf("%q row fields show the tax ID: %v", term, r.Fields)
+		}
+		if _, ok := r.Fields["legal_name"]; ok {
+			t.Fatalf("%q row fields show the legal name: %v", term, r.Fields)
+		}
+	}
+	for _, term := range []string{"987-65", "4321", "987654321"} {
+		if rows := vendorRows(find(term).Rows); len(rows) != 0 {
+			t.Fatalf("tax ID term %q found vendors %s", term, rowIDs(rows))
+		}
+	}
+	if rows := customerRows(find("Jamal").Rows); rowIDs(rows) != "customer:"+importer.Id {
+		t.Fatalf("Jamal found customers %q, want customer:%s", rowIDs(rows), importer.Id)
+	}
+	if rows := customerRows(find("jamal a.").Rows); len(rows) != 0 {
+		t.Fatalf("a term only in a vendor's legal name found customers %s", rowIDs(rows))
+	}
+}
+
 // Two of each kind match "quokka"; the first page takes one of each kind in
 // turn, vendors after customers, so no kind starves the others.
 func TestSearch_InterleavesAllFourKinds(t *testing.T) {

@@ -71,6 +71,7 @@ export function useOpeningDraftWrites(screen: OpeningScreen) {
                     type: 'equity',
                     detail_type: 'opening_balance_equity',
                     inactive: false,
+                    form_1099_box: '',
                 })
             })
         } catch (error) {

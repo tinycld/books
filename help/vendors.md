@@ -11,7 +11,7 @@ A vendor is a person or a company that you buy from. To see your vendors, choose
 
 To find a vendor in the list, type in the search field above the list. The list shows the vendors whose display name, company, email or phone contains the text.
 
-To find a vendor from anywhere in the app, use the app search. Search finds vendors by display name, company or email. Choose a result to open that vendor.
+To find a vendor from anywhere in the app, use the app search. Search finds vendors by display name, company, email or legal name. Search never finds a vendor by its tax ID. Choose a result to open that vendor.
 
 ## Create a vendor
 
@@ -40,6 +40,10 @@ Account number is your account number with this vendor, for example the number o
 The Default expense account is the account that a purchase from this vendor usually goes to. The list offers your active accounts. It does not offer inactive accounts, Accounts receivable or Accounts payable.
 
 If the account you chose becomes inactive later, the vendor keeps it until you change it.
+
+## Track payments for 1099
+
+If you send a vendor a 1099 form, turn on Track payments for 1099 on the vendor. Then fill in the Legal name, Tax ID type and Tax ID from the vendor's W-9. For the full steps, see [1099 tracking](help://books:1099-tracking).
 
 ## Make a vendor inactive
 

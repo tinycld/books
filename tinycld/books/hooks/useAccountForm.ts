@@ -132,7 +132,12 @@ export function useAccountForm(target: PanelTarget, accounts: AccountRow[], isRe
                 description: values.description,
             }
             if (id === null) {
-                yield accountsCollection.insert({ id: newRecordId(), inactive: false, ...fields })
+                yield accountsCollection.insert({
+                    id: newRecordId(),
+                    inactive: false,
+                    form_1099_box: '',
+                    ...fields,
+                })
                 return
             }
             yield accountsCollection.update(id, draft => {

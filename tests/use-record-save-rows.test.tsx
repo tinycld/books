@@ -213,7 +213,15 @@ function Probe({ mode, partsSource, rows, leave, seen }: ProbeProps) {
     const tables = live.isReady ? { parts: tableRowsOf(live.data ?? [], MAPPER) } : undefined
     const edit = useFormEdit(host, WIDGET, CTX, NO_CHECKLISTS, tables)
     const recordId = mode === 'edit' ? WIDGET_ID : ''
-    const saver = useRecordSave(widgetConfig(rows), { mode, create, edit, recordId, leave })
+    const saver = useRecordSave(widgetConfig(rows), {
+        mode,
+        create,
+        edit,
+        recordId,
+        leave,
+        host,
+        context: CTX,
+    })
     seen.current = { create, edit, saver }
     return <View ref={saver.surfaceRef} />
 }

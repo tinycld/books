@@ -1,0 +1,75 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "settings-admin",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-accounts",
+            "height": 1500
+        },
+        {
+            "name": "settings-writer",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-threshold-value",
+            "height": 1500,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "bookkeeper",
+                        "can_read": true,
+                        "can_write": true,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "settings-read-only",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-threshold-value",
+            "height": 1500,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "settings-refusal",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-accounts",
+            "height": 1500,
+            "writes": { "collection": "books_accounts", "answers": ["hold", 400] },
+            "actions": [
+                { "clickLabel": "1099 box for 6100 Rent" },
+                { "clickText": "MISC 9 · Crop insurance proceeds" },
+                { "waitForHidden": "MISC 10 · Gross proceeds paid to an attorney" },
+                { "clickLabel": "1099 box for 6210 Design Tools" },
+                { "clickText": "MISC 2 · Royalties" },
+                { "waitFor": "Books cannot change this account right now." }
+            ]
+        },
+        {
+            "name": "settings-empty-accounts",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-accounts-empty",
+            "height": 1200,
+            "fakeRecords": { "collection": "books_accounts", "items": [] }
+        }
+    ]
+}

@@ -33,6 +33,11 @@ describe('help/settings.md', () => {
         expect(body).toContain('(help://books:setup-wizard)')
     })
 
+    it('covers the 1099s section and links the 1099 tracking topic', () => {
+        expect(body).toContain('1099s')
+        expect(body).toContain('(help://books:1099-tracking)')
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)

@@ -20,6 +20,10 @@ const (
 	msgAccountUsedByProducts   = "This account is used by %d products and services and cannot be deleted. Make it inactive instead."
 )
 
+// tinycld/books/lib/account-messages.ts copies this refusal;
+// tests/account-messages.test.ts fails when this wording drifts.
+const msgBoxNeedsExpenseType = "Only expense accounts can be reported on a 1099. Set this account to Not reported in Settings → 1099s first."
+
 // Every account guard reads other rows (the parent chain, sub-accounts, line
 // counts) inside serialized, so no post, line or other account write can
 // commit between the check and the write it allows.
@@ -58,6 +62,12 @@ func validateAccount(app core.App, r *core.Record) error {
 	}
 	if !t.hasDetail(r.GetString("detail_type")) {
 		return refuse("%s is not a detail type of %s accounts.", r.GetString("detail_type"), t.Label)
+	}
+	// The 1099 report sums a box from expense postings only. This runs on a
+	// create and on an update with the new type, so it covers both a box set
+	// on another type and a type change of a mapped account.
+	if r.GetString("form_1099_box") != "" && !isExpenseGroupType(r.GetString("type")) {
+		return refuse(msgBoxNeedsExpenseType)
 	}
 	return validateParent(app, r)
 }

@@ -1,5 +1,7 @@
 import type { Transaction } from '@tanstack/react-db'
-import type { FormValues } from '@tinycld/core/lib/forms/logic'
+import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
+import type { FormHostDef } from '@tinycld/core/lib/forms/host'
+import type { EvalContext, FormValues } from '@tinycld/core/lib/forms/logic'
 import type { TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { useMutation } from '@tinycld/core/lib/mutations'
@@ -9,6 +11,7 @@ import { newRecordId } from 'pbtsdb/core'
 import { type RefObject, useRef } from 'react'
 import type { ViewInstance } from 'react-native'
 import type { ColumnsParse } from '../lib/record-columns'
+import { type HiddenFields, hiddenRefusalKeys } from '../lib/record-refusals'
 import {
     columnsOrThrow,
     hasRecordChanges,
@@ -33,6 +36,27 @@ export type RecordRowsConfig = {
 // Where a save's writes got to, read by its refusal handler: a row refused after the
 // record's insert landed is not a refused record.
 type SaveProgress = { recordId: string; inserted: boolean; rowLabel: string | null }
+
+// What the form's rules read to tell which fields it shows. `definition` is the one the
+// screen renders when the host derives it from the form's own (a product's type hides
+// built-ins whose values are still sent); absent, the form's own is the rendered one.
+interface RuleInputs {
+    host: FormHostDef
+    context: EvalContext
+    definition?: FormDefinition
+}
+
+// Asked when a save's answer arrives, from the values the form holds then: a refusal on
+// a field that is hidden at that moment has no cell to show it.
+function hiddenFieldsOf(form: CreateForm | EditForm, rules: RuleInputs): HiddenFields {
+    return () =>
+        hiddenRefusalKeys(
+            rules.host,
+            rules.definition ?? form.definition,
+            form.form.getValues(),
+            rules.context
+        )
+}
 
 export type RecordSaveConfig<C extends Record<string, unknown>> = {
     // The built-in columns the form wrote, checked against the collection's columns.
@@ -104,10 +128,17 @@ function useCreateSave<C extends Record<string, unknown>>(
     config: RecordSaveConfig<C>,
     create: CreateForm,
     leave: () => void,
-    isPresent: IsPresent
+    isPresent: IsPresent,
+    rules: RuleInputs
 ) {
     const lock = useRef(false)
-    const refused = saveRefusalHandler(create.form, create.onError, isPresent, closedFor(config))
+    const refused = saveRefusalHandler(
+        create.form,
+        create.onError,
+        isPresent,
+        closedFor(config),
+        hiddenFieldsOf(create, rules)
+    )
     const insert = useMutation({
         mutationFn: function* ({ columns, formId, fields, plans, progress }: InsertInput<C>) {
             yield config.insert(
@@ -201,10 +232,17 @@ function useEditSave<C extends Record<string, unknown>>(
     edit: EditForm,
     recordId: string,
     leave: () => void,
-    isPresent: IsPresent
+    isPresent: IsPresent,
+    rules: RuleInputs
 ) {
     const lock = useRef(false)
-    const refused = saveRefusalHandler(edit.form, edit.onError, isPresent, closedFor(config))
+    const refused = saveRefusalHandler(
+        edit.form,
+        edit.onError,
+        isPresent,
+        closedFor(config),
+        hiddenFieldsOf(edit, rules)
+    )
     const update = useMutation({
         mutationFn: function* ({ id, patch, fields, plans, progress }: UpdateInput<C>) {
             if (hasRecordChanges(patch, fields)) yield config.update(id, patch, fields)
@@ -270,12 +308,12 @@ export function useRecordSave<C extends Record<string, unknown>>(
         edit: EditForm
         recordId: string
         leave(): void
-    }
+    } & RuleInputs
 ) {
     const surfaceRef = useRef<ViewInstance>(null)
     const isPresent = usePresence(surfaceRef)
-    const createSave = useCreateSave(config, forms.create, forms.leave, isPresent)
-    const editSave = useEditSave(config, forms.edit, forms.recordId, forms.leave, isPresent)
+    const createSave = useCreateSave(config, forms.create, forms.leave, isPresent, forms)
+    const editSave = useEditSave(config, forms.edit, forms.recordId, forms.leave, isPresent, forms)
     const chosen = forms.mode === 'edit' ? editSave : createSave
     return {
         save: chosen.save,

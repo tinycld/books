@@ -20,8 +20,10 @@ const LAYOUT = {
 export const VENDOR_HOST_KEY = 'books:vendor'
 
 // The default Vendor form: one page, with first and last name, email and phone, mobile
-// and website, and payment terms and account number side by side wherever the form is
-// 640 px wide or more.
+// and website, payment terms and account number, and the 1099 tax ID type and tax ID
+// side by side wherever the form is 640 px wide or more. The rule that hides the 1099
+// details while tracking is off is part of the layout, so it is seeded into the stored
+// form, where an admin can move, relabel or change it in Settings → Forms.
 const VENDOR_LAYOUT = {
     pages: [{ key: 'main', title: 'Vendor' }],
     fields: {
@@ -33,7 +35,20 @@ const VENDOR_LAYOUT = {
         website: { width: 'half' },
         terms: { width: 'half' },
         account_number: { width: 'half' },
+        tax_id_type: { width: 'half' },
+        tax_id: { width: 'half' },
     },
+    rules: [
+        {
+            key: 'hide_1099_details',
+            when: [{ field: 'track_1099', op: 'is_false' }],
+            actions: [
+                { action: 'hide', field: 'legal_name' },
+                { action: 'hide', field: 'tax_id_type' },
+                { action: 'hide', field: 'tax_id' },
+            ],
+        },
+    ],
 } satisfies FormHostDefInput['layout']
 
 export const PRODUCT_HOST_KEY = 'books:product'
@@ -218,6 +233,10 @@ const hosts: FormHostDefInput[] = [
             'account_number',
             'expense_account',
             'notes',
+            'track_1099',
+            'legal_name',
+            'tax_id_type',
+            'tax_id',
             'inactive',
             'form',
             'fields',
@@ -324,6 +343,40 @@ const hosts: FormHostDefInput[] = [
                 storage: 'column',
                 required: false,
                 component: 'ExpenseAccountField',
+                chrome: 'cell',
+            },
+            {
+                key: 'track_1099',
+                label: 'Track payments for 1099',
+                kind: 'toggle',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'legal_name',
+                label: 'Legal name',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'LegalNameField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_id_type',
+                label: 'Tax ID type',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'TaxIdTypeField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_id',
+                label: 'Tax ID',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'TaxIdField',
                 chrome: 'cell',
             },
             { key: 'notes', label: 'Notes', kind: 'textarea', storage: 'column', required: false },

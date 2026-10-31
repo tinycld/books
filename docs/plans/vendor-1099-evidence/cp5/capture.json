@@ -1,0 +1,71 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "settings-admin",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-section",
+            "height": 1500
+        },
+        {
+            "name": "settings-writer",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-threshold-value",
+            "height": 1500,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "bookkeeper",
+                        "can_read": true,
+                        "can_write": true,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "settings-read-only",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-threshold-value",
+            "height": 1500,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "settings-loading",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-loading",
+            "fakeRecords": { "collection": "books_accounts", "hold": true }
+        },
+        {
+            "name": "settings-error",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-error",
+            "fakeRecords": { "collection": "books_accounts", "status": 400 }
+        },
+        {
+            "name": "settings-list",
+            "url": "/a/books/settings",
+            "ready": "books-settings-section-form-1099",
+            "widths": [390]
+        }
+    ]
+}

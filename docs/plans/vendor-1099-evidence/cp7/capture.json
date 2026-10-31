@@ -1,0 +1,60 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "settings-admin",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-vendors",
+            "height": 2000
+        },
+        {
+            "name": "settings-writer",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-vendors",
+            "height": 2000,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "bookkeeper",
+                        "can_read": true,
+                        "can_write": true,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "settings-read-only",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-vendors",
+            "height": 2000,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "settings-empty-vendors",
+            "url": "/a/books/settings/form-1099",
+            "ready": "books-1099-vendors-empty",
+            "height": 1500,
+            "fakeRecords": { "collection": "books_vendors", "items": [] }
+        }
+    ]
+}

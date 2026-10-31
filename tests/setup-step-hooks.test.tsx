@@ -35,6 +35,7 @@ function settings(done: boolean): BooksSettings {
         website: '',
         setup_completed: done,
         setup_started: done,
+        threshold_1099: 200000,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }
