@@ -54,6 +54,8 @@ export function useCustomerForm(target: CustomerFormTarget) {
             edit: base.edit,
             recordId: record?.id ?? '',
             leave,
+            host: base.host,
+            context: base.context,
         }
     )
     const title = customerTitle({

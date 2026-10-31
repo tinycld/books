@@ -147,6 +147,7 @@ function testAccount(
         inactive: false,
         currency: 'USD',
         parent: '',
+        form_1099_box: '',
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
         ...extra,

@@ -136,6 +136,7 @@ export function useBooksSetup() {
                         parent,
                         description: '',
                         inactive: false,
+                        form_1099_box: '',
                     })
                 )
                 ids.set(item.key, id)

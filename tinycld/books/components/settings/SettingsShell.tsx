@@ -5,6 +5,7 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ArrowLeft } from 'lucide-react-native'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useSettingsShell } from '../../hooks/useSettingsShell'
+import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import type { SectionId } from '../../lib/settings-sections'
 import { SectionBody } from './SectionBody'
 import { SectionList, type SectionListItem } from './SectionList'
@@ -70,6 +71,8 @@ function SectionTitle({ isVisible, label }: { isVisible: boolean; label?: string
 // section body keeps its position and a dirty form keeps its edits when the window resizes.
 function DetailFrame(props: DetailProps) {
     const { isVisible, isWide, sections, openId, isAdmin, onOpen, onBack } = props
+    // The phone New FAB floats over the scroller, so the last row needs room to scroll clear of it.
+    const fabClearance = useFabClearanceStyle()
     if (!isVisible || !openId) return null
     const label = sections.find(s => s.id === openId)?.label
     return (
@@ -78,8 +81,10 @@ function DetailFrame(props: DetailProps) {
             <View className="flex-1">
                 <BackBar isVisible={!isWide} label={label} onBack={onBack} />
                 <ScrollView
+                    testID="books-settings-scroll"
                     className="flex-1"
                     contentContainerClassName={isWide ? 'gap-4 p-5' : 'gap-4 p-4'}
+                    contentContainerStyle={fabClearance}
                 >
                     <SectionTitle isVisible={isWide} label={label} />
                     <SectionBody section={openId} isAdmin={isAdmin} />

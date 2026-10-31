@@ -20,16 +20,23 @@ import (
 // It takes the app because three labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account, and a bundle row by
 // its bundle and product.
+//
+// A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
+// readable in the audit log after it is corrected or the vendor is deleted.
+// The labels read no redacted field, because core does not redact the label.
 func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
 		"books_accounts":        {ExtractLabel: accountLabel},
 		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name")},
-		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name")},
+		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id"}},
 		"books_products":        {ExtractLabel: audit.LabelFromField("name")},
 		"books_bundle_items":    {ExtractLabel: func(r *core.Record) string { return bundleItemLabel(app, r) }},
 		"books_journal_entries": {ExtractLabel: entryLabel},
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},
-		"books_settings":        {ExtractLabel: func(*core.Record) string { return "Books settings" }},
+		"books_settings": {
+			ExtractLabel: func(*core.Record) string { return "Books settings" },
+			Redact:       []string{"tax_id"},
+		},
 		"books_doc_sequences":   {ExtractLabel: audit.LabelFromField("doc_type")},
 		"books_close_overrides": {ExtractLabel: audit.LabelFromField("reason")},
 		"books_admins":          {ExtractLabel: func(r *core.Record) string { return userLabel(app, r.GetString("user")) }},

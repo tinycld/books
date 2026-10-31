@@ -6,6 +6,8 @@ import {
     EXPENSE_ACCOUNT_INACTIVE,
     EXPENSE_ACCOUNT_LEDGER,
     EXPENSE_ACCOUNT_MISSING,
+    TAX_ID_DIGITS,
+    TAX_ID_TYPE_MISSING,
     UNSAVED_VENDOR_DELETE_WARNING,
     VENDOR_DISCARD_MESSAGE,
     VENDOR_LOAD_ERROR,
@@ -42,6 +44,11 @@ describe('client copies', () => {
         )
     })
 
+    it('the tax ID texts are the texts of the plan Decisions', () => {
+        expect(TAX_ID_DIGITS).toBe('A tax ID has 9 digits.')
+        expect(TAX_ID_TYPE_MISSING).toBe('Choose whether the tax ID is an EIN or an SSN.')
+    })
+
     it('VENDOR_SAVE_TEXTS puts each save text in its slot', () => {
         expect(VENDOR_SAVE_TEXTS).toEqual({
             logContext: 'books.vendors',
@@ -62,6 +69,12 @@ describe('server drift', () => {
         ]) {
             expect(source).toContain(message)
         }
+    })
+
+    it('server/vendors.go holds each tax ID text', () => {
+        const source = serverSource('vendors.go')
+        expect(source).toContain('A tax ID has 9 digits.')
+        expect(source).toContain('Choose whether the tax ID is an EIN or an SSN.')
     })
 
     it('server/customers.go holds the address text the vendor guard reuses', () => {

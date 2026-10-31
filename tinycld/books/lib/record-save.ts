@@ -2,7 +2,12 @@ import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { log } from '@tinycld/core/lib/logger'
 import type { UseFormReturn } from 'react-hook-form'
 import type { ColumnsParse } from './record-columns'
-import { closedRecordRefusalHandler, recordRefusalHandler, refusalMessage } from './record-refusals'
+import {
+    closedRecordRefusalHandler,
+    type HiddenFields,
+    recordRefusalHandler,
+    refusalMessage,
+} from './record-refusals'
 
 export type RefusalForm = Pick<UseFormReturn<FormValues>, 'setError'>
 
@@ -55,9 +60,10 @@ export function saveRefusalHandler(
     form: RefusalForm,
     hostOnError: (error: unknown) => void,
     isPresent: () => boolean,
-    closed: { notSavedTitle: string; operation: string }
+    closed: { notSavedTitle: string; operation: string },
+    hiddenFields?: HiddenFields
 ): (error: unknown) => void {
-    const onForm = recordRefusalHandler(form, hostOnError)
+    const onForm = recordRefusalHandler(form, hostOnError, hiddenFields)
     const onClosed = closedRecordRefusalHandler(hostOnError, closed.notSavedTitle, closed.operation)
     return error => {
         if (isPresent()) onForm(error)

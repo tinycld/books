@@ -95,6 +95,21 @@ export async function chooseViewRegister(page: Page, accountName: string) {
     await page.getByRole('menuitem', { name: 'View register', exact: true }).click()
 }
 
+// The Chart of Accounts must already be open. Chooses "Make inactive" from the active
+// account's row or card menu and waits for the server to store it: the chart drops the row
+// before the server answers.
+export async function makeAccountInactive(page: Page, accountName: string) {
+    const stored = page.waitForResponse(
+        response =>
+            response.request().method() === 'PATCH' &&
+            new URL(response.url()).pathname.includes('/api/collections/books_accounts/records/')
+    )
+    await accountItem(page, accountName).locator('[data-testid^="account-menu-"]').click()
+    await page.getByRole('menuitem', { name: 'Make inactive', exact: true }).click()
+    expect((await stored).status()).toBe(200)
+    await expect(accountItem(page, accountName)).toHaveCount(0)
+}
+
 export async function openRegister(page: Page, accountName: string) {
     await openChart(page)
     await chooseViewRegister(page, accountName)
@@ -198,17 +213,27 @@ export async function revealRegisterItem(page: Page, item: Locator) {
     await item.scrollIntoViewIfNeeded()
 }
 
-// The Chart of Accounts must already be open. Creates a number-less Income account
-// through the account panel.
-export async function createIncomeAccount(page: Page, name: string) {
+// The Chart of Accounts must already be open. Creates a number-less account of the given
+// type and detail type (their menu labels) through the account panel.
+export async function createAccount(
+    page: Page,
+    name: string,
+    kind: { type: string; detailType: string }
+): Promise<void> {
     await page.getByTestId(isPhone(page) ? 'account-new-header' : 'account-new-toolbar').click()
     const panel = page.getByTestId('account-panel')
     await expect(panel).toBeVisible()
     await page.getByLabel('Account name').fill(name)
     await panel.getByTestId('account-type').click()
-    await page.getByRole('menuitem', { name: 'Income', exact: true }).click()
+    await page.getByRole('menuitem', { name: kind.type, exact: true }).click()
     await panel.getByTestId('account-detail-type').click()
-    await page.getByRole('menuitem', { name: 'Service income', exact: true }).click()
+    await page.getByRole('menuitem', { name: kind.detailType, exact: true }).click()
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(accountItem(page, name)).toBeVisible()
+}
+
+// The Chart of Accounts must already be open. Creates a number-less Income account
+// through the account panel.
+export async function createIncomeAccount(page: Page, name: string) {
+    await createAccount(page, name, { type: 'Income', detailType: 'Service income' })
 }

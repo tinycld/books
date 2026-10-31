@@ -22,6 +22,10 @@ const ALL_COLUMNS = {
     account_number: true,
     expense_account: true,
     notes: true,
+    track_1099: true,
+    legal_name: true,
+    tax_id_type: true,
+    tax_id: true,
     inactive: true,
     form: true,
     fields: true,
@@ -43,6 +47,10 @@ const BUILTINS = [
     ['terms', 'Payment terms', 'custom'],
     ['account_number', 'Account number', 'custom'],
     ['expense_account', 'Default expense account', 'custom'],
+    ['track_1099', 'Track payments for 1099', 'toggle'],
+    ['legal_name', 'Legal name', 'custom'],
+    ['tax_id_type', 'Tax ID type', 'custom'],
+    ['tax_id', 'Tax ID', 'custom'],
     ['notes', 'Notes', 'textarea'],
 ] as const
 
@@ -55,6 +63,9 @@ const CUSTOM_COMPONENTS = {
     terms: 'PaymentTermsField',
     account_number: 'AccountNumberField',
     expense_account: 'ExpenseAccountField',
+    legal_name: 'LegalNameField',
+    tax_id_type: 'TaxIdTypeField',
+    tax_id: 'TaxIdField',
 }
 
 const HALF_WIDTH = [
@@ -66,6 +77,8 @@ const HALF_WIDTH = [
     'website',
     'terms',
     'account_number',
+    'tax_id_type',
+    'tax_id',
 ]
 
 function parsedHost() {
@@ -98,7 +111,7 @@ describe('books:vendor forms host', () => {
         expect(host.builtin.every(b => b.storage === 'column')).toBe(true)
     })
 
-    it('draws the contact, address, terms, account number and expense account built-ins with Books components in a cell', () => {
+    it('draws the contact, address, terms, account number, expense account and 1099 detail built-ins with Books components in a cell', () => {
         const host = parsedHost()
         const custom = host.builtin.filter(b => b.kind === 'custom')
         expect(Object.fromEntries(custom.map(b => [b.key, b.component]))).toEqual(CUSTOM_COMPONENTS)
@@ -117,6 +130,29 @@ describe('books:vendor forms host', () => {
                 BUILTINS.map(([key]) => [key, HALF_WIDTH.includes(key) ? 'half' : 'full'])
             )
         )
+    })
+
+    // The rule is in the stored default form, so an admin edits it in Settings → Forms
+    // like any rule.
+    it('seeds the hide_1099_details rule: the 1099 details hide while tracking is off', () => {
+        const { rules } = defaultDefinitionFor(parsedHost())
+        expect(rules).toHaveLength(1)
+        const [rule] = rules
+        expect(rule.key).toBe('hide_1099_details')
+        expect(rule.when).toEqual([{ field: 'track_1099', op: 'is_false' }])
+        expect(rule.actions).toEqual([
+            { action: 'hide', field: 'legal_name' },
+            { action: 'hide', field: 'tax_id_type' },
+            { action: 'hide', field: 'tax_id' },
+        ])
+    })
+
+    // A core `toggle` built-in draws its own switch.
+    it('draws Track payments for 1099 with no Books component', () => {
+        const track = parsedHost().builtin.find(b => b.key === 'track_1099')
+        expect(track).toBeDefined()
+        expect(track?.kind).toBe('toggle')
+        expect(track?.component).toBeUndefined()
     })
 
     it('names only components the forms UI module provides', () => {

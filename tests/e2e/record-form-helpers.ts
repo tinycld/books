@@ -345,6 +345,46 @@ export function refusedWrites(message: string, method: 'PATCH' | 'POST' | 'DELET
     }
 }
 
+export type HeldWrite = { arrived: Promise<void>; release(): Promise<void> }
+
+// Holds the next `method` request on the routed URL; every other request passes.
+// `arrived` resolves once the write reaches the route; `release` sends it on to the
+// server and removes the route once its handler is done.
+export async function holdWrite(
+    page: Page,
+    url: string,
+    method: 'PATCH' | 'DELETE'
+): Promise<HeldWrite> {
+    let openGate = () => {}
+    const released = new Promise<void>(resolve => {
+        openGate = resolve
+    })
+    let arrive = () => {}
+    const arrived = new Promise<void>(resolve => {
+        arrive = resolve
+    })
+    let finish = () => {}
+    const finished = new Promise<void>(resolve => {
+        finish = resolve
+    })
+    const handler = async (route: Route) => {
+        if (route.request().method() !== method) return route.continue()
+        arrive()
+        await released
+        await route.continue()
+        finish()
+    }
+    await page.route(url, handler)
+    return {
+        arrived,
+        release: async () => {
+            openGate()
+            await finished
+            await page.unroute(url, handler)
+        },
+    }
+}
+
 export function refusalToast(page: Page, text: string) {
     return page.getByTestId('toast-card').filter({ hasText: text })
 }
@@ -507,39 +547,9 @@ export function recordFormHelpers(kind: RecordKind) {
         return `**${recordsPath}/${id}`
     }
 
-    // Holds the next PATCH or DELETE of one record; every other request passes.
-    // `arrived` resolves once the write reaches the route; `release` sends it on to the
-    // server and removes the route once its handler is done.
-    async function holdRecordWrite(page: Page, id: string, method: 'PATCH' | 'DELETE') {
-        const url = recordUrl(id)
-        let openGate = () => {}
-        const released = new Promise<void>(resolve => {
-            openGate = resolve
-        })
-        let arrive = () => {}
-        const arrived = new Promise<void>(resolve => {
-            arrive = resolve
-        })
-        let finish = () => {}
-        const finished = new Promise<void>(resolve => {
-            finish = resolve
-        })
-        const handler = async (route: Route) => {
-            if (route.request().method() !== method) return route.continue()
-            arrive()
-            await released
-            await route.continue()
-            finish()
-        }
-        await page.route(url, handler)
-        return {
-            arrived,
-            release: async () => {
-                openGate()
-                await finished
-                await page.unroute(url, handler)
-            },
-        }
+    // Holds the next PATCH or DELETE of one record (`holdWrite`).
+    function holdRecordWrite(page: Page, id: string, method: 'PATCH' | 'DELETE') {
+        return holdWrite(page, recordUrl(id), method)
     }
 
     // A click on the title moves focus off any input: react-native-web's TextInput stops
