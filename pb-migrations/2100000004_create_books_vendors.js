@@ -24,6 +24,10 @@
 // superuser does). The Go name check is one lookup on the unique name_key
 // index, and the index is the backstop for that check.
 //
+// SORT KEY. sort_key is the display name case- and accent-folded
+// (server/sort_keys.go). Only the Go guard sets it, on every create and update.
+// The vendors list sorts and pages on (sort_key, id), so it is not hidden.
+//
 // 1099. track_1099 marks a vendor for 1099 reporting; legal_name is the name
 // on its W-9, tax_id_type is ein or ssn (empty is none) and tax_id its tax ID.
 // Go (server/vendors.go) trims the legal name and stores the tax ID with the
@@ -101,11 +105,13 @@ migrate(
                     },
                     { name: 'fields', type: 'json', maxSize: 1000000 },
                     { name: 'name_key', type: 'text', hidden: true, max: 1000 },
+                    { name: 'sort_key', type: 'text', max: 1000 },
                     ...AUTODATES,
                 ],
                 indexes: [
                     'CREATE UNIQUE INDEX idx_books_vendors_name ON books_vendors (name_key)',
                     'CREATE INDEX idx_books_vendors_form ON books_vendors (form)',
+                    'CREATE INDEX idx_books_vendors_sort ON books_vendors (sort_key, id)',
                 ],
             })
         )

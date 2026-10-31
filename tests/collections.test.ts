@@ -74,12 +74,12 @@ describe('registerCollections', () => {
         expect(calls.get('books_journal_lines')?.omitOnInsert).toEqual(
             expect.arrayContaining(['posted', 'date', 'currency'])
         )
-        // The guard sets name_key on every write, so the client never sends it.
+        // The guard sets name_key and sort_key on every write, so the client never sends them.
         expect(calls.get('books_customers')?.omitOnInsert).toEqual(
-            expect.arrayContaining(['created', 'updated', 'name_key'])
+            expect.arrayContaining(['created', 'updated', 'name_key', 'sort_key'])
         )
         expect(calls.get('books_vendors')?.omitOnInsert).toEqual(
-            expect.arrayContaining(['created', 'updated', 'name_key'])
+            expect.arrayContaining(['created', 'updated', 'name_key', 'sort_key'])
         )
     })
 
@@ -99,14 +99,15 @@ describe('registerCollections', () => {
         expect(calls.get('books_vendors')?.relations).toBeUndefined()
     })
 
-    // The guard sets name_key and the server stamps currency, so the client
-    // never sends either on a product; a bundle row sends every column it has.
+    // The guard sets name_key and sort_key and the server stamps currency, so the client
+    // never sends them on a product; a bundle row sends every column it has.
     it('never inserts a product or bundle row column the server sets', () => {
         const { calls } = register()
         expect(calls.get('books_products')?.omitOnInsert).toEqual([
             'created',
             'updated',
             'name_key',
+            'sort_key',
             'currency',
         ])
         expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
