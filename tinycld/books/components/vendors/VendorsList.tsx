@@ -46,7 +46,7 @@ export function VendorsList({ openId }: { openId: string }) {
         menu: VENDOR_MENU,
     })
     const filters = useListFilters()
-    const source = useVendorsQuery({ search: filters.query, showInactive: filters.showInactive })
+    const source = useVendorsQuery(filters.listFilters)
     const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? VENDOR_LOAD_ERROR : null
     const dialog = (

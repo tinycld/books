@@ -52,7 +52,7 @@ export function CustomersList({ openId }: { openId: string }) {
         },
     })
     const filters = useListFilters()
-    const source = useCustomersQuery({ search: filters.query, showInactive: filters.showInactive })
+    const source = useCustomersQuery(filters.listFilters)
     const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? LOAD_ERROR : null
     // Unwrapped, the press event would reach `openNew(parentId?)` as a parent id.
