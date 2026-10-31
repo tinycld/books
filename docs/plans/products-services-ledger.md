@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/products-services-checkpoints.md
 - reference: docs/plans/products-services-reference/
 - evidence: docs/plans/products-services-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen, 2026-10-31)
 - capture manifest: docs/plans/products-services-capture.json
 - review mode: C — none (unattended)
 - core extension: checkpoint 0 on core branch books/p2-products-services (from main 1bda334) — per-component zod schema for custom built-ins on `FormHostUi`; human chose it 2026-10-30
@@ -265,6 +265,7 @@
 - review: 1 FIX accepted+fixed (failed `books.access` read also loaded forever → banner + `useBooksAccess.retry`, `PRODUCT_ACCESS_LOAD_ERROR`, union error props); NOTEs accepted+fixed: wrong `unrouteAll` comment → `page.unroute`, chooser uses `switchNewType`, docstring reflow
 - fix review: 1 FIX accepted+fixed (no e2e for the access-error branch → access read 400 test added); otherwise clean
 - check: 3205 vitest passed, biome + tsc clean
+- commit: 56ed35e; main merge c3635fc (vendor-1099 #23; 9 conflicts kept both; `useRecordSave` RuleInputs takes the rendered product definition); CI full suite green at c3635fc; finish.mjs --screen --e2e-passed-at=c3635fc clean (check 3327)
 
 ## Final review
 - eval: revise (2026-10-31, "i accept all items"): approved, with both open decisions answered yes — (1) "Save and new" opens the next form with the type just saved, not the URL's type; (2) when the accounts query fails, the new-product page shows an error with Retry, not endless loading. Retro items 1-7 approved. Human: skip local e2e, CI verifies (PR #24).
