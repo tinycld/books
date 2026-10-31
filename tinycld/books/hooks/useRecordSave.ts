@@ -1,5 +1,7 @@
 import type { Transaction } from '@tanstack/react-db'
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
+import type { TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
+import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import type { useFormCreate, useFormEdit } from '@tinycld/core/ui/forms'
 import { useNavigation } from 'expo-router'
@@ -9,7 +11,9 @@ import type { ViewInstance } from 'react-native'
 import type { ColumnsParse } from '../lib/record-columns'
 import {
     columnsOrThrow,
+    hasRecordChanges,
     insertRow,
+    rowRefusalHandler,
     runLocked,
     saveRefusalHandler,
     startFailed,
@@ -17,6 +21,18 @@ import {
 
 type CreateForm = ReturnType<typeof useFormCreate>
 type EditForm = ReturnType<typeof useFormEdit>
+
+export type RecordRowWrite = { label: string | null; run(): Transaction<Record<string, unknown>> }
+
+export type RecordRowsConfig = {
+    createPlans(tables: Record<string, TableRow[]>): Record<string, TableWritePlan>
+    writes(recordId: string, plans: Record<string, TableWritePlan>): RecordRowWrite[]
+    onPartialCreate(recordId: string, error: unknown): void
+}
+
+// Where a save's writes got to, read by its refusal handler: a row refused after the
+// record's insert landed is not a refused record.
+type SaveProgress = { recordId: string; inserted: boolean; rowLabel: string | null }
 
 export type RecordSaveConfig<C extends Record<string, unknown>> = {
     // The built-in columns the form wrote, checked against the collection's columns.
@@ -34,6 +50,8 @@ export type RecordSaveConfig<C extends Record<string, unknown>> = {
     notSavedTitle: string
     // The root error of a throw before the write.
     clientSaveFailed: string
+    // A host table's rows, written after the record, one at a time.
+    rows?: RecordRowsConfig
 }
 
 // Whether the user still sees this form, asked when a save's answer arrives.
@@ -66,6 +84,8 @@ interface InsertInput<C> {
     formId: string
     fields: Record<string, unknown>
     andNew: boolean
+    plans: Record<string, TableWritePlan>
+    progress: SaveProgress
 }
 
 /**
@@ -82,11 +102,17 @@ function useCreateSave<C extends Record<string, unknown>>(
     isPresent: IsPresent
 ) {
     const lock = useRef(false)
+    const refused = saveRefusalHandler(create.form, create.onError, isPresent, closedFor(config))
     const insert = useMutation({
-        mutationFn: function* ({ columns, formId, fields }: InsertInput<C>) {
+        mutationFn: function* ({ columns, formId, fields, plans, progress }: InsertInput<C>) {
             yield config.insert(
-                insertRow(config.emptyColumns, columns, { id: newRecordId(), formId, fields })
+                insertRow(config.emptyColumns, columns, { id: progress.recordId, formId, fields })
             )
+            progress.inserted = true
+            for (const write of config.rows?.writes(progress.recordId, plans) ?? []) {
+                progress.rowLabel = write.label
+                yield write.run()
+            }
         },
         onSuccess: (_data, { andNew }) => {
             // Left before the insert landed, or Save and new: back to the starting values,
@@ -98,7 +124,14 @@ function useCreateSave<C extends Record<string, unknown>>(
             create.form.reset(create.form.getValues())
             leave()
         },
-        onError: saveRefusalHandler(create.form, create.onError, isPresent, closedFor(config)),
+        onError: (error, { progress }) => {
+            if (progress.inserted && config.rows) {
+                create.form.reset()
+                config.rows.onPartialCreate(progress.recordId, error)
+                return
+            }
+            refused(error)
+        },
         onSettled: () => {
             lock.current = false
         },
@@ -110,7 +143,15 @@ function useCreateSave<C extends Record<string, unknown>>(
             const split = await create.submit()
             if (!split) return false
             const columns = columnsOrThrow(config.columnsFrom, split.columns)
-            insert.mutate({ columns, formId: create.formId, fields: split.fields, andNew })
+            const plans = config.rows?.createPlans(split.tables) ?? {}
+            insert.mutate({
+                columns,
+                formId: create.formId,
+                fields: split.fields,
+                andNew,
+                plans,
+                progress: { recordId: newRecordId(), inserted: false, rowLabel: null },
+            })
             return true
         } catch (error) {
             return startFailed(error, create.form, failureFor(config, 'create'))
@@ -128,6 +169,8 @@ interface UpdateInput<C> {
     patch: C
     fields: Record<string, unknown>
     written: FormValues
+    plans: Record<string, TableWritePlan>
+    progress: { rowLabel: string | null }
 }
 
 // Read from the form's live field state, not the last render's: a field typed while the
@@ -151,15 +194,26 @@ function useEditSave<C extends Record<string, unknown>>(
     isPresent: IsPresent
 ) {
     const lock = useRef(false)
+    const refused = saveRefusalHandler(edit.form, edit.onError, isPresent, closedFor(config))
     const update = useMutation({
-        mutationFn: function* ({ id, patch, fields }: UpdateInput<C>) {
-            yield config.update(id, patch, fields)
+        mutationFn: function* ({ id, patch, fields, plans, progress }: UpdateInput<C>) {
+            if (hasRecordChanges(patch, fields)) yield config.update(id, patch, fields)
+            for (const write of config.rows?.writes(id, plans) ?? []) {
+                progress.rowLabel = write.label
+                yield write.run()
+            }
         },
         onSuccess: (_data, { written }) => {
             edit.markSaved(written)
             if (isPresent() && !hasUnsavedEdits(edit)) leave()
         },
-        onError: saveRefusalHandler(edit.form, edit.onError, isPresent, closedFor(config)),
+        onError: (error, { progress }) => {
+            if (progress.rowLabel !== null && isPresent()) {
+                rowRefusalHandler(edit.form, edit.onError, progress.rowLabel)(error)
+                return
+            }
+            refused(error)
+        },
         onSettled: () => {
             lock.current = false
         },
@@ -175,7 +229,14 @@ function useEditSave<C extends Record<string, unknown>>(
                 return false
             }
             const patch = columnsOrThrow(config.columnsFrom, result.columns)
-            update.mutate({ id: recordId, patch, fields: result.fields, written: result.written })
+            update.mutate({
+                id: recordId,
+                patch,
+                fields: result.fields,
+                written: result.written,
+                plans: result.tableWrites,
+                progress: { rowLabel: null },
+            })
             return true
         } catch (error) {
             return startFailed(error, edit.form, failureFor(config, 'update'))

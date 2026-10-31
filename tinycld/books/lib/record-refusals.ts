@@ -25,6 +25,17 @@ export function recordRefusalHandler(
 }
 
 /**
+ * The one text a refusal shows where its fields cannot: its own message, else its field
+ * messages joined. Null for a failure with no message (a network error).
+ */
+export function refusalMessage(error: unknown): string | null {
+    const message = messageOnlyRefusal(error)
+    if (message !== null) return message
+    const fields = extractValidationErrors(error)
+    return fields ? Object.values(fields).join(' ') : null
+}
+
+/**
  * The `onError` of a save whose form the user no longer sees: they left it while the
  * write was in flight. Only Cancel, the back button and Escape are disabled then; the
  * package rail, the tab bar, the search palette, another list row and the browser's or
@@ -38,9 +49,7 @@ export function closedRecordRefusalHandler(
     operation: string
 ): (error: unknown) => void {
     return error => {
-        const fields = extractValidationErrors(error)
-        const message =
-            messageOnlyRefusal(error) ?? (fields ? Object.values(fields).join(' ') : null)
+        const message = refusalMessage(error)
         if (message === null) {
             hostOnError(error)
             return

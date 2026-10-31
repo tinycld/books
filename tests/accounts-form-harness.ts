@@ -8,7 +8,12 @@ import {
     localOnlyCollectionOptions,
     type OperationType,
 } from '@tanstack/db'
-import type { OrgPkgAccess } from '@tinycld/core/types/pbSchema'
+import {
+    defaultDefinitionFor,
+    type FormHostDefInput,
+    hostDefSchema,
+} from '@tinycld/core/lib/forms/host'
+import type { Forms, OrgPkgAccess } from '@tinycld/core/types/pbSchema'
 import { ACCOUNTS, BALANCES } from '../tinycld/books/lib/chart-of-accounts-fixture'
 import type {
     BooksAccess,
@@ -970,6 +975,37 @@ export function seedBooks(
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
     })
+}
+
+// Registers `forms` holding one default form per host, as core's seed writes it, so core
+// `useFormCreate` / `useFormEdit` load a host's form from the store. Call after seedBooks,
+// which replaces the registry.
+export function seedFormRecords(hosts: readonly FormHostDefInput[]) {
+    const rows: Forms[] = hosts.map((input, index) => {
+        const host = hostDefSchema.parse(input)
+        return {
+            id: `form_${index + 1}`,
+            host: host.key,
+            name: host.label,
+            slug: host.key.replace(/[^a-z0-9]+/g, '-'),
+            definition: defaultDefinitionFor(host),
+            is_default: true,
+            archived: false,
+            order: 0,
+            created: '2026-01-01 00:00:00.000Z',
+            updated: '2026-01-01 00:00:00.000Z',
+        }
+    })
+    state.registry.forms = local<Forms>('forms', rows)
+}
+
+// Registers a collection under `name` whose writes go through the shared handler, so
+// enteredWrites, refuseNthWrite, holdWrites and the other refusal helpers see them. Call
+// after seedBooks, which replaces the registry.
+export function guardedStore<T extends { id: string }>(name: string, rows: T[]) {
+    const collection = guarded<T>(name, rows)
+    state.registry[name] = collection
+    return collection
 }
 
 export function accountsStore() {

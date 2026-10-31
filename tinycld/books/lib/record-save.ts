@@ -2,7 +2,7 @@ import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { log } from '@tinycld/core/lib/logger'
 import type { UseFormReturn } from 'react-hook-form'
 import type { ColumnsParse } from './record-columns'
-import { closedRecordRefusalHandler, recordRefusalHandler } from './record-refusals'
+import { closedRecordRefusalHandler, recordRefusalHandler, refusalMessage } from './record-refusals'
 
 export type RefusalForm = Pick<UseFormReturn<FormValues>, 'setError'>
 
@@ -63,6 +63,32 @@ export function saveRefusalHandler(
         if (isPresent()) onForm(error)
         else onClosed(error)
     }
+}
+
+// A host table's refused row, named by its label, goes on the root, because no field of
+// the form names one cell. A failure with no message (a network error) goes to the host's
+// handler.
+export function rowRefusalHandler(
+    form: RefusalForm,
+    hostOnError: (error: unknown) => void,
+    rowLabel: string
+): (error: unknown) => void {
+    return error => {
+        const message = refusalMessage(error)
+        if (message === null) {
+            hostOnError(error)
+            return
+        }
+        form.setError('root', { type: 'server', message: `${rowLabel}: ${message}` })
+    }
+}
+
+// Whether an edit writes the record itself: a dirty column, or a custom field.
+export function hasRecordChanges(
+    patch: Record<string, unknown>,
+    fields: Record<string, unknown>
+): boolean {
+    return Object.keys(patch).length > 0 || Object.keys(fields).length > 0
 }
 
 // The row a create inserts: the empty columns are the base, so a column the form left
