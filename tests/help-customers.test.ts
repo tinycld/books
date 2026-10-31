@@ -45,6 +45,14 @@ describe('help/customers.md', () => {
         expect(body).toMatch(/search[^\n]*display name[^\n]*company[^\n]*email/i)
     })
 
+    it('says the app search matches the start of words', () => {
+        expect(body).toContain('It matches words that start with what you type')
+    })
+
+    it('says the list loads more customers as you scroll', () => {
+        expect(body).toContain('The list loads more customers as you scroll down.')
+    })
+
     it('explains sub-customers and the Parent customer field', () => {
         expect(body).toContain('Add sub-customer')
         expect(body).toContain('Parent customer')
