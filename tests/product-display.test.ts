@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { productListCopy, productsEmptyHint } from '../tinycld/books/lib/product-display'
+import {
+    productListCopy,
+    productsEmptyHint,
+    productTitle,
+} from '../tinycld/books/lib/product-display'
 
 const WRITER_HINT = 'Add what you sell and what you buy.'
 const READER_HINT = 'Products and services appear here once a bookkeeper adds them.'
@@ -27,5 +31,23 @@ describe('productListCopy', () => {
 
     it("gives a read-only user the reader's hint", () => {
         expect(productListCopy(false).emptyHint).toBe(READER_HINT)
+    })
+})
+
+describe('productTitle', () => {
+    it('names a writer the action and the noun of the type', () => {
+        expect(productTitle('service', { mode: 'new', canWrite: true })).toBe('New service')
+        expect(productTitle('non_inventory', { mode: 'edit', canWrite: true })).toBe(
+            'Edit non-inventory item'
+        )
+        expect(productTitle('bundle', { mode: 'edit', canWrite: true })).toBe('Edit bundle')
+    })
+
+    it('gives a read-only user the noun alone, capitalized', () => {
+        expect(productTitle('service', { mode: 'edit', canWrite: false })).toBe('Service')
+        expect(productTitle('non_inventory', { mode: 'edit', canWrite: false })).toBe(
+            'Non-inventory item'
+        )
+        expect(productTitle('bundle', { mode: 'edit', canWrite: false })).toBe('Bundle')
     })
 })

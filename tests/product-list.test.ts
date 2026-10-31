@@ -49,6 +49,13 @@ const PRICED_BUNDLE = row({
     purchases: true,
 })
 
+// The server stamps `currency` on create, so an optimistic insert has none until the
+// server answers.
+function withoutCurrency(source: Row): Row {
+    const { currency: _currency, ...rest } = source
+    return rest as Row
+}
+
 // The row type says sku is a string, but a row can arrive without it.
 function withoutSku(source: Row): Row {
     const { sku: _sku, ...rest } = source
@@ -149,6 +156,24 @@ describe('productCostText', () => {
 
     it('is blank for a cost of 0', () => {
         expect(productCostText(row({ id: 'prodzerocost001', name: 'Zero', cost: 0 }))).toBe('')
+    })
+})
+
+describe('a row with no currency yet (an optimistic insert)', () => {
+    const pending = withoutCurrency(ACCESS_POINT)
+
+    it('shows the price and cost amounts without "undefined"', () => {
+        expect(pending.currency).toBeUndefined()
+        const price = productPriceText(pending)
+        const cost = productCostText(pending)
+        expect(price).not.toContain('undefined')
+        expect(cost).not.toContain('undefined')
+        expect(price).toContain('189.00')
+        expect(cost).toContain('121.40')
+    })
+
+    it('shows the card type line without "undefined"', () => {
+        expect(productTypeLine(pending)).not.toContain('undefined')
     })
 })
 
