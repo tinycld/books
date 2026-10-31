@@ -49,6 +49,10 @@ describe('help/vendors.md', () => {
         )
     })
 
+    it('says the app search matches the start of words', () => {
+        expect(body).toContain('It matches words that start with what you type')
+    })
+
     it('links the 1099 tracking topic', () => {
         expect(body).toContain('help://books:1099-tracking')
     })

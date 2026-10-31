@@ -118,6 +118,13 @@ describe('help/products-services.md', () => {
         )
     })
 
+    it('explains finding a product from the app search', () => {
+        expect(body).toContain(
+            'To find a product or service from anywhere in the app, use the app search.'
+        )
+        expect(body).toContain('It matches words that start with what you type')
+    })
+
     it('gives the phone paths: All lists back to Lists, and the round + button', () => {
         expect(body).toMatch(/(?=[^.\n]*\bphone\b)(?=[^.\n]*\bAll lists\b)[^.\n]*\bback to Lists\b/)
         expect(body).toMatch(/(?=[^.\n]*\bphone\b)(?=[^.\n]*\bNew\b)[^.\n]*round \+ button/i)
