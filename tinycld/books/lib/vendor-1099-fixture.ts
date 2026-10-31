@@ -1,12 +1,9 @@
-// Synthetic 1099 data for the seed (seed.ts) and the helix reference route.
+// Synthetic 1099 data for the seed (seed.ts) and the helix reference route,
+// which reads these names.
 //
-// The 1099 columns do not exist yet. The migrations checkpoint of
-// vendor-1099 (planned as checkpoint 1: it edits 2100000001, 2100000002 and
-// 2100000004 in place) adds them. Until then the rows are typed against the
-// local `*1099Columns` interfaces below, which mirror the spec's Data section.
-// That checkpoint must delete these interfaces and type the rows with
-// `satisfies` against the generated `BooksVendors`, `BooksAccounts` and
-// `BooksSettings` (../types), so tsc checks every column against the schema.
+// The rows are typed with `satisfies` against the generated `BooksVendors`,
+// `BooksAccounts` and `BooksSettings` (../types), so tsc checks every 1099
+// column against the migrations.
 //
 // Accounts are the seeded e2e book's (lib/seed-accounts.ts), named by number;
 // vendors are the seeded vendors of lib/vendor-form-fixture.ts, named by id.
@@ -14,51 +11,20 @@
 // 18, 79) and the SSN is in the range the SSA reserves for examples
 // (987-65-4320 to 987-65-4329), so none can be a real person's or business's.
 
-import type { BooksAccounts } from '../types'
+import type { BooksAccounts, BooksSettings, BooksVendors } from '../types'
+import type { ColumnOf } from './fixture-columns'
+import { isExpenseGroupType } from './form-1099'
 import { SEED_ACCOUNTS } from './seed-accounts'
 import { VENDOR_IDS, VENDORS, type VendorFixtureRecord } from './vendor-form-fixture'
 
-export type Box1099Key =
-    | 'nec_1'
-    | 'misc_1'
-    | 'misc_2'
-    | 'misc_3'
-    | 'misc_5'
-    | 'misc_6'
-    | 'misc_8'
-    | 'misc_9'
-    | 'misc_10'
-    | 'misc_11'
-
-export type TaxIdType = 'ein' | 'ssn'
-
-// books_vendors (migration 2100000004). An empty select is "none".
-export interface Vendor1099Columns {
-    track_1099: boolean
-    legal_name: string
-    tax_id_type: TaxIdType | ''
-    tax_id: string
-}
-
-// books_accounts (migration 2100000002). Empty is "Not reported".
-export interface Account1099Columns {
-    form_1099_box: Box1099Key | ''
-}
-
-// books_settings (migration 2100000001): integer cents.
-export interface Settings1099Columns {
-    threshold_1099: number
-}
+export type { Box1099Key } from './form-1099'
+export type { TaxIdType } from './tax-id'
 
 // The migration's settings row: $2,000.00 (packet Q6).
-export const SETTINGS_1099 = { threshold_1099: 200000 } satisfies Settings1099Columns
-
-const UNTRACKED: Vendor1099Columns = {
-    track_1099: false,
-    legal_name: '',
-    tax_id_type: '',
-    tax_id: '',
-}
+export const SETTINGS_1099 = { threshold_1099: 200000 } satisfies Pick<
+    BooksSettings,
+    'threshold_1099'
+>
 
 // The ids of the tracked vendors, by the edge each one shows.
 export const TRACKED_VENDOR_IDS = {
@@ -77,7 +43,7 @@ export const TRACKED_VENDOR_IDS = {
 } as const
 
 // The values the seed writes on each tracked vendor, stored (dashed) form.
-export const VENDOR_1099_PATCHES: ({ id: string } & Vendor1099Columns)[] = [
+export const VENDOR_1099_PATCHES = [
     {
         id: TRACKED_VENDOR_IDS.ein,
         track_1099: true,
@@ -114,7 +80,10 @@ export const VENDOR_1099_PATCHES: ({ id: string } & Vendor1099Columns)[] = [
         tax_id_type: 'ein',
         tax_id: '79-6614408',
     },
-]
+] satisfies ({ id: string } & Pick<
+    BooksVendors,
+    ColumnOf<BooksVendors, 'track_1099' | 'legal_name' | 'tax_id_type' | 'tax_id'>
+>)[]
 
 // A patch naming a vendor the vendor fixture does not seed is a fixture bug.
 for (const patch of VENDOR_1099_PATCHES) {
@@ -123,33 +92,29 @@ for (const patch of VENDOR_1099_PATCHES) {
     }
 }
 
-export type Vendor1099Row = VendorFixtureRecord & Vendor1099Columns
+export type Vendor1099Row = VendorFixtureRecord
 
 // Every seeded vendor with its 1099 columns, as the vendors collection will
-// hold them after the seed: untracked vendors keep the defaults.
+// hold them after the seed: untracked vendors keep the fixture's defaults.
 export const VENDORS_1099: Vendor1099Row[] = VENDORS.map(vendor => ({
     ...vendor,
-    ...UNTRACKED,
     ...VENDOR_1099_PATCHES.find(patch => patch.id === vendor.id),
 }))
 
 // No vendor is tracked: the 1099 vendors card's empty state.
-export const UNTRACKED_VENDORS_1099: Vendor1099Row[] = VENDORS.map(vendor => ({
-    ...vendor,
-    ...UNTRACKED,
-}))
+export const UNTRACKED_VENDORS_1099: Vendor1099Row[] = VENDORS
 
 // The boxes the seed sets, by seed account number. 6200 Software
 // Subscriptions stays Not reported while its sub-account 6210 Design Tools
 // has its own box (a sub-account does not take its parent's). 6900 Old Petty
 // Cash is inactive and keeps its box, so the card lists it dimmed; its box has
 // the longest label, to exercise wrapping in the select.
-export const ACCOUNT_BOXES: { number: string; form_1099_box: Box1099Key | '' }[] = [
+export const ACCOUNT_BOXES = [
     { number: '6100', form_1099_box: 'misc_1' },
     { number: '6200', form_1099_box: '' },
     { number: '6210', form_1099_box: 'nec_1' },
     { number: '6900', form_1099_box: 'misc_8' },
-]
+] satisfies { number: string; form_1099_box: BooksAccounts['form_1099_box'] }[]
 
 for (const box of ACCOUNT_BOXES) {
     if (!SEED_ACCOUNTS.some(account => account.number === box.number)) {
@@ -159,9 +124,11 @@ for (const box of ACCOUNT_BOXES) {
 
 export type Account1099Row = Pick<
     BooksAccounts,
-    'id' | 'name' | 'number' | 'type' | 'parent' | 'inactive'
-> &
-    Account1099Columns
+    ColumnOf<
+        BooksAccounts,
+        'id' | 'name' | 'number' | 'type' | 'parent' | 'inactive' | 'form_1099_box'
+    >
+>
 
 // Every seeded account with its box, as the accounts collection will hold
 // them after the seed. The seed's account key stands in for the id the server
@@ -178,11 +145,6 @@ export const ACCOUNTS_1099: Account1099Row[] = SEED_ACCOUNTS.map(account => ({
 
 // A book with no Cost of goods sold, Expense or Other expense account: the
 // mapping card's empty state.
-const EXPENSE_GROUP: readonly BooksAccounts['type'][] = [
-    'cost_of_goods_sold',
-    'expense',
-    'other_expense',
-]
 export const NO_EXPENSE_ACCOUNTS_1099: Account1099Row[] = ACCOUNTS_1099.filter(
-    account => !EXPENSE_GROUP.includes(account.type)
+    account => !isExpenseGroupType(account.type)
 )

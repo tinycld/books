@@ -157,6 +157,7 @@ export function useAccountImport(existing: ExistingAccount[]) {
                 parent,
                 description: row.description,
                 inactive: row.inactive,
+                form_1099_box: '',
             })
         },
     })

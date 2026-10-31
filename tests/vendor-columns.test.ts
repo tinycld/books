@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import hosts from '../tinycld/books/forms/hosts'
 import { EMPTY_ADDRESS } from '../tinycld/books/lib/address'
 import {
+    EMPTY_1099_COLUMNS,
     EMPTY_VENDOR_COLUMNS,
     EMPTY_VENDOR_FIELDS,
     vendorColumnsFrom,
@@ -137,6 +138,25 @@ describe('EMPTY_VENDOR_COLUMNS', () => {
         expect(insert.terms).toBe('')
         expect(insert.expense_account).toBe('')
         expect(insert.inactive).toBe(false)
+    })
+
+    // Until the vendor form has the 1099 fields, every insert stores them untracked
+    // and empty, so pbtsdb's insert type (every column) is met.
+    it('stores a new vendor untracked for 1099, with no legal name and no tax ID', () => {
+        const result = vendorColumnsFrom({ display_name: 'Acme' })
+        expect(result.success).toBe(true)
+        if (!result.success) return
+        const insert = { ...EMPTY_VENDOR_COLUMNS, ...result.columns }
+        expect(insert.track_1099).toBe(false)
+        expect(insert.legal_name).toBe('')
+        expect(insert.tax_id_type).toBe('')
+        expect(insert.tax_id).toBe('')
+        expect(EMPTY_1099_COLUMNS).toEqual({
+            track_1099: false,
+            legal_name: '',
+            tax_id_type: '',
+            tax_id: '',
+        })
     })
 })
 

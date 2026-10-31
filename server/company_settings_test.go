@@ -127,3 +127,28 @@ func TestCompanySettings_CurrencyStaysPinned(t *testing.T) {
 		},
 	}.run(t, app)
 }
+
+// The 1099 reporting threshold is integer cents: the migration's row starts it
+// at $2,000.00, and the schema refuses a negative, a fraction of a cent and an
+// amount above the largest exact float64 integer.
+func TestCompanySettings_ThresholdIsWholeCentsInRange(t *testing.T) {
+	app := newBooksApp(t)
+	if got := reload(t, app, "books_settings", "bookssettings01").GetFloat("threshold_1099"); got != 200000 {
+		t.Fatalf("seeded threshold_1099 = %v, want 200000", got)
+	}
+	if err := setFields(t, app, "books_settings", settingsID, map[string]any{"threshold_1099": float64(150000)}); err != nil {
+		t.Fatalf("save threshold_1099 150000: %v", err)
+	}
+	if got := reload(t, app, "books_settings", settingsID).GetFloat("threshold_1099"); got != 150000 {
+		t.Fatalf("threshold_1099 = %v, want 150000", got)
+	}
+	for _, refused := range []float64{-1, 1.5, 9007199254740992} {
+		t.Run(fmt.Sprint(refused), func(t *testing.T) {
+			err := setFields(t, app, "books_settings", settingsID, map[string]any{"threshold_1099": refused})
+			requireSchemaRefusal(t, err, "threshold_1099")
+			if got := reload(t, app, "books_settings", settingsID).GetFloat("threshold_1099"); got != 150000 {
+				t.Fatalf("threshold_1099 = %v after a refused %v, want 150000", got, refused)
+			}
+		})
+	}
+}

@@ -24,15 +24,52 @@
 (none yet)
 
 ## Design notes
-(none yet)
+- cp 0 · reviewer A NOTE: `RegisterCollection` wiring (`config.Redact` into the update/delete hooks, audit.go) has no core test; `RegisterCollection` takes `*pocketbase.PocketBase`, which `NewTestApp` is not. Checkpoint 3's Books tests (`TestAudit_RedactsAVendorTaxIDChange`, `TestAudit_RedactsADeletedVendorsTaxID`) cover it end to end.
+- cp 0 · reviewer A + B NOTE: a `Redact` name that matches no field (typo, later rename) silently logs the value; no warning. Optional: warn at serve time when a `Redact` name is not a field.
+- cp 0 · reviewer A NOTE: the hidden-field diff shape changed from `{"redacted": true}` to the full marker map for every core collection; the only reader (`app/a/(app)/settings/audit-log.tsx:470-471`) keys on `redacted`. Harmless.
+- cp 0 · reviewer B (out of scope, for the human): `core/docs/audit-log.md` lines 20-50 and 86 (old content) name feature packages and their collections (contacts, calendar_*, drive_*, mail_*, `packages/contacts/server/register.go`) inside core; check:core-isolation does not scan core/docs.
+- cp 1 · reviewer A NOTE: `tests/migration-field.ts` `migrationField` does not skip `//` comments; an apostrophe in a comment inside a field object breaks the parse (fails loudly, never passes silently).
+- cp 1 · reviewer A + B NOTE: comments in lib/form-1099.ts and migrations 2100000001/2/4 name `server/form1099.go`, its Go drift test, the box/type guard, the vendors.go trim/dash, and Settings → 1099s, which arrive in cp2 and cp5; the cp2 and cp5 reviewers must confirm the names match.
+- cp 1 · reviewer A NOTE: between cp1 and cp3, `tax_id` writes (the seed's superuser updates, a raw PATCH) are audit-logged unredacted; no UI path writes it before cp4; branch-internal only.
+- cp 1 · reviewer A NOTE: the `...EMPTY_VENDOR_COLUMNS` spread in useVendorForm.ts is type-only (runtime already gets the keys); cp4 removes it as planned.
+- cp 1 · reviewer A NOTE (for cp4): `EMPTY_1099_COLUMNS` uses `satisfies`, so its type keeps literals (`tax_id_type: ''`, `track_1099: false`) and the `EMPTY_VENDOR_COLUMNS` intersection carries them; if cp4 types a value from it, declare an explicit `Pick<…>` annotation.
+- cp 1 · reviewer B NIT: server/company_settings_test.go:225 uses the literal "bookssettings01" where the same test uses `settingsID`; the plan wrote the literal.
 
 ## Out-of-plan changes
-(none yet)
+- cp 1: `tests/migration-field.ts` (test helper) — shared migration-field parser for the drift tests in form-1099.test.ts and tax-id.test.ts; added by the cp1 test writer; weakens no test.
+- cp 0: `core/docs/audit-log.md` (core) — Redacted fields section and the `CollectionConfig` API list updated for `Redact` and the new marker map (reviewer B finding 2; the doc of the API this checkpoint changes).
 
 ## Phase notes
 - design gate (2026-10-30, books 91ce648, core 1bda334): direction A (Settings → 1099s, one row per expense account with a box select that saves on choose). Packet open questions Q1-Q15 accepted as recommended. Q16 overlap: p2-products-services (lane default) owns `HostSelect` and moves it to `forms/account-fields.tsx`; the human chose to build now — import it from where it lives on main at build time, else only add `export` in `forms/vendor-fields.tsx`; the unit that merges second fixes the import. Needs-extension audit `Redact` accepted (core checkpoint 0). No [platform] items. Packet: ~/tmp/tinycld/auto-helix-books/staging/p3-vendor-1099/packet.md; artboards: same folder, artboards.html.
 - phase 3 (2026-10-30, unattended, no human corrections): direction A. Sparks dropped: none. Spark "missing tax ID stands out" kept with other classes: global.css defines no `warning-soft` token, so the spec's `bg-warning-soft` / `text-warning-soft-foreground` chip drew no fill (dark text on dark); the chip is now `rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5` with `text-xs font-medium text-foreground` (core PendingBadge's fill, foreground text). Fixture: tinycld/books/lib/vendor-1099-fixture.ts (local `*1099Columns` interfaces until the migrations checkpoint replaces them with the generated types; 5 tracked vendors: Willamette EIN, Okafor SSN, Keystone Legal attorney, Greenline missing tax ID, Old Town Print inactive; boxes 6100 misc_1, 6200 none, 6210 nec_1, 6900 inactive misc_8; threshold 200000). Reference: docs/plans/vendor-1099-reference/ (capture manifest docs/plans/vendor-1099-capture.json), 390 and 1280, light and dark: settings-admin, settings-writer, settings-read-only, settings-refusal (6100 write pending, 6210 refused), settings-empty-accounts, settings-empty-vendors, settings-loading, settings-error, settings-list (390 only: the 1099s row and its summary), vendor-tracking-on (Keystone, EIN), vendor-tracking-off (Office Supply World). Unsure: (1) the section's place in the list: the route puts 1099s before Access, as artboard A does; the spec says only "a fifth entry". (2) Core SelectInput draws no disabled look, so the pending row in settings-refusal looks like the others. (3) The phone Settings scroller gets FAB clearance in the route (`useFabClearanceStyle`); the real SettingsShell has none, so the last vendor row can sit under the New FAB — the plan should add it in SettingsShell. (4) The vendor form route leaves out the contact and address fields and shows the New FAB at 390 (the real vendor page hides it). (5) Phone account rows indent the select with the label; wide rows indent the label only. (6) The threshold input is capped at 360 px wide.
 - phase 4 (2026-10-30, unattended): plan docs/plans/vendor-1099-checkpoints.md, 8 checkpoints (0 core audit Redact; 1 columns/fixture/seed; 2 tax ID and box guards; 3 legal-name search + tax ID redaction; 4 vendor form fields; 5 Settings 1099s + threshold; 6 account box mapping; 7 1099 vendors card + help). E2E budget 12 of 12. Plan review (~/tmp/tinycld/auto-helix-books/staging/p3-vendor-1099/cp/plan-review.md): A1-A9, B1-B6, C1-C3, D1-D6, E1-E3, F1-F2 fixed (F3/F4 nothing). Driver rulings: F1 cp1 adds the 1099 keys only to EMPTY_VENDOR_COLUMNS (plus a `...EMPTY_VENDOR_COLUMNS` spread in useVendorForm insert that cp4 removes); A7 spec bullet now says the audit-log screen shows `[redacted]` (core screen already does; unchanged); threshold schema keeps text and `thresholdCents` converts (spec "Where it lives" updated); stale opening-balances scratch `tests/e2e/helix-states.spec.ts` moved out to staging (it broke tsc and matched -g helix). plan-check --unattended exit 0. review mode: C.
+- checkpoint 0 (2026-10-30, core branch books/p3-vendor-1099): audit `CollectionConfig.Redact` added with no core version bump and no `peerVersions` change (Books is unreleased; the field is optional). Before the first Books release, bump core and pin Books' `peerVersions` to the core version that has `Redact` (Decisions, "Core version").
+
+## Checkpoint 0
+- test writer: core/server/audit/redact_test.go (fictional `gadgets` collection); red for the right reason: yes (build failure naming only cp0's names: RedactedValue, variadic ComputeDiff/BuildSnapshot, logUpdate's []string); untestable: none. One extra check beyond the bullets: a hidden field gets the full marker map with no Redact list (the Produces line says so).
+- implementer: CollectionConfig.Redact, RedactedValue, isRedacted(field, redact), variadic ComputeDiff/BuildSnapshot, RegisterCollection passes redact to both hooks, logUpdate redact param, package comment; DONE
+- test disputes: none
+- self-declared differences: doc comments of ComputeDiff/BuildSnapshot/isRedacted updated to match; package comment names three redaction sources; ledger Phase-notes line (Do step 6)
+- gate 1: tests unedited: yes · pass (go test ./audit/..., go vet, gofmt, core tinycld-pkg check 3042 passed, check:core-isolation 0 refs, books/server go build)
+- gate 2: n/a (logic)
+- gate 3 A (correctness): no BLOCK; 4 NOTEs → Design notes, except NOTE 3 (label not redacted) fixed as a one-line doc comment on Redact
+- gate 3 B (conformance): 1 audit.go package comment named the contacts package → accepted+fixed (neutral pointer to docs/audit-log.md); 2 core/docs/audit-log.md stale for Redact → accepted+fixed (Out-of-plan changes); 3 old package names in core/docs/audit-log.md → out of scope, Design notes for the human; 4 note → Design notes
+- fix review: round 1: clean (no BLOCK) · NOTE 2 (pointer path did not resolve) and the doc's contacts register.go example (NOTE 1, one line in a touched file) fixed as text; the per-package tables stay in Design notes
+- reviewer-caught deferrals: none
+- commit: core 8a1c40cc (books/p3-vendor-1099); core origin/main bd001d13 merged after, check green; PR tinycld/tinycld#408
+- human: approved the #408 merge (2026-10-30). CI first red on npm audit (joi GHSA-4528-x5fx-h6hg, high, new advisory): fixed at the source, core/package-versions.json joi floor 17.13.7 → 17.13.9 (5d334a33); all checks green; merged as core 4ed6a7af.
+
+## Checkpoint 1
+- test writer: tests/form-1099.test.ts, tax-id.test.ts, vendor-1099-fixture.test.ts, migration-field.ts (helper), vendor-host.test.ts, vendor-columns.test.ts, server/company_settings_test.go, plus the tsc fixes in 6 test files; red for the right reason: yes (missing modules, missing generated fields, 18 vs 22 columns, seeded threshold 0); untestable: none
+- implementer: 3 migrations edited in place, lib/form-1099.ts, lib/tax-id.ts, host columns, EMPTY_1099_COLUMNS, useVendorForm insert spread, vendor() defaults, fixture on generated types, seed1099, 4 account inserts + fixture literals; DONE
+- test disputes: none
+- self-declared differences: useAccountForm insert multi-line; `isExpenseGroupType` via `.some`; TAX_ID_TYPE_OPTIONS built from TAX_ID_TYPES; seed1099 skips '' boxes; migration 2100000004 header names the cp2 guard (as Do step 1 asks); 2100000002 gets a header paragraph and the field comment; biome formatting
+- gate 1: tests unedited: yes · pass (tinycld-pkg check 148 files / 3009 tests; go test ./...; implementer's seed boot: vendor-form-list.spec.ts 2 passed, seed log shows 3 account boxes and 5 vendor 1099 updates)
+- gate 2: n/a (logic)
+- gate 3 A (correctness): no BLOCK; 6 NOTEs → Design notes (one is the out-of-plan helper, recorded)
+- gate 3 B (conformance): 1 tests/migration-field.ts out of plan → accepted (Out-of-plan changes); 2 forward-looking comments → Design notes; 3 nit → Design notes
+- fix review: n/a (no fix touched source)
+- reviewer-caught deferrals: none
 
 ## Final review
 - eval:
