@@ -31,9 +31,29 @@ jobs:
       #    from bootstrap's embedded templates, clones the tinycld member (app
       #    shell + core + package-scripts) as a sibling. The PR's PACKAGE dir is
       #    already there and is skipped.
+      - name: Resolve sibling refs
+        id: sibling
+        run: |
+          # Work that spans core and this package lives on the SAME branch name
+          # in every repo. Assembling core from its default branch would build
+          # this PR against a core that lacks the branch's own APIs.
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          for repo in tinycld; do
+            if [ -n "$BRANCH" ] && \
+               git ls-remote --exit-code --heads "https://github.com/tinycld/$repo" "$BRANCH" >/dev/null 2>&1; then
+              echo "${repo}_ref=@$BRANCH" >> "$GITHUB_OUTPUT"
+              echo "$repo -> $BRANCH"
+            else
+              echo "${repo}_ref=" >> "$GITHUB_OUTPUT"
+              echo "$repo -> (default branch)"
+            fi
+          done
       - name: Assemble workspace (tinycld + this package)
         working-directory: ws
-        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
+        run: |
+          TINYCLD_REPO_BASE=https://github.com/tinycld \
+            npx @tinycld/bootstrap@latest --assemble-only \
+            --with "tinycld${{ steps.sibling.outputs.tinycld_ref }}"
       # 4. Now switch to the version the assembled workspace pins (ws/.node-version
       #    is written by the assemble step above).
       - uses: actions/setup-node@v5
@@ -95,9 +115,29 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
+      - name: Resolve sibling refs
+        id: sibling
+        run: |
+          # Work that spans core and this package lives on the SAME branch name
+          # in every repo. Assembling core from its default branch would build
+          # this PR against a core that lacks the branch's own APIs.
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          for repo in tinycld; do
+            if [ -n "$BRANCH" ] && \
+               git ls-remote --exit-code --heads "https://github.com/tinycld/$repo" "$BRANCH" >/dev/null 2>&1; then
+              echo "${repo}_ref=@$BRANCH" >> "$GITHUB_OUTPUT"
+              echo "$repo -> $BRANCH"
+            else
+              echo "${repo}_ref=" >> "$GITHUB_OUTPUT"
+              echo "$repo -> (default branch)"
+            fi
+          done
       - name: Assemble workspace (tinycld + this package)
         working-directory: ws
-        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
+        run: |
+          TINYCLD_REPO_BASE=https://github.com/tinycld \
+            npx @tinycld/bootstrap@latest --assemble-only \
+            --with "tinycld${{ steps.sibling.outputs.tinycld_ref }}"
       # Switch to the version the assembled workspace pins.
       - uses: actions/setup-node@v5
         with:
