@@ -154,8 +154,8 @@ E2e `tests/e2e/trial-balance.spec.ts`, desktop 1280 and phone 390×844 where the
 5. **Drill-down** (desktop): open the expense row: its lines show labelled "<date> · <entry number> · <memo>" with their amounts by sign.
 6. **Live update** (desktop): page A shows As of Today; page B (same context) posts to a new account; page A shows the row without a reload.
 7. **Retained earnings** (desktop): post an entry dated two calendar years ago on a new Income account; As of Today: the Income account has no row and the Retained earnings row sits among the equity accounts; As of Custom = that day: the Income account shows the amount in Credit.
-8. **Period and empty** (desktop, phone): Custom 1900-01-01 → "No rows as of Jan 1, 1900" with "Show end of last fiscal year"; the URL keeps `p-asOf`; no history entry is added.
-9. **Phone layout** (phone): the four columns scroll sideways inside the table; the page has no horizontal scroll.
+8. **Period and empty** (desktop, phone): Custom 1900-01-01 → "No rows as of January 1, 1900" with "Show end of last fiscal year"; the URL keeps `p-asOf`; no history entry is added. (Corrected 2026-11-04: core's `emptyMessage` writes the day in words.)
+9. **Phone layout** (phone): each account row wraps onto two lines inside the table (the label, then No., Debit and Credit), and neither the table nor the page scrolls sideways. (Corrected 2026-11-04: checkpoint 0's E14, added by the human after this spec was written, wraps a row that is too wide instead of scrolling it.)
 
 Who sees the report is covered by the share-sync Go tests and by core's e2e of an unpublished shipped report reached through a share (E10). Vitest: `shell-nav`, `books-sidebar` (the entry's href and params), `help-reports` (headings, the `help://core:reports` link), `starter-chart` (3900 in the owners' chart).
 
