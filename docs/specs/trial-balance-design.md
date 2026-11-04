@@ -21,7 +21,7 @@ Books registers its report sources and ships the Trial Balance as an engine repo
 ## 2. Where it lives
 
 - **Report:** core's report view `/a/reports/<id>`, from core's hub `/a/reports`. Books adds no screen and no route.
-- **Books sidebar "Reports"** (desktop sidebar, phone Books menu) opens `/a/reports?package=books` (strip "Showing reports from Books", "Show all reports").
+- **Books sidebar "Reports"** (desktop sidebar, phone Books menu) opens `/a/reports?package=books` (strip "Showing reports from Books", "Show all reports"). That package hub has no tabs: it lists every Books report the reader can open (own, shared, published), so every Books reader sees the Trial Balance there without pressing a tab (core change D2, 2026-11-04).
 - **Removed:** `/a/books/reports`, `/a/books/reports/<report>` and every file of the Books shell copy (§6).
 - **Server:** Books' Go `Register(app)` registers the sources, the shipped report and the share sync. Core changes of checkpoint 0 (§4) land first, on branch `books/p5-trial-balance` in `tinycld`.
 
@@ -34,7 +34,7 @@ Books registers its report sources and ships the Trial Balance as an engine repo
 - **Params (chips, in this order):**
   - **As of** (`asOf`, type `asOf`), default End of last month; presets Today, End of last month, End of last quarter, End of last fiscal year, Custom. Fiscal periods start in the Books fiscal start month, read at each run. Chip `report-param-asOf`.
   - **Rows** (`rows`, `choice`), options **Non-zero** (default), **Active**, **All**. Non-zero: accounts whose balance is not zero. Active: accounts with a posted line on or before the day (a balance that is not zero implies one). All: every active account, and any inactive account with a posted line. Chip `report-param-rows`.
-  - **Accounts** (`accounts`, `choice`, multiple, options from `books.accounts` grouped by account type, E8), no default, under Add filter. The picker searches by name and offers "All <type> accounts" per type. Chip `report-param-accounts`, removable.
+  - **Accounts** (`accounts`, `choice`, multiple, options from `books.accounts` grouped by account type, E8), no default, under Add filter. The picker searches by name and offers "All <type> accounts" per type (core `optionsFrom.groupLabel` "All {group} accounts", D1). Chip `report-param-accounts`, removable.
 - **Rows read:** posted journal lines dated on or before the as-of day (Q1). Drafts never count; a void and its reversal cancel.
 - **One row per account** (a record group on the line's account, E4), labelled with the account's full name ("Cash and bank:Business checking", Q4). The group key is the account id, so two accounts never merge (closes revision 1's Q12 edge).
 - **Columns** (direction A): **Account · No. · Debit · Credit**.
@@ -113,7 +113,7 @@ Built in Go from `account_types.json`. `PL` = the types whose group is income or
 - `params`:
   - `{ id: asOf, type: asOf, label: "As of", default: { preset: endOfLastMonth } }`
   - `{ id: rows, type: choice, label: "Rows", options: [nonzero "Non-zero", active "Active", all "All"], default: "nonzero" }`
-  - `{ id: accounts, type: choice, label: "Accounts", multiple: true, optionsFrom: { source: books.accounts, value: [id], label: [full_name], group: [type] } }`
+  - `{ id: accounts, type: choice, label: "Accounts", multiple: true, optionsFrom: { source: books.accounts, value: [id], label: [full_name], group: [type], groupLabel: "All {group} accounts" } }` (`groupLabel`: core's D1 field, 2026-11-04)
 - Named pieces (inlined): `net` = `sub([debit], [credit])`; `priorPL` = `and( in([account,type], PL), lt( fiscalYear([date]), fiscalYear({param asOf}) ) )`; `reAccount` = `lookup( source books.accounts, where eq([detail_type], "retained_earnings"), value [id], pick min )`.
 - `filter`: `and( eq([posted], true), lte([date], {param asOf}), in({col account}, {param accounts}) )`.
 - `columns`:
@@ -163,7 +163,7 @@ Who sees the report is covered by the share-sync Go tests and by core's e2e of a
 
 - Accrual/Cash toggle, Display columns by, comparison columns — the shell's Trial Balance did not use them; later report units own them.
 - Exports (CSV, PDF, email) — later units (Books spec, Scope).
-- Books' hub sections ("For my accountant") — core's hub has tabs; the Books strip takes their place.
+- Books' hub sections ("For my accountant") — core's package hub lists Books' reports in one list; the Books strip takes their place.
 
 ## 9. Platform notes
 
