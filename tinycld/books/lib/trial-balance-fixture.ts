@@ -66,7 +66,7 @@ export const PRIOR_YEAR_SEED = {
     day: '08-15',
     memo: 'Prior-year consulting',
     lines: [
-        ['checking', 300000, 0],
+        ['receivable', 300000, 0],
         ['consulting', 0, 300000],
     ] as [string, number, number][],
 }
@@ -126,8 +126,8 @@ export const TRIAL_BALANCE_ACCOUNTS: TrialBalanceAccount[] = [
 // lines (it shows only under Rows = All); Old Petty Cash nets to zero (Active shows
 // 0.00, Non-zero hides it). Debit and credit balances each add to 33,649.00.
 const NET: Record<string, number | null> = {
-    checking: 2520000,
-    receivable: 450000,
+    checking: 2220000,
+    receivable: 750000,
     equipment: 210000,
     card: -114900,
     equity: -2500000,
@@ -141,7 +141,6 @@ const NET: Record<string, number | null> = {
 
 // The opened account's posted lines, labelled "<date> · <entry number> · <memo>".
 const CHECKING_LINES = [
-    { id: 'tbline000000001', label: '2024-08-15 · JE-1 · Prior-year consulting', net: 300000 },
     { id: 'tbline000000002', label: '2026-01-02 · JE-2 · Owner investment', net: 2500000 },
     { id: 'tbline000000003', label: '2026-01-05 · JE-3 · January rent', net: -180000 },
     { id: 'tbline000000004', label: '2026-03-12 · JE-6 · Card payment', net: -100000 },
