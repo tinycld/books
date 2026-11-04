@@ -11,7 +11,7 @@
 - scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
 - capture manifest: docs/plans/trial-balance-capture.json
 - review mode: C — none (unattended)
-- core extension: report engine spec v2 (E1–E13) and the report formula editor (OQ2) — tinycld PR (pending, branch books/p5-trial-balance); checkpoint 0, merges before checkpoint 1; MAJOR, `exclusive` held by lane purchases until it merges. Runs as writing-plans → the human's plan review → subagent-driven development → core PR.
+- core extension: report engine spec v2 (E1–E14) and the report formula editor (OQ2) — tinycld PR https://github.com/tinycld/tinycld/pull/424 (merged 2026-11-03, ba0eb769); checkpoint 0, merges before checkpoint 1; MAJOR, `exclusive` held by lane purchases until it merges. Runs as writing-plans → the human's plan review → subagent-driven development → core PR.
 - sparks:
   - none — the report renders in core's report view (`ReportDocumentHeader`, ruled Total row); no spark to carry
 
@@ -37,7 +37,8 @@
 ## Checkpoint 0 (core, tinycld branch books/p5-trial-balance) — must merge before checkpoint 1
 - scope: E1 `Field.TextDay`; E2 `columns[].total: "rows"`; E3 `groups[].having`; E4 record groups (`record` leaf, `groups[].label`, `groups[].fill`); E5 `sort[].formula`; E6 `lookup`; E7 `detail.label`; E8 `params[].optionsFrom` + `POST /api/reports/param-options`; E9 `Source.Heading` / result `heading`; E10 `Shipped.Unpublished`; E11 report e2e helpers exported via `@tinycld/core/e2e-helpers`; E12 spec version 2 + builder round-trip; E13 `groups[].open`; OQ2 report formula editor. Spec §4 has each change's engine, schema, client, builder and help parts.
 - exclusive: held by lane purchases (MAJOR: spec v2, run and builder draft contracts, a forms-engine prop)
-- status: not started — writing-plans next, then STOP for the human's plan review
+- status: merged 2026-11-03 (PR #424, ba0eb769); tasks 0–28 + 25e, 27a, final review and fix wave; `exclusive` released
+- flash-list fork PRs: #1 (squash 8364a161) and #2 (squash 265c951d) merged; core pins 265c951d. Follow-up fork PR: isMomentumEnd correctedDataRef guard + a test hook for reports-scroll-anchor (replaces the React fiber walk)
 
 ## Final review
 - eval:
