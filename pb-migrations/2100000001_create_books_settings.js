@@ -20,7 +20,9 @@
 // next_number inside the posting transaction (server/numbering.go); an admin
 // may edit the prefix and move next_number forward (server/sequences.go
 // refuses moving it back over issued numbers). Later phases add a row per
-// document type here while this migration is unreleased.
+// document type here while this migration is unreleased. Transfers number on
+// their own (TR-1, TR-2) so a transfer never shares a number with a journal
+// entry; a record id is exactly 15 characters, hence booksseqtransfr.
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -105,7 +107,13 @@ migrate(
             updateRule: `${ADMIN} && ${unset('doc_type')}`,
             deleteRule: null,
             fields: [
-                { name: 'doc_type', type: 'select', required: true, maxSelect: 1, values: ['journal'] },
+                {
+                    name: 'doc_type',
+                    type: 'select',
+                    required: true,
+                    maxSelect: 1,
+                    values: ['journal', 'transfer'],
+                },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
                 {
                     name: 'next_number',
@@ -126,6 +134,12 @@ migrate(
         journal.set('prefix', '')
         journal.set('next_number', 1)
         app.save(journal)
+        const transfer = new Record(sequences)
+        transfer.set('id', 'booksseqtransfr')
+        transfer.set('doc_type', 'transfer')
+        transfer.set('prefix', 'TR-')
+        transfer.set('next_number', 1)
+        app.save(transfer)
 
         app.save(
             new Collection({

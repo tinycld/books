@@ -172,6 +172,113 @@ func TestReverse_Refusals(t *testing.T) {
 	})
 }
 
+// reversalDraftAs is reversalDraft with the reversal's doc_type chosen by the test.
+func reversalDraftAs(t testing.TB, app core.App, target *core.Record, date, docType string) *core.Record {
+	t.Helper()
+	return saveRecord(t, app, "books_journal_entries", map[string]any{
+		"date": date, "status": "draft", "doc_type": docType, "origin": "reversal", "reverses": target.Id,
+	})
+}
+
+// transferDraft saves a draft transfer whose line 0 credits from and line 1
+// debits to, the order server/transfers.go reads.
+func transferDraft(t testing.TB, app core.App, date string, from, to *core.Record, amount int) *core.Record {
+	t.Helper()
+	entry := saveRecord(t, app, "books_journal_entries", map[string]any{
+		"date": date, "status": "draft", "doc_type": "transfer", "origin": "manual", "currency": "USD",
+	})
+	saveRecord(t, app, "books_journal_lines", map[string]any{
+		"entry": entry.Id, "account": from.Id, "credit": amount, "position": 0, "currency": "USD",
+	})
+	saveRecord(t, app, "books_journal_lines", map[string]any{
+		"entry": entry.Id, "account": to.Id, "debit": amount, "position": 1, "currency": "USD",
+	})
+	return entry
+}
+
+func requireSequenceNext(t testing.TB, app core.App, id string, want int) {
+	t.Helper()
+	if n := reload(t, app, "books_doc_sequences", id).GetInt("next_number"); n != want {
+		t.Errorf("%s next_number = %d, want %d", id, n, want)
+	}
+}
+
+// A reversal posts under its own doc_type's sequence and keeps that type, so a
+// reversal of another type would number a transfer's mirror as a journal entry
+// (or the reverse) and show it as the wrong kind of document.
+func TestReverse_MustHaveTheSameDocumentType(t *testing.T) {
+	const want = "A reversal must have the same document type as the entry it reverses."
+	cases := []struct {
+		name, reversalType string
+		target             func(t *testing.T, env *ledgerEnv) *core.Record
+		// The sequences after the refusal: only the target's post took a number.
+		journalNext, transferNext int
+	}{
+		{
+			name:         "a journal entry reversed by a transfer",
+			reversalType: "transfer",
+			target: func(t *testing.T, env *ledgerEnv) *core.Record {
+				return mustPost(t, env.app, env.sale(t, "2026-05-10", 100).Id, "")
+			},
+			journalNext:  2,
+			transferNext: 1,
+		},
+		{
+			name:         "a transfer reversed by a journal entry",
+			reversalType: "journal",
+			target: func(t *testing.T, env *ledgerEnv) *core.Record {
+				savings := mkAccount(t, env.app, "Savings", "bank", "savings")
+				return mustPost(t, env.app, transferDraft(t, env.app, "2026-05-10", env.checking, savings, 100).Id, "")
+			},
+			journalNext:  1,
+			transferNext: 2,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newLedgerEnv(t)
+			target := tc.target(t, env)
+			rev := reversalDraftAs(t, env.app, target, "2026-06-01", tc.reversalType)
+			requireRefused(t, setStatus(env.app, rev.Id, statusPosted, ""), want)
+			if r := reload(t, env.app, "books_journal_entries", rev.Id); r.GetString("status") != statusDraft || r.GetString("number") != "" {
+				t.Errorf("reversal after a refused post: %v", r.PublicExport())
+			}
+			if posted, err := postedReversalOf(env.app, target.Id); err != nil || posted != nil {
+				t.Errorf("posted reversal %v (err %v), want none", posted, err)
+			}
+			if s := reload(t, env.app, "books_journal_entries", target.Id).GetString("status"); s != statusPosted {
+				t.Errorf("target status %s after a refused reversal", s)
+			}
+			requireSequenceNext(t, env.app, "booksseqjournal", tc.journalNext)
+			requireSequenceNext(t, env.app, "booksseqtransfr", tc.transferNext)
+			requireNoDrift(t, env.app)
+		})
+	}
+}
+
+func TestReverse_ATransferPostsMirrorLinesWithTheNextTransferNumber(t *testing.T) {
+	env := newLedgerEnv(t)
+	savings := mkAccount(t, env.app, "Savings", "bank", "savings")
+	original := mustPost(t, env.app, transferDraft(t, env.app, "2026-05-10", env.checking, savings, 2500).Id, "")
+	if original.GetString("number") != "TR-1" {
+		t.Fatalf("transfer number %s, want TR-1", original.GetString("number"))
+	}
+	rev := mustPost(t, env.app, reversalDraftAs(t, env.app, original, "2026-06-01", "transfer").Id, "")
+	if rev.GetString("number") != "TR-2" || rev.GetString("doc_type") != "transfer" {
+		t.Fatalf("reversal = %v, want number TR-2 and doc_type transfer", rev.PublicExport())
+	}
+	lines, _ := entryLines(env.app, rev.Id)
+	if len(lines) != 2 || lines[0].GetString("account") != env.checking.Id || lines[0].GetInt("debit") != 2500 ||
+		lines[1].GetString("account") != savings.Id || lines[1].GetInt("credit") != 2500 {
+		t.Fatalf("mirror lines wrong: %v", lines)
+	}
+	requireBalance(t, env.app, env.checking, "2026-06", 2500, 0)
+	requireBalance(t, env.app, savings, "2026-06", 0, 2500)
+	requireSequenceNext(t, env.app, "booksseqtransfr", 3)
+	requireSequenceNext(t, env.app, "booksseqjournal", 1)
+	requireNoDrift(t, env.app)
+}
+
 func TestEdit_PostsTheCorrectionUnderTheSameNumber(t *testing.T) {
 	env := newLedgerEnv(t)
 	original := mustPost(t, env.app, env.sale(t, "2026-05-10", 5000).Id, "")

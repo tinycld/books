@@ -1,14 +1,10 @@
-// Synthetic transfers for the helix reference route and, later, the seed and tests.
+// Synthetic transfers for the helix reference route, the seed (TRANSFER_SEED) and tests.
 // Plain data: typed against the generated record types so tsc checks every field.
+// It imports only types, because the seed graph runs in plain node (tests/seed-node.test.ts).
 // Amounts are integer minor units (cents). A transfer is a journal entry with two
 // lines: position 0 credits the From account, position 1 debits the To account.
 // Accounts are the seeded e2e book's (lib/seed-accounts.ts), by number.
 import type { BooksAccounts, BooksJournalEntries, BooksJournalLines } from '../types'
-
-// The generated `doc_type` allows only 'journal' until the migration checkpoint adds
-// 'transfer' to books_journal_entries.doc_type (2100000002) and books_doc_sequences
-// (2100000001). That checkpoint replaces this type with BooksJournalEntries.
-type TransferEntry = Omit<BooksJournalEntries, 'doc_type'> & { doc_type: 'transfer' }
 
 export const TRANSFER_CURRENCY = 'USD'
 // "Today" for the reference captures, so the default date is stable.
@@ -46,9 +42,8 @@ export const TRANSFER_ACCOUNT_IDS = {
 
 const IDS = TRANSFER_ACCOUNT_IDS
 
-// The seeded chart, plus 1010 Business Savings, which a later checkpoint adds to
-// lib/seed-accounts.ts. Receivable, income and expense accounts are here so a
-// picker built from this list shows that they are not offered.
+// A subset of the seeded chart (lib/seed-accounts.ts). Receivable, income and expense accounts
+// are here so a picker built from this list shows that they are not offered.
 export const TRANSFER_ACCOUNTS = [
     account({
         id: IDS.checking,
@@ -137,10 +132,10 @@ export const TRANSFER_USER_NAMES: Record<string, string> = {
     user_dev: 'Dev Patel',
 }
 
-type EntrySeed = Pick<TransferEntry, 'id' | 'date' | 'number' | 'memo' | 'total'> &
-    Partial<Pick<TransferEntry, 'status' | 'replaces' | 'posted_at' | 'voided_at'>>
+type EntrySeed = Pick<BooksJournalEntries, 'id' | 'date' | 'number' | 'memo' | 'total'> &
+    Partial<Pick<BooksJournalEntries, 'status' | 'replaces' | 'posted_at' | 'voided_at'>>
 
-function transfer(seed: EntrySeed): TransferEntry {
+function transfer(seed: EntrySeed): BooksJournalEntries {
     const status = seed.status ?? 'posted'
     const isDraft = status === 'draft'
     return {
@@ -227,10 +222,10 @@ export const TRANSFERS = [
         status: 'draft',
         replaces: TRANSFER_IDS.posted,
     }),
-] satisfies TransferEntry[]
+] satisfies BooksJournalEntries[]
 
 function lines(
-    entry: TransferEntry,
+    entry: BooksJournalEntries,
     from: string,
     to: string
 ): [BooksJournalLines, BooksJournalLines] {
@@ -260,6 +255,19 @@ export const TRANSFER_LINES = {
     [CORRECTION.id]: lines(CORRECTION, IDS.equity, IDS.savings),
     [EDIT_DRAFT.id]: lines(EDIT_DRAFT, IDS.checking, IDS.savings),
 } satisfies Record<string, BooksJournalLines[]>
+
+// The seed (seed.ts) posts this transfer, and the e2e specs find it by its memo.
+// Numbers are seed-accounts.ts accounts: Business Checking to Business Savings.
+export const TRANSFER_SEED = {
+    memo: 'Seed transfer to savings',
+    amount: 150_000,
+    fromNumber: '1000',
+    toNumber: '1010',
+} as const satisfies Pick<BooksJournalEntries, 'memo'> & {
+    amount: number
+    fromNumber: string
+    toNumber: string
+}
 
 // The form's values as it holds them: account ids and the typed text.
 export interface TransferFormFixture {
