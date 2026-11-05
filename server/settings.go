@@ -51,7 +51,8 @@ func registerSettingsGuard(app core.App) {
 	// Serialized with posting: an entry that posts after the pending
 	// auto-reversal check would otherwise slip under the new close date.
 	app.OnRecordUpdate("books_settings").BindFunc(func(e *core.RecordEvent) error {
-		return serialized(e, func(tx core.App) error {
+		completing := false
+		return serializedThen(e, func(tx core.App) error {
 			// The stored row, not Original(): a caller that saved and changed
 			// the record again without reloading carries a stale Original().
 			stored, err := tx.FindRecordById("books_settings", e.Record.Id)
@@ -59,10 +60,22 @@ func registerSettingsGuard(app core.App) {
 				return fmt.Errorf("read settings: %w", err)
 			}
 			closeDate := e.Record.GetString("close_date")
-			if closeDate == stored.GetString("close_date") {
+			if closeDate != stored.GetString("close_date") {
+				if err := checkCloseDate(tx, closeDate); err != nil {
+					return err
+				}
+			}
+			completing = !stored.GetBool("setup_completed") && e.Record.GetBool("setup_completed")
+			return nil
+		}, func(tx core.App) error {
+			// A skipped starter chart, or one made by hand or imported, may
+			// hold no retained-earnings account when setup completes. This
+			// runs after the write, so the number follows the ownership that
+			// the same write saves.
+			if !completing {
 				return nil
 			}
-			return checkCloseDate(tx, closeDate)
+			return ensureRetainedEarnings(tx)
 		})
 	})
 	app.OnRecordDelete("books_settings").BindFunc(func(e *core.RecordEvent) error {

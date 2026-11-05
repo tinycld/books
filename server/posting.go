@@ -72,6 +72,17 @@ func postEntry(tx core.App, entry *core.Record, now time.Time) error {
 	if err != nil {
 		return err
 	}
+	// Inside the post's transaction: a refusal later in this post rolls the
+	// new account back with it.
+	touchesPL, err := touchesProfitAndLoss(tx, lines)
+	if err != nil {
+		return err
+	}
+	if touchesPL {
+		if err := ensureRetainedEarnings(tx); err != nil {
+			return err
+		}
+	}
 	seq, number, err := numberFor(tx, entry, reversed, now)
 	if err != nil {
 		return err
@@ -98,6 +109,25 @@ func stampPosted(tx core.App, entry *core.Record, lines []*core.Record, day stri
 	entry.Set("total", total)
 	entry.Set("posted_at", now)
 	return nil
+}
+
+// touchesProfitAndLoss reports whether a line posts to an income or expense
+// account, whose earlier years the Trial Balance folds onto retained earnings.
+func touchesProfitAndLoss(tx core.App, lines []*core.Record) (bool, error) {
+	for _, line := range lines {
+		account, err := tx.FindRecordById("books_accounts", line.GetString("account"))
+		if err != nil {
+			return false, fmt.Errorf("books: read the account of a line: %w", err)
+		}
+		t, ok := accountType(account.GetString("type"))
+		if !ok {
+			return false, refuse("%s is not an account type.", account.GetString("type"))
+		}
+		if t.Group == "income" || t.Group == "expense" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func entryLines(app core.App, entryID string) ([]*core.Record, error) {

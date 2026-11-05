@@ -27,11 +27,15 @@ You need bookkeeper access to change accounts. With read-only access you can loo
 
 ## Make an account inactive
 
-An inactive account stays in your books but you cannot post to it. To make an account inactive, open the menu on its row and choose Make inactive. To do the same for several accounts, select them with the checkboxes and choose Make inactive from Batch actions. To use an inactive account again, turn on Show inactive and choose Make active in its menu.
+An inactive account stays in your books but you cannot post to it. To make an account inactive, open the menu on its row and choose Make inactive. To do the same for several accounts, select them with the checkboxes and choose Make inactive from Batch actions. To use an inactive account again, turn on Show inactive and choose Make active in its menu. You cannot make the Retained earnings account inactive.
+
+## The Retained earnings account
+
+Books needs exactly one Retained earnings account in every chart. If a chart has none, Books adds one when setup finishes, or when you first post to an income or expense account. You cannot make this account inactive, delete it or change it to another type. To change it, rename it or change its number.
 
 ## Delete an account
 
-To delete an account, open the menu on its row and choose Delete. An account that has journal lines or sub-accounts cannot be deleted. The dialog tells you why and offers Make inactive instead.
+To delete an account, open the menu on its row and choose Delete. An account that has journal lines or sub-accounts cannot be deleted. The dialog tells you why and offers Make inactive instead. You cannot delete the Retained earnings account. Books needs exactly one, so rename it instead.
 
 ## Import accounts from a CSV file
 
@@ -43,7 +47,7 @@ To add many accounts at once, choose Import on the Chart of Accounts page. The i
 
 A Parent cell can hold the full path, for example `Cash and bank:Operating checking`, or just a name when only one account has it. Inactive accepts yes, no, true, false, 1 or 0.
 
-If the server refuses a row, the import stops. The page shows how many rows were imported, the row that failed as Row N, its name and the reason. Fix the file and import it again: rows that already exist are skipped, so nothing is added twice.
+If the server refuses a row, the import stops. The page shows how many rows were imported, the row that failed as Row N, its name and the reason. Fix the file and import it again: rows that already exist are skipped, so nothing is added twice. Books refuses a row that would be a second Retained earnings account, and the import stops at that row.
 
 Imported balances are not supported.
 

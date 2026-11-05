@@ -6,7 +6,7 @@ import type { BooksAccountBalances, BooksAccounts } from '../types'
 type AccountSeed = Pick<BooksAccounts, 'id' | 'name' | 'type' | 'detail_type'> &
     Partial<Pick<BooksAccounts, 'number' | 'description' | 'inactive' | 'parent'>>
 
-function account(seed: AccountSeed): BooksAccounts {
+function account(seed: AccountSeed): Omit<BooksAccounts, 'full_name'> {
     return {
         number: '',
         description: '',
@@ -20,7 +20,21 @@ function account(seed: AccountSeed): BooksAccounts {
     }
 }
 
-export const ACCOUNTS = [
+// Gives each row the parent path the server keeps in `full_name`. Rows list a
+// parent before its children.
+export function withFullNames(rows: Omit<BooksAccounts, 'full_name'>[]): BooksAccounts[] {
+    const fullNames = new Map<string, string>()
+    return rows.map(row => {
+        const parentPath = row.parent ? fullNames.get(row.parent) : undefined
+        if (row.parent && parentPath === undefined)
+            throw new Error(`fixture: ${row.name} is listed before its parent`)
+        const full_name = parentPath === undefined ? row.name : `${parentPath}:${row.name}`
+        fullNames.set(row.id, full_name)
+        return { ...row, full_name }
+    })
+}
+
+export const ACCOUNTS = withFullNames([
     // Assets
     account({
         id: 'acct_bank_0001',
@@ -325,7 +339,7 @@ export const ACCOUNTS = [
         type: 'other_expense',
         detail_type: 'penalties_settlements',
     }),
-] satisfies BooksAccounts[]
+])
 
 type BalanceSeed = Pick<BooksAccountBalances, 'account' | 'period' | 'debit_total' | 'credit_total'>
 

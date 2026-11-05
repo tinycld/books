@@ -3,6 +3,7 @@ import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
+import { PRIOR_YEAR_SEED } from './lib/trial-balance-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
 import { VENDORS } from './lib/vendor-form-fixture'
 
@@ -131,6 +132,12 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     }
     await seedRegisterEntries(pb, ctx, ids)
     await seedJournalEntries(pb, ctx, ids)
+    // Two years back, so the Trial Balance folds it onto Retained earnings.
+    await postEntry(pb, ctx, ids, {
+        date: `${year - PRIOR_YEAR_SEED.yearsAgo}-${PRIOR_YEAR_SEED.day}`,
+        memo: PRIOR_YEAR_SEED.memo,
+        lines: PRIOR_YEAR_SEED.lines,
+    })
     await seedCustomers(pb)
     await seedVendors(pb, accountIds)
     await seedProducts(pb, accountIds)

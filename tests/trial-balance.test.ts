@@ -141,6 +141,7 @@ function testAccount(
         id,
         number,
         name,
+        full_name: name,
         type,
         detail_type,
         description: '',
@@ -429,6 +430,7 @@ describe('buildTrialBalance order and size', () => {
     it('follows the account tree, so a child account follows its parent', () => {
         const child = testAccount('rpt_acct_1900', '1900', 'Petty cash', 'bank', 'cash_on_hand', {
             parent: BANK,
+            full_name: 'Operating checking:Petty cash',
         })
         const model = build({
             accounts: [...REPORT_ACCOUNTS, child],

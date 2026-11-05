@@ -140,6 +140,7 @@ function account(
         id,
         number,
         name,
+        full_name: name,
         type,
         detail_type,
         description: '',
