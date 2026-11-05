@@ -37,6 +37,13 @@ describe('searchTarget', () => {
         })
     })
 
+    it('routes a transfer hit to the transfer screen', () => {
+        expect(searchTarget('transfer:abc')).toEqual({
+            path: 'books/transfers/[id]',
+            id: 'abc',
+        })
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('invoice:1')).toBeNull()
         expect(searchTarget('account:')).toBeNull()

@@ -5,6 +5,7 @@
 import { z } from '@tinycld/core/ui/form'
 import type { BooksAccounts, BooksJournalLines } from '../types'
 import { filteredAccountOptions } from './account-options'
+import { ownBalance } from './account-tree'
 import { type EntryFormLine, TOO_LARGE_TEXT } from './entry-lines'
 import { parseLineRefusal } from './entry-messages'
 import type { EntryFormValues } from './entry-schema'
@@ -168,6 +169,33 @@ export function transferAccountOptions(
     storedId: string
 ) {
     return filteredAccountOptions(accounts, storedId, isTransferAccount)
+}
+
+// The Chart of Accounts figure: the account's own posted balance, normal side positive.
+export function transferAccountBalance(row: {
+    type: string
+    debit_total: number
+    credit_total: number
+}): number {
+    return ownBalance(row.type, row.debit_total, row.credit_total)
+}
+
+export type TransferViewState = 'loading' | 'error' | 'not-found' | 'wrong-type' | 'ready'
+
+// Only a transfer a person made is shown here. Its void reversal keeps doc_type
+// 'transfer' but would read with From and To swapped, so it opens as a journal entry.
+export function transferViewState(input: {
+    isError: boolean
+    isReady: boolean
+    hasEntry: boolean
+    docType: string | undefined
+    origin: string | undefined
+}): TransferViewState {
+    if (input.isError) return 'error'
+    if (!input.isReady) return 'loading'
+    if (!input.hasEntry) return 'not-found'
+    if (input.docType !== 'transfer' || input.origin !== 'manual') return 'wrong-type'
+    return 'ready'
 }
 
 export function transferBalanceLine(

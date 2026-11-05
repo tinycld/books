@@ -178,9 +178,10 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
 }
 
-// The entry, customer, vendor and product forms and the entry view own the bottom of
-// the phone screen, so the New button stays off them. `/entries`, `/customers`,
-// `/vendors` and `/products` alone are the lists, which keep them.
+// The entry, customer, vendor, product and transfer forms and the entry and transfer
+// views own the bottom of the phone screen, so the New button stays off them.
+// `/entries`, `/customers`, `/vendors` and `/products` alone are the lists, which keep
+// them; transfers have no list.
 export function hidesNewFab(pathname: string): boolean {
-    return /\/books\/(entries|customers|vendors|products)\/[^/]+\/?$/.test(pathname)
+    return /\/books\/(entries|customers|vendors|products|transfers)\/[^/]+\/?$/.test(pathname)
 }

@@ -1,0 +1,86 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "actions": [
+                { "fill": "entries-search", "value": "Seed transfer to savings" },
+                { "pause": 800 },
+                { "clickText": "Seed transfer to savings" },
+                { "waitFor": "transfer-read-only" }
+            ]
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "fill": "entries-search", "value": "Seed transfer to savings" },
+                { "pause": 800 },
+                { "clickText": "Seed transfer to savings" },
+                { "waitFor": "transfer-read-only" }
+            ]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/transfers/doesnotexist000",
+            "ready": "transfer-not-found"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/transfers/doesnotexist000",
+            "ready": "transfer-loading",
+            "fakeRecords": { "collection": "books_journal_lines", "hold": true }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/transfers/doesnotexist000",
+            "ready": "transfer-error",
+            "fakeRecords": { "collection": "books_journal_lines", "status": 400 }
+        },
+        {
+            "name": "list",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "widths": [1280],
+            "schemes": ["light"],
+            "actions": [
+                { "fill": "entries-search", "value": "Seed transfer to savings" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "populated-drawer",
+            "url": "/a/books/accounts",
+            "widths": [1280],
+            "schemes": ["light"],
+            "actions": [
+                { "waitFor": "Business Savings" },
+                { "clickLabel": "Actions for Business Savings" },
+                { "clickText": "View register" },
+                { "waitFor": "Seed transfer to savings" },
+                { "clickText": "Seed transfer to savings" },
+                { "waitFor": "register-entry-drawer" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}
