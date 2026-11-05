@@ -28,7 +28,7 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 })
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
-silenceLog()
+const logSpies = silenceLog()
 
 // The real form, the real submit and the real save run together over the harness's
 // local-only collections; only the router callbacks are spies. The harness's `writeLog`
@@ -292,6 +292,74 @@ describe('useTransferSubmit: refusals', () => {
         expect(other.hook.result.current.errors.root?.message).toBe('Total is too large.')
         expect(other.hook.result.current.errors.root?.message).not.toContain('Memo is too long.')
         expect(other.onSaved).not.toHaveBeenCalled()
+    })
+})
+
+describe('useTransferSubmit: line refusals', () => {
+    // The status write is the fourth: the draft entry, its two lines, then `posted`.
+    async function refusedPost(message: string) {
+        seedBooks({
+            ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] },
+            refuseAfter: { after: 3, error: messageRefusal(message) },
+        })
+        const rendered = renderSubmit()
+        await act(async () => {
+            await rendered.hook.result.current.submit.post()
+        })
+        expect(rendered.onSaved).not.toHaveBeenCalled()
+        expect(rendered.hook.result.current.isSubmitted).toBe(true)
+        return rendered.hook.result.current.errors
+    }
+
+    it('puts a Line 2 refusal under To, without its prefix, and nothing in the summary', async () => {
+        const errors = await refusedPost('Line 2: account Old Petty Cash is inactive.')
+        expect(errors.root?.to?.message).toBe('account Old Petty Cash is inactive.')
+        expect(errors.root?.message).toBeUndefined()
+        expect(errors.root?.from).toBeUndefined()
+    })
+
+    it('puts a Line 1 refusal under From', async () => {
+        const errors = await refusedPost(
+            'Line 1: a transfer moves money out of this account, so it takes a credit.'
+        )
+        expect(errors.root?.from?.message).toBe(
+            'a transfer moves money out of this account, so it takes a credit.'
+        )
+        expect(errors.root?.to).toBeUndefined()
+        expect(errors.root?.message).toBeUndefined()
+    })
+
+    it('puts a refusal of another line in the summary, whole', async () => {
+        const errors = await refusedPost('Line 3: x.')
+        expect(errors.root?.message).toBe('Line 3: x.')
+        expect(errors.root?.from).toBeUndefined()
+        expect(errors.root?.to).toBeUndefined()
+    })
+})
+
+describe('useTransferSubmit: a refusal after leaving', () => {
+    it('logs a refusal that settles after the form unmounted and shows nothing', async () => {
+        const { warn } = logSpies
+        seedBooks({
+            ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] },
+            refuseAfter: { after: 0, error: messageRefusal(CLOSED) },
+        })
+        const release = holdWrites()
+        const { hook, onSaved } = renderSubmit()
+
+        let posting: Promise<void> = Promise.resolve()
+        act(() => {
+            posting = hook.result.current.submit.post()
+        })
+        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        hook.unmount()
+
+        release()
+        await posting
+
+        expect(warn).toHaveBeenCalledTimes(1)
+        expect(warn).toHaveBeenCalledWith('books.transfer', CLOSED)
+        expect(onSaved).not.toHaveBeenCalled()
     })
 })
 

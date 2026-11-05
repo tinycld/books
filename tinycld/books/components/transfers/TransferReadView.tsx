@@ -3,11 +3,17 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { ReadyTransferDetail } from '../../hooks/useTransferDetail'
+import { useTransferReadActions } from '../../hooks/useTransferReadActions'
 import { stampText } from '../../lib/entry-display'
 import { formatMoney } from '../../lib/money'
 import { formatDay } from '../../lib/register-range'
+import { EntryReadOnlyActions } from '../entries/EntryReadOnlyActions'
+import { VoidDialog } from '../entries/VoidDialog'
 import { FlowArrow } from './FlowArrow'
 import { TransferHeader } from './TransferHeader'
+
+// A transfer is corrected by Edit or Void; `reverse` is never among its actions.
+function noReverse() {}
 
 // A draft has no number until it is posted; only a reader sees a draft here.
 function transferTitle(number: string): string {
@@ -78,6 +84,7 @@ function ViewEntryLink({ entryId }: { entryId: string }) {
 export function TransferReadView({ detail }: { detail: ReadyTransferDetail }) {
     const isWide = useBreakpoint() !== 'mobile'
     const { entry, accounts, currency } = detail
+    const actions = useTransferReadActions(detail)
     const title = transferTitle(entry.number)
     const amountText = formatMoney(detail.amountCents, currency)
     const fromName = accounts.names.get(detail.from) ?? ''
@@ -98,6 +105,22 @@ export function TransferReadView({ detail }: { detail: ReadyTransferDetail }) {
                 <Stamp testID="transfer-voided-by" label="Voided by" stamp={voidStamp} />
                 <ViewEntryLink entryId={entry.id} />
             </ScrollView>
+            <EntryReadOnlyActions
+                isVisible
+                isWide={isWide}
+                actions={actions.actions}
+                onEdit={actions.onEdit}
+                onReverse={noReverse}
+                onVoid={actions.onVoid}
+            />
+            <VoidDialog
+                isVisible={actions.isVoidOpen}
+                entryNumber={actions.entryNumber}
+                isPending={actions.isVoiding}
+                errorMessage={actions.voidError}
+                onConfirm={actions.confirmVoid}
+                onCancel={actions.onClose}
+            />
         </View>
     )
 }

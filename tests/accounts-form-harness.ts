@@ -5,8 +5,10 @@
 import {
     BasicIndex,
     createCollection,
+    extractSimpleComparisons,
     localOnlyCollectionOptions,
     type OperationType,
+    type SimpleComparison,
 } from '@tanstack/db'
 import {
     defaultDefinitionFor,
@@ -600,6 +602,64 @@ function refusingOnDemandCollection<T extends { id: string }>(rows: T[], refusal
     })
 }
 
+// The value an equality comparison in a subset load names, by the last part of its field
+// path (a live query's alias is not part of the stored row).
+function rowMatches(row: object, comparisons: SimpleComparison[]) {
+    const values = row as Record<string, unknown>
+    return comparisons.every(c => values[String(c.field.at(-1))] === c.value)
+}
+
+// Loads journal entries on demand, as pbtsdb does: each subset load gets only the rows its
+// equality filter names. With `refuseOnceFor` set, the first load whose filter names that
+// entry id is refused with a 4xx that pbtsdb does not retry, so only the live query that
+// asked for that entry fails; the source stays ready and a later load of it succeeds.
+function onDemandEntriesCollection(rows: BooksJournalEntries[], refuseOnceFor?: string) {
+    counter += 1
+    const id = `books_journal_entries-on-demand-${counter}`
+    let isRefused = refuseOnceFor === undefined
+    return createCollection({
+        id,
+        getKey: (row: BooksJournalEntries) => row.id,
+        ...indexed,
+        syncMode: 'on-demand',
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                markReady()
+                return {
+                    loadSubset: async options => {
+                        const comparisons = extractSimpleComparisons(options.where).filter(
+                            c => c.operator === 'eq'
+                        )
+                        const namesRefused = comparisons.some(
+                            c => c.field.at(-1) === 'id' && c.value === refuseOnceFor
+                        )
+                        if (!isRefused && namesRefused) {
+                            isRefused = true
+                            throw refusedLoad(id)
+                        }
+                        begin()
+                        for (const value of rows) {
+                            if (rowMatches(value, comparisons)) write({ type: 'insert', value })
+                        }
+                        commit()
+                    },
+                }
+            },
+        },
+    })
+}
+
+function entriesCollectionFor(
+    opts: { entriesOnDemand?: boolean; entriesReadFailsOnceFor?: string },
+    rows: BooksJournalEntries[]
+) {
+    if (opts.entriesReadFailsOnceFor !== undefined) {
+        return onDemandEntriesCollection(rows, opts.entriesReadFailsOnceFor)
+    }
+    if (opts.entriesOnDemand) return onDemandEntriesCollection(rows)
+    return guarded<BooksJournalEntries>('books_journal_entries', rows)
+}
+
 function journalLine(account: string, position: number): BooksJournalLines {
     return {
         id: `line_${account}_${position}`,
@@ -895,6 +955,12 @@ export function seedBooks(
         // An access collection whose first load waits for releaseAccessReads(), so a test can see
         // a hook while the Books level loads and again once the seeded row has loaded.
         holdAccessRead?: boolean
+        // A journal-entries collection loaded on demand, as pbtsdb loads it: each read gets
+        // the rows its equality filter names. It takes no writes.
+        entriesOnDemand?: boolean
+        // As entriesOnDemand, but the first read whose filter names this entry id is refused
+        // with a 403, as pbtsdb refuses it; later reads of it succeed.
+        entriesReadFailsOnceFor?: string
         // Replaces the journal lines, entries, balances and settings rows, for the register tests.
         // `accounts`, when given, replaces the seeded accounts.
         ledger?: {
@@ -945,10 +1011,7 @@ export function seedBooks(
         books_accounts: accountsCollectionFor(opts),
         books_account_balances: balancesCollectionFor(opts, opts.ledger?.balances ?? BALANCES),
         books_journal_lines: linesCollectionFor(opts, opts.ledger?.lines ?? lines),
-        books_journal_entries: guarded<BooksJournalEntries>(
-            'books_journal_entries',
-            opts.ledger?.entries ?? []
-        ),
+        books_journal_entries: entriesCollectionFor(opts, opts.ledger?.entries ?? []),
         books_settings: settingsCollectionFor(opts, opts.ledger?.settings ?? []),
         books_doc_sequences: sequencesCollectionFor(opts, opts.sequences ?? []),
         books_access: accessCollectionFor(opts, opts.accessRows ?? [access]),

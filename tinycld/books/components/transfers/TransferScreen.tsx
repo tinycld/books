@@ -2,12 +2,12 @@ import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useFocusEffect, useIsFocused, useNavigation } from 'expo-router'
 import { StackActions } from 'expo-router/react-navigation'
 import { useCallback, useState } from 'react'
-import { View } from 'react-native'
 import { useTransferDetail } from '../../hooks/useTransferDetail'
 import { useTransferPostStore } from '../../stores/transfer-post-store'
 import { EntryNotice } from '../entries/EntryNotice'
 import { type HeldTransferDraft, TransferDraftScreen } from './TransferDraftScreen'
 import { TransferLoadError } from './TransferLoadError'
+import { TransferLoading } from './TransferLoading'
 import { TransferReadView } from './TransferReadView'
 
 // An entry that is not a transfer someone made opens on the journal entry screen. A stack
@@ -34,6 +34,8 @@ export function TransferScreen({ entryId }: { entryId: string }) {
     const isPostPending = useTransferPostStore(s => s.isPostPending)
     const isFocused = useIsFocused()
     const [held, setHeld] = useState<HeldTransferDraft | null>(null)
+    // A delete removes the row before the screen leaves; the draft screen stays up through it.
+    const [isDeleting, setDeleting] = useState(false)
     const isReady = detail.viewState === 'ready'
     const isDraftRow = isReady && detail.entry.status === 'draft'
     if (!held && isDraftRow && detail.canWrite) {
@@ -52,13 +54,14 @@ export function TransferScreen({ entryId }: { entryId: string }) {
         })
     }
     const isLoadingHere = detail.viewState === 'loading' && isFocused
-    if (held && (isPostPending || isDraftRow || isLoadingHere)) {
+    if (held && (isPostPending || isDeleting || isDraftRow || isLoadingHere)) {
         return (
             <TransferDraftScreen
                 key={held.entryId}
                 held={held}
                 flipped={isReady && !isDraftRow ? detail : null}
                 accounts={detail.accounts}
+                onDeleteBusyChange={setDeleting}
             />
         )
     }
@@ -68,9 +71,5 @@ export function TransferScreen({ entryId }: { entryId: string }) {
         return <EntryNotice testID="transfer-not-found" message="This transfer does not exist" />
     }
     if (detail.viewState === 'wrong-type') return <WrongTypeMove entryId={entryId} />
-    return (
-        <View testID="transfer-loading" className="flex-1 bg-background">
-            <LoadingState />
-        </View>
-    )
+    return <TransferLoading />
 }

@@ -1,5 +1,5 @@
 import { SelectInput } from '@tinycld/core/ui/form'
-import { useFormContext } from 'react-hook-form'
+import { useFormContext, useFormState } from 'react-hook-form'
 import { Text, View } from 'react-native'
 import type { useTransferAccounts } from '../../hooks/useTransferAccounts'
 import { type TransferFormValues, transferBalanceLine } from '../../lib/transfer'
@@ -20,6 +20,20 @@ function BalanceLine({ side, accounts, storedId, currency }: BalanceProps) {
     return (
         <Text testID={`transfer-balance-${side}`} className={`text-sm tabular-nums ${tone}`}>
             {text}
+        </Text>
+    )
+}
+
+// The server's refusal of this side's line ("Line 1" is From, "Line 2" is To), set as the
+// root error `root.<side>` so field validation does not clear it.
+function LineRefusal({ side }: { side: 'from' | 'to' }) {
+    const { control } = useFormContext<TransferFormValues>()
+    const { errors } = useFormState({ control })
+    const message = errors.root?.[side]?.message
+    if (!message) return null
+    return (
+        <Text testID={`transfer-refusal-${side}`} className="pt-1 text-xs text-danger">
+            {message}
         </Text>
     )
 }
@@ -54,6 +68,7 @@ export function TransferAccountField({
                 wrapperProps={{ style: { marginBottom: 4 } }}
             />
             <BalanceLine side={side} accounts={accounts} storedId={storedId} currency={currency} />
+            <LineRefusal side={side} />
         </View>
     )
 }
