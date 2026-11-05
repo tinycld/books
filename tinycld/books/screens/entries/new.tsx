@@ -4,9 +4,9 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
-import { Text, View } from 'react-native'
 import { EntryForm } from '../../components/entries/EntryForm'
-import { EntryBackLink, EntryHeader } from '../../components/entries/EntryHeader'
+import { EntryHeader } from '../../components/entries/EntryHeader'
+import { EntryNotice } from '../../components/entries/EntryNotice'
 import { EntryStatusBadge } from '../../components/entries/EntryStatusBadge'
 import { ReplaceHeader } from '../../components/entries/ReplaceHeader'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
@@ -19,12 +19,10 @@ import { warnOnce } from '../../lib/warn-once'
 
 function NoAccess() {
     return (
-        <View testID="entry-no-access" className="flex-1 gap-2 bg-background px-4 pt-2">
-            <EntryBackLink />
-            <Text className="text-base text-foreground">
-                You need bookkeeper access to create entries
-            </Text>
-        </View>
+        <EntryNotice
+            testID="entry-no-access"
+            message="You need bookkeeper access to create entries"
+        />
     )
 }
 
@@ -69,12 +67,7 @@ function NewEntryScreen() {
 }
 
 function OriginalNotFound() {
-    return (
-        <View testID="entry-not-found" className="flex-1 gap-2 bg-background px-4 pt-2">
-            <EntryBackLink />
-            <Text className="text-base text-foreground">This entry cannot be edited</Text>
-        </View>
-    )
+    return <EntryNotice testID="entry-not-found" message="This entry cannot be edited" />
 }
 
 interface HeldOriginal {

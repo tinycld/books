@@ -3,7 +3,7 @@ import { errorToString } from '@tinycld/core/lib/errors'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router, useIsFocused } from 'expo-router'
 import { useRef, useState } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useEntryActions } from '../../hooks/useEntryActions'
 import { type ReadyEntryDetail, useEntryDetail } from '../../hooks/useEntryDetail'
@@ -11,19 +11,11 @@ import type { SaveOutcome } from '../../hooks/useEntrySubmit'
 import type { LineTotals } from '../../lib/entry-lines'
 import { DeleteDraftDialog } from './DeleteDraftDialog'
 import { EntryForm } from './EntryForm'
-import { EntryBackLink, EntryHeader, EntryHeaderMenu } from './EntryHeader'
+import { EntryHeader, EntryHeaderMenu } from './EntryHeader'
+import { EntryNotice } from './EntryNotice'
 import { EntryReadOnlyView } from './EntryReadOnlyView'
 import { EntryStatusBadge } from './EntryStatusBadge'
 import { ReplaceHeader } from './ReplaceHeader'
-
-function NotFound() {
-    return (
-        <View testID="entry-not-found" className="flex-1 gap-2 bg-background px-4 pt-2">
-            <EntryBackLink />
-            <Text className="text-base text-foreground">This entry does not exist</Text>
-        </View>
-    )
-}
 
 // Delete is the only draft action here; the dialog is local UI no other component needs.
 // A success keeps `onBusyChange(true)` until the screen is gone, so the entry the delete
@@ -179,6 +171,8 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
         )
     }
     if (detail.viewState === 'loading') return <LoadingState />
-    if (detail.viewState === 'not-found') return <NotFound />
+    if (detail.viewState === 'not-found') {
+        return <EntryNotice testID="entry-not-found" message="This entry does not exist" />
+    }
     return <EntryReadOnlyView detail={detail} />
 }

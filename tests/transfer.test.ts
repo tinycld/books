@@ -12,6 +12,8 @@ import {
     TRANSFER_ACCOUNT_TYPES,
     TRANSFER_ERRORS,
     type TransferFormValues,
+    type TransferViewState,
+    transferAccountBalance,
     transferAccountOptions,
     transferAmountText,
     transferBalanceLine,
@@ -20,6 +22,7 @@ import {
     transferLines,
     transferRefusalField,
     transferSchema,
+    transferViewState,
 } from '../tinycld/books/lib/transfer'
 import {
     CLOSED_REFUSAL,
@@ -349,5 +352,106 @@ describe('transferBalanceLine', () => {
             text: 'Balance -$215.40',
             isNegative: true,
         })
+    })
+})
+
+describe('transferViewState', () => {
+    const readyTransfer = {
+        isError: false,
+        isReady: true,
+        hasEntry: true,
+        docType: 'transfer',
+        origin: 'manual',
+    }
+
+    it('gives error over everything else', () => {
+        const cases = [
+            { ...readyTransfer, isError: true },
+            { ...readyTransfer, isError: true, isReady: false },
+            {
+                isError: true,
+                isReady: false,
+                hasEntry: false,
+                docType: undefined,
+                origin: undefined,
+            },
+            { ...readyTransfer, isError: true, hasEntry: false },
+            { ...readyTransfer, isError: true, docType: 'journal' },
+        ]
+        for (const input of cases) {
+            expect(transferViewState(input), JSON.stringify(input)).toBe('error')
+        }
+    })
+
+    it('gives loading while not ready, whatever the entry holds', () => {
+        const cases = [
+            { ...readyTransfer, isReady: false },
+            {
+                isError: false,
+                isReady: false,
+                hasEntry: false,
+                docType: undefined,
+                origin: undefined,
+            },
+            { ...readyTransfer, isReady: false, docType: 'journal' },
+        ]
+        for (const input of cases) {
+            expect(transferViewState(input), JSON.stringify(input)).toBe('loading')
+        }
+    })
+
+    it('gives not-found when ready with no entry', () => {
+        expect(
+            transferViewState({
+                isError: false,
+                isReady: true,
+                hasEntry: false,
+                docType: undefined,
+                origin: undefined,
+            })
+        ).toBe('not-found')
+    })
+
+    it('gives wrong-type for a journal entry', () => {
+        expect(transferViewState({ ...readyTransfer, docType: 'journal' })).toBe('wrong-type')
+    })
+
+    it("gives wrong-type for a transfer's void reversal", () => {
+        expect(transferViewState({ ...readyTransfer, origin: 'void_reversal' })).toBe('wrong-type')
+    })
+
+    it('gives ready for a manual transfer', () => {
+        const state: TransferViewState = transferViewState(readyTransfer)
+        expect(state).toBe('ready')
+    })
+})
+
+describe('transferAccountBalance', () => {
+    it('gives a debit-normal bank account its debits less credits', () => {
+        expect(transferAccountBalance({ type: 'bank', debit_total: 10_000, credit_total: 0 })).toBe(
+            10_000
+        )
+    })
+
+    it('gives an overdrawn bank account a negative balance, which the balance line marks', () => {
+        const balance = transferAccountBalance({
+            type: 'bank',
+            debit_total: 0,
+            credit_total: 5_000,
+        })
+        expect(balance).toBe(-5_000)
+        expect(transferBalanceLine(balance, 'USD').isNegative).toBe(true)
+    })
+
+    it('gives a credit card its credits as a positive balance', () => {
+        expect(
+            transferAccountBalance({ type: 'credit_card', debit_total: 0, credit_total: 341_017 })
+        ).toBe(341_017)
+    })
+
+    it('gives an equity account its credits as a positive balance', () => {
+        expect(
+            transferAccountBalance({ type: 'equity', debit_total: 0, credit_total: 300_000 })
+        ).toBe(300_000)
     })
 })

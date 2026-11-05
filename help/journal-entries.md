@@ -47,6 +47,7 @@ With bookkeeper access you can create, post, edit, reverse, void and delete draf
 
 - A draft can be opened or deleted.
 - A posted entry can be opened, edited, reversed and voided. Reverse is hidden once a reversal exists.
+- A posted reversal or auto reversal can be opened, reversed and voided, but not edited.
 - A void entry can only be opened.
 - A void reversal entry (the reversing entry that a void creates) can only be opened. You cannot edit, reverse or void it.
 

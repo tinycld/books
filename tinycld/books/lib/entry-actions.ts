@@ -17,7 +17,10 @@ export function entryActions(
     if (entry.status === 'draft') return [...actions, 'delete']
     // The server refuses to edit, reverse or void a void reversal.
     if (entry.status !== 'posted' || entry.origin === 'void_reversal') return actions
-    actions.push('edit')
+    // A correction must keep the original's origin (server/reversal.go), and the journal
+    // entry form writes only manual entries, so the server refuses every edit of a
+    // reversal.
+    if (entry.origin !== 'reversal' && entry.origin !== 'auto_reversal') actions.push('edit')
     // A transfer is corrected by Edit or Void, never by a one-click reversal.
     if (!entry.isReversed && entry.doc_type !== 'transfer') actions.push('reverse')
     actions.push('void')

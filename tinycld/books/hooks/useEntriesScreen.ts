@@ -3,6 +3,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { entriesFilterActive, entriesViewState } from '../lib/entries-query'
 import { type EntryActionId, entryActions } from '../lib/entry-actions'
+import { entryHref } from '../lib/entry-route'
 import { newEntryVisible } from '../lib/register-state'
 import { isNewActionAvailable } from '../lib/shell-nav'
 import { useEntriesUiStore } from '../stores/entries-ui-store'
@@ -28,7 +29,20 @@ export function useEntriesScreen() {
     const entries = query.entries ?? []
     const reversed = useReversedIds(entries.map(entry => entry.id))
     const entriesById = new Map(entries.map(entry => [entry.id, entry]))
-    const onOpenEntry = (entryId: string) => router.push(orgHref(`books/entries/${entryId}`))
+    // A row not in the map (it left the window between render and press) opens on the
+    // journal entry screen, which shows an entry of any type.
+    const onOpenEntry = (entryId: string) =>
+        router.push(
+            orgHref(
+                entryHref(
+                    entriesById.get(entryId) ?? {
+                        id: entryId,
+                        doc_type: 'journal',
+                        origin: 'manual',
+                    }
+                )
+            )
+        )
 
     const onMenuAction = (action: EntryActionId, entryId: string) => {
         if (action === 'open') onOpenEntry(entryId)
