@@ -29,6 +29,8 @@ export const EMPTY_READ_ONLY = 'No sales tax is set up yet.'
 
 export const NO_RATES = 'No rates yet.'
 
+export const NO_ACTIVE_RATES = 'No active rates.'
+
 export const GROUPS_NEED_RATES = 'Add at least two rates to combine them.'
 
 export const GROUPS_HINT = 'Rates charged together as one choice'

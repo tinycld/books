@@ -32,6 +32,7 @@ import {
     groupComponentInactiveMessage,
     NAME_REQUIRED,
     NAME_TOO_LONG,
+    NO_ACTIVE_RATES,
     NO_LIABILITY_ACCOUNT,
     NO_RATES,
     RATE_AGENCY_INACTIVE,
@@ -362,5 +363,9 @@ describe('client-only texts', () => {
         expect(NO_RATES).toBe('No rates yet.')
         expect(GROUPS_NEED_RATES).toBe('Add at least two rates to combine them.')
         expect(GROUPS_HINT).toBe('Rates charged together as one choice')
+    })
+
+    it('tells an agency whose rates are all hidden that it has no active rates', () => {
+        expect(NO_ACTIVE_RATES).toBe('No active rates.')
     })
 })

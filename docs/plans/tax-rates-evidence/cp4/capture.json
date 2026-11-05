@@ -1,0 +1,105 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "height": 1500
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "height": 1500,
+            "widths": [1280],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "show-inactive",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "height": 1700,
+            "widths": [1280],
+            "actions": [{ "click": "taxes-show-inactive" }, { "waitFor": "Old county agency" }]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/taxes",
+            "ready": "taxes-empty",
+            "fakeRecords": { "collection": "books_tax_agencies", "items": [] }
+        },
+        {
+            "name": "empty-read-only",
+            "url": "/a/books/taxes",
+            "ready": "taxes-empty",
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_tax_agencies", "items": [] },
+            "extraFakes": [
+                {
+                    "collection": "books_access",
+                    "items": [
+                        {
+                            "id": "$authId",
+                            "user": "$authId",
+                            "level": "read_only",
+                            "can_read": true,
+                            "can_write": false,
+                            "is_admin": false
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "one-rate",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-need-rates",
+            "widths": [1280],
+            "fakeRecords": {
+                "collection": "books_tax_rates",
+                "items": [
+                    {
+                        "id": "taxrtcostate001",
+                        "type": "rate",
+                        "name": "Colorado state",
+                        "sort_key": "colorado state",
+                        "rate_ppm": 29000,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/taxes",
+            "ready": "taxes-loading",
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_tax_agencies", "hold": true }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/taxes",
+            "ready": "taxes-banner",
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_tax_agencies", "status": 400 }
+        }
+    ]
+}
