@@ -5,10 +5,12 @@ import { openRegister, revealRegisterItem } from './account-register-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
 import { DESKTOP, startTransfers, TRANSFER_LABELS } from './transfer-helpers'
 
-// The read-view tests need one known posted transfer. `seed.ts` posts it through the
-// server's posting hook (`TRANSFER_SEED`), so it is the seeded-fixture exception: only
-// that posted transfer is seeded. The specs never edit or void it. The read view, its
-// links and its states are driven through the UI.
+// The read-view tests read the seeded transfer (`TRANSFER_SEED`). `seed.ts` posts it
+// through the server's posting hook as seed data, and the specs only read it, as other
+// Books specs read the ENTRIES_SEED rows; they never edit or void it. The read view
+// asserts the seed's own amount, From/To pair and poster. transfer-form.spec.ts covers a
+// transfer made through the form, so making one here would repeat that post path in
+// every read test. The read view, its links and its states are driven through the UI.
 //
 // It does not cover a reader's view: the e2e book has no non-writer Books user. The
 // loading state is transient. The read view's phone layout runs the same components.
