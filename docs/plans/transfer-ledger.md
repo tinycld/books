@@ -137,6 +137,8 @@
 - `docs/plans/transfer-checkpoints.md` (cp 7, loop, gate 3 A BLOCK 1 / B 1): checkpoint 7's Produces gives `transferButtonVisible` a required `inactive: boolean`, and its `tests/transfer.test.ts` bullet gains the inactive-account case.
 - `tinycld/books/hooks/useEntriesScreen.ts` (cp 7, implementer, declared; reworked at gate 3): Edit on a row that left the list between render and press opens the entry (Open's fallback) instead of guessing a journal edit form.
 
+- `tests/e2e/opening-balances.spec.ts` (eval gate, full suite red at 52f9ebd: 259 passed, 1 failed): "Enter in an amount moves focus to the next account amount" hard-coded Accounts receivable as the account after Business Checking; cp1's seed account 1010 Business Savings now sorts between them (Assets band in number order, `focusNext` over `rowIds`). The test now expects Business Savings; the spec file passed 43/43; reviewer-A fix review: nothing found (no other e2e depends on that adjacency or a chart count).
+
 ## Phase notes
 - phase 1: design packet ~/tmp/tinycld/auto-helix-books/staging/p3-transfer/packet.md (intake.md beside it); no corrections at the design gate.
 - phase 3: design gate 2026-11-04 — the human picked direction A (full-page form like the journal entry form, own read view); open questions 1–14 accepted as recommended (spec written with them); no sparks dropped; no [platform] items; no core extension.
