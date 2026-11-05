@@ -269,7 +269,17 @@
 - commit: this commit, `feat(books): transfer entry points, journal Edit routing and help topic`
 - human: none (review mode C)
 
+## Checkpoint 8 — Form autofocus and action shortcuts (eval revise)
+- stopped before the plan step (2026-11-05): core gap, per the driver's stop rule "if core has no way to focus its SelectInput trigger, stop and report it as a core gap".
+- evidence (core main 5355b5fa, no branch adds it: `git log --all -S autoFocus` on these files is empty):
+  - `core/ui/form/SelectInput.tsx`: props are `name, control, label, hideLabel, options, hint, hideError, disabled, onValueChange, wrapperProps, placeholder, testID`; no `autoFocus`, no ref. The trigger `Pressable` is built inside SelectInput, and `core/ui/popover/index.tsx` `useTriggerElement` clones it with the popover's own `ref: triggerRef`, so a caller cannot reach it. `field.ref` is not attached, so react-hook-form `setFocus('from')` does nothing. "Transfer from" (the transfer form's first input) cannot take focus.
+  - `core/ui/forms/fields/DateField.tsx`: props are `value, onChange, withTime, disabled, testID, accessibilityLabel`; its `PlainInput` (a forwardRef TextInput) gets no `autoFocus` and no ref. The journal entry form's first input is `EntryDateField` (Date, over core DateField), so it cannot take focus either.
+  - Only `TextInput` / `TextAreaInput` pass RN props (`autoFocus`) through. A DOM query by test id would be web-only (banned by the driver).
+- core change needed (needs sign-off; core is never edited by this loop): `SelectInput` `autoFocus?: boolean` (focus the trigger on mount; on native a Pressable takes focus only with a hardware keyboard, through the external-keyboard provider) and `DateField` `autoFocus?: boolean` passed to its `PlainInput`.
+- not started: plan text, spec Keyboard subsection, tests, code. The key map part (core `useRegisterShortcuts` / `useShortcutScope`; core layers push a `modal` scope through `LayerEscape`, so form Escape yields to an open Menu or Dialog) needs no core change and can run once the autofocus question is settled.
+- commit: this ledger commit only
+
 ## Final review
-- eval:
+- eval: revised (2026-11-05) → "for forms like this that will be used a lot for data entry, we should: autofocus the first input; set keyboard shortcuts for each of the action buttons." Built as checkpoint 8 (driver key map: Post ⌘↵, Post & new ⌘⇧↵, Save draft ⌘S, Cancel Esc, Delete draft ⌘⌫, read view Edit E / Void V; the shared EntryActionBar gives the journal entry form the same keys); lesson line added.
 - human comments and what changed
 - native: not executed in this run
