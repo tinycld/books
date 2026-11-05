@@ -19,6 +19,7 @@ import {
 } from '../lib/register-range'
 import { newEntryVisible, registerViewState } from '../lib/register-state'
 import { isNewActionAvailable, NEW_ACTIONS } from '../lib/shell-nav'
+import { transferButtonVisible } from '../lib/transfer'
 import { useRegisterStore } from '../stores/register-store'
 import { useBackToChart } from './useBackToChart'
 import { useBooksAccess } from './useBooksAccess'
@@ -101,6 +102,13 @@ export function useRegisterScreen(accountId: string) {
         }),
         newEntryHref,
         onNewEntry: () => router.push(newEntryHref),
+        isTransferVisible: transferButtonVisible({
+            canWrite: access.canWrite,
+            accountType: account?.type,
+            inactive: account?.inactive ?? false,
+        }),
+        onTransfer: () =>
+            router.push(orgHref(`books/transfers/new?from=${encodeURIComponent(accountId)}`)),
         onRetry: query.retry,
         onBack,
         selectedEntryId,

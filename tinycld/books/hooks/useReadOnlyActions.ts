@@ -3,6 +3,7 @@ import { router } from 'expo-router'
 import { useState } from 'react'
 import { entryActions } from '../lib/entry-actions'
 import { entryNumberText } from '../lib/entry-display'
+import { entryEditHref } from '../lib/entry-route'
 import { defaultReverseDate } from '../lib/entry-schema'
 import { todayIso } from '../lib/register-range'
 import type { ReadyEntryDetail } from './useEntryDetail'
@@ -39,7 +40,7 @@ export function useReadOnlyActions(detail: ReadyEntryDetail) {
         voidError: dialogs.voidError,
         // Replace, not push: a pushed screen leaves this one mounted under it, and two
         // entry screens would share one page.
-        onEdit: () => router.replace(orgHref(`books/entries/new?replaces=${entry.id}`)),
+        onEdit: () => router.replace(orgHref(entryEditHref(entry))),
         onReverse: () => setOpen('reverse'),
         onVoid: () => {
             dialogs.clearErrors()

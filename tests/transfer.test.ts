@@ -18,6 +18,7 @@ import {
     transferAccountOptions,
     transferAmountText,
     transferBalanceLine,
+    transferButtonVisible,
     transferEntryValues,
     transferFromLines,
     transferLines,
@@ -79,6 +80,44 @@ describe('transfer account types', () => {
         for (const type of NOT_TRANSFER_TYPES) {
             expect(isTransferAccount({ type }), type).toBe(false)
         }
+    })
+})
+
+describe('transferButtonVisible', () => {
+    it('shows for a writer on an account a transfer may use', () => {
+        for (const accountType of ['bank', 'credit_card', 'equity']) {
+            expect(
+                transferButtonVisible({ canWrite: true, accountType, inactive: false }),
+                accountType
+            ).toBe(true)
+        }
+    })
+
+    it('hides for a writer on an account a transfer cannot use', () => {
+        for (const accountType of ['accounts_receivable', 'expense']) {
+            expect(
+                transferButtonVisible({ canWrite: true, accountType, inactive: false }),
+                accountType
+            ).toBe(false)
+        }
+    })
+
+    it('hides for a reader, even on a bank account', () => {
+        expect(
+            transferButtonVisible({ canWrite: false, accountType: 'bank', inactive: false })
+        ).toBe(false)
+    })
+
+    it('hides while the account type is not known', () => {
+        expect(
+            transferButtonVisible({ canWrite: true, accountType: undefined, inactive: false })
+        ).toBe(false)
+    })
+
+    it('hides for a writer on an inactive bank account, which the transfer pickers do not offer', () => {
+        expect(transferButtonVisible({ canWrite: true, accountType: 'bank', inactive: true })).toBe(
+            false
+        )
     })
 })
 
