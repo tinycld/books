@@ -32,7 +32,40 @@ const (
 	msgGroupComponentIsGroup  = "A group cannot contain another group."
 	msgGroupComponentInactive = "“%s” is inactive."
 	msgDefaultInactive        = "Only an active rate or group can be the default."
+	msgAgencyHasOneRate       = "This agency has 1 tax rate. Delete it or move it to another agency first."
+	msgAgencyHasRates         = "This agency has %d tax rates. Delete them or move them to another agency first."
+	msgAgencyOneActiveRate    = "Make its 1 active rate inactive first."
+	msgAgencyActiveRates      = "Make its %d active rates inactive first."
+	msgTaxIsDefault           = "This is the default for new sales. Choose another default first."
+	msgRateInGroup            = "This rate is in the group “%s”. Remove it from the group first."
+	msgRateInGroups           = "This rate is in %d groups. Remove it from them first."
+	msgRateInActiveGroup      = "Remove it from the group “%s” or make the group inactive first."
+	msgRateInActiveGroups     = "Remove it from its %d active groups or make them inactive first."
 )
+
+// taxRateReference is a table whose rows name a tax rate or group. A rate that
+// any row names cannot be deleted: message says why, given the ids of the
+// distinct referencing rows, so it can name one, and returns an error when it
+// cannot read what it names. A multiple field holds a JSON array of ids; a
+// single one holds one id.
+type taxRateReference struct {
+	collection, field string
+	multiple          bool
+	message           func(app core.App, ids []string) (string, error)
+}
+
+// taxRateReferences are the tables that hold a tax rate. Later units (invoice,
+// sales receipt and their lines) append their tax columns here, so a rate on a
+// document cannot be deleted either. Without a refusal PocketBase's own delete
+// cleanup would drop the rate from each row, and for a group that either
+// shrinks it silently or fails its two-rate minimum with an unrelated message.
+var taxRateReferences = []taxRateReference{groupComponents}
+
+// groupComponents is the groups' rates. checkTaxRateInactive reads it too, so
+// it does not depend on where it sits in taxRateReferences.
+var groupComponents = taxRateReference{
+	collection: "books_tax_rates", field: "components", multiple: true, message: rateInGroupsMessage,
+}
 
 // A group holds at least minGroupRates and at most maxGroupRates rates.
 const (
@@ -43,10 +76,22 @@ const (
 // The agency and rate guards read accounts, agencies and other rates inside
 // serialized, so no other write can commit between the check and the write it
 // allows; the default swap writes the previous default in the same
-// transaction.
+// transaction. The delete refusals run before e.Next(), which is where
+// PocketBase clears a deleted row off the rows that name it: the person gets
+// the refusal, not the side effect of that cleanup.
 func registerSalesTaxGuards(app core.App) {
 	bindSerializedGuard(app, "books_tax_agencies", validateTaxAgency)
 	bindSerializedGuard(app, "books_tax_rates", validateTaxRate)
+	app.OnRecordDelete("books_tax_agencies").BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error {
+			return checkTaxAgencyDelete(tx, e.Record)
+		})
+	})
+	app.OnRecordDelete("books_tax_rates").BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error {
+			return checkTaxRateDelete(tx, e.Record)
+		})
+	})
 }
 
 // validateTaxAgency stores the name trimmed, checks the liability account when
@@ -75,6 +120,11 @@ func validateTaxAgency(app core.App, stored, r *core.Record) error {
 		}
 		if account.GetString("type") != "other_current_liability" {
 			return refuseField("account", msgAgencyAccountType)
+		}
+	}
+	if stored != nil && !stored.GetBool("inactive") && r.GetBool("inactive") {
+		if err := checkTaxAgencyInactive(app, stored, r); err != nil {
+			return err
 		}
 	}
 	// name_key belongs to the guard: it overwrites whatever the request sent.
@@ -118,6 +168,11 @@ func validateTaxRate(app core.App, stored, r *core.Record) error {
 	}
 	if err := checkTaxRateName(app, stored, r, name); err != nil {
 		return err
+	}
+	if stored != nil && !stored.GetBool("inactive") && r.GetBool("inactive") {
+		if err := checkTaxRateInactive(app, stored, r); err != nil {
+			return err
+		}
 	}
 	if !r.GetBool("is_default") || (stored != nil && stored.GetBool("is_default")) {
 		return nil
@@ -261,4 +316,123 @@ func clearOtherDefault(tx core.App, r *core.Record) error {
 		return fmt.Errorf("books: clear the previous default %s: %w", prev.Id, err)
 	}
 	return nil
+}
+
+// checkTaxAgencyDelete refuses deleting an agency any rate names, active or
+// not. PocketBase would otherwise clear the agency off each rate, which the
+// rate guard refuses with "Choose an agency.": the refusal here says what to
+// do instead.
+func checkTaxAgencyDelete(app core.App, r *core.Record) error {
+	n, err := app.CountRecords("books_tax_rates", dbx.HashExp{"agency": r.Id})
+	if err != nil {
+		return fmt.Errorf("books: count the agency's rates: %w", err)
+	}
+	if n == 1 {
+		return refuse(msgAgencyHasOneRate)
+	}
+	if n > 1 {
+		return refuse(msgAgencyHasRates, n)
+	}
+	return nil
+}
+
+// checkTaxAgencyInactive refuses making an agency inactive while an active
+// rate names it; inactive rates may stay with an inactive agency. It runs
+// only when the write turns inactive on.
+func checkTaxAgencyInactive(app core.App, stored, r *core.Record) error {
+	n, err := app.CountRecords("books_tax_rates", dbx.HashExp{"agency": r.Id, "inactive": false})
+	if err != nil {
+		return fmt.Errorf("books: count the agency's active rates: %w", err)
+	}
+	if n == 1 {
+		return refuse(msgAgencyOneActiveRate)
+	}
+	if n > 1 {
+		return refuse(msgAgencyActiveRates, n)
+	}
+	return nil
+}
+
+// checkTaxRateDelete refuses deleting the default, then a rate any row of a
+// taxRateReferences table names. A customer's default_tax_rate is not a
+// reference: PocketBase clears it, and the customer has no default.
+func checkTaxRateDelete(app core.App, r *core.Record) error {
+	if r.GetBool("is_default") {
+		return refuse(msgTaxIsDefault)
+	}
+	for _, ref := range taxRateReferences {
+		ids, err := referencingIDs(app, ref, r.Id, nil)
+		if err != nil {
+			return fmt.Errorf("books: read the %s that hold the rate: %w", ref.collection, err)
+		}
+		if len(ids) > 0 {
+			msg, err := ref.message(app, ids)
+			if err != nil {
+				return err
+			}
+			return refuse("%s", msg)
+		}
+	}
+	return nil
+}
+
+// checkTaxRateInactive refuses making the default inactive (a write that also
+// removes the default is allowed) and making a rate inactive while an active
+// group holds it; an inactive group may keep inactive rates. It runs only when
+// the write turns inactive on.
+func checkTaxRateInactive(app core.App, stored, r *core.Record) error {
+	if stored.GetBool("is_default") && r.GetBool("is_default") {
+		return refuse(msgTaxIsDefault)
+	}
+	ids, err := referencingIDs(app, groupComponents, r.Id, dbx.HashExp{"inactive": false})
+	if err != nil {
+		return fmt.Errorf("books: read the active groups that hold the rate: %w", err)
+	}
+	if len(ids) > 1 {
+		return refuse(msgRateInActiveGroups, len(ids))
+	}
+	if len(ids) == 1 {
+		group, err := app.FindRecordById("books_tax_rates", ids[0])
+		if err != nil {
+			return fmt.Errorf("books: read the group that holds the rate: %w", err)
+		}
+		return refuse(msgRateInActiveGroup, group.GetString("name"))
+	}
+	return nil
+}
+
+// referencingIDs lists, in id order, the ids of ref's rows that name the rate
+// id, narrowed by where when it is not nil.
+func referencingIDs(app core.App, ref taxRateReference, id string, where dbx.Expression) ([]string, error) {
+	var match dbx.Expression = dbx.HashExp{ref.field: id}
+	if ref.multiple {
+		// A multiple relation column holds a JSON array of ids. The alias keeps
+		// json_each's own columns apart from the table's.
+		match = dbx.NewExp(
+			"EXISTS (SELECT 1 FROM json_each([["+ref.field+"]]) AS j WHERE j.value = {:id})",
+			dbx.Params{"id": id},
+		)
+	}
+	q := app.DB().Select("id").From(ref.collection).Where(match)
+	if where != nil {
+		q = q.AndWhere(where)
+	}
+	var ids []string
+	if err := q.OrderBy("id").Column(&ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// rateInGroupsMessage is the delete refusal for a rate the groups ids hold:
+// one group by name, several by count.
+func rateInGroupsMessage(app core.App, ids []string) (string, error) {
+	if len(ids) != 1 {
+		return fmt.Sprintf(msgRateInGroups, len(ids)), nil
+	}
+	group, err := app.FindRecordById("books_tax_rates", ids[0])
+	if err != nil {
+		return "", fmt.Errorf("books: read the group that holds the rate: %w", err)
+	}
+	return fmt.Sprintf(msgRateInGroup, group.GetString("name")), nil
 }

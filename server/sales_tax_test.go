@@ -3,6 +3,7 @@ package books
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -446,4 +447,269 @@ func TestTaxRules_ByLevel(t *testing.T) {
 			}
 		})
 	})
+}
+
+// requireStillThere asserts a refused delete left the row in place.
+func requireStillThere(t testing.TB, app core.App, collection string, r *core.Record) {
+	t.Helper()
+	if _, err := app.FindRecordById(collection, r.Id); err != nil {
+		t.Errorf("%s %q is gone after a refused delete: %v", collection, r.GetString("name"), err)
+	}
+}
+
+func deleteTaxRate(t testing.TB, app core.App, r *core.Record) error {
+	t.Helper()
+	return app.Delete(reload(t, app, "books_tax_rates", r.Id))
+}
+
+func deleteTaxAgency(t testing.TB, app core.App, r *core.Record) error {
+	t.Helper()
+	return app.Delete(reload(t, app, "books_tax_agencies", r.Id))
+}
+
+// Every rate counts, active or not. Without this refusal PocketBase's own
+// cleanup clears the agency off its rates, which the rate guard refuses with
+// "Choose an agency.": the agency's own message must come first.
+func TestTaxAgency_DeleteRefusedWhileRatesNameIt(t *testing.T) {
+	app := newGuardedApp(t)
+	account := mkLiabilityAccount(t, app, "Sales tax payable")
+	county := mkTaxAgency(t, app, "Adams County", account)
+	state := mkTaxAgency(t, app, "Colorado DOR", account)
+	adams := mkTaxRate(t, app, "Adams County", 7500, county)
+	stateRates := []*core.Record{
+		mkTaxRate(t, app, "Colorado state", 29000, state),
+		mkTaxRate(t, app, "RTD transit", 10000, state),
+		mkTaxRate(t, app, "Retired rate", 35000, state),
+	}
+	if err := setTaxRate(t, app, stateRates[2].Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Retired rate inactive: %v", err)
+	}
+
+	requireMessageOnlyRefusal(t, deleteTaxAgency(t, app, county),
+		"This agency has 1 tax rate. Delete it or move it to another agency first.")
+	requireMessageOnlyRefusal(t, deleteTaxAgency(t, app, state),
+		"This agency has 3 tax rates. Delete them or move them to another agency first.")
+	requireStillThere(t, app, "books_tax_agencies", county)
+	requireStillThere(t, app, "books_tax_agencies", state)
+	for _, r := range append([]*core.Record{adams}, stateRates...) {
+		if got, want := reload(t, app, "books_tax_rates", r.Id).GetString("agency"), r.GetString("agency"); got != want {
+			t.Errorf("%s agency = %q after the refused delete, want %q", r.GetString("name"), got, want)
+		}
+	}
+
+	for _, r := range append([]*core.Record{adams}, stateRates...) {
+		if err := deleteTaxRate(t, app, r); err != nil {
+			t.Fatalf("delete %s: %v", r.GetString("name"), err)
+		}
+	}
+	for _, agency := range []*core.Record{county, state} {
+		if err := deleteTaxAgency(t, app, agency); err != nil {
+			t.Fatalf("deleting %s with no rates was refused: %v", agency.GetString("name"), err)
+		}
+	}
+	requireTaxRowCount(t, app, "books_tax_agencies", 0)
+}
+
+// Only active rates keep an agency active; an inactive agency whose rates are
+// all inactive can be made active again.
+func TestTaxAgency_InactiveRefusedWhileActiveRatesNameIt(t *testing.T) {
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	state := mkTaxRate(t, app, "Colorado state", 29000, agency)
+	rtd := mkTaxRate(t, app, "RTD transit", 10000, agency)
+
+	requireMessageOnlyRefusal(t, setTaxAgency(t, app, agency.Id, map[string]any{"inactive": true}),
+		"Make its 2 active rates inactive first.")
+	if err := setTaxRate(t, app, state.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Colorado state inactive: %v", err)
+	}
+	requireMessageOnlyRefusal(t, setTaxAgency(t, app, agency.Id, map[string]any{"inactive": true}),
+		"Make its 1 active rate inactive first.")
+	if reload(t, app, "books_tax_agencies", agency.Id).GetBool("inactive") {
+		t.Fatal("the agency is inactive after two refusals")
+	}
+
+	if err := setTaxRate(t, app, rtd.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make RTD transit inactive: %v", err)
+	}
+	if err := setTaxAgency(t, app, agency.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("making the agency inactive with every rate inactive was refused: %v", err)
+	}
+	if !reload(t, app, "books_tax_agencies", agency.Id).GetBool("inactive") {
+		t.Fatal("the agency is still active")
+	}
+	if err := setTaxAgency(t, app, agency.Id, map[string]any{"inactive": false}); err != nil {
+		t.Fatalf("making the agency active again was refused: %v", err)
+	}
+	if reload(t, app, "books_tax_agencies", agency.Id).GetBool("inactive") {
+		t.Fatal("the agency stayed inactive")
+	}
+}
+
+// A group names a rate whether the group is active or not. Without this
+// refusal PocketBase's own cleanup drops the rate from each group: a group of
+// three silently loses it, and a group of two fails "Choose at least two
+// rates.". The default goes first; a customer's default is cleared.
+func TestTaxRate_DeleteRefusals(t *testing.T) {
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	state := mkTaxRate(t, app, "Colorado state", 29000, agency)
+	city := mkTaxRate(t, app, "Denver city", 48100, agency)
+	rtd := mkTaxRate(t, app, "RTD transit", 10000, agency)
+	adams := mkTaxRate(t, app, "Adams County", 7500, agency)
+	old := mkTaxRate(t, app, "Old county", 5000, agency)
+	oldCity := mkTaxRate(t, app, "Old city", 6000, agency)
+	metro := mkTaxGroup(t, app, "Metro", state, city, rtd)
+	valley := mkTaxGroup(t, app, "Valley", city, adams)
+	retired := mkTaxGroup(t, app, "Retired group", old, oldCity)
+	if err := setTaxRate(t, app, retired.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Retired group inactive: %v", err)
+	}
+
+	t.Run("a rate in a group of three", func(t *testing.T) {
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, state),
+			"This rate is in the group “Metro”. Remove it from the group first.")
+		requireStillThere(t, app, "books_tax_rates", state)
+		got := reload(t, app, "books_tax_rates", metro.Id).GetStringSlice("components")
+		if want := idsOf([]*core.Record{state, city, rtd}); fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("Metro components = %v after the refused delete, want %v", got, want)
+		}
+	})
+	t.Run("a rate in two groups", func(t *testing.T) {
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, city),
+			"This rate is in 2 groups. Remove it from them first.")
+		requireStillThere(t, app, "books_tax_rates", city)
+		got := reload(t, app, "books_tax_rates", valley.Id).GetStringSlice("components")
+		if want := idsOf([]*core.Record{city, adams}); fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("Valley components = %v after the refused delete, want %v", got, want)
+		}
+	})
+	t.Run("a rate in an inactive group", func(t *testing.T) {
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, old),
+			"This rate is in the group “Retired group”. Remove it from the group first.")
+		requireStillThere(t, app, "books_tax_rates", old)
+	})
+	t.Run("the default rate", func(t *testing.T) {
+		single := mkTaxRate(t, app, "Single rate", 20000, agency)
+		if err := setTaxRate(t, app, single.Id, map[string]any{"is_default": true}); err != nil {
+			t.Fatalf("make Single rate the default: %v", err)
+		}
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, single),
+			"This is the default for new sales. Choose another default first.")
+		requireStillThere(t, app, "books_tax_rates", single)
+		if got := defaultIDs(t, app); fmt.Sprint(got) != fmt.Sprint([]string{single.Id}) {
+			t.Errorf("defaults after the refused delete = %v, want [%s]", got, single.Id)
+		}
+	})
+	t.Run("the default group", func(t *testing.T) {
+		if err := setTaxRate(t, app, valley.Id, map[string]any{"is_default": true}); err != nil {
+			t.Fatalf("make Valley the default: %v", err)
+		}
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, valley),
+			"This is the default for new sales. Choose another default first.")
+		requireStillThere(t, app, "books_tax_rates", valley)
+		if got := defaultIDs(t, app); fmt.Sprint(got) != fmt.Sprint([]string{valley.Id}) {
+			t.Errorf("defaults after the refused delete = %v, want [%s]", got, valley.Id)
+		}
+	})
+	t.Run("a customer's default", func(t *testing.T) {
+		boulder := mkTaxRate(t, app, "Boulder city", 38600, agency)
+		customer, err := newCustomer(app, map[string]any{"display_name": "Harborview", "default_tax_rate": boulder.Id})
+		if err != nil {
+			t.Fatalf("save a customer whose default is Boulder city: %v", err)
+		}
+		if err := deleteTaxRate(t, app, boulder); err != nil {
+			t.Fatalf("deleting a customer's default rate was refused: %v", err)
+		}
+		if got := reload(t, app, "books_customers", customer.Id).GetString("default_tax_rate"); got != "" {
+			t.Errorf("customer default_tax_rate = %q after its rate was deleted, want empty", got)
+		}
+	})
+}
+
+// An inactive group does not keep its rates active. The default goes first,
+// for a rate and for a group: a stored default must never become inactive.
+func TestTaxRate_InactiveRefusals(t *testing.T) {
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	state := mkTaxRate(t, app, "Colorado state", 29000, agency)
+	city := mkTaxRate(t, app, "Denver city", 48100, agency)
+	rtd := mkTaxRate(t, app, "RTD transit", 10000, agency)
+	old := mkTaxRate(t, app, "Old county", 5000, agency)
+	single := mkTaxRate(t, app, "Single rate", 20000, agency)
+	metro := mkTaxGroup(t, app, "Metro", state, city)
+	mkTaxGroup(t, app, "Valley", city, rtd)
+	retired := mkTaxGroup(t, app, "Retired group", rtd, old)
+	if err := setTaxRate(t, app, retired.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Retired group inactive: %v", err)
+	}
+
+	requireStillActive := func(t *testing.T, r *core.Record) {
+		t.Helper()
+		if reload(t, app, "books_tax_rates", r.Id).GetBool("inactive") {
+			t.Errorf("%s is inactive after a refusal", r.GetString("name"))
+		}
+	}
+
+	t.Run("a rate in one active group", func(t *testing.T) {
+		requireMessageOnlyRefusal(t, setTaxRate(t, app, state.Id, map[string]any{"inactive": true}),
+			"Remove it from the group “Metro” or make the group inactive first.")
+		requireStillActive(t, state)
+	})
+	t.Run("a rate in two active groups", func(t *testing.T) {
+		requireMessageOnlyRefusal(t, setTaxRate(t, app, city.Id, map[string]any{"inactive": true}),
+			"Remove it from its 2 active groups or make them inactive first.")
+		requireStillActive(t, city)
+	})
+	t.Run("a rate in an active and an inactive group", func(t *testing.T) {
+		requireMessageOnlyRefusal(t, setTaxRate(t, app, rtd.Id, map[string]any{"inactive": true}),
+			"Remove it from the group “Valley” or make the group inactive first.")
+		requireStillActive(t, rtd)
+	})
+	t.Run("a rate in an inactive group only", func(t *testing.T) {
+		if err := setTaxRate(t, app, old.Id, map[string]any{"inactive": true}); err != nil {
+			t.Fatalf("making a rate of an inactive group inactive was refused: %v", err)
+		}
+		if !reload(t, app, "books_tax_rates", old.Id).GetBool("inactive") {
+			t.Error("Old county is still active")
+		}
+	})
+	t.Run("the default rate", func(t *testing.T) {
+		if err := setTaxRate(t, app, single.Id, map[string]any{"is_default": true}); err != nil {
+			t.Fatalf("make Single rate the default: %v", err)
+		}
+		requireMessageOnlyRefusal(t, setTaxRate(t, app, single.Id, map[string]any{"inactive": true}),
+			"This is the default for new sales. Choose another default first.")
+		requireStillActive(t, single)
+		if got := defaultIDs(t, app); fmt.Sprint(got) != fmt.Sprint([]string{single.Id}) {
+			t.Errorf("defaults after the refusal = %v, want [%s]", got, single.Id)
+		}
+	})
+	t.Run("the default group", func(t *testing.T) {
+		if err := setTaxRate(t, app, metro.Id, map[string]any{"is_default": true}); err != nil {
+			t.Fatalf("make Metro the default: %v", err)
+		}
+		requireMessageOnlyRefusal(t, setTaxRate(t, app, metro.Id, map[string]any{"inactive": true}),
+			"This is the default for new sales. Choose another default first.")
+		requireStillActive(t, metro)
+		if got := defaultIDs(t, app); fmt.Sprint(got) != fmt.Sprint([]string{metro.Id}) {
+			t.Errorf("defaults after the refusal = %v, want [%s]", got, metro.Id)
+		}
+	})
+}
+
+// Later units append their document tax columns; this unit starts the list
+// with the groups' rates.
+func TestTaxRateReferences_StartWithGroupComponents(t *testing.T) {
+	if len(taxRateReferences) != 1 {
+		t.Fatalf("taxRateReferences has %d entries, want 1", len(taxRateReferences))
+	}
+	ref := taxRateReferences[0]
+	if ref.collection != "books_tax_rates" || ref.field != "components" || !ref.multiple {
+		t.Errorf("taxRateReferences[0] = {%q, %q, multiple %v}, want {books_tax_rates, components, multiple true}",
+			ref.collection, ref.field, ref.multiple)
+	}
+	if ref.message == nil || reflect.ValueOf(ref.message).Pointer() != reflect.ValueOf(rateInGroupsMessage).Pointer() {
+		t.Error("taxRateReferences[0].message is not rateInGroupsMessage")
+	}
 }
