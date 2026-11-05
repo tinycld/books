@@ -1,91 +1,44 @@
 // Synthetic sales tax data for the seed (seed.ts) and the helix reference route,
 // which reads these names.
 //
-// books_tax_agencies and books_tax_rates do not exist yet. Until checkpoint 2
-// (migration 2100000007, "Sales tax collections, guards and seed") creates them,
-// the rows are typed against the local interfaces below, which mirror the spec's
-// Data section. Checkpoint 2 deletes `TaxAgencyColumns`, `TaxRateColumns` and
-// `CustomerTaxColumns` and types the rows with `satisfies` against the generated
-// `BooksTaxAgencies`, `BooksTaxRates`, `BooksProducts` and `BooksCustomers`.
+// The rows are typed against the generated `BooksTaxAgencies`, `BooksTaxRates`
+// and `BooksCustomers` (migration 2100000007), so tsc checks every column
+// against the schema. A row never carries `name_key` (hidden, so a live query
+// never receives it) or `sort_key`: the server's guard sets both on every write.
 //
-// Accounts are named by seed account number (lib/seed-accounts.ts gains
-// 2200 Sales tax payable in checkpoint 2); the seed maps each number to the
-// created account's id. Customers are named by their customer-form fixture id,
-// which the seed maps to the created id. Ids of the tax rows are valid
-// PocketBase ids (15 lowercase letters and digits), so the seed may send them.
+// Accounts are named by seed account number (lib/seed-accounts.ts); the seed
+// maps each number to the created account's id. Customers are named by their
+// customer-form fixture id, which the seed maps to the created id. Ids of the
+// tax rows are valid PocketBase ids (15 lowercase letters and digits), so the
+// seed may send them.
 
-import type { BooksAccounts } from '../types'
+import type { BooksCustomers, BooksTaxAgencies, BooksTaxRates } from '../types'
 import { CUSTOMER_IDS } from './customer-form-fixture'
-import { PRODUCTS } from './products-services-fixture'
-
-// Local mirror of the spec's books_tax_agencies (checkpoint 2 replaces it).
-// `name_key` and `sort_key` are the guard's and never in a fixture row.
-interface TaxAgencyColumns {
-    id: string
-    name: string
-    account: string
-    inactive: boolean
-    created: string
-    updated: string
-}
-
-// Local mirror of the spec's books_tax_rates (checkpoint 2 replaces it).
-interface TaxRateColumns {
-    id: string
-    type: 'rate' | 'group'
-    name: string
-    rate_ppm: number
-    agency: string
-    components: string[]
-    is_default: boolean
-    inactive: boolean
-    created: string
-    updated: string
-}
-
-// Local mirror of the spec's new books_customers columns (checkpoint 2 replaces it).
-type ExemptionReasonKey =
-    | 'resale'
-    | 'federal_government'
-    | 'state_local_government'
-    | 'tribal_government'
-    | 'nonprofit'
-    | 'educational'
-    | 'agricultural'
-    | 'manufacturing'
-    | 'direct_pay'
-    | 'other'
-
-interface CustomerTaxColumns {
-    tax_exempt: boolean
-    exemption_reason: ExemptionReasonKey | ''
-    exemption_number: string
-    default_tax_rate: string
-}
+import type { ColumnOf } from './fixture-columns'
+import { SEED_ACCOUNTS } from './seed-accounts'
 
 // The relation column holds an id the seed only knows after it creates the
 // account, so the fixture names the account by number.
-export type TaxAgencyFixtureRecord = Omit<TaxAgencyColumns, 'account'> & {
+export type TaxAgencyFixtureRecord = Omit<
+    BooksTaxAgencies,
+    ColumnOf<BooksTaxAgencies, 'name_key' | 'sort_key' | 'account'>
+> & {
     account_number: string
 }
 
-export type TaxRateFixtureRecord = TaxRateColumns
+export type TaxRateFixtureRecord = Omit<
+    BooksTaxRates,
+    ColumnOf<BooksTaxRates, 'name_key' | 'sort_key'>
+>
 
-// The liability account every seeded agency names. Checkpoint 2 adds it to
-// SEED_ACCOUNTS; the reference route reads it from here until then.
-export const SALES_TAX_ACCOUNT = {
-    key: 'sales-tax',
-    name: 'Sales tax payable',
-    number: '2200',
-    type: 'other_current_liability',
-    detail_type: 'sales_tax_payable',
-} satisfies {
-    key: string
-    name: string
-    number: string
-    type: BooksAccounts['type']
-    detail_type: string
+function salesTaxAccount() {
+    const account = SEED_ACCOUNTS.find(a => a.key === 'sales-tax')
+    if (!account) throw new Error('tax fixture: SEED_ACCOUNTS has no sales-tax account')
+    return account
 }
+
+// The liability account every seeded agency names: 2200 Sales tax payable.
+export const SALES_TAX_ACCOUNT = salesTaxAccount()
 
 const STAMP = '2026-01-01 00:00:00.000Z'
 
@@ -235,13 +188,6 @@ for (const row of TAX_GROUPS) {
     }
 }
 
-// Products the seed marks taxable: every Non-inventory item. Services and
-// bundles stay not taxable (spec: a new Service starts not taxable; a bundle has
-// no setting of its own).
-export const TAXABLE_PRODUCT_IDS: string[] = PRODUCTS.filter(p => p.type === 'non_inventory').map(
-    p => p.id
-)
-
 // The tax columns the seed writes on two customers, by customer-form fixture id;
 // every other customer keeps the empty values.
 export const CUSTOMER_TAX_PATCHES = [
@@ -259,7 +205,13 @@ export const CUSTOMER_TAX_PATCHES = [
         exemption_number: '',
         default_tax_rate: TAX_IDS.denverCombined,
     },
-] satisfies ({ id: string } & CustomerTaxColumns)[]
+] satisfies ({ id: string } & Pick<
+    BooksCustomers,
+    ColumnOf<
+        BooksCustomers,
+        'tax_exempt' | 'exemption_reason' | 'exemption_number' | 'default_tax_rate'
+    >
+>)[]
 
 // No agency at all: the page's empty state.
 export const EMPTY_TAX_AGENCIES: TaxAgencyFixtureRecord[] = []

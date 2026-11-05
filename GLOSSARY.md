@@ -45,8 +45,11 @@ _Avoid_: Delete
 **Undeposited Funds**:
 The Account that holds received payments until a bank deposit groups them.
 
+**Tax Agency**:
+The government body sales tax is paid to. Its tax posts to one liability Account.
+
 **Tax Rate**:
-A percentage tied to one liability Account. A Tax Group combines several Tax Rates into one choice.
+A percentage collected for one Tax Agency. A Tax Group combines several Tax Rates into one choice.
 
 **Closed Through Date**:
 The date on or before which no Journal Entry may be posted, except by a user who holds an Override.

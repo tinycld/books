@@ -30,6 +30,7 @@ const ALL_COLUMNS = {
     purchase_description: true,
     cost: true,
     expense_account: true,
+    taxable: true,
     inactive: true,
     currency: true,
     form: true,

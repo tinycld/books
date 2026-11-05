@@ -9,6 +9,7 @@ import {
 import { customerTitle } from '../lib/customer-display'
 import { CUSTOMER_NOT_SAVED, CUSTOMER_SAVE_FAILED } from '../lib/customer-messages'
 import { applyPatch } from '../lib/record-save'
+import { EMPTY_CUSTOMER_TAX_COLUMNS } from '../lib/tax-columns'
 import type { BooksCustomers } from '../types'
 import { useCustomerNavigation } from './useCustomerNavigation'
 import { useRecordForm } from './useRecordForm'
@@ -41,7 +42,10 @@ export function useCustomerForm(target: CustomerFormTarget) {
         {
             columnsFrom: customerColumnsFrom,
             emptyColumns: EMPTY_CUSTOMER_COLUMNS,
-            insert: row => customersCollection.insert(row),
+            // Until checkpoint 8 adds the tax keys to the form's columns, the row
+            // useRecordSave passes has no tax column, and pbtsdb's insert requires
+            // every column; checkpoint 8 removes the spread.
+            insert: row => customersCollection.insert({ ...EMPTY_CUSTOMER_TAX_COLUMNS, ...row }),
             update: (id, patch, fields) =>
                 customersCollection.update(id, draft => applyPatch(draft, patch, fields)),
             logContext: 'books.customers',
