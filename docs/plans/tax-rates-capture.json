@@ -19,9 +19,7 @@
                     "waitFor": "tax-rate-menu-default-taxrtcostate001"
                 }
             ],
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "row-menu-phone",
@@ -38,27 +36,21 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                390
-            ]
+            "widths": [390]
         },
         {
             "name": "read-only",
             "url": "/a/books/helix-mockup?state=read-only",
             "ready": "taxes-screen",
             "height": 1500,
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "show-inactive",
             "url": "/a/books/helix-mockup?state=show-inactive",
             "ready": "taxes-screen",
             "height": 1700,
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "empty",
@@ -69,41 +61,31 @@
             "name": "empty-read-only",
             "url": "/a/books/helix-mockup?state=empty-read-only",
             "ready": "taxes-empty",
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "one-rate",
             "url": "/a/books/helix-mockup?state=one-rate",
             "ready": "taxes-screen",
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "loading",
             "url": "/a/books/helix-mockup?state=loading",
             "ready": "taxes-loading",
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "error",
             "url": "/a/books/helix-mockup?state=error",
             "ready": "taxes-banner",
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "refusal",
             "url": "/a/books/helix-mockup?state=refusal",
             "ready": "taxes-banner",
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "add-agency",
@@ -115,9 +97,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "add-agency-phone",
@@ -129,9 +109,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                390
-            ]
+            "widths": [390]
         },
         {
             "name": "add-agency-no-account",
@@ -143,9 +121,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "add-agency-no-account-phone",
@@ -157,9 +133,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                390
-            ]
+            "widths": [390]
         },
         {
             "name": "add-rate",
@@ -171,9 +145,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "add-rate-phone",
@@ -185,9 +157,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                390
-            ]
+            "widths": [390]
         },
         {
             "name": "add-group",
@@ -200,9 +170,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "add-group-phone",
@@ -215,9 +183,7 @@
                     "pause": 800
                 }
             ],
-            "widths": [
-                390
-            ]
+            "widths": [390]
         },
         {
             "name": "edit-group",
@@ -225,9 +191,7 @@
             "ready": "tax-group-dialog",
             "opaque": "tax-group-dialog",
             "height": 900,
-            "widths": [
-                1280
-            ],
+            "widths": [1280],
             "actions": [
                 {
                     "pause": 800
@@ -239,9 +203,7 @@
             "url": "/a/books/helix-mockup?state=delete-rate",
             "ready": "tax-delete-dialog-body",
             "opaque": "tax-delete-dialog-body",
-            "widths": [
-                1280
-            ],
+            "widths": [1280],
             "actions": [
                 {
                     "pause": 800
@@ -257,17 +219,13 @@
             "name": "customer-not-exempt",
             "url": "/a/books/helix-mockup?state=customer-not-exempt",
             "ready": "customer-tax-fields",
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         },
         {
             "name": "product",
             "url": "/a/books/helix-mockup?state=product",
             "ready": "product-tax-fields",
-            "widths": [
-                1280
-            ]
+            "widths": [1280]
         }
     ]
 }
