@@ -1,6 +1,6 @@
 // Synthetic Trial Balance for the helix reference route and the e2e seed. The ledger
-// names its accounts by the seeded e2e book's keys (seed-accounts.ts), plus the
-// retained-earnings account the book gains with this unit. The run results are typed
+// names its accounts by the seeded e2e book's keys (seed-accounts.ts), its
+// retained-earnings account included. The run results are typed
 // against core's report contract, so tsc checks every field. Money is integer cents.
 import type { ParamDef } from '@tinycld/core/reports/lib/spec'
 import type {
@@ -49,16 +49,6 @@ export const TRIAL_BALANCE_PARAMS: ParamDef[] = [
     },
 ]
 
-// The retained-earnings account the e2e book gains (seed-accounts.ts, checkpoint 1):
-// the Trial Balance folds prior fiscal years' income and expense onto it.
-export const RETAINED_EARNINGS_SEED = {
-    key: 'retained',
-    name: 'Retained earnings',
-    number: '3900',
-    type: 'equity',
-    detail_type: 'retained_earnings',
-} satisfies Pick<BooksAccounts, 'name' | 'number' | 'type' | 'detail_type'> & { key: string }
-
 // A posted entry two calendar years before the seed runs, so the seeded book's Trial
 // Balance shows the retained-earnings fold. [account key, debit, credit] in cents.
 export const PRIOR_YEAR_SEED = {
@@ -71,33 +61,24 @@ export const PRIOR_YEAR_SEED = {
     ] as [string, number, number][],
 }
 
-// Local shape until checkpoint 1 adds books_accounts.full_name to the migration;
-// checkpoint 1 replaces it with `satisfies Pick<BooksAccounts, ...>` over the
-// generated type.
-interface TrialBalanceAccount {
-    id: string
+type TrialBalanceAccount = Pick<
+    BooksAccounts,
+    'id' | 'number' | 'full_name' | 'type' | 'inactive'
+> & {
     key: string
-    number: string
-    full_name: string
-    type: BooksAccounts['type']
-    inactive: boolean
-}
-
-function seeded(key: string): Omit<TrialBalanceAccount, 'id' | 'full_name'> & { name: string } {
-    const account = SEED_ACCOUNTS.find(a => a.key === key)
-    if (!account) throw new Error(`trial-balance fixture: no seeded account ${key}`)
-    return {
-        key,
-        name: account.name,
-        number: account.number,
-        type: account.type,
-        inactive: account.inactive === true,
-    }
 }
 
 function account(key: string, id: string, fullName?: string): TrialBalanceAccount {
-    const { name, ...rest } = seeded(key)
-    return { ...rest, id, full_name: fullName ?? name }
+    const seeded = SEED_ACCOUNTS.find(a => a.key === key)
+    if (!seeded) throw new Error(`trial-balance fixture: no seeded account ${key}`)
+    return {
+        id,
+        key,
+        number: seeded.number,
+        full_name: fullName ?? seeded.name,
+        type: seeded.type,
+        inactive: seeded.inactive === true,
+    } satisfies TrialBalanceAccount
 }
 
 // Chart order: account type in account_types.json order, then number.
@@ -107,14 +88,7 @@ export const TRIAL_BALANCE_ACCOUNTS: TrialBalanceAccount[] = [
     account('equipment', 'tbacct0equipmnt'),
     account('card', 'tbacct0000card0'),
     account('equity', 'tbacct000equity'),
-    {
-        id: 'tbacct0retained',
-        key: RETAINED_EARNINGS_SEED.key,
-        number: RETAINED_EARNINGS_SEED.number,
-        full_name: RETAINED_EARNINGS_SEED.name,
-        type: RETAINED_EARNINGS_SEED.type,
-        inactive: false,
-    },
+    account('retained', 'tbacct0retained'),
     account('consulting', 'tbacct0consultg'),
     account('rent', 'tbacct00000rent'),
     account('software', 'tbacct0software'),

@@ -1,7 +1,7 @@
 // Synthetic data for the setup wizard helix reference route and, later, the seed.
 // Typed against the generated record types so tsc checks every field.
 import type { BooksAccounts, BooksSettings } from '../types'
-import { ACCOUNTS } from './chart-of-accounts-fixture'
+import { ACCOUNTS, withFullNames } from './chart-of-accounts-fixture'
 import { type Ownership, starterChart } from './starter-chart'
 
 export type ChartAccount = BooksAccounts
@@ -46,23 +46,25 @@ function seedId(number: string): string {
 function build(ownership: Ownership): BooksAccounts[] {
     const chart = starterChart(ownership)
     const numberOfKey = new Map(chart.map(item => [item.key, item.number]))
-    return chart.map(item => {
-        const parentNumber = item.parent ? numberOfKey.get(item.parent) : undefined
-        return {
-            id: seedId(item.number),
-            number: item.number,
-            name: item.name,
-            type: item.type as BooksAccounts['type'],
-            detail_type: item.detail_type,
-            description: '',
-            inactive: false,
-            form_1099_box: '',
-            parent: parentNumber ? seedId(parentNumber) : '',
-            currency: 'USD',
-            created: STAMP,
-            updated: STAMP,
-        }
-    })
+    return withFullNames(
+        chart.map(item => {
+            const parentNumber = item.parent ? numberOfKey.get(item.parent) : undefined
+            return {
+                id: seedId(item.number),
+                number: item.number,
+                name: item.name,
+                type: item.type as BooksAccounts['type'],
+                detail_type: item.detail_type,
+                description: '',
+                inactive: false,
+                form_1099_box: '',
+                parent: parentNumber ? seedId(parentNumber) : '',
+                currency: 'USD',
+                created: STAMP,
+                updated: STAMP,
+            }
+        })
+    )
 }
 
 export const STARTER_CHART: Record<Ownership, BooksAccounts[]> = {

@@ -104,6 +104,9 @@ migrate(
                 type: 'base',
                 fields: [
                     { name: 'name', type: 'text', required: true, max: 200 },
+                    // The parent path ("Parent:Child"), set by the server
+                    // (server/accounts.go) for reports to read and sort by.
+                    { name: 'full_name', type: 'text', max: 1100 },
                     { name: 'number', type: 'text', max: 20, pattern: '^[0-9A-Za-z.-]*$' },
                     { name: 'type', type: 'select', required: true, maxSelect: 1, values: ACCOUNT_TYPES },
                     { name: 'detail_type', type: 'text', required: true, max: 60 },
@@ -288,8 +291,8 @@ migrate(
             books_accounts: {
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && ${unset('currency')}`,
-                updateRule: `${WRITE} && ${unset('currency')}`,
+                createRule: `${WRITE} && ${unset('currency', 'full_name')}`,
+                updateRule: `${WRITE} && ${unset('currency', 'full_name')}`,
                 deleteRule: WRITE,
             },
             books_journal_entries: {
