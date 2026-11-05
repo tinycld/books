@@ -53,10 +53,11 @@ func registerAudit(app *pocketbase.PocketBase) {
 var accountLabel = audit.LabelFromFields("number", "name")
 
 func entryLabel(r *core.Record) string {
+	noun, _, draft := entryNouns(r.GetString("doc_type"))
 	if n := r.GetString("number"); n != "" {
-		return "Journal entry " + n
+		return noun + " " + n
 	}
-	return "Draft journal entry " + r.GetString("date")
+	return draft + " " + r.GetString("date")
 }
 
 // lineLabel names a line by its account and side: "1010:Petty Cash debit
