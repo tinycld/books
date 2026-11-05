@@ -9,6 +9,7 @@ import {
     isTransferAccount,
     MAX_TRANSFER_AMOUNT,
     newTransferValues,
+    replaceTargetState,
     TRANSFER_ACCOUNT_TYPES,
     TRANSFER_ERRORS,
     type TransferFormValues,
@@ -33,6 +34,7 @@ import {
     TRANSFER_IDS,
     TRANSFER_LINES,
     TRANSFER_MESSAGES,
+    TRANSFERS,
 } from '../tinycld/books/lib/transfer-fixture'
 
 const serverFile = (name: string) => readFileSync(join(__dirname, '..', 'server', name), 'utf8')
@@ -453,5 +455,48 @@ describe('transferAccountBalance', () => {
         expect(
             transferAccountBalance({ type: 'equity', debit_total: 0, credit_total: 300_000 })
         ).toBe(300_000)
+    })
+})
+
+describe('replaceTargetState', () => {
+    const fixtureEntry = (id: string) => {
+        const entry = TRANSFERS.find(row => row.id === id)
+        if (!entry) throw new Error(`No fixture transfer ${id}`)
+        return entry
+    }
+    const postedTransfer = fixtureEntry(TRANSFER_IDS.posted)
+
+    it('gives loading while not ready, whatever the entry holds', () => {
+        expect(replaceTargetState({ isReady: false, entry: undefined })).toBe('loading')
+        expect(replaceTargetState({ isReady: false, entry: postedTransfer })).toBe('loading')
+    })
+
+    it('gives cannot-edit when ready with no entry', () => {
+        expect(replaceTargetState({ isReady: true, entry: undefined })).toBe('cannot-edit')
+    })
+
+    it('gives ready for a posted manual transfer', () => {
+        expect(postedTransfer).toMatchObject({
+            status: 'posted',
+            doc_type: 'transfer',
+            origin: 'manual',
+        })
+        expect(replaceTargetState({ isReady: true, entry: postedTransfer })).toBe('ready')
+    })
+
+    it('gives cannot-edit for a draft or void transfer, a journal entry and a void reversal', () => {
+        const cases = [
+            fixtureEntry(TRANSFER_IDS.draft),
+            fixtureEntry(TRANSFER_IDS.void),
+            { status: 'posted', doc_type: 'journal', origin: 'manual' } as const,
+            { status: 'posted', doc_type: 'transfer', origin: 'void_reversal' } as const,
+        ]
+        for (const entry of cases) {
+            const { status, doc_type, origin } = entry
+            expect(
+                replaceTargetState({ isReady: true, entry }),
+                JSON.stringify({ status, doc_type, origin })
+            ).toBe('cannot-edit')
+        }
     })
 })

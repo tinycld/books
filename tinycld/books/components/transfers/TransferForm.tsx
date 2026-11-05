@@ -30,6 +30,8 @@ interface TransferFormProps {
     isHeaderVisible?: boolean
     onSaved(id: string, outcome: SaveOutcome): void
     onCancel(): void
+    // A saved draft's delete, offered in the action bar's More menu.
+    onDeleteDraft?: () => void
 }
 
 const MEMO_WIDE = { style: { maxWidth: 560 } }
@@ -54,6 +56,7 @@ export function TransferForm({
     isHeaderVisible = true,
     onSaved,
     onCancel,
+    onDeleteDraft,
 }: TransferFormProps) {
     const isWide = useBreakpoint() !== 'mobile'
     const transferForm = useTransferForm({ initial, currency })
@@ -102,6 +105,7 @@ export function TransferForm({
                         onSaveDraft={submit.saveDraft}
                         onPost={submit.post}
                         onPostAndNew={submit.postAndNew}
+                        onDeleteDraft={onDeleteDraft}
                     />
                     <DiscardDialog
                         title="Discard changes?"

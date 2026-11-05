@@ -3,7 +3,6 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import type { LiveRecovery } from '../lib/report-definition'
 import { mergeRecoveries } from '../lib/report-state'
@@ -58,10 +57,21 @@ export function useTransferDetail(entryId: string) {
     })
     const entry = entryQuery.data?.[0]
     const lines = linesQuery.data ?? []
-    const { record: replacesEntry, isLoading: replacesLoading } = useRecord(
-        entriesCollection,
-        entry?.replaces
-    )
+    // The posted transfer a correction replaces, for its number. A live query, not
+    // `useRecord`: a refused read must show as an error with Retry, never as a ready
+    // correction with no number. With nothing replaced the query is disabled.
+    const replacesId = entry?.replaces ?? ''
+    const replacesQuery = useLiveQuery({
+        query: q => {
+            if (!replacesId) return undefined
+            return q
+                .from({ original: entriesCollection })
+                .where(({ original }) => eq(original.id, replacesId))
+        },
+        queryKey: ['books.transfer.replaces', replacesId],
+    })
+    // A disabled query reports ready, so the id is checked as well as `isEnabled`.
+    const isReplacesReady = !replacesId || (replacesQuery.isEnabled && replacesQuery.isReady)
 
     const currency = entry?.currency || settings.settings?.currency || 'USD'
     const { from, to, amount, ids } = transferFromLines(lines, currency)
@@ -71,10 +81,11 @@ export function useTransferDetail(entryId: string) {
         accounts.isReady &&
         entryQuery.isReady &&
         linesQuery.isReady &&
-        !replacesLoading
+        isReplacesReady
     const isError =
         entryQuery.isError ||
         linesQuery.isError ||
+        replacesQuery.isError ||
         accounts.isError ||
         access.isError ||
         settings.hasLoadError
@@ -87,6 +98,10 @@ export function useTransferDetail(entryId: string) {
     const linesRecovery: LiveRecovery = linesQuery.isError
         ? { queries: [linesQuery.collection], sources: [linesCollection] }
         : NO_RECOVERY
+    const replacesRecovery: LiveRecovery =
+        replacesQuery.isError && replacesQuery.collection
+            ? { queries: [replacesQuery.collection], sources: [entriesCollection] }
+            : NO_RECOVERY
     const accessRecovery: LiveRecovery = access.isError
         ? { queries: [access.collection], sources: [accessCollection] }
         : NO_RECOVERY
@@ -95,6 +110,7 @@ export function useTransferDetail(entryId: string) {
             ...mergeRecoveries([
                 entryRecovery,
                 linesRecovery,
+                replacesRecovery,
                 accounts.recovery,
                 settings.recovery,
                 accessRecovery,
@@ -121,7 +137,7 @@ export function useTransferDetail(entryId: string) {
         canWrite: access.canWrite,
         postedByName: entry?.postedBy?.name,
         voidedByName: entry?.voidedBy?.name,
-        replacesNumber: replacesEntry?.number,
+        replacesNumber: replacesQuery.data?.[0]?.number,
         accounts,
         onRetry,
     }

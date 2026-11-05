@@ -3,7 +3,7 @@
 // server/transfer_account_types.json and the amount limit mirrors `maxAmount` in
 // server/posting.go; tests/transfer.test.ts drift-tests both against those files.
 import { z } from '@tinycld/core/ui/form'
-import type { BooksAccounts, BooksJournalLines } from '../types'
+import type { BooksAccounts, BooksJournalEntries, BooksJournalLines } from '../types'
 import { filteredAccountOptions } from './account-options'
 import { ownBalance } from './account-tree'
 import { type EntryFormLine, TOO_LARGE_TEXT } from './entry-lines'
@@ -196,6 +196,21 @@ export function transferViewState(input: {
     if (!input.hasEntry) return 'not-found'
     if (input.docType !== 'transfer' || input.origin !== 'manual') return 'wrong-type'
     return 'ready'
+}
+
+// Only a posted transfer a person made can be corrected: the server refuses a correction
+// whose type or origin differs from the original's, and a draft or a void has nothing to
+// replace.
+export function replaceTargetState(input: {
+    isReady: boolean
+    entry: Pick<BooksJournalEntries, 'status' | 'doc_type' | 'origin'> | undefined
+}): 'loading' | 'ready' | 'cannot-edit' {
+    if (!input.isReady) return 'loading'
+    const { entry } = input
+    if (!entry) return 'cannot-edit'
+    const isPostedTransfer =
+        entry.status === 'posted' && entry.doc_type === 'transfer' && entry.origin === 'manual'
+    return isPostedTransfer ? 'ready' : 'cannot-edit'
 }
 
 export function transferBalanceLine(

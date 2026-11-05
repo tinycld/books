@@ -1,53 +1,24 @@
-import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { log } from '@tinycld/core/lib/logger'
-import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { router, useLocalSearchParams } from 'expo-router'
-import { View } from 'react-native'
+import { useLocalSearchParams } from 'expo-router'
 import { EntryNotice } from '../../components/entries/EntryNotice'
 import { TransferForm } from '../../components/transfers/TransferForm'
 import { TransferLoadError } from '../../components/transfers/TransferLoadError'
+import { TransferLoading } from '../../components/transfers/TransferLoading'
+import { TransferReplaceForm } from '../../components/transfers/TransferReplaceForm'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useBooksSettings } from '../../hooks/useBooksSettings'
-import type { SaveOutcome } from '../../hooks/useEntrySubmit'
 import { useTransferAccounts } from '../../hooks/useTransferAccounts'
+import { useTransferAfterSave } from '../../hooks/useTransferAfterSave'
 import { todayIso } from '../../lib/register-range'
 import { mergeRecoveries } from '../../lib/report-state'
 import { newTransferValues } from '../../lib/transfer'
 
-// Replacing keeps the unsaved form out of the back stack. A post opens the read view, a
-// draft its own form, and Post & new a fresh form that keeps the register's account.
-function useAfterSave(from: string | undefined) {
-    const orgHref = useOrgHref()
-    return (id: string, outcome: SaveOutcome) => {
-        if (outcome === 'post-new') {
-            router.replace(
-                orgHref(
-                    from
-                        ? `books/transfers/new?from=${encodeURIComponent(from)}`
-                        : 'books/transfers/new'
-                )
-            )
-            return
-        }
-        router.replace(orgHref(`books/transfers/${id}`))
-    }
-}
-
-function TransferLoading() {
-    return (
-        <View testID="transfer-loading" className="flex-1 bg-background">
-            <LoadingState />
-        </View>
-    )
-}
-
-function NewTransferScreen() {
-    const { from } = useLocalSearchParams<{ from?: string }>()
+function NewTransferScreen({ from }: { from?: string }) {
     const settings = useBooksSettings()
     const accounts = useTransferAccounts()
-    const onSaved = useAfterSave(from)
+    const onSaved = useTransferAfterSave(from)
     const { onBack } = useBackToEntries()
     if (settings.hasLoadError || accounts.isError) {
         // One call recovers exactly the reads that failed.
@@ -74,6 +45,7 @@ function NewTransferScreen() {
 
 export default function NewTransferRoute() {
     const access = useBooksAccess()
+    const { from, replaces } = useLocalSearchParams<{ from?: string; replaces?: string }>()
     if (access.isError) return <TransferLoadError onRetry={access.retry} />
     if (!access.isReady) return <TransferLoading />
     if (!access.canWrite) {
@@ -84,5 +56,8 @@ export default function NewTransferRoute() {
             />
         )
     }
-    return <NewTransferScreen />
+    // A correction never falls back to the blank form, not even for an empty `replaces`: that
+    // could post a second transfer beside the original.
+    if (replaces !== undefined) return <TransferReplaceForm key={replaces} replaces={replaces} />
+    return <NewTransferScreen from={from} />
 }

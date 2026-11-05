@@ -10,6 +10,9 @@ interface EntryActionBarProps {
     onSaveDraft(): void
     onPost(): void
     onPostAndNew(): void
+    // A saved draft's delete; it adds More with "Delete draft" (wide shows More too). The
+    // journal entry form never passes it.
+    onDeleteDraft?: () => void
     // The journal entry form keeps `entry-*`; the transfer form's bar is `transfer-*`.
     testIDPrefix?: 'entry' | 'transfer'
 }
@@ -18,13 +21,61 @@ type Prefix = NonNullable<EntryActionBarProps['testIDPrefix']>
 
 const TAP = { minHeight: 44 }
 
-function MoreMenu({
+function PostAndNewItem({
+    isVisible,
     isPending,
     onPostAndNew,
     prefix,
-}: Pick<EntryActionBarProps, 'isPending' | 'onPostAndNew'> & { prefix: Prefix }) {
+}: Pick<EntryActionBarProps, 'isPending' | 'onPostAndNew'> & {
+    isVisible: boolean
+    prefix: Prefix
+}) {
     // The menu item posts, so it is gated like the buttons that write.
     const postAndNew = useServerActionState({ isDisabled: isPending })
+    if (!isVisible) return null
+    return (
+        <Menu.Item
+            testID={`${prefix}-post-new`}
+            label="Post & new"
+            isDisabled={postAndNew.isDisabled}
+            onSelect={onPostAndNew}
+        />
+    )
+}
+
+// The item only opens the delete dialog, whose confirm is gated like every write.
+function DeleteDraftItem({
+    onDeleteDraft,
+    prefix,
+}: {
+    onDeleteDraft?: () => void
+    prefix: Prefix
+}) {
+    if (!onDeleteDraft) return null
+    return (
+        <Menu.Item
+            testID={`${prefix}-delete-draft`}
+            label="Delete draft"
+            isDestructive
+            onSelect={onDeleteDraft}
+        />
+    )
+}
+
+// On a phone More holds Post & new, then Delete draft; wide shows it only for a draft,
+// holding Delete draft alone (Post & new is a button there).
+function MoreMenu({
+    isVisible,
+    isWide,
+    isPending,
+    onPostAndNew,
+    onDeleteDraft,
+    prefix,
+}: Pick<EntryActionBarProps, 'isWide' | 'isPending' | 'onPostAndNew' | 'onDeleteDraft'> & {
+    isVisible: boolean
+    prefix: Prefix
+}) {
+    if (!isVisible) return null
     return (
         <Menu
             title="More"
@@ -40,12 +91,13 @@ function MoreMenu({
                 </Button>
             }
         >
-            <Menu.Item
-                testID={`${prefix}-post-new`}
-                label="Post & new"
-                isDisabled={postAndNew.isDisabled}
-                onSelect={onPostAndNew}
+            <PostAndNewItem
+                isVisible={!isWide}
+                isPending={isPending}
+                onPostAndNew={onPostAndNew}
+                prefix={prefix}
             />
+            <DeleteDraftItem onDeleteDraft={onDeleteDraft} prefix={prefix} />
         </Menu>
     )
 }
@@ -75,19 +127,6 @@ function PostAndNewButton({
     )
 }
 
-function PhoneMore({
-    isVisible,
-    isPending,
-    onPostAndNew,
-    prefix,
-}: Pick<EntryActionBarProps, 'isPending' | 'onPostAndNew'> & {
-    isVisible: boolean
-    prefix: Prefix
-}) {
-    if (!isVisible) return null
-    return <MoreMenu isPending={isPending} onPostAndNew={onPostAndNew} prefix={prefix} />
-}
-
 export function EntryActionBar({
     isWide,
     isPending,
@@ -95,9 +134,11 @@ export function EntryActionBar({
     onSaveDraft,
     onPost,
     onPostAndNew,
+    onDeleteDraft,
     testIDPrefix = 'entry',
 }: EntryActionBarProps) {
     const layout = isWide ? 'justify-end' : 'justify-between'
+    const isMoreVisible = !isWide || onDeleteDraft !== undefined
     return (
         <View
             testID={`${testIDPrefix}-actions`}
@@ -135,10 +176,12 @@ export function EntryActionBar({
             >
                 <ButtonText>Post</ButtonText>
             </ServerActionButton>
-            <PhoneMore
-                isVisible={!isWide}
+            <MoreMenu
+                isVisible={isMoreVisible}
+                isWide={isWide}
                 isPending={isPending}
                 onPostAndNew={onPostAndNew}
+                onDeleteDraft={onDeleteDraft}
                 prefix={testIDPrefix}
             />
         </View>

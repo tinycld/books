@@ -8,6 +8,7 @@ import {
     type TransferLineIds,
     transferEntryValues,
     transferLines,
+    transferRefusalField,
 } from '../lib/transfer'
 import { useTransferPostStore } from '../stores/transfer-post-store'
 import { useEntrySave } from './useEntrySave'
@@ -101,7 +102,13 @@ export function useTransferSubmit({
             }
             return
         }
-        setError('root', { type: 'server', message: writeRefusalText(error) })
+        // A refused line sits under its account field, without the "Line n:" prefix.
+        const { field, text } = transferRefusalField(writeRefusalText(error))
+        if (field) {
+            setError(`root.${field}`, { type: 'server', message: text })
+            return
+        }
+        setError('root', { type: 'server', message: text })
     }
 
     const submit = (mode: 'draft' | 'post', outcome: SaveOutcome) => async () => {
