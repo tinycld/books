@@ -83,6 +83,11 @@ func reversalTarget(tx core.App, entry *core.Record) (*core.Record, error) {
 	if entry.GetString("origin") == originVoidReversal && !isVoiding(tx, target.Id) {
 		return nil, refuse("Books writes a void's reversal when it voids an entry. Void %s instead.", entryName(target))
 	}
+	// The reversal takes its number from its own doc_type's sequence (numberFor), so a
+	// mismatched type would number a transfer's reversal as a journal entry, or the reverse.
+	if entry.GetString("doc_type") != target.GetString("doc_type") {
+		return nil, refuse("A reversal must have the same document type as the entry it reverses.")
+	}
 	if entry.GetString("date") < target.GetString("date") {
 		return nil, refuse("A reversal cannot be dated before the entry it reverses (%s).", target.GetString("date"))
 	}

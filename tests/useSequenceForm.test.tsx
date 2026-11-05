@@ -315,9 +315,25 @@ describe('useSequenceForm submitted state with the sequence from the live query'
     })
 })
 
-// The doc_type ordering test returns with the first unit that adds a second doc_type to
-// books_doc_sequences (today the select allows only 'journal').
 describe('useDocSequences', () => {
+    it('orders the rows by doc_type', async () => {
+        seedBooks({
+            level: 'admin',
+            sequences: [
+                // Sorts before SEQ's id, so key order differs from doc_type order.
+                { ...SEQ, id: 'booksseq0000000', doc_type: 'transfer', prefix: 'TR-' },
+                SEQ,
+            ],
+        })
+        const rendered = renderHook(() => useDocSequences(), { wrapper })
+        await waitFor(() => expect(rendered.result.current.isReady).toBe(true))
+
+        expect(rendered.result.current.sequences?.map(s => s.doc_type)).toEqual([
+            'journal',
+            'transfer',
+        ])
+    })
+
     it('is not ready while the rows have not loaded', async () => {
         seedBooks({ level: 'admin', sequencesNeverReady: true })
         const rendered = renderHook(() => useDocSequences(), { wrapper })
