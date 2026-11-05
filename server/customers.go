@@ -26,6 +26,14 @@ const (
 	msgDeleteHasSubs = "This customer has sub-customers, so it cannot be deleted."
 )
 
+// Customer sales tax refusals. tinycld/books/lib/tax-messages.ts copies them;
+// tests/tax-messages.test.ts fails when this wording drifts.
+const (
+	msgExemptionReasonRequired = "Choose an exemption reason."
+	msgDefaultTaxMissing       = "The default sales tax does not exist."
+	msgDefaultTaxInactive      = "The default sales tax is inactive."
+)
+
 // activeSubCustomersMessage names how many active sub-customers keep a
 // customer from being made inactive.
 func activeSubCustomersMessage(n int) string {
@@ -87,6 +95,9 @@ func validateCustomer(app core.App, stored, r *core.Record) error {
 			return refuseField(field, msgAddressShape)
 		}
 	}
+	if err := validateCustomerTax(app, stored, r); err != nil {
+		return err
+	}
 	if err := validateSiblingName(app, stored, r, name); err != nil {
 		return err
 	}
@@ -95,6 +106,34 @@ func validateCustomer(app core.App, stored, r *core.Record) error {
 		return err
 	}
 	r.Set("sort_key", key)
+	return nil
+}
+
+// validateCustomerTax checks an exempt customer's reason and a default sales
+// tax the write sets or changes (a customer keeps a default that became
+// inactive after it was saved). The form hides the reason for a taxable
+// customer and the default for an exempt one, but their values stay stored and
+// are not checked or cleared here: Books refuses rather than restores, and the
+// invoice unit ignores the default of an exempt customer. stored is the record
+// before an update, nil on a create.
+func validateCustomerTax(app core.App, stored, r *core.Record) error {
+	if r.GetBool("tax_exempt") && r.GetString("exemption_reason") == "" {
+		return refuseField("exemption_reason", msgExemptionReasonRequired)
+	}
+	taxID := r.GetString("default_tax_rate")
+	if taxID == "" || (stored != nil && stored.GetString("default_tax_rate") == taxID) {
+		return nil
+	}
+	tax, err := app.FindRecordById("books_tax_rates", taxID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return refuseField("default_tax_rate", msgDefaultTaxMissing)
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the default sales tax: %w", err)
+	}
+	if tax.GetBool("inactive") {
+		return refuseField("default_tax_rate", msgDefaultTaxInactive)
+	}
 	return nil
 }
 
