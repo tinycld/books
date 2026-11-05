@@ -6,6 +6,7 @@ import (
 
 	"tinycld.org/core/oauth"
 	"tinycld.org/core/quota"
+	"tinycld.org/core/reports"
 	"tinycld.org/core/search"
 )
 
@@ -21,6 +22,9 @@ import (
 // never names Books.
 func Register(app *pocketbase.PocketBase) {
 	registerLedger(app)
+	for _, s := range reportSources() {
+		reports.RegisterSource(s)
+	}
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())
 	registerSearchIndex(app)
