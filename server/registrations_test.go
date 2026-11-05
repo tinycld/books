@@ -332,7 +332,7 @@ func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	oauth.RegisterPackage(oauthPackage())
 	for _, c := range []string{
 		"books_accounts", "books_journal_entries", "books_journal_lines", "books_customers", "books_vendors",
-		"books_products", "books_bundle_items",
+		"books_products", "books_bundle_items", "books_tax_agencies", "books_tax_rates",
 	} {
 		path := "/api/collections/" + c + "/records"
 		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
@@ -699,6 +699,35 @@ func TestAudit_RedactsTheSortKey(t *testing.T) {
 				t.Errorf("changes.sort_key = %#v, want %#v", changes["sort_key"], redactedChange)
 			}
 			requireNoLeak(t, row, "zeta sorted co")
+		},
+	}.run(t, app)
+}
+
+// A tax rate's audit row names it as people know it, by its name, and its
+// sort_key (the guard's list order) is logged only as a redacted change.
+func TestAudit_LabelsATaxRateByName(t *testing.T) {
+	app, users := newAuditedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	rate := mkTaxRate(t, app, "Denver lodging", 88750, agency)
+	apiReq{
+		method: http.MethodPatch,
+		url:    "/api/collections/books_tax_rates/records/" + rate.Id,
+		token:  tokenFor(t, users.bookkeeper),
+		body:   `{"name":"Zeta lodging"}`,
+		want:   http.StatusOK,
+		after: func(t testing.TB, app *tests.TestApp) {
+			row := awaitAuditRow(t, app, "books_tax_rates", "updated", rate.Id)
+			if got := row.GetString("resource_label"); got != "Zeta lodging" {
+				t.Errorf("resource_label = %q, want %q", got, "Zeta lodging")
+			}
+			changes := auditJSONField(t, row, "changes")
+			if want := map[string]any{"before": "Denver lodging", "after": "Zeta lodging"}; !reflect.DeepEqual(changes["name"], want) {
+				t.Errorf("changes.name = %#v, want %#v", changes["name"], want)
+			}
+			if !reflect.DeepEqual(changes["sort_key"], redactedChange) {
+				t.Errorf("changes.sort_key = %#v, want %#v", changes["sort_key"], redactedChange)
+			}
+			requireNoLeak(t, row, "zeta lodging", "denver lodging")
 		},
 	}.run(t, app)
 }
