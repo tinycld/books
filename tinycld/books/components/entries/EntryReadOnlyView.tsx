@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
 import { useReadOnlyActions } from '../../hooks/useReadOnlyActions'
-import { entryNumberText, reversalSummary, stampText } from '../../lib/entry-display'
+import { entryNumberText, entryTypeText, reversalSummary, stampText } from '../../lib/entry-display'
 import { sumLines } from '../../lib/entry-lines'
 import { formatDay } from '../../lib/register-range'
 import { EntryHeader } from './EntryHeader'
@@ -112,6 +112,16 @@ function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
     return <View className="flex-row flex-wrap gap-x-6">{links}</View>
 }
 
+// The title always reads "Journal entry", so a document of another type names its type here.
+function TypeDetail({ entry }: { entry: ReadyEntryDetail['entry'] }) {
+    if (entry.doc_type === 'journal') return null
+    return (
+        <Detail id="type" label="Type">
+            {entryTypeText(entry.origin, entry.doc_type)}
+        </Detail>
+    )
+}
+
 function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
     const { entry } = detail
     const autoReverseText =
@@ -119,6 +129,7 @@ function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
     return (
         <View className="gap-3">
             <View className="flex-row flex-wrap gap-x-6 gap-y-3">
+                <TypeDetail entry={entry} />
                 <Detail id="date" label="Date">
                     {formatDay(entry.date)}
                 </Detail>

@@ -29,6 +29,22 @@ export function isTransferAccount(account: { type: string }): boolean {
     return transferTypes.has(account.type)
 }
 
+// The register's Transfer button: a writer on an account a transfer may use. An inactive
+// account is left out: the pickers offer active accounts only and the server refuses its line.
+export function transferButtonVisible(input: {
+    canWrite: boolean
+    accountType: string | undefined
+    inactive: boolean
+}): boolean {
+    const { canWrite, accountType, inactive } = input
+    return (
+        canWrite &&
+        !inactive &&
+        accountType !== undefined &&
+        isTransferAccount({ type: accountType })
+    )
+}
+
 // The largest line amount the server posts, in cents (ten trillion dollars).
 export const MAX_TRANSFER_AMOUNT = maxLineAmount
 

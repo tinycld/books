@@ -5,7 +5,7 @@ tags: [journal entries, post, reverse, void, ledger]
 order: 26
 ---
 
-A journal entry moves money between accounts. Each entry has a date, a memo and two or more lines. Every line has an account and an amount on the debit or credit side. Debits must equal credits before you can post.
+A journal entry moves money between accounts. Each entry has a date, a memo and two or more lines. Every line has an account and an amount on the debit or credit side. Debits must equal credits before you can post. To move money between bank, card, asset, liability or equity accounts, use a [transfer](help://books:transfers).
 
 To see all entries, choose Journal Entries in the sidebar. Use the filters above the list to narrow it by status, search or date range. A read-only user can open entries but cannot change them.
 
@@ -47,6 +47,7 @@ With bookkeeper access you can create, post, edit, reverse, void and delete draf
 
 - A draft can be opened or deleted.
 - A posted entry can be opened, edited, reversed and voided. Reverse is hidden once a reversal exists.
+- A posted transfer can be opened, edited and voided, but not reversed. Its Edit opens the transfer form.
 - A posted reversal or auto reversal can be opened, reversed and voided, but not edited.
 - A void entry can only be opened.
 - A void reversal entry (the reversing entry that a void creates) can only be opened. You cannot edit, reverse or void it.
