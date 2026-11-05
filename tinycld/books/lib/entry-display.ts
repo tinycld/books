@@ -29,7 +29,12 @@ export function entryStatusText(status: EntryStatus): string {
     return STATUS_LABELS[status]
 }
 
-export function entryTypeText(origin: EntryOrigin): string {
+// A transfer's reversal keeps doc_type 'transfer' but is labelled by its origin.
+export function entryTypeText(
+    origin: EntryOrigin,
+    docType: BooksJournalEntries['doc_type'] = 'journal'
+): string {
+    if (docType === 'transfer' && origin === 'manual') return 'Transfer'
     return ENTRY_TYPE_LABELS[origin]
 }
 

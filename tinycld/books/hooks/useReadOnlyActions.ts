@@ -20,7 +20,12 @@ export function useReadOnlyActions(detail: ReadyEntryDetail) {
     const dialogs = useEntryDialogs(entry.id, { navigation: 'replace', onClose })
 
     const actions = entryActions(
-        { status: entry.status, origin: entry.origin, isReversed: reversedBy?.status === 'posted' },
+        {
+            status: entry.status,
+            origin: entry.origin,
+            doc_type: entry.doc_type,
+            isReversed: reversedBy?.status === 'posted',
+        },
         { canWrite }
     )
 

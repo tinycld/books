@@ -79,7 +79,13 @@ const originLabels: Record<string, string> = {
 
 const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])
 
-export function entryTypeLabel(origin: string, reversesNumber: string): string {
+// A transfer's reversal keeps doc_type 'transfer' and its "Void reversal of TR-3" label.
+export function entryTypeLabel(
+    origin: string,
+    reversesNumber: string,
+    docType: string = 'journal'
+): string {
+    if (docType === 'transfer' && origin === 'manual') return 'Transfer'
     const label = originLabels[origin] ?? originLabels.manual
     if (!reversalOrigins.has(origin) || !reversesNumber) return label
     return `${label} of ${reversesNumber}`
