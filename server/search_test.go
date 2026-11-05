@@ -513,6 +513,54 @@ func TestSearch_HidesVoidReversals(t *testing.T) {
 	}
 }
 
+// A transfer hit names its type and opens as a transfer; a journal entry hit is
+// unchanged. A voided transfer's reversal is left out, as a journal entry's is.
+func TestSearch_FindsTransfers(t *testing.T) {
+	env := newSearchEnv(t)
+	savings := mkAccount(t, env.app, "Savings", "bank", "savings")
+	a := transferDraft(t, env.app, "2026-05-10", env.checking, savings, 100)
+	setMemo(t, env, a.Id, "Monthly sweep A")
+	mustPost(t, env.app, a.Id, env.users.bookkeeper.Id)
+	b := transferDraft(t, env.app, "2026-05-11", env.checking, savings, 200)
+	setMemo(t, env, b.Id, "Monthly sweep B")
+	mustPost(t, env.app, b.Id, env.users.bookkeeper.Id)
+	if err := setStatus(env.app, b.Id, statusVoid, env.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void transfer B: %v", err)
+	}
+	c := transferDraft(t, env.app, "2026-05-12", env.checking, savings, 300)
+	setMemo(t, env, c.Id, "Monthly sweep C")
+	d := env.sale(t, "2026-05-13", 400)
+	setMemo(t, env, d.Id, "Monthly sweep D")
+
+	res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{"sweep"}, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Rows) != 4 || res.Total != 4 {
+		t.Fatalf("rows %s total %d, want four rows", rowIDs(res.Rows), res.Total)
+	}
+	byID := map[string]search.Row{}
+	for _, r := range res.Rows {
+		byID[r.ID] = r
+	}
+	want := []struct{ id, kind, title string }{
+		{"transfer:" + a.Id, "transfer", "Transfer TR-1"},
+		{"transfer:" + b.Id, "transfer", "Transfer TR-2 (void)"},
+		{"transfer:" + c.Id, "transfer", "Draft transfer"},
+		{"entry:" + d.Id, "journal_entry", "Draft journal entry"},
+	}
+	for _, w := range want {
+		r, ok := byID[w.id]
+		if !ok {
+			t.Errorf("no row %s in %s", w.id, rowIDs(res.Rows))
+			continue
+		}
+		if r.Fields["kind"] != w.kind || r.Title != w.title {
+			t.Errorf("row %s kind %v title %q, want %s %q", w.id, r.Fields["kind"], r.Title, w.kind, w.title)
+		}
+	}
+}
+
 // A query that matches many accounts still shows entries on its first page:
 // accounts and entries take turns, so neither kind starves the other.
 func TestSearch_AccountsDoNotCrowdOutEntries(t *testing.T) {
