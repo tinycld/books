@@ -25,6 +25,7 @@ func Register(app *pocketbase.PocketBase) {
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}
+	reports.RegisterShipped(trialBalanceShipped())
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())
 	registerSearchIndex(app)
