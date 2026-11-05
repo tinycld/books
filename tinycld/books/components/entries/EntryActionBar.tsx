@@ -10,14 +10,19 @@ interface EntryActionBarProps {
     onSaveDraft(): void
     onPost(): void
     onPostAndNew(): void
+    // The journal entry form keeps `entry-*`; the transfer form's bar is `transfer-*`.
+    testIDPrefix?: 'entry' | 'transfer'
 }
+
+type Prefix = NonNullable<EntryActionBarProps['testIDPrefix']>
 
 const TAP = { minHeight: 44 }
 
 function MoreMenu({
     isPending,
     onPostAndNew,
-}: Pick<EntryActionBarProps, 'isPending' | 'onPostAndNew'>) {
+    prefix,
+}: Pick<EntryActionBarProps, 'isPending' | 'onPostAndNew'> & { prefix: Prefix }) {
     // The menu item posts, so it is gated like the buttons that write.
     const postAndNew = useServerActionState({ isDisabled: isPending })
     return (
@@ -25,13 +30,18 @@ function MoreMenu({
             title="More"
             placement="top-end"
             trigger={
-                <Button testID="entry-more" variant="outline" style={TAP} isDisabled={isPending}>
+                <Button
+                    testID={`${prefix}-more`}
+                    variant="outline"
+                    style={TAP}
+                    isDisabled={isPending}
+                >
                     <ButtonText>More</ButtonText>
                 </Button>
             }
         >
             <Menu.Item
-                testID="entry-post-new"
+                testID={`${prefix}-post-new`}
                 label="Post & new"
                 isDisabled={postAndNew.isDisabled}
                 onSelect={onPostAndNew}
@@ -44,15 +54,17 @@ function PostAndNewButton({
     isVisible,
     isPending,
     onPress,
+    prefix,
 }: {
     isVisible: boolean
     isPending: boolean
     onPress(): void
+    prefix: Prefix
 }) {
     if (!isVisible) return null
     return (
         <ServerActionButton
-            testID="entry-post-new"
+            testID={`${prefix}-post-new`}
             variant="outline"
             style={TAP}
             isDisabled={isPending}
@@ -67,9 +79,13 @@ function PhoneMore({
     isVisible,
     isPending,
     onPostAndNew,
-}: Pick<EntryActionBarProps, 'isPending' | 'onPostAndNew'> & { isVisible: boolean }) {
+    prefix,
+}: Pick<EntryActionBarProps, 'isPending' | 'onPostAndNew'> & {
+    isVisible: boolean
+    prefix: Prefix
+}) {
     if (!isVisible) return null
-    return <MoreMenu isPending={isPending} onPostAndNew={onPostAndNew} />
+    return <MoreMenu isPending={isPending} onPostAndNew={onPostAndNew} prefix={prefix} />
 }
 
 export function EntryActionBar({
@@ -79,15 +95,16 @@ export function EntryActionBar({
     onSaveDraft,
     onPost,
     onPostAndNew,
+    testIDPrefix = 'entry',
 }: EntryActionBarProps) {
     const layout = isWide ? 'justify-end' : 'justify-between'
     return (
         <View
-            testID="entry-actions"
+            testID={`${testIDPrefix}-actions`}
             className={`flex-row items-center gap-2 border-t border-border bg-surface px-4 py-2 ${layout}`}
         >
             <Button
-                testID="entry-cancel"
+                testID={`${testIDPrefix}-cancel`}
                 variant="outline"
                 style={TAP}
                 isDisabled={isPending}
@@ -96,7 +113,7 @@ export function EntryActionBar({
                 <ButtonText>Cancel</ButtonText>
             </Button>
             <ServerActionButton
-                testID="entry-save-draft"
+                testID={`${testIDPrefix}-save-draft`}
                 variant="outline"
                 style={TAP}
                 isDisabled={isPending}
@@ -104,16 +121,26 @@ export function EntryActionBar({
             >
                 <ButtonText>Save draft</ButtonText>
             </ServerActionButton>
-            <PostAndNewButton isVisible={isWide} isPending={isPending} onPress={onPostAndNew} />
+            <PostAndNewButton
+                isVisible={isWide}
+                isPending={isPending}
+                onPress={onPostAndNew}
+                prefix={testIDPrefix}
+            />
             <ServerActionButton
-                testID="entry-post"
+                testID={`${testIDPrefix}-post`}
                 style={TAP}
                 isDisabled={isPending}
                 onPress={onPost}
             >
                 <ButtonText>Post</ButtonText>
             </ServerActionButton>
-            <PhoneMore isVisible={!isWide} isPending={isPending} onPostAndNew={onPostAndNew} />
+            <PhoneMore
+                isVisible={!isWide}
+                isPending={isPending}
+                onPostAndNew={onPostAndNew}
+                prefix={testIDPrefix}
+            />
         </View>
     )
 }

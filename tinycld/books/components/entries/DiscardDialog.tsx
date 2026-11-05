@@ -5,14 +5,20 @@ interface DiscardDialogProps {
     isVisible: boolean
     onDiscard(): void
     onKeepEditing(): void
+    title?: string
 }
 
-export function DiscardDialog({ isVisible, onDiscard, onKeepEditing }: DiscardDialogProps) {
+export function DiscardDialog({
+    isVisible,
+    onDiscard,
+    onKeepEditing,
+    title = 'Discard this entry?',
+}: DiscardDialogProps) {
     return (
         <Dialog
             isOpen={isVisible}
             onClose={onKeepEditing}
-            title="Discard this entry?"
+            title={title}
             testID="discard-dialog"
             hasCloseButton={false}
         >
