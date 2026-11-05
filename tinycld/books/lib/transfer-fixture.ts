@@ -5,6 +5,7 @@
 // lines: position 0 credits the From account, position 1 debits the To account.
 // Accounts are the seeded e2e book's (lib/seed-accounts.ts), by number.
 import type { BooksAccounts, BooksJournalEntries, BooksJournalLines } from '../types'
+import type { TransferFormValues } from './transfer'
 
 export const TRANSFER_CURRENCY = 'USD'
 // "Today" for the reference captures, so the default date is stable.
@@ -101,8 +102,9 @@ export const TRANSFER_ACCOUNTS = [
         type: 'expense',
         detail_type: 'rent_lease',
     }),
-    // Inactive and of a type a transfer cannot use: an old draft that names it shows
-    // it by name in the trigger, and the server refuses the post with a line message.
+    // Inactive and of a type a transfer cannot use: an old draft that names it shows it
+    // by name in the trigger. The server refuses its post as inactive ("Line 2: account
+    // Old Petty Cash is inactive."), because validateLines runs before checkTransfer.
     account({
         id: IDS.petty,
         name: 'Old Petty Cash',
@@ -270,13 +272,7 @@ export const TRANSFER_SEED = {
 }
 
 // The form's values as it holds them: account ids and the typed text.
-export interface TransferFormFixture {
-    from: string
-    to: string
-    amount: string
-    date: string
-    memo: string
-}
+export type TransferFormFixture = TransferFormValues
 
 export const BLANK_FORM: TransferFormFixture = {
     from: '',
@@ -356,5 +352,7 @@ export const TRANSFER_MESSAGES = {
 // Server refusals, as the server writes them (with the final period).
 export const CLOSED_REFUSAL =
     'The books are closed through 2026-06-30. Ask a Books admin for a close-date override to post on 2026-06-15.'
+// The type refusal's wording; the server sends it only for an active account whose type
+// changed, so the reference shows it as the line-refusal example.
 export const LINE_TYPE_REFUSAL =
     'Line 2: Old Petty Cash cannot be used in a transfer. Choose a bank, credit card, asset, liability or equity account.'

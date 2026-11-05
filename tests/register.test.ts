@@ -497,6 +497,24 @@ describe('balanceTone', () => {
     })
 })
 
+describe('entryTypeLabel for transfers', () => {
+    it('labels a manual transfer "Transfer"', () => {
+        expect(entryTypeLabel('manual', '', 'transfer')).toBe('Transfer')
+    })
+
+    it("keeps the reversal suffix on a transfer's void reversal", () => {
+        expect(entryTypeLabel('void_reversal', 'TR-3', 'transfer')).toBe('Void reversal of TR-3')
+    })
+
+    it('gives a two-argument call the journal label', () => {
+        for (const origin of ['manual', 'reversal', 'void_reversal', 'opening_balance']) {
+            expect(entryTypeLabel(origin, 'JE-7'), origin).toBe(
+                entryTypeLabel(origin, 'JE-7', 'journal')
+            )
+        }
+    })
+})
+
 describe('entryTypeLabel for opening balances', () => {
     it('names an opening entry and leaves a manual entry unchanged', () => {
         expect(entryTypeLabel('opening_balance', '')).toBe('Opening balances')
