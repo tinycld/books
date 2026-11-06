@@ -14,6 +14,7 @@ import {
     searchProducts,
     stampDigits,
     uniqueName,
+    viewportName,
     WIDE,
 } from './products-services-helpers'
 
@@ -48,7 +49,7 @@ test.describe('products-services: list', () => {
         page,
     }) => {
         await openBooksAtDefaultViewport(page)
-        const prefix = uniqueName(page, 'Cols')
+        const prefix = uniqueName(`Cols ${viewportName(page)}`)
         const sku = `HW-${stampDigits()}`
         const name = `${prefix} AP`
         const kit = `${prefix} kit`
@@ -94,7 +95,7 @@ test.describe('products-services: list', () => {
         page,
     }) => {
         await openBooksAtDefaultViewport(page)
-        const name = uniqueName(page, 'Card')
+        const name = uniqueName(`Card ${viewportName(page)}`)
         const sku = `SKU-${stampDigits()}`
         await createProduct(page, { type: 'non_inventory', name, sku, price: '189' })
 

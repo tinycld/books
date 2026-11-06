@@ -10,6 +10,15 @@ import {
 
 const OWNERSHIPS: Ownership[] = ['owners', 'corporation']
 
+// The owners' chart adds 3900 Retained earnings to its three owner accounts.
+const EQUITY_COUNT: Record<Ownership, number> = { owners: 4, corporation: 3 }
+
+function equityNumbers(ownership: Ownership) {
+    return starterChart(ownership)
+        .filter(account => account.type === 'equity')
+        .map(account => [account.number, account.name, account.detail_type])
+}
+
 function names(ownership: Ownership) {
     return starterChart(ownership).map(account => account.name)
 }
@@ -58,16 +67,23 @@ describe.each(OWNERSHIPS)('starterChart(%s)', ownership => {
         }
     })
 
-    it('has 34 accounts split 9/6/3/4/12 across the five groups', () => {
-        expect(chart).toHaveLength(34)
+    it('splits its accounts 9/6/<equity>/4/12 across the five groups', () => {
+        const equity = EQUITY_COUNT[ownership]
+        expect(chart).toHaveLength(31 + equity)
         const counts = groupStarterChart(chart).map(group => [group.label, group.count])
         expect(counts).toEqual([
             ['Assets', 9],
             ['Liabilities', 6],
-            ['Equity', 3],
+            ['Equity', equity],
             ['Income', 4],
             ['Expenses', 12],
         ])
+    })
+
+    it('holds exactly one retained-earnings account', () => {
+        const retained = chart.filter(account => account.detail_type === 'retained_earnings')
+        expect(retained).toHaveLength(1)
+        expect(retained[0].type).toBe('equity')
     })
 
     it('numbers every account with 4 digits inside its group range', () => {
@@ -123,6 +139,29 @@ describe('equity accounts by ownership', () => {
         expect(list).toContain('Retained earnings')
         expect(list).not.toContain("Owner's draws")
     })
+
+    it('owners get 3900 Retained earnings, an equity account of detail retained_earnings', () => {
+        const retained = starterChart('owners').find(account => account.number === '3900')
+        expect(retained).toMatchObject({
+            name: 'Retained earnings',
+            type: 'equity',
+            detail_type: 'retained_earnings',
+        })
+    })
+
+    it('keeps the owner numbers 3000/3100/3200 and the corporation numbers 3300/3400/3500', () => {
+        expect(equityNumbers('owners')).toEqual([
+            ['3000', "Owner's equity", 'owners_equity'],
+            ['3100', "Owner's contributions", 'partner_contributions'],
+            ['3200', "Owner's draws", 'owner_draws'],
+            ['3900', 'Retained earnings', 'retained_earnings'],
+        ])
+        expect(equityNumbers('corporation')).toEqual([
+            ['3300', 'Common stock', 'common_stock'],
+            ['3400', 'Paid-in capital', 'paid_in_capital'],
+            ['3500', 'Retained earnings', 'retained_earnings'],
+        ])
+    })
 })
 
 describe('groupStarterChart', () => {
@@ -142,10 +181,10 @@ describe('groupStarterChart', () => {
 })
 
 describe('choices and months', () => {
-    it.each(OWNERSHIPS)('the %s summary names its three equity accounts', ownership => {
+    it.each(OWNERSHIPS)('the %s summary names its equity accounts', ownership => {
         const choice = OWNERSHIP_CHOICES.find(item => item.value === ownership)
         const equity = starterChart(ownership).filter(account => account.type === 'equity')
-        expect(equity).toHaveLength(3)
+        expect(equity).toHaveLength(EQUITY_COUNT[ownership])
         for (const account of equity) expect(choice?.summary).toContain(account.name)
     })
 

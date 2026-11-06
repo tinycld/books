@@ -18,7 +18,7 @@ test.describe('tax-rates: tax groups', () => {
 
         const name = page.getByTestId('tax-group-form-name')
         await expect(name).toBeFocused()
-        const groupName = uniqueName(page, 'Tax group')
+        const groupName = uniqueName('Tax group')
         await name.fill(groupName)
         await checkRate(dialog, LODGING)
 

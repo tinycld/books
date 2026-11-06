@@ -3,11 +3,18 @@ import { type Ownership, type StarterAccount, starterChart } from './starter-cha
 // Levels by depth below the planned accounts: a child lands one level after its
 // parent, and a child whose parent already exists starts at level 0 because the
 // parent needs no insert first. `existing` maps an account number to its record id.
+// The server allows one retained-earnings account per chart, so a chart that holds
+// one under another number (a resumed batch) gets no starter one.
 export function planChart(
     ownership: Ownership,
-    existing: ReadonlyMap<string, string>
+    existing: ReadonlyMap<string, string>,
+    hasRetainedEarnings: boolean
 ): StarterAccount[][] {
-    const planned = starterChart(ownership).filter(item => !existing.has(item.number))
+    const planned = starterChart(ownership).filter(
+        item =>
+            !existing.has(item.number) &&
+            !(hasRetainedEarnings && item.detail_type === 'retained_earnings')
+    )
     const byKey = new Map(planned.map(item => [item.key, item]))
     const levels: StarterAccount[][] = []
 

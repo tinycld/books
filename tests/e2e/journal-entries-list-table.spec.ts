@@ -3,6 +3,7 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 import { ACCOUNT_LABELS, createDraftEntry, searchEntries } from './journal-entries-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -182,7 +183,7 @@ test.describe('journal-entries: list rows (desktop)', () => {
 
     test('a new entry dated today is among the first rows without searching', async ({ page }) => {
         await start(page, DESKTOP)
-        const memo = `Default list ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const memo = uniqueName('Default list')
         await createDraftEntry(page, {
             memo,
             amount: '$10.00',

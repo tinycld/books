@@ -8,6 +8,7 @@ import {
     openChart,
 } from './account-register-helpers'
 import { ACCOUNT_LABELS, createPostedEntry } from './journal-entries-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // The Chart of Accounts shows each account's balance from the ledger, and the
 // register derives its ending balance from the same posted lines. The account
@@ -31,7 +32,7 @@ test.describe('chart-of-accounts: balance matches the register', () => {
         await login(page)
         await navigateToPackage(page, 'books')
         await page.setViewportSize(DESKTOP)
-        const name = `E2E Balance ${Date.now()}`
+        const name = uniqueName('E2E Balance')
         await openChart(page)
         await createIncomeAccount(page, name)
 

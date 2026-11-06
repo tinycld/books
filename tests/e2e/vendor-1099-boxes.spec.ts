@@ -22,6 +22,7 @@ import {
     refusedWrites,
     stacked,
     uniqueName,
+    viewportName,
 } from './vendor-form-helpers'
 
 // Settings → 1099s, the Accounts reported on 1099s card.
@@ -74,7 +75,7 @@ test.describe('vendor-1099: account boxes', () => {
         }) => {
             await login(page)
             await navigateToPackage(page, 'books')
-            const name = uniqueName(page, `Box ${label}`)
+            const name = uniqueName(`Box ${label} ${viewportName(page)}`)
             const id = await createExpenseAccount(page, name)
             await openForm1099(page)
             await page.setViewportSize(size)
@@ -139,7 +140,7 @@ test.describe('vendor-1099: account boxes', () => {
         await login(page)
         await navigateToPackage(page, 'books')
         await page.setViewportSize(DESKTOP)
-        const name = uniqueName(page, 'Box refused')
+        const name = uniqueName(`Box refused ${viewportName(page)}`)
         const id = await createExpenseAccount(page, name)
         await openForm1099(page)
         const rowError = visible(page, `books-1099-account-error-${id}`)

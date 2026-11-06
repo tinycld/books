@@ -4,11 +4,12 @@
 // debit balance, a liability a positive credit balance, and a negative number is
 // the opposite side (accumulated depreciation under Assets).
 import type { BooksAccounts, BooksJournalEntries } from '../types'
+import { withFullNames } from './chart-of-accounts-fixture'
 
 type AccountSeed = Pick<BooksAccounts, 'id' | 'name' | 'type' | 'detail_type'> &
     Partial<Pick<BooksAccounts, 'number' | 'inactive' | 'parent'>>
 
-function account(seed: AccountSeed): BooksAccounts {
+function account(seed: AccountSeed): Omit<BooksAccounts, 'full_name'> {
     return {
         number: '',
         description: '',
@@ -23,7 +24,7 @@ function account(seed: AccountSeed): BooksAccounts {
 }
 
 // Listed in the chart's tree order: a parent first, its children after it.
-export const ACCOUNTS = [
+export const ACCOUNTS = withFullNames([
     account({
         id: 'acct_bank_0001',
         number: '1000',
@@ -157,7 +158,7 @@ export const ACCOUNTS = [
         type: 'equity',
         detail_type: 'owner_draws',
     }),
-] satisfies BooksAccounts[]
+])
 
 export const OPENING_BALANCE_EQUITY_NAME = 'Opening Balance Equity'
 

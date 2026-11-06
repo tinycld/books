@@ -25,6 +25,8 @@ function account(
         created: STAMP,
         updated: STAMP,
         parent: '',
+        // Every transfer account is top level, so its full name is its name.
+        full_name: seed.name,
         ...seed,
     }
 }

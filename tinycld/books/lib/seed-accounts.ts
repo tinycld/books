@@ -96,4 +96,13 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         detail_type: 'other_misc_expense',
         inactive: true,
     },
+    // The chart's one retained-earnings account; the Trial Balance folds earlier
+    // fiscal years' income and expense onto it.
+    {
+        key: 'retained',
+        name: 'Retained earnings',
+        number: '3900',
+        type: 'equity',
+        detail_type: 'retained_earnings',
+    },
 ]
