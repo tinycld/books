@@ -17,7 +17,7 @@ interface AgencySelectProps {
     dialog: ReturnType<typeof useRateDialog>
 }
 
-// A failed agencies load shows its error in this place instead.
+// A failed load of the agencies or the edited rate shows its error in this place instead.
 function AgencySelect({ isVisible, dialog }: AgencySelectProps) {
     if (!isVisible) return null
     return (

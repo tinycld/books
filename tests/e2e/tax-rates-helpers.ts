@@ -97,6 +97,15 @@ export function dialogByTitle(page: Page, title: string): Locator {
         .filter({ has: page.getByText(title, { exact: true }) })
 }
 
+// Checks the rate whose accessible name is exactly `label` in the group dialog's Rates
+// checklist (core MultiSelectInput rows are checkboxes named by their label).
+export async function checkRate(dialog: Locator, label: string): Promise<void> {
+    const box = dialog.getByRole('checkbox', { name: label, exact: true })
+    await expect(box).toHaveAttribute('aria-checked', 'false')
+    await box.click()
+    await expect(box).toHaveAttribute('aria-checked', 'true')
+}
+
 // The id at the end of a test id such as `tax-agency-card-<id>`.
 async function idAfter(locator: Locator, prefix: string): Promise<string> {
     const testId = (await locator.getAttribute('data-testid')) ?? ''

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAgencyDialog } from '../tinycld/books/hooks/useAgencyDialog'
 import { useFormAccounts } from '../tinycld/books/hooks/useFormAccounts'
 import { useTaxesStore } from '../tinycld/books/stores/taxes-store'
-import type { BooksAccounts } from '../tinycld/books/types'
+import type { BooksAccounts, BooksTaxAgencies } from '../tinycld/books/types'
 import {
     accountsStore,
     enteredWrites,
@@ -204,6 +204,38 @@ describe('useAgencyDialog accounts load', () => {
         await waitFor(() =>
             expect(rendered.result.current.form.getValues('account')).toBe('acc-2200')
         )
+    })
+})
+
+const COLORADO: BooksTaxAgencies = {
+    id: 'agency-colorado',
+    name: 'Colorado Department of Revenue',
+    account: 'acc-2200',
+    inactive: false,
+    name_key: 'colorado department of revenue',
+    sort_key: 'colorado department of revenue',
+    created: '2026-01-01 00:00:00.000Z',
+    updated: '2026-01-01 00:00:00.000Z',
+}
+
+describe('useAgencyDialog edited agency load', () => {
+    it('reports a refused load of the edited agency with Save off, and retryLoad loads its name', async () => {
+        seedWith(seedChart(), { taxAgencies: [COLORADO], taxAgenciesFailsOnce: true })
+        expectLiveQueryError(taxAgenciesStore().id)
+        const rendered = renderAgencyDialog(COLORADO.id)
+        // The chart loads, so a failure the dialog reports is the edited agency's own.
+        await chartLoaded(rendered)
+
+        await waitFor(() => expect(rendered.result.current.dialog.loadFailed).toBe(true))
+        expect(rendered.result.current.dialog.canSave).toBe(false)
+
+        act(() => rendered.result.current.dialog.retryLoad())
+
+        await waitFor(() => expect(rendered.result.current.dialog.loadFailed).toBe(false))
+        await waitFor(() =>
+            expect(rendered.result.current.dialog.form.getValues('name')).toBe(COLORADO.name)
+        )
+        expect(rendered.result.current.dialog.canSave).toBe(true)
     })
 })
 
