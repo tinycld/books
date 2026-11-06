@@ -656,6 +656,14 @@ function accountsCollectionFor(opts: {
     return accountsCollection(opts.ledger?.accounts)
 }
 
+function taxAgenciesCollectionFor(
+    opts: { taxAgenciesFailsOnce?: boolean },
+    rows: BooksTaxAgencies[]
+) {
+    if (opts.taxAgenciesFailsOnce) return failsOnceOnDemandCollection<BooksTaxAgencies>(rows)
+    return guarded<BooksTaxAgencies>('books_tax_agencies', rows)
+}
+
 function linesCollectionFor(
     opts: { linesNeverReady?: boolean; linesFailsOnce?: boolean },
     rows: BooksJournalLines[]
@@ -859,6 +867,9 @@ export function seedBooks(
         // writes go through the shared handler, so the refusal and hold helpers reach them.
         taxAgencies?: BooksTaxAgencies[]
         taxRates?: BooksTaxRates[]
+        // A tax agencies collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads serve `taxAgencies`; it takes no writes.
+        taxAgenciesFailsOnce?: boolean
         // Replaces the signed-in user's single access row with these rows.
         accessRows?: BooksAccess[]
         // The org_pkg_access rows to seed; none by default.
@@ -980,7 +991,7 @@ export function seedBooks(
         ),
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
-        books_tax_agencies: guarded<BooksTaxAgencies>('books_tax_agencies', opts.taxAgencies ?? []),
+        books_tax_agencies: taxAgenciesCollectionFor(opts, opts.taxAgencies ?? []),
         books_tax_rates: guarded<BooksTaxRates>('books_tax_rates', opts.taxRates ?? []),
     })
 }

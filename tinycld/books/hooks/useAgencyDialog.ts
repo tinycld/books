@@ -1,7 +1,10 @@
+import { eq } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
 import { handleMutationErrorsWithForm } from '@tinycld/core/lib/errors'
+import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useRecord } from '@tinycld/core/lib/use-record'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useForm, zodResolver } from '@tinycld/core/ui/form'
 import { newRecordId } from 'pbtsdb/core'
 import { liabilityAccountOptions, newSalesTaxAccount } from '../lib/liability-accounts'
@@ -23,7 +26,19 @@ export function useAgencyDialog(id: string | null) {
         'books_tax_agencies',
         'books_accounts'
     )
-    const { record: stored } = useRecord(agenciesCollection, id)
+    // The edited agency through the dialog's own query, not core useRecord, which has no
+    // error state: a refused load shows its error and Retry.
+    const storedQuery = useLiveQuery({
+        query: q =>
+            id
+                ? q
+                      .from({ agency: agenciesCollection })
+                      .where(({ agency }) => eq(agency.id, id))
+                      .findOne()
+                : null,
+        queryKey: ['books.taxes.dialog.agency', id ?? ''],
+    })
+    const stored = storedQuery.data
     const chart = useFormAccounts()
     const closeDialog = useTaxesStore(s => s.closeDialog)
 
@@ -103,12 +118,28 @@ export function useAgencyDialog(id: string | null) {
     // An edit whose record has not loaded has nothing to save against: a save then would
     // write nothing and close the dialog on the user's changes.
     const target: StoredAgency | undefined = id === null ? null : stored
-    const loadFailed = chart.isError
-    const canSave = target !== undefined && !loadFailed && !saveMutation.isPending
+    const loadFailed = chart.isError || storedQuery.isError
+    // Until the chart and the edited agency load, the form does not hold what a save
+    // would send.
+    const isLoading = !chart.isReady || !storedQuery.isReady
+    const canSave = target !== undefined && !loadFailed && !isLoading && !saveMutation.isPending
 
     const submit = () => {
         if (!canSave) return
         void form.handleSubmit(saved => saveMutation.mutate({ saved, stored: target }))()
+    }
+
+    // A failed live query does not recover on a reload of its collection; only a failed
+    // query is restarted, so a loaded one keeps its rows. The chart and the agency read
+    // different collections, so the two can restart side by side.
+    const retryLoad = () => {
+        if (chart.isError) chart.retry()
+        if (!storedQuery.isError) return
+        void recoverLiveQueries({
+            queries: [storedQuery.collection],
+            sources: [agenciesCollection],
+            onError: err => log.error('books.taxes.dialog.agency', err),
+        })
     }
 
     return {
@@ -126,7 +157,7 @@ export function useAgencyDialog(id: string | null) {
         isSaving: saveMutation.isPending,
         canSave,
         loadFailed,
-        retryLoad: chart.retry,
+        retryLoad,
         close: closeDialog,
     }
 }

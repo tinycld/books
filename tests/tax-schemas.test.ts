@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agencySchema, rateSchema } from '../tinycld/books/lib/tax-schemas'
+import { agencySchema, groupSchema, rateSchema } from '../tinycld/books/lib/tax-schemas'
 
 type Parsed =
     | { success: true }
@@ -74,5 +74,32 @@ describe('rateSchema', () => {
         expect(messagesOn(rateSchema.safeParse({ ...rate, name: '  ' }), 'name')).toEqual([
             'Enter a name.',
         ])
+    })
+})
+
+// Distinct rate ids, as many as a test asks for.
+function rateIds(count: number) {
+    return Array.from({ length: count }, (_, index) => `taxrtcomponent${index}`)
+}
+
+describe('groupSchema', () => {
+    it('refuses one rate with "Choose at least two rates."', () => {
+        const result = groupSchema.safeParse({ name: 'Denver metro', components: rateIds(1) })
+        expect(result.success).toBe(false)
+        expect(messagesOn(result, 'components')).toEqual(['Choose at least two rates.'])
+    })
+
+    it('refuses eleven rates with "A group holds at most ten rates."', () => {
+        const result = groupSchema.safeParse({ name: 'Denver metro', components: rateIds(11) })
+        expect(result.success).toBe(false)
+        expect(messagesOn(result, 'components')).toEqual(['A group holds at most ten rates.'])
+    })
+
+    it.each([2, 10])('accepts %i rates', count => {
+        const values = { name: 'Denver metro', components: rateIds(count) }
+        const result = groupSchema.safeParse(values)
+        expect(messagesOn(result, 'components')).toEqual([])
+        expect(result.success).toBe(true)
+        expect(groupSchema.parse(values)).toEqual(values)
     })
 })

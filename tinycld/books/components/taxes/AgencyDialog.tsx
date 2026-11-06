@@ -70,7 +70,8 @@ export function AgencyDialog({ id }: { id: string | null }) {
     const close = () => {
         if (!dialog.isSaving) dialog.close()
     }
-    // A failed chart load shows its error where the account picker would be.
+    // A failed load of the chart or the edited agency shows its error where the account
+    // picker would be.
     const showsSelect = dialog.hasLiabilityAccount && !dialog.loadFailed
     const showsNoAccountNote = !dialog.hasLiabilityAccount && !dialog.loadFailed
     return (

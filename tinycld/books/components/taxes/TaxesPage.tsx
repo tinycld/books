@@ -7,7 +7,12 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { useTaxesScreen } from '../../hooks/useTaxesScreen'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { TAXES_LOAD_ERROR } from '../../lib/tax-messages'
-import { emptyState, type TaxesControls, type TaxesView } from '../../lib/taxes-view'
+import {
+    addGroupEnabled,
+    emptyState,
+    type TaxesControls,
+    type TaxesView,
+} from '../../lib/taxes-view'
 import { useTaxesStore } from '../../stores/taxes-store'
 import { ListBanner } from '../ListBanner'
 import { ShowInactiveChip } from '../ShowInactiveChip'
@@ -75,7 +80,29 @@ function AddRateButton({ isVisible, agencyId, isDisabled }: AddRateButtonProps) 
     )
 }
 
-function Actions({ isVisible, canPressWrites }: { isVisible: boolean; canPressWrites: boolean }) {
+function AddGroupButton({ isDisabled }: { isDisabled: boolean }) {
+    const openDialog = useTaxesStore(s => s.openDialog)
+    return (
+        <Button
+            testID="taxes-add-group"
+            variant="outline"
+            size="sm"
+            style={{ minHeight: 36 }}
+            isDisabled={isDisabled}
+            onPress={() => openDialog({ kind: 'group', id: null })}
+        >
+            <ButtonText>Add group</ButtonText>
+        </Button>
+    )
+}
+
+interface ActionsProps {
+    isVisible: boolean
+    canPressWrites: boolean
+    canAddGroup: boolean
+}
+
+function Actions({ isVisible, canPressWrites, canAddGroup }: ActionsProps) {
     const showInactive = useTaxesStore(s => s.showInactive)
     const setShowInactive = useTaxesStore(s => s.setShowInactive)
     const toggleShowInactive = () => setShowInactive(!showInactive)
@@ -88,6 +115,7 @@ function Actions({ isVisible, canPressWrites }: { isVisible: boolean; canPressWr
                 minHeight={36}
                 isDisabled={!canPressWrites}
             />
+            <AddGroupButton isDisabled={!canAddGroup} />
             <ShowInactiveChip
                 testID="taxes-show-inactive"
                 isOn={showInactive}
@@ -101,18 +129,23 @@ function Actions({ isVisible, canPressWrites }: { isVisible: boolean; canPressWr
 interface HeaderProps {
     showActions: boolean
     canPressWrites: boolean
+    canAddGroup: boolean
     isWide: boolean
 }
 
 // Wide, the actions sit right of the title; on a phone they wrap under it.
-function Header({ showActions, canPressWrites, isWide }: HeaderProps) {
+function Header({ showActions, canPressWrites, canAddGroup, isWide }: HeaderProps) {
     const layout = isWide ? 'flex-row items-center justify-between' : ''
     return (
         <View className={`gap-3 ${layout}`}>
             <Text testID="taxes-title" className="text-2xl font-semibold text-foreground">
                 Sales tax
             </Text>
-            <Actions isVisible={showActions} canPressWrites={canPressWrites} />
+            <Actions
+                isVisible={showActions}
+                canPressWrites={canPressWrites}
+                canAddGroup={canAddGroup}
+            />
         </View>
     )
 }
@@ -178,6 +211,7 @@ export function TaxesPage({ screen }: TaxesPageProps) {
     const loadError = state === 'error' ? TAXES_LOAD_ERROR : null
     // In the loading and error states nothing under the actions reacts to them.
     const showActions = isReady && controls.showActions && !view.isEmpty
+    const canAddGroup = addGroupEnabled(controls, view)
     return (
         <ScrollView className="flex-1 bg-background" contentContainerStyle={fabClearance}>
             <TaxDialogs />
@@ -185,6 +219,7 @@ export function TaxesPage({ screen }: TaxesPageProps) {
                 <Header
                     showActions={showActions}
                     canPressWrites={controls.canPressWrites}
+                    canAddGroup={canAddGroup}
                     isWide={isWide}
                 />
                 <ListBanner

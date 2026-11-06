@@ -9,6 +9,7 @@ import {
     type TaxRateFixtureRecord,
 } from '../tinycld/books/lib/tax-rates-fixture'
 import {
+    addGroupEnabled,
     buildTaxesView,
     compareNames,
     emptyState,
@@ -427,6 +428,39 @@ describe('taxesControls', () => {
         [false, false, { showActions: false, canPressWrites: false, showMenus: false }],
     ])('canWrite %s, writes available %s', (canWrite, writesAvailable, expected) => {
         expect(taxesControls(canWrite, writesAvailable)).toEqual(expected)
+    })
+})
+
+describe('addGroupEnabled', () => {
+    const writer = taxesControls(true, true)
+
+    it('is off with one active rate', () => {
+        const view = build({
+            agencies: agencyRows([fixtureAgency(TAX_IDS.colorado)], [fixtureRate(TAX_IDS.state)]),
+            groups: [],
+        })
+        expect(view.activeRateCount).toBe(1)
+        expect(addGroupEnabled(writer, view)).toBe(false)
+    })
+
+    it('is off with seven active rates while writes are unavailable', () => {
+        const view = build()
+        expect(view.activeRateCount).toBe(7)
+        const offline = taxesControls(true, false)
+        expect(offline.canPressWrites).toBe(false)
+        expect(addGroupEnabled(offline, view)).toBe(false)
+    })
+
+    it('is on with two active rates and writes available', () => {
+        const view = build({
+            agencies: agencyRows(
+                [fixtureAgency(TAX_IDS.colorado)],
+                [fixtureRate(TAX_IDS.state), fixtureRate(TAX_IDS.rtd)]
+            ),
+            groups: [],
+        })
+        expect(view.activeRateCount).toBe(2)
+        expect(addGroupEnabled(writer, view)).toBe(true)
     })
 })
 

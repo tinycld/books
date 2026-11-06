@@ -3,6 +3,9 @@ import { TAX_IDS } from '../tinycld/books/lib/tax-rates-fixture'
 import {
     agencyFormDefaults,
     agencyPatch,
+    groupFormDefaults,
+    groupLine,
+    groupPatch,
     rateFormDefaults,
     ratePatch,
     ratePreview,
@@ -95,5 +98,70 @@ describe('ratePreview', () => {
 
     it.each(['8.88888', ''])('is blank while the rate %j is invalid', text => {
         expect(ratePreview(text, 'USD')).toBe('')
+    })
+})
+
+// A stored group whose rates include Retired rate, which became inactive after the
+// group was saved.
+const storedGroup = {
+    name: 'Denver combined',
+    components: [TAX_IDS.state, TAX_IDS.retired, TAX_IDS.denverCity],
+}
+
+describe('groupFormDefaults', () => {
+    it('keeps every stored rate of an edited group, the inactive one included', () => {
+        expect(groupFormDefaults(storedGroup)).toEqual({
+            name: 'Denver combined',
+            components: [TAX_IDS.state, TAX_IDS.retired, TAX_IDS.denverCity],
+        })
+    })
+
+    it('starts a new group with no name and no rates', () => {
+        expect(groupFormDefaults(undefined)).toEqual({ name: '', components: [] })
+    })
+})
+
+describe('groupPatch', () => {
+    it('sends nothing for the same rates in another order and the same name', () => {
+        expect(
+            groupPatch(storedGroup, {
+                name: 'Denver combined',
+                components: [TAX_IDS.denverCity, TAX_IDS.state, TAX_IDS.retired],
+            })
+        ).toEqual({})
+    })
+
+    it('sends only the name when the name changed', () => {
+        expect(
+            groupPatch(storedGroup, {
+                name: 'Denver metro',
+                components: [...storedGroup.components],
+            })
+        ).toEqual({ name: 'Denver metro' })
+    })
+
+    it('sends the rates when one was added', () => {
+        const components = [...storedGroup.components, TAX_IDS.rtd]
+        expect(groupPatch(storedGroup, { name: 'Denver combined', components })).toEqual({
+            components,
+        })
+    })
+})
+
+describe('groupLine', () => {
+    it('rounds each rate before adding: 8.25% as two 4.125% rates is $8.26, not $8.25', () => {
+        expect(groupLine([41_250, 41_250], 'USD')).toBe(
+            'Combined rate: 8.25% · Tax on $100.00: $8.26'
+        )
+    })
+
+    it('gives $8.99 for Denver lodging with the cultural district (8.98%)', () => {
+        expect(groupLine([88_750, 1_050], 'USD')).toBe(
+            'Combined rate: 8.98% · Tax on $100.00: $8.99'
+        )
+    })
+
+    it('is blank with no rate', () => {
+        expect(groupLine([], 'USD')).toBe('')
     })
 })

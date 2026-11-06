@@ -1,11 +1,12 @@
 import type { BooksTaxAgencies, BooksTaxRates } from '../types'
 import { defaultLiabilityAccount, type LiabilityAccount } from './liability-accounts'
 import { formatMoney } from './money'
-import { parseRatePercent, ratePercentText, taxOn } from './sales-tax'
-import type { AgencyValues, RateValues } from './tax-schemas'
+import { groupPpm, groupTax, parseRatePercent, ratePercentText, taxOn } from './sales-tax'
+import type { AgencyValues, GroupValues, RateValues } from './tax-schemas'
 
 type StoredAgency = Pick<BooksTaxAgencies, 'name' | 'account'>
 type StoredRate = Pick<BooksTaxRates, 'name' | 'rate_ppm' | 'agency'>
+type StoredGroup = Pick<BooksTaxRates, 'name' | 'components'>
 
 // An edit starts from the stored values, an inactive account included: the server
 // checks the account only when it changes.
@@ -51,4 +52,34 @@ export function ratePreview(text: string, currency: string): string {
     const ppm = parseRatePercent(text)
     if (ppm === null) return ''
     return `Tax on $100.00: ${formatMoney(taxOn(PREVIEW_AMOUNT_CENTS, ppm), currency)}`
+}
+
+// An edit starts from every stored rate, an inactive one included: the server checks
+// only the rates a change adds.
+export function groupFormDefaults(stored: StoredGroup | undefined): GroupValues {
+    if (!stored) return { name: '', components: [] }
+    return { name: stored.name, components: [...stored.components] }
+}
+
+function sameMembers(a: readonly string[], b: readonly string[]) {
+    const inA = new Set(a)
+    return inA.size === new Set(b).size && b.every(id => inA.has(id))
+}
+
+// Only the changed fields. The rates compare as a set, since the checklist saves them
+// in its own order.
+export function groupPatch(stored: StoredGroup, values: GroupValues): Partial<StoredGroup> {
+    const patch: Partial<StoredGroup> = {}
+    if (values.name !== stored.name) patch.name = values.name
+    if (!sameMembers(stored.components, values.components)) patch.components = values.components
+    return patch
+}
+
+// The live line under the checklist: each rate is rounded on its own, then added, as
+// every document with the group computes it.
+export function groupLine(ppms: readonly number[], currency: string): string {
+    if (ppms.length === 0) return ''
+    const total = groupTax(PREVIEW_AMOUNT_CENTS, ppms).reduce((sum, cents) => sum + cents, 0)
+    const percent = ratePercentText(groupPpm(ppms))
+    return `Combined rate: ${percent} · Tax on $100.00: ${formatMoney(total, currency)}`
 }

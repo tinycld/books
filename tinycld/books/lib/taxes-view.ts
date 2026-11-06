@@ -163,6 +163,11 @@ export function taxesControls(canWrite: boolean, writesAvailable: boolean): Taxe
     }
 }
 
+// A group needs two active rates, so Add group waits for a second one.
+export function addGroupEnabled(controls: TaxesControls, view: TaxesView): boolean {
+    return controls.canPressWrites && view.activeRateCount >= 2
+}
+
 export function emptyState(canWrite: boolean): EmptyState {
     if (canWrite) return { title: EMPTY_QUESTION, hint: EMPTY_HINT, showAddAgency: true }
     return { title: EMPTY_READ_ONLY, hint: null, showAddAgency: false }

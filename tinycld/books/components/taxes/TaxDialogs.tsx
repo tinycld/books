@@ -1,5 +1,6 @@
 import { type TaxDialog, useTaxesStore } from '../../stores/taxes-store'
 import { AgencyDialog } from './AgencyDialog'
+import { GroupDialog } from './GroupDialog'
 import { RateDialog } from './RateDialog'
 
 // A new key per dialog, so each open starts a fresh form.
@@ -18,5 +19,6 @@ export function TaxDialogs() {
     if (dialog.kind === 'rate') {
         return <RateDialog key={key} id={dialog.id} agencyId={dialog.agencyId} />
     }
+    if (dialog.kind === 'group') return <GroupDialog key={key} id={dialog.id} />
     return null
 }

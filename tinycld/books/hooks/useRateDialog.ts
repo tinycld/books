@@ -1,10 +1,10 @@
+import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { handleMutationErrorsWithForm } from '@tinycld/core/lib/errors'
 import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { useRecord } from '@tinycld/core/lib/use-record'
 import { useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
 import { newRecordId } from 'pbtsdb/core'
 import { recordRefusalHandler } from '../lib/record-refusals'
@@ -30,7 +30,19 @@ function ratePpm(text: string) {
 // the save. A new rate starts on `agencyId`, the agency card it was opened from.
 export function useRateDialog(id: string | null, agencyId: string) {
     const [ratesCollection, agenciesCollection] = useStore('books_tax_rates', 'books_tax_agencies')
-    const { record: stored } = useRecord(ratesCollection, id)
+    // The edited rate through the dialog's own query, not core useRecord, which has no
+    // error state: a refused load shows its error and Retry.
+    const storedQuery = useLiveQuery({
+        query: q =>
+            id
+                ? q
+                      .from({ rate: ratesCollection })
+                      .where(({ rate }) => eq(rate.id, id))
+                      .findOne()
+                : null,
+        queryKey: ['books.taxes.dialog.rate', id ?? ''],
+    })
+    const stored = storedQuery.data
     const agenciesQuery = useLiveQuery({
         query: q => q.from({ agency: agenciesCollection }),
         queryKey: ['books.taxes.dialog.agencies'],
@@ -87,22 +99,36 @@ export function useRateDialog(id: string | null, agencyId: string) {
     // An edit whose record has not loaded has nothing to save against: a save then would
     // write nothing and close the dialog on the user's changes.
     const target: StoredRate | undefined = id === null ? null : stored
-    const loadFailed = agenciesQuery.isError
-    const canSave = target !== undefined && !loadFailed && !saveMutation.isPending
+    const loadFailed = agenciesQuery.isError || storedQuery.isError
+    // Until the agencies and the edited rate load, the form does not hold what a save
+    // would send.
+    const isLoading = !agenciesQuery.isReady || !storedQuery.isReady
+    const canSave = target !== undefined && !loadFailed && !isLoading && !saveMutation.isPending
 
     const submit = () => {
         if (!canSave) return
         void form.handleSubmit(saved => saveMutation.mutate({ saved, stored: target }))()
     }
 
-    // A failed live query does not recover on a reload of its collection. A source is
-    // cleaned only when it failed itself, so the page's agencies keep their rows.
+    // A failed live query does not recover on a reload of its collection; only a failed
+    // query is restarted, so a loaded one keeps its rows. A source is cleaned only when it
+    // failed itself, so the page's rows stay. The two queries read different
+    // collections, so they can restart side by side.
     const retryLoad = () => {
-        void recoverLiveQueries({
-            queries: [agenciesQuery.collection],
-            sources: [agenciesCollection],
-            onError: err => log.error('books.taxes.dialog.agencies', err),
-        })
+        if (agenciesQuery.isError) {
+            void recoverLiveQueries({
+                queries: [agenciesQuery.collection],
+                sources: [agenciesCollection],
+                onError: err => log.error('books.taxes.dialog.agencies', err),
+            })
+        }
+        if (storedQuery.isError) {
+            void recoverLiveQueries({
+                queries: [storedQuery.collection],
+                sources: [ratesCollection],
+                onError: err => log.error('books.taxes.dialog.rate', err),
+            })
+        }
     }
 
     return {
