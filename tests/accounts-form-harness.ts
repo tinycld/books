@@ -1076,6 +1076,10 @@ export function taxAgenciesStore() {
     return state.registry.books_tax_agencies as ReturnType<typeof guarded<BooksTaxAgencies>>
 }
 
+export function taxRatesStore() {
+    return state.registry.books_tax_rates as ReturnType<typeof guarded<BooksTaxRates>>
+}
+
 export function overrideDeletes() {
     return [...state.overrideDeletes]
 }

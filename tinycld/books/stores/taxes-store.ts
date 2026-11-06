@@ -1,4 +1,11 @@
 import { create } from '@tinycld/core/lib/store'
+import type { BooksTaxAgencies, BooksTaxRates } from '../types'
+import { createRecordFormStore } from './record-form-store'
+
+// The row actions' delete snapshots (`useRecordActions`), one store per collection. A
+// group is a books_tax_rates row, so it shares the rates' store.
+export const useTaxAgencyFormStore = createRecordFormStore<BooksTaxAgencies>()
+export const useTaxRateFormStore = createRecordFormStore<BooksTaxRates>()
 
 // The one dialog the Sales tax page shows: an add (`id` null) or an edit of an agency,
 // a rate (with the agency a new rate starts on) or a group, or a delete confirm.

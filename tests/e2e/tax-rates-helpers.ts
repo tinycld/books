@@ -107,7 +107,7 @@ export async function checkRate(dialog: Locator, label: string): Promise<void> {
 }
 
 // The id at the end of a test id such as `tax-agency-card-<id>`.
-async function idAfter(locator: Locator, prefix: string): Promise<string> {
+export async function idAfter(locator: Locator, prefix: string): Promise<string> {
     const testId = (await locator.getAttribute('data-testid')) ?? ''
     expect(testId.startsWith(prefix)).toBe(true)
     return testId.slice(prefix.length)
@@ -148,6 +148,25 @@ export async function createRate(
     const row = rowByName(page.getByTestId(`tax-agency-card-${agencyId}`), name)
     await expect(row).toBeVisible()
     return idAfter(row, 'tax-row-')
+}
+
+// Opens the row menu of a rate or group. One menu is open at a time and its items render
+// only while it is open, so Edit showing means this menu is the open one.
+export async function openRowMenu(page: Page, rowId: string): Promise<void> {
+    await page.getByTestId(`tax-menu-${rowId}`).click()
+    await expect(page.getByTestId('tax-item-edit')).toBeVisible()
+}
+
+// Opens the menu of an agency card.
+export async function openAgencyMenu(page: Page, agencyId: string): Promise<void> {
+    await page.getByTestId(`tax-agency-menu-${agencyId}`).click()
+    await expect(page.getByTestId('tax-item-edit')).toBeVisible()
+}
+
+// Presses an item of the open menu and waits for the menu to close.
+export async function chooseMenuItem(page: Page, testId: string): Promise<void> {
+    await page.getByTestId(testId).click()
+    await expect(page.getByTestId('tax-item-edit')).toHaveCount(0)
 }
 
 // A list GET answered with no items; every other request (a create's POST) goes on to

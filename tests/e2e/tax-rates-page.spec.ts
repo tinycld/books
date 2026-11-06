@@ -130,12 +130,20 @@ test.describe('tax-rates: Sales tax page', () => {
         await expect(agencyCardByName(fresh, COLORADO)).toBeVisible()
     })
 
-    test('a read-only user sees the page without actions or menus', async ({ page }) => {
+    test('a read-only user sees the page without actions, menus or the default picker', async ({
+        page,
+    }) => {
         const fresh = await openBooksPage(page, DESKTOP, fakeReadOnlyAccess)
         await fresh.getByTestId('books-nav-taxes').click()
 
         await expect(agencyCardByName(fresh, COLORADO)).toBeVisible()
         await expect(agencyCardByName(fresh, DENVER)).toBeVisible()
+        // The default shows as text, with no picker. Another spec moves the default for a
+        // few seconds, so only its presence is read, not which row it names.
+        await expect(fresh.getByTestId('tax-default-text')).toHaveText(/\S/)
+        await expect(fresh.getByTestId('tax-default-select')).toHaveCount(0)
+        await expect(fresh.getByTestId('taxes-add-agency')).toHaveCount(0)
+        await expect(fresh.locator('[data-testid^="tax-agency-add-rate-"]')).toHaveCount(0)
         await expect(fresh.getByTestId('taxes-actions')).toHaveCount(0)
         await expect(fresh.getByTestId('taxes-show-inactive')).toHaveCount(0)
         await expect(fresh.locator('[data-testid^="tax-menu-"]')).toHaveCount(0)
