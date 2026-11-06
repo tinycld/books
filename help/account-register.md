@@ -27,7 +27,7 @@ To change the range, use the date range menu. The choices are This month, Last m
 
 Each row shows the Date, Ref no., Type, Memo, Account, Debit, Credit and Balance. On a phone, each row is a card. A card shows the date, the Ref no., the memo, the other account with the entry type (and Void), the amount marked Debit or Credit, and the running balance.
 
-- **Type** is Journal entry, Reversal, Void reversal or Auto reversal. A reversal also shows the entry it reverses, for example "Reversal of JE-1046". A voided entry shows Void.
+- **Type** is Journal entry, Transfer, Reversal, Void reversal or Auto reversal. A reversal also shows the entry it reverses, for example "Reversal of JE-1046". A voided entry shows Void.
 - **Account** is the other account of the entry. An entry with more than two lines shows -Split-.
 - **Balance** is the running balance, signed for the normal side of the account. It shows Too large when the number is too big to store.
 
@@ -41,7 +41,7 @@ To sort, press the Date heading. Press it again to reverse the order. The newest
 
 ## See an entry
 
-To see an entry, press its row. A drawer opens with the entry, its status, its memo and all its lines. The line for this account is highlighted. The drawer is read only. To close it, press the close button. To open the full entry, choose Open entry in the drawer. See [Journal entries](help://books:journal-entries).
+To see an entry, press its row. A drawer opens with the entry, its status, its memo and all its lines. The line for this account is highlighted. The drawer is read only. To close it, press the close button. To open the full entry, choose Open entry in the drawer. A transfer opens on its own transfer screen. See [Journal entries](help://books:journal-entries).
 
 ## Parent accounts
 
@@ -50,6 +50,8 @@ A parent account shows Own transactions only. Transactions of its sub-accounts a
 ## Add an entry
 
 When journal entries are available and you have bookkeeper access, the New journal entry button appears next to the date range. A read-only user does not see it.
+
+To move money out of this account, choose Transfer. The Transfer button appears only on an active account that a transfer can use, such as a bank or credit card account. A read-only user does not see it. See [Transfers](help://books:transfers).
 
 ## Empty and error states
 

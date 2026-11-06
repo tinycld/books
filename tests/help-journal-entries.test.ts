@@ -79,4 +79,54 @@ describe('help/journal-entries.md', () => {
     it.each(['account-register.md', 'navigating-books.md'])('is linked from %s', name => {
         expect(read(name)).toContain('help://books:journal-entries')
     })
+
+    describe('keyboard', () => {
+        const keys = keyboardSection(body)
+
+        it('has a keyboard section', () => {
+            expect(keys).not.toBe('')
+        })
+
+        it.each(['⌘↵', '⌘⇧↵', '⌘S', 'Esc', '⌘⌫'])('names the form key %s', key => {
+            expect(keys).toContain(key)
+        })
+
+        it('names E for Edit, V for Void and R for Reverse', () => {
+            expect(keys).toMatch(/\bE\b[^\n]*\bEdit\b|\bEdit\b[^\n]*\bE\b/)
+            expect(keys).toMatch(/\bV\b[^\n]*\bVoid\b|\bVoid\b[^\n]*\bV\b/)
+            expect(keys).toMatch(/\bR\b[^\n]*\bReverse\b|\bReverse\b[^\n]*\bR\b/)
+        })
+
+        it('says the Date field has focus on a wide screen in a web browser', () => {
+            const lines = body
+                .split('\n')
+                .filter(line => /date[^\n]*focus|focus[^\n]*date/i.test(line))
+            expect(lines).not.toEqual([])
+            for (const line of lines) {
+                expect(line).toMatch(/wide screen/i)
+                expect(line).toMatch(/web browser/i)
+            }
+        })
+
+        it('says the form keys also work in a text box and E, V and R do not', () => {
+            expect(keys).toMatch(/text box/i)
+            expect(keys).not.toMatch(/click outside/i)
+        })
+
+        it('names the shortcut list key without the ⇧ glyph', () => {
+            expect(keys).toMatch(/press \?/i)
+            expect(body).not.toContain('⇧?')
+        })
+    })
+
+    it('says under "Reverse an entry" that a transfer cannot be reversed', () => {
+        const reverse = /## Reverse an entry([\s\S]*?)(\n## |$)/.exec(body)?.[1] ?? ''
+        expect(reverse).not.toBe('')
+        expect(reverse).toMatch(/transfer[^\n]*cannot be reversed/i)
+    })
 })
+
+// The body of the first `## …` section whose heading names the keyboard.
+function keyboardSection(text: string): string {
+    return /\n## [^\n]*keyboard[^\n]*([\s\S]*?)(\n## |$)/i.exec(`\n${text}`)?.[1] ?? ''
+}

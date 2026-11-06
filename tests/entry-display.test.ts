@@ -39,6 +39,19 @@ describe('entryTypeText', () => {
         expect(entryTypeText('void_reversal')).toBe('Void reversal')
         expect(entryTypeText('auto_reversal')).toBe('Auto reversal')
     })
+
+    it('labels a manual transfer "Transfer"', () => {
+        expect(entryTypeText('manual', 'transfer')).toBe('Transfer')
+    })
+
+    it("labels a transfer's void reversal by its origin", () => {
+        expect(entryTypeText('void_reversal', 'transfer')).toBe('Void reversal')
+    })
+
+    it('keeps "Journal entry" for a manual entry with no document type', () => {
+        expect(entryTypeText('manual')).toBe('Journal entry')
+        expect(entryTypeText('manual', 'journal')).toBe('Journal entry')
+    })
 })
 
 describe('reversesText', () => {

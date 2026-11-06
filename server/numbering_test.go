@@ -2,6 +2,7 @@ package books
 
 import (
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 
@@ -90,6 +91,58 @@ func TestAllocateNumber_UsesThePrefixAndStart(t *testing.T) {
 	}
 	if next := reload(t, app, "books_doc_sequences", "booksseqjournal").GetInt("next_number"); next != 42 {
 		t.Fatalf("next_number = %d, want 42", next)
+	}
+}
+
+func TestAllocateNumber_TransferSequenceStartsAtTR1(t *testing.T) {
+	app := newBooksApp(t)
+	row := reload(t, app, "books_doc_sequences", "booksseqtransfr")
+	if got := row.GetString("doc_type"); got != "transfer" {
+		t.Fatalf("doc_type = %q, want transfer", got)
+	}
+	if got := row.GetString("prefix"); got != "TR-" {
+		t.Fatalf("prefix = %q, want TR-", got)
+	}
+	if got := row.GetInt("next_number"); got != 1 {
+		t.Fatalf("next_number = %d, want 1", got)
+	}
+
+	var seq int
+	var number string
+	err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		seq, number, err = allocateNumber(tx, "transfer")
+		return err
+	})
+	if err != nil {
+		t.Fatalf("allocate a transfer number: %v", err)
+	}
+	if seq != 1 || number != "TR-1" {
+		t.Fatalf("got %d %q, want 1 TR-1", seq, number)
+	}
+	if next := reload(t, app, "books_doc_sequences", "booksseqtransfr").GetInt("next_number"); next != 2 {
+		t.Fatalf("transfer next_number = %d, want 2", next)
+	}
+	if next := reload(t, app, "books_doc_sequences", "booksseqjournal").GetInt("next_number"); next != 1 {
+		t.Fatalf("journal next_number = %d, want 1 (a transfer must not take a journal number)", next)
+	}
+}
+
+func TestDocTypes_MatchTheMigrations(t *testing.T) {
+	app := newBooksApp(t)
+	want := []string{"journal", "transfer"}
+	for _, name := range []string{"books_journal_entries", "books_doc_sequences"} {
+		col, err := app.FindCollectionByNameOrId(name)
+		if err != nil {
+			t.Fatalf("find %s: %v", name, err)
+		}
+		field, ok := col.Fields.GetByName("doc_type").(*core.SelectField)
+		if !ok {
+			t.Fatalf("%s.doc_type is not a select field", name)
+		}
+		if !slices.Equal(field.Values, want) {
+			t.Fatalf("%s.doc_type values = %v, want %v", name, field.Values, want)
+		}
 	}
 }
 

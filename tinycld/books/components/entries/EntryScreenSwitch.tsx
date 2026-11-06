@@ -1,57 +1,20 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
-import { errorToString } from '@tinycld/core/lib/errors'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router, useIsFocused } from 'expo-router'
-import { useRef, useState } from 'react'
-import { Text, View } from 'react-native'
+import { useState } from 'react'
+import { View } from 'react-native'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
-import { useEntryActions } from '../../hooks/useEntryActions'
+import { useDeleteDraft } from '../../hooks/useDeleteDraft'
 import { type ReadyEntryDetail, useEntryDetail } from '../../hooks/useEntryDetail'
 import type { SaveOutcome } from '../../hooks/useEntrySubmit'
 import type { LineTotals } from '../../lib/entry-lines'
 import { DeleteDraftDialog } from './DeleteDraftDialog'
 import { EntryForm } from './EntryForm'
-import { EntryBackLink, EntryHeader, EntryHeaderMenu } from './EntryHeader'
+import { EntryHeader, EntryHeaderMenu } from './EntryHeader'
+import { EntryNotice } from './EntryNotice'
 import { EntryReadOnlyView } from './EntryReadOnlyView'
 import { EntryStatusBadge } from './EntryStatusBadge'
 import { ReplaceHeader } from './ReplaceHeader'
-
-function NotFound() {
-    return (
-        <View testID="entry-not-found" className="flex-1 gap-2 bg-background px-4 pt-2">
-            <EntryBackLink />
-            <Text className="text-base text-foreground">This entry does not exist</Text>
-        </View>
-    )
-}
-
-// Delete is the only draft action here; the dialog is local UI no other component needs.
-// A success keeps `onBusyChange(true)` until the screen is gone, so the entry the delete
-// removes is never reported missing on the way out.
-function useDeleteDraft(entryId: string, onBusyChange: (isBusy: boolean) => void) {
-    const { deleteDraft, isPending } = useEntryActions(entryId)
-    const [isOpen, setOpen] = useState(false)
-    const [errorMessage, setErrorMessage] = useState<string | null>(null)
-    const isRunning = useRef(false)
-    const open = () => {
-        setErrorMessage(null)
-        setOpen(true)
-    }
-    const confirm = async () => {
-        if (isRunning.current) return
-        isRunning.current = true
-        setErrorMessage(null)
-        onBusyChange(true)
-        try {
-            await deleteDraft()
-        } catch (error) {
-            setErrorMessage(errorToString(error))
-            isRunning.current = false
-            onBusyChange(false)
-        }
-    }
-    return { isOpen, isPending, errorMessage, open, confirm, cancel: () => setOpen(false) }
-}
 
 // What a draft screen is built from; it is taken once, from the first editable model.
 interface HeldDraft {
@@ -123,6 +86,7 @@ function DraftScreen({ held, flipped, onSaveBusyChange, onDeleteBusyChange }: Dr
                     onSaved={onSaved}
                     onCancel={onBack}
                     onBusyChange={onSaveBusyChange}
+                    onDeleteDraft={del.open}
                     header={header}
                 />
             </View>
@@ -179,6 +143,8 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
         )
     }
     if (detail.viewState === 'loading') return <LoadingState />
-    if (detail.viewState === 'not-found') return <NotFound />
+    if (detail.viewState === 'not-found') {
+        return <EntryNotice testID="entry-not-found" message="This entry does not exist" />
+    }
     return <EntryReadOnlyView detail={detail} />
 }

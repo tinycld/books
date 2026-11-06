@@ -106,7 +106,7 @@ export function EntryRow({ entry, currency, onOpenEntry, rowMenu }: EntryItemPro
             </View>
             <View testID={cellId('type')} className="min-w-0" style={ENTRY_COLUMNS.type}>
                 <Text numberOfLines={1} className="text-sm text-foreground">
-                    {entryTypeText(entry.origin)}
+                    {entryTypeText(entry.origin, entry.doc_type)}
                 </Text>
                 <ReversesNumber
                     entryId={entry.reverses}

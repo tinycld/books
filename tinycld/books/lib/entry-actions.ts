@@ -4,7 +4,9 @@ import type { BooksAccessState } from './access'
 export type EntryActionId = 'open' | 'edit' | 'reverse' | 'void' | 'delete'
 
 // isReversed means a POSTED reversal exists (reversalSummary's linkText); the server ignores draft and void ones.
-type EntryActionState = Pick<BooksJournalEntries, 'status' | 'origin'> & { isReversed: boolean }
+type EntryActionState = Pick<BooksJournalEntries, 'status' | 'origin' | 'doc_type'> & {
+    isReversed: boolean
+}
 
 export function entryActions(
     entry: EntryActionState,
@@ -15,8 +17,12 @@ export function entryActions(
     if (entry.status === 'draft') return [...actions, 'delete']
     // The server refuses to edit, reverse or void a void reversal.
     if (entry.status !== 'posted' || entry.origin === 'void_reversal') return actions
-    actions.push('edit')
-    if (!entry.isReversed) actions.push('reverse')
+    // A correction must keep the original's origin (server/reversal.go), and the journal
+    // entry form writes only manual entries, so the server refuses every edit of a
+    // reversal.
+    if (entry.origin !== 'reversal' && entry.origin !== 'auto_reversal') actions.push('edit')
+    // A transfer is corrected by Edit or Void, never by a one-click reversal.
+    if (!entry.isReversed && entry.doc_type !== 'transfer') actions.push('reverse')
     actions.push('void')
     return actions
 }

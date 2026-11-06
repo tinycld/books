@@ -1,0 +1,33 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "widths": [1280],
+            "actions": [{ "pause": 600 }]
+        },
+        {
+            "name": "new-phone",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "widths": [390],
+            "actions": [{ "pause": 600 }]
+        },
+        {
+            "name": "entry-new",
+            "url": "/a/books/entries/new",
+            "ready": "entry-screen",
+            "widths": [1280],
+            "actions": [{ "pause": 600 }]
+        },
+        {
+            "name": "entry-new-phone",
+            "url": "/a/books/entries/new",
+            "ready": "entry-screen",
+            "widths": [390],
+            "actions": [{ "pause": 600 }]
+        }
+    ]
+}
