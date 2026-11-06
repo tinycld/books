@@ -169,7 +169,7 @@
 - reviewer-caught deferrals: 2 by reviewer A, not self-declared — the weak second-confirm test (the test writer's assertion, not the implementer's) and `isReady` unread (the implementer returned it but used nothing of it); both fixed now.
 - out-of-plan: CloseOnMount.tsx, the DisconnectDialog / useConnectableAccounts interface changes, capture.json format (see Out-of-plan changes)
 - rounds: 1
-- commit: (below)
+- commit: 8bde10f
 - human: n/a (review mode C)
 
 ## Final review
