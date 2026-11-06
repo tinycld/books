@@ -226,3 +226,4 @@
 ## Final review
 - eval:
 - native: not executed in this run
+- eval: approved 2026-11-06 (human: approve; retro memories M1–M4, lessons 1, 2, 5 and process items 3, 4 approved)

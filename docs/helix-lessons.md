@@ -25,3 +25,6 @@
 - Prove each red test fails for its stated reason: read the failure message, and never pass `undefined` to a defaulted helper parameter to mean 'missing' (JS applies the default). — tax-rates, retro, p2-tax-rates
 - When a spec checks a reference only when it changes, it must also say what Make active checks (an inactive account, agency or component); ask at the design gate. — tax-rates, retro, p2-tax-rates
 - E2E finds a row or card by its name with `filter({ has: page.getByText(name, { exact: true }) })`, never `filter({ hasText: name })` (a caseless substring of the whole row: 'Rent' matched the type 'Other Current Liability'). — tax-rates, retro, p2-tax-rates
+- A plan step or code that depends on how a core or library API behaves (error shape, status code, ref type, export, effect timing) names the source file that shows it; read that file before writing the step. — bank-connection, retro, p4-bank-connection
+- An e2e test that fakes a list read cuts realtime before login; otherwise rows that other workers create arrive by realtime. — bank-connection, retro, p4-bank-connection
+- Add a help topic's image lines only after help-screenshots.spec.ts has written the images; packages:generate refuses a topic whose image is missing. — bank-connection, retro, p4-bank-connection
