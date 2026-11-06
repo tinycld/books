@@ -52,7 +52,7 @@ export function usePdfDownload() {
         },
         onError: (error: unknown) => {
             if (isExpectedRefusal(error)) {
-                log.warn('books.pdf', 'download refused', {
+                log.info('books.pdf', 'download refused', {
                     status: error.status,
                     error: errorToString(error),
                 })

@@ -77,7 +77,7 @@ func servePDF(re *core.RequestEvent, slug, id string) error {
 	re.Response.Header().Set("Content-Disposition", pdfContentDisposition(kind.FileName(doc)))
 	// The client names the saved file from this header; a web app on another
 	// origin may read it only when CORS exposes it.
-	re.Response.Header().Set("Access-Control-Expose-Headers", "Content-Disposition")
+	re.Response.Header().Add("Access-Control-Expose-Headers", "Content-Disposition")
 	re.Response.Header().Set("Cache-Control", "no-store")
 	return re.Blob(http.StatusOK, "application/pdf", pdf)
 }
