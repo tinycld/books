@@ -1,0 +1,168 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form"
+        },
+        {
+            "name": "filled",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "actions": [
+                {
+                    "click": "transfer-from"
+                },
+                {
+                    "clickMenuItem": "1010 Business Savings"
+                },
+                {
+                    "waitFor": "transfer-balance-from"
+                },
+                {
+                    "click": "transfer-to"
+                },
+                {
+                    "clickMenuItem": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "transfer-balance-to"
+                },
+                {
+                    "fill": "transfer-amount-input",
+                    "value": "1,500.00"
+                },
+                {
+                    "fill": "transfer-memo",
+                    "value": "Cover the checking overdraft from the November rent"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "errors-blank",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "actions": [
+                {
+                    "click": "transfer-post"
+                },
+                {
+                    "waitFor": "Choose the account the money comes from"
+                }
+            ]
+        },
+        {
+            "name": "errors-same",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "actions": [
+                {
+                    "click": "transfer-from"
+                },
+                {
+                    "clickMenuItem": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "transfer-balance-from"
+                },
+                {
+                    "click": "transfer-to"
+                },
+                {
+                    "clickMenuItem": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "transfer-balance-to"
+                },
+                {
+                    "fill": "transfer-amount-input",
+                    "value": "20,000,000,000,000.00"
+                },
+                {
+                    "fill": "transfer-date",
+                    "value": "2026-11-31"
+                },
+                {
+                    "fill": "transfer-memo",
+                    "value": "Move surplus cash to savings"
+                },
+                {
+                    "click": "transfer-post"
+                },
+                {
+                    "waitFor": "Choose two different accounts"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "actions": [
+                {
+                    "click": "transfer-from"
+                },
+                {
+                    "clickMenuItem": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "transfer-balance-from"
+                },
+                {
+                    "click": "transfer-to"
+                },
+                {
+                    "clickMenuItem": "2100 Company Card"
+                },
+                {
+                    "waitFor": "transfer-balance-to"
+                },
+                {
+                    "fill": "transfer-amount-input",
+                    "value": "1,250.00"
+                },
+                {
+                    "fill": "transfer-memo",
+                    "value": "Pay down the card for October"
+                },
+                {
+                    "click": "transfer-save-draft"
+                },
+                {
+                    "waitFor": "Draft transfer"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-no-access",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        }
+    ]
+}

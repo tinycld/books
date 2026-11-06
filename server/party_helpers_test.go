@@ -101,7 +101,9 @@ func runRulesByLevel(t *testing.T, collection, noun string) {
 // requireNameKeyHidden checks that name_key is the guard's own column: a
 // reader sees the display name, never the key, in a view or a list response.
 // The folded text is not checked for: sort_key is not hidden and holds it too.
-// mk saves the row the reads look at, named Harborview.
+// mk saves the row the reads look at, named Harborview. The display name is the
+// collection's display_name column, or its name column when it has none (the
+// sales tax agencies and rates).
 func requireNameKeyHidden(t *testing.T, collection string, mk func(t testing.TB, app core.App) *core.Record) {
 	list := "/api/collections/" + collection + "/records"
 	for _, path := range []string{"", "/view"} {
@@ -109,6 +111,10 @@ func requireNameKeyHidden(t *testing.T, collection string, mk func(t testing.TB,
 			app := newGuardedApp(t)
 			users := newLevelUsers(t, app)
 			harbor := mk(t, app)
+			nameField := "display_name"
+			if harbor.Collection().Fields.GetByName(nameField) == nil {
+				nameField = "name"
+			}
 			if got := reload(t, app, collection, harbor.Id).GetString("name_key"); got != "harborview" {
 				t.Fatalf("stored name_key = %q, want %q", got, "harborview")
 			}
@@ -122,7 +128,7 @@ func requireNameKeyHidden(t *testing.T, collection string, mk func(t testing.TB,
 				URL:                   url,
 				Headers:               map[string]string{"Authorization": tokenFor(t, users.readOnly)},
 				ExpectedStatus:        http.StatusOK,
-				ExpectedContent:       []string{`"display_name":"Harborview"`},
+				ExpectedContent:       []string{`"` + nameField + `":"Harborview"`},
 				NotExpectedContent:    []string{`"name_key"`},
 				TestAppFactory:        func(testing.TB) *tests.TestApp { return app },
 				DisableTestAppCleanup: true,

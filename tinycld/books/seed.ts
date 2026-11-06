@@ -3,6 +3,8 @@ import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
+import { CUSTOMER_TAX_PATCHES, TAX_AGENCIES, TAX_RATE_ROWS } from './lib/tax-rates-fixture'
+import { TRANSFER_SEED } from './lib/transfer-fixture'
 import { PRIOR_YEAR_SEED } from './lib/trial-balance-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
 import { VENDORS } from './lib/vendor-form-fixture'
@@ -138,10 +140,12 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
         memo: PRIOR_YEAR_SEED.memo,
         lines: PRIOR_YEAR_SEED.lines,
     })
-    await seedCustomers(pb)
+    await seedTransfer(pb, ctx, accountIds)
+    const customerIds = await seedCustomers(pb)
     await seedVendors(pb, accountIds)
     await seedProducts(pb, accountIds)
     await seed1099(pb, accountIds)
+    await seedSalesTax(pb, accountIds, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -165,7 +169,7 @@ export function seedValues<
 // server assigns ids and `parent` is mapped from fixture id to created id.
 // A fixture row has no name_key or sort_key (CustomerFixtureRecord omits them),
 // so the seed never sends them: the server's guard sets both.
-export async function seedCustomers(pb: PocketBase): Promise<void> {
+export async function seedCustomers(pb: PocketBase): Promise<Map<string, string>> {
     const ids = new Map<string, string>()
     const topLevelFirst = [
         ...CUSTOMERS.filter(c => c.parent === ''),
@@ -181,6 +185,7 @@ export async function seedCustomers(pb: PocketBase): Promise<void> {
             .create({ ...seedValues(row), parent: parentId })
         ids.set(id, created.id)
     }
+    return ids
 }
 
 // The fixture ids are valid PocketBase ids, so the seed sends them. A fixture
@@ -261,6 +266,54 @@ export async function seed1099(pb: PocketBase, accountIds: Map<string, string>):
     for (const patch of VENDOR_1099_PATCHES) {
         const { id, ...columns } = patch
         await pb.collection('books_vendors').update(id, columns)
+    }
+}
+
+// The fixture ids are valid PocketBase ids, so the seed sends them. Every
+// agency is created active, then the rates and groups (rates first, so each
+// group's components exist), and the inactive agencies are made inactive last:
+// the rate guard refuses a rate whose agency is inactive when the rate is
+// created, and an agency may go inactive once its rates are inactive.
+// `accountIds` maps a seed account number to the created account's id;
+// `customerIds` maps a customer-form fixture id to the created customer's id.
+export async function seedSalesTax(
+    pb: PocketBase,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const { id, name, account_number } of TAX_AGENCIES) {
+        const account = accountIds.get(account_number)
+        if (account === undefined) {
+            throw new Error(
+                `seed: tax agency ${id} names account ${account_number}, which was not created`
+            )
+        }
+        await pb.collection('books_tax_agencies').create({ id, name, inactive: false, account })
+    }
+    for (const row of TAX_RATE_ROWS) {
+        const { id, type, name, rate_ppm, agency, components, is_default, inactive } = row
+        await pb.collection('books_tax_rates').create({
+            id,
+            type,
+            name,
+            rate_ppm,
+            agency,
+            components,
+            is_default,
+            inactive,
+        })
+    }
+    for (const agency of TAX_AGENCIES.filter(a => a.inactive)) {
+        await pb.collection('books_tax_agencies').update(agency.id, { inactive: true })
+    }
+    // Customers are created before the tax rows exist, so their tax columns are
+    // written after, by update, as a person would set them.
+    for (const { id, ...columns } of CUSTOMER_TAX_PATCHES) {
+        const customerId = customerIds.get(id)
+        if (customerId === undefined) {
+            throw new Error(`seed: tax columns name customer ${id}, which was not created`)
+        }
+        await pb.collection('books_customers').update(customerId, columns)
     }
 }
 
@@ -421,4 +474,36 @@ async function seedJournalEntries(pb: PocketBase, ctx: SeedContext, ids: Map<str
             await pb.collection('books_journal_entries').update(created.id, { status: 'void' })
         }
     }
+}
+
+// Dated today, after the close date books-settings.spec.ts holds on the shared e2e DB.
+// Line 0 credits From and line 1 debits To, the order server/transfers.go checks.
+async function seedTransfer(pb: PocketBase, ctx: SeedContext, accountIds: Map<string, string>) {
+    const from = accountIds.get(TRANSFER_SEED.fromNumber)
+    const to = accountIds.get(TRANSFER_SEED.toNumber)
+    if (from === undefined || to === undefined) {
+        throw new Error(
+            `seed: the seed transfer names ${TRANSFER_SEED.fromNumber} and ${TRANSFER_SEED.toNumber}, one of which was not created`
+        )
+    }
+    const created = await pb.collection('books_journal_entries').create({
+        date: isoDay(new Date()),
+        memo: TRANSFER_SEED.memo,
+        status: 'draft',
+        doc_type: 'transfer',
+        origin: 'manual',
+        created_by: ctx.user.id,
+    })
+    const lines = [
+        [from, 0, TRANSFER_SEED.amount],
+        [to, TRANSFER_SEED.amount, 0],
+    ] as const
+    for (const [position, [account, debit, credit]] of lines.entries()) {
+        await pb
+            .collection('books_journal_lines')
+            .create({ entry: created.id, account, debit, credit, position })
+    }
+    await pb
+        .collection('books_journal_entries')
+        .update(created.id, { status: 'posted', posted_by: ctx.user.id })
 }

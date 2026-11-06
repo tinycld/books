@@ -5,6 +5,7 @@ import { EmailField, PhoneField, PlainAddressField, WebsiteField } from './conta
 import { ParentCustomerField, ShippingAddressField } from './customer-fields'
 import { MoneyField } from './money-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
+import { ExemptionReasonField, TaxRateField } from './tax-fields'
 import { LegalNameField, TaxIdField, TaxIdTypeField } from './vendor-1099-fields'
 import { AccountNumberField, PaymentTermsField } from './vendor-fields'
 
@@ -29,6 +30,8 @@ const ui: FormHostUi = {
         LegalNameField,
         TaxIdTypeField,
         TaxIdField,
+        ExemptionReasonField,
+        TaxRateField,
     },
     // The money input's rules run through the forms engine, at save and between saves,
     // so a refused amount blocks the save and its message is the cell's inline text.

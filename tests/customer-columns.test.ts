@@ -4,8 +4,14 @@ import { z } from '@tinycld/core/ui/form'
 import { describe, expect, it } from 'vitest'
 import hosts from '../tinycld/books/forms/hosts'
 import { EMPTY_ADDRESS } from '../tinycld/books/lib/address'
-import { customerColumnsFrom, EMPTY_CUSTOMER_COLUMNS } from '../tinycld/books/lib/customer-columns'
+import {
+    customerColumnsFrom,
+    EMPTY_CUSTOMER_COLUMNS,
+    EMPTY_CUSTOMER_FIELDS,
+} from '../tinycld/books/lib/customer-columns'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
+import { EXEMPTION_REASON_KEYS } from '../tinycld/books/lib/exemption-reasons'
+import { TAX_IDS } from '../tinycld/books/lib/tax-rates-fixture'
 
 const BUILTIN_COLUMNS = [
     'display_name',
@@ -19,6 +25,10 @@ const BUILTIN_COLUMNS = [
     'parent',
     'billing_address',
     'shipping_address',
+    'tax_exempt',
+    'exemption_reason',
+    'exemption_number',
+    'default_tax_rate',
     'notes',
 ]
 
@@ -110,6 +120,39 @@ describe('customerColumnsFrom', () => {
         expect(result.columns.display_name).toBe('Acme')
     })
 
+    it('accepts the four tax columns and returns them as given', () => {
+        const tax = {
+            tax_exempt: true,
+            exemption_reason: 'resale',
+            exemption_number: 'CO-98-01234-0000',
+            default_tax_rate: TAX_IDS.denverCombined,
+        }
+        const result = customerColumnsFrom({ display_name: 'Acme', ...tax })
+        expect(result.success).toBe(true)
+        if (!result.success) return
+        expect(result.columns).toEqual({ display_name: 'Acme', ...tax })
+    })
+
+    it('accepts every exemption reason and an empty one', () => {
+        for (const reason of [...EXEMPTION_REASON_KEYS, '']) {
+            const result = customerColumnsFrom({ exemption_reason: reason })
+            expect(result.success, reason).toBe(true)
+            if (!result.success) return
+            expect(result.columns).toEqual({ exemption_reason: reason })
+        }
+    })
+
+    it('refuses an exemption reason outside the ten', () => {
+        const error = refusalOf({ display_name: 'Acme', exemption_reason: 'charity' })
+        expect(error).toBeInstanceOf(z.ZodError)
+        expect(error.issues.map(issue => issue.path[0])).toEqual(['exemption_reason'])
+    })
+
+    it('refuses a tax exempt mark that is not on or off', () => {
+        const error = refusalOf({ display_name: 'Acme', tax_exempt: 'yes' })
+        expect(error.issues.map(issue => issue.path[0])).toEqual(['tax_exempt'])
+    })
+
     it('accepts phone alone and returns only phone', () => {
         const result = customerColumnsFrom({ phone: '1' })
         expect(result.success).toBe(true)
@@ -119,8 +162,19 @@ describe('customerColumnsFrom', () => {
     })
 })
 
+describe('EMPTY_CUSTOMER_FIELDS', () => {
+    it('starts a new customer not exempt, with no reason, no certificate number and no default tax', () => {
+        expect(EMPTY_CUSTOMER_FIELDS).toMatchObject({
+            tax_exempt: false,
+            exemption_reason: '',
+            exemption_number: '',
+            default_tax_rate: '',
+        })
+    })
+})
+
 describe('EMPTY_CUSTOMER_COLUMNS', () => {
-    it('stores every text column empty, no parent, no addresses and active', () => {
+    it('stores every text column empty, no parent, no addresses, not exempt and active', () => {
         expect(EMPTY_CUSTOMER_COLUMNS).toEqual({
             display_name: '',
             company: '',
@@ -133,6 +187,10 @@ describe('EMPTY_CUSTOMER_COLUMNS', () => {
             parent: '',
             billing_address: null,
             shipping_address: null,
+            tax_exempt: false,
+            exemption_reason: '',
+            exemption_number: '',
+            default_tax_rate: '',
             notes: '',
             inactive: false,
         })

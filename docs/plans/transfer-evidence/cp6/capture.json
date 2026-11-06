@@ -1,0 +1,181 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "actions": [
+                { "fill": "entries-search", "value": "Seed transfer to savings" },
+                { "pause": 800 },
+                { "clickText": "Seed transfer to savings" },
+                { "waitFor": "transfer-read-only" },
+                { "waitFor": "entry-edit" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "void-dialog",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "opaque": "void-dialog",
+            "settleMs": 600,
+            "actions": [
+                { "fill": "entries-search", "value": "Seed transfer to savings" },
+                { "pause": 800 },
+                { "clickText": "Seed transfer to savings" },
+                { "waitFor": "transfer-read-only" },
+                { "click": "entry-more" },
+                { "clickMenuItem": "Void" },
+                { "waitFor": "void-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "void",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "actions": [
+                { "click": "transfer-from" },
+                { "clickMenuItem": "1010 Business Savings" },
+                { "waitFor": "transfer-balance-from" },
+                { "click": "transfer-to" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "transfer-balance-to" },
+                { "fill": "transfer-amount-input", "value": "75.00" },
+                { "fill": "transfer-memo", "value": "Return the October float to checking" },
+                { "click": "transfer-post" },
+                { "waitFor": "transfer-read-only" },
+                { "click": "entry-more" },
+                { "clickMenuItem": "Void" },
+                { "waitFor": "void-dialog" },
+                { "click": "void-confirm" },
+                { "waitFor": "transfer-voided-by" },
+                { "waitForHidden": "void-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "edit-posted",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "actions": [
+                { "fill": "entries-search", "value": "Seed transfer to savings" },
+                { "pause": 800 },
+                { "clickText": "Seed transfer to savings" },
+                { "waitFor": "transfer-read-only" },
+                { "click": "entry-edit" },
+                { "waitFor": "transfer-replace-note" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "edit-draft",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "actions": [
+                { "fill": "entries-search", "value": "Seed transfer to savings" },
+                { "pause": 800 },
+                { "clickText": "Seed transfer to savings" },
+                { "waitFor": "transfer-read-only" },
+                { "click": "entry-edit" },
+                { "waitFor": "transfer-replace-note" },
+                { "click": "transfer-save-draft" },
+                { "pause": 1500 },
+                { "waitFor": "transfer-replace-note" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "replace-error",
+            "url": "/a/books/transfers/new?replaces=doesnotexist000",
+            "ready": "transfer-error",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_journal_lines", "status": 400 }
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "actions": [
+                { "fill": "entries-search", "value": "Entries seed posted" },
+                { "pause": 800 },
+                { "clickText": "Entries seed posted" },
+                { "waitFor": "entry-read-only" },
+                { "pushPath": "/a/books/transfers/new?replaces=$urlId" },
+                { "waitFor": "transfer-cannot-edit" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "refusal",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "writes": {
+                "collection": "books_journal_entries",
+                "answers": [400],
+                "message": "The books are closed through 2026-06-30. Ask a Books admin for a close-date override to post on 2026-06-15."
+            },
+            "actions": [
+                { "click": "transfer-from" },
+                { "clickMenuItem": "1010 Business Savings" },
+                { "waitFor": "transfer-balance-from" },
+                { "click": "transfer-to" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "transfer-balance-to" },
+                { "fill": "transfer-amount-input", "value": "1,500.00" },
+                {
+                    "fill": "transfer-memo",
+                    "value": "Cover the checking overdraft from the November rent"
+                },
+                { "click": "transfer-post" },
+                { "waitFor": "transfer-error-summary" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "refusal-line",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "writes": {
+                "collection": "books_journal_entries",
+                "answers": [400],
+                "message": "Line 2: account Business Checking is inactive."
+            },
+            "actions": [
+                { "click": "transfer-from" },
+                { "clickMenuItem": "1010 Business Savings" },
+                { "waitFor": "transfer-balance-from" },
+                { "click": "transfer-to" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "transfer-balance-to" },
+                { "fill": "transfer-amount-input", "value": "1,500.00" },
+                {
+                    "fill": "transfer-memo",
+                    "value": "Cover the checking overdraft from the November rent"
+                },
+                { "click": "transfer-post" },
+                { "waitFor": "transfer-refusal-to" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/transfers/new",
+            "ready": "transfer-form",
+            "actions": [
+                { "click": "transfer-from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "transfer-balance-from" },
+                { "click": "transfer-to" },
+                { "clickMenuItem": "2100 Company Card" },
+                { "waitFor": "transfer-balance-to" },
+                { "fill": "transfer-amount-input", "value": "1,250.00" },
+                { "fill": "transfer-memo", "value": "Pay down the card for October" },
+                { "click": "transfer-save-draft" },
+                { "waitFor": "Draft transfer" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

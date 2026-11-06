@@ -11,8 +11,8 @@ const (
 // as its user, so the access-level rules apply to it as to a session; the
 // scope only decides whether a token may use a collection at all.
 //
-// The ledger, the customers, the vendors and the products (with their bundle
-// rows) are read-write. Everything that
+// The ledger, the customers, the vendors, the products (with their bundle
+// rows) and the sales tax agencies, rates and groups are read-write. Everything that
 // decides who may do what (the settings with the close date, numbering,
 // overrides, admin grants) is read-only for tokens: "record transactions" on a
 // consent screen does not read as "reopen a closed year". The balance rebuild
@@ -35,6 +35,8 @@ func oauthPackage() oauth.Package {
 			"books_vendors":          rw,
 			"books_products":         rw,
 			"books_bundle_items":     rw,
+			"books_tax_agencies":     rw,
+			"books_tax_rates":        rw,
 			"books_account_balances": ro,
 			"books_settings":         ro,
 			"books_doc_sequences":    ro,

@@ -1,0 +1,125 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "height": 1500,
+            "actions": [{ "waitFor": "tax-default-select" }]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "actions": [{ "click": "tax-menu-taxrtcostate001" }, { "waitFor": "tax-item-default" }],
+            "widths": [1280]
+        },
+        {
+            "name": "row-menu-phone",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "actions": [
+                { "click": "tax-menu-taxrtcostate001" },
+                { "waitFor": "tax-item-default" },
+                { "pause": 800 }
+            ],
+            "widths": [390]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "height": 1500,
+            "widths": [1280],
+            "actions": [{ "waitFor": "tax-default-text" }],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "refusal",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "widths": [1280],
+            "writes": {
+                "collection": "books_tax_rates",
+                "answers": [
+                    {
+                        "status": 400,
+                        "message": "This rate is in the group “Denver combined”. Remove it from the group first."
+                    }
+                ]
+            },
+            "actions": [
+                { "click": "tax-menu-taxrtdenvercty1" },
+                { "waitFor": "tax-item-delete" },
+                { "click": "tax-item-delete" },
+                { "waitFor": "tax-delete-confirm" },
+                { "click": "tax-delete-confirm" },
+                {
+                    "waitFor": "This rate is in the group “Denver combined”. Remove it from the group first."
+                },
+                { "click": "tax-delete-close" },
+                { "waitForHidden": "tax-delete-dialog" },
+                { "waitFor": "taxes-banner" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "delete-rate",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "opaque": "tax-delete-dialog-body",
+            "widths": [1280],
+            "actions": [
+                { "click": "tax-menu-taxrtadams00001" },
+                { "waitFor": "tax-item-delete" },
+                { "click": "tax-item-delete" },
+                { "waitFor": "tax-delete-dialog-body" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "one-rate",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-need-rates",
+            "widths": [1280],
+            "actions": [{ "waitFor": "tax-default-select" }],
+            "fakeRecords": {
+                "collection": "books_tax_rates",
+                "items": [
+                    {
+                        "id": "taxrtcostate001",
+                        "type": "rate",
+                        "name": "Colorado state",
+                        "sort_key": "colorado state",
+                        "rate_ppm": 29000,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    }
+                ]
+            },
+            "extraFakes": [
+                {
+                    "collection": "books_tax_agencies",
+                    "dropWhere": { "name": "City and County of Denver" }
+                }
+            ]
+        }
+    ]
+}

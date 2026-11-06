@@ -3,8 +3,12 @@ import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
-// The default Customer form: one page, with first and last name, email and phone, and
-// mobile and website side by side wherever the form is 640 px wide or more.
+// The default Customer form: one page, with first and last name, email and phone,
+// mobile and website, and the exemption reason and certificate number side by side
+// wherever the form is 640 px wide or more. The rules that show the exemption fields
+// only for an exempt customer, and the default sales tax only for one that is not, are
+// part of the layout, so they are seeded into the stored form, where an admin can
+// change them in Settings → Forms.
 const LAYOUT = {
     pages: [{ key: 'main', title: 'Customer' }],
     fields: {
@@ -14,7 +18,24 @@ const LAYOUT = {
         phone: { width: 'half' },
         mobile: { width: 'half' },
         website: { width: 'half' },
+        exemption_reason: { width: 'half' },
+        exemption_number: { width: 'half' },
     },
+    rules: [
+        {
+            key: 'hide_exemption',
+            when: [{ field: 'tax_exempt', op: 'is_false' }],
+            actions: [
+                { action: 'hide', field: 'exemption_reason' },
+                { action: 'hide', field: 'exemption_number' },
+            ],
+        },
+        {
+            key: 'hide_default_tax',
+            when: [{ field: 'tax_exempt', op: 'is_true' }],
+            actions: [{ action: 'hide', field: 'default_tax_rate' }],
+        },
+    ],
 } satisfies FormHostDefInput['layout']
 
 export const VENDOR_HOST_KEY = 'books:vendor'
@@ -57,6 +78,7 @@ export const PRODUCT_HOST_KEY = 'books:product'
 // Income account, and Cost and Expense account side by side wherever the form is 640 px
 // wide or more. The purchase fields hide while "I purchase this from a vendor" is off;
 // that is a rule of the form, so admins see it and may change it in Settings → Forms.
+// Taxable's description is the toggle's help text in the seeded form.
 const PRODUCT_LAYOUT = {
     pages: [{ key: 'main', title: 'Product or service' }],
     fields: {
@@ -64,6 +86,7 @@ const PRODUCT_LAYOUT = {
         sku: { width: 'half' },
         price: { width: 'half' },
         income_account: { width: 'half' },
+        taxable: { description: 'Charge sales tax on this item when it is sold.' },
         cost: { width: 'half' },
         expense_account: { width: 'half' },
     },
@@ -106,6 +129,10 @@ const hosts: FormHostDefInput[] = [
             'billing_address',
             'shipping_address',
             'notes',
+            'tax_exempt',
+            'exemption_reason',
+            'exemption_number',
+            'default_tax_rate',
             'inactive',
             'form',
             'fields',
@@ -204,6 +231,41 @@ const hosts: FormHostDefInput[] = [
                 storage: 'column',
                 required: false,
                 component: 'ShippingAddressField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_exempt',
+                label: 'This customer is tax exempt',
+                kind: 'toggle',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'exemption_reason',
+                label: 'Exemption reason',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'ExemptionReasonField',
+                chrome: 'cell',
+            },
+            // The client checks the length as it checks a custom text field; the
+            // migration's `max: 100` is the server's backstop.
+            {
+                key: 'exemption_number',
+                label: 'Exemption certificate number',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+                maxLength: 100,
+            },
+            {
+                key: 'default_tax_rate',
+                label: 'Default sales tax',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'TaxRateField',
                 chrome: 'cell',
             },
             { key: 'notes', label: 'Notes', kind: 'textarea', storage: 'column', required: false },
@@ -406,6 +468,7 @@ const hosts: FormHostDefInput[] = [
             'purchase_description',
             'cost',
             'expense_account',
+            'taxable',
             'inactive',
             'currency',
             'form',
@@ -459,6 +522,13 @@ const hosts: FormHostDefInput[] = [
                 required: false,
                 component: 'IncomeAccountField',
                 chrome: 'cell',
+            },
+            {
+                key: 'taxable',
+                label: 'Taxable',
+                kind: 'toggle',
+                storage: 'column',
+                required: false,
             },
             {
                 key: 'purchases',

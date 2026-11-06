@@ -66,6 +66,21 @@ describe('productColumnsFor', () => {
         })
     })
 
+    // A new Non-inventory item starts taxable; switched to Bundle, the hidden toggle still
+    // holds true, and the server refuses a taxable bundle on a field the user cannot see.
+    it('writes a bundle not taxable, whatever the hidden toggle held', () => {
+        expect(columnsOf('bundle', { taxable: true })).toEqual({ taxable: false })
+    })
+
+    it('keeps a taxable service taxable', () => {
+        expect(columnsOf('service', { taxable: true })).toEqual({ taxable: true })
+    })
+
+    it('refuses a taxable that is not on or off', () => {
+        const error = refusalOf('service', { name: 'A', taxable: 'yes' })
+        expect(error.issues.map(issue => issue.path[0])).toContain('taxable')
+    })
+
     it('sends no emptied key for a bundle edit that changed only its name', () => {
         expect(columnsOf('bundle', { name: 'Kit' })).toEqual({ name: 'Kit' })
     })
@@ -79,7 +94,7 @@ describe('productColumnsFor', () => {
 })
 
 describe('EMPTY_PRODUCT_FIELDS', () => {
-    it('is a service with every text empty, no money and purchasing off', () => {
+    it('is a service with every text empty, no money, purchasing off and not taxable', () => {
         expect(EMPTY_PRODUCT_FIELDS).toEqual({
             type: 'service',
             name: '',
@@ -87,6 +102,7 @@ describe('EMPTY_PRODUCT_FIELDS', () => {
             sales_description: '',
             price: 0,
             income_account: '',
+            taxable: false,
             purchases: false,
             purchase_description: '',
             cost: 0,

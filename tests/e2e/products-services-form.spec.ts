@@ -53,6 +53,12 @@ function purchaseCells(page: Page) {
     return PURCHASE_FIELDS.map(key => page.getByTestId(`form-field-${key}`))
 }
 
+// The Taxable switch: `form-input-taxable` is the toggle's wrapper, and core's Switch
+// inside it (role switch, named by the label) takes the press.
+function taxableSwitch(page: Page) {
+    return page.getByTestId('form-input-taxable').getByRole('switch', { name: 'Taxable' })
+}
+
 const NEW_URL = /\/books\/products\/new(\?|$)/
 const ACCOUNTS = '**/api/collections/books_accounts/records*'
 const ACCESS = '**/api/collections/books_access/records*'
@@ -130,6 +136,12 @@ test.describe('products-services: product form', () => {
         await field(page, 'name').fill(name)
         await field(page, 'sku').fill(sku)
 
+        // A new Service starts not taxable; the user turns it on.
+        await expect(taxableSwitch(page)).toBeVisible()
+        await expect(taxableSwitch(page)).not.toBeChecked()
+        await taxableSwitch(page).click()
+        await expect(taxableSwitch(page)).toBeChecked()
+
         // Purchasing off: the default rule hides the purchase fields.
         for (const cell of purchaseCells(page)) await expect(cell).toHaveCount(0)
         await purchasesSwitch(page).click()
@@ -159,6 +171,16 @@ test.describe('products-services: product form', () => {
         for (const cell of purchaseCells(page)) await expect(cell).toBeVisible()
         await expect(field(page, 'cost')).toHaveValue('310.00')
         await expect(expense).toContainText(SOFTWARE)
+        await expect(taxableSwitch(page)).toBeChecked()
+
+        // A new Non-inventory item would start taxable anyway, so only a change back to
+        // Service (which starts not taxable) shows that the type keeps the user's value.
+        await pickOption(page, 'type', 'Service')
+        await expect(title).toHaveText('New service')
+        await expect(taxableSwitch(page)).toBeChecked()
+        await pickOption(page, 'type', 'Non-inventory')
+        await expect(title).toHaveText('New non-inventory item')
+        await expect(taxableSwitch(page)).toBeChecked()
 
         // Off hides the three; on again shows the values kept.
         await purchasesSwitch(page).click()
@@ -175,6 +197,7 @@ test.describe('products-services: product form', () => {
         await expect(page.getByTestId('form-input-type')).toContainText('Non-inventory')
         await expect(field(page, 'cost')).toHaveValue('310.00')
         await expect(expense).toContainText(SOFTWARE)
+        await expect(taxableSwitch(page)).toBeChecked()
         await page.getByTestId('product-cancel').click()
     })
 
