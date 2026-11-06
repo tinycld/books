@@ -5,7 +5,7 @@ import { usePdfDownload } from './usePdfDownload'
 export function useDocumentPreview() {
     const download = usePdfDownload()
     return {
-        preview: () => download.mutate({ kind: 'sample', fileName: 'sample-invoice' }),
+        preview: () => download.mutate({ kind: 'sample', fallbackName: 'sample-invoice' }),
         isPending: download.isPending,
         label: download.isPending ? 'Creating PDF…' : 'Preview PDF',
     }

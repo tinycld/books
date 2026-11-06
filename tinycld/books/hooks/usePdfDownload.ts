@@ -6,14 +6,17 @@ import { pb } from '@tinycld/core/lib/pocketbase'
 import { serverFetch } from '@tinycld/core/lib/server-fetch'
 import type { Directory as CacheDirectory } from 'expo-file-system'
 import { Platform } from 'react-native'
-import { pdfFileName, pdfPath, pdfRefusalMessage } from '../lib/pdf-download'
+import { isExpectedRefusal, PdfRefusalError, pdfDownloadName, pdfPath } from '../lib/pdf-download'
 
 export interface PdfDownloadInput {
     kind: string
     /** The record printed; omitted for a kind printed from no record (the sample). */
     id?: string
-    /** Names the saved file; ".pdf" is added. */
-    fileName: string
+    /**
+     * Names the saved file (".pdf" is added) only when the response has no
+     * usable Content-Disposition: the server names the file.
+     */
+    fallbackName: string
 }
 
 /**
@@ -30,7 +33,7 @@ export function usePdfDownload() {
         mutationKey: ['books', 'pdf'],
         // Offline is a failure to show now, not a request to hold.
         networkMode: 'always',
-        mutationFn: async ({ kind, id, fileName }: PdfDownloadInput) => {
+        mutationFn: async ({ kind, id, fallbackName }: PdfDownloadInput) => {
             const headers: Record<string, string> = {}
             if (pb.authStore.token) {
                 headers.Authorization = `Bearer ${pb.authStore.token}`
@@ -41,13 +44,21 @@ export function usePdfDownload() {
             })
             if (!response.ok) {
                 const body: unknown = await response.json().catch(() => null)
-                throw new Error(pdfRefusalMessage(response.status, body))
+                throw new PdfRefusalError(response.status, body)
             }
             const bytes = new Uint8Array(await response.arrayBuffer())
-            await savePdf(bytes, pdfFileName(fileName))
+            const disposition = response.headers.get('Content-Disposition')
+            await savePdf(bytes, pdfDownloadName(disposition, fallbackName))
         },
         onError: (error: unknown) => {
-            log.error('books.pdf', error)
+            if (isExpectedRefusal(error)) {
+                log.warn('books.pdf', 'download refused', {
+                    status: error.status,
+                    error: errorToString(error),
+                })
+            } else {
+                log.error('books.pdf', error)
+            }
             notify.emit({
                 event: 'mutation.error',
                 title: 'Could not create the PDF',

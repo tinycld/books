@@ -19,6 +19,6 @@ Documents print on US Letter paper.
 
 ## Names in other scripts
 
-Names in Latin (with accents), Greek, Cyrillic, Hebrew and Arabic print with the built-in fonts, and Arabic letters join correctly. Names in other scripts, such as Chinese, Japanese, Korean or Devanagari, print only if the server has a font for them. Otherwise each character prints as a box. Ask the person who runs your server to add a font for the script.
+Names in Latin (with accents), Greek, Cyrillic, Hebrew and Arabic print with the built-in fonts, and Arabic letters join correctly. In pointed Hebrew (Hebrew with vowel points), a dot can print in the wrong place, for example the dot of the letter shin. Names in other scripts, such as Chinese, Japanese, Korean or Devanagari, print only if the server has a font for them. Otherwise each character prints as a box. Ask the person who runs your server to add a font for the script.
 
 To change company details, see [Settings](help://books:settings).
