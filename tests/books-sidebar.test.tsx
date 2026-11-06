@@ -21,14 +21,14 @@ describe('useBooksSidebar', () => {
 
     it('splits available entries into top and accounting', () => {
         const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
+        expect(result.current.top.map(e => e.id)).toEqual(['banking', 'lists', 'reports'])
         expect(result.current.accounting.map(e => e.id)).toEqual(['accounts', 'entries'])
     })
 
     // The real entries, not allAvailable: Reports must be available on its own.
-    it('with the real entries, top is Lists then Reports, and Reports opens the Books hub', () => {
+    it('with the real entries, top is Banking, Lists then Reports, and Reports opens the Books hub', () => {
         const { result } = renderHook(() => useBooksSidebar())
-        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
+        expect(result.current.top.map(e => e.id)).toEqual(['banking', 'lists', 'reports'])
         const reports = result.current.top.find(e => e.id === 'reports')
         expect(reports).toMatchObject({ href: 'reports', params: { package: 'books' } })
     })
@@ -39,7 +39,7 @@ describe('useBooksSidebar', () => {
         )
         const { result } = renderHook(() => useBooksSidebar(entries))
         expect(result.current.accounting).toEqual([])
-        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
+        expect(result.current.top.map(e => e.id)).toEqual(['banking', 'lists', 'reports'])
     })
 
     it('excludes unavailable entries from both sections', () => {
@@ -47,7 +47,7 @@ describe('useBooksSidebar', () => {
         const hiddenAccounting = { ...allAvailable[1], id: 'hidden-acct', available: false }
         const entries = [...allAvailable, top, hiddenAccounting]
         const { result } = renderHook(() => useBooksSidebar(entries))
-        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
+        expect(result.current.top.map(e => e.id)).toEqual(['banking', 'lists', 'reports'])
         expect(result.current.accounting.map(e => e.id)).toEqual(['accounts', 'entries'])
     })
 

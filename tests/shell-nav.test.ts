@@ -1,4 +1,4 @@
-import { List, Percent } from 'lucide-react-native'
+import { Landmark, List, Percent } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import {
@@ -183,6 +183,29 @@ describe('settings sidebar entry', () => {
         const { top, accounting, end } = sidebarSections(availableOnly(SIDEBAR_ENTRIES))
         const rendered = [...top, ...accounting, ...end]
         expect(rendered[rendered.length - 1]?.id).toBe('settings')
+    })
+})
+
+describe('banking sidebar entry', () => {
+    it('is the first entry, in the top group above Lists, with no New action, Lists card or hidden FAB', () => {
+        expect(SIDEBAR_ENTRIES[0]).toEqual({
+            id: 'banking',
+            label: 'Banking',
+            icon: Landmark,
+            href: 'books/banking',
+            available: true,
+        })
+        expect(SIDEBAR_ENTRIES[0]?.group).toBeUndefined()
+        expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toEqual([
+            'banking',
+            'lists',
+            'reports',
+        ])
+        for (const item of [...NEW_ACTIONS, ...LIST_ENTRIES]) {
+            expect(item.id).not.toBe('banking')
+            expect(item.href).not.toBe('books/banking')
+        }
+        expect(hidesNewFab('/a/books/banking')).toBe(false)
     })
 })
 
