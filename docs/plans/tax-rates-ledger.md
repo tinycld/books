@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/tax-rates-checkpoints.md
 - reference: docs/plans/tax-rates-reference/
 - evidence: docs/plans/tax-rates-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- scratch files: ~~tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ deleted by finish.mjs --screen on 2026-11-05
 - capture manifest: docs/plans/tax-rates-capture.json
 - review mode: C — none (unattended)
 - core extension: checkpoint 0 on core branch books/p2-tax-rates (from main 3eb7915e) — `SelectOption.section` (Menu.Section headings in SelectInput) and host layout field `description`; found in phase 4, approved by the human 2026-11-04 (design gate had said none)
