@@ -19,7 +19,6 @@ import { isProductType, type ProductType } from '../lib/product-types'
 import { refusalMessage } from '../lib/record-refusals'
 import { applyPatch } from '../lib/record-save'
 import { createTablePlans } from '../lib/table-writes'
-import { EMPTY_PRODUCT_TAX_COLUMNS } from '../lib/tax-columns'
 import type { BooksProducts } from '../types'
 import { useBundleItems } from './useBundleItems'
 import { useIsShowingNewProduct, useProductNavigation } from './useProductNavigation'
@@ -67,10 +66,7 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
         {
             columnsFrom: columns => productColumnsFor(type, columns),
             emptyColumns: EMPTY_PRODUCT_COLUMNS,
-            // Until checkpoint 8 adds the tax keys to the form's columns, the row
-            // useRecordSave passes has no tax column, and pbtsdb's insert requires
-            // every column; checkpoint 8 removes the spread.
-            insert: row => productsCollection.insert({ ...EMPTY_PRODUCT_TAX_COLUMNS, ...row }),
+            insert: row => productsCollection.insert(row),
             update: (id, patch, fields) =>
                 productsCollection.update(id, draft => applyPatch(draft, patch, fields)),
             ...PRODUCT_SAVE_TEXTS,

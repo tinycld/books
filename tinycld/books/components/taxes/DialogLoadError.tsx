@@ -8,8 +8,8 @@ interface DialogLoadErrorProps {
     onRetry(): void
 }
 
-// A tax dialog whose picker rows or edited record did not load: the error and its Retry
-// stand where the picker would be.
+// A tax dialog or a record form's sales tax cell whose picker rows or edited record did
+// not load: the error and its Retry stand where the picker would be.
 export function DialogLoadError({ isVisible, testIdPrefix, onRetry }: DialogLoadErrorProps) {
     if (!isVisible) return null
     return (

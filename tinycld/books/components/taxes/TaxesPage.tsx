@@ -1,3 +1,4 @@
+import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
@@ -139,9 +140,12 @@ function Header({ showActions, canPressWrites, canAddGroup, isWide }: HeaderProp
     const layout = isWide ? 'flex-row items-center justify-between' : ''
     return (
         <View className={`gap-3 ${layout}`}>
-            <Text testID="taxes-title" className="text-2xl font-semibold text-foreground">
-                Sales tax
-            </Text>
+            <View className="flex-row items-center gap-2">
+                <Text testID="taxes-title" className="text-2xl font-semibold text-foreground">
+                    Sales tax
+                </Text>
+                <HelpIcon topic="books:sales-tax" />
+            </View>
             <Actions
                 isVisible={showActions}
                 canPressWrites={canPressWrites}
