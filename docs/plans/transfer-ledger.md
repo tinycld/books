@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/transfer-checkpoints.md
 - reference: docs/plans/transfer-reference/
 - evidence: docs/plans/transfer-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen, 2026-11-05)
 - capture manifest: docs/plans/transfer-capture.json
 - review mode: C — none (unattended)
 - core extension: tinycld PR #434 (branch books/p3-transfer; checkpoint 8, SelectInput/DateField `autoFocus`; merged); tinycld PR #436 (branch books/p3-transfer; checkpoint 9, web shortcut capture-phase dispatch and the ⇧? list; merged, core main 28228c15)
@@ -424,4 +424,5 @@
 ## Final review
 - eval: revised (2026-11-05) → "for forms like this that will be used a lot for data entry, we should: autofocus the first input; set keyboard shortcuts for each of the action buttons." Built as checkpoints 8–10 (core autoFocus #434, core shortcut dispatch #436, Books checkpoint 10; driver key map: Post ⌘↵, Post & new ⌘⇧↵, Save draft ⌘S, Cancel Esc, Delete draft ⌘⌫, read view Edit E / Void V, and on resume the journal read view's Reverse R (human); the shared EntryActionBar gives the journal entry form the same keys); lesson line added.
 - human comments and what changed: 2026-11-05 — the server must also refuse a one-click reversal of a transfer (Design note cp 2, rebuttal cp 2 overturned); added to checkpoint 8's scope (server/reversal.go or checkNewEntry refusal; cp1's `TestReverse_ATransferPostsMirrorLinesWithTheNextTransferNumber` changes to expect the refusal). Retro items 1–8 approved.
+- eval: approved (2026-11-05, second eval gate at a852b1d; full suite green: 260 passed, 1 skipped). The ⌘S focus-jump Design note (cp 10) was shown and left as a note.
 - native: not executed in this run
