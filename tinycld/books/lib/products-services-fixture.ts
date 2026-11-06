@@ -101,6 +101,8 @@ function product(seed: ProductSeed): ProductFixtureRecord {
         purchase_description: '',
         cost: 0,
         expense_account_number: '',
+        // A new Non-inventory item starts taxable, a Service not; a bundle never is.
+        taxable: seed.type === 'non_inventory',
         inactive: false,
         currency: 'USD',
         form: '',

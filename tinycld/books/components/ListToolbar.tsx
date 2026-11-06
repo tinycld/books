@@ -1,7 +1,8 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { Search } from 'lucide-react-native'
-import { Pressable, Text, View } from 'react-native'
+import { View } from 'react-native'
+import { ShowInactiveChip } from './ShowInactiveChip'
 
 type ListFilters = {
     query: string
@@ -47,26 +48,6 @@ function SearchField({
     )
 }
 
-function ShowInactiveChip({ testIdPrefix, list }: { testIdPrefix: string; list: ListFilters }) {
-    const isOn = list.showInactive
-    const box = isOn ? 'border-primary bg-primary' : 'border-border bg-background'
-    const text = isOn ? 'text-primary-foreground' : 'text-foreground'
-    return (
-        <Pressable
-            testID={`${testIdPrefix}-show-inactive`}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: isOn }}
-            // react-native-web does not emit aria-checked from accessibilityState.
-            aria-checked={isOn}
-            onPress={() => list.setShowInactive(!isOn)}
-            className={`justify-center rounded-full border px-3 ${box}`}
-            style={{ minHeight: 40 }}
-        >
-            <Text className={`text-sm ${text}`}>Show inactive</Text>
-        </Pressable>
-    )
-}
-
 export function ListToolbar({
     isVisible,
     testIdPrefix,
@@ -83,7 +64,11 @@ export function ListToolbar({
                 list={list}
                 isWide={isWide}
             />
-            <ShowInactiveChip testIdPrefix={testIdPrefix} list={list} />
+            <ShowInactiveChip
+                testID={`${testIdPrefix}-show-inactive`}
+                isOn={list.showInactive}
+                onToggle={() => list.setShowInactive(!list.showInactive)}
+            />
         </View>
     )
 }
