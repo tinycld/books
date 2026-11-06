@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 import {
     agencyCardByName,
     DESKTOP,
@@ -18,6 +18,13 @@ import {
 const COLORADO = 'Colorado Department of Revenue'
 const DENVER = 'City and County of Denver'
 const OLD_AGENCY = 'Old county agency'
+
+// The id at the end of an agency card's test id (`tax-agency-card-<id>`).
+async function agencyIdOf(card: Locator): Promise<string> {
+    const testId = (await card.getAttribute('data-testid')) ?? ''
+    expect(testId).toMatch(/^tax-agency-card-./)
+    return testId.slice('tax-agency-card-'.length)
+}
 
 function caseless(names: readonly string[]) {
     return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
@@ -82,6 +89,13 @@ test.describe('tax-rates: Sales tax page', () => {
         await expect(oldRate.locator('[data-testid^="tax-inactive-badge-"]')).toBeVisible()
         await expect(retired.locator('[data-testid^="tax-inactive-badge-"]')).toBeVisible()
         await expect(oldCombined.locator('[data-testid^="tax-inactive-badge-"]')).toBeVisible()
+
+        // A new rate cannot go to an inactive agency (the server refuses it), so only
+        // an active agency's card offers Add rate.
+        const coloradoId = await agencyIdOf(colorado)
+        const oldAgencyId = await agencyIdOf(oldAgency)
+        await expect(page.getByTestId(`tax-agency-add-rate-${coloradoId}`)).toBeVisible()
+        await expect(page.getByTestId(`tax-agency-add-rate-${oldAgencyId}`)).toHaveCount(0)
 
         await showInactive.click()
         await expect(showInactive).toHaveAttribute('aria-checked', 'false')

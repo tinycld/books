@@ -25,6 +25,8 @@ import type {
     BooksJournalEntries,
     BooksJournalLines,
     BooksSettings,
+    BooksTaxAgencies,
+    BooksTaxRates,
 } from '../tinycld/books/types'
 import { refusedLoad } from './silence-log'
 
@@ -853,6 +855,10 @@ export function seedBooks(
         overrides?: BooksCloseOverrides[]
         // The users the overrides and access rows point at; none by default.
         users?: SeedUser[]
+        // The tax agency and tax rate (and group) rows to seed; none by default. Their
+        // writes go through the shared handler, so the refusal and hold helpers reach them.
+        taxAgencies?: BooksTaxAgencies[]
+        taxRates?: BooksTaxRates[]
         // Replaces the signed-in user's single access row with these rows.
         accessRows?: BooksAccess[]
         // The org_pkg_access rows to seed; none by default.
@@ -974,6 +980,8 @@ export function seedBooks(
         ),
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
+        books_tax_agencies: guarded<BooksTaxAgencies>('books_tax_agencies', opts.taxAgencies ?? []),
+        books_tax_rates: guarded<BooksTaxRates>('books_tax_rates', opts.taxRates ?? []),
     })
 }
 
@@ -1051,6 +1059,10 @@ export function usersStore() {
 
 export function coreAccessStore() {
     return state.registry.org_pkg_access as ReturnType<typeof accessWriteCollection<OrgPkgAccess>>
+}
+
+export function taxAgenciesStore() {
+    return state.registry.books_tax_agencies as ReturnType<typeof guarded<BooksTaxAgencies>>
 }
 
 export function overrideDeletes() {

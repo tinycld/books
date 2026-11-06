@@ -1,6 +1,5 @@
-import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { log } from '@tinycld/core/lib/logger'
-import type { UseFormReturn } from 'react-hook-form'
+import type { ErrorOption } from 'react-hook-form'
 import type { ColumnsParse } from './record-columns'
 import {
     closedRecordRefusalHandler,
@@ -9,7 +8,9 @@ import {
     refusalMessage,
 } from './record-refusals'
 
-export type RefusalForm = Pick<UseFormReturn<FormValues>, 'setError'>
+// A refusal handler writes only the form root, so any form's `setError` fits, whatever
+// its values.
+export type RefusalForm = { setError: (name: 'root', error: ErrorOption) => void }
 
 // The form validates before the mutation starts, so for a moment after a press the
 // mutation is not pending yet and a second press would write the record twice. The
