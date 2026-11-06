@@ -594,6 +594,9 @@ func TestSniffBankFile(t *testing.T) {
 		{"blank lines then a tab header", "\r\n\r\nDate\tAmount", "csv", true},
 		{"BOM then a comma header", "\xEF\xBB\xBFDate,Amount\n", "csv", true},
 		{"no delimiter", "hello\n", "", false},
+		{"preamble line without a delimiter", "Account: 4821\nDate,Amount\n", "csv", true},
+		{"preamble, blank line, tab header", "Rekening 4821\r\n\r\nDate\tAmount\n", "csv", true},
+		{"only a quoted comma", "\"a,b\"\n", "", false},
 		{"NUL byte with commas", "Date,Amount\n2026-09-02,\x00,1.00\n", "", false},
 		{"OFX header after the sniffed head", noDelimiters + "OFXHEADER:100\n", "", false},
 	}
@@ -605,6 +608,21 @@ func TestSniffBankFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBankUpload_AcceptsACSVPreamble(t *testing.T) {
+	env := newBankEnv(t)
+	data := "Account: 4821\nPeriod: October 2026\nDate,Description,Amount\n2026-10-02,Deposit,100.00\n"
+	req := env.upload(t, "preamble.csv", []byte(data))
+	req.want = http.StatusOK
+	req.after = func(t testing.TB, app *tests.TestApp) {
+		file := onlyBankFile(t, app, env.connection.Id)
+		columns, rows := bankContentOf(t, app, file.Id)
+		if columns != 3 || len(rows) != 4 || rows[3].Cells[2] != "100.00" {
+			t.Errorf("stored %d columns and rows %v, want 3 columns and the 4 lines", columns, rows)
+		}
+	}
+	req.run(t, env.app)
 }
 
 func TestTruncateRunes(t *testing.T) {

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -240,6 +242,46 @@ func TestBankImport_OFXUsesItsOwnColumns(t *testing.T) {
 	requireCounts(t, mustImport(t, env.app, map[string]any{
 		"file": next.Id, "lines": []int{lineOf(later, "<STMTTRN>", 0), lineOf(later, "<STMTTRN>", 1)},
 	}), 1, 1)
+}
+
+func TestBankImport_RepeatedFITIDInOneFileImportsOnce(t *testing.T) {
+	env := newBankEnv(t)
+	trn := func(day string) string {
+		return "<STMTTRN>\n<DTPOSTED>" + day + "\n<TRNAMT>-5.00\n<FITID>SAME\n<NAME>Coffee\n</STMTTRN>\n"
+	}
+	data := ofxStatement(trn("20261003") + trn("20261003"))
+	file := saveBankFileBytes(t, env.app, env.connection.Id, "dup.qfx", "ofx", data)
+	imp := mustImport(t, env.app, map[string]any{
+		"file": file.Id, "lines": []int{lineOf(data, "<STMTTRN>", 0), lineOf(data, "<STMTTRN>", 1)},
+	})
+	requireCounts(t, imp, 1, 1)
+	if n := len(bankTxns(t, env.app, env.connection.Id)); n != 1 {
+		t.Errorf("%d transactions, want 1", n)
+	}
+}
+
+// More chosen lines than one hash lookup chunk (bankHashLookupChunk).
+func TestBankImport_MoreLinesThanOneLookupChunk(t *testing.T) {
+	const total = 1200
+	if total <= 2*bankHashLookupChunk {
+		t.Fatalf("%d lines do not cross the %d-hash chunk twice", total, bankHashLookupChunk)
+	}
+	env := newBankEnv(t)
+	var b strings.Builder
+	b.WriteString("Date,Description,Amount\n")
+	lines := make([]int, 0, total)
+	for i := range total {
+		fmt.Fprintf(&b, "2026-09-%02d,Item %d,-%d.%02d\n", i%28+1, i, i/100+1, i%100)
+		lines = append(lines, i+2)
+	}
+	file := saveBankFileBytes(t, env.app, env.connection.Id, "big.csv", "csv", b.String())
+	start := time.Now()
+	requireCounts(t, mustImport(t, env.app, csvImport(file.Id, lines...)), total, 0)
+	requireCounts(t, mustImport(t, env.app, csvImport(file.Id, lines...)), 0, total)
+	t.Logf("two imports of %d lines took %s", total, time.Since(start))
+	if n := len(bankTxns(t, env.app, env.connection.Id)); n != total {
+		t.Errorf("%d transactions, want %d", n, total)
+	}
 }
 
 // Two imports of the same lines at once: the second must see the first's
