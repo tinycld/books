@@ -1,0 +1,167 @@
+{
+    "dates": [
+        { "text": "09/02/2026", "format": "MM/DD/YYYY", "date": "2026-09-02" },
+        { "text": "9/2/2026", "format": "MM/DD/YYYY", "date": "2026-09-02" },
+        { "text": "09-02-2026", "format": "MM/DD/YYYY", "date": "2026-09-02" },
+        { "text": "09/02/2026 12:00 AM", "format": "MM/DD/YYYY", "date": "2026-09-02" },
+        { "text": "02/09/2026", "format": "DD/MM/YYYY", "date": "2026-09-02" },
+        { "text": "02.09.2026", "format": "DD/MM/YYYY", "date": "2026-09-02" },
+        { "text": "2026-09-02", "format": "YYYY-MM-DD", "date": "2026-09-02" },
+        { "text": "2026-9-2", "format": "YYYY-MM-DD", "date": "2026-09-02" },
+        { "text": "2026-09-02T00:00:00Z", "format": "YYYY-MM-DD", "date": "2026-09-02" },
+        { "text": "2026/09/02", "format": "YYYY-MM-DD", "date": "2026-09-02" },
+        { "text": "09/02/26", "format": "MM/DD/YY", "date": "2026-09-02" },
+        { "text": "02/09/26", "format": "DD/MM/YY", "date": "2026-09-02" },
+        { "text": "02/29/2028", "format": "MM/DD/YYYY", "date": "2028-02-29" },
+        { "text": "  09/02/2026  ", "format": "MM/DD/YYYY", "date": "2026-09-02" },
+        { "text": "\ufeff09/02/2026", "format": "MM/DD/YYYY", "date": "2026-09-02" },
+        { "text": "", "format": "MM/DD/YYYY", "error": "There is no date." },
+        { "text": "   ", "format": "MM/DD/YYYY", "error": "There is no date." },
+        { "text": "13/45/2026", "format": "MM/DD/YYYY", "error": "\"13/45/2026\" is not a date in the MM/DD/YYYY format." },
+        { "text": "02/30/2026", "format": "MM/DD/YYYY", "error": "\"02/30/2026\" is not a date in the MM/DD/YYYY format." },
+        { "text": "02/29/2026", "format": "MM/DD/YYYY", "error": "\"02/29/2026\" is not a date in the MM/DD/YYYY format." },
+        { "text": "09/02/26", "format": "MM/DD/YYYY", "error": "\"09/02/26\" is not a date in the MM/DD/YYYY format." },
+        { "text": "09/02/2026", "format": "MM/DD/YY", "error": "\"09/02/2026\" is not a date in the MM/DD/YY format." },
+        { "text": "2026-09-02", "format": "MM/DD/YYYY", "error": "\"2026-09-02\" is not a date in the MM/DD/YYYY format." },
+        { "text": "09//02/2026", "format": "MM/DD/YYYY", "error": "\"09//02/2026\" is not a date in the MM/DD/YYYY format." },
+        { "text": "001/02/2026", "format": "MM/DD/YYYY", "error": "\"001/02/2026\" is not a date in the MM/DD/YYYY format." },
+        { "text": "01/01/1899", "format": "MM/DD/YYYY", "error": "\"01/01/1899\" is not a date in the MM/DD/YYYY format." },
+        { "text": "Sept 2, 2026", "format": "MM/DD/YYYY", "error": "\"Sept 2, 2026\" is not a date in the MM/DD/YYYY format." },
+        { "text": "09/02/2026", "format": "YYYY/DD/MM", "error": "\"09/02/2026\" is not a date in the YYYY/DD/MM format." },
+        { "text": "This is a very long text that is not a date at all", "format": "YYYY-MM-DD", "error": "\"This is a very long text that is not a d…\" is not a date in the YYYY-MM-DD format." }
+    ],
+    "amounts": [
+        { "text": "4250.00", "cents": 425000 },
+        { "text": "-86.47", "cents": -8647 },
+        { "text": "+12.5", "cents": 1250 },
+        { "text": "1,234.56", "cents": 123456 },
+        { "text": "$1,234.56", "cents": 123456 },
+        { "text": "-$5.00", "cents": -500 },
+        { "text": "$-5.00", "cents": -500 },
+        { "text": "(5.00)", "cents": -500 },
+        { "text": "($1,200.00)", "cents": -120000 },
+        { "text": "5.00-", "cents": -500 },
+        { "text": "1.234,56", "cents": 123456 },
+        { "text": "1 234,56", "cents": 123456 },
+        { "text": "1\u00a0234,56", "cents": 123456 },
+        { "text": "1\u202f234,56", "cents": 123456 },
+        { "text": "\ufeff1,234.56", "cents": 123456 },
+        { "text": "12,50", "cents": 1250 },
+        { "text": "12,345", "cents": 1234500 },
+        { "text": "1.234.567", "cents": 123456700 },
+        { "text": "1,234,567.89", "cents": 123456789 },
+        { "text": "€ 12,00", "cents": 1200 },
+        { "text": ".50", "cents": 50 },
+        { "text": "5.", "cents": 500 },
+        { "text": "0", "cents": 0 },
+        { "text": "-0.00", "cents": 0 },
+        { "text": "10000000000000.00", "cents": 1000000000000000 },
+        { "text": "", "error": "There is no amount." },
+        { "text": "  ", "error": "There is no amount." },
+        { "text": "abc", "error": "\"abc\" is not an amount." },
+        { "text": "5 USD", "error": "\"5 USD\" is not an amount." },
+        { "text": "--5", "error": "\"--5\" is not an amount." },
+        { "text": ",", "error": "\",\" is not an amount." },
+        { "text": "1,23,456", "error": "\"1,23,456\" is not an amount." },
+        { "text": "1.2.3,4", "error": "\"1.2.3,4\" is not an amount." },
+        { "text": "1,234.56.78", "error": "\"1,234.56.78\" is not an amount." },
+        { "text": "12.345", "error": "\"12.345\" has more than 2 decimals." },
+        { "text": "1,234.567", "error": "\"1,234.567\" has more than 2 decimals." },
+        { "text": "10000000000000.01", "error": "\"10000000000000.01\" is too large for Books." },
+        { "text": "99999999999999999999", "error": "\"99999999999999999999\" is too large for Books." }
+    ],
+    "ofxMapping": {
+        "header_row": false,
+        "date_column": 1,
+        "date_format": "YYYY-MM-DD",
+        "description_column": 2,
+        "memo_column": 3,
+        "amount_columns": "one",
+        "amount_column": 4,
+        "money_in_column": 0,
+        "money_out_column": 0,
+        "amount_sign": "in_positive",
+        "fitid_column": 5,
+        "check_column": 6
+    },
+    "rows": [
+        {
+            "name": "one amount column",
+            "cells": ["09/02/2026", " Deposit - Harbor Design ", "4,250.00"],
+            "mapping": { "date_column": 1, "date_format": "MM/DD/YYYY", "description_column": 2, "amount_columns": "one", "amount_column": 3, "amount_sign": "in_positive" },
+            "txn": { "date": "2026-09-02", "description": "Deposit - Harbor Design", "memo": "", "amount": 425000, "fitid": "", "checkNumber": "" }
+        },
+        {
+            "name": "a card export lists charges as positive",
+            "cells": ["2026-09-05", "Office Depot", "86.47"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "one", "amount_column": 3, "amount_sign": "out_positive" },
+            "txn": { "date": "2026-09-05", "description": "Office Depot", "memo": "", "amount": -8647, "fitid": "", "checkNumber": "" }
+        },
+        {
+            "name": "two columns, money out",
+            "cells": ["2026-09-05", "Office Depot", "", "86.47"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "two", "money_in_column": 3, "money_out_column": 4 },
+            "txn": { "date": "2026-09-05", "description": "Office Depot", "memo": "", "amount": -8647, "fitid": "", "checkNumber": "" }
+        },
+        {
+            "name": "two columns, money out written negative",
+            "cells": ["2026-09-30", "Monthly service fee", "", "-12.00"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "two", "money_in_column": 3, "money_out_column": 4 },
+            "txn": { "date": "2026-09-30", "description": "Monthly service fee", "memo": "", "amount": -1200, "fitid": "", "checkNumber": "" }
+        },
+        {
+            "name": "two columns, money in, the other column 0",
+            "cells": ["2026-09-02", "Deposit", "4250.00", "0.00"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "two", "money_in_column": 3, "money_out_column": 4 },
+            "txn": { "date": "2026-09-02", "description": "Deposit", "memo": "", "amount": 425000, "fitid": "", "checkNumber": "" }
+        },
+        {
+            "name": "two columns, both have an amount",
+            "cells": ["2026-09-05", "x", "1.00", "2.00"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "two", "money_in_column": 3, "money_out_column": 4 },
+            "error": "Both money in and money out have an amount."
+        },
+        {
+            "name": "two columns, neither has an amount",
+            "cells": ["2026-09-05", "x", "", ""],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "two", "money_in_column": 3, "money_out_column": 4 },
+            "error": "There is no amount."
+        },
+        {
+            "name": "a zero amount",
+            "cells": ["2026-09-30", "Padding", "0.00"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "one", "amount_column": 3, "amount_sign": "in_positive" },
+            "error": "The amount is 0."
+        },
+        {
+            "name": "the date error comes first",
+            "cells": ["13/45/2026", "x", "abc"],
+            "mapping": { "date_column": 1, "date_format": "MM/DD/YYYY", "description_column": 2, "amount_columns": "one", "amount_column": 3, "amount_sign": "in_positive" },
+            "error": "\"13/45/2026\" is not a date in the MM/DD/YYYY format."
+        },
+        {
+            "name": "an amount error",
+            "cells": ["2026-09-02", "x", "12.345"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "one", "amount_column": 3, "amount_sign": "in_positive" },
+            "error": "\"12.345\" has more than 2 decimals."
+        },
+        {
+            "name": "a short row",
+            "cells": ["2026-09-02"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "amount_columns": "one", "amount_column": 3, "amount_sign": "in_positive" },
+            "error": "There is no amount."
+        },
+        {
+            "name": "an OFX row",
+            "cells": ["2026-10-03", "Smith & Sons", "Invoice 1042", "-250.00", "A1", "1001", "CHECK"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "memo_column": 3, "amount_columns": "one", "amount_column": 4, "amount_sign": "in_positive", "fitid_column": 5, "check_column": 6 },
+            "txn": { "date": "2026-10-03", "description": "Smith & Sons", "memo": "Invoice 1042", "amount": -25000, "fitid": "A1", "checkNumber": "1001" }
+        },
+        {
+            "name": "an OFX row with a bad date",
+            "cells": ["2026", "Fee", "", "-1.00", "A3", "", "FEE"],
+            "mapping": { "date_column": 1, "date_format": "YYYY-MM-DD", "description_column": 2, "memo_column": 3, "amount_columns": "one", "amount_column": 4, "amount_sign": "in_positive", "fitid_column": 5, "check_column": 6 },
+            "error": "\"2026\" is not a date in the YYYY-MM-DD format."
+        }
+    ]
+}

@@ -36,8 +36,9 @@ func serialized(e *core.RecordEvent, check func(tx core.App) error) error {
 }
 
 // serializedThen is serialized with a step after the write, in the same
-// transaction: a write that other rows follow (a renamed account's
-// sub-accounts) commits with them or not at all. A nil after is no step.
+// transaction, for rows that must commit with the record or not at all (a
+// bank file's parsed rows, an import's transactions, a renamed account's
+// sub-accounts). A nil after is no step.
 func serializedThen(e *core.RecordEvent, check, after func(tx core.App) error) error {
 	original := e.App
 	defer func() { e.App = original }()
