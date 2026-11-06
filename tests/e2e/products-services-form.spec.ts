@@ -19,6 +19,7 @@ import {
     selectItems,
     stampDigits,
     uniqueName,
+    viewportName,
 } from './products-services-helpers'
 
 // The product form: create, change of type, and the refusals of a save. Each test
@@ -81,7 +82,7 @@ test.describe('products-services: product form', () => {
         await openNewProduct(page, 'service')
         await expect(page.getByTestId('form-input-type')).toContainText('Service')
         await expect(page.getByTestId('form-input-income_account')).toContainText(CONSULTING_INCOME)
-        const name = uniqueName(page, 'Svc')
+        const name = uniqueName(`Svc ${viewportName(page)}`)
         await field(page, 'name').fill(name)
         await field(page, 'price').fill('1250')
         await field(page, 'price').press('Tab')
@@ -124,7 +125,7 @@ test.describe('products-services: product form', () => {
         const expenseItems = selectItems(page, 'expense_account')
 
         await openNewProduct(page, 'service')
-        const name = uniqueName(page, 'Part')
+        const name = uniqueName(`Part ${viewportName(page)}`)
         const sku = `SKU-${stampDigits()}`
         await field(page, 'name').fill(name)
         await field(page, 'sku').fill(sku)
@@ -187,7 +188,7 @@ test.describe('products-services: product form', () => {
         await expect(title).toHaveText('New service')
         await pickOption(page, 'type', 'Non-inventory')
         await expect(title).toHaveText('New non-inventory item')
-        const name = uniqueName(page, 'Kit')
+        const name = uniqueName(`Kit ${viewportName(page)}`)
         await field(page, 'name').fill(name)
 
         const insert = page.waitForRequest(
@@ -270,7 +271,7 @@ test.describe('products-services: product form', () => {
         page,
     }) => {
         await openBooksAtDesktop(page)
-        const name = uniqueName(page, 'Dup')
+        const name = uniqueName(`Dup ${viewportName(page)}`)
         await createProduct(page, { type: 'service', name })
 
         await openNewProduct(page, 'service')

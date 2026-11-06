@@ -57,6 +57,8 @@ func reportSources() []reports.Source {
 					{Value: "journal", Label: "Journal entry"},
 				}},
 				{Key: "number", Label: "Number", Type: reports.Text, Aggregates: reports.MinMax},
+				// The posting order behind number, which sorts as text.
+				{Key: "sequence", Label: "Sequence", Type: reports.Number},
 				{Key: "memo", Label: "Memo", Type: reports.Text},
 				{Key: "total", Label: "Total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 				{Key: "currency", Label: "Currency", Type: reports.Text},

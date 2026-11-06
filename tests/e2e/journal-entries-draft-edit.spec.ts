@@ -13,6 +13,7 @@ import {
     searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // Edit, post and delete an existing draft at `entries/<id>`, and the screen
 // following a status change made in another session. Decisions that shape it
@@ -46,10 +47,6 @@ async function start(page: Page, size: { width: number; height: number }) {
     await login(page)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(size)
-}
-
-function uniqueMemo(label: string, sizeName: string) {
-    return `${label} ${sizeName} ${Date.now()}`
 }
 
 function listItems(page: Page, memo: string): Locator {
@@ -112,7 +109,7 @@ for (const [sizeName, size] of SIZES) {
     test.describe(`journal-entries: edit drafts (${sizeName})`, () => {
         test('edit: memo, an added line and a removed line persist in order', async ({ page }) => {
             await start(page, size)
-            const memo = uniqueMemo('Edit draft', sizeName)
+            const memo = uniqueName(`Edit draft ${sizeName}`)
             await makeDraft(page, memo)
 
             const edited = `${memo} edited`
@@ -182,7 +179,7 @@ test.describe('journal-entries: edit and delete drafts (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Delete draft', sizeName)
+        const memo = uniqueName(`Delete draft ${sizeName}`)
         await makeDraft(page, memo)
 
         await chooseDeleteDraft(page)
@@ -215,7 +212,7 @@ test.describe('journal-entries: edit and delete drafts (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Realtime draft', sizeName)
+        const memo = uniqueName(`Realtime draft ${sizeName}`)
         await makeDraft(page, memo)
         await expect(page.getByTestId('entry-actions')).toBeVisible()
 
@@ -236,7 +233,7 @@ test.describe('journal-entries: edit and delete drafts (desktop)', () => {
 
     test('realtime: a post in another session updates the open list row', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Realtime row', sizeName)
+        const memo = uniqueName(`Realtime row ${sizeName}`)
         await makeDraft(page, memo)
         await backToList(page)
         await searchList(page, memo)
@@ -299,7 +296,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Refused open post', sizeName)
+        const memo = uniqueName(`Refused open post ${sizeName}`)
         await makeDraft(page, memo)
         await page.route(ENTRY_RECORDS, route =>
             isStatusPost(route.request()) ? refuse(route, REFUSAL) : route.continue()
@@ -319,7 +316,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Back mid post', sizeName)
+        const memo = uniqueName(`Back mid post ${sizeName}`)
         await makeDraft(page, memo)
         const held = await holdRequests(page, ENTRY_RECORDS, isStatusPost)
 
@@ -338,7 +335,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
 
     test('delete: a refused delete keeps the dialog open with the message', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Refused delete', sizeName)
+        const memo = uniqueName(`Refused delete ${sizeName}`)
         await makeDraft(page, memo)
         await page.route(ENTRY_RECORDS, route =>
             route.request().method() === 'DELETE' ? refuse(route, REFUSAL) : route.continue()
@@ -357,7 +354,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Held delete', sizeName)
+        const memo = uniqueName(`Held delete ${sizeName}`)
         await makeDraft(page, memo)
         const held = await holdRequests(
             page,
@@ -407,7 +404,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
             }
         })
         await start(page, size)
-        const memo = uniqueMemo('Two pages', sizeName)
+        const memo = uniqueName(`Two pages ${sizeName}`)
         await makeDraft(page, memo)
 
         const other = await openSecondPage(page, size)
@@ -457,7 +454,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
 
     test('Save draft twice on one mount keeps one copy of an added line', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Save twice', sizeName)
+        const memo = uniqueName(`Save twice ${sizeName}`)
         await makeDraft(page, memo)
 
         await page.getByTestId('entry-add-line').click()
@@ -483,7 +480,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Back draft', sizeName)
+        const memo = uniqueName(`Back draft ${sizeName}`)
         await makeDraft(page, memo)
 
         await page.getByTestId('entry-back').click()
@@ -532,7 +529,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Deleted elsewhere', sizeName)
+        const memo = uniqueName(`Deleted elsewhere ${sizeName}`)
         await makeDraft(page, memo)
         await expect(page.getByTestId('entry-actions')).toBeVisible()
 
@@ -550,7 +547,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
 
     test('delete while a save is held never reports the entry missing', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Delete during save', sizeName)
+        const memo = uniqueName(`Delete during save ${sizeName}`)
         await makeDraft(page, memo)
         const held = await holdRequests(page, ENTRY_RECORDS, isDraftSave)
         await watchForNotFound(page)
@@ -572,7 +569,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
 
     test('back while a save is held with a typed memo still asks to discard', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Back during save', sizeName)
+        const memo = uniqueName(`Back during save ${sizeName}`)
         await makeDraft(page, memo)
         const held = await holdRequests(page, ENTRY_RECORDS, isDraftSave)
 
@@ -590,7 +587,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Remove during save', sizeName)
+        const memo = uniqueName(`Remove during save ${sizeName}`)
         await makeDraft(page, memo)
         await page.getByTestId('entry-add-line').click()
         await fillLine(page, 2, { account: ACCOUNT_LABELS.checking, debit: '$1.00' })

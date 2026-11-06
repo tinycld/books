@@ -20,6 +20,7 @@ import {
     searchProducts,
     stacked,
     uniqueName,
+    viewportName,
 } from './products-services-helpers'
 
 // Bundles: the item rows load with the form, save in row order, reorder, show as cards on
@@ -114,7 +115,7 @@ test.describe('products-services: bundles', () => {
     test("reorders a bundle's items and keeps the order (desktop)", async ({ page }) => {
         await openBooks(page, DESKTOP)
         const title = page.getByTestId('product-title')
-        const prefix = uniqueName(page, 'Kit')
+        const prefix = uniqueName(`Kit ${viewportName(page)}`)
         const nameA = `${prefix} A`
         const nameB = `${prefix} B`
         await createProduct(page, { type: 'service', name: nameA })
@@ -182,7 +183,7 @@ test.describe('products-services: bundles', () => {
         page,
     }) => {
         await openBooks(page, DESKTOP)
-        const item = uniqueName(page, 'Ties')
+        const item = uniqueName(`Ties ${viewportName(page)}`)
         const bundle = `${item} kit`
         await createProduct(page, { type: 'non_inventory', name: item })
         await createBundle(page, { name: bundle, items: [{ name: item, quantity: '1' }] })
@@ -207,7 +208,7 @@ test.describe('products-services: bundles', () => {
         page,
     }) => {
         await openBooks(page, DESKTOP)
-        const item = uniqueName(page, 'Part')
+        const item = uniqueName(`Part ${viewportName(page)}`)
         const bundle = `${item} kit`
         await createProduct(page, { type: 'service', name: item })
 

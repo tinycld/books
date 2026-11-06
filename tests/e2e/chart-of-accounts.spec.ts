@@ -1,23 +1,20 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // Every data change below goes through the UI. The seed has no read-only Books
 // member, so the read-only paths (no New button, no menu, no checkboxes, read-only
 // panel, access message) are covered by the unit tests, not here.
 
-// A fresh suffix per run, so a re-run against the same database finds no leftover rows.
-const RUN = Date.now()
-const MARKETING = `E2E Marketing ${RUN}`
-const IMPORTED_PARENT = `Imported Parent ${RUN}`
-const IMPORTED_CHILD = `Imported Child ${RUN}`
-
-const IMPORT_CSV = [
-    'Number,Name,Type,Detail type,Parent,Description,Inactive',
-    `8300,${IMPORTED_PARENT},Expense,Office and general,,,`,
-    `8310,${IMPORTED_CHILD},Expense,Office and general,${IMPORTED_PARENT},,`,
-    // Already in the seed: must be Skipped, not an error for its number.
-    '6100,Rent,Expense,Rent or lease,,,',
-].join('\n')
+function importCsv(parent: string, child: string) {
+    return [
+        'Number,Name,Type,Detail type,Parent,Description,Inactive',
+        `8300,${parent},Expense,Office and general,,,`,
+        `8310,${child},Expense,Office and general,${parent},,`,
+        // Already in the seed: must be Skipped, not an error for its number.
+        '6100,Rent,Expense,Rent or lease,,,',
+    ].join('\n')
+}
 
 function row(page: Page, name: string) {
     return page.locator('[data-testid^="account-row-"]').filter({ hasText: name })
@@ -54,6 +51,10 @@ async function createAccount(page: Page, name: string, type: string, detailType:
 
 test.describe('chart-of-accounts: list, edit and import', () => {
     test('browse, edit, delete and import accounts', async ({ page }) => {
+        // Fresh names, so a re-run against the same database finds no leftover rows.
+        const marketing = uniqueName('E2E Marketing')
+        const importedParent = uniqueName('Imported Parent')
+        const importedChild = uniqueName('Imported Child')
         await login(page)
         await navigateToPackage(page, 'books')
         await openChartOfAccounts(page)
@@ -104,10 +105,10 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         }
 
         // New account, then make it inactive: it leaves the default list.
-        await createAccount(page, MARKETING, 'Expense', 'Advertising and marketing')
-        await openRowMenu(page, MARKETING)
+        await createAccount(page, marketing, 'Expense', 'Advertising and marketing')
+        await openRowMenu(page, marketing)
         await page.getByRole('menuitem', { name: 'Make inactive' }).click()
-        await expect(row(page, MARKETING)).toHaveCount(0)
+        await expect(row(page, marketing)).toHaveCount(0)
 
         // An account with journal activity cannot be deleted.
         await openRowMenu(page, 'Business Checking')
@@ -132,7 +133,7 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await page.getByTestId('account-import-file').setInputFiles({
             name: 'accounts.csv',
             mimeType: 'text/csv',
-            buffer: Buffer.from(IMPORT_CSV),
+            buffer: Buffer.from(importCsv(importedParent, importedChild)),
         })
 
         // Each field is auto-matched to the file column with the same header.
@@ -161,8 +162,8 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await expect(page.getByText('1 skipped')).toBeVisible()
         await page.getByTestId('account-import-done').click()
 
-        await expect(row(page, IMPORTED_PARENT)).toBeVisible()
-        await expect(row(page, IMPORTED_CHILD)).toBeVisible()
+        await expect(row(page, importedParent)).toBeVisible()
+        await expect(row(page, importedChild)).toBeVisible()
         // Done pops back instead of pushing, so only one Chart of Accounts is mounted.
         await expect(page.getByTestId('account-search')).toHaveCount(1)
     })
