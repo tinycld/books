@@ -81,6 +81,7 @@ export function BankingDialogs({ model }: { model: BankingScreenModel }) {
         return (
             <RemoveBankFileDialog
                 key={dialog.fileId}
+                connectionId={dialog.connectionId}
                 fileId={dialog.fileId}
                 fileName={dialog.fileName}
                 isGone={isGone}

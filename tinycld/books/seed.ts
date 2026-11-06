@@ -1,5 +1,6 @@
 import type PocketBase from 'pocketbase'
 import { BANK_SEED } from './lib/bank-connection-fixture'
+import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
@@ -513,6 +514,7 @@ async function seedTransfer(pb: PocketBase, ctx: SeedContext, accountIds: Map<st
 // Through the REST create, so the server's upload hook validates and stamps the file the
 // way an upload from the app is stamped. The superuser attributes it to the seeded user.
 async function seedBanking(pb: PocketBase, ctx: SeedContext, accountIds: Map<string, string>) {
+    const connectionIds = new Map<string, string>()
     for (const seedConnection of BANK_SEED.connections) {
         const account = accountIds.get(seedConnection.accountNumber)
         if (account === undefined) {
@@ -526,6 +528,7 @@ async function seedBanking(pb: PocketBase, ctx: SeedContext, accountIds: Map<str
             account_mask: seedConnection.account_mask,
             created_by: ctx.user.id,
         })
+        connectionIds.set(seedConnection.accountNumber, connection.id)
         for (const seedFile of seedConnection.files) {
             await pb.collection('books_bank_files').create({
                 connection: connection.id,
@@ -534,4 +537,17 @@ async function seedBanking(pb: PocketBase, ctx: SeedContext, accountIds: Map<str
             })
         }
     }
+    // The card statement stays waiting to import; the parser stamps its ledger balance.
+    const statement = BANK_IMPORT_SEED_STATEMENT
+    const cardConnection = connectionIds.get(statement.accountNumber)
+    if (cardConnection === undefined) {
+        throw new Error(
+            `seed: bank statement names the connection of account ${statement.accountNumber}, which was not created`
+        )
+    }
+    await pb.collection('books_bank_files').create({
+        connection: cardConnection,
+        uploaded_by: ctx.user.id,
+        file: new File([statement.text], statement.name, { type: 'application/x-ofx' }),
+    })
 }

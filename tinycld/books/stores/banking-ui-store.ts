@@ -14,10 +14,11 @@ export type BankingDialog =
     | { kind: 'remove'; connectionId: string; fileId: string; fileName: string }
 
 // The upload line under one connection's upload area. A connection with no entry is idle.
+// `done` keeps the new file's id for its "Import transactions" button.
 export type UploadState =
     | { kind: 'idle' }
     | { kind: 'uploading'; name: string }
-    | { kind: 'done'; name: string }
+    | { kind: 'done'; name: string; fileId: string }
     | { kind: 'error'; message: string }
 
 const NO_DIALOG: BankingDialog = { kind: 'none' }
@@ -32,6 +33,8 @@ interface BankingUIState {
     closeDialog: () => void
     setPanelMenuOpen: (open: boolean) => void
     setUpload: (connectionId: string, state: UploadState) => void
+    // A removed file can no longer be imported, so its "uploaded" line goes back to idle.
+    clearRemovedUpload: (connectionId: string, fileId: string) => void
     closeAll: () => void
 }
 
@@ -44,5 +47,11 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
     setPanelMenuOpen: open => set({ isPanelMenuOpen: open }),
     setUpload: (connectionId, state) =>
         set(s => ({ uploads: { ...s.uploads, [connectionId]: state } })),
+    clearRemovedUpload: (connectionId, fileId) =>
+        set(s => {
+            const upload = s.uploads[connectionId]
+            if (upload?.kind !== 'done' || upload.fileId !== fileId) return s
+            return { uploads: { ...s.uploads, [connectionId]: { kind: 'idle' } } }
+        }),
     closeAll: () => set({ dialog: NO_DIALOG, isPanelMenuOpen: false }),
 }))

@@ -1,6 +1,4 @@
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Check } from 'lucide-react-native'
-import { Pressable, View } from 'react-native'
+import { SelectBox } from '../SelectBox'
 
 interface AccountSelectBoxProps {
     id: string
@@ -9,35 +7,17 @@ interface AccountSelectBoxProps {
     onSelect: (id: string) => void
 }
 
+// The box sits inside the pressable row; SelectBox stops the press so it does not also
+// open the account.
 export function AccountSelectBox({ id, name, isSelected, onSelect }: AccountSelectBoxProps) {
-    const color = useThemeColor('primary-foreground')
-    const isChecked = isSelected(id)
-    const fill = isChecked ? 'bg-primary border-primary' : 'bg-background border-border'
+    const state = isSelected(id) ? 'checked' : 'empty'
+    const onPress = () => onSelect(id)
     return (
-        <Pressable
+        <SelectBox
             testID={`account-select-${id}`}
-            accessibilityRole="checkbox"
-            accessibilityLabel={`Select ${name}`}
-            accessibilityState={{ checked: isChecked }}
-            // The box sits inside the pressable row; it must not also open the account.
-            onPress={event => {
-                event.stopPropagation()
-                onSelect(id)
-            }}
-            className="items-center justify-center"
-            style={{ width: 44, minHeight: 44 }}
-        >
-            <View
-                className={`items-center justify-center rounded border ${fill}`}
-                style={{ width: 20, height: 20 }}
-            >
-                <CheckMark isVisible={isChecked} color={color} />
-            </View>
-        </Pressable>
+            label={`Select ${name}`}
+            state={state}
+            onPress={onPress}
+        />
     )
-}
-
-function CheckMark({ isVisible, color }: { isVisible: boolean; color: string }) {
-    if (!isVisible) return null
-    return <Check size={14} color={color} />
 }
