@@ -309,10 +309,27 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 		Value:      reports.Path{{Field: "id"}},
 		Label:      reports.Path{{Field: "full_name"}},
 		Group:      reports.Path{{Field: "type"}},
+		GroupOrder: &reports.GroupOrder{By: "declared"},
 		GroupLabel: "All {group} accounts",
 	}
 	if !reflect.DeepEqual(accounts.OptionsFrom, wantFrom) {
 		t.Errorf("accounts.optionsFrom = %+v, want %+v", accounts.OptionsFrom, wantFrom)
+	}
+	if got := accounts.OptionsFrom.GroupOrder; got == nil || !reflect.DeepEqual(*got, reports.GroupOrder{By: "declared"}) {
+		t.Errorf("accounts.optionsFrom.groupOrder = %+v, want {By: declared} (the picker lists types in chart order)", got)
+	}
+
+	var number *reports.Column
+	for i := range spec.Columns {
+		if spec.Columns[i].ID == "number" {
+			number = &spec.Columns[i]
+		}
+	}
+	if number == nil {
+		t.Fatal("the spec has no number column")
+	}
+	if number.Detail != "blank" {
+		t.Errorf("number column detail = %q, want \"blank\" (opened lines leave No. empty)", number.Detail)
 	}
 }
 
@@ -641,6 +658,8 @@ func TestTrialBalanceHeadingAndLabels(t *testing.T) {
 	checking := b.account(t, "Checking", "1000", "bank", "checking")
 	software := b.account(t, "Software", "6100", "expense", "dues_subscriptions")
 	design := mkSubAccount(t, b.app, "Design tools", software)
+	design.Set("number", "6110")
+	saveOrFail(t, b.app, design)
 	mkRetainedEarnings(t, b.app, "3900")
 	march := b.postMemo(t, "2026-03-10", "March tools",
 		memoLine{account: design, debit: 12345, memo: "Figma seats"},
@@ -665,10 +684,17 @@ func TestTrialBalanceHeadingAndLabels(t *testing.T) {
 	opts.Expand = [][]any{row.GroupKey}
 	open := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
 	opened := rowFor(t, open, design)
+	if got := opened.Cells["number"]; got != "6110" {
+		t.Errorf("the opened account row's No. = %#v, want its number \"6110\"", got)
+	}
 	details := map[string]reports.Row{}
 	for _, r := range open.Rows {
 		if r.Kind == reports.KindDetail && r.Section == opened.ID {
 			details[r.Label] = r
+			// No. is blank on opened lines: core leaves the cell out.
+			if v, has := r.Cells["number"]; has {
+				t.Errorf("opened line %q has a number cell %#v, want none (No. is blank on opened lines)", r.Label, v)
+			}
 		}
 	}
 	figma := "2026-03-10 · " + march.GetString("number") + " · Figma seats"
@@ -687,6 +713,62 @@ func TestTrialBalanceHeadingAndLabels(t *testing.T) {
 		t.Fatalf("no opened line labelled %q", refund)
 	}
 	requireSplit(t, refundRow, nil, int64(500))
+}
+
+// postLineWithID posts a one-day entry whose line on account has the given
+// record id, so the test sets the storage (id) order of the opened lines.
+func (b tbBook) postLineWithID(t *testing.T, date, lineID, memo string, account, other *core.Record) *core.Record {
+	t.Helper()
+	entry := saveRecord(t, b.app, "books_journal_entries", map[string]any{
+		"date": date, "status": "draft", "doc_type": "journal", "origin": "manual", "currency": "USD",
+	})
+	saveRecord(t, b.app, "books_journal_lines", map[string]any{
+		"id": lineID, "entry": entry.Id, "account": account.Id, "debit": 100,
+		"memo": memo, "position": 0, "currency": "USD",
+	})
+	saveRecord(t, b.app, "books_journal_lines", map[string]any{
+		"entry": entry.Id, "account": other.Id, "credit": 100, "position": 1, "currency": "USD",
+	})
+	return mustPost(t, b.app, entry.Id, "")
+}
+
+// An opened account's lines read in date order, then entry number (spec §3,
+// the reference's order), whatever order they were stored in. The line ids
+// run against both orders, and two lines share a day with entry numbers 9
+// and 10, which read 9 first only when the number is ordered as a number.
+func TestTrialBalanceDetailOrder(t *testing.T) {
+	b := newTBBook(t)
+	checking := b.account(t, "Checking", "1000", "bank", "checking")
+	supplies := b.account(t, "Supplies", "6200", "expense", "office_general")
+	rent := b.account(t, "Rent", "6000", "expense", "rent_lease")
+	march := b.postLineWithID(t, "2026-03-10", "tbdetailorder01", "March", supplies, checking)
+	// Entries 2 to 8 post to other accounts, so the next two are numbered 9
+	// and 10.
+	for range 7 {
+		b.post(t, "2026-02-01", ln{account: rent, debit: 100}, ln{account: checking, credit: 100})
+	}
+	nine := b.postLineWithID(t, "2026-01-05", "tbdetailorder03", "January first", supplies, checking)
+	ten := b.postLineWithID(t, "2026-01-05", "tbdetailorder02", "January second", supplies, checking)
+	opts := reports.Options{Today: tbToday}
+
+	closed := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
+	opts.Expand = [][]any{rowFor(t, closed, supplies).GroupKey}
+	open := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
+	section := rowFor(t, open, supplies).ID
+	var got []string
+	for _, r := range open.Rows {
+		if r.Kind == reports.KindDetail && r.Section == section {
+			got = append(got, r.Label)
+		}
+	}
+	want := []string{
+		"2026-01-05 · " + nine.GetString("number") + " · January first",
+		"2026-01-05 · " + ten.GetString("number") + " · January second",
+		"2026-03-10 · " + march.GetString("number") + " · March",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("opened lines = %q\nwant (date, then entry number) %q", got, want)
+	}
 }
 
 // Every collection the run reads is a topic, so a post, a void, an account

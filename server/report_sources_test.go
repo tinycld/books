@@ -170,7 +170,10 @@ func expectedCatalog(t *testing.T) []wantSource {
 					{Value: "opening_balance", Label: "Opening balance"},
 				}},
 				{key: "doc_type", typ: reports.Select, options: []reports.Option{{Value: "journal", Label: "Journal entry"}}},
-				textMinMax("number"), text("memo"), money("total"), text("currency"),
+				textMinMax("number"),
+				// The posting order behind number, so opened lines sort 9 before 10.
+				{key: "sequence", typ: reports.Number, label: "Sequence"},
+				text("memo"), money("total"), text("currency"),
 				{key: "auto_reverse_on", typ: reports.Date, textDay: true},
 				{key: "posted_at", typ: reports.DateTime, aggs: reports.MinMax},
 			},

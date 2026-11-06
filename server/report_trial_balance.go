@@ -63,6 +63,9 @@ func trialBalanceSpec() *reports.Spec {
 					Label:      path("full_name"),
 					Group:      path("type"),
 					GroupLabel: "All {group} accounts",
+					// Chart order (the type select's declared order), not
+					// alphabetical, so the picker reads like the chart.
+					GroupOrder: &reports.GroupOrder{By: reports.GroupOrderDeclared},
 				},
 			},
 		},
@@ -73,7 +76,8 @@ func trialBalanceSpec() *reports.Spec {
 		),
 		Columns: []reports.Column{
 			{ID: "account", Label: "Account", Formula: op("if", priorPL, reAccount, link("account"))},
-			{ID: "number", Label: "No.", Formula: rec("byAccount", "number")},
+			// An opened line would repeat its account's number; leave it blank.
+			{ID: "number", Label: "No.", Formula: rec("byAccount", "number"), Detail: reports.DetailBlank},
 			{
 				ID: "debit", Label: "Debit", Total: reports.TotalRows,
 				Formula: op("if",
@@ -105,6 +109,12 @@ func trialBalanceSpec() *reports.Spec {
 			{Formula: typeRankCase(rec("byAccount", "type"))},
 			{Col: "number"},
 			{Formula: rec("byAccount", "full_name")},
+			// Core applies a formula sort key that reads a row's fields to
+			// detail rows only, so these two order the opened lines and leave
+			// the groups alone. The entry's integer sequence, not its text
+			// number, which sorts "10" before "9".
+			{Formula: fld("date")},
+			{Formula: fld("entry", "sequence")},
 		},
 		Detail: &reports.Detail{Label: op("concat",
 			fld("date"), lit(" · "),
