@@ -140,12 +140,30 @@ function NewEntryButton({ isVisible, onPress }: { isVisible: boolean; onPress: (
     )
 }
 
+function TransferButton({ isVisible, onPress }: { isVisible: boolean; onPress: () => void }) {
+    if (!isVisible) return null
+    return (
+        <Button
+            testID="register-new-transfer"
+            variant="outline"
+            style={{ minHeight: 44 }}
+            onPress={onPress}
+        >
+            <ButtonText>Transfer</ButtonText>
+        </Button>
+    )
+}
+
 function Controls({ model, isVisible }: { model: RegisterScreenModel; isVisible: boolean }) {
     if (!isVisible) return null
     return (
         <View className="flex-row flex-wrap items-center gap-3">
             <RegisterRangeSelect preset={model.preset} onPreset={model.onPreset} />
-            <NewEntryButton isVisible={model.isNewEntryVisible} onPress={model.onNewEntry} />
+            {/* One group, so on a phone the two write buttons wrap together, side by side. */}
+            <View className="flex-row items-center gap-3">
+                <NewEntryButton isVisible={model.isNewEntryVisible} onPress={model.onNewEntry} />
+                <TransferButton isVisible={model.isTransferVisible} onPress={model.onTransfer} />
+            </View>
         </View>
     )
 }

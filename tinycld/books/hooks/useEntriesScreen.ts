@@ -3,6 +3,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { entriesFilterActive, entriesViewState } from '../lib/entries-query'
 import { type EntryActionId, entryActions } from '../lib/entry-actions'
+import { entryEditHref, entryHref } from '../lib/entry-route'
 import { newEntryVisible } from '../lib/register-state'
 import { isNewActionAvailable } from '../lib/shell-nav'
 import { useEntriesUiStore } from '../stores/entries-ui-store'
@@ -28,11 +29,31 @@ export function useEntriesScreen() {
     const entries = query.entries ?? []
     const reversed = useReversedIds(entries.map(entry => entry.id))
     const entriesById = new Map(entries.map(entry => [entry.id, entry]))
-    const onOpenEntry = (entryId: string) => router.push(orgHref(`books/entries/${entryId}`))
+    // A row not in the map (it left the window between render and press) opens on the
+    // journal entry screen, which shows an entry of any type.
+    const onOpenEntry = (entryId: string) =>
+        router.push(
+            orgHref(
+                entryHref(
+                    entriesById.get(entryId) ?? {
+                        id: entryId,
+                        doc_type: 'journal',
+                        origin: 'manual',
+                    }
+                )
+            )
+        )
+    // Edit needs the row's type and origin to pick its form; without the row, open the
+    // entry instead, whose own Edit reads them.
+    const onEditEntry = (entryId: string) => {
+        const entry = entriesById.get(entryId)
+        if (entry) router.push(orgHref(entryEditHref(entry)))
+        else onOpenEntry(entryId)
+    }
 
     const onMenuAction = (action: EntryActionId, entryId: string) => {
         if (action === 'open') onOpenEntry(entryId)
-        else if (action === 'edit') router.push(orgHref(`books/entries/new?replaces=${entryId}`))
+        else if (action === 'edit') onEditEntry(entryId)
         else openDialog(action, entryId)
     }
     const menuActions = (entryId: string) => {

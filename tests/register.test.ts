@@ -61,6 +61,7 @@ function entryOf(id: string, posted_at: string): RegisterEntry {
         memo: `memo ${id}`,
         status: 'posted',
         origin: 'manual',
+        doc_type: 'journal',
         posted_at,
         reverses: '',
         date: '2026-10-05',
@@ -426,6 +427,8 @@ describe('entryDetail fields', () => {
             typeLabel: 'Reversal of JE-1',
             statusLabel: 'Draft',
             memo: 'Entry memo',
+            docType: 'journal',
+            origin: 'reversal',
             lines: [
                 {
                     id: 'x1',
@@ -494,6 +497,44 @@ describe('balanceTone', () => {
     it('marks an unavailable balance as an error and a number as normal text', () => {
         expect(balanceTone(null)).toBe('text-danger')
         expect(balanceTone(12345)).toBe('text-foreground')
+    })
+})
+
+describe('entryTypeLabel for transfers', () => {
+    it('labels a manual transfer "Transfer"', () => {
+        expect(entryTypeLabel('manual', '', 'transfer')).toBe('Transfer')
+    })
+
+    it("keeps the reversal suffix on a transfer's void reversal", () => {
+        expect(entryTypeLabel('void_reversal', 'TR-3', 'transfer')).toBe('Void reversal of TR-3')
+    })
+
+    it('labels a transfer line "Transfer" in the register and in the drawer detail', () => {
+        const base = synthetic('t', { credit: 150_000 })
+        const line = {
+            ...base,
+            entryRecord: { ...entryOf('e_t', '2026-10-05 09:00:00.000Z'), doc_type: 'transfer' },
+        } satisfies RegisterSourceLine
+        const { rows } = buildRegister({
+            accountType: 'bank',
+            lines: [line],
+            priorTotals: emptyPrior,
+            range: wholeMonth,
+            order: 'oldest',
+        })
+        expect(rows.map(r => r.typeLabel)).toEqual(['Transfer'])
+        const detail = entryDetail(line, ME)
+        expect(detail?.typeLabel).toBe('Transfer')
+        expect(detail?.docType).toBe('transfer')
+        expect(detail?.origin).toBe('manual')
+    })
+
+    it('gives a two-argument call the journal label', () => {
+        for (const origin of ['manual', 'reversal', 'void_reversal', 'opening_balance']) {
+            expect(entryTypeLabel(origin, 'JE-7'), origin).toBe(
+                entryTypeLabel(origin, 'JE-7', 'journal')
+            )
+        }
     })
 })
 

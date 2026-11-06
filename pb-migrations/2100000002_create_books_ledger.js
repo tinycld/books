@@ -10,7 +10,8 @@
 // SERVER-OWNED FIELDS are pinned with `@request.body.x:isset = false`: number,
 // sequence, total, who and when, currency, the close override; on lines,
 // posted, date and currency. Books sets them in Go. origin, doc_type, reverses
-// and replaces are fixed once the entry exists.
+// and replaces are fixed once the entry exists; a transfer is an entry with
+// doc_type 'transfer' and two lines (server/transfers.go).
 //
 // A client creates only drafts, with origin manual, reversal or
 // opening_balance. It edits only drafts, or moves a posted entry to void. It
@@ -149,7 +150,13 @@ migrate(
                         maxSelect: 1,
                         values: ['draft', 'posted', 'void'],
                     },
-                    { name: 'doc_type', type: 'select', required: true, maxSelect: 1, values: ['journal'] },
+                    {
+                        name: 'doc_type',
+                        type: 'select',
+                        required: true,
+                        maxSelect: 1,
+                        values: ['journal', 'transfer'],
+                    },
                     {
                         name: 'origin',
                         type: 'select',

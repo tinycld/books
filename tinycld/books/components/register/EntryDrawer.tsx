@@ -13,6 +13,7 @@ import {
 import { router } from 'expo-router'
 import { X } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
+import { entryHref } from '../../lib/entry-route'
 import { amountText } from '../../lib/money'
 import { type EntryDetail, entryNumberLabel } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
@@ -127,17 +128,22 @@ function EntryFields({ detail, currency }: { detail: EntryDetail | null; currenc
     )
 }
 
-function OpenEntryLink({ onClose }: { onClose: () => void }) {
+function OpenEntryLink({ detail, onClose }: { detail: EntryDetail | null; onClose: () => void }) {
     const orgHref = useOrgHref()
     const entryId = useRegisterStore(s => s.selected?.entryId)
     if (!entryId) return null
+    const href = entryHref({
+        id: entryId,
+        doc_type: detail?.docType ?? 'journal',
+        origin: detail?.origin ?? 'manual',
+    })
     return (
         <Pressable
             testID="register-drawer-open-entry"
             accessibilityRole="link"
             onPress={() => {
                 onClose()
-                router.push(orgHref(`books/entries/${entryId}`))
+                router.push(orgHref(href))
             }}
             style={{ minHeight: 44, justifyContent: 'center' }}
         >
@@ -175,7 +181,7 @@ export function EntryDrawer({ detail, currency, onClose, ...placement }: EntryDr
                     </DrawerCloseButton>
                 </DrawerHeader>
                 <DrawerBody style={{ flexShrink: 1 }}>
-                    <OpenEntryLink onClose={onClose} />
+                    <OpenEntryLink detail={detail} onClose={onClose} />
                     <EntryFields detail={detail} currency={currency} />
                 </DrawerBody>
             </DrawerContent>

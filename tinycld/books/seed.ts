@@ -3,6 +3,7 @@ import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
+import { TRANSFER_SEED } from './lib/transfer-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
 import { VENDORS } from './lib/vendor-form-fixture'
 
@@ -131,6 +132,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     }
     await seedRegisterEntries(pb, ctx, ids)
     await seedJournalEntries(pb, ctx, ids)
+    await seedTransfer(pb, ctx, accountIds)
     await seedCustomers(pb)
     await seedVendors(pb, accountIds)
     await seedProducts(pb, accountIds)
@@ -414,4 +416,36 @@ async function seedJournalEntries(pb: PocketBase, ctx: SeedContext, ids: Map<str
             await pb.collection('books_journal_entries').update(created.id, { status: 'void' })
         }
     }
+}
+
+// Dated today, after the close date books-settings.spec.ts holds on the shared e2e DB.
+// Line 0 credits From and line 1 debits To, the order server/transfers.go checks.
+async function seedTransfer(pb: PocketBase, ctx: SeedContext, accountIds: Map<string, string>) {
+    const from = accountIds.get(TRANSFER_SEED.fromNumber)
+    const to = accountIds.get(TRANSFER_SEED.toNumber)
+    if (from === undefined || to === undefined) {
+        throw new Error(
+            `seed: the seed transfer names ${TRANSFER_SEED.fromNumber} and ${TRANSFER_SEED.toNumber}, one of which was not created`
+        )
+    }
+    const created = await pb.collection('books_journal_entries').create({
+        date: isoDay(new Date()),
+        memo: TRANSFER_SEED.memo,
+        status: 'draft',
+        doc_type: 'transfer',
+        origin: 'manual',
+        created_by: ctx.user.id,
+    })
+    const lines = [
+        [from, 0, TRANSFER_SEED.amount],
+        [to, TRANSFER_SEED.amount, 0],
+    ] as const
+    for (const [position, [account, debit, credit]] of lines.entries()) {
+        await pb
+            .collection('books_journal_lines')
+            .create({ entry: created.id, account, debit, credit, position })
+    }
+    await pb
+        .collection('books_journal_entries')
+        .update(created.id, { status: 'posted', posted_by: ctx.user.id })
 }

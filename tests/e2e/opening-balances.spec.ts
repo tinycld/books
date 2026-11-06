@@ -327,12 +327,13 @@ test.describe('opening-balances: account grid and amounts', () => {
 
     test('Enter in an amount moves focus to the next account amount', async ({ page }) => {
         await start(page, DESKTOP)
-        const ids = await openWithIds(page)
+        // 1010 Business Savings is the seeded account right after 1000 Business Checking.
+        const ids = await openWithIds(page, ['Business Checking', 'Business Savings'])
         const checking = amount(page, ids['Business Checking'])
 
         await checking.fill('100')
         await checking.press('Enter')
-        await expect(amount(page, ids['Accounts receivable'])).toBeFocused()
+        await expect(amount(page, ids['Business Savings'])).toBeFocused()
     })
 
     test('band subtotals follow the typed amounts', async ({ page }) => {
