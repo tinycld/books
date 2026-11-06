@@ -225,7 +225,7 @@
 - gate 3 fix: the orchestrator edited the four help sentences (help/reports.md), re-ran `packages:generate` and `tinycld-pkg check` (exit 0, vitest 3333).
 - fix review (round 1, fresh reviewer A over the help diff): PASS, 0 BLOCK; each sentence checked against the code (report_trial_balance.go:82-91, SourceChoicePicker.tsx:285, report_shares.go:144/194, report_sources.go:164-173, useReportView.ts:106-108); help-reports 19/19. NOTEs: "until they remove it" → "until someone removes it" (applied, one word); the heading also falls back when the reader cannot view books_settings (to Design notes). Rounds used: 1 of 2.
 - reviewer-caught deferrals: none.
-- commit: see the next ledger-only commit for the sha.
+- commit: 7905bb5 (pushed); this line is committed with the ledger alone.
 - human: none (review mode C)
 
 ## Final review
