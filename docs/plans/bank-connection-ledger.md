@@ -87,7 +87,7 @@
 - gate 3 A notes: 4, listed under Design notes
 - reviewer-caught deferrals: none
 - out-of-plan: server/errors.go, server/registrations_test.go (see Out-of-plan changes)
-- commit: (see the next ledger commit)
+- commit: 40fe855
 - human: n/a (review mode C)
 
 ## Final review
