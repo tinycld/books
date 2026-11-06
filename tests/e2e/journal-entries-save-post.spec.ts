@@ -9,6 +9,7 @@ import {
     openNewEntry,
     PHONE,
 } from './journal-entries-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // Save draft, Post, Post & new and Cancel on the new-entry form (`entries/new`).
 // Decisions that shape it (design gate): direction A, separate list and entry
@@ -51,11 +52,6 @@ function todayIso() {
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
     return `${now.getFullYear()}-${month}-${day}`
-}
-
-function uniqueMemo(label: string, sizeName: string) {
-    // Two workers can start the same test in the same millisecond (--repeat-each, retries).
-    return `${label} ${sizeName} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 async function fillBalanced(page: Page, memo: string, amount = '$10.00') {
@@ -115,7 +111,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Draft save', sizeName)
+        const memo = uniqueName(`Draft save ${sizeName}`)
         await fillBalanced(page, memo)
         await page.getByTestId('entry-add-line').click()
         await expect(page.getByTestId('entry-line-2')).toBeVisible()
@@ -146,7 +142,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Unbalanced', sizeName)
+        const memo = uniqueName(`Unbalanced ${sizeName}`)
         await page.getByTestId('entry-memo').fill(memo)
         await fillLine(page, 0, { account: ACCOUNT_LABELS.checking, debit: '$10.00' })
         await fillLine(page, 1, { account: ACCOUNT_LABELS.equity, credit: '$5.00' })
@@ -194,7 +190,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await fillBalanced(page, uniqueMemo('Dates', sizeName))
+        await fillBalanced(page, uniqueName(`Dates ${sizeName}`))
         await page.getByTestId('entry-date').fill('2026-13-45')
 
         await page.getByTestId('entry-save-draft').click()
@@ -217,7 +213,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Refused post', sizeName)
+        const memo = uniqueName(`Refused post ${sizeName}`)
         await fillBalanced(page, memo)
         const refusal = 'Line 2: account Old is inactive.'
         const statusUpdate = '**/api/collections/books_journal_entries/records/*'
@@ -282,7 +278,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
 
     test('double click on Save draft writes one entry', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Double save', sizeName)
+        const memo = uniqueName(`Double save ${sizeName}`)
         await fillBalanced(page, memo)
 
         await page.getByTestId('entry-save-draft').dblclick()
@@ -296,7 +292,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await fillBalanced(page, uniqueMemo('Leave mid save', sizeName))
+        await fillBalanced(page, uniqueName(`Leave mid save ${sizeName}`))
         let release = () => {}
         const gate = new Promise<void>(resolve => {
             release = resolve
@@ -343,7 +339,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await fillBalanced(page, uniqueMemo('Stale refusal', sizeName))
+        await fillBalanced(page, uniqueName(`Stale refusal ${sizeName}`))
         await refuseStatusUpdates(page)
         await page.getByTestId('entry-post').click()
         await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
@@ -365,7 +361,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await fillBalanced(page, uniqueMemo('Field refusal', sizeName))
+        await fillBalanced(page, uniqueName(`Field refusal ${sizeName}`))
         await page.route(ENTRY_WRITE, route => {
             if (route.request().method() !== 'POST') return route.continue()
             return route.fulfill({
@@ -395,7 +391,7 @@ test.describe('journal-entries: save and post (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await fillBalanced(page, uniqueMemo('Cancel saved', sizeName))
+        await fillBalanced(page, uniqueName(`Cancel saved ${sizeName}`))
         await refuseStatusUpdates(page)
         await page.getByTestId('entry-post').click()
         await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
@@ -411,7 +407,7 @@ for (const [sizeName, size] of SIZES) {
     test.describe(`journal-entries: save and post (${sizeName})`, () => {
         test('post and new: posts, then opens a fresh form', async ({ page }) => {
             await start(page, size)
-            const memo = uniqueMemo('Post and new', sizeName)
+            const memo = uniqueName(`Post and new ${sizeName}`)
             await fillBalanced(page, memo)
 
             await pressPostAndNew(page)

@@ -483,3 +483,93 @@ func TestPost_AFailureAfterTheWritesRollsThemBack(t *testing.T) {
 	}
 	requireNoDrift(t, env.app)
 }
+
+func TestPostEnsuresRetainedEarnings(t *testing.T) {
+	byOwnership := []struct{ ownership, want string }{
+		{"", "3900"},
+		{"owners", "3900"},
+		{"corporation", "3500"},
+	}
+	for _, tc := range byOwnership {
+		t.Run("an income post with ownership "+tc.ownership+" creates "+tc.want, func(t *testing.T) {
+			env := newLedgerEnv(t)
+			if tc.ownership != "" {
+				saveSettings(t, env.app, map[string]any{"ownership": tc.ownership})
+			}
+			mustPost(t, env.app, env.sale(t, "2026-05-01", 100).Id, env.users.bookkeeper.Id)
+			requireCreatedRetainedEarnings(t, env.app, tc.want)
+		})
+	}
+
+	t.Run("an expense post creates one", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		draft := mkDraft(t, env.app, "2026-05-01", ln{env.rent, 1800, 0}, ln{env.checking, 0, 1800})
+		mustPost(t, env.app, draft.Id, env.users.bookkeeper.Id)
+		requireCreatedRetainedEarnings(t, env.app, "3900")
+	})
+
+	// Account names are unique per parent, ignoring case. A top-level account
+	// that holds the name but is not the retained-earnings account must not
+	// stop the post.
+	nameClashes := []struct {
+		name  string
+		taken []string
+		want  string
+	}{
+		{"an income post when the name is taken uses the next free name", []string{"Retained Earnings"}, "Retained earnings 2"},
+		{"an income post when the name and the name 2 are taken uses name 3", []string{"Retained earnings", "Retained earnings 2"}, "Retained earnings 3"},
+	}
+	for _, tc := range nameClashes {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newLedgerEnv(t)
+			for _, name := range tc.taken {
+				mkAccount(t, env.app, name, "equity", "owners_equity")
+			}
+			mustPost(t, env.app, env.sale(t, "2026-05-01", 100).Id, env.users.bookkeeper.Id)
+			requireRetainedEarningsNamed(t, env.app, tc.want)
+		})
+	}
+
+	t.Run("a balance-sheet-only post creates none", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		equity := mkAccount(t, env.app, "Owner's equity", "equity", "owners_equity")
+		draft := mkDraft(t, env.app, "2026-05-01", ln{env.checking, 2500, 0}, ln{equity, 0, 2500})
+		mustPost(t, env.app, draft.Id, env.users.bookkeeper.Id)
+		if n := len(retainedAccounts(t, env.app)); n != 0 {
+			t.Errorf("%d retained-earnings accounts after a balance-sheet post, want 0", n)
+		}
+	})
+
+	t.Run("a second income post creates no second one", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		mustPost(t, env.app, env.sale(t, "2026-05-01", 100).Id, env.users.bookkeeper.Id)
+		mustPost(t, env.app, env.sale(t, "2026-05-02", 200).Id, env.users.bookkeeper.Id)
+		requireCreatedRetainedEarnings(t, env.app, "3900")
+	})
+
+	// The account is made inside the post's transaction, so a refusal after it
+	// was made rolls it back with the post.
+	t.Run("a post refused later in its check leaves no account", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		saveRecord(t, env.app, "books_account_balances", map[string]any{
+			"account": env.revenue.Id, "period": "2026-05", "credit_total": maxStoredAmount - 50, "currency": "USD",
+		})
+		entry := env.sale(t, "2026-05-01", 100)
+		requireRefused(t, setStatus(env.app, entry.Id, statusPosted, env.users.bookkeeper.Id),
+			"Consulting Income for 2026-05 past the largest amount Books can store")
+		if n := len(retainedAccounts(t, env.app)); n != 0 {
+			t.Errorf("%d retained-earnings accounts after a refused post, want 0", n)
+		}
+	})
+
+	t.Run("a post refused at its write leaves no account", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		entry := reload(t, env.app, "books_journal_entries", env.sale(t, "2026-05-01", 100).Id)
+		entry.Set("memo", strings.Repeat("x", 5000))
+		entry.Set("status", statusPosted)
+		requireRefused(t, env.app.Save(entry), "memo")
+		if n := len(retainedAccounts(t, env.app)); n != 0 {
+			t.Errorf("%d retained-earnings accounts after a rolled-back post, want 0", n)
+		}
+	})
+}

@@ -43,7 +43,8 @@ const values: SetupValues = {
 }
 const corporationValues: SetupValues = { ...values, ownership: 'corporation' }
 const chartSize = starterChart('owners').length
-const parentCount = planChart('owners', new Map())[0].length
+const corporationChartSize = starterChart('corporation').length
+const parentCount = planChart('owners', new Map(), false)[0].length
 
 function blankSettings(): BooksSettings {
     return {
@@ -162,7 +163,7 @@ describe('useBooksSetup create', () => {
 
         const outcome = await run(rendered, 'create', corporationValues)
 
-        expect(outcome).toEqual({ ok: true, created: chartSize })
+        expect(outcome).toEqual({ ok: true, created: corporationChartSize })
         const rows = storedAccounts()
         expect(rows.map(row => row.number).sort()).toEqual(
             starterChart('corporation')
@@ -178,11 +179,11 @@ describe('useBooksSetup create', () => {
         })
 
         const writes = writeLog().slice(baseline)
-        expect(writes).toHaveLength(chartSize + 2)
+        expect(writes).toHaveLength(corporationChartSize + 2)
         expect(writes[0]).toBe(`settings:${SETTINGS_ID}`)
         expect(writes.at(-1)).toBe(`settings:${SETTINGS_ID}`)
         const insertedIds = insertedIdsOf(writes)
-        expect(insertedIds).toHaveLength(chartSize)
+        expect(insertedIds).toHaveLength(corporationChartSize)
         expect(new Set(insertedIds)).toEqual(new Set(rows.map(row => row.id)))
         expectParentsBeforeChildren(insertedIds, rows)
         const checking = rows.find(row => row.number === '1010')
@@ -192,7 +193,7 @@ describe('useBooksSetup create', () => {
     it('starts each write only after the one before it succeeded, for every write', async () => {
         const { rendered, baseline } = await renderEmptyBook()
         const steps = stepWrites()
-        const total = chartSize + 2
+        const total = corporationChartSize + 2
 
         let pending: Promise<unknown> = Promise.resolve()
         act(() => {
@@ -242,7 +243,7 @@ describe('useBooksSetup create', () => {
 
         const outcome = await run(rendered, 'create')
 
-        const refused = planChart('owners', new Map()).flat()[3]
+        const refused = planChart('owners', new Map(), false).flat()[3]
         expect(outcome).toMatchObject({ ok: false, failedAccount: refused.name })
         expect(outcome && 'message' in outcome && outcome.message).toContain('Number 1100 is taken')
         expect(storedAccounts()).toHaveLength(3)
