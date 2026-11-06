@@ -1,5 +1,6 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Dialog } from '@tinycld/core/ui/dialog'
 import {
@@ -22,6 +23,7 @@ import {
     connectionLabel,
 } from '../../lib/bank-connections'
 import { rootErrorOnly } from '../../lib/root-errors'
+import { DialogSubmitKey } from './DialogSubmitKey'
 
 interface ConnectAccountDialogProps {
     mode: 'connect' | 'edit'
@@ -127,7 +129,11 @@ function ConnectBody({
 }: Omit<ConnectAccountDialogProps, 'mode' | 'connection'>) {
     const { form, submit, isPending } = useConnectAccountForm({ onConnected })
     const connectable = useConnectableAccounts(connectedAccountIds)
+    const writes = useServerActionState()
     const canPick = connectable.isReady && connectable.emptyReason === null
+    // ⌘↵ takes a press exactly when the Connect button does (core's action button also
+    // disables itself while writes are unavailable).
+    const canSubmitKey = !isPending && canPick && !writes.isDisabled
     return (
         <Dialog
             isOpen
@@ -137,6 +143,7 @@ function ConnectBody({
             testID="bank-connect-dialog"
         >
             <Dialog.Body>
+                <DialogSubmitKey description="Connect" isEnabled={canSubmitKey} onSubmit={submit} />
                 <View className="gap-4">
                     <ConnectAccountFields
                         control={form.control}
@@ -241,7 +248,9 @@ function DetailsBody({
     onClose(): void
 }) {
     const { form, submit, isPending } = useBankDetailsForm({ connection, onClose })
+    const writes = useServerActionState()
     const label = connectionLabel(connection.accountNumber, connection.accountName)
+    const canSubmitKey = !isPending && !writes.isDisabled
     return (
         <Dialog
             isOpen
@@ -251,6 +260,7 @@ function DetailsBody({
             testID="bank-details-dialog"
         >
             <Dialog.Body>
+                <DialogSubmitKey description="Save" isEnabled={canSubmitKey} onSubmit={submit} />
                 <View className="gap-4">
                     <BankDetailFields
                         control={form.control}

@@ -1,3 +1,4 @@
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { useState } from 'react'
 import { Text } from 'react-native'
@@ -5,6 +6,7 @@ import type { BankConnectionRow } from '../../hooks/useBankConnections'
 import { useDisconnectConnection } from '../../hooks/useDisconnectConnection'
 import { connectionLabel, disconnectBody } from '../../lib/bank-connections'
 import { CloseOnMount } from './CloseOnMount'
+import { DialogSubmitKey } from './DialogSubmitKey'
 
 interface DisconnectDialogProps {
     connection: BankConnectionRow
@@ -45,6 +47,7 @@ export function DisconnectDialog({
         fileIds,
         onDone,
     })
+    const writes = useServerActionState()
     const [isConfirmed, setConfirmed] = useState(false)
     if (isGone && !isConfirmed) return <CloseOnMount onClose={onClose} />
     const onConfirm = () => {
@@ -52,6 +55,7 @@ export function DisconnectDialog({
         confirm()
     }
     const label = connectionLabel(connection.accountNumber, connection.accountName)
+    const canSubmitKey = !isPending && !writes.isDisabled
     return (
         <Dialog
             isOpen
@@ -60,6 +64,11 @@ export function DisconnectDialog({
             testID="bank-disconnect-dialog"
         >
             <Dialog.Body>
+                <DialogSubmitKey
+                    description="Disconnect"
+                    isEnabled={canSubmitKey}
+                    onSubmit={onConfirm}
+                />
                 <Text className="text-sm text-foreground">
                     {disconnectBody(connection.waitingCount)}
                 </Text>

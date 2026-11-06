@@ -1,6 +1,7 @@
 import { ScrollView, View } from 'react-native'
 import { type BankFileUpload, useBankFileUpload } from '../../hooks/useBankFileUpload'
 import type { BankingScreenModel } from '../../hooks/useBankingScreen'
+import { useBankingShortcuts } from '../../hooks/useBankingShortcuts'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { BankAccountPanel } from './BankAccountPanel'
 import { BankAccountStrip } from './BankAccountStrip'
@@ -44,6 +45,7 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     const fabClearanceStyle = useFabClearanceStyle()
     // One upload for the selected connection, shared by the upload area and the page keys.
     const upload = useBankFileUpload(model.selected?.id ?? '')
+    useBankingShortcuts({ model, upload })
     if (model.state === 'loading') return <BankingLoading />
     if (model.state === 'error') return <BankingLoadError onRetry={model.onRetry} />
     const padding = model.isWide ? 'p-6' : 'p-4'
