@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{.Title}} {{.Number}}</title>
+<style>
+@page {
+    size: Letter;
+    margin: 0.6in 0.6in 0.8in;
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #666666; }
+}
+html { font-family: sans-serif; font-size: 10pt; color: #222222; }
+body { margin: 0; }
+.head { display: flex; justify-content: space-between; border-bottom: 3px solid {{.Brand.Color}}; padding-bottom: 8px; }
+.logo { max-height: 64px; max-width: 200px; margin-bottom: 6px; }
+.org { font-weight: bold; font-size: 12pt; }
+.doc { text-align: right; }
+h1 { color: {{.Brand.Color}}; margin: 0; font-size: 22pt; }
+.big { margin-top: 6px; }
+.big .value { font-size: 18pt; font-weight: bold; }
+.label { color: #666666; font-size: 8pt; }
+.parties { display: flex; margin-top: 16px; }
+.party { margin-right: 48px; }
+table.lines { width: 100%; border-collapse: collapse; margin-top: 16px; }
+thead { display: table-header-group; }
+table.lines th { background: {{.Brand.Color}}; color: {{.Brand.TextOnColor}}; text-align: left; padding: 4px 6px; }
+table.lines td { padding: 4px 6px; border-bottom: 1px solid #dddddd; vertical-align: top; }
+tr { break-inside: avoid; }
+.n { text-align: right; white-space: nowrap; }
+tr.subtotal td { font-weight: bold; border-bottom: 1px solid #999999; }
+table.summary { margin-top: 12px; margin-left: auto; width: 45%; border-collapse: collapse; break-inside: avoid; }
+table.summary td { padding: 3px 6px; }
+table.summary tr.final td { font-weight: bold; font-size: 12pt; border-top: 2px solid {{.Brand.Color}}; }
+.notes { margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="head">
+  <div>
+    {{if .Brand.HasLogo}}<img class="logo" src="{{.Brand.LogoSrc}}" alt="">{{end}}
+    <div class="org">{{.Company.Name}}</div>
+    {{range .Company.Lines}}<div>{{.}}</div>{{end}}
+  </div>
+  <div class="doc">
+    <h1>{{.Title}}</h1>
+    {{if .Number}}<div>No. {{.Number}}</div>{{end}}
+    {{range .Dates}}<div><span class="label">{{.Label}}</span> {{.Text}}</div>{{end}}
+    {{if .BigAmount.Label}}<div class="big"><div class="label">{{.BigAmount.Label}}</div><div class="value">{{.BigAmount.Text}}</div></div>{{end}}
+  </div>
+</div>
+<div class="parties">
+{{range .Parties}}<div class="party"><div class="label">{{.Label}}</div>{{range .Lines}}<div>{{.}}</div>{{end}}</div>{{end}}
+</div>
+<table class="lines">
+<thead><tr><th>Item</th><th>Description</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead>
+<tbody>
+{{range .Rows}}<tr class="{{.Kind}}"><td>{{.Item}}</td><td>{{range .Description}}<div>{{.}}</div>{{end}}</td><td class="n">{{.Quantity}}</td><td class="n">{{.Rate}}</td><td class="n">{{.Amount}}</td></tr>
+{{end}}</tbody>
+</table>
+<table class="summary">
+{{range .Summary}}<tr{{if .Final}} class="final"{{end}}><td>{{.Label}}</td><td class="n">{{.Text}}</td></tr>
+{{end}}</table>
+{{if .Notes}}<div class="notes"><div class="label">Notes</div>{{range .Notes}}<div>{{.}}</div>{{end}}</div>{{end}}
+</body>
+</html>
