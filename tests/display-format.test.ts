@@ -57,7 +57,7 @@ describe('display format vectors', () => {
 describe('server/currency_symbols.json', () => {
     // The Go formatter prints "CODE + no-break space" for every currency not listed.
     it.each(Intl.supportedValuesOf('currency'))('%s matches Intl', code => {
-        expect(symbols[code] ?? `${code} `).toBe(intlPrefix(code))
+        expect(symbols[code] ?? `${code}\u00a0`).toBe(intlPrefix(code))
     })
 
     it('lists only currencies Intl knows', () => {
