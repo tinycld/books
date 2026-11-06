@@ -63,7 +63,8 @@
 - gate 3 A notes: 4, listed under Design notes
 - reviewer-caught deferrals: none
 - out-of-plan: docs/specs/bank-connection-design.md (two Data-table rows, see Out-of-plan changes)
-- commit: (this commit)
+- commit: d510ae0
+- human: n/a (review mode C)
 
 ## Final review
 - eval:
