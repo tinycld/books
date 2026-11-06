@@ -1,64 +1,51 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, customize]
+tags: [reports, trial balance]
 order: 60
 ---
 
-A report shows the figures of your books for a period. Every change you make applies at once. There is no Run button and no Save button.
+Books reports, such as the Trial Balance, run in the Reports area of the app. A change to a chip or to Customize applies at once. The Accounts filter applies when you press Apply. There is no Run button.
 
-## Open a report
+## Open Books reports
 
-To open the list of reports, choose Reports in the sidebar. On a phone, open the Books menu from the left edge of the screen first. The reports are in sections, for example For my accountant. Press a report to open it. To go back to the list, choose Reports at the top of the report.
+To open Books reports, choose Reports in the Books sidebar. On a phone, swipe in from the left edge of the screen to open the Books menu, then choose Reports. Reports opens with only Books reports shown, under the line "Showing reports from Books". Press a report to open it.
 
-## Set the period
-
-The period chip is the first chip under the title. It shows the period name and its dates, for example "End of last month · Sep 30, 2026". To change the period, press the chip and pick a preset. The report changes at once.
-
-- A report for a range of dates has From and To dates. Its presets include Today, This month, This quarter, This fiscal year, Last month, Last quarter, Last fiscal year and Last 12 months.
-- A report on one date, such as the Trial Balance, has one date, As of. Its presets are Today, End of last month, End of last quarter and End of last fiscal year.
-- To use your own dates, pick Custom, then type a date as YYYY-MM-DD or pick it from the calendar. When you change a date, the preset becomes Custom.
-
-Quarters and fiscal years start in the fiscal year start month of your books. If a date is not complete or not correct, or From is after To, an error shows under the date. The report then keeps the last correct period. If you close the chip while a date has an error, your edit is discarded.
-
-## Choose Accrual or Cash
-
-A report that has a method shows Accrual and Cash beside the period chip. Press one to change the method. The line under the report title shows Accrual basis or Cash basis.
-
-## Filter a report
-
-1. To add a filter, press Add filter and pick the filter, for example Account.
-2. Pick one or more values. For accounts, you can also pick a whole group, for example All income accounts.
-3. Press Apply. If you close the list without Apply, nothing changes.
-
-Each filter shows as a chip. To change a filter, press its chip. To remove a filter, press the × on its chip. When filters hide every row, the report shows Clear filters, which removes all the filters.
-
-## Customize the numbers
-
-To change how the numbers look, press Customize at the top of the report. On a wide screen the panel opens beside the report, so you see each change at once. On a phone it opens from the bottom of the screen. To close it, press the × in the panel.
-
-The panel has sections. Press a section name to open or close it.
-
-- **Number format**
-  - Divide by 1000 shows every amount in thousands. The line "Amounts in thousands" then shows under the report title.
-  - Without cents shows whole amounts.
-  - Negative numbers shows a negative amount as -100 or as (100).
-  - Show negative numbers in red shows negative amounts in red.
-- **Rows**: Show rows sets which rows show. Active shows a row with a posting in the period or a balance that is not zero. Non-zero shows only rows with a balance that is not zero. All shows every row.
-- **Columns**: Display columns by sets the columns of the report, and each switch adds a column. A section shows only on a report that uses it.
-
-To go back to the default options of the report, press Reset to defaults at the bottom of the panel. This also resets the period and removes the filters.
-
-## Fold the sections of a report
-
-Some reports put their rows in sections, for example Income and Expenses. To fold a section, press its arrow. A folded section shows its total on its own row. To fold every section, press Collapse all at the top of the report. When all sections are folded, the button shows Expand all.
-
-## Share a report
-
-The address of the page keeps the report and every option you set. In a web browser, to share a report, copy the link from the address bar and send it. The link opens the same report with the same options. A preset is kept by its name, so This month in a link opened next month shows the next month.
+To go back to the Books reports, press Reports at the top of the report. To see the reports of every package, press Show all reports.
 
 ## Read the Trial Balance
 
-The Trial Balance is in the For my accountant section. It shows the balance of each account on the As of date. A debit balance shows in Debit and a credit balance shows in Credit. For example, an overdrawn bank account shows in Credit. The Total row shows the sum of each column. When the books are in balance, the two totals are equal.
+The Trial Balance shows the balance of each account on one day. Its heading shows your business name (or your organization's name when the business name is empty), Trial Balance, and the day, for example "As of September 30, 2026". The accounts show in the order of the chart of accounts. The columns are Account, No., Debit and Credit.
 
-Asset, liability and equity accounts show their full balance on the date. Income and expense accounts show only the activity from the start of the fiscal year that holds the date. The income and expense of earlier years are in retained earnings.
+- An account with a debit balance shows it in Debit. An account with a credit balance shows it, as a positive amount, in Credit. For example, an overdrawn bank account shows in Credit. A balance of zero shows 0.00 in Debit. No amount is negative.
+- The Total row adds the rows that show. Without a filter, Debit and Credit have the same total when the books are in balance.
+- Asset, liability and equity accounts show their full balance on the day. Income and expense accounts show only the activity from the start of the fiscal year that holds the day. The income and expense of earlier years show on the retained earnings account, among the equity accounts.
+- Only posted journal lines count. Drafts do not count. A voided entry and its reversal cancel each other.
+
+To change the day, press the As of chip. Pick Today, End of last month, End of last quarter or End of last fiscal year. The default is End of last month. To use your own day, pick Custom, then type the day or pick it from the calendar. Quarters and fiscal years start in the fiscal year start month of your books.
+
+To change which accounts show, press the Rows chip and pick one:
+
+- Non-zero shows the accounts with a balance that is not zero. This is the default.
+- Active shows the accounts with a posted line on or before the day, also when the balance is zero.
+- All shows every active account, and each inactive account that has a posted line. An account with no lines shows no amount in Debit or Credit.
+
+To show only some accounts, press Add filter, then Accounts. Type in Search to find an account by name, and pick one or more accounts. To pick all the accounts of one type, pick "All <type> accounts", for example "All Expense accounts". The types show in the order of the chart of accounts. Press Apply. To remove the filter, press the × on the Accounts chip. When the filter hides every row, press Clear filters.
+
+To see the lines of an account, press its row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Debit or Credit by its sign. The No. column stays blank on the lines. To open every account, press Expand all. When an account is open, the same button reads Collapse all.
+
+When no account shows on the day, the report shows "No rows as of" and the day. To move the day to the end of the last fiscal year, press Show end of last fiscal year.
+
+To change how the numbers look, press Customize. You can divide by 1000, show amounts without cents, show negative numbers as -100 or (100) or in red, and hide the No., Debit or Credit column. Customize never changes the figures.
+
+The report stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again.
+
+## Who sees Books reports
+
+Every user with Books read access sees the Trial Balance, in every role, guests with Books access included. Books gives each of these users a viewer share of the report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+
+A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
+
+## Build your own Books report
+
+To make your own report from Books data, such as accounts, journal entries, journal lines, monthly account balances or customers, see [Build, share and publish reports](help://core:reports).

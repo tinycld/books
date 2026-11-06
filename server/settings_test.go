@@ -194,3 +194,89 @@ func TestSequence_CannotMoveBackOverIssuedNumbers(t *testing.T) {
 		t.Fatalf("move forward: %v", err)
 	}
 }
+
+func saveSettings(t testing.TB, app core.App, fields map[string]any) {
+	t.Helper()
+	if err := setFields(t, app, "books_settings", settingsID, fields); err != nil {
+		t.Fatalf("save settings %v: %v", fields, err)
+	}
+}
+
+func TestSetupCompletionEnsuresRetainedEarnings(t *testing.T) {
+	cases := []struct {
+		name, ownership, taken, want string
+	}{
+		{"owners get 3900", "owners", "", "3900"},
+		{"a corporation gets 3500", "corporation", "", "3500"},
+		{"owners whose 3900 is taken get no number", "owners", "3900", ""},
+		{"a corporation whose 3500 is taken gets no number", "corporation", "3500", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := newGuardedApp(t)
+			if tc.taken != "" {
+				saveRecord(t, app, "books_accounts", map[string]any{
+					"name": "Owner's draws", "number": tc.taken, "type": "equity", "detail_type": "owner_draws", "currency": "USD",
+				})
+			}
+			saveSettings(t, app, map[string]any{"business_name": "Harbor Lane Design LLC", "ownership": tc.ownership})
+			saveSettings(t, app, map[string]any{"setup_completed": true})
+			requireCreatedRetainedEarnings(t, app, tc.want)
+		})
+	}
+
+	// The wizard's "Start with an empty chart" and populated-book paths send
+	// the ownership and the completion in one write
+	// (useBooksSetup.ts updateSettings({ ...values, done: true })).
+	oneWrite := []struct{ ownership, want string }{
+		{"corporation", "3500"},
+		{"owners", "3900"},
+	}
+	for _, tc := range oneWrite {
+		t.Run("ownership "+tc.ownership+" sent with the completion gets "+tc.want, func(t *testing.T) {
+			app := newGuardedApp(t)
+			saveSettings(t, app, map[string]any{"ownership": tc.ownership, "setup_completed": true})
+			requireCreatedRetainedEarnings(t, app, tc.want)
+		})
+	}
+
+	t.Run("a top-level account that holds the name does not stop setup", func(t *testing.T) {
+		app := newGuardedApp(t)
+		mkAccount(t, app, "Retained Earnings", "equity", "owners_equity")
+		saveSettings(t, app, map[string]any{"ownership": "owners"})
+		saveSettings(t, app, map[string]any{"setup_completed": true})
+		requireRetainedEarningsNamed(t, app, "Retained earnings 2")
+	})
+
+	t.Run("a chart that already has one gets no second", func(t *testing.T) {
+		app := newGuardedApp(t)
+		existing := mkRetainedEarnings(t, app, "3950")
+		saveSettings(t, app, map[string]any{"ownership": "owners"})
+		saveSettings(t, app, map[string]any{"setup_completed": true})
+		rows := retainedAccounts(t, app)
+		if len(rows) != 1 || rows[0].Id != existing.Id {
+			t.Fatalf("%d retained-earnings accounts, want only the existing %s", len(rows), existing.Id)
+		}
+	})
+
+	t.Run("an update of another setting before setup completes creates nothing", func(t *testing.T) {
+		app := newGuardedApp(t)
+		saveSettings(t, app, map[string]any{"business_name": "Harbor Lane Design LLC", "ownership": "owners"})
+		saveSettings(t, app, map[string]any{"fiscal_year_start_month": 7})
+		if n := len(retainedAccounts(t, app)); n != 0 {
+			t.Errorf("%d retained-earnings accounts before setup completed, want 0", n)
+		}
+	})
+
+	t.Run("an update of another setting after setup completed creates nothing", func(t *testing.T) {
+		app := newBooksApp(t)
+		// Completed before the hooks are bound: a book that finished setup
+		// with no retained-earnings account.
+		saveSettings(t, app, map[string]any{"ownership": "owners", "setup_completed": true})
+		registerLedger(app)
+		saveSettings(t, app, map[string]any{"business_name": "Harbor Lane Design LLC"})
+		if n := len(retainedAccounts(t, app)); n != 0 {
+			t.Errorf("%d retained-earnings accounts after a business name edit, want 0", n)
+		}
+	})
+}

@@ -57,9 +57,11 @@ export function useBooksSetup() {
     const accountsQuery = useLiveQuery({
         queryKey: ['books.setup.account-numbers'],
         query: query =>
-            query
-                .from({ account: accountsCollection })
-                .select(({ account }) => ({ id: account.id, number: account.number })),
+            query.from({ account: accountsCollection }).select(({ account }) => ({
+                id: account.id,
+                number: account.number,
+                detail_type: account.detail_type,
+            })),
     })
     const [progress, setProgress] = useState<Progress | null>(null)
     // A ref, because two presses in one tick both see the same stale state.
@@ -80,10 +82,13 @@ export function useBooksSetup() {
             if (!settings)
                 throw new SetupStepError(SETTINGS_LABEL, 'The Books settings could not be found')
             const existing = new Map((accounts ?? []).map(a => [a.number, a.id]))
+            const hasRetainedEarnings = (accounts ?? []).some(
+                a => a.detail_type === 'retained_earnings'
+            )
             const wholeChart = starterChart(values.ownership)
             const levels =
                 withChart && (existing.size === 0 || isResuming)
-                    ? planChart(values.ownership, existing)
+                    ? planChart(values.ownership, existing, hasRetainedEarnings)
                     : []
             const planned = levels.reduce((sum, level) => sum + level.length, 0)
             const ids = new Map(

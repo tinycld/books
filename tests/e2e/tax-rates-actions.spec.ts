@@ -52,9 +52,9 @@ test.describe('tax-rates: row actions', () => {
             })
             .toBe(true)
 
-        const agencyName = uniqueName(page, 'Tax agency default')
+        const agencyName = uniqueName('Tax agency default')
         const agencyId = await createAgency(page, agencyName)
-        const rate = uniqueName(page, 'Default rate')
+        const rate = uniqueName('Default rate')
         const rateId = await createRate(page, agencyId, rate, '5')
         const badges = page.locator('[data-testid^="tax-default-badge-"]')
         const picker = page.getByTestId('tax-default-select')
@@ -142,9 +142,9 @@ test.describe('tax-rates: row actions', () => {
         page,
     }) => {
         await openTaxes(page)
-        const agencyName = uniqueName(page, 'Tax agency retire')
+        const agencyName = uniqueName('Tax agency retire')
         const agencyId = await createAgency(page, agencyName)
-        const rateName = uniqueName(page, 'Retire rate')
+        const rateName = uniqueName('Retire rate')
         const rateId = await createRate(page, agencyId, rateName, '1.25')
         const card = page.getByTestId(`tax-agency-card-${agencyId}`)
         const row = page.getByTestId(`tax-row-${rateId}`)

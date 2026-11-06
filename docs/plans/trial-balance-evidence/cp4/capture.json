@@ -1,0 +1,154 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "ready": "report-table",
+            "height": 1200
+        },
+        {
+            "name": "opened",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "ready": "report-table",
+            "height": 1200,
+            "actions": [
+                {
+                    "openRow": "Business Checking"
+                }
+            ]
+        },
+        {
+            "name": "rows-all",
+            "url": "/a/reports/{reportId:Trial Balance}?p-rows=all",
+            "ready": "report-table",
+            "height": 1200,
+            "actions": [
+                {
+                    "waitFor": "Software Subscriptions"
+                }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "ready": "report-table",
+            "actions": [
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-accounts"
+                },
+                {
+                    "waitFor": "report-filter-options"
+                },
+                {
+                    "click": "report-filter-group-expense"
+                },
+                {
+                    "click": "report-filter-apply"
+                },
+                {
+                    "waitForHidden": "report-filter-picker"
+                },
+                {
+                    "waitFor": "report-param-accounts"
+                },
+                {
+                    "waitForHidden": "Business Checking"
+                },
+                {
+                    "waitForHidden": "report-updating"
+                }
+            ]
+        },
+        {
+            "name": "picker",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "ready": "report-table",
+            "actions": [
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-accounts"
+                },
+                {
+                    "waitFor": "report-filter-picker"
+                },
+                {
+                    "waitFor": "report-filter-options"
+                }
+            ],
+            "stable": "report-filter-apply"
+        },
+        {
+            "name": "customize",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "ready": "report-table",
+            "actions": [
+                {
+                    "click": "report-customize-open"
+                },
+                {
+                    "waitFor": "report-customize"
+                }
+            ],
+            "stable": "report-customize-reset"
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports/{reportId:Trial Balance}?p-asOf=1900-01-01",
+            "ready": "report-empty"
+        },
+        {
+            "name": "empty-filtered",
+            "url": "/a/reports/{reportId:Trial Balance}?p-asOf=1900-01-01",
+            "ready": "report-empty",
+            "actions": [
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-accounts"
+                },
+                {
+                    "waitFor": "report-filter-options"
+                },
+                {
+                    "click": "report-filter-group-expense"
+                },
+                {
+                    "click": "report-filter-apply"
+                },
+                {
+                    "waitForHidden": "report-filter-picker"
+                },
+                {
+                    "waitFor": "report-param-accounts"
+                },
+                {
+                    "waitFor": "Clear filters"
+                },
+                {
+                    "waitForHidden": "report-updating"
+                }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "holdRun": true,
+            "ready": "report-loading"
+        },
+        {
+            "name": "error",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "failRun": 500,
+            "ready": "report-error"
+        }
+    ]
+}

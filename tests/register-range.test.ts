@@ -3,6 +3,7 @@ import {
     defaultRangePreset,
     fiscalStartMonth,
     formatDay,
+    isIsoDay,
     isOtherPresetSelected,
     monthStartOf,
     nextMonthStart,
@@ -149,5 +150,49 @@ describe('nextMonthStart', () => {
         ['2026-01-31', '2026-02-01'],
     ])('%s -> %s', (day, expected) => {
         expect(nextMonthStart(day)).toBe(expected)
+    })
+})
+
+describe('isIsoDay', () => {
+    it.each(['2026-02-28', '2028-02-29'])('%s is a real day', text => {
+        expect(isIsoDay(text)).toBe(true)
+    })
+
+    it.each([
+        '2026-02-29',
+        '2026-13-01',
+        '2026-1-01',
+        '2026-10-251',
+        '',
+        '20261025',
+    ])('"%s" is not a day', text => {
+        expect(isIsoDay(text)).toBe(false)
+    })
+})
+
+describe('isIsoDay, a real calendar day from the year 1900 on', () => {
+    it.each([
+        ['2026-02-28', true],
+        ['2026-10-25', true],
+        ['2026-12-31', true],
+        ['2026-01-01', true],
+        ['2028-02-29', true],
+        ['2024-02-29', true],
+        ['2000-02-29', true],
+        ['1900-01-01', true],
+        ['9999-12-31', true],
+        ['1899-12-31', false],
+        ['0026-10-25', false],
+        ['2026-02-29', false],
+        ['2025-02-29', false],
+        ['2100-02-29', false],
+        ['2026-13-01', false],
+        ['2026-02-30', false],
+        ['2025-12-00', false],
+        ['', false],
+        ['2026-1-01', false],
+        ['31/12/2025', false],
+    ] as const)('"%s" is a real day: %s', (text, real) => {
+        expect(isIsoDay(text)).toBe(real)
     })
 })

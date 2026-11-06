@@ -13,6 +13,7 @@ import {
     uniqueName,
     vendorIdOf,
     vendorSurface,
+    viewportName,
 } from './vendor-form-helpers'
 
 // The vendor form's Track payments for 1099 toggle and the Legal name, Tax ID type and
@@ -58,7 +59,7 @@ test.describe('vendor-1099: vendor form', () => {
     test('tracks a vendor for 1099 and stores its tax ID dashed', async ({ page }) => {
         await openBooksAtDesktop(page)
         await openNewVendor(page)
-        const name = uniqueName(page, 'Tracked form')
+        const name = uniqueName(`Tracked form ${viewportName(page)}`)
         await field(page, 'display_name').fill(name)
 
         // Off by default: the switch shows, the 1099 details do not.
@@ -111,7 +112,7 @@ test.describe('vendor-1099: vendor form', () => {
     test('refuses a tax ID that is not 9 digits or has no type', async ({ page }) => {
         await openBooksAtDesktop(page)
         await openNewVendor(page)
-        const name = uniqueName(page, 'Refused form')
+        const name = uniqueName(`Refused form ${viewportName(page)}`)
         await field(page, 'display_name').fill(name)
         await trackSwitch(page).click()
         await expectDetailsShown(page)
