@@ -416,6 +416,25 @@ func TestOAuth_ConfigurationIsReadOnly(t *testing.T) {
 	if oauth.ScopeForRoute(http.MethodPost, "/api/books/balances/rebuild").SatisfiedBy(both) {
 		t.Error("the rebuild route must stay session-only")
 	}
+	// Session only: the app's download button is the only caller (plan p2-pdf).
+	for _, path := range []string{"/api/books/pdf/sample", "/api/books/pdf/invoice/abc123"} {
+		if oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy(both) {
+			t.Errorf("GET %s must stay session-only", path)
+		}
+	}
+}
+
+// Register mounts the PDF routes once: the registered app serves the sample.
+func TestRegister_ServesTheSamplePDF(t *testing.T) {
+	app, _ := newRegisteredApp(t)
+	users := newLevelUsers(t, app)
+	apiReq{
+		method:  http.MethodGet,
+		url:     "/api/books/pdf/sample",
+		token:   tokenFor(t, users.readOnly),
+		want:    http.StatusOK,
+		content: []string{"%PDF-"},
+	}.run(t, app)
 }
 
 func TestOAuth_CoversEveryBooksCollection(t *testing.T) {
@@ -680,6 +699,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerAutoReverseSweep(parts)
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
+		bindPDFRoutes(e)
 		return e.Next()
 	})
 
