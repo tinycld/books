@@ -139,6 +139,10 @@ test.describe('bank-connection: connect', () => {
     test("with no bank account, the introduction's Connect explains what to do", async ({
         page,
     }) => {
+        // Realtime is off while the reads are faked: the other worker's tests create and
+        // connect Bank accounts, and their realtime events would add rows past the fake.
+        // The stream never opens, so no realtime POST is sent and saves stay available.
+        await page.route('**/api/realtime*', route => route.abort())
         await page.route('**/api/collections/books_bank_connections/records*', route =>
             route.fulfill({
                 json: { page: 1, perPage: 30, totalItems: 0, totalPages: 0, items: [] },

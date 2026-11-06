@@ -5,6 +5,7 @@ import { useBankingUIStore } from '../../stores/banking-ui-store'
 import { CloseOnMount } from './CloseOnMount'
 import { ConnectAccountDialog } from './ConnectAccountDialog'
 import { DisconnectDialog } from './DisconnectDialog'
+import { RemoveBankFileDialog } from './RemoveBankFileDialog'
 
 function ignoreConnected() {}
 
@@ -67,6 +68,22 @@ export function BankingDialogs({ model }: { model: BankingScreenModel }) {
                 key={dialog.connectionId}
                 connectionId={dialog.connectionId}
                 model={model}
+                onClose={closeDialog}
+            />
+        )
+    }
+    if (dialog.kind === 'remove') {
+        // A file that left the list, or that an import moved past `uploaded`, can no
+        // longer be removed.
+        const isGone = !model.files.some(
+            file => file.id === dialog.fileId && file.status === 'uploaded'
+        )
+        return (
+            <RemoveBankFileDialog
+                key={dialog.fileId}
+                fileId={dialog.fileId}
+                fileName={dialog.fileName}
+                isGone={isGone}
                 onClose={closeDialog}
             />
         )
