@@ -1,0 +1,51 @@
+# bank-connection — helix run ledger
+
+- started: 2026-11-05
+- mode: unattended
+- unit: p4-bank-connection
+- package branch: books/p4-bank-connection (from main 4a672bb)   core checkout: main cf3ed106
+- spec: docs/specs/bank-connection-design.md
+- checkpoints: docs/plans/bank-connection-checkpoints.md
+- reference: docs/plans/bank-connection-reference/
+- evidence: docs/plans/bank-connection-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
+- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- capture manifest: docs/plans/bank-connection-capture.json
+- review mode: C — none (unattended)
+- core extension: none
+- sparks:
+  - three short numbered steps explain the flow → expressible (numerals `text-2xl font-semibold text-muted-foreground tabular-nums`, lines `text-base text-foreground`, band `rounded-xl border border-border bg-surface-secondary p-6`; core `Button`)
+  - the drop area is large and plainly the place the file goes → expressible (core `DropZone` around `rounded-xl border border-dashed border-border p-8 items-center gap-3`, lucide `Upload` with `useThemeColor('muted-foreground')`, core `Button` "Choose file")
+  - automatic import is "Recommended", with bank logos → dropped (live bank feeds are "Later"; third-party bank logos are brand imagery)
+
+## Deferrals
+(none yet)
+
+## Rebuttals
+- **finding:** plan review (phase 4), 35: "The spec names one file, `tests/e2e/banking.spec.ts`, and says "connect 1010 Business Savings … end with 1010 unconnected". The plan uses four spec files and never connects 1010 … the spec is changed with no recorded sign-off."
+  **rebutted because:** the behavior under test is unchanged; only the data a test writes is its own. Core `playwright.config.ts`: "a suite whose specs are not independent should be FIXED rather than serialized"; Books e2e runs spec files on two workers against one DB, and `transfer-actions.spec.ts` already creates Bank accounts mid-run. Two banking tests connecting 1010 would collide on the server's one-connection-per-account rule. Each test makes, connects and disconnects its own account (plan Decisions, "E2E rules"); the seed still leaves 1010 unconnected.
+- **finding:** plan review (phase 4), 15: "Cards wrapping on wide, the table headers (Name, Format, Size, Uploaded, Status), the size text in a row and the name ellipsis are covered by gate-2 shots only." (and 39, the FAB clearance)
+  **rebutted because:** CLAUDE.md Testing: "No test for static text, layout, or what another test already proves"; helix: "Gate 2 judges appearance". The size text is unit-tested (`fileSizeText`) and the FAB staying is unit-tested (`hidesNewFab`).
+- **finding:** plan review (phase 4), 14 (native part) and 11 (`log.warn`): native focus and the warn call are not tested.
+  **rebutted because:** helix hard rules: "No gate executes native"; the phone run asserts nothing is focused; the transport text is driven in e2e, and a log call is not user behavior.
+
+## Design notes
+(none yet)
+
+## Out-of-plan changes
+(none yet)
+
+## Phase notes
+- phase 1: design gate 2026-11-05 (auto-helix). Intake and packet: ~/tmp/tinycld/auto-helix-books/staging/p4-bank-connection/{intake.md,packet.md}. The human accepted every recommended answer (open questions 1–17) and signed off the `[platform]` item (drag and drop on web only; "Choose file" on both).
+- phase 3: direction C picked by the human (one Banking page: account strip above the selected account's panel with the upload area and file list; Connect is a three-field dialog, a sheet on a phone). Artboards: ~/tmp/tinycld/auto-helix-books/staging/p4-bank-connection/artboards.html. Spark dropped: automatic import / bank logos.
+- Q17 (added at the gate from the p3-transfer focus/shortcut memory): Connect autofocuses Account (web, wide), Edit bank details autofocuses Bank name (wide); ⌘↵ submits and Esc cancels the dialogs; page keys `n` Connect account and `u` Choose file, registered only while offered; listed in help.
+- helix-lessons.md: added the p3-transfer retro lesson (trace a web shortcut from every focusable element), approved 2026-11-05.
+- phase 3 pass 2 (2026-11-05, unattended, no approval stop): fixture `tinycld/books/lib/bank-connection-fixture.ts` (local `BankConnectionRecord` / `BankFileRecord` until checkpoint 1's migration; checking + card connections, four checking files incl. a 60-character name and a 1.2 MB file, CSV and OFX samples). Scratch route `screens/helix-mockup.tsx` builds direction C from core `DropZone`, `Dialog`, `Menu`, `SelectInput`, `TextInput`, `Button`, `HelpIcon`, `LoadingState`, Books `ListHeaderCell`. Capture spec copied from the p3-transfer saved copy (template + fakeRecords/writes/hideLabels/settleMs/pushPath extensions) plus a new `dragFile` action (dragenter + dragover with a file DataTransfer) for the drop overlay. Reference: 66 shots in `docs/plans/bank-connection-reference/` from `docs/plans/bank-connection-capture.json` — intro, intro-reader, populated, card, reader, drag (1280 only), uploading, uploaded, refused, connect, connect-errors, connect-none, edit-details, remove, disconnect, loading, error. The FAB is not hidden: the Banking page keeps it (spec §2).
+- phase 3 sparks: both accepted sparks built with tokens and core parts as triaged (numbered steps band; dashed drop area). None dropped in pass 2.
+- phase 3 reference corrections (own review, first capture): the table's Uploaded cell drops the word "Uploaded" (the column header says it; a phone card keeps "Uploaded Nov 3, 2026 by Ana Ruiz"), because the prefix truncated the name at 1280; a strip card puts the type ("Bank" / "Credit card") on its own line under the name, because at 240 wide the name truncated beside it.
+- phase 3 notes for gate 2: core `DropZone`'s drag overlay is a 10% accent tint over the area, so its label "Drop the bank file here" overlaps the area's own sentence and button (drag-1280-*); a core change request, not made (core is out of scope). The selected card's 2 px `border-primary` shifts its content 1 px. Programmatic focus on the Connect dialog's Account trigger draws no visible ring.
+
+- phase 4 (2026-11-05, unattended): plan `docs/plans/bank-connection-checkpoints.md`, 7 checkpoints (1 collections/stamping/seed, 2 server guards, 3 client rules and query, 4 page and strip, 5 connect/edit/disconnect dialogs, 6 upload and remove, 7 keys, focus and help). Migration 2100000008 confirmed free (2100000007 only on origin/books/p2-tax-rates). plan-check `--unattended`: 0 errors. Subagent plan review: 40 findings. Fixed in the plan: 1 (Connect/Edit refusals set the form root by hand; new hook test), 2 (`cardBalance` + unit test), 3 (strip scrolls on a selection change through an imperative effect; the phone test moves by URL from a reset scroll), 4 (reader intro e2e; budget now 12/12), 5–8 (intro steps/title/help, reader empty text, "No bank details", newest-first asserted in e2e), 9 (uploading state through a delayed real request), 10 (no-account dialog driven with faked reads), 11 (transport text driven by an aborted request), 12 (offline Disconnect item), 13 (Esc in Connect/Remove/Disconnect, ⌘↵ from Last 4 in Edit), 14 (phone: nothing focused), 16 (Loading now literal: whole-page LoadingState also on a selection change; flagged for the eval), 17 (an upload answered with no row still ends "done"), 18–27 (truncateRunes, 404 on a failed update rule, the 4 KB cut inside sniffBankFile, harness `evict`, `navigateInApp`, the opening-balances access fake, inline access recovery, `connectedAccountIds`, the panel's hook at the top, elided code written out), 29–33 (dialog props, panel slot order with `children` under the upload area for later units, Consumes, screenshots array), 34 (core commit noted), 36–38 (OAuth write test, no-file-part test, protected-field test), 39 (no New action, Lists card or hidden FAB, in the shell-nav test), 40 (help says Books keeps the file until its transactions are imported). Rebutted: 35, 15/39 (layout), 14 native/11 log (see Rebuttals). Review mode C (unattended).
+
+## Final review
+- eval:
+- native: not executed in this run
