@@ -61,38 +61,31 @@ func groupThousands(n uint64) string {
 
 // formatDay prints a YYYY-MM-DD day as "Nov 5, 2026". It returns an unparsable
 // day unchanged, unlike TS, which rolls it over; validate() refuses such days
-// (ruling P16). The year prints unpadded, and years 0-99 map to 1900-1999, as
-// JS Date.UTC does.
+// (ruling P16). The year prints as stored and unpadded ("Jan 5, 50").
 func formatDay(day string) string {
 	d, err := parseDay(day)
 	if err != nil {
 		return day
 	}
-	year := d.Year()
-	if year < 100 {
-		year += 1900
-	}
-	return fmt.Sprintf("%s %d, %d", d.Format("Jan"), d.Day(), year)
+	return fmt.Sprintf("%s %d, %d", d.Format("Jan"), d.Day(), d.Year())
 }
 
 // ratePercentText prints a rate in ppm as a percent with up to four decimals,
-// trailing zeros trimmed: 88750 → "8.875%". Stored rates are 0-1 000 000; a
-// negative rate prints exactly as the TS function does ("-9.-875%" for
-// -88750): floor division, and the remainder's sign kept in the fraction.
+// trailing zeros trimmed: 88750 → "8.875%". A negative rate prints as the
+// positive one with a leading "-".
 func ratePercentText(ppm int64) string {
-	whole := ppm / 10_000
-	remainder := strconv.FormatInt(ppm%10_000, 10)
-	if ppm%10_000 < 0 {
-		whole--
+	sign := ""
+	magnitude := uint64(ppm)
+	if ppm < 0 {
+		sign = "-"
+		magnitude = uint64(^ppm) + 1
 	}
-	if pad := 4 - len(remainder); pad > 0 {
-		remainder = strings.Repeat("0", pad) + remainder
-	}
-	fraction := strings.TrimRight(remainder, "0")
+	whole := magnitude / 10_000
+	fraction := strings.TrimRight(fmt.Sprintf("%04d", magnitude%10_000), "0")
 	if fraction == "" {
-		return fmt.Sprintf("%d%%", whole)
+		return fmt.Sprintf("%s%d%%", sign, whole)
 	}
-	return fmt.Sprintf("%d.%s%%", whole, fraction)
+	return fmt.Sprintf("%s%d.%s%%", sign, whole, fraction)
 }
 
 // postalAddress is a stored address (the six addressParts).
