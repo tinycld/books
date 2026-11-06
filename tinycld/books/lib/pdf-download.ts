@@ -15,7 +15,7 @@ export function pdfPath(kind: string, id?: string): string {
 // joiner inside a class reads as an emoji sequence.
 export function pdfFileName(stem: string): string {
     const safe = stem
-        .replace(/(?:(?!‍)[^\p{L}\p{M}\p{N}‌._-])+/gu, '-')
+        .replace(/(?:(?!\u200D)[^\p{L}\p{M}\p{N}\u200C._-])+/gu, '-')
         .replace(/^[-.]+|[-.]+$/g, '')
         .toLowerCase()
     return `${safe || 'document'}.pdf`

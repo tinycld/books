@@ -35,8 +35,8 @@ Choices this plan makes inside those decisions (not product questions):
 1. Every omnidoc user in core (`textextract`, `thumbnails`) gets the v1.2.0 fixes: accented Latin draws normal glyphs instead of small caps, and margin boxes take the root font. Core's own tests run after the bump (Task 6).
 2. `org_branding.brand_color` is publicly readable, like the logo (list/view rules stay `''`; `rlstest/accessguard.go:33-34` already allowlists them).
 3. The PDF prints the logo uncropped, at most 200 × 64 px (the stored `logo_crop` frames a circular avatar). Accepted by the human, 2026-11-06.
-5. A server with `TINYCLD_FONTS_DIR` set to a directory of font files prints characters from those fonts when the bundled fonts lack them. Unset (the default), nothing changes.
 4. Books gains one route, `GET /api/books/pdf/{kind}` and `GET /api/books/pdf/{kind}/{id}`. It returns `application/pdf` with `Content-Disposition: attachment; filename="<name>.pdf"` and `Cache-Control: no-store`.
+5. A server with `TINYCLD_FONTS_DIR` set to a directory of font files prints characters from those fonts when the bundled fonts lack them. Unset (the default), nothing changes.
 
 ## Global Constraints
 
