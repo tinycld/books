@@ -5,7 +5,7 @@ tags: [pdf, print, invoice, logo, "brand color"]
 order: 25
 ---
 
-To see how your documents print, open Settings, choose Company and press Preview PDF. Books creates a sample invoice as a PDF file and downloads it. On a phone or a tablet, the share sheet opens so that you can save or send the file.
+To see how your documents print, open Settings, choose Company and press Preview PDF. Books creates a sample invoice as a PDF file and downloads it. In a web browser, the browser saves the file. In the mobile app, the share sheet opens so that you can save or send the file.
 
 The preview uses the saved company details. If you change a detail, press Save before you preview. Any person with access to Books can preview; only an admin can change the details.
 

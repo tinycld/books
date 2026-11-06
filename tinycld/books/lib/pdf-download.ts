@@ -9,10 +9,13 @@ export function pdfPath(kind: string, id?: string): string {
 
 // The saved file's name. A stem can come from a person (a customer, a number),
 // so anything that could escape a directory is replaced. Letters and digits of
-// every script stay, so a non-Latin name is not thrown away.
+// every script stay, with their combining marks and the zero-width joiners that
+// Persian and Indic spellings need, so a non-Latin name is not thrown away or
+// split into pieces. The joiner is outside the class (a lookahead) because a
+// joiner inside a class reads as an emoji sequence.
 export function pdfFileName(stem: string): string {
     const safe = stem
-        .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+        .replace(/(?:(?!‍)[^\p{L}\p{M}\p{N}‌._-])+/gu, '-')
         .replace(/^[-.]+|[-.]+$/g, '')
         .toLowerCase()
     return `${safe || 'document'}.pdf`
