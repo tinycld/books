@@ -48,6 +48,40 @@ export async function connectionIdOf(card: Locator): Promise<string> {
     return testId.slice('bank-card-'.length)
 }
 
+// Connect account → pick `accountName` → fill the bank details → Connect, then waits for
+// the account's card to be the selected one. A number-less account's card label is its name.
+export async function connectAccount(
+    page: Page,
+    accountName: string,
+    details: { institution?: string; mask?: string } = {}
+): Promise<void> {
+    await page.getByTestId('bank-connect').or(page.getByTestId('bank-intro-connect')).click()
+    const dialog = page.getByTestId('bank-connect-dialog')
+    await expect(dialog).toBeVisible()
+    await page.getByTestId('bank-connect-account').click()
+    await page.getByRole('menuitem', { name: accountName, exact: true }).click()
+    if (details.institution !== undefined) {
+        await page.getByTestId('bank-connect-institution').fill(details.institution)
+    }
+    if (details.mask !== undefined) {
+        await page.getByTestId('bank-connect-mask').fill(details.mask)
+    }
+    await page.getByTestId('bank-connect-submit').click()
+    await expect(dialog).toHaveCount(0)
+    await expect(bankCard(page, accountName)).toHaveAttribute('aria-selected', 'true')
+}
+
+// More → Disconnect → confirm on the selected connection, then waits for its card to go.
+export async function disconnectSelected(page: Page, accountName: string): Promise<void> {
+    await page.getByTestId('bank-panel-more').click()
+    await page.getByRole('menuitem', { name: 'Disconnect', exact: true }).click()
+    const dialog = page.getByTestId('bank-disconnect-dialog')
+    await expect(dialog).toBeVisible()
+    await page.getByTestId('bank-disconnect-dialog-confirm').click()
+    await expect(dialog).toHaveCount(0)
+    await expect(bankCard(page, accountName)).toHaveCount(0)
+}
+
 // Opens the Chart of Accounts and creates a number-less Bank / Checking account with a
 // name no other spec or run can have. Returns the name.
 export async function createBankTestAccount(page: Page): Promise<string> {
