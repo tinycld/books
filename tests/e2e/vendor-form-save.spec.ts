@@ -25,6 +25,7 @@ import {
     vendorEntry,
     vendorIdOf,
     vendorSurface,
+    viewportName,
 } from './vendor-form-helpers'
 
 // Save, Save and new, a search hit that opens a saved vendor, server refusals on a field
@@ -99,7 +100,7 @@ test.describe('vendor-form: save and discard', () => {
         await expect(page).toHaveURL(/\/new$/)
 
         // (3) A full vendor.
-        const prefix = uniqueName(page, 'Save')
+        const prefix = uniqueName(`Save ${viewportName(page)}`)
         const name = `${prefix} one`
         const digits = stampDigits()
         const phone = `(555) 010-${digits}`
@@ -200,7 +201,7 @@ test.describe('vendor-form: save and discard', () => {
         const save = page.getByTestId('vendor-save')
         const summary = page.getByTestId('form-error-summary')
         const dialog = discardDialog(page)
-        const prefix = uniqueName(page, 'Refuse')
+        const prefix = uniqueName(`Refuse ${viewportName(page)}`)
         const name = `${prefix} one`
         const secondName = `${prefix} two`
         const digits = stampDigits()
@@ -280,7 +281,7 @@ test.describe('vendor-form: save and discard', () => {
         const back = page.getByTestId('vendor-back')
         const dialog = discardDialog(page)
         const digits = stampDigits()
-        const name = `${uniqueName(page, 'Guard')} one`
+        const name = `${uniqueName(`Guard ${viewportName(page)}`)} one`
         const phone = `(555) 010-${digits}`
 
         // (1)

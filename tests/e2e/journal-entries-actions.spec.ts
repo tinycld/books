@@ -15,6 +15,7 @@ import {
     searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // Edit (replacement draft), Reverse and Void on a posted entry's read-only view.
 // Decisions that shape it (design gate): writers get Edit, Reverse and Void in the
@@ -60,10 +61,6 @@ function refuse(route: Route, message: string) {
         contentType: 'application/json',
         body: JSON.stringify({ message, data: {} }),
     })
-}
-
-function uniqueMemo(label: string, sizeName: string) {
-    return `${label} ${sizeName} ${Date.now()}`
 }
 
 async function makePosted(page: Page, memo: string) {
@@ -195,7 +192,7 @@ for (const [sizeName, size] of SIZES) {
             page,
         }) => {
             await start(page, size)
-            const memo = uniqueMemo('Reverse me', sizeName)
+            const memo = uniqueName(`Reverse me ${sizeName}`)
             await makePosted(page, memo)
             const originalId = entryIdOf(page)
             const number = await entryNumber(page)
@@ -285,7 +282,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Void me', sizeName)
+        const memo = uniqueName(`Void me ${sizeName}`)
         await makePosted(page, memo)
         const id = entryIdOf(page)
         const number = await entryNumber(page)
@@ -334,7 +331,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Edit me', sizeName)
+        const memo = uniqueName(`Edit me ${sizeName}`)
         await makePosted(page, memo)
         const originalId = entryIdOf(page)
         const number = await entryNumber(page)
@@ -419,7 +416,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await makePosted(page, uniqueMemo('Unreverse', sizeName))
+        await makePosted(page, uniqueName(`Unreverse ${sizeName}`))
         const originalId = entryIdOf(page)
         const number = await entryNumber(page)
 
@@ -450,7 +447,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await makePosted(page, uniqueMemo('Reverse busy', sizeName))
+        await makePosted(page, uniqueName(`Reverse busy ${sizeName}`))
         const originalId = entryIdOf(page)
 
         await chooseAction(page, 'Reverse')
@@ -474,7 +471,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        await makePosted(page, uniqueMemo('Reverse left', sizeName))
+        await makePosted(page, uniqueName(`Reverse left ${sizeName}`))
         const number = await entryNumber(page)
         const entryPath = new URL(page.url()).pathname
 
@@ -503,7 +500,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Reverse refused', sizeName)
+        const memo = uniqueName(`Reverse refused ${sizeName}`)
         await makePosted(page, memo)
         const originalId = entryIdOf(page)
         const number = await entryNumber(page)
@@ -535,7 +532,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Edit twice', sizeName)
+        const memo = uniqueName(`Edit twice ${sizeName}`)
         await makePosted(page, memo)
         await chooseAction(page, 'Edit')
         await expect(page.getByTestId('entry-title')).toHaveText(/^Edit /)
@@ -566,8 +563,8 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const draftMemo = uniqueMemo('Register draft', sizeName)
-        const postedMemo = uniqueMemo('Register posted', sizeName)
+        const draftMemo = uniqueName(`Register draft ${sizeName}`)
+        const postedMemo = uniqueName(`Register posted ${sizeName}`)
         await createDraftEntry(page, {
             memo: draftMemo,
             amount: '$10.00',

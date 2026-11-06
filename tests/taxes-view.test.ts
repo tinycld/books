@@ -43,6 +43,7 @@ function liabilityRow() {
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
         parent: '',
+        full_name: 'Sales tax payable',
     } satisfies BooksAccounts
     return publishedRow(columns, 'books_accounts')
 }

@@ -24,6 +24,15 @@ const (
 // tests/account-messages.test.ts fails when this wording drifts.
 const msgBoxNeedsExpenseType = "Only expense accounts can be reported on a 1099. Set this account to Not reported in Settings → 1099s first."
 
+// The Trial Balance folds earlier fiscal years' income and expense onto the
+// one retained-earnings account, so every chart keeps exactly one.
+const (
+	msgNeedsRetainedEarnings  = "Books needs one Retained earnings account. Rename it instead."
+	msgSecondRetainedEarnings = "This chart already has a Retained earnings account."
+)
+
+const detailRetainedEarnings = "retained_earnings"
+
 // Account refusals while tax agencies name the account.
 // tinycld/books/lib/tax-messages.ts copies them;
 // tests/tax-messages.test.ts fails when this wording drifts.
@@ -43,19 +52,32 @@ func registerAccountGuard(app core.App) {
 			if err := stampCurrency(tx, e.Record); err != nil {
 				return err
 			}
-			return validateAccount(tx, e.Record)
+			if err := validateAccount(tx, e.Record); err != nil {
+				return err
+			}
+			return stampFullName(tx, e.Record)
 		})
 	})
 	app.OnRecordUpdate("books_accounts").BindFunc(func(e *core.RecordEvent) error {
-		return serialized(e, func(tx core.App) error {
-			stored, err := tx.FindRecordById("books_accounts", e.Record.Id)
+		var stored *core.Record
+		return serializedThen(e, func(tx core.App) error {
+			var err error
+			stored, err = tx.FindRecordById("books_accounts", e.Record.Id)
 			if err != nil {
 				return err
 			}
 			if err := validateAccount(tx, e.Record); err != nil {
 				return err
 			}
-			return checkAccountChange(tx, stored, e.Record)
+			if err := checkAccountChange(tx, stored, e.Record); err != nil {
+				return err
+			}
+			return stampFullName(tx, e.Record)
+		}, func(tx core.App) error {
+			if e.Record.GetString("full_name") == stored.GetString("full_name") {
+				return nil
+			}
+			return restampChildren(tx, e.Record.Id)
 		})
 	})
 	app.OnRecordDelete("books_accounts").BindFunc(func(e *core.RecordEvent) error {
@@ -79,7 +101,137 @@ func validateAccount(app core.App, r *core.Record) error {
 	if r.GetString("form_1099_box") != "" && !isExpenseGroupType(r.GetString("type")) {
 		return refuse(msgBoxNeedsExpenseType)
 	}
+	if r.GetString("detail_type") == detailRetainedEarnings {
+		// A new account created inactive would be an inactive only one. An
+		// update is checked in checkAccountChange, where only the change to
+		// inactive is refused.
+		if r.IsNew() && r.GetBool("inactive") {
+			return refuse(msgNeedsRetainedEarnings)
+		}
+		others, err := app.CountRecords("books_accounts", dbx.And(
+			dbx.HashExp{"detail_type": detailRetainedEarnings},
+			dbx.Not(dbx.HashExp{"id": r.Id}),
+		))
+		if err != nil {
+			return fmt.Errorf("books: count retained-earnings accounts: %w", err)
+		}
+		if others > 0 {
+			return refuse(msgSecondRetainedEarnings)
+		}
+	}
 	return validateParent(app, r)
+}
+
+// fullNameOf is the account's parent path, "Parent:Child". It reads the
+// parent's stored full_name, so a parent saved earlier in the same
+// transaction gives its new path.
+func fullNameOf(tx core.App, r *core.Record) (string, error) {
+	name := r.GetString("name")
+	parentID := r.GetString("parent")
+	if parentID == "" {
+		return name, nil
+	}
+	parent, err := tx.FindRecordById("books_accounts", parentID)
+	if err != nil {
+		return "", fmt.Errorf("books: read the parent account: %w", err)
+	}
+	return parent.GetString("full_name") + ":" + name, nil
+}
+
+func stampFullName(tx core.App, r *core.Record) error {
+	fullName, err := fullNameOf(tx, r)
+	if err != nil {
+		return err
+	}
+	r.Set("full_name", fullName)
+	return nil
+}
+
+// restampChildren saves each direct sub-account of id again; its own update
+// hook takes the new path from the parent saved in this transaction and
+// passes it on to its sub-accounts.
+func restampChildren(tx core.App, id string) error {
+	children, err := tx.FindAllRecords("books_accounts", dbx.HashExp{"parent": id})
+	if err != nil {
+		return fmt.Errorf("books: read sub-accounts: %w", err)
+	}
+	for _, child := range children {
+		if err := tx.Save(child); err != nil {
+			return fmt.Errorf("books: update the path of %s: %w", child.GetString("name"), err)
+		}
+	}
+	return nil
+}
+
+// ensureRetainedEarnings gives a chart with no retained-earnings account one:
+// a skipped starter chart, a hand-made or imported chart, or a post before
+// setup would otherwise leave earlier years' income and expense with no
+// account to fold onto. Its number follows the starter chart of the book's
+// ownership, and is left empty when another account holds it; its name
+// steps past a top-level account that already holds it. It reads the stored
+// settings row, so the settings guard runs it after that row is written.
+func ensureRetainedEarnings(tx core.App) error {
+	existing, err := tx.CountRecords("books_accounts", dbx.HashExp{"detail_type": detailRetainedEarnings})
+	if err != nil {
+		return fmt.Errorf("books: count retained-earnings accounts: %w", err)
+	}
+	if existing > 0 {
+		return nil
+	}
+	s, err := tx.FindRecordById("books_settings", settingsID)
+	if err != nil {
+		return fmt.Errorf("books: read settings: %w", err)
+	}
+	number := "3900"
+	if s.GetString("ownership") == "corporation" {
+		number = "3500"
+	}
+	taken, err := tx.CountRecords("books_accounts", dbx.HashExp{"number": number})
+	if err != nil {
+		return fmt.Errorf("books: read account numbers: %w", err)
+	}
+	if taken > 0 {
+		number = ""
+	}
+	name, err := freeRetainedEarningsName(tx)
+	if err != nil {
+		return err
+	}
+	col, err := tx.FindCollectionByNameOrId("books_accounts")
+	if err != nil {
+		return fmt.Errorf("books: find accounts: %w", err)
+	}
+	r := core.NewRecord(col)
+	r.Set("name", name)
+	r.Set("type", "equity")
+	r.Set("detail_type", detailRetainedEarnings)
+	r.Set("number", number)
+	if err := tx.Save(r); err != nil {
+		return fmt.Errorf("books: create the retained-earnings account: %w", err)
+	}
+	return nil
+}
+
+// freeRetainedEarningsName is "Retained earnings", or the first of
+// "Retained earnings 2", "Retained earnings 3", … that no top-level account
+// holds. The name index (parent, name COLLATE NOCASE) ignores case, so the
+// lookup does too.
+func freeRetainedEarningsName(tx core.App) (string, error) {
+	for i := 1; ; i++ {
+		name := "Retained earnings"
+		if i > 1 {
+			name = fmt.Sprintf("Retained earnings %d", i)
+		}
+		taken, err := tx.CountRecords("books_accounts", dbx.NewExp(
+			"parent = '' AND name = {:name} COLLATE NOCASE", dbx.Params{"name": name},
+		))
+		if err != nil {
+			return "", fmt.Errorf("books: read account names: %w", err)
+		}
+		if taken == 0 {
+			return name, nil
+		}
+	}
 }
 
 // validateParent keeps the hierarchy a tree of one type, at most
@@ -157,6 +309,14 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 	if stored.GetString("currency") != next.GetString("currency") {
 		return refuse("An account's currency cannot change.")
 	}
+	// Retained Earnings is an equity account, which Banking cannot connect,
+	// so this check never hides a Banking refusal.
+	if stored.GetString("detail_type") == detailRetainedEarnings &&
+		(next.GetString("type") != stored.GetString("type") ||
+			next.GetString("detail_type") != detailRetainedEarnings ||
+			(!stored.GetBool("inactive") && next.GetBool("inactive"))) {
+		return refuse(msgNeedsRetainedEarnings)
+	}
 	// Banking checks the account's type and active state only when it
 	// connects, so a connected account keeps both: any type change is refused,
 	// bank to credit card included, and so is making it inactive. Its first
@@ -225,6 +385,10 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 }
 
 func checkAccountDelete(app core.App, r *core.Record) error {
+	// The rule in validateAccount keeps this the only one.
+	if r.GetString("detail_type") == detailRetainedEarnings {
+		return refuse(msgNeedsRetainedEarnings)
+	}
 	// The connection's account relation does not cascade, so PocketBase would
 	// refuse this delete with a reference error that does not say Banking is
 	// why or that Disconnect is the fix.

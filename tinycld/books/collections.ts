@@ -20,9 +20,10 @@ export function registerCollections(
     newCollection: ReturnType<typeof createCollection<MergedSchema>>,
     coreStores: CoreStores
 ) {
-    // `currency` is stamped by the server from books_settings.
+    // The server stamps `currency` from books_settings and `full_name` from the
+    // parent path.
     const books_accounts = newCollection('books_accounts', {
-        omitOnInsert: ['created', 'updated', 'currency'] as const,
+        omitOnInsert: ['created', 'updated', 'currency', 'full_name'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })

@@ -1,7 +1,7 @@
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { bankConnectionsQuery } from '../lib/bank-connections-query'
-import type { LiveRecovery } from '../lib/report-definition'
+import type { LiveRecovery } from '../lib/live-recovery'
 
 // Every connection in chart order, with its account, its posted totals and its count of
 // files waiting to import: the cards of the account strip.

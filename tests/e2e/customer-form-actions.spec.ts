@@ -24,6 +24,7 @@ import {
     searchCustomers,
     textLeft,
     uniqueName,
+    viewportName,
 } from './customer-form-helpers'
 
 // The row menu (Edit, Add sub-customer, Make inactive or Make active, Delete) on rows and
@@ -114,7 +115,7 @@ test.describe('customer-form: inactive and delete', () => {
             const parentPicker = page.getByTestId('customer-parent')
             const banner = page.getByTestId('customers-banner')
             const discard = discardDialog(page)
-            const prefix = uniqueName(page, 'Actions')
+            const prefix = uniqueName(`Actions ${viewportName(page)}`)
             const parentName = `${prefix} parent`
             const subName = `${prefix} sub`
 

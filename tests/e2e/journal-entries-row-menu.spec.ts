@@ -14,6 +14,7 @@ import {
     searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // The per-row menu on the entries list (Open, Edit, Reverse, Void, Delete) and the dialogs it
 // opens.
@@ -44,10 +45,6 @@ async function start(page: Page, size: { width: number; height: number }) {
     await login(page)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(size)
-}
-
-function uniqueMemo(label: string, sizeName: string) {
-    return `${label} ${sizeName} ${Date.now()}`
 }
 
 function entryInput(memo: string) {
@@ -248,7 +245,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Stale void', sizeName)
+        const memo = uniqueName(`Stale void ${sizeName}`)
         const entry = await makePosted(page, memo)
         await backToList(page)
         await findItem(page, memo)
@@ -264,7 +261,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Stale reverse', sizeName)
+        const memo = uniqueName(`Stale reverse ${sizeName}`)
         const entry = await makePosted(page, memo)
         await backToList(page)
         await findItem(page, memo)
@@ -292,7 +289,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Pushed void', sizeName)
+        const memo = uniqueName(`Pushed void ${sizeName}`)
         const entry = await makePosted(page, memo)
         await backToList(page)
         await findItem(page, memo)
@@ -310,7 +307,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Pushed reverse', sizeName)
+        const memo = uniqueName(`Pushed reverse ${sizeName}`)
         const entry = await makePosted(page, memo)
         await backToList(page)
         await findItem(page, memo)
@@ -342,7 +339,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const stamp = uniqueMemo('Targeted close', sizeName)
+        const stamp = uniqueName(`Targeted close ${sizeName}`)
         const first = await makePosted(page, `${stamp} A`)
         await backToList(page)
         const second = await makePosted(page, `${stamp} B`)
@@ -400,7 +397,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Gate reversed', sizeName)
+        const memo = uniqueName(`Gate reversed ${sizeName}`)
         const original = await makePosted(page, memo)
         const month = (await entryDay(page)).slice(0, 7)
         await backToList(page)
@@ -450,7 +447,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Stale delete', sizeName)
+        const memo = uniqueName(`Stale delete ${sizeName}`)
         await createDraftEntry(page, entryInput(memo))
         const id = entryIdOf(page)
         const draftUrl = page.url()
@@ -480,7 +477,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         page,
     }) => {
         await start(page, size)
-        const memo = uniqueMemo('Menu reverse', sizeName)
+        const memo = uniqueName(`Menu reverse ${sizeName}`)
         const original = await makePosted(page, memo)
         await backToList(page)
         await findItem(page, memo)
@@ -505,7 +502,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
 
     test('Void from the menu returns the row to Void in place', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Menu void', sizeName)
+        const memo = uniqueName(`Menu void ${sizeName}`)
         const entry = await makePosted(page, memo)
         await backToList(page)
         await findItem(page, memo)
@@ -522,7 +519,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
 
     test('Delete on a draft asks, then removes the row', async ({ page }) => {
         await start(page, size)
-        const memo = uniqueMemo('Menu delete', sizeName)
+        const memo = uniqueName(`Menu delete ${sizeName}`)
         await createDraftEntry(page, entryInput(memo))
         const id = entryIdOf(page)
         await backToList(page)

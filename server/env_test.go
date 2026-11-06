@@ -131,6 +131,8 @@ type apiReq struct {
 	content []string
 	before  func(e *core.ServeEvent)
 	after   func(t testing.TB, app *tests.TestApp)
+	// response checks the HTTP response itself (headers), beyond the body.
+	response func(t testing.TB, res *http.Response)
 }
 
 func (r apiReq) run(t *testing.T, app *tests.TestApp) {
@@ -164,9 +166,16 @@ func (r apiReq) run(t *testing.T, app *tests.TestApp) {
 		before := r.before
 		scenario.BeforeTestFunc = func(_ testing.TB, _ *tests.TestApp, e *core.ServeEvent) { before(e) }
 	}
-	if r.after != nil {
-		after := r.after
-		scenario.AfterTestFunc = func(t testing.TB, app *tests.TestApp, _ *http.Response) { after(t, app) }
+	if r.after != nil || r.response != nil {
+		after, response := r.after, r.response
+		scenario.AfterTestFunc = func(t testing.TB, app *tests.TestApp, res *http.Response) {
+			if response != nil {
+				response(t, res)
+			}
+			if after != nil {
+				after(t, app)
+			}
+		}
 	}
 	scenario.Test(t)
 }

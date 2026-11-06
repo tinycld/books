@@ -2,7 +2,7 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { materialize } from 'pbtsdb'
-import type { LiveRecovery } from '../lib/report-definition'
+import type { LiveRecovery } from '../lib/live-recovery'
 
 // The files of one connection, newest upload first, with the uploader's name. With no
 // connection ("") the query is disabled.

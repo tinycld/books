@@ -87,7 +87,7 @@ export async function disconnectSelected(page: Page, accountName: string): Promi
 // name no other spec or run can have. Returns the name.
 export async function createBankTestAccount(page: Page): Promise<string> {
     await openChart(page)
-    const name = uniqueName(page, 'Bank e2e')
+    const name = uniqueName('Bank e2e')
     await createAccount(page, name, { type: 'Bank', detailType: 'Checking' })
     return name
 }

@@ -3,11 +3,13 @@ package books
 import (
 	"database/sql"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tests"
 )
 
 func newAccount(app core.App, fields map[string]any) (*core.Record, error) {
@@ -369,6 +371,251 @@ func TestAccount_AFailedParentReadIsNotAMissingParent(t *testing.T) {
 	if err == nil || strings.Contains(err.Error(), "does not exist") {
 		t.Fatalf("a failed read = %v, want the read error", err)
 	}
+}
+
+// mkSubAccount saves an account under parent, of the parent's type and detail.
+func mkSubAccount(t testing.TB, app core.App, name string, parent *core.Record) *core.Record {
+	t.Helper()
+	r, err := newAccount(app, map[string]any{
+		"name": name, "type": parent.GetString("type"), "detail_type": parent.GetString("detail_type"), "parent": parent.Id,
+	})
+	if err != nil {
+		t.Fatalf("save %s under %s: %v", name, parent.GetString("name"), err)
+	}
+	return r
+}
+
+func requireFullName(t testing.TB, app core.App, id, want string) {
+	t.Helper()
+	r := reload(t, app, "books_accounts", id)
+	if got := r.GetString("full_name"); got != want {
+		t.Errorf("%s full_name = %q, want %q", r.GetString("name"), got, want)
+	}
+}
+
+func TestFullNameStampedOnCreate(t *testing.T) {
+	app := newGuardedApp(t)
+	top := mkAccount(t, app, "Software Subscriptions", "expense", "utilities")
+	child := mkSubAccount(t, app, "Design Tools", top)
+	grandchild := mkSubAccount(t, app, "Figma", child)
+
+	requireFullName(t, app, top.Id, "Software Subscriptions")
+	requireFullName(t, app, child.Id, "Software Subscriptions:Design Tools")
+	requireFullName(t, app, grandchild.Id, "Software Subscriptions:Design Tools:Figma")
+}
+
+func TestFullNameFollowsRenameAndMove(t *testing.T) {
+	app := newGuardedApp(t)
+	top := mkAccount(t, app, "Software", "expense", "utilities")
+	child := mkSubAccount(t, app, "Design Tools", top)
+	grandchild := mkSubAccount(t, app, "Figma", child)
+	office := mkAccount(t, app, "Office", "expense", "utilities")
+
+	if err := setFields(t, app, "books_accounts", top.Id, map[string]any{"name": "Software Subscriptions"}); err != nil {
+		t.Fatalf("rename the top account: %v", err)
+	}
+	requireFullName(t, app, top.Id, "Software Subscriptions")
+	requireFullName(t, app, child.Id, "Software Subscriptions:Design Tools")
+	requireFullName(t, app, grandchild.Id, "Software Subscriptions:Design Tools:Figma")
+
+	if err := setFields(t, app, "books_accounts", child.Id, map[string]any{"parent": office.Id}); err != nil {
+		t.Fatalf("move Design Tools under Office: %v", err)
+	}
+	moved := map[string]string{
+		top.Id:        "Software Subscriptions",
+		office.Id:     "Office",
+		child.Id:      "Office:Design Tools",
+		grandchild.Id: "Office:Design Tools:Figma",
+	}
+	for id, want := range moved {
+		requireFullName(t, app, id, want)
+	}
+
+	for _, id := range []string{office.Id, grandchild.Id} {
+		if err := setFields(t, app, "books_accounts", id, map[string]any{"description": "Monthly tools"}); err != nil {
+			t.Fatalf("edit a description: %v", err)
+		}
+	}
+	for id, want := range moved {
+		requireFullName(t, app, id, want)
+	}
+}
+
+// Each subtest has its own app: apiReq allows one call per app.
+func TestFullNameRefusedInBody(t *testing.T) {
+	t.Run("create", func(t *testing.T) {
+		app := newBooksApp(t)
+		users := newLevelUsers(t, app)
+		apiReq{
+			method: http.MethodPost,
+			url:    "/api/collections/books_accounts/records",
+			token:  tokenFor(t, users.admin),
+			body:   `{"name":"Petty Cash","type":"bank","detail_type":"cash_on_hand","full_name":"Cash:Petty Cash"}`,
+			want:   http.StatusBadRequest,
+			after: func(t testing.TB, app *tests.TestApp) {
+				if n, _ := app.CountRecords("books_accounts", dbx.HashExp{"name": "Petty Cash"}); n != 0 {
+					t.Errorf("%d Petty Cash accounts after a create that sent full_name, want 0", n)
+				}
+			},
+		}.run(t, app)
+	})
+	t.Run("update", func(t *testing.T) {
+		app := newBooksApp(t)
+		users := newLevelUsers(t, app)
+		checking := saveRecord(t, app, "books_accounts", map[string]any{
+			"name": "Checking", "type": "bank", "detail_type": "checking", "currency": "USD", "full_name": "Checking",
+		})
+		apiReq{
+			method: http.MethodPatch,
+			url:    "/api/collections/books_accounts/records/" + checking.Id,
+			token:  tokenFor(t, users.admin),
+			body:   `{"full_name":"Savings"}`,
+			want:   http.StatusNotFound,
+			after: func(t testing.TB, app *tests.TestApp) {
+				requireFullName(t, app, checking.Id, "Checking")
+			},
+		}.run(t, app)
+	})
+}
+
+func retainedAccounts(t testing.TB, app core.App) []*core.Record {
+	t.Helper()
+	rows, err := app.FindAllRecords("books_accounts", dbx.HashExp{"detail_type": "retained_earnings"})
+	if err != nil {
+		t.Fatalf("read retained-earnings accounts: %v", err)
+	}
+	return rows
+}
+
+func mkRetainedEarnings(t testing.TB, app core.App, number string) *core.Record {
+	t.Helper()
+	return saveRecord(t, app, "books_accounts", map[string]any{
+		"name": "Retained earnings", "number": number, "type": "equity", "detail_type": "retained_earnings", "currency": "USD",
+	})
+}
+
+// requireCreatedRetainedEarnings asserts the chart holds exactly one
+// retained-earnings account: the one Books made, numbered wantNumber.
+func requireCreatedRetainedEarnings(t testing.TB, app core.App, wantNumber string) {
+	t.Helper()
+	rows := retainedAccounts(t, app)
+	if len(rows) != 1 {
+		t.Fatalf("%d retained-earnings accounts, want 1", len(rows))
+	}
+	r := rows[0]
+	if r.GetString("name") != "Retained earnings" || r.GetString("type") != "equity" || r.GetString("number") != wantNumber {
+		t.Errorf("retained-earnings account = %q %q (%s), want %q \"Retained earnings\" (equity)",
+			r.GetString("number"), r.GetString("name"), r.GetString("type"), wantNumber)
+	}
+}
+
+// requireRetainedEarningsNamed asserts the chart holds exactly one
+// retained-earnings account, a top-level equity account named wantName.
+func requireRetainedEarningsNamed(t testing.TB, app core.App, wantName string) {
+	t.Helper()
+	rows := retainedAccounts(t, app)
+	if len(rows) != 1 {
+		t.Fatalf("%d retained-earnings accounts, want 1", len(rows))
+	}
+	r := rows[0]
+	if r.GetString("name") != wantName || r.GetString("type") != "equity" || r.GetString("parent") != "" {
+		t.Errorf("retained-earnings account = %q (%s, parent %q), want %q (equity, top level)",
+			r.GetString("name"), r.GetString("type"), r.GetString("parent"), wantName)
+	}
+}
+
+func TestRetainedEarningsRules(t *testing.T) {
+	t.Run("a chart with none accepts the first", func(t *testing.T) {
+		app := newGuardedApp(t)
+		if _, err := newAccount(app, map[string]any{
+			"name": "Retained earnings", "number": "3900", "type": "equity", "detail_type": "retained_earnings",
+		}); err != nil {
+			t.Fatalf("the first retained-earnings account was refused: %v", err)
+		}
+		if n := len(retainedAccounts(t, app)); n != 1 {
+			t.Errorf("%d retained-earnings accounts, want 1", n)
+		}
+	})
+
+	t.Run("a second one is refused on create", func(t *testing.T) {
+		app := newGuardedApp(t)
+		mkRetainedEarnings(t, app, "3900")
+		_, err := newAccount(app, map[string]any{
+			"name": "Prior-year earnings", "number": "3950", "type": "equity", "detail_type": "retained_earnings",
+		})
+		requireMessageOnlyRefusal(t, err, msgSecondRetainedEarnings)
+		if n := len(retainedAccounts(t, app)); n != 1 {
+			t.Errorf("%d retained-earnings accounts after the refusal, want 1", n)
+		}
+	})
+
+	t.Run("re-typing another equity account to retained earnings is refused", func(t *testing.T) {
+		app := newGuardedApp(t)
+		mkRetainedEarnings(t, app, "3900")
+		owners := mkAccount(t, app, "Owner's equity", "equity", "owners_equity")
+		err := setFields(t, app, "books_accounts", owners.Id, map[string]any{"detail_type": "retained_earnings"})
+		requireMessageOnlyRefusal(t, err, msgSecondRetainedEarnings)
+		if got := reload(t, app, "books_accounts", owners.Id).GetString("detail_type"); got != "owners_equity" {
+			t.Errorf("Owner's equity detail_type = %q after the refusal, want owners_equity", got)
+		}
+	})
+
+	// An account created inactive is a deactivated only one.
+	t.Run("creating an inactive one is refused", func(t *testing.T) {
+		app := newGuardedApp(t)
+		_, err := newAccount(app, map[string]any{
+			"name": "Retained earnings", "number": "3900", "type": "equity", "detail_type": "retained_earnings", "inactive": true,
+		})
+		requireMessageOnlyRefusal(t, err, msgNeedsRetainedEarnings)
+		if n := len(retainedAccounts(t, app)); n != 0 {
+			t.Errorf("%d retained-earnings accounts after the refusal, want 0", n)
+		}
+	})
+
+	refusals := []struct {
+		name   string
+		change func(t *testing.T, app core.App, re *core.Record) error
+	}{
+		{"deleting the only one", func(t *testing.T, app core.App, re *core.Record) error {
+			return app.Delete(reload(t, app, "books_accounts", re.Id))
+		}},
+		{"making the only one inactive", func(t *testing.T, app core.App, re *core.Record) error {
+			return setFields(t, app, "books_accounts", re.Id, map[string]any{"inactive": true})
+		}},
+		{"changing the only one's detail type", func(t *testing.T, app core.App, re *core.Record) error {
+			return setFields(t, app, "books_accounts", re.Id, map[string]any{"detail_type": "owners_equity"})
+		}},
+		{"changing the only one's type", func(t *testing.T, app core.App, re *core.Record) error {
+			return setFields(t, app, "books_accounts", re.Id, map[string]any{"type": "long_term_liability", "detail_type": "notes_payable"})
+		}},
+	}
+	for _, tc := range refusals {
+		t.Run(tc.name+" is refused", func(t *testing.T) {
+			app := newGuardedApp(t)
+			re := mkRetainedEarnings(t, app, "3900")
+			requireMessageOnlyRefusal(t, tc.change(t, app, re), msgNeedsRetainedEarnings)
+			stored := reload(t, app, "books_accounts", re.Id)
+			if stored.GetString("type") != "equity" || stored.GetString("detail_type") != "retained_earnings" || stored.GetBool("inactive") {
+				t.Errorf("after the refusal: type %q, detail %q, inactive %v; want equity, retained_earnings, false",
+					stored.GetString("type"), stored.GetString("detail_type"), stored.GetBool("inactive"))
+			}
+		})
+	}
+
+	t.Run("renaming it and changing its number pass", func(t *testing.T) {
+		app := newGuardedApp(t)
+		re := mkRetainedEarnings(t, app, "3900")
+		if err := setFields(t, app, "books_accounts", re.Id, map[string]any{"name": "Accumulated earnings"}); err != nil {
+			t.Fatalf("rename the retained-earnings account: %v", err)
+		}
+		if err := setFields(t, app, "books_accounts", re.Id, map[string]any{"number": "3950"}); err != nil {
+			t.Fatalf("renumber the retained-earnings account: %v", err)
+		}
+		stored := reload(t, app, "books_accounts", re.Id)
+		if stored.GetString("name") != "Accumulated earnings" || stored.GetString("number") != "3950" {
+			t.Errorf("stored = %q %q, want 3950 Accumulated earnings", stored.GetString("number"), stored.GetString("name"))
+		}
+	})
 }
 
 // PocketBase refuses to delete an account a required relation names with a

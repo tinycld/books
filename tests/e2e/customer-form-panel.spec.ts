@@ -21,6 +21,7 @@ import {
     settle,
     stacked,
     uniqueName,
+    viewportName,
     WIDE,
     watchForNotFoundAndDiscard,
 } from './customer-form-helpers'
@@ -124,7 +125,7 @@ test.describe('customer-form: side panel', () => {
         await expect.poll(() => leftEdgeOf(list)).toBe(listLeftOpen)
 
         // (4) Two customers created through the panel; each Save closes it.
-        const prefix = uniqueName(page, 'Panel')
+        const prefix = uniqueName(`Panel ${viewportName(page)}`)
         const nameA = `${prefix} A`
         const nameB = `${prefix} B`
         for (const name of [nameA, nameB]) {

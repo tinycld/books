@@ -1,7 +1,7 @@
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { accountsWithBalances } from '../lib/accounts-query'
-import type { LiveRecovery } from '../lib/report-definition'
+import type { LiveRecovery } from '../lib/live-recovery'
 import { transferAccountBalance, transferAccountOptions } from '../lib/transfer'
 
 // The chart with each account's posted totals: the names the read view shows, the

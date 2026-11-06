@@ -56,7 +56,7 @@ test.describe('tax-rates: agency and rate dialogs', () => {
         )
         const name = fresh.getByTestId('tax-agency-form-name')
         await expect(name).toBeFocused()
-        await name.fill(uniqueName(fresh, 'Tax agency empty'))
+        await name.fill(uniqueName('Tax agency empty'))
 
         const created = fresh.waitForResponse(
             response =>
@@ -70,7 +70,7 @@ test.describe('tax-rates: agency and rate dialogs', () => {
 
     test('adds a rate from an agency card, with the live tax line', async ({ page }) => {
         await openTaxes(page)
-        const agencyName = uniqueName(page, 'Tax agency rate')
+        const agencyName = uniqueName('Tax agency rate')
         const agencyId = await createAgency(page, agencyName)
         const card = page.getByTestId(`tax-agency-card-${agencyId}`)
         const noRates = card.getByTestId(`tax-agency-no-rates-${agencyId}`)
@@ -102,7 +102,7 @@ test.describe('tax-rates: agency and rate dialogs', () => {
         )
         await expect(dialog).toBeVisible()
 
-        const rateName = uniqueName(page, 'Card rate')
+        const rateName = uniqueName('Card rate')
         await name.fill(rateName)
         await save.click()
         await expect(dialog).toBeHidden()
@@ -115,7 +115,7 @@ test.describe('tax-rates: agency and rate dialogs', () => {
     // On a phone core Dialog renders a Sheet (other code than the wide dialog).
     test('adds a rate in a bottom sheet on a phone', async ({ page }) => {
         await openTaxes(page)
-        const agencyId = await createAgency(page, uniqueName(page, 'Tax agency phone'))
+        const agencyId = await createAgency(page, uniqueName('Tax agency phone'))
         await page.setViewportSize(PHONE)
 
         const card = page.getByTestId(`tax-agency-card-${agencyId}`)
@@ -137,7 +137,7 @@ test.describe('tax-rates: agency and rate dialogs', () => {
 
         const name = page.getByTestId('tax-rate-form-name')
         await expect(name).toBeFocused()
-        const rateName = uniqueName(page, 'Phone rate')
+        const rateName = uniqueName('Phone rate')
         await name.fill(rateName)
         // Many locales' decimal keypad has a comma as its decimal key.
         await page.getByTestId('tax-rate-form-percent').fill('0,75')

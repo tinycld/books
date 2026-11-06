@@ -18,11 +18,18 @@ export function taxAccount(seed: AccountSeed): BooksAccounts {
         parent: '',
         created: STAMP,
         updated: STAMP,
+        full_name: seed.name,
         ...seed,
     }
 }
 
 const numberOfKey = new Map(SEED_ACCOUNTS.map(account => [account.key, account.number]))
+const nameOfKey = new Map(SEED_ACCOUNTS.map(account => [account.key, account.name]))
+
+// The seeded chart nests one level deep, so a sub-account's path is its parent's name and its own.
+function seedFullName(account: (typeof SEED_ACCOUNTS)[number]) {
+    return account.parent ? `${nameOfKey.get(account.parent)}:${account.name}` : account.name
+}
 
 // The seeded chart, which holds one Other current liability account: 2200 Sales tax payable.
 export function seedChart(): BooksAccounts[] {
@@ -33,6 +40,7 @@ export function seedChart(): BooksAccounts[] {
             type: account.type,
             detail_type: account.detail_type,
             parent: account.parent ? `acc-${numberOfKey.get(account.parent)}` : '',
+            full_name: seedFullName(account),
             inactive: account.inactive ?? false,
         })
     )

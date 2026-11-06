@@ -8,6 +8,7 @@ import {
     openChart,
     openRegister,
 } from './account-register-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // Journal entry creation has no UI until `p1-journal-entries`, so the register
 // has nothing it can create through the UI. The entries it reads are posted by
@@ -125,7 +126,7 @@ test.describe('account-register: header and states', () => {
         context,
     }) => {
         await start(page)
-        const name = `E2E Register Gone ${Date.now()}`
+        const name = uniqueName('E2E Register Gone')
         await openChart(page)
         await createIncomeAccount(page, name)
         await chooseViewRegister(page, name)

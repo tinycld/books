@@ -9,13 +9,13 @@ import {
     Settings,
 } from 'lucide-react-native'
 import type { BooksAccessState } from './access'
-import { hasAvailableReport } from './report-registry'
 
 export interface SidebarEntry {
     id: string
     label: string
     icon: LucideIcon
     href: string
+    params?: Record<string, string>
     group?: 'accounting' | 'settings'
     available: boolean
 }
@@ -48,8 +48,9 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         id: 'reports',
         label: 'Reports',
         icon: BarChart3,
-        href: 'books/reports',
-        available: hasAvailableReport(),
+        href: 'reports',
+        params: { package: 'books' },
+        available: true,
     },
     {
         id: 'accounts',
