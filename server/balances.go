@@ -186,7 +186,7 @@ func rebuildBalances(app core.App) (int, error) {
 	return fixed, err
 }
 
-// bindBalanceRoutes mounts the one Books route: a maintenance action, not a
+// bindBalanceRoutes mounts a Books route: a maintenance action, not a
 // data endpoint (the rows it fixes reach clients through their live queries).
 // Session only: it is not in the OAuth registration, so a token cannot call it.
 func bindBalanceRoutes(e *core.ServeEvent) {
