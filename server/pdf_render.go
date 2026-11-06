@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nathanstitt/omnidoc/pkg/omnidoc"
 
@@ -95,9 +96,20 @@ func pdfDiagnostics(ctx context.Context) func(string, ...any) {
 			return
 		}
 		// An image message quotes its data: URI; keep the log line short.
-		if len(msg) > 300 {
-			msg = msg[:300] + "…"
-		}
+		msg = cutAtRune(msg, 300)
 		log.WarnContext(ctx, "pdf layout problem", "detail", msg)
 	}
+}
+
+// cutAtRune shortens s to at most limit bytes plus an ellipsis, cutting at a rune
+// boundary so a multi-byte character is never split into invalid UTF-8.
+func cutAtRune(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	end := limit
+	for end > 0 && !utf8.RuneStart(s[end]) {
+		end--
+	}
+	return s[:end] + "…"
 }

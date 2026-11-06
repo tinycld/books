@@ -19,8 +19,10 @@ h1 { color: {{.Brand.Color}}; margin: 0; font-size: 22pt; }
 .big { margin-top: 6px; }
 .big .value { font-size: 18pt; font-weight: bold; }
 .label { color: #666666; font-size: 8pt; }
-.parties { display: flex; margin-top: 16px; }
-.party { margin-right: 48px; }
+/* Space the party blocks with gap, never with margin or padding on .party:
+   omnidoc v1.2.0 lays a content-sized flex item out narrower than its text by
+   its own horizontal edges, so short names wrap (omnidoc BACKLOG H1). */
+.parties { display: flex; gap: 48px; margin-top: 16px; }
 table.lines { width: 100%; border-collapse: collapse; margin-top: 16px; }
 thead { display: table-header-group; }
 table.lines th { background: {{.Brand.Color}}; color: {{.Brand.TextOnColor}}; text-align: left; padding: 4px 6px; }

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/nathanstitt/omnidoc/pkg/omnidoc"
 	"golang.org/x/image/font/gofont/gobold"
@@ -41,10 +42,6 @@ func extractPDFText(t testing.TB, pdf []byte) (int, string) {
 }
 
 var pageFooter = regexp.MustCompile(`Page \d+ of \d+`)
-
-// flatText collapses the layout's line breaks and padding so a phrase that wraps
-// in a narrow column still matches.
-func flatText(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // collectLogs gathers omnidoc's diagnostics for a test to inspect.
 func collectLogs(logs *[]string) func(string, ...any) {
@@ -79,7 +76,8 @@ func TestRenderPDF_ShortDocumentIsOneLetterPageWithItsPageNumber(t *testing.T) {
 	if pages != 1 || !strings.Contains(text, "Page 1 of 1") {
 		t.Errorf("pages = %d, text has no footer: %q", pages, text)
 	}
-	for _, want := range []string{"Acme Books LLC", "Jordan Lee", "$250.00", "State sales tax (6.25%)", "Nov 5, 2026"} {
+	// Raw text, not whitespace-flattened: a party line that wraps fails here.
+	for _, want := range []string{"Acme Books LLC", "Jordan Lee", "Northwind Traders", "San Francisco, CA 94105", "$250.00", "State sales tax (6.25%)", "Nov 5, 2026"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text has no %q", want)
 		}
@@ -95,6 +93,9 @@ func TestRenderPDF_LongDocumentRepeatsTheHeaderOnEveryPage(t *testing.T) {
 	// Each page's text ends with its footer. "Description" is the column header
 	// only: the rows say "Consulting hours". The summary may close on a page of
 	// its own, which has no rows and so no header.
+	if got := len(pageFooter.FindAllString(text, -1)); got != pages {
+		t.Errorf("page footer printed %d times over %d pages", got, pages)
+	}
 	withRows := 0
 	for _, page := range pageFooter.Split(text, -1) {
 		hasRows, hasHeader := strings.Contains(page, "Consulting hours"), strings.Contains(page, "Description")
@@ -128,7 +129,7 @@ func TestRenderPDF_EscapesHTMLInNames(t *testing.T) {
 		t.Errorf("the name was not escaped as text")
 	}
 	pdf, _ := render(t, doc, testOrg())
-	if _, text := extractPDFText(t, pdf); !strings.Contains(flatText(text), `<script>alert(1)</script> & "Co"`) {
+	if _, text := extractPDFText(t, pdf); !strings.Contains(text, `<script>alert(1)</script> & "Co"`) {
 		t.Errorf("the name does not print literally")
 	}
 }
@@ -147,7 +148,6 @@ func TestRenderPDF_PrintsNonLatinNamesWithoutMissingGlyphs(t *testing.T) {
 		}
 	}
 	_, text := extractPDFText(t, pdf)
-	text = flatText(text)
 	for _, want := range []string{"Zoë Ñandú Łódź", "Ελληνικά ά", "Москва Київ"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text has no %q", want)
@@ -249,6 +249,8 @@ func TestPDFDiagnostics_LogsOnlyGlyphAndImageProblemsAndCutsLongOnes(t *testing.
 	logf("image %s failed: %s", "data:image/png;base64,"+strings.Repeat("A", 400), "bad")
 	logf("unsupported CSS property %s", "float")
 	logf("image %s loaded", "logo")
+	// "é" is two bytes; the first one straddles the 300-byte cut.
+	logf("image %s failed: %s", strings.Repeat("A", 293)+strings.Repeat("é", 10), "bad")
 
 	var got []readonlytest.Record
 	for _, r := range logs() {
@@ -256,14 +258,18 @@ func TestPDFDiagnostics_LogsOnlyGlyphAndImageProblemsAndCutsLongOnes(t *testing.
 			got = append(got, r)
 		}
 	}
-	if len(got) != 2 {
-		t.Fatalf("logged %d layout problems, want 2: %+v", len(got), got)
+	if len(got) != 3 {
+		t.Fatalf("logged %d layout problems, want 3: %+v", len(got), got)
 	}
-	glyph, image := got[0], got[1]
+	glyph, image, accented := got[0], got[1], got[2]
 	if glyph.Level != slog.LevelWarn || glyph.Attrs["pkg"] != "books" || !strings.HasPrefix(glyph.Attrs["detail"], "no glyph for") {
 		t.Errorf("glyph record = %+v", glyph)
 	}
 	if want := 300 + len("…"); len(image.Attrs["detail"]) != want || !strings.HasSuffix(image.Attrs["detail"], "…") {
 		t.Errorf("image detail is %d bytes, want %d ending in an ellipsis", len(image.Attrs["detail"]), want)
+	}
+	// Bytes 299-300 hold the first "é": the cut drops it whole.
+	if d := accented.Attrs["detail"]; !utf8.ValidString(d) || d != "image "+strings.Repeat("A", 293)+"…" {
+		t.Errorf("accented detail was cut inside a character or is too long: %q (%d bytes)", d, len(d))
 	}
 }
