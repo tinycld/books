@@ -205,6 +205,8 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
                 isVisible
                 isWide={isWide}
                 actions={actions.actions}
+                isBusy={actions.isVoiding || actions.isReversing}
+                shortcutGroup="Journal entry"
                 onEdit={actions.onEdit}
                 onReverse={actions.onReverse}
                 onVoid={actions.onVoid}

@@ -158,11 +158,12 @@ test.describe('transfer: actions', () => {
             memo,
         })
 
-        const edit = page.getByTestId('entry-edit')
-        await expect(edit).toBeVisible()
-        await edit.click()
+        // E is the read view's Edit key; the correction form opens with "Transfer from" focused.
+        await expect(page.getByTestId('entry-edit')).toBeVisible()
+        await page.keyboard.press('e')
         await expect(page).toHaveURL(new RegExp(`/books/transfers/new\\?replaces=${id}$`))
         await expect(page.getByTestId('transfer-title')).toHaveText(`Edit ${number}`)
+        await expect(page.getByTestId('transfer-from')).toBeFocused()
         await expect(page.getByTestId('transfer-replace-note')).toHaveText(
             `Posting this replaces ${number} under the same number. The original is voided. Until you post, ${number} stays as it is.`
         )
@@ -215,12 +216,22 @@ test.describe('transfer: actions', () => {
         await expect(more).toBeVisible()
         await expect(page.getByText('Reverse', { exact: true })).toHaveCount(0)
 
+        // V is the read view's Void key; Escape closes only the dialog (a Sheet on a phone).
+        const dialog = page.getByTestId('void-dialog')
+        await page.keyboard.press('v')
+        await expect(dialog).toBeVisible()
+        await expect(dialog).toContainText(`Void ${number}?`)
+        await page.keyboard.press('Escape')
+        await expect(dialog).toBeHidden()
+        await expect(page.getByTestId('transfer-read-only')).toBeVisible()
+        await expect(page.getByTestId('transfer-badge')).toHaveText('Posted')
+        await expect(page).toHaveURL(transferUrl)
+
         await more.click()
         await expect(page.getByRole('menuitem', { name: 'Void', exact: true })).toBeVisible()
         await expect(page.getByRole('menuitem', { name: 'Reverse', exact: true })).toHaveCount(0)
         await page.getByRole('menuitem', { name: 'Void', exact: true }).click()
 
-        const dialog = page.getByTestId('void-dialog')
         await expect(dialog).toContainText(`Void ${number}?`)
         await expect(dialog).toContainText(
             'A reversing entry is posted in the original period. The number is kept.'
@@ -244,6 +255,24 @@ test.describe('transfer: actions', () => {
             amount: '5.00',
             memo,
         })
+        const draftUrl = new RegExp(`/books/transfers/${id}$`)
+
+        // ⌘⌫ is Delete draft, also from the memo field: it opens the same dialog, and the
+        // field never sees the key (with the caret at the end, the browser's own ⌘⌫ would
+        // delete the memo text). Escape closes the dialog with the draft kept.
+        const memoInput = page.getByTestId('transfer-memo')
+        await memoInput.click()
+        await page.keyboard.press('End')
+        await expect(memoInput).toBeFocused()
+        const deleteDialog = page.getByTestId('delete-draft-dialog')
+        await page.keyboard.press('ControlOrMeta+Backspace')
+        await expect(deleteDialog).toBeVisible()
+        await expect(memoInput).toHaveValue(memo)
+        await page.keyboard.press('Escape')
+        await expect(deleteDialog).toBeHidden()
+        await expect(page).toHaveURL(draftUrl)
+        await expect(page.getByTestId('transfer-title')).toHaveText('Draft transfer')
+        await expect(memoInput).toHaveValue(memo)
 
         const more = page.getByTestId('transfer-actions').getByTestId('transfer-more')
         await expect(more).toBeVisible()
@@ -251,9 +280,9 @@ test.describe('transfer: actions', () => {
         const item = page.getByTestId('transfer-delete-draft')
         await expect(item).toHaveText('Delete draft')
         await item.click()
-        await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
+        await expect(deleteDialog).toBeVisible()
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(new RegExp(`/books/transfers/${id}$`))
+        await expect(page).not.toHaveURL(draftUrl)
 
         await openEntriesList(page)
         await searchEntries(page, memo)

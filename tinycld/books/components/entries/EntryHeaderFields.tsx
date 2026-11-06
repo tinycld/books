@@ -1,6 +1,6 @@
 import { TextAreaInput } from '@tinycld/core/ui/form'
 import { useFormContext } from 'react-hook-form'
-import { Text, View } from 'react-native'
+import { Platform, Text, View } from 'react-native'
 import { useClearStaleErrors } from '../../hooks/useClearStaleErrors'
 import type { EntryFormValues } from '../../lib/entry-schema'
 import { EntryDateField } from './EntryDateField'
@@ -19,6 +19,10 @@ export function EntryHeaderFields({
 }) {
     const { control } = useFormContext<EntryFormValues>()
     const { onEdit } = useClearStaleErrors()
+    // The form starts on Date for data entry, but only in a wide web browser: on a phone
+    // and on iOS or Android at every size a focused field opens the soft keyboard over the
+    // form (human sign-off, 2026-11-05).
+    const focusesDate = isWide && Platform.OS === 'web'
     return (
         <View>
             <View className={isWide ? 'flex-row gap-3' : ''}>
@@ -29,6 +33,7 @@ export function EntryHeaderFields({
                         hint="YYYY-MM-DD"
                         testID="entry-date"
                         onEdit={onEdit}
+                        autoFocus={focusesDate}
                     />
                 </Cell>
                 <Cell isWide={isWide}>

@@ -256,27 +256,57 @@ func TestReverse_MustHaveTheSameDocumentType(t *testing.T) {
 	}
 }
 
-func TestReverse_ATransferPostsMirrorLinesWithTheNextTransferNumber(t *testing.T) {
-	env := newLedgerEnv(t)
-	savings := mkAccount(t, env.app, "Savings", "bank", "savings")
-	original := mustPost(t, env.app, transferDraft(t, env.app, "2026-05-10", env.checking, savings, 2500).Id, "")
-	if original.GetString("number") != "TR-1" {
-		t.Fatalf("transfer number %s, want TR-1", original.GetString("number"))
+// A transfer is corrected by Edit or Void (spec §3); only the void's own
+// reversal may reverse it, so a one-click or automatic reversal is refused.
+func TestReverse_ATransferIsRefused(t *testing.T) {
+	const want = "A transfer cannot be reversed. Void it or edit it instead."
+	cases := []struct {
+		name     string
+		reversal func(t *testing.T, env *ledgerEnv, original *core.Record) *core.Record
+	}{
+		{
+			name: "a one-click reversal",
+			reversal: func(t *testing.T, env *ledgerEnv, original *core.Record) *core.Record {
+				return reversalDraftAs(t, env.app, original, "2026-06-01", "transfer")
+			},
+		},
+		{
+			name: "an automatic reversal",
+			reversal: func(t *testing.T, env *ledgerEnv, original *core.Record) *core.Record {
+				return saveRecord(t, env.app, "books_journal_entries", map[string]any{
+					"date": "2026-06-01", "status": "draft", "doc_type": "transfer", "origin": "auto_reversal",
+					"reverses": original.Id, "currency": "USD",
+				})
+			},
+		},
 	}
-	rev := mustPost(t, env.app, reversalDraftAs(t, env.app, original, "2026-06-01", "transfer").Id, "")
-	if rev.GetString("number") != "TR-2" || rev.GetString("doc_type") != "transfer" {
-		t.Fatalf("reversal = %v, want number TR-2 and doc_type transfer", rev.PublicExport())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newLedgerEnv(t)
+			savings := mkAccount(t, env.app, "Savings", "bank", "savings")
+			original := mustPost(t, env.app, transferDraft(t, env.app, "2026-05-10", env.checking, savings, 2500).Id, "")
+			if original.GetString("number") != "TR-1" {
+				t.Fatalf("transfer number %s, want TR-1", original.GetString("number"))
+			}
+			rev := tc.reversal(t, env, original)
+			requireRefused(t, setStatus(env.app, rev.Id, statusPosted, ""), want)
+			if r := reload(t, env.app, "books_journal_entries", rev.Id); r.GetString("status") != statusDraft || r.GetString("number") != "" {
+				t.Errorf("reversal after a refused post: %v", r.PublicExport())
+			}
+			if lines, err := entryLines(env.app, rev.Id); err != nil || len(lines) != 0 {
+				t.Errorf("reversal has %d lines (err %v), want none", len(lines), err)
+			}
+			if posted, err := postedReversalOf(env.app, original.Id); err != nil || posted != nil {
+				t.Errorf("posted reversal %v (err %v), want none", posted, err)
+			}
+			if s := reload(t, env.app, "books_journal_entries", original.Id).GetString("status"); s != statusPosted {
+				t.Errorf("transfer status %s after a refused reversal, want posted", s)
+			}
+			requireSequenceNext(t, env.app, "booksseqtransfr", 2)
+			requireSequenceNext(t, env.app, "booksseqjournal", 1)
+			requireNoDrift(t, env.app)
+		})
 	}
-	lines, _ := entryLines(env.app, rev.Id)
-	if len(lines) != 2 || lines[0].GetString("account") != env.checking.Id || lines[0].GetInt("debit") != 2500 ||
-		lines[1].GetString("account") != savings.Id || lines[1].GetInt("credit") != 2500 {
-		t.Fatalf("mirror lines wrong: %v", lines)
-	}
-	requireBalance(t, env.app, env.checking, "2026-06", 2500, 0)
-	requireBalance(t, env.app, savings, "2026-06", 0, 2500)
-	requireSequenceNext(t, env.app, "booksseqtransfr", 3)
-	requireSequenceNext(t, env.app, "booksseqjournal", 1)
-	requireNoDrift(t, env.app)
 }
 
 func TestEdit_PostsTheCorrectionUnderTheSameNumber(t *testing.T) {

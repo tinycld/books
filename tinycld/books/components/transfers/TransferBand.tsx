@@ -26,6 +26,7 @@ function AccountPair({ isWide, accounts, values, currency }: TransferBandProps) 
                 storedId={values.from}
                 isWide={isWide}
                 currency={currency}
+                autoFocus
             />
             <FlowArrow isWide={isWide} isInForm />
             <TransferAccountField

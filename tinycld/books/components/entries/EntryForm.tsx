@@ -4,6 +4,7 @@ import { type FieldErrors, FormProvider, useFormContext, useFormState } from 're
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useAccountOptions } from '../../hooks/useAccountOptions'
 import { useEntryForm } from '../../hooks/useEntryForm'
+import { useEntryFormShortcuts } from '../../hooks/useEntryFormShortcuts'
 import { type SaveOutcome, useEntrySubmit } from '../../hooks/useEntrySubmit'
 import type { EntryFormLine, LineTotals } from '../../lib/entry-lines'
 import type { EntryFormValues } from '../../lib/entry-schema'
@@ -28,7 +29,14 @@ interface EntryFormProps {
     onSaved(id: string, outcome: SaveOutcome): void
     onCancel(): void
     onBusyChange?(isBusy: boolean): void
+    // A saved draft's delete, for the ⌘⌫ key only: the journal draft keeps Delete draft in
+    // its header menu, so the action bar does not change.
+    onDeleteDraft?: () => void
 }
+
+// A form with no saved draft (new, or an edit of a posted entry) has nothing to delete; its
+// ⌘⌫ is never available, so this never runs.
+function noop() {}
 
 interface LinesProps {
     isWide: boolean
@@ -121,6 +129,7 @@ export function EntryForm({
     onSaved,
     onCancel,
     onBusyChange,
+    onDeleteDraft,
 }: EntryFormProps) {
     const isWide = useBreakpoint() !== 'mobile'
     const entryForm = useEntryForm({ initial, currency })
@@ -134,6 +143,18 @@ export function EntryForm({
         onSaved,
         onCancel,
         onBusyChange,
+    })
+    useEntryFormShortcuts({
+        group: 'Journal entry',
+        isPending: submit.isPending,
+        hasDraft: onDeleteDraft !== undefined,
+        run: {
+            post: submit.post,
+            postAndNew: submit.postAndNew,
+            saveDraft: submit.saveDraft,
+            cancel: submit.cancel,
+            deleteDraft: onDeleteDraft ?? noop,
+        },
     })
     const lineActions: LineActions = {
         onAdd: entryForm.addLine,

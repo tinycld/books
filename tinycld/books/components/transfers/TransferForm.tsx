@@ -2,6 +2,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { TextAreaInput } from '@tinycld/core/ui/form'
 import { FormProvider } from 'react-hook-form'
 import { ScrollView, View } from 'react-native'
+import { useEntryFormShortcuts } from '../../hooks/useEntryFormShortcuts'
 import type { SaveOutcome } from '../../hooks/useEntrySubmit'
 import type { useTransferAccounts } from '../../hooks/useTransferAccounts'
 import { useTransferForm } from '../../hooks/useTransferForm'
@@ -36,6 +37,10 @@ interface TransferFormProps {
 
 const MEMO_WIDE = { style: { maxWidth: 560 } }
 
+// A form with no saved draft (new, or an edit of a posted transfer) has nothing to delete;
+// its ⌘⌫ is never available, so this never runs.
+function noop() {}
+
 function FormHeader({
     isVisible,
     ...header
@@ -68,6 +73,18 @@ export function TransferForm({
         replaces,
         onSaved,
         onCancel,
+    })
+    useEntryFormShortcuts({
+        group: 'Transfer',
+        isPending: submit.isPending,
+        hasDraft: onDeleteDraft !== undefined,
+        run: {
+            post: submit.post,
+            postAndNew: submit.postAndNew,
+            saveDraft: submit.saveDraft,
+            cancel: submit.cancel,
+            deleteDraft: onDeleteDraft ?? noop,
+        },
     })
     const { form, values, amountText } = transferForm
     return (

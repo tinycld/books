@@ -71,6 +71,35 @@ test.describe('transfer: form', () => {
         await expect(page).toHaveURL(/\/books\/transfers\/new$/)
         const form = page.getByTestId('transfer-form')
         await expect(page.getByTestId('transfer-title')).toHaveText('New transfer')
+
+        // "Transfer from" has the focus when the form opens, with its menu closed: Enter
+        // opens the menu, and Escape closes only the menu.
+        const fromTrigger = page.getByTestId('transfer-from')
+        await expect(fromTrigger).toBeFocused()
+        await expect(page.getByRole('menuitem')).toHaveCount(0)
+        await page.keyboard.press('Enter')
+        await expect(
+            page.getByRole('menuitem', { name: TRANSFER_LABELS.savings, exact: true })
+        ).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('menuitem')).toHaveCount(0)
+        await expect(form).toBeVisible()
+        await expect(page).toHaveURL(/\/books\/transfers\/new$/)
+
+        // Core's shortcut list shows the form's keys under the Transfer group; Escape closes
+        // only the list.
+        await expect(fromTrigger).toBeFocused()
+        await page.keyboard.press('Shift+?')
+        const shortcutList = page.getByRole('dialog').filter({ hasText: 'Keyboard shortcuts' })
+        await expect(shortcutList).toBeVisible()
+        const transferGroup = shortcutList.getByText('Transfer', { exact: true }).locator('..')
+        await expect(transferGroup.getByText('Post', { exact: true })).toBeVisible()
+        await expect(transferGroup.getByText('Post & new', { exact: true })).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(shortcutList).toHaveCount(0)
+        await expect(form).toBeVisible()
+        await expect(page).toHaveURL(/\/books\/transfers\/new$/)
+
         await expect(page.getByTestId('transfer-badge')).toHaveText('Draft')
         await expect(page.getByTestId('transfer-amount')).toHaveText('—')
         await expect(page.getByTestId('transfer-date')).toHaveValue(await localToday(page))
@@ -121,9 +150,12 @@ test.describe('transfer: form', () => {
         await amountInput.blur()
         await expect(amountInput).toHaveValue(money)
         await expect(page.getByTestId('transfer-amount')).toHaveText(money)
-        await page.getByTestId('transfer-memo').fill(uniqueMemo('Overdraft transfer'))
+        const memoInput = page.getByTestId('transfer-memo')
+        await memoInput.fill(uniqueMemo('Overdraft transfer'))
 
-        await page.getByTestId('transfer-post').click()
+        // ⌘↵ posts from the memo field that still has the focus.
+        await expect(memoInput).toBeFocused()
+        await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(TRANSFER_URL)
         await expect(page.getByRole('dialog')).toHaveCount(0)
         await expect(page.getByTestId('transfer-error-summary')).toHaveCount(0)
@@ -192,24 +224,32 @@ test.describe('transfer: form', () => {
             amount: '12.34',
             memo,
         })
-        await page.getByTestId('transfer-save-draft').click()
+        // ⌘S saves the draft from the memo field that fillTransfer filled last.
+        const title = page.getByTestId('transfer-title')
+        const memoInput = page.getByTestId('transfer-memo')
+        await expect(memoInput).toBeFocused()
+        await page.keyboard.press('ControlOrMeta+s')
 
         await expect(page).toHaveURL(TRANSFER_URL)
         const id = transferIdFromUrl(page)
         const draftUrl = new RegExp(`/books/transfers/${id}$`)
-        await expect(page.getByTestId('transfer-title')).toHaveText('Draft transfer')
+        await expect(title).toHaveText('Draft transfer')
         await expect(page.getByTestId('transfer-from')).toHaveText(TRANSFER_LABELS.savings)
         await expect(page.getByTestId('transfer-amount-input')).toHaveValue('$12.34')
 
-        const memoInput = page.getByTestId('transfer-memo')
+        // Escape is Cancel: with an edit it asks first, and a second Escape closes only the
+        // dialog.
         const changed = `${memo} changed`
         await memoInput.fill(changed)
-        await page.getByTestId('transfer-cancel').click()
+        await expect(memoInput).toBeFocused()
+        await page.keyboard.press('Escape')
         const dialog = page.getByTestId('discard-dialog')
         await expect(dialog).toBeVisible()
         await expect(dialog).toContainText('Discard changes?')
-        await dialog.getByText('Keep editing', { exact: true }).click()
+        await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
+        await expect(page.getByTestId('transfer-form')).toBeVisible()
+        await expect(page).toHaveURL(draftUrl)
         await expect(memoInput).toHaveValue(changed)
 
         await page.getByTestId('transfer-cancel').click()

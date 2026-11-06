@@ -1,18 +1,24 @@
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Menu } from '@tinycld/core/ui/menu'
 import { View } from 'react-native'
+import { useReadViewShortcuts } from '../../hooks/useReadViewShortcuts'
 import type { EntryActionId } from '../../lib/entry-actions'
 
 interface EntryReadOnlyActionsProps {
     isVisible: boolean
     isWide: boolean
     actions: EntryActionId[]
+    // A void or reversal runs: the E, V and R keys do nothing.
+    isBusy?: boolean
+    // The group the E, V and R keys are listed under in core's shortcut list.
+    shortcutGroup: string
     onEdit(): void
     onReverse(): void
     onVoid(): void
 }
 
 const TAP = { minHeight: 44 }
+const NO_ACTIONS: readonly EntryActionId[] = []
 const BAR = 'flex-row items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2'
 
 function ActionButton({
@@ -68,10 +74,23 @@ export function EntryReadOnlyActions({
     isVisible,
     isWide,
     actions,
+    isBusy = false,
+    shortcutGroup,
     onEdit,
     onReverse,
     onVoid,
 }: EntryReadOnlyActionsProps) {
+    // While the bar is hidden no read key is registered, but the hook still holds its
+    // `thread` scope, so the keys of a form below it stay muted.
+    const keyActions = isVisible ? actions : NO_ACTIONS
+    useReadViewShortcuts({
+        group: shortcutGroup,
+        actions: keyActions,
+        isBusy,
+        onEdit,
+        onVoid,
+        onReverse,
+    })
     const canEdit = actions.includes('edit')
     const canReverse = actions.includes('reverse')
     const canVoid = actions.includes('void')

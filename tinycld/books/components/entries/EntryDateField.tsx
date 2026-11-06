@@ -9,10 +9,19 @@ interface EntryDateFieldProps {
     hint: string
     testID: string
     onEdit: () => void
+    // Focuses the text field once when the form opens.
+    autoFocus?: boolean
 }
 
 // A date typed as YYYY-MM-DD or picked from core's calendar; the schema validates either.
-export function EntryDateField({ name, label, hint, testID, onEdit }: EntryDateFieldProps) {
+export function EntryDateField({
+    name,
+    label,
+    hint,
+    testID,
+    onEdit,
+    autoFocus = false,
+}: EntryDateFieldProps) {
     const { control } = useFormContext<EntryFormValues>()
     const { field, fieldState } = useController({ control, name })
     const message = fieldState.error?.message
@@ -28,6 +37,7 @@ export function EntryDateField({ name, label, hint, testID, onEdit }: EntryDateF
                 withTime={false}
                 accessibilityLabel={label}
                 testID={testID}
+                autoFocus={autoFocus}
             />
             <FieldNote hint={hint} message={message} />
         </View>

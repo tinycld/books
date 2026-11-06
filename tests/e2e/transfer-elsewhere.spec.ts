@@ -51,7 +51,9 @@ test.describe('transfer: entry points', () => {
         await expect(button).toHaveText('Transfer')
         await button.click()
         await expect(page).toHaveURL(fromUrl)
-        await expect(page.getByTestId('transfer-from')).toHaveText(TRANSFER_LABELS.savings)
+        const fromTrigger = page.getByTestId('transfer-from')
+        await expect(fromTrigger).toHaveText(TRANSFER_LABELS.savings)
+        await expect(fromTrigger).toBeFocused()
         await expect(page.getByTestId('transfer-balance-from')).toHaveText(/^Balance /)
         await expect(page.getByTestId('transfer-post-new')).toBeHidden()
 
@@ -69,7 +71,9 @@ test.describe('transfer: entry points', () => {
         await expect(page.getByTestId('transfer-title')).toHaveText('New transfer')
         await expect(amount).toHaveValue('')
         await expect(memoInput).toHaveValue('')
-        await expect(page.getByTestId('transfer-from')).toHaveText(TRANSFER_LABELS.savings)
+        await expect(fromTrigger).toHaveText(TRANSFER_LABELS.savings)
+        // The fresh form focuses "Transfer from" again.
+        await expect(fromTrigger).toBeFocused()
 
         await page.getByTestId('transfer-cancel').click()
         await expect(page).toHaveURL(registerUrl)

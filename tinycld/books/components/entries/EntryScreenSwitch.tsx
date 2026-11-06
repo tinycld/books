@@ -86,6 +86,7 @@ function DraftScreen({ held, flipped, onSaveBusyChange, onDeleteBusyChange }: Dr
                     onSaved={onSaved}
                     onCancel={onBack}
                     onBusyChange={onSaveBusyChange}
+                    onDeleteDraft={del.open}
                     header={header}
                 />
             </View>

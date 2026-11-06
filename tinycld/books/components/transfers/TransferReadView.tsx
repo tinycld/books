@@ -109,6 +109,8 @@ export function TransferReadView({ detail }: { detail: ReadyTransferDetail }) {
                 isVisible
                 isWide={isWide}
                 actions={actions.actions}
+                isBusy={actions.isVoiding}
+                shortcutGroup="Transfer"
                 onEdit={actions.onEdit}
                 onReverse={noReverse}
                 onVoid={actions.onVoid}
