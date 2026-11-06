@@ -173,12 +173,13 @@ func TestSampleDocument_UsesTheCompanySettingsAndAddsUp(t *testing.T) {
 
 func TestPDFContentDisposition_SanitizesTheName(t *testing.T) {
 	for stem, want := range map[string]string{
-		"sample-invoice":   `attachment; filename="sample-invoice.pdf"`,
-		`Invoice 1042/"x"`: `attachment; filename="invoice-1042-x.pdf"`,
-		"../..":            `attachment; filename="document.pdf"`,
-		"Café Ltd":         `attachment; filename="caf-ltd.pdf"; filename*=UTF-8''Caf%C3%A9%20Ltd.pdf`,
-		"日本":               `attachment; filename="document.pdf"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.pdf`,
-		"é/\"..\\x\n":      `attachment; filename="x.pdf"; filename*=UTF-8''%C3%A9..x.pdf`,
+		"sample-invoice":          `attachment; filename="sample-invoice.pdf"`,
+		`Invoice 1042/"x"`:        `attachment; filename="invoice-1042-x.pdf"`,
+		"../..":                   `attachment; filename="document.pdf"`,
+		"Café Ltd":                `attachment; filename="caf-ltd.pdf"; filename*=UTF-8''Caf%C3%A9%20Ltd.pdf`,
+		"日本":                      `attachment; filename="document.pdf"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.pdf`,
+		"é/\"..\\x\n":             `attachment; filename="x.pdf"; filename*=UTF-8''%C3%A9..x.pdf`,
+		"Café\u202etxt.\u200bexe": `attachment; filename="caf-txt.-exe.pdf"; filename*=UTF-8''Caf%C3%A9txt.exe.pdf`,
 	} {
 		if got := pdfContentDisposition(stem); got != want {
 			t.Errorf("pdfContentDisposition(%q) = %q, want %q", stem, got, want)

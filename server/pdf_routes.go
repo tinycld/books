@@ -108,10 +108,11 @@ func isASCII(s string) bool {
 }
 
 // realFileName keeps the person's spelling but drops what could climb a
-// directory or break a header: path separators, quotes and control characters.
+// directory or break a header: path separators, quotes, control characters and format characters (bidi overrides,
+// zero-width characters) that could spoof the displayed name.
 func realFileName(stem string) string {
 	clean := strings.Map(func(r rune) rune {
-		if r == '/' || r == '\\' || r == '"' || r == utf8.RuneError || unicode.IsControl(r) {
+		if r == '/' || r == '\\' || r == '"' || r == utf8.RuneError || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			return -1
 		}
 		return r
