@@ -73,6 +73,8 @@
 - fix review: round 1: clean — 0 BLOCK; 2 NOTEs to Design notes (fix 5 checked: a live query is ready only when its `materialize` demands settle, so no not-found flash) · fresh critic on `error-*` / `importing-*`: 0 blocking, 1 NOTE to Design notes
 - gate 3 A notes: 1 (#2) under Design notes
 - reviewer-caught deferrals: none
+- commit: 2627a31
+- human: none (review mode C)
 
 ## Final review
 - eval:
