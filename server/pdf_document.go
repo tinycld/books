@@ -155,7 +155,8 @@ type pdfRow struct {
 
 type pdfBrand struct {
 	Color       template.CSS // validated #rrggbb
-	TextOnColor template.CSS // #ffffff or #111111, whichever reads on Color
+	TextOnColor template.CSS // #ffffff or #111111, whichever reads better on Color
+	Ink         template.CSS // Color when it reads as text on white, else #222222
 	LogoSrc     template.URL // a data: URI built here from the logo bytes
 	HasLogo     bool
 }
@@ -166,14 +167,19 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	for _, d := range doc.Dates {
 		v.Dates = append(v.Dates, pdfText{Label: d.Label, Text: formatDay(d.Day)})
 	}
-	v.Company = pdfBlock{Name: strings.TrimSpace(doc.Company.Name), Lines: lines(doc.Company.Address)}
+	v.Company = pdfBlock{
+		Name:  strings.TrimSpace(doc.Company.Name),
+		Lines: lines(doc.Company.Address),
+	}
 	if v.Company.Name == "" {
 		v.Company.Name = strings.TrimSpace(org.Name)
 	}
-	v.Company.Lines = append(v.Company.Lines, nonEmpty(doc.Company.Phone, doc.Company.Email, doc.Company.Website)...)
+	contact := nonEmpty(doc.Company.Phone, doc.Company.Email, doc.Company.Website)
+	v.Company.Lines = append(v.Company.Lines, contact...)
 	for _, p := range doc.Parties {
 		block := pdfBlock{Label: p.Label, Lines: nonEmpty(p.Name)}
-		if p.Company != "" && !strings.EqualFold(strings.TrimSpace(p.Company), strings.TrimSpace(p.Name)) {
+		sameAsName := strings.EqualFold(strings.TrimSpace(p.Company), strings.TrimSpace(p.Name))
+		if p.Company != "" && !sameAsName {
 			block.Lines = append(block.Lines, p.Company)
 		}
 		block.Lines = append(block.Lines, formatAddressLines(p.Address)...)
@@ -203,12 +209,22 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 func rowOf(l pdfLine, money func(int64) string) pdfRow {
 	switch l.Kind {
 	case lineSubtotal:
-		return pdfRow{Kind: "subtotal", Description: []string{"Subtotal"}, Amount: money(l.AmountCents)}
+		return pdfRow{
+			Kind:        "subtotal",
+			Description: []string{"Subtotal"},
+			Amount:      money(l.AmountCents),
+		}
 	case lineDescription:
 		return pdfRow{Kind: "description", Description: lines(l.Description)}
 	default:
-		return pdfRow{Kind: "item", Item: l.Item, Description: lines(l.Description), Quantity: l.Quantity,
-			Rate: money(l.RateCents), Amount: money(l.AmountCents)}
+		return pdfRow{
+			Kind:        "item",
+			Item:        l.Item,
+			Description: lines(l.Description),
+			Quantity:    l.Quantity,
+			Rate:        money(l.RateCents),
+			Amount:      money(l.AmountCents),
+		}
 	}
 }
 
@@ -231,21 +247,61 @@ func brandOf(org branding.Org) pdfBrand {
 	if !branding.IsValidColor(color) {
 		color = branding.DefaultColor
 	}
-	b := pdfBrand{Color: template.CSS(color), TextOnColor: template.CSS(textOn(color))}
+	b := pdfBrand{
+		Color:       template.CSS(color),
+		TextOnColor: template.CSS(textOn(color)),
+		Ink:         template.CSS(inkOnWhite(color)),
+	}
 	if len(org.Logo) > 0 && branding.IsLogoType(org.LogoType) {
-		b.LogoSrc = template.URL("data:" + org.LogoType + ";base64," + base64.StdEncoding.EncodeToString(org.Logo))
+		logo := base64.StdEncoding.EncodeToString(org.Logo)
+		b.LogoSrc = template.URL("data:" + org.LogoType + ";base64," + logo)
 		b.HasLogo = true
 	}
 	return b
 }
 
-// textOn picks the header text color for a brand color: white unless white
-// falls under 3:1 contrast (WCAG AA for large bold text), then near-black.
-// Anything that is not #rrggbb gets near-black.
+// Text colors the page uses beside the brand color.
+const (
+	pageWhite = "#ffffff"
+	nearBlack = "#111111"
+	pageInk   = "#222222" // the body text color of pdf_template.html
+)
+
+// textOn picks the header text color for a brand color: white or near-black,
+// whichever has the higher contrast. The 10pt bold column headers are not WCAG
+// large text, so no fixed threshold is safe. Anything that is not #rrggbb gets
+// near-black.
 func textOn(hex string) string {
 	if !branding.IsValidColor(hex) {
-		return "#111111"
+		return nearBlack
 	}
+	if contrast(hex, pageWhite) > contrast(hex, nearBlack) {
+		return pageWhite
+	}
+	return nearBlack
+}
+
+// inkOnWhite is the color of brand-colored text on the white page (the title):
+// the brand color when it reaches 4.5:1 on white (WCAG AA for normal text),
+// else the body text color, so a light brand such as yellow stays readable.
+func inkOnWhite(hex string) string {
+	if branding.IsValidColor(hex) && contrast(hex, pageWhite) >= 4.5 {
+		return hex
+	}
+	return pageInk
+}
+
+// contrast is the WCAG contrast ratio of two #rrggbb colors.
+func contrast(a, b string) float64 {
+	la, lb := luminance(a), luminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+// luminance is the WCAG relative luminance of a #rrggbb color.
+func luminance(hex string) float64 {
 	channel := func(i int) float64 {
 		v, _ := strconv.ParseUint(hex[i:i+2], 16, 8)
 		c := float64(v) / 255
@@ -254,9 +310,5 @@ func textOn(hex string) string {
 		}
 		return math.Pow((c+0.055)/1.055, 2.4)
 	}
-	luminance := 0.2126*channel(1) + 0.7152*channel(3) + 0.0722*channel(5)
-	if 1.05/(luminance+0.05) >= 3 {
-		return "#ffffff"
-	}
-	return "#111111"
+	return 0.2126*channel(1) + 0.7152*channel(3) + 0.0722*channel(5)
 }
