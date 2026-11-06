@@ -1,5 +1,6 @@
 import { z } from '@tinycld/core/ui/form'
 import { storedAddressSchema } from './address'
+import { EXEMPTION_REASON_KEYS } from './exemption-reasons'
 import { type ColumnsParse, optionalText, parseColumns } from './record-columns'
 
 /**
@@ -19,6 +20,10 @@ export const customerColumnsSchema = z.strictObject({
     parent: optionalText,
     billing_address: storedAddressSchema.nullable().optional(),
     shipping_address: storedAddressSchema.nullable().optional(),
+    tax_exempt: z.boolean().optional(),
+    exemption_reason: z.enum(EXEMPTION_REASON_KEYS).or(z.literal('')).optional(),
+    exemption_number: optionalText,
+    default_tax_rate: optionalText,
     notes: optionalText,
 })
 
@@ -46,6 +51,10 @@ export const EMPTY_CUSTOMER_FIELDS: Required<CustomerColumns> = {
     parent: '',
     billing_address: null,
     shipping_address: null,
+    tax_exempt: false,
+    exemption_reason: '',
+    exemption_number: '',
+    default_tax_rate: '',
     notes: '',
 }
 

@@ -41,6 +41,10 @@ Sales price is the price you usually charge. Income account is the account that 
 
 If you also buy the item, turn on I purchase this from a vendor to show Purchase description, Cost and Expense account. Cost is what you usually pay, and Expense account is the account that a purchase of this item goes to.
 
+## Taxable
+
+Turn on Taxable to charge sales tax on the item when you sell it. A new Non-inventory item starts taxable, and a new Service starts with Taxable off. If you change the type of a new item, Taxable keeps its value. A bundle has no Taxable setting, because each item in it has its own. To set up the tax rates that you charge, see [Sales tax](help://books:sales-tax).
+
 ## Bundles
 
 A bundle is a list of items that you sell together. To add an item to a bundle, choose Add row, pick a product or service and set its Qty. To change the order of the items, move a row up or down with its arrows. To take an item out, remove its row.

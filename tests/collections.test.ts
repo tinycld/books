@@ -17,6 +17,8 @@ const NAMES = [
     'books_bundle_items',
     'books_bank_connections',
     'books_bank_files',
+    'books_tax_agencies',
+    'books_tax_rates',
 ]
 
 function register() {
@@ -158,5 +160,24 @@ describe('registerCollections', () => {
             'status',
             'uploaded_by',
         ])
+    })
+
+    // The guard sets name_key and sort_key on every write. The Taxes page reads a
+    // group's rates from the rates the agencies query holds, so neither
+    // collection files related rows.
+    it('registers the sales tax agencies and rates on demand, omitting what the server sets, with no relations', () => {
+        const { calls } = register()
+        for (const name of ['books_tax_agencies', 'books_tax_rates']) {
+            expect(calls.has(name), name).toBe(true)
+            expect(calls.get(name)?.syncMode, name).toBe('on-demand')
+            expect(calls.get(name)?.realtime, name).toBe('query')
+            expect(calls.get(name)?.omitOnInsert, name).toEqual([
+                'created',
+                'updated',
+                'name_key',
+                'sort_key',
+            ])
+            expect(calls.get(name)?.relations, name).toBeUndefined()
+        }
     })
 })

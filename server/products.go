@@ -36,6 +36,10 @@ const (
 	msgProductOnBundles            = "This item is in %d bundles. Take it out of them first, or make it inactive."
 )
 
+// tinycld/books/lib/tax-messages.ts copies this refusal;
+// tests/tax-messages.test.ts fails when this wording drifts.
+const msgBundleNotTaxable = "A bundle has no tax setting of its own; each item in it has one."
+
 // maxBundleItems is the most rows one bundle holds.
 const maxBundleItems = 50
 
@@ -90,6 +94,10 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 		return err
 	}
 	if kind == "bundle" {
+		// A bundle's lines take their taxability from each item.
+		if r.GetBool("taxable") {
+			return refuseField("taxable", msgBundleNotTaxable)
+		}
 		if bundleHasOwn(r) {
 			return refuse(msgBundleHasNoOwn)
 		}

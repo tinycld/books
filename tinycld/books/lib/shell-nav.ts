@@ -1,5 +1,13 @@
 import type { LucideIcon } from 'lucide-react-native'
-import { BarChart3, BookOpen, FileText, Landmark, List, Settings } from 'lucide-react-native'
+import {
+    BarChart3,
+    BookOpen,
+    FileText,
+    Landmark,
+    List,
+    Percent,
+    Settings,
+} from 'lucide-react-native'
 import type { BooksAccessState } from './access'
 import { hasAvailableReport } from './report-registry'
 
@@ -57,6 +65,14 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         icon: FileText,
         href: 'books/entries',
         group: 'accounting',
+        available: true,
+    },
+    {
+        id: 'taxes',
+        label: 'Taxes',
+        icon: Percent,
+        href: 'books/taxes',
+        group: 'settings',
         available: true,
     },
     {

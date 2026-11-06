@@ -634,3 +634,108 @@ func TestCustomer_DuplicateNameDecomposesBeforeFolding(t *testing.T) {
 		t.Errorf("%d customers after the refusal, want 1", n)
 	}
 }
+
+// An exempt customer needs a reason; a default sales tax is checked when it
+// changes. Hidden values stay stored: Books refuses rather than restores, and
+// the invoice unit ignores the default of an exempt customer.
+func TestCustomer_TaxChecks(t *testing.T) {
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	state := mkTaxRate(t, app, "Colorado state", 29000, agency)
+	city := mkTaxRate(t, app, "Denver city", 48100, agency)
+	combined := mkTaxGroup(t, app, "Denver combined", state, city)
+	retired := mkTaxRate(t, app, "Retired rate", 35000, agency)
+	if err := setTaxRate(t, app, retired.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Retired rate inactive: %v", err)
+	}
+
+	t.Run("exempt with no reason", func(t *testing.T) {
+		_, err := newCustomer(app, map[string]any{"display_name": "No reason", "tax_exempt": true})
+		requireFieldRefusal(t, err, "exemption_reason", "Choose an exemption reason.")
+	})
+	t.Run("exempt for resale", func(t *testing.T) {
+		r, err := newCustomer(app, map[string]any{"display_name": "Reseller", "tax_exempt": true, "exemption_reason": "resale"})
+		if err != nil {
+			t.Fatalf("an exempt customer with a reason was refused: %v", err)
+		}
+		stored := reload(t, app, "books_customers", r.Id)
+		if !stored.GetBool("tax_exempt") || stored.GetString("exemption_reason") != "resale" {
+			t.Errorf("stored tax_exempt %v, exemption_reason %q", stored.GetBool("tax_exempt"), stored.GetString("exemption_reason"))
+		}
+		requireFieldRefusal(t, setCustomer(t, app, r.Id, map[string]any{"exemption_reason": ""}),
+			"exemption_reason", "Choose an exemption reason.")
+	})
+	t.Run("a missing default", func(t *testing.T) {
+		_, err := newCustomer(app, map[string]any{"display_name": "Missing default", "default_tax_rate": "nosuchrate00001"})
+		requireFieldRefusal(t, err, "default_tax_rate", "The default sales tax does not exist.")
+	})
+	t.Run("an inactive default", func(t *testing.T) {
+		_, err := newCustomer(app, map[string]any{"display_name": "Inactive default", "default_tax_rate": retired.Id})
+		requireFieldRefusal(t, err, "default_tax_rate", "The default sales tax is inactive.")
+		c := mkCustomer(t, app, "Moves to inactive", "")
+		requireFieldRefusal(t, setCustomer(t, app, c.Id, map[string]any{"default_tax_rate": retired.Id}),
+			"default_tax_rate", "The default sales tax is inactive.")
+	})
+	t.Run("a group as the default", func(t *testing.T) {
+		r, err := newCustomer(app, map[string]any{"display_name": "Denver shop", "default_tax_rate": combined.Id})
+		if err != nil {
+			t.Fatalf("a customer whose default is a group was refused: %v", err)
+		}
+		if got := reload(t, app, "books_customers", r.Id).GetString("default_tax_rate"); got != combined.Id {
+			t.Errorf("default_tax_rate = %q, want %q", got, combined.Id)
+		}
+	})
+	t.Run("a default that became inactive is kept", func(t *testing.T) {
+		boulder := mkTaxRate(t, app, "Boulder city", 38600, agency)
+		r, err := newCustomer(app, map[string]any{"display_name": "Boulder shop", "default_tax_rate": boulder.Id})
+		if err != nil {
+			t.Fatalf("save Boulder shop: %v", err)
+		}
+		if err := setTaxRate(t, app, boulder.Id, map[string]any{"inactive": true}); err != nil {
+			t.Fatalf("make Boulder city inactive: %v", err)
+		}
+		if err := setCustomer(t, app, r.Id, map[string]any{"display_name": "Boulder shop renamed"}); err != nil {
+			t.Fatalf("renaming a customer whose unchanged default is inactive was refused: %v", err)
+		}
+		stored := reload(t, app, "books_customers", r.Id)
+		if stored.GetString("display_name") != "Boulder shop renamed" || stored.GetString("default_tax_rate") != boulder.Id {
+			t.Errorf("stored %q with default %q, want the rename with %q kept",
+				stored.GetString("display_name"), stored.GetString("default_tax_rate"), boulder.Id)
+		}
+	})
+	t.Run("an exempt customer keeps its stored default", func(t *testing.T) {
+		r, err := newCustomer(app, map[string]any{"display_name": "Turns exempt", "default_tax_rate": state.Id})
+		if err != nil {
+			t.Fatalf("save Turns exempt: %v", err)
+		}
+		if err := setCustomer(t, app, r.Id, map[string]any{"tax_exempt": true, "exemption_reason": "nonprofit"}); err != nil {
+			t.Fatalf("making a customer with a default exempt was refused: %v", err)
+		}
+		stored := reload(t, app, "books_customers", r.Id)
+		if !stored.GetBool("tax_exempt") || stored.GetString("default_tax_rate") != state.Id {
+			t.Errorf("stored tax_exempt %v, default %q, want true with %q kept",
+				stored.GetBool("tax_exempt"), stored.GetString("default_tax_rate"), state.Id)
+		}
+	})
+	t.Run("a reason outside the ten", func(t *testing.T) {
+		_, err := newCustomer(app, map[string]any{"display_name": "Odd reason", "tax_exempt": true, "exemption_reason": "diplomat"})
+		requireSchemaRefusal(t, err, "exemption_reason")
+	})
+	t.Run("the certificate number length", func(t *testing.T) {
+		_, err := newCustomer(app, map[string]any{
+			"display_name": "Long certificate", "tax_exempt": true, "exemption_reason": "resale",
+			"exemption_number": strings.Repeat("7", 101),
+		})
+		requireSchemaRefusal(t, err, "exemption_number")
+		r, err := newCustomer(app, map[string]any{
+			"display_name": "Longest certificate", "tax_exempt": true, "exemption_reason": "resale",
+			"exemption_number": strings.Repeat("7", 100),
+		})
+		if err != nil {
+			t.Fatalf("a 100-character certificate number was refused: %v", err)
+		}
+		if got := len(reload(t, app, "books_customers", r.Id).GetString("exemption_number")); got != 100 {
+			t.Errorf("exemption_number has %d characters, want 100", got)
+		}
+	})
+}

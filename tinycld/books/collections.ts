@@ -167,6 +167,21 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // No relations: the Taxes page materializes each agency's rates with a
+    // subquery and finds a group's rates among those, so nothing is filed through
+    // a relation. The guard sets name_key and sort_key.
+    const books_tax_agencies = newCollection('books_tax_agencies', {
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    const books_tax_rates = newCollection('books_tax_rates', {
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_bank_connections,
@@ -183,5 +198,7 @@ export function registerCollections(
         books_vendors,
         books_products,
         books_bundle_items,
+        books_tax_agencies,
+        books_tax_rates,
     }
 }

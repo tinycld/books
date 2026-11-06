@@ -82,6 +82,20 @@ describe('help/customers.md', () => {
         )
     })
 
+    it('explains the sales tax fields, and that the default is hidden while the customer is exempt', () => {
+        for (const label of [
+            'This customer is tax exempt',
+            'Exemption reason',
+            'Exemption certificate number',
+            'Default sales tax',
+        ]) {
+            expect(body, label).toContain(label)
+        }
+        expect(body).toMatch(
+            /(?=[^.\n]*Default sales tax)(?=[^.\n]*\b(hidden|hides|not shown|does not show)\b)[^.\n]*\bexempt\b/i
+        )
+    })
+
     it('explains custom fields from Settings → Forms', () => {
         expect(body).toMatch(/custom fields?/i)
         expect(body).toMatch(/Settings\s*(→|>)\s*Forms/)

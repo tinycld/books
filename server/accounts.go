@@ -24,6 +24,16 @@ const (
 // tests/account-messages.test.ts fails when this wording drifts.
 const msgBoxNeedsExpenseType = "Only expense accounts can be reported on a 1099. Set this account to Not reported in Settings → 1099s first."
 
+// Account refusals while tax agencies name the account.
+// tinycld/books/lib/tax-messages.ts copies them;
+// tests/tax-messages.test.ts fails when this wording drifts.
+const (
+	msgAccountUsedByOneAgency = "This account is the liability account of 1 tax agency and cannot be deleted. Choose another account for the agency first."
+	msgAccountUsedByAgencies  = "This account is the liability account of %d tax agencies and cannot be deleted. Choose another account for them first."
+	msgAccountActiveAgency    = "This account is the liability account of an active tax agency. Choose another account for the agency or make the agency inactive first."
+	msgAccountAgencyType      = "This account is the liability account of a tax agency, so it stays an Other current liability account."
+)
+
 // Every account guard reads other rows (the parent chain, sub-accounts, line
 // counts) inside serialized, so no post, line or other account write can
 // commit between the check and the write it allows.
@@ -174,6 +184,17 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 		if children > 0 {
 			return refuse("Sub-accounts share their parent's type. Change or move the %d sub-accounts first.", children)
 		}
+		// An agency's tax posts to its account, so the account stays a liability
+		// while any agency, active or not, names it.
+		if stored.GetString("type") == "other_current_liability" {
+			agencies, err := app.CountRecords("books_tax_agencies", dbx.HashExp{"account": next.Id})
+			if err != nil {
+				return err
+			}
+			if agencies > 0 {
+				return refuse(msgAccountAgencyType)
+			}
+		}
 	}
 	if !stored.GetBool("inactive") && next.GetBool("inactive") {
 		connected, err := connectionOf(app, next.Id)
@@ -189,6 +210,15 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 		}
 		if active > 0 {
 			return refuse("Make the %d active sub-accounts inactive first.", active)
+		}
+		// An active agency's tax posts to its account, so the account cannot be
+		// made inactive while an active agency names it.
+		agencies, err := app.CountRecords("books_tax_agencies", dbx.HashExp{"account": next.Id, "inactive": false})
+		if err != nil {
+			return err
+		}
+		if agencies > 0 {
+			return refuse(msgAccountActiveAgency)
 		}
 	}
 	return nil
@@ -224,6 +254,19 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if products > 1 {
 		return refuse(msgAccountUsedByProducts, products)
+	}
+	// An agency's account is a required relation, so PocketBase refuses the
+	// delete with a generic message; this one says what to do instead. An
+	// inactive agency still names its account.
+	agencies, err := app.CountRecords("books_tax_agencies", dbx.HashExp{"account": r.Id})
+	if err != nil {
+		return err
+	}
+	if agencies == 1 {
+		return refuse(msgAccountUsedByOneAgency)
+	}
+	if agencies > 1 {
+		return refuse(msgAccountUsedByAgencies, agencies)
 	}
 	children, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": r.Id})
 	if err != nil {
