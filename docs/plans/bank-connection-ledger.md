@@ -39,12 +39,21 @@
 - cp 2 · gate 3 A: `refuseNamed` (server/errors.go) relies on the caller's format ending with a period; every current format does, nothing enforces it.
 - cp 2 · gate 3 A: a connection's `account` is pinned only by the REST update rule; a Go caller can re-point it without `checkBankConnection` (the spec names create only).
 - cp 2 · later units: a message that starts with a name (a file name, a number-less lowercase account name) must use `refuseNamed`, not `refuse`: PocketBase `NewBadRequestError` Sentenizes (capitalizes) the message (third_party/pocketbase/tools/router/error.go).
+- cp 3 · gate 3 A + B (for the human): `uploadErrorText` follows the Decisions rule word for word, so any `Error` with a message counts as a refusal shown as written and is not logged: a 5xx whose body has a message (PocketBase 500 "Something went wrong while processing your request."), core's `DOMException('Aborted', 'AbortError')` (core/file-viewer/send-form-data.ts, native-upload.native.ts), and native "FileReader did not return an ArrayBuffer". Telling 4xx from 5xx needs core `uploadFormDataWithProgress` to expose the status (a core change request, not made); treating `AbortError` as transport is a Books-only change if wanted.
+- cp 3 · gate 3 A: the `totals` subquery (as `accountsWithBalances`) has no `where`, so it loads and subscribes to every `books_account_balances` row; `waiting` loads every `uploaded` file in Books. Grows with accounts × months.
+- cp 3 · gate 3 A + B: `fileSizeText` gives "1024 KB" for 1,048,064–1,048,575 bytes (declared; within "below 1 MiB: whole KB").
+- cp 3 · gate 3 A: `institution` is not trimmed: a name of spaces passes and `bankDetailsText` gives "   ••4821" (the spec asks for no trim).
+- cp 3 · gate 3 A: with only an inactive bank account, `connectEmptyReason` is 'none' ("Your chart of accounts has no bank or credit card account."), as checkpoint test 7 agreed; the wording is not quite true.
+- cp 3 · gate 3 A: `uploadedOnText('')` gives "Invalid Date"; no path reaches it (rows come from the server with `created`).
+- cp 3 · later checkpoints: `bankConnectionsQuery` sorts in chart order (number-less last, numbers numeric, names case-insensitive, then id) with `custom` string sorts, so pbtsdb gets no sort hint and the client sorts; adding a `limit` would force a full-source load. E2E accounts made by tests (number-less) sort LAST in the strip.
 
 ## Out-of-plan changes
 - cp 1 · docs/specs/bank-connection-design.md: §4 books_bank_files table rows `format` and `content_hash` now say "required", to match the migration (implementer's declared difference 1; reviewer B finding 2).
 - cp 2 · server/errors.go: new `refuseNamed(format, args…)` — the same 400 ApiError as `refuse` with the message kept as written, because PocketBase Sentenizes the message ("oct-2026.csv" became "Oct-2026.csv"); used for the duplicate, already-connected, disconnect-refused and three connected-account messages (implementer's declared difference 1; reviewers A and B accepted).
 - cp 2 · server/registrations_test.go: one caller (TestAudit_LabelsBankRecords) moved to `mustSaveBankFile(…, sha256Hex(bankCSV), "uploaded")` because the plan's `saveBankFile(app, connectionID, name, hash, status) (*core.Record, error)` replaced checkpoint 1's helper of the same name; same bytes and hash, not weakened.
 - cp 2 · test helpers not named in the plan: `mustSaveBankFile` (server/banking_upload_test.go); `saveConnection`, `requireConnectionCount`, `requireRecordExists`, `requireRecordGone`, `uploadDay` (server/banking_guards_test.go).
+- cp 3 · tinycld/books/lib/account-tree.ts: `compareText` and `compareNumbers` exported (no behavior change) so `bankConnectionsQuery` sorts with the chart's own comparators instead of a copy (gate 3 A finding 1 fix).
+- cp 3 · docs/plans/bank-connection-checkpoints.md: E2E rules sentence "A number-less account sorts first in chart order" was untrue of `compareNumberThenName`; now "sorts last … behind every other spec's accounts" (gate 3 A finding 1).
 
 ## Phase notes
 - phase 1: design gate 2026-11-05 (auto-helix). Intake and packet: ~/tmp/tinycld/auto-helix-books/staging/p4-bank-connection/{intake.md,packet.md}. The human accepted every recommended answer (open questions 1–17) and signed off the `[platform]` item (drag and drop on web only; "Choose file" on both).
@@ -89,6 +98,22 @@
 - reviewer-caught deferrals: none
 - out-of-plan: server/errors.go, server/registrations_test.go (see Out-of-plan changes)
 - commit: 40fe855
+- human: n/a (review mode C)
+
+## Checkpoint 3 — Client banking rules and query
+- test writer: tests/bank-connections.test.ts (new, 27 tests: drift against server/banking.go, isBankAccount, connectionSchema/bankDetailsSchema incl. code points, bankFileIssue/droppedFilesIssue order and limits, every text helper, uploadErrorText, connectEmptyReason/isConnectable, cardBalance, selectedConnectionId, isBankFileRow), tests/bank-connections-query.test.ts (new, 3 tests over real local-only collections + createLiveQueryCollection). Red for the right reason: yes — in the repo both files fail at import (missing modules); against a behavior-less scratch stub of every export 29/30 fail on wrong values (the 30th, the four extensions → null, made red by a case-sensitive variant); a scratch reference implementation passed 30/30 and tsc. Drift regex for `maxBankFileBytes` is `/\bmaxBankFileBytes\s*=\s*(\d+)/` (the plan's `const maxBankFileBytes = (\d+)` cannot match the Go `const (...)` block). Untestable: none.
+- implementer: lib/bank-connections.ts (types, limits, texts, both schemas, file checks, display texts, uploadErrorText, connect/selection helpers, isBankFileRow) and lib/bank-connections-query.ts (the plan's one query, unchanged). DONE
+- test disputes: none
+- self-declared differences: (1) `institution` length is a `refine` on `Array.from(v).length` (Do step 1 code points), not `.max`; (2) schemas left as inferred `z.object` (all strings, input = output; a `ZodType<T,T>` annotation would drop `.omit`); (3) `uploadErrorText` does not `log.warn` — its signature has no connection id; the caller in checkpoint 6 logs (plan cp6 Do step puts it there); (4) private `firstFileIssue` helper; (5) `fileSizeText` rounds KB (`Math.max(1, Math.round(b/1024))`); (6) label lookups via `Record` with `?? ''`.
+- gate 1: tests unedited: yes · tinycld-pkg check pass (biome 790 files clean, tsc clean, vitest 187 files / 3541 tests) · no Go or e2e change in this checkpoint · pass
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): BLOCK 1 — the query ordered by number then name with TanStack DB's plain string compare, so a number-less account came first and '10500' sorted before '900', against spec §3 "Account strip: one card per connection, in chart order" (chart order: lib/account-tree.ts `compareNumberThenName || compareId`) → accepted+fixed: fresh test-writer added "sorts the rows in chart order: numbers numerically, names without case, no number last" (red: received " Petty Cash Bank", "1000 Main Bank", "10500 Reserve Bank", "1200 cash drawer", "1200 Cash Drawer", "900 Old Bank"); fresh implementer ordered by `eq(account.number, '')`, `account.number` (custom `compareNumbers`), `account.name` (custom `compareText`), `account.id` (lexical), still one query; the plan's E2E-rules sentence corrected. NOTEs 2–7 → Design notes.
+- gate 3 B (conformance): no rule break; staged set equals the Files block. Observation 1 (uploadErrorText classes 5xx-with-message as a refusal) → Design notes (Decisions text, needs core status). Observation 2 (bankFileFormatLabel comment gave an untrue reason) → accepted+fixed (comment). Observation 3 (1024 KB) → Design notes.
+- fix review: round 1: reviewer A pass over the fix diff (query order keys, account-tree exports, comment): clean, no BLOCK, no NOTE. Gate 1 after the fix: tests unedited (only the new test, staged by the loop), tinycld-pkg check pass (187 files / 3542 tests).
+- gate 3 A notes: 6, listed under Design notes
+- reviewer-caught deferrals: none
+- out-of-plan: tinycld/books/lib/account-tree.ts, docs/plans/bank-connection-checkpoints.md (see Out-of-plan changes)
+- commit: (this commit)
 - human: n/a (review mode C)
 
 ## Final review
