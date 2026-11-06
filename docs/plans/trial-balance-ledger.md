@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/trial-balance-checkpoints.md
 - reference: docs/plans/trial-balance-reference/
 - evidence: docs/plans/trial-balance-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-06)
 - capture manifest: docs/plans/trial-balance-capture.json
 - review mode: C — none (unattended)
 - core extension: report engine spec v2 (E1–E14) and the report formula editor (OQ2) — tinycld PR https://github.com/tinycld/tinycld/pull/424 (merged 2026-11-03, ba0eb769); checkpoint 0, merges before checkpoint 1; MAJOR, `exclusive` held by lane purchases until it merges. Runs as writing-plans → the human's plan review → subagent-driven development → core PR.
@@ -246,7 +246,7 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
+- eval: approved by the human 2026-11-06 (screen, retrospective, memories). Integration merge f9e7003 (books main 4a672bb). Full suite at f9e7003 first red (trial-balance.spec.ts:271 phone: core report list kept the old row anchored after a filter change); fixed in core PR #441 (aa16a677: a run with new params or a changed design starts at the top; also a PocketBase fork realtime drain-order fix); full suite re-run at f9e7003: 274 passed, 1 skipped. Open design notes left for the human (disabled user share, publish later, Revision bump, void line order).
 - note (cp 3 reviewer A NOTE, settled by the spec, no change): under Rows = Active or All, a P&L account whose only posted lines are dated before the fiscal year that holds the as-of day has no row; those amounts count on the retained-earnings row. Spec §3 settles it: "income and expense lines dated before the fiscal year that holds the as-of day count on the retained-earnings account's row, not on their own".
 - human comments and what changed
 - native: not executed in this run
