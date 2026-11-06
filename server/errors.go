@@ -14,6 +14,18 @@ func refuse(format string, args ...any) error {
 	return apis.NewBadRequestError(fmt.Sprintf(format, args...), nil)
 }
 
+// refuseNamed is refuse for a message that starts with a name people typed (a
+// file name, an account name). PocketBase capitalizes an ApiError's first
+// letter, which would turn "oct-2026.csv" into a file the person never
+// uploaded, so the message is put back as written. The format must end with a
+// period, which PocketBase would otherwise add.
+func refuseNamed(format string, args ...any) error {
+	msg := fmt.Sprintf(format, args...)
+	err := apis.NewBadRequestError(msg, nil)
+	err.Message = msg
+	return err
+}
+
 // refuseField is refuse for a rule that belongs to one field: the 400's data
 // names the field, in the shape PocketBase gives its own field errors, so the
 // client's form shows the message under that field.

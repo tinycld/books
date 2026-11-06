@@ -53,6 +53,8 @@ When journal entries are available and you have bookkeeper access, the New journ
 
 To move money out of this account, choose Transfer. The Transfer button appears only on an active account that a transfer can use, such as a bank or credit card account. A read-only user does not see it. See [Transfers](help://books:transfers).
 
+To upload the statements your bank exports for a bank or credit card account, see [Banking](help://books:banking).
+
 ## Empty and error states
 
 An account with no transactions shows "No transactions yet". If you can create entries and journal entries are available, the empty state also has a New journal entry button. When only the chosen range is empty, the register says so. The Show this fiscal year button appears when another range is selected. Choose it to widen the range.

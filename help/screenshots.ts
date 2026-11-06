@@ -57,6 +57,19 @@ async function openBusinessCheckingRegister(page: Page) {
     )
 }
 
+// The seeded 1000 Business Checking connection holds the seeded statement file.
+async function openBankingForShot(page: Page) {
+    await navigateToPackage(page, 'books')
+    await page.getByTestId('books-nav-banking').click()
+    const checking = page
+        .getByTestId('bank-strip')
+        .locator('[data-testid^="bank-card-"]')
+        .filter({ has: page.getByText('1000 Business Checking', { exact: true }) })
+    await checking.click()
+    await expect(checking).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId('bank-files')).toBeVisible()
+}
+
 export default {
     'chart-of-accounts': [
         {
@@ -70,6 +83,13 @@ export default {
             name: 'account-register-1',
             setup: openBusinessCheckingRegister,
             target: '[data-testid="register-table"]',
+        },
+    ],
+    banking: [
+        {
+            name: 'banking-1',
+            setup: openBankingForShot,
+            target: '[data-testid="banking-screen"]',
         },
     ],
 } satisfies ScreenshotPlan

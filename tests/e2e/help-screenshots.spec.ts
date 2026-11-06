@@ -7,6 +7,7 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 const TOPICS = [
     { title: 'Chart of Accounts', image: 'chart-of-accounts-1' },
     { title: 'Account register', image: 'account-register-1' },
+    { title: 'Banking', image: 'banking-1' },
 ]
 
 async function openTopic(page: Page, title: string) {
