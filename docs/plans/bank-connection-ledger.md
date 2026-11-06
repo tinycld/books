@@ -220,7 +220,7 @@
 - reviewer-caught deferrals: none
 - out-of-plan: docs/plans/bank-connection-checkpoints.md (fix round), interface changes (see Out-of-plan changes)
 - rounds: 1
-- commit: (this commit; sha in the next ledger commit)
+- commit: 05460e3
 - human: n/a (review mode C)
 
 ## Final review
