@@ -41,6 +41,9 @@ function LineRefusal({ side }: { side: 'from' | 'to' }) {
 interface TransferAccountFieldProps extends BalanceProps {
     label: string
     isWide: boolean
+    // Focuses the trigger once when the form opens, without opening its menu (web only;
+    // core SelectInput does nothing with it on native).
+    autoFocus?: boolean
 }
 
 // Wide, the two fields share the row; on a phone they stack, where flex-1 would let the
@@ -52,6 +55,7 @@ export function TransferAccountField({
     storedId,
     isWide,
     currency,
+    autoFocus = false,
 }: TransferAccountFieldProps) {
     const { control } = useFormContext<TransferFormValues>()
     // A stored account the list no longer offers (inactive, or retyped) shows by name.
@@ -66,6 +70,7 @@ export function TransferAccountField({
                 placeholder={triggerLabel || 'Choose an account'}
                 testID={`transfer-${side}`}
                 wrapperProps={{ style: { marginBottom: 4 } }}
+                autoFocus={autoFocus}
             />
             <BalanceLine side={side} accounts={accounts} storedId={storedId} currency={currency} />
             <LineRefusal side={side} />

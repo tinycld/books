@@ -86,7 +86,49 @@ describe('help/transfers.md', () => {
     it.each(['journal-entries.md', 'account-register.md'])('is linked from %s', name => {
         expect(read(name)).toContain('help://books:transfers')
     })
+
+    describe('keyboard', () => {
+        const keys = keyboardSection(body)
+
+        it('has a keyboard section', () => {
+            expect(keys).not.toBe('')
+        })
+
+        it.each(['⌘↵', '⌘⇧↵', '⌘S', 'Esc', '⌘⌫'])('names the form key %s', key => {
+            expect(keys).toContain(key)
+        })
+
+        it('names E for Edit and V for Void', () => {
+            expect(keys).toMatch(/\bE\b[^\n]*\bEdit\b|\bEdit\b[^\n]*\bE\b/)
+            expect(keys).toMatch(/\bV\b[^\n]*\bVoid\b|\bVoid\b[^\n]*\bV\b/)
+        })
+
+        it('says Transfer from has focus when the form opens in a web browser', () => {
+            const lines = linesMatching(body, /transfer from[^\n]*focus|focus[^\n]*transfer from/i)
+            expect(lines).not.toEqual([])
+            for (const line of lines) expect(line).toMatch(/web browser/i)
+        })
+
+        it('says the form keys also work in a text box and E and V do not', () => {
+            expect(keys).toMatch(/text box/i)
+            expect(keys).not.toMatch(/click outside/i)
+        })
+
+        it('names the shortcut list key without the ⇧ glyph', () => {
+            expect(keys).toMatch(/press \?/i)
+            expect(body).not.toContain('⇧?')
+        })
+    })
 })
+
+function linesMatching(text: string, pattern: RegExp): string[] {
+    return text.split('\n').filter(line => pattern.test(line))
+}
+
+// The body of the first `## …` section whose heading names the keyboard.
+function keyboardSection(text: string): string {
+    return /\n## [^\n]*keyboard[^\n]*([\s\S]*?)(\n## |$)/i.exec(`\n${text}`)?.[1] ?? ''
+}
 
 describe('help passages that change once transfers ship', () => {
     const register = read('account-register.md')

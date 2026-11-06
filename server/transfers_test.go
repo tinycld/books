@@ -172,9 +172,10 @@ func TestTransfer_VoidPostsATransferReversal(t *testing.T) {
 	if err != nil || rev == nil {
 		t.Fatalf("posted reversal %v (err %v), want one", rev, err)
 	}
-	if rev.GetString("doc_type") != docTypeTransfer || rev.GetString("origin") != originVoidReversal || rev.GetString("number") != "TR-1" {
-		t.Fatalf("reversal doc_type %q origin %q number %q, want transfer, void_reversal, TR-1",
-			rev.GetString("doc_type"), rev.GetString("origin"), rev.GetString("number"))
+	if rev.GetString("status") != statusPosted || rev.GetString("doc_type") != docTypeTransfer ||
+		rev.GetString("origin") != originVoidReversal || rev.GetString("number") != "TR-1" {
+		t.Fatalf("reversal status %q doc_type %q origin %q number %q, want posted, transfer, void_reversal, TR-1",
+			rev.GetString("status"), rev.GetString("doc_type"), rev.GetString("origin"), rev.GetString("number"))
 	}
 	requireBalance(t, env.app, env.checking, "2026-05", 2500, 2500)
 	requireBalance(t, env.app, savings, "2026-05", 2500, 2500)

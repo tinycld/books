@@ -74,6 +74,19 @@ A bookkeeper moves an amount from one balance-sheet account to another on a date
 - Settings → Numbering shows a second card, "Transfers", with its prefix and next number.
 - Audit log label: "Transfer TR-3" / "Draft transfer <date>".
 
+### Keyboard
+
+Added at the eval gate (2026-11-05, human): "for forms like this that will be used a lot for data entry, we should: autofocus the first input; set keyboard shortcuts for the each of action buttons."
+
+- The transfer form (new, draft, and edit of a posted transfer) focuses "Transfer from" when it opens, at every width, without opening its menu; after Post & new the fresh form focuses "Transfer from" again. On iOS and Android the trigger takes no focus (core `SelectInput` `autoFocus` does nothing there).
+- The journal entry form (new, draft, and edit of a posted entry) focuses its Date field when it opens in a web browser on a wide screen. On a phone-size screen (core `useBreakpoint` is `mobile`) and on iOS and Android at every size, nothing takes focus, so the soft keyboard does not cover the form (human, 2026-11-05).
+- The transfer form and the journal entry form (both draw `EntryActionBar`) have these keys: Post ⌘↵ (`$mod+Enter`), Post & new ⌘⇧↵ (`$mod+Shift+Enter`), Save draft ⌘S (`$mod+s`), Cancel Esc (`Escape`), and Delete draft ⌘⌫ (`$mod+Backspace`, a saved draft only; it opens the Delete draft dialog). They are registered with `allowInInputs`, so they also work while a text field has focus.
+- The transfer read view and the journal entry read view have these keys: Edit E (`e`) and Void V (`v`, which opens the Void dialog). The journal entry read view also has Reverse R (`r`, which opens the Reverse dialog; human, 2026-11-05). Each read key is registered only while its action is offered, so core's list shows R only where Reverse is offered. They do nothing while a text field has focus.
+- A key does nothing when its button is hidden, disabled or busy, or the user cannot write. While the form holds the keys, ⌘S is always taken, so the browser's own Save Page never opens.
+- While a dialog or sheet is open, the screen's keys do nothing. Escape closes only the open menu, dialog or sheet. Core menus push no shortcut scope: while a menu is open, the form's keys do nothing from the menu's search field or its trigger, but a key pressed with focus on a menu row still reaches the screen.
+- Each key has a description and a group, so core's keyboard shortcut list (⇧?) shows it while its screen is open.
+- The help topics (transfers, journal entries) list the keys and say that the first field has focus when the form opens in a web browser.
+
 ## 4. Data
 
 No new collection. A transfer is a `books_journal_entries` row with `doc_type = 'transfer'` and `origin = 'manual'`, and exactly two `books_journal_lines`:
@@ -99,6 +112,7 @@ Server (Go, `books/server/`):
   - an account type not in `transferAccountTypes`: "Line n: <name> cannot be used in a transfer. Choose a bank, credit card, asset, liability or equity account."
   - `auto_reverse_on` set: "A transfer cannot reverse automatically."
 - `checkNewEntry` refuses `doc_type = transfer` with `origin = opening_balance`: "An opening balance entry cannot be a transfer."
+- `reversalTarget` (server/reversal.go, inside the update's `serialized` transaction) refuses the post of a reversal whose target is a transfer unless it is the void's own reversal (`origin = void_reversal`): "A transfer cannot be reversed. Void it or edit it instead." (human, 2026-11-05: "server should refuse it too"). A transfer's void and its correction still post their void reversal.
 - `entryName` reads the type: "Transfer TR-3" / "This transfer". The audit label (`audit.go entryLabel`) and the search title (`entryHitTitle`) do the same; the search query adds `c.doc_type`, and a transfer hit takes id `transfer:<id>`, kind `transfer`.
 - The transfer account types are one list, `server/transfer_account_types.json`, embedded by Go (`//go:embed`, as `account_types.json` is). The client list `TRANSFER_ACCOUNT_TYPES` (lib/transfer.ts) is drift-tested against that file by `tests/transfer.test.ts`, as `tests/account-types.test.ts` reads `account_types.json`.
 
@@ -136,7 +150,7 @@ Help: `books/help/transfers.md` ("To move money between accounts, …"), cross-l
 
 ## 6. Platform notes
 
-None. Every behavior is the same on web and native. `keyboardType="decimal-pad"` applies on native only, as the journal entry amount cells do; web gets the plain keyboard, which accepts the same text.
+Every behavior is the same on web and native, except these. `keyboardType="decimal-pad"` applies on native only, as the journal entry amount cells do; web gets the plain keyboard, which accepts the same text. The "Transfer from" focus works on web only (core `SelectInput` `autoFocus` does nothing on iOS and Android; accepted by the human). The journal entry Date takes focus in a web browser on a wide screen only, never on iOS or Android, phones or tablets, where a focused field opens the soft keyboard over the form (signed-off platform item, human, 2026-11-05). On native the keys work only on iOS with a hardware keyboard (core's iOS shortcut provider); Android has no shortcut capture (core's Android provider is a passthrough). On web the form keys also fire while a text field (amount, memo, date, a journal cell), the From trigger or a button has focus: core reads them before the focused element (core checkpoint 9, tinycld #436), and the element never sees a key a shortcut takes.
 
 ## 7. Sparks carried
 

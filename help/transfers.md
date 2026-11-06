@@ -9,7 +9,7 @@ To move money between accounts, use a transfer. A transfer takes an amount out o
 
 ## Create a transfer
 
-To create a transfer, choose New in the sidebar (the round + button on a phone) and pick Transfer. You can also open the register of an account and choose the Transfer button at the top. Then Transfer from starts with that account.
+To create a transfer, choose New in the sidebar (the round + button on a phone) and pick Transfer. You can also open the register of an account and choose the Transfer button at the top. Then Transfer from starts with that account. In a web browser, Transfer from has focus when the form opens.
 
 Pick the account the money comes from in Transfer from, and the account it goes to in Transfer to. The two accounts must be different. A transfer can use active accounts of these types:
 
@@ -53,6 +53,25 @@ To edit a posted transfer, open it and choose Edit. You can also choose Edit in 
 To void a posted transfer, open it and choose Void. Books posts a reversing entry in the original period and marks the transfer as Void. The number is kept.
 
 A transfer cannot be reversed with one click, and it cannot reverse automatically. To correct a transfer, use Edit or Void.
+
+## Keyboard shortcuts
+
+On the transfer form (a new transfer, a draft, or an edit of a posted transfer):
+
+- ⌘↵: Post
+- ⌘⇧↵: Post & new
+- ⌘S: Save draft
+- Esc: Cancel
+- ⌘⌫: Delete draft (a saved draft only)
+
+On a posted transfer:
+
+- E: Edit
+- V: Void
+
+The form keys also work while the cursor is in a text box, for example Amount, Date or Memo. E and V do not work while the cursor is in a text box. If a menu or dialog is open, Esc first closes it. While a dialog is open, the other keys do nothing.
+
+To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
