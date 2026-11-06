@@ -7,7 +7,9 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 // file (magic bytes, page count); its printed content is pinned by the Go tests
 // (server/pdf_render_test.go). Desktop only: the button is the same component
 // in the phone layout's pushed Company page, and the phone path runs no other
-// code. The native share-sheet path cannot run in a browser.
+// code. The native share-sheet path cannot run in a browser. The read-only member's
+// preview is in books-settings.spec.ts ('pdf-preview: a read-only member'): it changes
+// the shared collaborator's access level, which only that file does.
 
 // A screen covered in the navigation stack stays mounted but hidden, so only the visible match counts.
 function id(page: Page, testId: string) {

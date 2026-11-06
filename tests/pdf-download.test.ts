@@ -19,6 +19,8 @@ describe('pdfFileName', () => {
         ['../..', 'document.pdf'],
         ['Café Ltd', 'café-ltd.pdf'],
         ['日本', '日本.pdf'],
+        ['हिन्दी', 'हिन्दी.pdf'],
+        ['می‌خواهم', 'می‌خواهم.pdf'],
     ])('%j → %j', (stem, name) => {
         expect(pdfFileName(stem)).toBe(name)
     })

@@ -109,7 +109,7 @@ func isASCII(s string) bool {
 
 // realFileName keeps the person's spelling but drops what could climb a
 // directory or break a header: path separators, quotes, control characters and
-// the bidi controls and byte-order mark that could spoof the displayed name.
+// the bidi controls (including the Arabic letter mark) and byte-order mark that could spoof the displayed name.
 // Zero-width joiners stay: Persian, Indic names and emoji need them.
 func realFileName(stem string) string {
 	clean := strings.Map(func(r rune) rune {
@@ -126,7 +126,7 @@ func realFileName(stem string) string {
 }
 
 func isSpoofingFormat(r rune) bool {
-	return r == 0x200E || r == 0x200F || (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069) || r == 0xFEFF
+	return r == 0x061C || r == 0x200E || r == 0x200F || (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069) || r == 0xFEFF
 }
 
 // percentEncodeFileName encodes every byte outside RFC 5987's attr-char set.

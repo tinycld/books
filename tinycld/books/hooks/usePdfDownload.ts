@@ -4,6 +4,7 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { serverFetch } from '@tinycld/core/lib/server-fetch'
+import type { Directory as CacheDirectory } from 'expo-file-system'
 import { Platform } from 'react-native'
 import { pdfFileName, pdfPath, pdfRefusalMessage } from '../lib/pdf-download'
 
@@ -58,6 +59,24 @@ export function usePdfDownload() {
     })
 }
 
+const DOWNLOAD_DIR_PREFIX = 'books-pdf-'
+
+// The share sheet can still be reading a file when it resolves, so a download is
+// deleted by the next one, not by itself: at most one directory remains.
+function removeEarlierDownloads(DirectoryClass: typeof CacheDirectory, cache: CacheDirectory) {
+    for (const entry of cache.list()) {
+        if (!(entry instanceof DirectoryClass) || !entry.name.startsWith(DOWNLOAD_DIR_PREFIX))
+            continue
+        try {
+            entry.delete()
+        } catch (error) {
+            log.warn('books.pdf', 'could not delete an earlier download', {
+                error: errorToString(error),
+            })
+        }
+    }
+}
+
 async function savePdf(bytes: Uint8Array<ArrayBuffer>, fileName: string) {
     if (Platform.OS === 'web') {
         const href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
@@ -78,8 +97,9 @@ async function savePdf(bytes: Uint8Array<ArrayBuffer>, fileName: string) {
     if (!(await Sharing.isAvailableAsync())) {
         throw new Error('Sharing is not available on this device')
     }
+    removeEarlierDownloads(Directory, Paths.cache)
     // A unique directory so repeated downloads do not collide while the shared name stays readable.
-    const dir = new Directory(Paths.cache, `books-pdf-${Date.now()}`)
+    const dir = new Directory(Paths.cache, `${DOWNLOAD_DIR_PREFIX}${Date.now()}`)
     dir.create({ intermediates: true, idempotent: true })
     const target = new File(dir, fileName)
     target.create()
