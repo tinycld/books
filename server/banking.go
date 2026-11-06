@@ -8,13 +8,16 @@ package books
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 )
@@ -33,11 +36,29 @@ const (
 	bankFileStatusUploaded = "uploaded"
 )
 
+// bankAccountTypes are the account types that can be connected to Banking.
+// tinycld/books/lib/bank-connections.ts mirrors them as BANK_ACCOUNT_TYPES so
+// the Connect dialog offers only these; tests/bank-connections.test.ts fails
+// when the two lists drift.
+var bankAccountTypes = []string{"bank", "credit_card"}
+
+func isBankAccountType(key string) bool {
+	return slices.Contains(bankAccountTypes, key)
+}
+
 const (
-	msgBankFileEmpty   = "This file is empty."
-	msgBankFileType    = "Choose a CSV, OFX, QFX or QBO file."
-	msgBankFileTooBig  = "Choose a file of 5 MB or less."
-	msgBankFileNotBank = "This does not look like a CSV or OFX bank file."
+	msgBankFileEmpty             = "This file is empty."
+	msgBankFileType              = "Choose a CSV, OFX, QFX or QBO file."
+	msgBankFileTooBig            = "Choose a file of 5 MB or less."
+	msgBankFileNotBank           = "This does not look like a CSV or OFX bank file."
+	msgBankConnectionMissing     = "The bank account connection does not exist."
+	msgBankAccountNotConnectable = "Only an active bank or credit card account can be connected."
+	msgBankFileDuplicate         = "%s was already uploaded to %s on %s."
+	msgBankAccountConnected      = "%s is already connected."
+	msgBankDisconnectRefused     = "%s has imported transactions, so it cannot be disconnected."
+	msgConnectedTypeChange       = "%s is connected to Banking, so its type cannot change. Disconnect it first."
+	msgConnectedInactive         = "%s is connected to Banking. Disconnect it before making it inactive."
+	msgConnectedDelete           = "%s is connected to Banking. Disconnect it before deleting it."
 )
 
 // utf8BOM starts some bank CSV exports; it is not part of the header line.
@@ -47,12 +68,120 @@ const utf8BOM = "\xEF\xBB\xBF"
 // check and stamp an uploaded file. They are request hooks because what they
 // read (the request's user, the uploaded bytes) exists only on a request; a Go
 // caller (the import units) sets these fields itself.
+//
+// The model hooks read other rows, so they run on every save, a Go caller's
+// too, and inside serialized: PocketBase runs a create or delete and its hooks
+// without a transaction, so two connects of one account, two uploads of the
+// same bytes, or an import beside a disconnect would each pass a check made
+// outside one. Each check returns a top-level refusal before the unique
+// indexes on account and content_hash answer with a field error the client
+// does not show.
 func registerBanking(app core.App) {
 	app.OnRecordCreateRequest("books_bank_connections").BindFunc(func(e *core.RecordRequestEvent) error {
 		stampActor(e.Record, "created_by", e.Auth)
 		return e.Next()
 	})
 	app.OnRecordCreateRequest("books_bank_files").BindFunc(stampBankUpload)
+	app.OnRecordCreate("books_bank_connections").BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error { return checkBankConnection(tx, e.Record) })
+	})
+	app.OnRecordDelete("books_bank_connections").BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error { return checkDisconnect(tx, e.Record) })
+	})
+	app.OnRecordCreate("books_bank_files").BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error { return checkBankFileCreate(tx, e.Record) })
+	})
+}
+
+// checkBankConnection refuses a connection to an account that is missing,
+// inactive or not a bank or credit card account, and a second connection to
+// one account.
+func checkBankConnection(tx core.App, r *core.Record) error {
+	accountID := r.GetString("account")
+	account, err := tx.FindRecordById("books_accounts", accountID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return refuse(msgBankAccountNotConnectable)
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the account to connect: %w", err)
+	}
+	if account.GetBool("inactive") || !isBankAccountType(account.GetString("type")) {
+		return refuse(msgBankAccountNotConnectable)
+	}
+	existing, err := connectionOf(tx, account.Id)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return refuseNamed(msgBankAccountConnected, accountDisplayName(account))
+	}
+	return nil
+}
+
+// checkDisconnect refuses to delete a connection once any of its files has
+// left uploaded: the cascade would delete the file an import came from.
+func checkDisconnect(tx core.App, r *core.Record) error {
+	moved, err := tx.CountRecords("books_bank_files", dbx.And(
+		dbx.HashExp{"connection": r.Id},
+		dbx.Not(dbx.HashExp{"status": bankFileStatusUploaded}),
+	))
+	if err != nil {
+		return fmt.Errorf("books: count the connection's imported files: %w", err)
+	}
+	if moved == 0 {
+		return nil
+	}
+	account, err := tx.FindRecordById("books_accounts", r.GetString("account"))
+	if err != nil {
+		return fmt.Errorf("books: read the connected account: %w", err)
+	}
+	return refuseNamed(msgBankDisconnectRefused, accountDisplayName(account))
+}
+
+// checkBankFileCreate refuses a file whose connection does not exist, and a
+// file whose bytes are already stored anywhere in Books, since importing the
+// same statement twice would post its transactions twice.
+func checkBankFileCreate(tx core.App, r *core.Record) error {
+	_, err := tx.FindRecordById("books_bank_connections", r.GetString("connection"))
+	if errors.Is(err, sql.ErrNoRows) {
+		return refuse(msgBankConnectionMissing)
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the file's connection: %w", err)
+	}
+	hash := r.GetString("content_hash")
+	if hash == "" {
+		return nil
+	}
+	stored, err := tx.FindFirstRecordByData("books_bank_files", "content_hash", hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("books: look for a file with the same bytes: %w", err)
+	}
+	storedConnection, err := tx.FindRecordById("books_bank_connections", stored.GetString("connection"))
+	if err != nil {
+		return fmt.Errorf("books: read the stored file's connection: %w", err)
+	}
+	account, err := tx.FindRecordById("books_accounts", storedConnection.GetString("account"))
+	if err != nil {
+		return fmt.Errorf("books: read the stored file's account: %w", err)
+	}
+	day := stored.GetDateTime("created").Time().UTC().Format("Jan 2, 2006")
+	return refuseNamed(msgBankFileDuplicate, stored.GetString("name"), accountDisplayName(account), day)
+}
+
+// connectionOf is the account's connection, or nil when it has none.
+func connectionOf(tx core.App, accountID string) (*core.Record, error) {
+	r, err := tx.FindFirstRecordByData("books_bank_connections", "account", accountID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("books: read the account's bank connection: %w", err)
+	}
+	return r, nil
 }
 
 // stampBankUpload checks an uploaded statement file and stamps what the row

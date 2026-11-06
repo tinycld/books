@@ -191,7 +191,7 @@ func TestAudit_LabelsBankRecords(t *testing.T) {
 	if got, want := connections.ExtractLabel(connection), "1000 Business Checking"; got != want {
 		t.Errorf("connection label = %q, want %q", got, want)
 	}
-	file := saveBankFile(t, app, connection.Id, "checking-2026-09.csv", "uploaded", []byte(bankCSV))
+	file := mustSaveBankFile(t, app, connection.Id, "checking-2026-09.csv", sha256Hex([]byte(bankCSV)), "uploaded")
 	if got, want := files.ExtractLabel(file), "checking-2026-09.csv"; got != want {
 		t.Errorf("bank file label = %q, want %q", got, want)
 	}
