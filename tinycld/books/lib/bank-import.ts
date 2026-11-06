@@ -56,7 +56,7 @@ export function noColumnText(column: number): string {
 export type BankValue<T> = { ok: true; value: T } | { ok: false; message: string }
 
 const QUOTED_CHARS = 40
-const AMOUNT_SPACES = /[ \t  ]/g
+const AMOUNT_SPACES = /[ \t\u00a0\u202f]/g
 const CURRENCY_SIGNS = /[$€£¥]/g
 const DESCRIPTION_CHARS = 500
 const FITID_CHARS = 255

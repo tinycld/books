@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // bankDateFormats are the date layouts an import can name. Each accepts "/",
@@ -30,10 +31,16 @@ const (
 	quotedBankRunes = 40
 	// bankAmountSpaces are the spaces banks put inside an amount: the space,
 	// the tab, and the no-break spaces of French and German formatting.
-	bankAmountSpaces = " \t  "
+	bankAmountSpaces = " \t\u00a0\u202f"
 	// bankCurrencySigns are dropped from an amount; Books keeps one currency.
 	bankCurrencySigns = "$€£¥"
 )
+
+// trimBankText trims white space and U+FEFF, as the TS mirror's trim() does
+// (Go's TrimSpace keeps a byte-order mark inside a cell).
+func trimBankText(s string) string {
+	return strings.TrimFunc(s, func(r rune) bool { return unicode.IsSpace(r) || r == '\ufeff' })
+}
 
 // quoteBankText repeats a cell in a message, cut to quotedBankRunes runes.
 func quoteBankText(s string) string {
@@ -48,7 +55,7 @@ func quoteBankText(s string) string {
 // Only the first word counts, so a time after the date is ignored; for
 // YYYY-MM-DD an ISO time after a "T" is too.
 func parseBankDate(text, format string) (string, error) {
-	text = strings.TrimSpace(text)
+	text = trimBankText(text)
 	if text == "" {
 		return "", errors.New(msgBankNoDate)
 	}
@@ -129,7 +136,7 @@ func daysInMonth(year, month int) int {
 // is the decimal mark; a lone "," is the decimal mark only when one or two
 // digits follow it; a lone "." always is. Grouped digits must come in threes.
 func parseBankAmount(text string) (int64, error) {
-	trimmed := strings.TrimSpace(text)
+	trimmed := trimBankText(text)
 	if trimmed == "" {
 		return 0, errors.New(msgBankNoAmount)
 	}

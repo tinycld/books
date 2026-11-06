@@ -352,8 +352,9 @@ func stampStatement(r *core.Record, c bankContent) {
 // sniffBankFile tells an OFX file from a CSV file by the first
 // bankFileSniffBytes of its content, and refuses anything else (a PDF or a
 // spreadsheet renamed .csv, plain text). OFX (and QFX, QBO) has an OFXHEADER
-// line or an <OFX> tag; a CSV has no NUL byte and its first non-blank line
-// holds a comma, a semicolon or a tab.
+// line or an <OFX> tag; a CSV has no NUL byte and some line of the head (a
+// bank's preamble line may have none) holds a comma, a semicolon or a tab
+// outside quotes.
 func sniffBankFile(data []byte) (string, bool) {
 	head := string(data[:min(len(data), bankFileSniffBytes)])
 	upper := strings.ToUpper(head)
@@ -364,14 +365,9 @@ func sniffBankFile(data []byte) (string, bool) {
 		return "", false
 	}
 	for line := range strings.SplitSeq(strings.TrimPrefix(head, utf8BOM), "\n") {
-		line = strings.TrimRight(line, "\r")
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		if strings.ContainsAny(line, ",;\t") {
+		if _, ok := bankLineDelimiter(line); ok {
 			return "csv", true
 		}
-		return "", false
 	}
 	return "", false
 }

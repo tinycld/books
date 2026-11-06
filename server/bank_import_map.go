@@ -209,7 +209,7 @@ func bankCell(cells []string, column int) string {
 	if column < 1 || column > len(cells) {
 		return ""
 	}
-	return strings.TrimSpace(cells[column-1])
+	return trimBankText(cells[column-1])
 }
 
 // bankRowAmount is the row's signed amount. Two columns: money in minus money

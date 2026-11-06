@@ -93,7 +93,7 @@ func trimBankCells(record []string) []string {
 	cells := make([]string, len(record))
 	last := -1
 	for i, c := range record {
-		cells[i] = strings.TrimSpace(c)
+		cells[i] = trimBankText(c)
 		if cells[i] != "" {
 			last = i
 		}
@@ -102,30 +102,37 @@ func trimBankCells(record []string) []string {
 }
 
 // csvDelimiter picks the delimiter of the first line that has one (a bank's
-// preamble line such as "Account: 4821" has none): the one of ",", ";" and tab
-// that appears most often outside quotes, "," on a tie.
+// preamble line such as "Account: 4821" has none).
 func csvDelimiter(text string) rune {
 	for line := range strings.SplitSeq(text, "\n") {
-		counts := map[rune]int{}
-		quoted := false
-		for _, c := range line {
-			switch {
-			case c == '"':
-				quoted = !quoted
-			case !quoted && (c == ',' || c == ';' || c == '\t'):
-				counts[c]++
-			}
+		if d, ok := bankLineDelimiter(line); ok {
+			return d
 		}
-		if len(counts) == 0 {
-			continue
-		}
-		best := ','
-		for _, d := range []rune{';', '\t'} {
-			if counts[d] > counts[best] {
-				best = d
-			}
-		}
-		return best
 	}
 	return ','
+}
+
+// bankLineDelimiter is the one of ",", ";" and tab that appears most often
+// outside quotes in line, "," on a tie; ok is false when none appears.
+func bankLineDelimiter(line string) (rune, bool) {
+	counts := map[rune]int{}
+	quoted := false
+	for _, c := range line {
+		switch {
+		case c == '"':
+			quoted = !quoted
+		case !quoted && (c == ',' || c == ';' || c == '\t'):
+			counts[c]++
+		}
+	}
+	if len(counts) == 0 {
+		return ',', false
+	}
+	best := ','
+	for _, d := range []rune{';', '\t'} {
+		if counts[d] > counts[best] {
+			best = d
+		}
+	}
+	return best, true
 }
