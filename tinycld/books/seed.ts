@@ -1,4 +1,5 @@
 import type PocketBase from 'pocketbase'
+import { BANK_SEED } from './lib/bank-connection-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
@@ -134,6 +135,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedRegisterEntries(pb, ctx, ids)
     await seedJournalEntries(pb, ctx, ids)
     await seedTransfer(pb, ctx, accountIds)
+    await seedBanking(pb, ctx, accountIds)
     const customerIds = await seedCustomers(pb)
     await seedVendors(pb, accountIds)
     await seedProducts(pb, accountIds)
@@ -499,4 +501,30 @@ async function seedTransfer(pb: PocketBase, ctx: SeedContext, accountIds: Map<st
     await pb
         .collection('books_journal_entries')
         .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+}
+
+// Through the REST create, so the server's upload hook validates and stamps the file the
+// way an upload from the app is stamped. The superuser attributes it to the seeded user.
+async function seedBanking(pb: PocketBase, ctx: SeedContext, accountIds: Map<string, string>) {
+    for (const seedConnection of BANK_SEED.connections) {
+        const account = accountIds.get(seedConnection.accountNumber)
+        if (account === undefined) {
+            throw new Error(
+                `seed: bank connection names account ${seedConnection.accountNumber}, which was not created`
+            )
+        }
+        const connection = await pb.collection('books_bank_connections').create({
+            account,
+            institution: seedConnection.institution,
+            account_mask: seedConnection.account_mask,
+            created_by: ctx.user.id,
+        })
+        for (const seedFile of seedConnection.files) {
+            await pb.collection('books_bank_files').create({
+                connection: connection.id,
+                uploaded_by: ctx.user.id,
+                file: new File([seedFile.text], seedFile.name, { type: 'text/csv' }),
+            })
+        }
+    }
 }

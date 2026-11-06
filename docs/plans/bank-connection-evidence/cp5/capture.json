@@ -1,0 +1,98 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "connect",
+            "url": "/a/books/banking",
+            "ready": "bank-panel",
+            "actions": [
+                { "click": "bank-connect" },
+                { "waitFor": "bank-connect-dialog" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-connect-dialog"
+        },
+        {
+            "name": "connect-errors",
+            "url": "/a/books/banking",
+            "ready": "bank-panel",
+            "actions": [
+                { "click": "bank-connect" },
+                { "waitFor": "bank-connect-dialog" },
+                { "pause": 500 },
+                { "fill": "bank-connect-mask", "value": "55" },
+                { "click": "bank-connect-submit" },
+                { "waitFor": "Choose the account to connect" }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-connect-dialog"
+        },
+        {
+            "name": "connect-none",
+            "url": "/a/books/banking",
+            "ready": "bank-intro",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": [
+                {
+                    "collection": "books_bank_connections",
+                    "items": []
+                },
+                {
+                    "collection": "books_accounts",
+                    "items": [
+                        {
+                            "collectionId": "pbc_books_accounts",
+                            "collectionName": "books_accounts",
+                            "id": "helixexpense610",
+                            "name": "Rent",
+                            "number": "6100",
+                            "type": "expense",
+                            "detail_type": "",
+                            "description": "",
+                            "inactive": false,
+                            "currency": "USD",
+                            "form_1099_box": "",
+                            "parent": "",
+                            "created": "2026-01-01 00:00:00.000Z",
+                            "updated": "2026-01-01 00:00:00.000Z"
+                        }
+                    ]
+                }
+            ],
+            "actions": [
+                { "click": "bank-intro-connect" },
+                { "waitFor": "bank-connect-none" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-connect-dialog"
+        },
+        {
+            "name": "edit-details",
+            "url": "/a/books/banking",
+            "ready": "bank-panel",
+            "actions": [
+                { "click": "bank-panel-more" },
+                { "clickMenuItem": "Edit bank details" },
+                { "waitFor": "bank-details-dialog" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-details-dialog"
+        },
+        {
+            "name": "disconnect",
+            "url": "/a/books/banking",
+            "ready": "bank-files",
+            "actions": [
+                { "click": "bank-panel-more" },
+                { "clickMenuItem": "Disconnect" },
+                { "waitFor": "bank-disconnect-dialog" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-disconnect-dialog"
+        }
+    ]
+}

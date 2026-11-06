@@ -1,0 +1,116 @@
+{
+    "outDir": "bank-connection-reference",
+    "shots": [
+        {
+            "name": "intro",
+            "url": "/a/books/helix-mockup?state=intro",
+            "ready": "bank-intro"
+        },
+        {
+            "name": "intro-reader",
+            "url": "/a/books/helix-mockup?state=intro-reader",
+            "ready": "bank-intro"
+        },
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "bank-panel",
+            "fullPage": true
+        },
+        {
+            "name": "card",
+            "url": "/a/books/helix-mockup?state=card",
+            "ready": "bank-panel"
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "bank-panel",
+            "fullPage": true
+        },
+        {
+            "name": "drag",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "bank-file-drop",
+            "widths": [1280],
+            "actions": [{ "dragFile": "bank-file-drop" }, { "waitFor": "Drop the bank file here" }]
+        },
+        {
+            "name": "uploading",
+            "url": "/a/books/helix-mockup?state=uploading",
+            "ready": "bank-file-drop"
+        },
+        {
+            "name": "uploaded",
+            "url": "/a/books/helix-mockup?state=uploaded",
+            "ready": "bank-upload-done"
+        },
+        {
+            "name": "refused",
+            "url": "/a/books/helix-mockup?state=refused",
+            "ready": "bank-upload-error"
+        },
+        {
+            "name": "connect",
+            "url": "/a/books/helix-mockup?state=connect",
+            "ready": "bank-connect-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "bank-connect-dialog"
+        },
+        {
+            "name": "connect-errors",
+            "url": "/a/books/helix-mockup?state=connect-errors",
+            "ready": "bank-connect-dialog",
+            "actions": [
+                { "pause": 500 },
+                { "click": "bank-connect-submit" },
+                { "waitFor": "Choose the account to connect" }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-connect-dialog"
+        },
+        {
+            "name": "connect-none",
+            "url": "/a/books/helix-mockup?state=connect-none",
+            "ready": "bank-connect-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "bank-connect-dialog"
+        },
+        {
+            "name": "edit-details",
+            "url": "/a/books/helix-mockup?state=edit-details",
+            "ready": "bank-details-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "bank-details-dialog"
+        },
+        {
+            "name": "remove",
+            "url": "/a/books/helix-mockup?state=remove",
+            "ready": "bank-remove-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "bank-remove-dialog"
+        },
+        {
+            "name": "disconnect",
+            "url": "/a/books/helix-mockup?state=disconnect",
+            "ready": "bank-disconnect-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "bank-disconnect-dialog"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "bank-loading"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "bank-error"
+        }
+    ]
+}

@@ -4,7 +4,7 @@ import { Platform } from 'react-native'
 import type { CsvSource } from '../lib/csv-source'
 import { pickCsvFile } from '../lib/pick-csv-file'
 
-const PICK_FAILED = 'The file picker could not open. Try again.'
+export const PICK_FAILED_TEXT = 'The file picker could not open. Try again.'
 const ONE_FILE = 'Drop one file'
 const ONLY_CSV = 'Only comma-separated (CSV) files are supported'
 const CSV_TYPES = ['text/csv', 'application/vnd.ms-excel']
@@ -31,7 +31,7 @@ export function useCsvPicker(chooseFile: (file: CsvSource) => Promise<void>) {
             if (picked) await chooseFile(picked)
         } catch (error) {
             log.error('books.import', error)
-            setPickError(PICK_FAILED)
+            setPickError(PICK_FAILED_TEXT)
         }
     }
 

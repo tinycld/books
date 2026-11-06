@@ -1,0 +1,30 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "connect",
+            "url": "/a/books/banking",
+            "ready": "bank-panel",
+            "actions": [
+                { "click": "bank-connect" },
+                { "waitFor": "bank-connect-account" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-connect-dialog"
+        },
+        {
+            "name": "edit-details",
+            "url": "/a/books/banking",
+            "ready": "bank-panel",
+            "actions": [
+                { "click": "bank-panel-more" },
+                { "clickMenuItem": "Edit bank details" },
+                { "waitFor": "bank-details-dialog" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-details-dialog"
+        }
+    ]
+}
