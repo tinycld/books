@@ -40,11 +40,14 @@ export function ownBalance(type: string, debitTotal: number, creditTotal: number
     return normal === 'credit' ? creditTotal - debitTotal : debitTotal - creditTotal
 }
 
-function compareText(a: string, b: string): number {
+// Exported so a live query can order by chart order with these exact compares
+// (lib/bank-connections-query.ts); module-level functions keep a stable reference,
+// which TanStack DB's custom string sort requires.
+export function compareText(a: string, b: string): number {
     return a.toLowerCase().localeCompare(b.toLowerCase())
 }
 
-function compareNumbers(a: string, b: string): number {
+export function compareNumbers(a: string, b: string): number {
     return a.toLowerCase().localeCompare(b.toLowerCase(), undefined, { numeric: true })
 }
 
