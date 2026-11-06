@@ -113,7 +113,7 @@
 - gate 3 A notes: 6, listed under Design notes
 - reviewer-caught deferrals: none
 - out-of-plan: tinycld/books/lib/account-tree.ts, docs/plans/bank-connection-checkpoints.md (see Out-of-plan changes)
-- commit: (this commit)
+- commit: 2fdc8d9
 - human: n/a (review mode C)
 
 ## Final review
