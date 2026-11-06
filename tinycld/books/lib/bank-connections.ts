@@ -1,6 +1,7 @@
 // The one client home of Banking's rules and texts. The server's twins (the account
 // types, the file extensions, the size limit and the file messages) are in
 // server/banking.go; tests/bank-connections.test.ts drift-tests them against that file.
+import { UploadError } from '@tinycld/core/file-viewer/upload-file'
 import { z } from '@tinycld/core/ui/form'
 import type { BooksAccounts, BooksBankFiles } from '../types'
 import { ownBalance } from './account-tree'
@@ -160,13 +161,14 @@ export function uploadedText(created: string, userName: string): string {
 
 const STATUS_ONLY_FAILURE = /^Upload failed \(\d+\)$/
 
-// Core's upload throws an Error with the server's message for a refusal, and
-// "Upload failed (<status>)" when the response has none; a network failure is a
-// TypeError on web. Only a refusal's own text helps the user, so all else is transport.
+// Core's upload rejects an error status with an UploadError that carries the server's
+// message, or "Upload failed (<status>)" when the response has none. Only a 4xx refusal's
+// own text helps the user; a 5xx message, an abort or a network failure is transport.
 export function uploadErrorText(error: unknown): { text: string; isTransport: boolean } {
     const isRefusal =
-        error instanceof Error &&
-        !(error instanceof TypeError) &&
+        error instanceof UploadError &&
+        error.status >= 400 &&
+        error.status < 500 &&
         !STATUS_ONLY_FAILURE.test(error.message)
     if (isRefusal) return { text: error.message, isTransport: false }
     return { text: UPLOAD_TRANSPORT_TEXT, isTransport: true }
