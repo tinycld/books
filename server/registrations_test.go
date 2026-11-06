@@ -434,6 +434,17 @@ func TestRegister_ServesTheSamplePDF(t *testing.T) {
 		token:   tokenFor(t, users.readOnly),
 		want:    http.StatusOK,
 		content: []string{"%PDF-"},
+		response: func(t testing.TB, res *http.Response) {
+			for header, want := range map[string]string{
+				"Content-Type":        "application/pdf",
+				"Content-Disposition": `attachment; filename="sample-invoice.pdf"`,
+				"Cache-Control":       "no-store",
+			} {
+				if got := res.Header.Get(header); got != want {
+					t.Errorf("%s = %q, want %q", header, got, want)
+				}
+			}
+		},
 	}.run(t, app)
 }
 

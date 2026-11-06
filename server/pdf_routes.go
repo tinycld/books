@@ -3,9 +3,12 @@ package books
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/pocketbase/pocketbase/core"
 
@@ -79,12 +82,58 @@ var unsafeFileChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 // pdfContentDisposition names the download. A name can come from a person (a
 // customer, a document number), so anything that could break the header or
-// climb a directory is replaced, as boards' export does.
+// climb a directory is replaced, as boards' export does. A name with non-ASCII
+// letters also carries its real spelling in an RFC 6266 filename* parameter;
+// the quoted filename stays as the ASCII fallback for old clients.
 func pdfContentDisposition(stem string) string {
-	stem = strings.Trim(unsafeFileChars.ReplaceAllString(stem, "-"), "-.")
-	stem = strings.ToLower(stem)
-	if stem == "" {
-		stem = "document"
+	fallback := strings.Trim(unsafeFileChars.ReplaceAllString(stem, "-"), "-.")
+	fallback = strings.ToLower(fallback)
+	if fallback == "" {
+		fallback = "document"
 	}
-	return `attachment; filename="` + stem + `.pdf"`
+	header := `attachment; filename="` + fallback + `.pdf"`
+	if isASCII(stem) {
+		return header
+	}
+	return header + `; filename*=UTF-8''` + percentEncodeFileName(realFileName(stem)+".pdf")
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
+// realFileName keeps the person's spelling but drops what could climb a
+// directory or break a header: path separators, quotes and control characters.
+func realFileName(stem string) string {
+	clean := strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == '"' || r == utf8.RuneError || unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, stem)
+	clean = strings.Trim(clean, " .")
+	if clean == "" {
+		return "document"
+	}
+	return clean
+}
+
+// percentEncodeFileName encodes every byte outside RFC 5987's attr-char set.
+func percentEncodeFileName(name string) string {
+	const attrPunct = "!#$&+-.^_`|~"
+	var b strings.Builder
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || strings.IndexByte(attrPunct, c) >= 0 {
+			b.WriteByte(c)
+			continue
+		}
+		fmt.Fprintf(&b, "%%%02X", c)
+	}
+	return b.String()
 }
