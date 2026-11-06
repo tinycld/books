@@ -6,28 +6,29 @@ import { Plus } from 'lucide-react-native'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { useTaxesScreen } from '../../hooks/useTaxesScreen'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
-import { TAXES_LOAD_ERROR } from '../../lib/tax-messages'
+import type { AgencyMenuItem, TaxDeleteTarget, TaxMenuItem } from '../../lib/tax-menu'
 import {
+    type AgencyCardView,
     addGroupEnabled,
     emptyState,
-    type TaxesControls,
-    type TaxesView,
+    type TaxRowView,
 } from '../../lib/taxes-view'
 import { useTaxesStore } from '../../stores/taxes-store'
 import { ListBanner } from '../ListBanner'
 import { ShowInactiveChip } from '../ShowInactiveChip'
 import { AgencyCard } from './AgencyCard'
+import { AgencyMenu } from './AgencyMenu'
+import { DefaultCard } from './DefaultCard'
 import { GroupsCard } from './GroupsCard'
 import { TaxDialogs } from './TaxDialogs'
 import { TaxesEmpty } from './TaxesEmpty'
+import { TaxRowMenu } from './TaxRowMenu'
 
 type TaxesScreen = ReturnType<typeof useTaxesScreen>
 
 interface TaxesPageProps {
     screen: TaxesScreen
 }
-
-const noTrailing = () => null
 
 interface AddAgencyButtonProps {
     isVisible: boolean
@@ -159,12 +160,64 @@ function Loading({ isVisible }: { isVisible: boolean }) {
     )
 }
 
-function Cards({ view, controls }: { view: TaxesView; controls: TaxesControls }) {
+// What each menu item does. A rate's Edit opens the rate dialog on the rate's own
+// agency; a group is a books_tax_rates row, so its writes go through the rates' actions.
+function useMenuSelect(screen: TaxesScreen) {
+    const openDialog = useTaxesStore(s => s.openDialog)
+    const { actions, view } = screen
+    const currentDefaultId = view.defaultRow?.id ?? ''
+
+    // A fresh dialog shows the record as it is now, not an earlier refusal about it.
+    const openDelete = (target: TaxDeleteTarget, id: string, name: string) => {
+        actions.clearRefusal(id)
+        openDialog({ kind: 'delete', target, id, name })
+    }
+
+    const selectAgency = (card: AgencyCardView, item: AgencyMenuItem) => {
+        if (item === 'edit') openDialog({ kind: 'agency', id: card.id })
+        else if (item === 'delete') openDelete('agency', card.id, card.name)
+        else void actions.agencies.setInactive(card.id, item === 'make-inactive')
+    }
+
+    const selectRow = (row: TaxRowView, agencyId: string, item: TaxMenuItem) => {
+        if (item === 'edit' && row.kind === 'group') openDialog({ kind: 'group', id: row.id })
+        else if (item === 'edit') openDialog({ kind: 'rate', id: row.id, agencyId })
+        else if (item === 'make-default') void actions.setDefault(row.id, currentDefaultId)
+        else if (item === 'remove-default') void actions.setDefault('', row.id)
+        else if (item === 'delete') openDelete(row.kind, row.id, row.name)
+        else void actions.rates.setInactive(row.id, item === 'make-inactive')
+    }
+
+    return { selectAgency, selectRow }
+}
+
+function Cards({ screen }: { screen: TaxesScreen }) {
+    const { view, controls, actions, defaultOptions } = screen
+    const { selectAgency, selectRow } = useMenuSelect(screen)
+    const chooseDefault = (id: string) => {
+        void actions.setDefault(id, view.defaultRow?.id ?? '')
+    }
+    // The menus are not dimmed with an inactive row's texts, so they stay legible.
+    const rowMenu = (agencyId: string) => (row: TaxRowView) => (
+        <TaxRowMenu
+            row={row}
+            controls={controls}
+            isWorking={actions.isWorking}
+            onSelect={item => selectRow(row, agencyId, item)}
+        />
+    )
     const cards = view.agencies.map(card => (
         <AgencyCard
             key={card.id}
             card={card}
-            menu={null}
+            menu={
+                <AgencyMenu
+                    card={card}
+                    controls={controls}
+                    isWorking={actions.isWorking}
+                    onSelect={item => selectAgency(card, item)}
+                />
+            }
             footer={
                 // The server refuses a rate on an inactive agency, so its card offers none.
                 <AddRateButton
@@ -173,13 +226,20 @@ function Cards({ view, controls }: { view: TaxesView; controls: TaxesControls })
                     isDisabled={!controls.canPressWrites}
                 />
             }
-            renderRowTrailing={noTrailing}
+            renderRowTrailing={rowMenu(card.id)}
         />
     ))
     return (
         <>
+            <DefaultCard
+                view={view}
+                controls={controls}
+                options={defaultOptions}
+                isWorking={actions.isWorking}
+                onChoose={chooseDefault}
+            />
             {cards}
-            <GroupsCard rows={view.groups} hint={view.groupsHint} renderRowTrailing={noTrailing} />
+            <GroupsCard rows={view.groups} hint={view.groupsHint} renderRowTrailing={rowMenu('')} />
         </>
     )
 }
@@ -198,7 +258,7 @@ function Ready({ isVisible, screen }: { isVisible: boolean; screen: TaxesScreen 
         )
         return <TaxesEmpty state={empty} action={action} />
     }
-    return <Cards view={screen.view} controls={screen.controls} />
+    return <Cards screen={screen} />
 }
 
 export function TaxesPage({ screen }: TaxesPageProps) {
@@ -208,13 +268,16 @@ export function TaxesPage({ screen }: TaxesPageProps) {
     const { state, view, controls } = screen
     const isLoading = state === 'loading'
     const isReady = state === 'ready'
-    const loadError = state === 'error' ? TAXES_LOAD_ERROR : null
+    // The load error offers Retry; a row action's refusal can be dismissed.
+    const isLoadError = state === 'error'
+    const onRetry = isLoadError ? screen.retry : undefined
+    const onDismiss = isLoadError ? undefined : screen.dismissBanner
     // In the loading and error states nothing under the actions reacts to them.
     const showActions = isReady && controls.showActions && !view.isEmpty
     const canAddGroup = addGroupEnabled(controls, view)
     return (
         <ScrollView className="flex-1 bg-background" contentContainerStyle={fabClearance}>
-            <TaxDialogs />
+            <TaxDialogs actions={screen.actions} />
             <View testID="taxes-screen" className={`w-full max-w-[880px] gap-4 ${pad}`}>
                 <Header
                     showActions={showActions}
@@ -224,8 +287,9 @@ export function TaxesPage({ screen }: TaxesPageProps) {
                 />
                 <ListBanner
                     testIdPrefix="taxes"
-                    message={loadError}
-                    onRetry={screen.retry}
+                    message={screen.bannerMessage}
+                    onRetry={onRetry}
+                    onDismiss={onDismiss}
                     isFlush
                 />
                 <Loading isVisible={isLoading} />

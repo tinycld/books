@@ -5,6 +5,7 @@ import {
     recordMenuItems,
     recordMenuTestIds,
 } from '../tinycld/books/lib/record-menu'
+import { TAX_MENU_WRITES } from '../tinycld/books/lib/tax-menu'
 
 describe('recordMenuItems', () => {
     it('gives a writer Edit, Make inactive and Delete on an active record, in menu order', () => {
@@ -50,5 +51,12 @@ describe('RECORD_MENU_WRITES', () => {
     it('holds exactly the three write items, not Edit', () => {
         expect([...RECORD_MENU_WRITES].sort()).toEqual(['delete', 'make-active', 'make-inactive'])
         expect(RECORD_MENU_WRITES.has('edit')).toBe(false)
+    })
+
+    it("stays the record lists' three items beside the sales tax menu's own set", () => {
+        expect(TAX_MENU_WRITES).not.toBe(RECORD_MENU_WRITES)
+        expect([...RECORD_MENU_WRITES].sort()).toEqual(['delete', 'make-active', 'make-inactive'])
+        expect(RECORD_MENU_WRITES.has('make-default')).toBe(false)
+        expect(RECORD_MENU_WRITES.has('remove-default')).toBe(false)
     })
 })

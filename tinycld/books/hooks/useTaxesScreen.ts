@@ -5,9 +5,12 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { materialize } from 'pbtsdb'
+import { TAXES_LOAD_ERROR } from '../lib/tax-messages'
+import { taxOptionRows, taxRateOptions } from '../lib/tax-rate-options'
 import { buildTaxesView, taxesControls } from '../lib/taxes-view'
-import { useTaxesStore } from '../stores/taxes-store'
+import { type TaxDialog, useTaxesStore } from '../stores/taxes-store'
 import { useBooksAccess } from './useBooksAccess'
+import { type TaxActions, useTaxActions } from './useTaxActions'
 
 // Each agency with its rates and its liability account. Tens of rows: the whole
 // collections load.
@@ -62,6 +65,19 @@ function screenState(parts: readonly { isError: boolean; isReady: boolean }[]) {
     return 'ready' as const
 }
 
+// A refusal shows in the delete dialog of the record it is about while that dialog is
+// open, and in the page's banner otherwise.
+function bannerMessageOf(
+    state: ReturnType<typeof screenState>,
+    refusal: TaxActions['refusal'],
+    dialog: TaxDialog | null
+) {
+    if (state === 'error') return TAXES_LOAD_ERROR
+    if (!refusal) return null
+    if (dialog?.kind === 'delete' && dialog.id === refusal.id) return null
+    return refusal.message
+}
+
 export function useTaxesScreen() {
     const [agenciesCollection, ratesCollection, accountsCollection] = useStore(
         'books_tax_agencies',
@@ -73,11 +89,23 @@ export function useTaxesScreen() {
     const access = useBooksAccess()
     const writes = useWritesAvailable()
     const showInactive = useTaxesStore(s => s.showInactive)
+    const dialog = useTaxesStore(s => s.dialog)
+    const actions = useTaxActions()
 
     const agencies: AgencyWithRates[] = agenciesQuery.data ?? []
     const groups: GroupRow[] = groupsQuery.data ?? []
-    const view = buildTaxesView({ agencies, groups, showInactive, pendingDefaultId: null })
+    const view = buildTaxesView({
+        agencies,
+        groups,
+        showInactive,
+        pendingDefaultId: actions.pendingDefaultId,
+    })
     const state = screenState([agenciesQuery, groupsQuery, access])
+    const defaultOptions = taxRateOptions(
+        taxOptionRows(agencies, groups),
+        agencies,
+        view.defaultRow?.id ?? ''
+    )
 
     const retry = () => {
         void recoverLiveQueries({
@@ -96,5 +124,9 @@ export function useTaxesScreen() {
         controls: taxesControls(access.canWrite, writes.available),
         agencies,
         groups,
+        actions,
+        defaultOptions,
+        bannerMessage: bannerMessageOf(state, actions.refusal, dialog),
+        dismissBanner: () => actions.clearRefusal(),
     }
 }
