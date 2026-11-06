@@ -22,21 +22,21 @@ export const defaultRangePreset: RangePreset = 'this-month'
 export type RegisterRange = { start: string; end: string }
 
 // Month arithmetic runs on a year * 12 + month index so no Date rollover or timezone applies.
-export function monthIndexOf(day: string): number {
+function monthIndexOf(day: string): number {
     const [year, month] = day.split('-').map(Number)
     return year * 12 + (month - 1)
 }
 
-export function pad(value: number, width: number): string {
+function pad(value: number, width: number): string {
     return String(value).padStart(width, '0')
 }
 
-export function firstDayOf(monthIndex: number): string {
+function firstDayOf(monthIndex: number): string {
     const year = Math.floor(monthIndex / 12)
     return `${pad(year, 4)}-${pad((monthIndex % 12) + 1, 2)}-01`
 }
 
-export function lastDayBefore(monthIndex: number): string {
+function lastDayBefore(monthIndex: number): string {
     const previous = monthIndex - 1
     const year = Math.floor(previous / 12)
     const month = (previous % 12) + 1
@@ -46,7 +46,7 @@ export function lastDayBefore(monthIndex: number): string {
 }
 
 // Years before 1900 are refused on purpose: they are almost always a mistyped year, never a
-// real entry, close date, opening balance or report period.
+// real entry, close date or opening balance.
 const FIRST_YEAR = 1900
 
 export function isIsoDay(text: string): boolean {
@@ -58,7 +58,7 @@ export function isIsoDay(text: string): boolean {
     return day <= Number(lastDayBefore(monthIndexOf(text) + 1).slice(8, 10))
 }
 
-export function fiscalYearStartIndex(todayIndex: number, startMonth: number): number {
+function fiscalYearStartIndex(todayIndex: number, startMonth: number): number {
     const year = Math.floor(todayIndex / 12)
     const month = (todayIndex % 12) + 1
     const startYear = month >= startMonth ? year : year - 1
@@ -102,7 +102,10 @@ export function periodOf(day: string): string {
 
 export function formatDay(day: string): string {
     const [year, month, date] = day.split('-').map(Number)
-    return new Date(Date.UTC(year, month - 1, date)).toLocaleDateString('en-US', {
+    // Date.UTC maps years 0-99 to 1900-1999; setUTCFullYear keeps the year as stored.
+    const parsed = new Date(0)
+    parsed.setUTCFullYear(year, month - 1, date)
+    return parsed.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',

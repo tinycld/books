@@ -48,19 +48,11 @@ func mkTaxRate(t testing.TB, app core.App, name string, ppm int, agency *core.Re
 
 func mkTaxGroup(t testing.TB, app core.App, name string, components ...*core.Record) *core.Record {
 	t.Helper()
-	r, err := newTaxRate(app, map[string]any{"type": "group", "name": name, "components": idsOf(components)})
+	r, err := newTaxRate(app, map[string]any{"type": "group", "name": name, "components": idsOf(components...)})
 	if err != nil {
 		t.Fatalf("save group %q: %v", name, err)
 	}
 	return r
-}
-
-func idsOf(records []*core.Record) []string {
-	ids := make([]string, len(records))
-	for i, r := range records {
-		ids[i] = r.Id
-	}
-	return ids
 }
 
 func setTaxRate(t testing.TB, app core.App, id string, fields map[string]any) error {
@@ -88,7 +80,7 @@ func defaultIDs(t testing.TB, app core.App) []string {
 	if err != nil {
 		t.Fatalf("list the defaults: %v", err)
 	}
-	return idsOf(rows)
+	return idsOf(rows...)
 }
 
 func TestTaxAgency_NameIsTrimmedAndUnique(t *testing.T) {
@@ -571,7 +563,7 @@ func TestTaxRate_DeleteRefusals(t *testing.T) {
 			"This rate is in the group “Metro”. Remove it from the group first.")
 		requireStillThere(t, app, "books_tax_rates", state)
 		got := reload(t, app, "books_tax_rates", metro.Id).GetStringSlice("components")
-		if want := idsOf([]*core.Record{state, city, rtd}); fmt.Sprint(got) != fmt.Sprint(want) {
+		if want := idsOf(state, city, rtd); fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Errorf("Metro components = %v after the refused delete, want %v", got, want)
 		}
 	})
@@ -580,7 +572,7 @@ func TestTaxRate_DeleteRefusals(t *testing.T) {
 			"This rate is in 2 groups. Remove it from them first.")
 		requireStillThere(t, app, "books_tax_rates", city)
 		got := reload(t, app, "books_tax_rates", valley.Id).GetStringSlice("components")
-		if want := idsOf([]*core.Record{city, adams}); fmt.Sprint(got) != fmt.Sprint(want) {
+		if want := idsOf(city, adams); fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Errorf("Valley components = %v after the refused delete, want %v", got, want)
 		}
 	})

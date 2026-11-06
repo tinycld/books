@@ -10,6 +10,7 @@ import {
     searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // The leave-without-asking rule after a held save, and Books reopened at an entry.
 // The seeded draft is only opened; every other draft is made through the new-entry form.
@@ -25,10 +26,6 @@ async function start(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(DESKTOP)
-}
-
-function uniqueMemo(label: string) {
-    return `${label} ${Date.now()}`
 }
 
 async function openFromList(page: Page, memo: string) {
@@ -56,7 +53,7 @@ test.describe('journal-entries: leaving after a held save', () => {
         page,
     }) => {
         await start(page)
-        const memo = uniqueMemo('Held save leave')
+        const memo = uniqueName('Held save leave')
         await makeDraft(page, memo)
         const held = await holdRequests(page, ENTRY_RECORDS, isDraftSave)
 

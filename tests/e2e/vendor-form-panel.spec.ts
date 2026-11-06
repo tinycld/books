@@ -24,6 +24,7 @@ import {
     vendorEntry,
     vendorHelpers,
     vendorIdOf,
+    viewportName,
     WIDE,
     watchForNotFoundAndDiscard,
 } from './vendor-form-helpers'
@@ -177,7 +178,7 @@ test.describe('vendor-form: side panel', () => {
         await expect.poll(() => leftEdgeOf(list)).toBe(listLeftOpen)
 
         // (4) Two vendors created through the panel; each Save closes it.
-        const prefix = uniqueName(page, 'Panel')
+        const prefix = uniqueName(`Panel ${viewportName(page)}`)
         const nameA = `${prefix} A`
         const nameB = `${prefix} B`
         for (const name of [nameA, nameB]) {

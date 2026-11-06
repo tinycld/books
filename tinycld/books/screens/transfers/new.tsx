@@ -11,8 +11,8 @@ import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useBooksSettings } from '../../hooks/useBooksSettings'
 import { useTransferAccounts } from '../../hooks/useTransferAccounts'
 import { useTransferAfterSave } from '../../hooks/useTransferAfterSave'
+import { mergeRecoveries } from '../../lib/live-recovery'
 import { todayIso } from '../../lib/register-range'
-import { mergeRecoveries } from '../../lib/report-state'
 import { newTransferValues } from '../../lib/transfer'
 
 function NewTransferScreen({ from }: { from?: string }) {

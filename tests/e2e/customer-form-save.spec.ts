@@ -32,6 +32,7 @@ import {
     refusalToast as sharedRefusalToast,
     stampDigits,
     uniqueName,
+    viewportName,
     WIDE,
 } from './customer-form-helpers'
 
@@ -118,7 +119,7 @@ test.describe('customer-form: save and discard', () => {
             await expect(page).toHaveURL(/\/new$/)
 
             // A full customer.
-            const prefix = uniqueName(page, 'Save')
+            const prefix = uniqueName(`Save ${viewportName(page)}`)
             const name = `${prefix} one`
             const digits = stampDigits()
             const phone = `(555) 010-${digits}`
@@ -180,7 +181,7 @@ test.describe('customer-form: save and discard', () => {
             const save = page.getByTestId('customer-save')
             const summary = page.getByTestId('form-error-summary')
             const dialog = discardDialog(page)
-            const prefix = uniqueName(page, 'Refuse')
+            const prefix = uniqueName(`Refuse ${viewportName(page)}`)
             const name = `${prefix} one`
             const secondName = `${prefix} two`
             const digits = stampDigits()
@@ -240,7 +241,7 @@ test.describe('customer-form: save and discard', () => {
             await openBooks(page, size)
             const title = page.getByTestId('customer-title')
             const dialog = discardDialog(page)
-            const name = `${uniqueName(page, 'Back')} one`
+            const name = `${uniqueName(`Back ${viewportName(page)}`)} one`
             const digits = stampDigits()
             const phone = `(555) 010-${digits}`
             const id = await createListedCustomer(page, { name, phone })
@@ -287,7 +288,7 @@ test.describe('customer-form: save and discard', () => {
             const save = page.getByTestId('customer-save')
             const summary = page.getByTestId('form-error-summary')
             const dialog = discardDialog(page)
-            const name = `${uniqueName(page, 'Hold')} one`
+            const name = `${uniqueName(`Hold ${viewportName(page)}`)} one`
             const digits = stampDigits()
             const phone = `(555) 010-${digits}`
             const newPhone = `(555) 011-${digits}`
@@ -353,7 +354,7 @@ test.describe('customer-form: save and discard', () => {
             const summary = page.getByTestId('form-error-summary')
             const dialog = discardDialog(page)
             const back = page.getByTestId('customer-back')
-            const name = `${uniqueName(page, 'Away')} one`
+            const name = `${uniqueName(`Away ${viewportName(page)}`)} one`
             const digits = stampDigits()
             const phone = `(555) 010-${digits}`
             const newPhone = `(555) 011-${digits}`
@@ -412,7 +413,7 @@ test.describe('customer-form: save and discard', () => {
             const dialog = discardDialog(page)
             const cancel = page.getByTestId('customer-cancel')
             const back = page.getByTestId('customer-back')
-            const name = `${uniqueName(page, 'Typed')} one`
+            const name = `${uniqueName(`Typed ${viewportName(page)}`)} one`
             const digits = stampDigits()
             const phone = `(555) 010-${digits}`
             const newPhone = `(555) 011-${digits}`
@@ -455,7 +456,7 @@ test.describe('customer-form: save and discard', () => {
             const save = page.getByTestId('customer-save')
             const dialog = discardDialog(page)
             const back = page.getByTestId('customer-back')
-            const prefix = uniqueName(page, 'Land')
+            const prefix = uniqueName(`Land ${viewportName(page)}`)
             const name = `${prefix} one`
             const digits = stampDigits()
             const id = await createListedCustomer(page, { name, company: 'Helix Co' })
@@ -525,7 +526,7 @@ test.describe('customer-form: save and discard', () => {
             const save = page.getByTestId('customer-save')
             const summary = page.getByTestId('form-error-summary')
             const dialog = discardDialog(page)
-            const prefix = uniqueName(page, 'Edit')
+            const prefix = uniqueName(`Edit ${viewportName(page)}`)
             const name = `${prefix} one`
             const secondName = `${prefix} two`
             const digits = stampDigits()
@@ -592,7 +593,7 @@ test.describe('customer-form: save and discard', () => {
         await openBooks(page, DESKTOP)
         const title = page.getByTestId('customer-title')
         const save = page.getByTestId('customer-save')
-        const prefix = uniqueName(page, 'Panel')
+        const prefix = uniqueName(`Panel ${viewportName(page)}`)
         const name = `${prefix} one`
         const secondName = `${prefix} two`
         const digits = stampDigits()

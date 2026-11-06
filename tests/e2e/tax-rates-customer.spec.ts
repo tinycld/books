@@ -42,7 +42,7 @@ test.describe('tax-rates: customer tax fields', () => {
     }) => {
         await openBooks(page, DESKTOP)
         await openNewCustomer(page)
-        const name = uniqueName(page, 'Exempt customer')
+        const name = uniqueName('Exempt customer')
         await field(page, 'display_name').fill(name)
 
         const save = page.getByTestId('customer-save')

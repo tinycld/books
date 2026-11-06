@@ -9,7 +9,7 @@ import {
     trackedVendorsSnapshot,
     visible,
 } from './vendor-1099-helpers'
-import { DESKTOP, openBooksPage, PHONE, uniqueName } from './vendor-form-helpers'
+import { DESKTOP, openBooksPage, PHONE, uniqueName, viewportName } from './vendor-form-helpers'
 
 // Settings → 1099s, the 1099 vendors card.
 //
@@ -38,7 +38,7 @@ test.describe('vendor-1099: 1099 vendors', () => {
         }) => {
             await login(page)
             await navigateToPackage(page, 'books')
-            const name = uniqueName(page, `Tracked card ${label}`)
+            const name = uniqueName(`Tracked card ${label} ${viewportName(page)}`)
             const id = await createTrackedVendor(page, { name })
             await openForm1099(page)
             await page.setViewportSize(size)

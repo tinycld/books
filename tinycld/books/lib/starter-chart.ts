@@ -64,6 +64,7 @@ const EQUITY: Record<Ownership, StarterAccount[]> = {
         account('3000', "Owner's equity", 'equity', 'owners_equity'),
         account('3100', "Owner's contributions", 'equity', 'partner_contributions'),
         account('3200', "Owner's draws", 'equity', 'owner_draws'),
+        account('3900', 'Retained earnings', 'equity', 'retained_earnings'),
     ],
     corporation: [
         account('3300', 'Common stock', 'equity', 'common_stock'),

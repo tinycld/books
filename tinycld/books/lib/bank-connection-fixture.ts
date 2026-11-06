@@ -36,6 +36,8 @@ function account(
         created: STAMP,
         updated: STAMP,
         parent: '',
+        // Each account sits at the top of the chart, so its full name is its name.
+        full_name: seed.name,
         ...seed,
     }
 }
