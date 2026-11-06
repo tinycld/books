@@ -53,6 +53,36 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // One row per stored file, written by the server's upload hook: the file's rows
+    // as text cells, which the import mapping screen reads. Nothing inserts it here.
+    const books_bank_file_contents = newCollection('books_bank_file_contents', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        relations: { file: books_bank_files },
+        collectionOptions: indexed,
+    })
+
+    // One import of chosen lines of a file. The server stamps the counts and who
+    // imported, and writes the transactions.
+    const books_bank_imports = newCollection('books_bank_imports', {
+        omitOnInsert: ['created', 'updated', 'imported', 'duplicates', 'created_by'] as const,
+        ...onDemand,
+        relations: { file: books_bank_files, created_by: coreStores.users },
+        collectionOptions: indexed,
+    })
+
+    // Written only by the server's import.
+    const books_bank_transactions = newCollection('books_bank_transactions', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        relations: {
+            connection: books_bank_connections,
+            file: books_bank_files,
+            bank_import: books_bank_imports,
+        },
+        collectionOptions: indexed,
+    })
+
     // Created before entries so the entry's back-relation can name it; `entry`
     // is added once the entries exist (Object.assign, because typing the key
     // would make the two collections' types refer to each other). posted, date and currency are stamped
@@ -186,6 +216,9 @@ export function registerCollections(
         books_accounts,
         books_bank_connections,
         books_bank_files,
+        books_bank_file_contents,
+        books_bank_imports,
+        books_bank_transactions,
         books_journal_lines,
         books_journal_entries,
         books_account_balances,

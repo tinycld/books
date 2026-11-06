@@ -17,6 +17,9 @@ const NAMES = [
     'books_bundle_items',
     'books_bank_connections',
     'books_bank_files',
+    'books_bank_file_contents',
+    'books_bank_imports',
+    'books_bank_transactions',
     'books_tax_agencies',
     'books_tax_rates',
 ]
@@ -139,6 +142,18 @@ describe('registerCollections', () => {
             connection: { name: 'books_bank_connections' },
             uploaded_by: { name: 'users' },
         })
+        expect(calls.get('books_bank_file_contents')?.relations).toEqual({
+            file: { name: 'books_bank_files' },
+        })
+        expect(calls.get('books_bank_imports')?.relations).toEqual({
+            file: { name: 'books_bank_files' },
+            created_by: { name: 'users' },
+        })
+        expect(calls.get('books_bank_transactions')?.relations).toEqual({
+            connection: { name: 'books_bank_connections' },
+            file: { name: 'books_bank_files' },
+            bank_import: { name: 'books_bank_imports' },
+        })
     })
 
     // The server stamps who connected, and stamps everything a file row says about
@@ -159,6 +174,13 @@ describe('registerCollections', () => {
             'content_hash',
             'status',
             'uploaded_by',
+        ])
+        expect(calls.get('books_bank_imports')?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'imported',
+            'duplicates',
+            'created_by',
         ])
     })
 
