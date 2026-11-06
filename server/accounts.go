@@ -309,13 +309,27 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 	if stored.GetString("currency") != next.GetString("currency") {
 		return refuse("An account's currency cannot change.")
 	}
+	// Retained Earnings is an equity account, which Banking cannot connect,
+	// so this check never hides a Banking refusal.
 	if stored.GetString("detail_type") == detailRetainedEarnings &&
 		(next.GetString("type") != stored.GetString("type") ||
 			next.GetString("detail_type") != detailRetainedEarnings ||
 			(!stored.GetBool("inactive") && next.GetBool("inactive"))) {
 		return refuse(msgNeedsRetainedEarnings)
 	}
+	// Banking checks the account's type and active state only when it
+	// connects, so a connected account keeps both: any type change is refused,
+	// bank to credit card included, and so is making it inactive. Its first
+	// fix is Disconnect, whatever else blocks the change, so in both branches
+	// below the Banking refusal comes before the other checks.
 	if stored.GetString("type") != next.GetString("type") {
+		connected, err := connectionOf(app, next.Id)
+		if err != nil {
+			return err
+		}
+		if connected != nil {
+			return refuseNamed(msgConnectedTypeChange, accountDisplayName(next))
+		}
 		lines, err := app.CountRecords("books_journal_lines", dbx.HashExp{"account": next.Id})
 		if err != nil {
 			return err
@@ -343,6 +357,13 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 		}
 	}
 	if !stored.GetBool("inactive") && next.GetBool("inactive") {
+		connected, err := connectionOf(app, next.Id)
+		if err != nil {
+			return err
+		}
+		if connected != nil {
+			return refuseNamed(msgConnectedInactive, accountDisplayName(next))
+		}
 		active, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": next.Id, "inactive": false})
 		if err != nil {
 			return err
@@ -367,6 +388,16 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	// The rule in validateAccount keeps this the only one.
 	if r.GetString("detail_type") == detailRetainedEarnings {
 		return refuse(msgNeedsRetainedEarnings)
+	}
+	// The connection's account relation does not cascade, so PocketBase would
+	// refuse this delete with a reference error that does not say Banking is
+	// why or that Disconnect is the fix.
+	connected, err := connectionOf(app, r.Id)
+	if err != nil {
+		return err
+	}
+	if connected != nil {
+		return refuseNamed(msgConnectedDelete, accountDisplayName(r))
 	}
 	lines, err := app.CountRecords("books_journal_lines", dbx.HashExp{"account": r.Id})
 	if err != nil {

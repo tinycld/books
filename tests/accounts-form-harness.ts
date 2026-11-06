@@ -22,6 +22,8 @@ import type {
     BooksAccountBalances,
     BooksAccounts,
     BooksAdmins,
+    BooksBankConnections,
+    BooksBankFiles,
     BooksCloseOverrides,
     BooksDocSequences,
     BooksJournalEntries,
@@ -64,6 +66,8 @@ const state = {
     accessMaxInFlight: 0,
     // Releases the core and admin reads held by holdCoreRead / holdAdminRead.
     releaseReads: [] as (() => void)[],
+    // Releases the accounts read held by holdAccountsRead.
+    releaseAccounts: [] as (() => void)[],
     // Makes books_access.reload() wait until released.
     reloadGate: null as Promise<void> | null,
     // Makes books_access.reload() reject with this error.
@@ -158,6 +162,12 @@ export function failReload(error: unknown) {
 // holdCoreRead / holdAdminRead finish loading, with their seeded rows.
 export function releaseAccessReads() {
     for (const release of state.releaseReads.splice(0)) release()
+}
+
+// Lets the accounts read that was seeded with holdAccountsRead finish loading, with its
+// seeded rows.
+export function releaseAccountsRead() {
+    for (const release of state.releaseAccounts.splice(0)) release()
 }
 
 export function enteredWrites() {
@@ -663,14 +673,37 @@ function journalLine(account: string, position: number): BooksJournalLines {
     }
 }
 
+// An accounts collection whose first load waits for releaseAccountsRead(). It takes no
+// writes: a test that holds the read only reads accounts.
+function heldAccountsView(rows: BooksAccounts[]) {
+    counter += 1
+    return createCollection({
+        id: `books_accounts-held-${counter}`,
+        getKey: (row: BooksAccounts) => row.id,
+        ...indexed,
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                state.releaseAccounts.push(() => {
+                    begin()
+                    for (const value of rows) write({ type: 'insert', value })
+                    commit()
+                    markReady()
+                })
+            },
+        },
+    })
+}
+
 function accountsCollectionFor(opts: {
     accountsNeverReady?: boolean
     accountsErrored?: boolean
     accountsFailsOnce?: boolean
+    holdAccountsRead?: boolean
     ledger?: { accounts?: BooksAccounts[] }
 }) {
     if (opts.accountsErrored) return erroredCollection<BooksAccounts>()
     if (opts.accountsNeverReady) return neverReady<BooksAccounts>()
+    if (opts.holdAccountsRead) return heldAccountsView(opts.ledger?.accounts ?? ACCOUNTS)
     if (opts.accountsFailsOnce) {
         return failsOnceOnDemandCollection<BooksAccounts>(opts.ledger?.accounts ?? ACCOUNTS)
     }
@@ -777,6 +810,18 @@ function accessCollectionFor(
     return accessViewCollection(rows)
 }
 
+// Bank files are local with an `evict`, because core `evictRows` calls collection.evict(ids)
+// and a TanStack local-only collection has none. A local delete with no write handler
+// completes at once and reaches no refusal hook.
+function bankFilesCollection(rows: BooksBankFiles[]) {
+    const files = local<BooksBankFiles>('books_bank_files', rows)
+    const evict = async (ids: readonly string[]) => {
+        const present = ids.filter(id => files.has(id))
+        if (present.length > 0) await files.delete(present).isPersisted.promise
+    }
+    return Object.assign(files, { evict })
+}
+
 export function seedBooks(
     opts: {
         level?: Level
@@ -803,6 +848,9 @@ export function seedBooks(
         // An accounts collection whose first subset load is refused with a 403, as pbtsdb
         // refuses it, and whose later loads succeed; the source itself stays ready.
         accountsFailsOnce?: boolean
+        // An accounts collection whose first load waits for releaseAccountsRead(), so a test
+        // can act while the account names are not loaded yet.
+        holdAccountsRead?: boolean
         // A balances collection that never finishes loading.
         balancesNeverReady?: boolean
         // A settings collection that never finishes loading.
@@ -823,6 +871,11 @@ export function seedBooks(
         overrides?: BooksCloseOverrides[]
         // The users the overrides and access rows point at; none by default.
         users?: SeedUser[]
+        // The bank connection rows to seed; none by default. Their writes go through the
+        // shared handler, so refuseAfterNow, holdWrites and enteredWrites see them.
+        bankConnections?: BooksBankConnections[]
+        // The bank file rows to seed; none by default.
+        bankFiles?: BooksBankFiles[]
         // The tax agency and tax rate (and group) rows to seed; none by default. Their
         // writes go through the shared handler, so the refusal and hold helpers reach them.
         taxAgencies?: BooksTaxAgencies[]
@@ -911,6 +964,7 @@ export function seedBooks(
     state.reloadGate = null
     state.reloadError = null
     state.releaseReads = []
+    state.releaseAccounts = []
     state.overrideDeletes = []
     state.log = []
     state.refuseAt = []
@@ -949,9 +1003,22 @@ export function seedBooks(
         ),
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
+        books_bank_connections: guarded<BooksBankConnections>(
+            'books_bank_connections',
+            opts.bankConnections ?? []
+        ),
+        books_bank_files: bankFilesCollection(opts.bankFiles ?? []),
         books_tax_agencies: taxAgenciesCollectionFor(opts, opts.taxAgencies ?? []),
         books_tax_rates: taxRatesCollectionFor(opts, opts.taxRates ?? []),
     })
+}
+
+export function bankConnectionsStore() {
+    return state.registry.books_bank_connections as ReturnType<typeof guarded<BooksBankConnections>>
+}
+
+export function bankFilesStore() {
+    return state.registry.books_bank_files as ReturnType<typeof bankFilesCollection>
 }
 
 // Registers `forms` holding one default form per host, as core's seed writes it, so core

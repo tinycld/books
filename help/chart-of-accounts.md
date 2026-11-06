@@ -17,6 +17,8 @@ To find an account, type part of its name or number in the search box. To narrow
 
 To see the transactions of one account, open its menu and choose View register. See [Account register](help://books:account-register).
 
+To upload statements for a bank or credit card account, see [Banking](help://books:banking).
+
 ## Add or edit an account
 
 To add an account, choose New account. Enter a name, choose the type and the detail type, and choose Save. To keep adding accounts, choose Save and new. To make an account a sub-account, choose its Parent account. Leave Parent account on None (top level) for a top-level account. A sub-account has the same type as its parent. Accounts can nest up to 5 levels.

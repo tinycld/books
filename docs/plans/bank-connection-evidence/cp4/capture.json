@@ -1,0 +1,103 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "intro",
+            "url": "/a/books/banking",
+            "ready": "bank-intro",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_bank_connections",
+                "items": []
+            }
+        },
+        {
+            "name": "intro-reader",
+            "url": "/a/books/banking",
+            "ready": "bank-intro",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": [
+                {
+                    "collection": "books_bank_connections",
+                    "items": []
+                },
+                {
+                    "collection": "books_access",
+                    "items": [
+                        {
+                            "collectionId": "pbc_books_access",
+                            "collectionName": "books_access",
+                            "id": "$authId",
+                            "user": "$authId",
+                            "level": "read_only",
+                            "can_read": true,
+                            "can_write": false,
+                            "is_admin": false
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "populated",
+            "url": "/a/books/banking",
+            "ready": "bank-files",
+            "fullPage": true
+        },
+        {
+            "name": "card",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "actions": [
+                {
+                    "clickText": "2100 Company Card"
+                },
+                {
+                    "waitFor": "bank-files-empty"
+                }
+            ]
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/banking",
+            "ready": "bank-files",
+            "fullPage": true,
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/banking",
+            "ready": "bank-loading",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_bank_connections",
+                "hold": true
+            }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/banking",
+            "ready": "bank-error",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_bank_connections",
+                "status": 400
+            }
+        }
+    ]
+}
