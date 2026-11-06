@@ -36,7 +36,7 @@ export function EntryCard({ entry, currency, onOpenEntry, rowMenu }: EntryItemPr
                     {entry.memo}
                 </Text>
                 <Text numberOfLines={1} className="text-xs text-muted-foreground">
-                    {entryTypeText(entry.origin)}
+                    {entryTypeText(entry.origin, entry.doc_type)}
                 </Text>
                 <ReversesNumber
                     entryId={entry.reverses}

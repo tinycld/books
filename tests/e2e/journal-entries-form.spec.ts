@@ -48,6 +48,12 @@ for (const [sizeName, size] of SIZES) {
             page,
         }) => {
             await start(page, size)
+            // The Date field takes the focus on a wide screen only: on a phone a focused
+            // field would open the soft keyboard over the form.
+            const date = page.getByTestId('entry-date')
+            await expect(date).toBeVisible()
+            if (sizeName === 'desktop') await expect(date).toBeFocused()
+            else await expect(date).not.toBeFocused()
             await fillLine(page, 0, {
                 account: ACCOUNT_LABELS.checking,
                 debit: '$10.00',
@@ -96,6 +102,7 @@ test.describe('journal-entries: new entry form (desktop)', () => {
         page,
     }) => {
         await start(page, DESKTOP)
+        await expect(page.getByTestId('entry-date')).toBeFocused()
         const firstOfMonth = `${todayIso().slice(0, 8)}01`
 
         for (const field of ['entry-date', 'entry-auto-reverse']) {

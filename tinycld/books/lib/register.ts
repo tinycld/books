@@ -5,7 +5,7 @@ import type { RegisterRange } from './register-range'
 
 export type RegisterEntry = Pick<
     BooksJournalEntries,
-    'id' | 'number' | 'memo' | 'status' | 'origin' | 'posted_at' | 'reverses' | 'date'
+    'id' | 'number' | 'memo' | 'status' | 'origin' | 'doc_type' | 'posted_at' | 'reverses' | 'date'
 >
 
 export type RegisterEntryLine = Pick<
@@ -59,6 +59,9 @@ export type EntryDetail = {
     typeLabel: string
     statusLabel: string
     memo: string
+    // The drawer's Open picks the screen by these (entryHref).
+    docType: BooksJournalEntries['doc_type']
+    origin: BooksJournalEntries['origin']
     lines: {
         id: string
         accountId: string
@@ -79,7 +82,13 @@ const originLabels: Record<string, string> = {
 
 const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])
 
-export function entryTypeLabel(origin: string, reversesNumber: string): string {
+// A transfer's reversal keeps doc_type 'transfer' and its "Void reversal of TR-3" label.
+export function entryTypeLabel(
+    origin: string,
+    reversesNumber: string,
+    docType: string = 'journal'
+): string {
+    if (docType === 'transfer' && origin === 'manual') return 'Transfer'
     const label = originLabels[origin] ?? originLabels.manual
     if (!reversalOrigins.has(origin) || !reversesNumber) return label
     return `${label} of ${reversesNumber}`
@@ -120,7 +129,7 @@ function toRegisterLine<L extends RegisterSourceLine>(
         entryId: line.entry,
         date: line.date,
         number: entry?.number ?? '',
-        typeLabel: entryTypeLabel(entry?.origin ?? 'manual', line.reversesNumber),
+        typeLabel: entryTypeLabel(entry?.origin ?? 'manual', line.reversesNumber, entry?.doc_type),
         isVoid: entry?.status === 'void',
         memo: line.memo || entry?.memo || '',
         otherAccountId: otherAccountOf(line),
@@ -183,9 +192,11 @@ export function entryDetail(line: RegisterSourceLine, accountId: string): EntryD
     return {
         date: entry.date,
         number: entry.number,
-        typeLabel: entryTypeLabel(entry.origin, line.reversesNumber),
+        typeLabel: entryTypeLabel(entry.origin, line.reversesNumber, entry.doc_type),
         statusLabel: statusLabels[entry.status] ?? entry.status,
         memo: entry.memo,
+        docType: entry.doc_type,
+        origin: entry.origin,
         lines: [...line.entryLines]
             .sort((a, b) => a.position - b.position)
             .map(l => ({

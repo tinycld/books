@@ -1,0 +1,116 @@
+{
+    "outDir": "transfer-reference",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "transfer-form",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filled",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "transfer-form",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "errors-blank",
+            "url": "/a/books/helix-mockup?state=errors-blank",
+            "ready": "transfer-form",
+            "actions": [{ "waitFor": "Choose the account the money comes from" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "errors-same",
+            "url": "/a/books/helix-mockup?state=errors-same",
+            "ready": "transfer-form",
+            "actions": [{ "waitFor": "Choose two different accounts" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "refusal",
+            "url": "/a/books/helix-mockup?state=refusal",
+            "ready": "transfer-error-summary",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "refusal-line",
+            "url": "/a/books/helix-mockup?state=refusal-line",
+            "ready": "transfer-form",
+            "actions": [
+                {
+                    "waitFor": "Old Petty Cash cannot be used in a transfer. Choose a bank, credit card, asset, liability or equity account."
+                }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "transfer-form",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "edit-posted",
+            "url": "/a/books/helix-mockup?state=edit-posted",
+            "ready": "transfer-replace-note",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "transfer-read-only",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "void",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "transfer-read-only",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "transfer-read-only",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "void-dialog",
+            "url": "/a/books/helix-mockup?state=void-dialog",
+            "ready": "void-dialog",
+            "actions": [{ "pause": 500 }],
+            "opaque": "void-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "transfer-no-access",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/helix-mockup?state=cannot-edit",
+            "ready": "transfer-cannot-edit",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "transfer-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "transfer-loading",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "transfer-error",
+            "hideLabels": ["New"]
+        }
+    ]
+}

@@ -24,6 +24,13 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         detail_type: 'checking',
     },
     {
+        key: 'savings',
+        name: 'Business Savings',
+        number: '1010',
+        type: 'bank',
+        detail_type: 'savings',
+    },
+    {
         key: 'receivable',
         name: 'Accounts receivable',
         number: '1100',

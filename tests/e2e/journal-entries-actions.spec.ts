@@ -339,7 +339,9 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         const originalId = entryIdOf(page)
         const number = await entryNumber(page)
 
-        await chooseAction(page, 'Edit')
+        // E is the read view's Edit key.
+        await expect(page.getByTestId('entry-edit')).toBeVisible()
+        await page.keyboard.press('e')
         await expect(page).toHaveURL(/\/entries\/new\?.*replaces=/)
         await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
         await expect(page.getByTestId('entry-number')).toHaveText(number)
@@ -371,8 +373,11 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await chooseAction(page, 'Edit')
         await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
         await fillLine(page, 0, { debit: '$12.00' })
-        await fillLine(page, 1, { credit: '$12.00' })
-        await page.getByTestId('entry-post').click()
+        // ⌘↵ posts from the amount cell just filled, which keeps the focus.
+        const credit = page.getByTestId('entry-line-credit-1')
+        await credit.fill('$12.00')
+        await expect(credit).toBeFocused()
+        await page.keyboard.press('ControlOrMeta+Enter')
 
         await waitForOtherEntry(page, originalId)
         const replacementId = entryIdOf(page)
@@ -418,8 +423,12 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         const originalId = entryIdOf(page)
         const number = await entryNumber(page)
 
-        await chooseAction(page, 'Reverse')
-        await page.getByTestId('reverse-confirm').click()
+        // R is the read view's Reverse key.
+        await expect(page.getByTestId('entry-edit')).toBeVisible()
+        await page.keyboard.press('r')
+        const confirm = page.getByTestId('reverse-confirm')
+        await expect(confirm).toBeVisible()
+        await confirm.click()
         await waitForOtherEntry(page, originalId)
         await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
 
