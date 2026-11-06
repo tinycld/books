@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"tinycld.org/core/branding"
 )
@@ -75,12 +76,21 @@ type pdfAmount struct {
 	Cents int64
 }
 
+// maxPDFNumberLen matches the longest short text Books stores (a phone number).
+const maxPDFNumberLen = 40
+
 var currencyCode = regexp.MustCompile(`^[A-Z]{3}$`)
 
 // validate refuses a document the formatters cannot print truthfully.
 func (d pdfDocument) validate() error {
 	if strings.TrimSpace(d.Title) == "" {
 		return fmt.Errorf("books: pdf: document has no title")
+	}
+	if utf8.RuneCountInString(d.Number) > maxPDFNumberLen {
+		return fmt.Errorf("books: pdf: number is longer than %d characters", maxPDFNumberLen)
+	}
+	if len(d.Totals) == 0 {
+		return fmt.Errorf("books: pdf: document has no totals row")
 	}
 	if !currencyCode.MatchString(d.Currency) {
 		return fmt.Errorf("books: pdf: currency %q is not an ISO code", d.Currency)
@@ -158,12 +168,12 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	}
 	v.Company = pdfBlock{Name: strings.TrimSpace(doc.Company.Name), Lines: lines(doc.Company.Address)}
 	if v.Company.Name == "" {
-		v.Company.Name = org.Name
+		v.Company.Name = strings.TrimSpace(org.Name)
 	}
 	v.Company.Lines = append(v.Company.Lines, nonEmpty(doc.Company.Phone, doc.Company.Email, doc.Company.Website)...)
 	for _, p := range doc.Parties {
 		block := pdfBlock{Label: p.Label, Lines: nonEmpty(p.Name)}
-		if p.Company != "" && p.Company != p.Name {
+		if p.Company != "" && !strings.EqualFold(strings.TrimSpace(p.Company), strings.TrimSpace(p.Name)) {
 			block.Lines = append(block.Lines, p.Company)
 		}
 		block.Lines = append(block.Lines, formatAddressLines(p.Address)...)
@@ -231,7 +241,11 @@ func brandOf(org branding.Org) pdfBrand {
 
 // textOn picks the header text color for a brand color: white unless white
 // falls under 3:1 contrast (WCAG AA for large bold text), then near-black.
+// Anything that is not #rrggbb gets near-black.
 func textOn(hex string) string {
+	if !branding.IsValidColor(hex) {
+		return "#111111"
+	}
 	channel := func(i int) float64 {
 		v, _ := strconv.ParseUint(hex[i:i+2], 16, 8)
 		c := float64(v) / 255

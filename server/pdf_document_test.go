@@ -134,6 +134,8 @@ func TestPDFDocument_ValidateRefusesWhatCannotPrint(t *testing.T) {
 		"amount too big":    func(d *pdfDocument) { d.Lines[0].AmountCents = maxStoredAmount + 1 },
 		"total too small":   func(d *pdfDocument) { d.Totals[0].Cents = -maxStoredAmount - 1 },
 		"rate out of range": func(d *pdfDocument) { d.TaxLines[0].RatePpm = maxRatePpm + 1 },
+		"no totals row":     func(d *pdfDocument) { d.Totals = nil },
+		"number too long":   func(d *pdfDocument) { d.Number = strings.Repeat("9", maxPDFNumberLen+1) },
 		"too many lines": func(d *pdfDocument) {
 			d.Lines = make([]pdfLine, maxPDFLines+1)
 		},
@@ -146,6 +148,41 @@ func TestPDFDocument_ValidateRefusesWhatCannotPrint(t *testing.T) {
 		breakIt(&doc)
 		if err := doc.validate(); err == nil {
 			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestPDFDocument_ValidateAcceptsANumberAtTheBound(t *testing.T) {
+	doc := testDocument("Jordan Lee", 1)
+	doc.Number = strings.Repeat("9", maxPDFNumberLen)
+	if err := doc.validate(); err != nil {
+		t.Errorf("a number at the bound was refused: %v", err)
+	}
+}
+
+func TestPDFView_WhitespaceOrgNameIsTrimmedAndEmptyStaysEmpty(t *testing.T) {
+	doc := testDocument("Jordan Lee", 1)
+	doc.Company.Name = ""
+	org := testOrg()
+	org.Name = "  Acme Incorporated \n"
+	if v := pdfViewOf(doc, org); v.Company.Name != "Acme Incorporated" {
+		t.Errorf("company name = %q", v.Company.Name)
+	}
+}
+
+func TestPDFView_PartyCompanyEqualToNameIsDroppedIgnoringCaseAndSpace(t *testing.T) {
+	doc := testDocument("Jordan Lee", 1)
+	doc.Parties[0].Company = "  JORDAN lee "
+	doc.Parties[0].Address = nil
+	if got := pdfViewOf(doc, testOrg()).Parties[0].Lines; strings.Join(got, "|") != "Jordan Lee" {
+		t.Errorf("party lines = %q", got)
+	}
+}
+
+func TestPDFView_TextOnIsTotalForANonHexColor(t *testing.T) {
+	for _, bad := range []string{"", "#fff", "red", "#12345", "#gggggg", "0d9488"} {
+		if got := textOn(bad); got != "#111111" {
+			t.Errorf("textOn(%q) = %s", bad, got)
 		}
 	}
 }
