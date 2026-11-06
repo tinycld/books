@@ -198,7 +198,7 @@
 - reviewer-caught deferrals: none
 - out-of-plan: tests/e2e/banking-connect.spec.ts, tinycld/books/hooks/useCsvPicker.ts, interface changes (see Out-of-plan changes)
 - rounds: 1
-- commit: (recorded by the next ledger commit)
+- commit: 079f2ef
 - human: n/a (review mode C)
 
 ## Final review
