@@ -1,0 +1,100 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/banking",
+            "ready": "bank-file-drop",
+            "fullPage": true
+        },
+        {
+            "name": "drag",
+            "url": "/a/books/banking",
+            "ready": "bank-file-drop",
+            "widths": [1280],
+            "actions": [{ "dragFile": "bank-file-drop" }, { "waitFor": "Drop the bank file here" }]
+        },
+        {
+            "name": "uploading",
+            "url": "/a/books/banking",
+            "ready": "bank-file-drop",
+            "writes": { "collection": "books_bank_files", "answers": ["hold"] },
+            "actions": [
+                {
+                    "chooseFile": {
+                        "name": "checking-2026-11.csv",
+                        "text": "Date,Description,Amount\n2026-11-02,Coffee Roasters,-18.40\n"
+                    }
+                },
+                { "waitFor": "bank-upload-busy" }
+            ]
+        },
+        {
+            "name": "uploaded",
+            "url": "/a/books/banking",
+            "ready": "bank-file-drop",
+            "writes": {
+                "collection": "books_bank_files",
+                "answers": [
+                    {
+                        "ok": {
+                            "collectionId": "pbc_books_bank_files",
+                            "collectionName": "books_bank_files",
+                            "id": "$form:id",
+                            "connection": "$form:connection",
+                            "file": "checking_2026_11_helix.csv",
+                            "name": "checking-2026-11.csv",
+                            "format": "csv",
+                            "size": 51200,
+                            "content_hash": "helixcapturehash",
+                            "status": "uploaded",
+                            "uploaded_by": "",
+                            "created": "2026-11-05 15:10:00.000Z",
+                            "updated": "2026-11-05 15:10:00.000Z"
+                        }
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "chooseFile": {
+                        "name": "checking-2026-11.csv",
+                        "text": "Date,Description,Amount\n2026-11-02,Coffee Roasters,-18.40\n"
+                    }
+                },
+                { "waitFor": "bank-upload-done" }
+            ]
+        },
+        {
+            "name": "refused",
+            "url": "/a/books/banking",
+            "ready": "bank-file-drop",
+            "writes": {
+                "collection": "books_bank_files",
+                "answers": [400],
+                "message": "checking-2026-10.csv was already uploaded to 1000 Business Checking on Nov 3, 2026."
+            },
+            "actions": [
+                {
+                    "chooseFile": {
+                        "name": "checking-2026-10.csv",
+                        "text": "Date,Description,Amount\n2026-10-02,Coffee Roasters,-18.40\n"
+                    }
+                },
+                { "waitFor": "bank-upload-error" }
+            ]
+        },
+        {
+            "name": "remove",
+            "url": "/a/books/banking",
+            "ready": "bank-files",
+            "actions": [
+                { "clickText": "Remove" },
+                { "waitFor": "bank-remove-dialog" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "bank-remove-dialog"
+        }
+    ]
+}

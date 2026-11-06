@@ -1,5 +1,13 @@
 import type { LucideIcon } from 'lucide-react-native'
-import { BarChart3, BookOpen, FileText, List, Percent, Settings } from 'lucide-react-native'
+import {
+    BarChart3,
+    BookOpen,
+    FileText,
+    Landmark,
+    List,
+    Percent,
+    Settings,
+} from 'lucide-react-native'
 import type { BooksAccessState } from './access'
 import { hasAvailableReport } from './report-registry'
 
@@ -34,6 +42,7 @@ export interface NewMenuColumn {
 }
 
 export const SIDEBAR_ENTRIES: SidebarEntry[] = [
+    { id: 'banking', label: 'Banking', icon: Landmark, href: 'books/banking', available: true },
     { id: 'lists', label: 'Lists', icon: List, href: 'books/lists', available: true },
     {
         id: 'reports',

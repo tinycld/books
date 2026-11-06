@@ -170,6 +170,33 @@ func TestAudit_LabelsAProductAndABundleItem(t *testing.T) {
 	}
 }
 
+// A connection's row holds only an account id, so its audit row names the
+// account as people know it ("1000 Business Checking"); a bank file is named
+// by its file name.
+func TestAudit_LabelsBankRecords(t *testing.T) {
+	app := newBooksApp(t)
+	audited := auditedCollections(app)
+	connections, ok := audited["books_bank_connections"]
+	if !ok {
+		t.Fatal("books_bank_connections is not audited")
+	}
+	files, ok := audited["books_bank_files"]
+	if !ok {
+		t.Fatal("books_bank_files is not audited")
+	}
+	checking := saveRecord(t, app, "books_accounts", map[string]any{
+		"name": "Business Checking", "number": "1000", "type": "bank", "detail_type": "checking", "currency": "USD",
+	})
+	connection := saveRecord(t, app, "books_bank_connections", map[string]any{"account": checking.Id})
+	if got, want := connections.ExtractLabel(connection), "1000 Business Checking"; got != want {
+		t.Errorf("connection label = %q, want %q", got, want)
+	}
+	file := mustSaveBankFile(t, app, connection.Id, "checking-2026-09.csv", sha256Hex([]byte(bankCSV)), "uploaded")
+	if got, want := files.ExtractLabel(file), "checking-2026-09.csv"; got != want {
+		t.Errorf("bank file label = %q, want %q", got, want)
+	}
+}
+
 // waitFor polls an asynchronous write: core writes audit rows off the request
 // goroutine, so a row lands just after the response.
 func waitFor(t testing.TB, done func() bool) {
@@ -347,6 +374,24 @@ func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	}
 }
 
+// A token that records transactions also connects bank accounts and uploads
+// their statement files. TestOAuth_CoversEveryBooksCollection checks only that
+// a collection is listed, so this pins the access itself.
+func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
+	collections := oauthPackage().Collections
+	want := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	for _, c := range []string{"books_bank_connections", "books_bank_files"} {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, want.Read) || !reflect.DeepEqual(got.Write, want.Write) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, want.Read, want.Write)
+		}
+	}
+}
+
 // Settings, numbering, overrides and admin grants change who may do what in
 // the books. A token consented as "record transactions" must not reach them.
 func TestOAuth_ConfigurationIsReadOnly(t *testing.T) {
@@ -494,8 +539,9 @@ func TestOAuth_AdminsTokenCannotChangeSettings(t *testing.T) {
 	}.run(t, app)
 }
 
-// Quota counts stored bytes. No Books collection stores files yet, so the
-// source list is empty; this fails the day one does without a registration.
+// Quota counts stored bytes. One Books collection stores files (the bank
+// statement files), so it is the one source; this fails the day another
+// collection stores files without a registration.
 func TestQuota_EveryFileCollectionIsASource(t *testing.T) {
 	app := newBooksApp(t)
 	sources := map[string]bool{}
@@ -600,10 +646,17 @@ func TestRegister_WiresEverything(t *testing.T) {
 	if len(sources) != 1 || sources[0].Slug != "books" || sources[0].Order != 30 {
 		t.Fatalf("search sources = %+v, want one books source", sources)
 	}
+	var booksSources []quota.Source
 	for _, s := range quota.RegisteredSources() {
 		if strings.HasPrefix(s.Collection, "books_") {
-			t.Errorf("Register added quota source %+v, but quotaSources is empty", s)
+			booksSources = append(booksSources, s)
 		}
+	}
+	// The bank files are the company's records, so they have no owner and
+	// count toward the organization total only.
+	wantSource := quota.Source{Slug: "books", Collection: "books_bank_files", SizeField: "size", OwnerField: ""}
+	if len(booksSources) != 1 || booksSources[0] != wantSource {
+		t.Errorf("Books quota sources = %+v, want exactly [%+v]", booksSources, wantSource)
 	}
 	found := false
 	for _, j := range app.Cron().Jobs() {
