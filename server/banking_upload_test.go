@@ -198,23 +198,41 @@ func paddedCSV(size int) []byte {
 	return b
 }
 
-// saveBankFile stores a file the way a Go caller does (the model path, no
-// request hook), with every stamped field set here.
-func saveBankFile(t testing.TB, app core.App, connectionID, name, status string, data []byte) *core.Record {
-	t.Helper()
-	file, err := filesystem.NewFileFromBytes(data, name)
+// saveBankFile stores bankCSV the way a Go caller does (the model path, no
+// request hook), with every stamped field set here and content_hash set to
+// hash. It returns the save's error, so a racing goroutine or a refusal check
+// can read it.
+func saveBankFile(app core.App, connectionID, name, hash string, status string) (*core.Record, error) {
+	col, err := app.FindCollectionByNameOrId("books_bank_files")
 	if err != nil {
-		t.Fatalf("file: %v", err)
+		return nil, err
 	}
-	return saveRecord(t, app, "books_bank_files", map[string]any{
-		"connection":   connectionID,
-		"file":         file,
-		"name":         name,
-		"format":       "csv",
-		"size":         len(data),
-		"content_hash": sha256Hex(data),
-		"status":       status,
-	})
+	file, err := filesystem.NewFileFromBytes([]byte(bankCSV), name)
+	if err != nil {
+		return nil, err
+	}
+	r := core.NewRecord(col)
+	r.Set("connection", connectionID)
+	r.Set("file", file)
+	r.Set("name", name)
+	r.Set("format", "csv")
+	r.Set("size", len(bankCSV))
+	r.Set("content_hash", hash)
+	r.Set("status", status)
+	if err := app.Save(r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+// mustSaveBankFile is saveBankFile for a file the test needs stored.
+func mustSaveBankFile(t testing.TB, app core.App, connectionID, name, hash string, status string) *core.Record {
+	t.Helper()
+	r, err := saveBankFile(app, connectionID, name, hash, status)
+	if err != nil {
+		t.Fatalf("save bank file %s: %v", name, err)
+	}
+	return r
 }
 
 func TestBankUpload_StampsTheFile(t *testing.T) {
@@ -489,7 +507,7 @@ func TestBankRules_UpdateAndDelete(t *testing.T) {
 	})
 	t.Run("a stored file cannot be updated", func(t *testing.T) {
 		env := newBankEnv(t)
-		file := saveBankFile(t, env.app, env.connection.Id, "x.csv", "uploaded", []byte(bankCSV))
+		file := mustSaveBankFile(t, env.app, env.connection.Id, "x.csv", sha256Hex([]byte(bankCSV)), "uploaded")
 		apiReq{
 			method: http.MethodPatch,
 			url:    filesURL + "/" + file.Id,
@@ -505,7 +523,7 @@ func TestBankRules_UpdateAndDelete(t *testing.T) {
 	})
 	t.Run("an uploaded file is deleted", func(t *testing.T) {
 		env := newBankEnv(t)
-		file := saveBankFile(t, env.app, env.connection.Id, "x.csv", "uploaded", []byte(bankCSV))
+		file := mustSaveBankFile(t, env.app, env.connection.Id, "x.csv", sha256Hex([]byte(bankCSV)), "uploaded")
 		apiReq{
 			method: http.MethodDelete,
 			url:    filesURL + "/" + file.Id,
@@ -520,7 +538,7 @@ func TestBankRules_UpdateAndDelete(t *testing.T) {
 	})
 	t.Run("an imported file stays", func(t *testing.T) {
 		env := newBankEnv(t)
-		file := saveBankFile(t, env.app, env.connection.Id, "x.csv", "uploaded", []byte(bankCSV))
+		file := mustSaveBankFile(t, env.app, env.connection.Id, "x.csv", sha256Hex([]byte(bankCSV)), "uploaded")
 		file.Set("status", "imported")
 		if err := env.app.Save(file); err != nil {
 			t.Fatalf("set imported: %v", err)
@@ -605,4 +623,21 @@ func TestBankFiles_FileFieldIsProtected(t *testing.T) {
 	if field.MaxSize != maxBankFileBytes {
 		t.Errorf("file field maxSize %d differs from maxBankFileBytes %d", field.MaxSize, maxBankFileBytes)
 	}
+}
+
+// uploadRecordWithFile keeps only the top-level message, so the duplicate
+// refusal must be that message, not the unique index's field error.
+func TestBankUpload_DuplicateRefusalReachesTheClient(t *testing.T) {
+	env := newBankEnv(t)
+	stored := mustSaveBankFile(t, env.app, env.connection.Id, "oct-2026.csv", sha256Hex([]byte(bankCSV)), "uploaded")
+	day := reload(t, env.app, "books_bank_files", stored.Id).GetDateTime("created").Time().UTC().Format("Jan 2, 2006")
+	req := env.upload(t, "again.csv", []byte(bankCSV))
+	req.want = http.StatusBadRequest
+	req.content = refusedWith("oct-2026.csv was already uploaded to 1000 Business Checking on " + day + ".")
+	req.after = func(t testing.TB, app *tests.TestApp) {
+		if n, err := app.CountRecords("books_bank_files"); err != nil || n != 1 {
+			t.Errorf("%d bank files after a refused duplicate (err %v), want only the stored one", n, err)
+		}
+	}
+	req.run(t, env.app)
 }

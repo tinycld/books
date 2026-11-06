@@ -34,9 +34,17 @@
 - cp 1 · gate 3 A: only a comment ties Go `bankCSV` (server/banking_upload_test.go) to the fixture's `BANK_CSV_SAMPLE`; identical today, no drift test.
 - cp 1 · gate 3 A: the connection update rule pins `account` unset, so a PATCH that sends the same `account` back answers 404 — checkpoint 5's Edit bank details must send only `institution` and `account_mask`.
 - cp 1 · fix review: the reason `content_hash` is required (a blank hash collides on the unique index) is in the migration comment only, not in the spec.
+- cp 2 · gate 3 A: `validateAccount` (validateParent, 1099 box) runs before `checkAccountChange`, so a connected sub-account whose type alone changes gets "A sub-account must have the same type as its parent (…)." before the Banking message; the plan scopes "before the existing checks" to checkAccountChange, so the order is as planned.
+- cp 2 · gate 3 A: test 9's account has no lines, sub-accounts or products, so no assertion locks the Banking refusal before those checks (the order is in the code and its comment only).
+- cp 2 · gate 3 A: `refuseNamed` (server/errors.go) relies on the caller's format ending with a period; every current format does, nothing enforces it.
+- cp 2 · gate 3 A: a connection's `account` is pinned only by the REST update rule; a Go caller can re-point it without `checkBankConnection` (the spec names create only).
+- cp 2 · later units: a message that starts with a name (a file name, a number-less lowercase account name) must use `refuseNamed`, not `refuse`: PocketBase `NewBadRequestError` Sentenizes (capitalizes) the message (third_party/pocketbase/tools/router/error.go).
 
 ## Out-of-plan changes
 - cp 1 · docs/specs/bank-connection-design.md: §4 books_bank_files table rows `format` and `content_hash` now say "required", to match the migration (implementer's declared difference 1; reviewer B finding 2).
+- cp 2 · server/errors.go: new `refuseNamed(format, args…)` — the same 400 ApiError as `refuse` with the message kept as written, because PocketBase Sentenizes the message ("oct-2026.csv" became "Oct-2026.csv"); used for the duplicate, already-connected, disconnect-refused and three connected-account messages (implementer's declared difference 1; reviewers A and B accepted).
+- cp 2 · server/registrations_test.go: one caller (TestAudit_LabelsBankRecords) moved to `mustSaveBankFile(…, sha256Hex(bankCSV), "uploaded")` because the plan's `saveBankFile(app, connectionID, name, hash, status) (*core.Record, error)` replaced checkpoint 1's helper of the same name; same bytes and hash, not weakened.
+- cp 2 · test helpers not named in the plan: `mustSaveBankFile` (server/banking_upload_test.go); `saveConnection`, `requireConnectionCount`, `requireRecordExists`, `requireRecordGone`, `uploadDay` (server/banking_guards_test.go).
 
 ## Phase notes
 - phase 1: design gate 2026-11-05 (auto-helix). Intake and packet: ~/tmp/tinycld/auto-helix-books/staging/p4-bank-connection/{intake.md,packet.md}. The human accepted every recommended answer (open questions 1–17) and signed off the `[platform]` item (drag and drop on web only; "Choose file" on both).
@@ -64,6 +72,22 @@
 - reviewer-caught deferrals: none
 - out-of-plan: docs/specs/bank-connection-design.md (two Data-table rows, see Out-of-plan changes)
 - commit: d510ae0
+- human: n/a (review mode C)
+
+## Checkpoint 2 — Banking server guards
+- test writer: server/banking_guards_test.go (new: TestBankConnection_OnlyActiveBankOrCardAccounts, _OnePerAccount, _DisconnectDeletesWaitingFiles, _DisconnectRefusedOnceAFileIsImported (imported, failed), TestBankFile_RefusesAMissingConnection, _RefusesTheSameBytesTwice, TestRace_TheSameFileUploadedTwice, TestRace_TheSameAccountConnectedTwice, TestAccountGuards_RefuseAConnectedAccount, TestBankAccountTypes_AreAccountTypes), server/banking_upload_test.go (saveBankFile reworked to the plan's signature + mustSaveBankFile; three cp1 callers kept their bytes and hash; new TestBankUpload_DuplicateRefusalReachesTheClient), server/registrations_test.go (one caller). Exact message texts, not the constants. Red for the right reason: yes — compile error only for `bankAccountTypes`; with a go -overlay stub of bankAccountTypes/isBankAccountType: no refusal (inactive/expense account, disconnect with imported/failed, account guards), relation errors instead of the Banking texts (unknown account, missing connection), "Value must be unique." instead of already-connected/duplicate, both races hit the unique index (not serialized), upload answered "Failed to create record.", bankAccountTypes = []. TestBankConnection_DisconnectDeletesWaitingFiles green before the code (checkpoint 1's `cascadeDelete: true` on files.connection); kept, it fails if checkDisconnect refuses an all-uploaded connection or changes the account. Untestable: none.
+- implementer: banking.go (`bankAccountTypes`, `isBankAccountType`, 8 messages, three serialized model hooks, `checkBankConnection`, `checkDisconnect`, `checkBankFileCreate`, `connectionOf`), accounts.go (connected-account refusals first in the type-change and made-inactive branches and in checkAccountDelete), errors.go (`refuseNamed`). DONE
+- test disputes: none
+- self-declared differences: (1) `refuseNamed` instead of `refuse` for the six messages that start with a name (PocketBase Sentenize capitalized "oct-2026.csv"; three tests failed with `refuse`); (2) `books: …` wraps on every DB read, not only the account read the plan named; (3) the stored file's connection and account are two reads (no expand); (4) a why-comment on the delete guard (the connection's `account` has cascadeDelete false).
+- gate 1: tests unedited: yes · go vet clean · go test ./... pass (51.8 s) · tinycld-pkg check pass (biome 786 files clean, tsc clean, vitest 185 files / 3511 tests) · pass
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): no BLOCK. Every Tests bullet has a failing assertion; no deferral. NOTE 2 (accounts.go comment justified the type guard by "must not become one [non-bank type]", but bank → credit_card is refused too) → accepted+fixed (one comment). NOTEs 1, 3, 4, 5 → Design notes.
+- gate 3 B (conformance): no rule break. (1) errors.go out of plan → accepted, recorded under Out-of-plan changes; (2) registrations_test.go caller → accepted, recorded; (3)(4) unplanned test helpers → recorded; (5) accounts.go comment above the type branch only, though its reason covers the made-inactive branch too → accepted+fixed (comment now covers both branches); (6) connectionOf comment says what, acceptable for a lookup → no action.
+- fix review: round 1: reviewer A pass over the fix diff (accounts.go comment): clean, no BLOCK; both findings fixed, comment true of the code. NOTE (ragged wrap) → fixed (re-wrapped; one-line comment change). Gate 1 after the fix: go vet clean, go test ./... pass, tinycld-pkg check pass (3511 tests); targeted go test after the re-wrap pass.
+- gate 3 A notes: 4, listed under Design notes
+- reviewer-caught deferrals: none
+- out-of-plan: server/errors.go, server/registrations_test.go (see Out-of-plan changes)
+- commit: (see the next ledger commit)
 - human: n/a (review mode C)
 
 ## Final review
