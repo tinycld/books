@@ -187,7 +187,8 @@ func sha256Hex(data []byte) string {
 // paddedCSV is bankCSV followed by CSV rows, exactly size bytes long.
 func paddedCSV(size int) []byte {
 	b := []byte(bankCSV)
-	row := []byte("2026-09-30,Padding row to reach the size limit,0.00\n")
+	// Long rows, so a 5 MB file stays under maxBankRows.
+	row := []byte("2026-09-30,Padding row to reach the size limit " + strings.Repeat("x", 900) + ",0.00\n")
 	for len(b)+len(row) <= size {
 		b = append(b, row...)
 	}
@@ -390,12 +391,13 @@ func TestBankUpload_RefusesWhatIsNotABankFile(t *testing.T) {
 // The create rule pins the fields the server stamps, so a client cannot claim
 // a format, a hash or an uploader.
 func TestBankUpload_ClientCannotSetStampedFields(t *testing.T) {
-	for _, field := range []string{"name", "format", "size", "content_hash", "status", "uploaded_by"} {
+	for _, field := range []string{"name", "format", "size", "content_hash", "status", "uploaded_by", "statement_balance", "statement_date"} {
 		t.Run(field, func(t *testing.T) {
 			env := newBankEnv(t)
 			values := map[string]string{
 				"name": "other.csv", "format": "csv", "size": "10", "content_hash": strings.Repeat("a", 64),
 				"status": "uploaded", "uploaded_by": env.users.bookkeeper.Id,
+				"statement_balance": "10", "statement_date": "2026-10-31",
 			}
 			req := env.upload(t, "oct-2026.csv", []byte(bankCSV))
 			req.extra = map[string]string{field: values[field]}

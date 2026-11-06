@@ -32,6 +32,13 @@ func registerLedger(app core.App) {
 // transaction while the write runs, so PocketBase's own write joins it, and
 // is restored after.
 func serialized(e *core.RecordEvent, check func(tx core.App) error) error {
+	return serializedThen(e, check, nil)
+}
+
+// serializedThen is serialized with a step after the write, in the same
+// transaction, for rows that must exist with the record or not at all (a bank
+// file's parsed rows, an import's transactions). after may be nil.
+func serializedThen(e *core.RecordEvent, check, after func(tx core.App) error) error {
 	original := e.App
 	defer func() { e.App = original }()
 	return original.RunInTransaction(func(tx core.App) error {
@@ -39,6 +46,12 @@ func serialized(e *core.RecordEvent, check func(tx core.App) error) error {
 		if err := check(tx); err != nil {
 			return err
 		}
-		return e.Next()
+		if err := e.Next(); err != nil {
+			return err
+		}
+		if after == nil {
+			return nil
+		}
+		return after(tx)
 	})
 }

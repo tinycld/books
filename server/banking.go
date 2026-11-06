@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 // bankFileExtensions are the statement exports Books takes: CSV, and OFX with
@@ -34,6 +36,8 @@ const (
 	// header or a CSV header line is near the start.
 	bankFileSniffBytes     = 4096
 	bankFileStatusUploaded = "uploaded"
+	// maxBankContentBytes is the rows field's maxSize in 2100000008.
+	maxBankContentBytes = 20971520
 )
 
 // bankAccountTypes are the account types that can be connected to Banking.
@@ -51,6 +55,7 @@ const (
 	msgBankFileType              = "Choose a CSV, OFX, QFX or QBO file."
 	msgBankFileTooBig            = "Choose a file of 5 MB or less."
 	msgBankFileNotBank           = "This does not look like a CSV or OFX bank file."
+	msgBankContentTooLarge       = "This file is too large to read. Export a shorter date range from your bank."
 	msgBankConnectionMissing     = "The bank account connection does not exist."
 	msgBankAccountNotConnectable = "Only an active bank or credit card account can be connected."
 	msgBankFileDuplicate         = "%s was already uploaded to %s on %s."
@@ -76,6 +81,10 @@ const utf8BOM = "\xEF\xBB\xBF"
 // outside one. Each check returns a top-level refusal before the unique
 // indexes on account and content_hash answer with a field error the client
 // does not show.
+//
+// A file's rows are parsed before the transaction (parsing reads no row) and
+// stored after the file row, in its transaction, so every stored file has its
+// rows and a refused one has none.
 func registerBanking(app core.App) {
 	app.OnRecordCreateRequest("books_bank_connections").BindFunc(func(e *core.RecordRequestEvent) error {
 		stampActor(e.Record, "created_by", e.Auth)
@@ -89,7 +98,14 @@ func registerBanking(app core.App) {
 		return serialized(e, func(tx core.App) error { return checkDisconnect(tx, e.Record) })
 	})
 	app.OnRecordCreate("books_bank_files").BindFunc(func(e *core.RecordEvent) error {
-		return serialized(e, func(tx core.App) error { return checkBankFileCreate(tx, e.Record) })
+		content, rows, err := parseStoredBankFile(e.Record)
+		if err != nil {
+			return err
+		}
+		stampStatement(e.Record, content)
+		return serializedThen(e,
+			func(tx core.App) error { return checkBankFileCreate(tx, e.Record) },
+			func(tx core.App) error { return saveBankContent(tx, e.Record, content.Columns, rows) })
 	})
 }
 
@@ -224,22 +240,9 @@ func readBankUpload(f *filesystem.File) (format string, hash string, err error) 
 	if f.Size > maxBankFileBytes {
 		return "", "", refuse(msgBankFileTooBig)
 	}
-	r, err := f.Reader.Open()
+	data, err := readBankBytes(f)
 	if err != nil {
-		return "", "", fmt.Errorf("books: read the uploaded file: %w", err)
-	}
-	defer r.Close()
-	// One byte past the limit, so a reader that holds more than the declared
-	// size is refused rather than cut silently.
-	data, err := io.ReadAll(io.LimitReader(r, maxBankFileBytes+1))
-	if err != nil {
-		return "", "", fmt.Errorf("books: read the uploaded file: %w", err)
-	}
-	if len(data) == 0 {
-		return "", "", refuse(msgBankFileEmpty)
-	}
-	if len(data) > maxBankFileBytes {
-		return "", "", refuse(msgBankFileTooBig)
+		return "", "", err
 	}
 	sum := sha256.Sum256(data)
 	format, ok := sniffBankFile(data)
@@ -247,6 +250,102 @@ func readBankUpload(f *filesystem.File) (format string, hash string, err error) 
 		return "", "", refuse(msgBankFileNotBank)
 	}
 	return format, hex.EncodeToString(sum[:]), nil
+}
+
+// readBankBytes reads a file's bytes, refusing an empty file and one over the
+// limit. One byte past the limit is read, so a reader that holds more than the
+// declared size is refused rather than cut silently.
+func readBankBytes(f *filesystem.File) ([]byte, error) {
+	r, err := f.Reader.Open()
+	if err != nil {
+		return nil, fmt.Errorf("books: read the uploaded file: %w", err)
+	}
+	defer r.Close()
+	data, err := io.ReadAll(io.LimitReader(r, maxBankFileBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("books: read the uploaded file: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, refuse(msgBankFileEmpty)
+	}
+	if len(data) > maxBankFileBytes {
+		return nil, refuse(msgBankFileTooBig)
+	}
+	return data, nil
+}
+
+// parseStoredBankFile parses the file being stored by its stamped format and
+// encodes its rows. The request hook stamped the format; a Go caller sets it.
+func parseStoredBankFile(r *core.Record) (bankContent, types.JSONRaw, error) {
+	files := r.GetUnsavedFiles("file")
+	if len(files) == 0 {
+		return bankContent{}, nil, refuse(msgBankFileEmpty)
+	}
+	data, err := readBankBytes(files[0])
+	if err != nil {
+		return bankContent{}, nil, err
+	}
+	var content bankContent
+	switch r.GetString("format") {
+	case "csv":
+		content, err = parseBankCSV(data)
+	case "ofx":
+		content, err = parseBankOFX(data)
+	default:
+		return bankContent{}, nil, refuse(msgBankFileNotBank)
+	}
+	if err != nil {
+		return bankContent{}, nil, err
+	}
+	rows, err := encodeBankRows(content.Rows)
+	if err != nil {
+		return bankContent{}, nil, err
+	}
+	return content, rows, nil
+}
+
+// encodeBankRows is the rows field's value, refused with a message when it is
+// past the field's maxSize (a 5 MB file of characters JSON escapes can be).
+func encodeBankRows(rows []bankRow) (types.JSONRaw, error) {
+	if rows == nil {
+		rows = []bankRow{}
+	}
+	raw, err := json.Marshal(rows)
+	if err != nil {
+		return nil, fmt.Errorf("books: encode the file's rows: %w", err)
+	}
+	if len(raw) > maxBankContentBytes {
+		return nil, refuse(msgBankContentTooLarge)
+	}
+	return types.JSONRaw(raw), nil
+}
+
+// saveBankContent stores the file's parsed rows, inside the file's transaction.
+func saveBankContent(tx core.App, file *core.Record, columns int, rows types.JSONRaw) error {
+	col, err := tx.FindCollectionByNameOrId("books_bank_file_contents")
+	if err != nil {
+		return fmt.Errorf("books: find books_bank_file_contents: %w", err)
+	}
+	r := core.NewRecord(col)
+	r.Set("file", file.Id)
+	r.Set("columns", columns)
+	r.Set("rows", rows)
+	if err := tx.Save(r); err != nil {
+		return fmt.Errorf("books: store the rows of %s: %w", file.GetString("name"), err)
+	}
+	return nil
+}
+
+// stampStatement records an OFX file's ledger balance and its day; a file
+// without one (every CSV file) gets 0 and "".
+func stampStatement(r *core.Record, c bankContent) {
+	if c.StatementBalance == nil {
+		r.Set("statement_balance", 0)
+		r.Set("statement_date", "")
+		return
+	}
+	r.Set("statement_balance", *c.StatementBalance)
+	r.Set("statement_date", c.StatementDate)
 }
 
 // sniffBankFile tells an OFX file from a CSV file by the first

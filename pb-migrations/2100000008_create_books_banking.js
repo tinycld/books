@@ -12,7 +12,8 @@
 // file and a disconnect. A rule cannot look up another row or read a file's
 // bytes, which is why those live in Go. The fields the server stamps are
 // pinned with `@request.body.x:isset = false`: created_by on a connection, and
-// name, format, size, content_hash, status and uploaded_by on a file. A
+// name, format, size, content_hash, status, uploaded_by, statement_balance
+// and statement_date on a file. A
 // connection's account never changes; to use another account, disconnect and
 // connect it.
 //
@@ -104,60 +105,65 @@ migrate(
         })
         app.save(connections)
         const files = new Collection({
-                id: 'pbc_books_bank_files',
-                name: 'books_bank_files',
-                type: 'base',
-                listRule: READ,
-                viewRule: READ,
-                createRule: `${WRITE} && ${unset('name', 'format', 'size', 'content_hash', 'status', 'uploaded_by')}`,
-                updateRule: null,
-                deleteRule: `${WRITE} && status = "uploaded"`,
-                fields: [
-                    {
-                        name: 'connection',
-                        type: 'relation',
-                        required: true,
-                        collectionId: connections.id,
-                        cascadeDelete: true,
-                        maxSelect: 1,
-                    },
-                    {
-                        name: 'file',
-                        type: 'file',
-                        required: true,
-                        maxSelect: 1,
-                        maxSize: 5242880,
-                        protected: true,
-                    },
-                    { name: 'name', type: 'text', max: 255 },
-                    // Required: the parser reads it, and the upload hook stamps it
-                    // before PocketBase validates the row.
-                    {
-                        name: 'format',
-                        type: 'select',
-                        required: true,
-                        maxSelect: 1,
-                        values: ['csv', 'ofx'],
-                    },
-                    { name: 'size', type: 'number', onlyInt: true, min: 0 },
-                    // Required: a blank hash would make the unique index refuse the
-                    // second hash-less row with a raw constraint error, not a message.
-                    { name: 'content_hash', type: 'text', required: true, max: 64 },
-                    {
-                        name: 'status',
-                        type: 'select',
-                        required: true,
-                        maxSelect: 1,
-                        values: ['uploaded', 'imported', 'failed'],
-                    },
-                    userRef('uploaded_by'),
-                    ...AUTODATES,
-                ],
-                indexes: [
-                    'CREATE UNIQUE INDEX idx_books_bank_files_hash ON books_bank_files (content_hash)',
-                    'CREATE INDEX idx_books_bank_files_connection ON books_bank_files (connection, created)',
-                ],
-            })
+            id: 'pbc_books_bank_files',
+            name: 'books_bank_files',
+            type: 'base',
+            listRule: READ,
+            viewRule: READ,
+            createRule: `${WRITE} && ${unset('name', 'format', 'size', 'content_hash', 'status', 'uploaded_by', 'statement_balance', 'statement_date')}`,
+            updateRule: null,
+            deleteRule: `${WRITE} && status = "uploaded"`,
+            fields: [
+                {
+                    name: 'connection',
+                    type: 'relation',
+                    required: true,
+                    collectionId: connections.id,
+                    cascadeDelete: true,
+                    maxSelect: 1,
+                },
+                {
+                    name: 'file',
+                    type: 'file',
+                    required: true,
+                    maxSelect: 1,
+                    maxSize: 5242880,
+                    protected: true,
+                },
+                { name: 'name', type: 'text', max: 255 },
+                // Required: the parser reads it, and the upload hook stamps it
+                // before PocketBase validates the row.
+                {
+                    name: 'format',
+                    type: 'select',
+                    required: true,
+                    maxSelect: 1,
+                    values: ['csv', 'ofx'],
+                },
+                { name: 'size', type: 'number', onlyInt: true, min: 0 },
+                // Required: a blank hash would make the unique index refuse the
+                // second hash-less row with a raw constraint error, not a message.
+                { name: 'content_hash', type: 'text', required: true, max: 64 },
+                {
+                    name: 'status',
+                    type: 'select',
+                    required: true,
+                    maxSelect: 1,
+                    values: ['uploaded', 'imported', 'failed'],
+                },
+                userRef('uploaded_by'),
+                // OFX only, stamped from the file: the statement's ledger balance
+                // in minor units as the bank states it (a card's balance owed is
+                // usually negative) and its day. 0 and '' for a CSV file.
+                { name: 'statement_balance', type: 'number', onlyInt: true },
+                { name: 'statement_date', type: 'text', max: 10, pattern: '^(\\d{4}-\\d{2}-\\d{2})?$' },
+                ...AUTODATES,
+            ],
+            indexes: [
+                'CREATE UNIQUE INDEX idx_books_bank_files_hash ON books_bank_files (content_hash)',
+                'CREATE INDEX idx_books_bank_files_connection ON books_bank_files (connection, created)',
+            ],
+        })
         app.save(files)
         app.save(
             new Collection({

@@ -47,6 +47,8 @@ export function registerCollections(
             'content_hash',
             'status',
             'uploaded_by',
+            'statement_balance',
+            'statement_date',
         ] as const,
         ...onDemand,
         relations: { connection: books_bank_connections, uploaded_by: coreStores.users },
