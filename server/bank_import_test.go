@@ -1,6 +1,7 @@
 package books
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -269,11 +270,41 @@ func TestBankImport_AfterImport(t *testing.T) {
 	file := saveBankFileBytes(t, env.app, env.connection.Id, "sep.csv", "csv", bankCSV)
 	mustImport(t, env.app, csvImport(file.Id, 2))
 	requireRefused(t, env.app.Delete(env.connection), "1000 Business Checking has imported transactions, so it cannot be disconnected.")
+	raw, err := json.Marshal(csvImport(file.Id, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	importsBefore := countRows(t, env.app, "books_bank_imports")
 	apiReq{
 		method: http.MethodPost,
 		url:    collectionURL("books_bank_imports"),
 		token:  tokenFor(t, env.users.readOnly),
-		body:   fmt.Sprintf(`{"file":%q,"lines":[3]}`, file.Id),
+		body:   string(raw),
 		want:   http.StatusBadRequest,
 	}.run(t, env.app)
+	if n := countRows(t, env.app, "books_bank_imports"); n != importsBefore {
+		t.Errorf("%d imports after the reader's attempt, want %d", n, importsBefore)
+	}
+	for _, txn := range bankTxns(t, env.app, env.connection.Id) {
+		if txn.GetInt("line") == 3 {
+			t.Error("the reader's refused import created a transaction for line 3")
+		}
+	}
+	// The same body succeeds for a bookkeeper, so the refusal above is the role.
+	apiReq{
+		method: http.MethodPost,
+		url:    collectionURL("books_bank_imports"),
+		token:  tokenFor(t, env.users.bookkeeper),
+		body:   string(raw),
+		want:   http.StatusOK,
+	}.run(t, env.app)
+}
+
+func countRows(t testing.TB, app core.App, collection string) int {
+	t.Helper()
+	var n int
+	if err := app.DB().NewQuery("SELECT COUNT(*) FROM " + collection).Row(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
