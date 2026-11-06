@@ -1,5 +1,8 @@
 // @vitest-environment happy-dom
+import { ruleSchema, validateDefinitionForHost } from '@tinycld/core/lib/forms/definition'
 import { defaultDefinitionFor, hostDefSchema } from '@tinycld/core/lib/forms/host'
+import { evaluate } from '@tinycld/core/lib/forms/logic'
+import { z } from '@tinycld/core/ui/form'
 import { describe, expect, it } from 'vitest'
 import hosts, { CUSTOMER_HOST_KEY } from '../tinycld/books/forms/hosts'
 import ui from '../tinycld/books/forms/ui'
@@ -46,6 +49,10 @@ const BUILTINS = [
     ['parent', 'Parent customer', 'custom'],
     ['billing_address', 'Billing address', 'custom'],
     ['shipping_address', 'Shipping address', 'custom'],
+    ['tax_exempt', 'This customer is tax exempt', 'toggle'],
+    ['exemption_reason', 'Exemption reason', 'custom'],
+    ['exemption_number', 'Exemption certificate number', 'text'],
+    ['default_tax_rate', 'Default sales tax', 'custom'],
     ['notes', 'Notes', 'textarea'],
 ] as const
 
@@ -57,14 +64,50 @@ const CUSTOM_COMPONENTS = {
     parent: 'ParentCustomerField',
     billing_address: 'BillingAddressField',
     shipping_address: 'ShippingAddressField',
+    exemption_reason: 'ExemptionReasonField',
+    default_tax_rate: 'TaxRateField',
 }
 
-const HALF_WIDTH = ['first_name', 'last_name', 'email', 'phone', 'mobile', 'website']
+const HALF_WIDTH = [
+    'first_name',
+    'last_name',
+    'email',
+    'phone',
+    'mobile',
+    'website',
+    'exemption_reason',
+    'exemption_number',
+]
+
+// The two rules of the default form, as the host declares them (checkpoint 8 Produces).
+const TAX_RULES = [
+    {
+        key: 'hide_exemption',
+        when: [{ field: 'tax_exempt', op: 'is_false' }],
+        actions: [
+            { action: 'hide', field: 'exemption_reason' },
+            { action: 'hide', field: 'exemption_number' },
+        ],
+    },
+    {
+        key: 'hide_default_tax',
+        when: [{ field: 'tax_exempt', op: 'is_true' }],
+        actions: [{ action: 'hide', field: 'default_tax_rate' }],
+    },
+]
+
+const CTX = { today: '2026-01-01', userId: 'u' }
 
 function parsedHost() {
     const host = hosts.find(h => h.key === CUSTOMER_HOST_KEY)
     if (!host) throw new Error('no books:customer host in forms/hosts.ts')
     return hostDefSchema.parse(host)
+}
+
+function builtin(key: string) {
+    const found = parsedHost().builtin.find(b => b.key === key)
+    if (!found) throw new Error(`no built-in ${key}`)
+    return found
 }
 
 describe('books:customer forms host', () => {
@@ -91,7 +134,7 @@ describe('books:customer forms host', () => {
         expect(host.builtin.every(b => b.storage === 'column')).toBe(true)
     })
 
-    it('draws the contact, parent and address built-ins with Books components in a cell', () => {
+    it('draws the contact, parent, address and tax built-ins with Books components in a cell', () => {
         const host = parsedHost()
         const custom = host.builtin.filter(b => b.kind === 'custom')
         expect(Object.fromEntries(custom.map(b => [b.key, b.component]))).toEqual(CUSTOM_COMPONENTS)
@@ -110,6 +153,46 @@ describe('books:customer forms host', () => {
                 BUILTINS.map(([key]) => [key, HALF_WIDTH.includes(key) ? 'half' : 'full'])
             )
         )
+    })
+
+    it('limits the exemption certificate number to 100 characters', () => {
+        expect(builtin('exemption_number').maxLength).toBe(100)
+        expect(
+            parsedHost()
+                .builtin.filter(b => b.maxLength !== undefined)
+                .map(b => b.key)
+        ).toEqual(['exemption_number'])
+    })
+
+    it('seeds the two tax rules exactly, and no other rule', () => {
+        const definition = defaultDefinitionFor(parsedHost())
+        expect(definition.rules).toEqual(z.array(ruleSchema).parse(TAX_RULES))
+    })
+
+    it('hides the exemption fields while the customer is not exempt, and the default tax while it is', () => {
+        const definition = defaultDefinitionFor(parsedHost())
+        const visibleOf = (taxExempt: boolean) => {
+            const { fields } = evaluate(definition, { tax_exempt: taxExempt }, CTX)
+            return ['exemption_reason', 'exemption_number', 'default_tax_rate'].map(key => [
+                key,
+                fields[key].visible,
+            ])
+        }
+        expect(visibleOf(false)).toEqual([
+            ['exemption_reason', false],
+            ['exemption_number', false],
+            ['default_tax_rate', true],
+        ])
+        expect(visibleOf(true)).toEqual([
+            ['exemption_reason', true],
+            ['exemption_number', true],
+            ['default_tax_rate', false],
+        ])
+    })
+
+    it('seeds a default form that passes the host checks', () => {
+        const host = parsedHost()
+        expect(validateDefinitionForHost(defaultDefinitionFor(host), host)).toEqual([])
     })
 
     it('names only components the forms UI module provides', () => {

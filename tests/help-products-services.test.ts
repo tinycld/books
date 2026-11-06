@@ -84,6 +84,19 @@ describe('help/products-services.md', () => {
         expect(body).toContain('Income account')
     })
 
+    it('explains Taxable: a new Non-inventory item starts taxable, a Service does not, a bundle has none', () => {
+        expect(body).toContain('Taxable')
+        expect(body).toMatch(
+            /(?=[^.\n]*\bNon-inventory\b)(?=[^.\n]*\b(new|starts?)\b)[^.\n]*\b[Tt]axable\b/
+        )
+        expect(body).toMatch(
+            /(?=[^.\n]*\bServices?\b)(?=[^.\n]*\b(new|starts?)\b)(?=[^.\n]*\b(not|off|doesn't)\b)[^.\n]*\b[Tt]axable\b/
+        )
+        expect(body).toMatch(
+            /(?=[^.\n]*\b[Bb]undles?\b)(?=[^.\n]*\b(no|not|without)\b)[^.\n]*\bTaxable\b/
+        )
+    })
+
     it('says an item on a bundle cannot be deleted until it is taken out or made inactive', () => {
         expect(body).toMatch(
             /(?=[^.\n]*\bbundles?\b)(?=[^.\n]*\bcannot be deleted\b)(?=[^.\n]*\b(take|taken)\b[^.\n]*\bout\b)[^.\n]*\binactive\b/i

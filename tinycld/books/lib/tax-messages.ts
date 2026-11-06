@@ -9,6 +9,9 @@
 
 export const TAXES_LOAD_ERROR = 'Sales tax could not be loaded.'
 
+// A record form's sales tax picker while its rates load: a stored choice has no label yet.
+export const TAX_OPTIONS_LOADING = 'Loading…'
+
 export const NAME_REQUIRED = 'Enter a name.'
 
 export const NAME_TOO_LONG = 'A name has at most 200 characters.'

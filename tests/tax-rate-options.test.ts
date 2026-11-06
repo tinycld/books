@@ -1,9 +1,13 @@
+// @vitest-environment happy-dom
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { selectSections } from '@tinycld/core/ui/form/select-sections'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { AgencyWithRates, GroupRow } from '../tinycld/books/hooks/useTaxesScreen'
+import { useTaxRateOptions } from '../tinycld/books/hooks/useTaxRateOptions'
 import {
     groupComponentOptions,
     rateAgencyOptions,
+    type TaxOptionRate,
     taxOptionRows,
     taxRateOptions,
 } from '../tinycld/books/lib/tax-rate-options'
@@ -16,7 +20,17 @@ import {
     type TaxRateFixtureRecord,
 } from '../tinycld/books/lib/tax-rates-fixture'
 import type { BooksTaxAgencies, BooksTaxRates } from '../tinycld/books/types'
+import { seedBooks, taxRatesStore } from './accounts-form-harness'
 import { publishedRow } from './live-rows'
+import { expectLiveQueryError } from './silence-log'
+
+// Only the useTaxRateOptions test reads collections: the harness serves `useStore` from
+// real local-only collections. The other tests are pure.
+vi.mock('@tinycld/core/lib/pocketbase', async () => {
+    const { useStoreStub } = await import('./accounts-form-harness')
+    return { useStore: useStoreStub }
+})
+vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 const DENVER = 'City and County of Denver'
 const COLORADO = 'Colorado Department of Revenue'
@@ -116,31 +130,38 @@ describe('rateAgencyOptions', () => {
     })
 })
 
-// The page's two live queries as they publish their rows: each agency with its rates
-// materialized in `rates` (the liability account is not read here), and the groups.
-function rateQueryRow(row: TaxRateFixtureRecord) {
-    const columns = {
-        ...row,
-        name_key: row.name.toLowerCase(),
-        sort_key: row.name.toLowerCase(),
-    } satisfies BooksTaxRates
-    return publishedRow(columns, 'books_tax_rates')
+// A fixture row as the books_tax_rates collection stores it.
+function rateColumns(row: TaxRateFixtureRecord): BooksTaxRates {
+    return { ...row, name_key: row.name.toLowerCase(), sort_key: row.name.toLowerCase() }
 }
 
+// A fixture agency as the books_tax_agencies collection stores it.
+function agencyColumns(agency: (typeof TAX_AGENCIES)[number]): BooksTaxAgencies {
+    return {
+        id: agency.id,
+        name: agency.name,
+        account: 'acct2200salestx',
+        inactive: agency.inactive,
+        name_key: agency.name.toLowerCase(),
+        sort_key: agency.name.toLowerCase(),
+        created: agency.created,
+        updated: agency.updated,
+    }
+}
+
+function rateQueryRow(row: TaxRateFixtureRecord) {
+    return publishedRow(rateColumns(row), 'books_tax_rates')
+}
+
+// The page's two live queries as they publish their rows: each agency with its rates
+// materialized in `rates` (the liability account is not read here), and the groups.
 function agencyQueryRows(): AgencyWithRates[] {
     return TAX_AGENCIES.map(agency => {
-        const columns = {
-            id: agency.id,
-            name: agency.name,
-            account: 'acct2200salestx',
-            inactive: agency.inactive,
-            name_key: agency.name.toLowerCase(),
-            sort_key: agency.name.toLowerCase(),
-            created: agency.created,
-            updated: agency.updated,
-        } satisfies BooksTaxAgencies
         const rates = TAX_RATES.filter(rate => rate.agency === agency.id).map(rateQueryRow)
-        return publishedRow({ ...columns, rates, liability: undefined }, 'books_tax_agencies')
+        return publishedRow(
+            { ...agencyColumns(agency), rates, liability: undefined },
+            'books_tax_agencies'
+        )
     })
 }
 
@@ -148,8 +169,8 @@ function groupQueryRows(): GroupRow[] {
     return TAX_GROUPS.map(rateQueryRow)
 }
 
-// A fixture row cut down to the columns the pickers read.
-function optionColumns(row: TaxRateFixtureRecord) {
+// A row cut down to the columns the pickers read.
+function optionColumns(row: TaxOptionRate) {
     const { id, name, type, rate_ppm, agency, components, inactive } = row
     return { id, name, type, rate_ppm, agency, components, inactive }
 }
@@ -263,5 +284,59 @@ describe('taxRateOptions', () => {
             taxRateOptions(TAX_RATE_ROWS, TAX_AGENCIES, TAX_IDS.denverCombined)
         )
         expect(runs.map(run => run.label)).toEqual([null, DENVER, COLORADO, 'Groups'])
+    })
+})
+
+// The customer form's Default sales tax reads the rates, each with its agency
+// materialized, through useTaxRateOptions; the page's default picker reads the agencies
+// with their rates materialized. Both must offer the same choices, a stored inactive one too.
+describe('useTaxRateOptions', () => {
+    const STORED = [
+        '',
+        TAX_IDS.denverCombined,
+        TAX_IDS.adamsCombined,
+        TAX_IDS.retired,
+        TAX_IDS.oldCombined,
+    ]
+
+    it('gives the customer field the same options as the default picker, inactive choices included', async () => {
+        seedBooks({
+            taxAgencies: TAX_AGENCIES.map(agencyColumns),
+            taxRates: TAX_RATE_ROWS.map(rateColumns),
+        })
+        const { result } = renderHook(() => useTaxRateOptions())
+        await waitFor(() => expect(result.current.isReady).toBe(true))
+        const { rows, agencies } = result.current
+
+        const picker = taxOptionRows(agencyQueryRows(), groupQueryRows())
+        for (const stored of STORED) {
+            const field = taxRateOptions(rows, agencies, stored)
+            expect(field, stored).toEqual(taxRateOptions(TAX_RATE_ROWS, TAX_AGENCIES, stored))
+            expect(field, stored).toEqual(taxRateOptions(picker, TAX_AGENCIES, stored))
+        }
+    })
+
+    it('reports a refused rates load, and retry loads the rows', async () => {
+        seedBooks({
+            taxAgencies: TAX_AGENCIES.map(agencyColumns),
+            taxRates: TAX_RATE_ROWS.map(rateColumns),
+            taxRatesFailsOnce: true,
+        })
+        expectLiveQueryError(taxRatesStore().id)
+        const { result } = renderHook(() => useTaxRateOptions())
+
+        await waitFor(() => expect(result.current.isError).toBe(true))
+        expect(result.current.rows).toEqual([])
+
+        act(() => result.current.retry())
+
+        await waitFor(() => expect(result.current.isError).toBe(false))
+        await waitFor(() => expect(result.current.isReady).toBe(true))
+        await waitFor(() => expect(result.current.rows).toHaveLength(TAX_RATE_ROWS.length))
+        const { rows, agencies } = result.current
+        expect(byId(rows.map(optionColumns))).toEqual(byId(TAX_RATE_ROWS.map(optionColumns)))
+        expect(taxRateOptions(rows, agencies, TAX_IDS.retired)).toEqual(
+            taxRateOptions(TAX_RATE_ROWS, TAX_AGENCIES, TAX_IDS.retired)
+        )
     })
 })

@@ -26,6 +26,15 @@ async function agencyIdOf(card: Locator): Promise<string> {
     return testId.slice('tax-agency-card-'.length)
 }
 
+// True when `other` sits to the right of the title and its middle is within the title's
+// height: the two share the title row.
+async function inTitleRow(title: Locator, other: Locator) {
+    const [a, b] = await Promise.all([title.boundingBox(), other.boundingBox()])
+    if (!a || !b) return false
+    const middle = b.y + b.height / 2
+    return b.x >= a.x + a.width - 1 && middle >= a.y && middle <= a.y + a.height
+}
+
 function caseless(names: readonly string[]) {
     return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 }
@@ -103,6 +112,15 @@ test.describe('tax-rates: Sales tax page', () => {
         await expect(oldRate).toHaveCount(0)
         await expect(retired).toHaveCount(0)
         await expect(oldCombined).toHaveCount(0)
+
+        // The help link sits in the title row, beside the title, and opens the Sales tax topic.
+        const helpLink = page
+            .getByTestId('taxes-screen')
+            .getByRole('button', { name: 'Open help', exact: true })
+        await expect(helpLink).toHaveCount(1)
+        await expect.poll(() => inTitleRow(page.getByTestId('taxes-title'), helpLink)).toBe(true)
+        await helpLink.click()
+        await expect(page.getByText(/To collect sales tax/).first()).toBeVisible()
     })
 
     test('shows a loading state, then a load error with Retry, and Retry loads the page', async ({

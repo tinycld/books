@@ -1,10 +1,10 @@
 import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
 import { defaultDefinitionFor, hostDefSchema } from '@tinycld/core/lib/forms/host'
 import { describe, expect, it } from 'vitest'
-import { productDefinitionFor } from '../tinycld/books/lib/product-form'
+import { PRODUCT_HIDDEN_BUILTINS, productDefinitionFor } from '../tinycld/books/lib/product-form'
 import { PRODUCT_TYPE_KEYS } from '../tinycld/books/lib/product-types'
 
-// The eleven product built-ins, from a literal so this test does not depend on the
+// The twelve product built-ins, from a literal so this test does not depend on the
 // books:product host's other choices (labels, layout, components).
 const host = hostDefSchema.parse({
     key: 'books:product',
@@ -24,6 +24,7 @@ const host = hostDefSchema.parse({
         'purchase_description',
         'cost',
         'expense_account',
+        'taxable',
         'inactive',
         'currency',
         'form',
@@ -61,6 +62,7 @@ const host = hostDefSchema.parse({
             component: 'IncomeAccountField',
             storage: 'column',
         },
+        { key: 'taxable', label: 'Taxable', kind: 'toggle', storage: 'column' },
         { key: 'purchases', label: 'Purchasing', kind: 'toggle', storage: 'column' },
         {
             key: 'purchase_description',
@@ -92,6 +94,7 @@ const host = hostDefSchema.parse({
 const BUNDLE_HIDDEN = [
     'price',
     'income_account',
+    'taxable',
     'purchases',
     'purchase_description',
     'cost',
@@ -118,6 +121,15 @@ function withSkuHidden(): FormDefinition {
     }
 }
 
+describe('PRODUCT_HIDDEN_BUILTINS', () => {
+    // A bundle's lines take their taxability from each item.
+    it('hides Taxable for a bundle only', () => {
+        expect(PRODUCT_HIDDEN_BUILTINS.bundle).toContain('taxable')
+        expect(PRODUCT_HIDDEN_BUILTINS.service).not.toContain('taxable')
+        expect(PRODUCT_HIDDEN_BUILTINS.non_inventory).not.toContain('taxable')
+    })
+})
+
 describe('productDefinitionFor', () => {
     for (const type of ['service', 'non_inventory'] as const) {
         it(`hides only the bundle items and requires the income account for ${type}`, () => {
@@ -127,7 +139,7 @@ describe('productDefinitionFor', () => {
         })
     }
 
-    it('hides the price, cost, accounts and purchase fields of a bundle and requires nothing new', () => {
+    it('hides the price, cost, accounts, Taxable and purchase fields of a bundle and requires nothing new', () => {
         const result = productDefinitionFor(defaultDefinitionFor(host), 'bundle', host)
         expect(hiddenKeys(result)).toEqual([...BUNDLE_HIDDEN].sort())
         expect(requiredKeys(result)).toEqual(['name', 'type'])

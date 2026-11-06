@@ -1,5 +1,5 @@
 import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
-import { SelectInput } from '@tinycld/core/ui/form'
+import { SelectInput, type SelectOption } from '@tinycld/core/ui/form'
 import { useHostValueForm } from '../components/forms/use-host-value-form'
 import { useFormAccounts } from '../hooks/useFormAccounts'
 import { expenseAccountOptions } from '../lib/expense-account-options'
@@ -15,7 +15,7 @@ export interface HostSelectProps {
     value: unknown
     onChange: (value: unknown) => void
     disabled: boolean
-    options: { value: string; label: string; indent?: number }[]
+    options: SelectOption[]
     placeholder?: string
 }
 
