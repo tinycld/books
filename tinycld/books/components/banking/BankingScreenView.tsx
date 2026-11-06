@@ -3,6 +3,7 @@ import type { BankingScreenModel } from '../../hooks/useBankingScreen'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { BankAccountPanel } from './BankAccountPanel'
 import { BankAccountStrip } from './BankAccountStrip'
+import { BankingDialogs } from './BankingDialogs'
 import { BankingHeader } from './BankingHeader'
 import { BankingIntro } from './BankingIntro'
 import { BankingLoadError, BankingLoading } from './BankingStates'
@@ -45,19 +46,22 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     // The intro band carries its own Connect button.
     const canConnect = model.canWrite && model.state === 'ready'
     return (
-        <ScrollView
-            testID="banking-screen"
-            className="flex-1 bg-background"
-            contentContainerStyle={fabClearanceStyle}
-        >
-            <View className={`gap-4 ${padding}`}>
-                <BankingHeader
-                    canConnect={canConnect}
-                    isWide={model.isWide}
-                    onConnect={model.onConnect}
-                />
-                <BankingContent model={model} />
-            </View>
-        </ScrollView>
+        <>
+            <ScrollView
+                testID="banking-screen"
+                className="flex-1 bg-background"
+                contentContainerStyle={fabClearanceStyle}
+            >
+                <View className={`gap-4 ${padding}`}>
+                    <BankingHeader
+                        canConnect={canConnect}
+                        isWide={model.isWide}
+                        onConnect={model.onConnect}
+                    />
+                    <BankingContent model={model} />
+                </View>
+            </ScrollView>
+            <BankingDialogs model={model} />
+        </>
     )
 }

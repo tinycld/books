@@ -22,6 +22,8 @@ import type {
     BooksAccountBalances,
     BooksAccounts,
     BooksAdmins,
+    BooksBankConnections,
+    BooksBankFiles,
     BooksCloseOverrides,
     BooksDocSequences,
     BooksJournalEntries,
@@ -856,6 +858,18 @@ function accessCollectionFor(
     return accessViewCollection(rows)
 }
 
+// Bank files are local with an `evict`, because core `evictRows` calls collection.evict(ids)
+// and a TanStack local-only collection has none. A local delete with no write handler
+// completes at once and reaches no refusal hook.
+function bankFilesCollection(rows: BooksBankFiles[]) {
+    const files = local<BooksBankFiles>('books_bank_files', rows)
+    const evict = async (ids: readonly string[]) => {
+        const present = ids.filter(id => files.has(id))
+        if (present.length > 0) await files.delete(present).isPersisted.promise
+    }
+    return Object.assign(files, { evict })
+}
+
 export function seedBooks(
     opts: {
         level?: Level
@@ -913,6 +927,11 @@ export function seedBooks(
         overrides?: BooksCloseOverrides[]
         // The users the overrides and access rows point at; none by default.
         users?: SeedUser[]
+        // The bank connection rows to seed; none by default. Their writes go through the
+        // shared handler, so refuseAfterNow, holdWrites and enteredWrites see them.
+        bankConnections?: BooksBankConnections[]
+        // The bank file rows to seed; none by default.
+        bankFiles?: BooksBankFiles[]
         // Replaces the signed-in user's single access row with these rows.
         accessRows?: BooksAccess[]
         // The org_pkg_access rows to seed; none by default.
@@ -1037,7 +1056,20 @@ export function seedBooks(
         ),
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
+        books_bank_connections: guarded<BooksBankConnections>(
+            'books_bank_connections',
+            opts.bankConnections ?? []
+        ),
+        books_bank_files: bankFilesCollection(opts.bankFiles ?? []),
     })
+}
+
+export function bankConnectionsStore() {
+    return state.registry.books_bank_connections as ReturnType<typeof guarded<BooksBankConnections>>
+}
+
+export function bankFilesStore() {
+    return state.registry.books_bank_files as ReturnType<typeof bankFilesCollection>
 }
 
 // Registers `forms` holding one default form per host, as core's seed writes it, so core
