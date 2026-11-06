@@ -20,6 +20,8 @@ export type {
     BooksJournalLines,
     BooksProducts,
     BooksSettings,
+    BooksTaxAgencies,
+    BooksTaxRates,
     BooksVendors,
     Schema as BooksSchema,
 } from '@tinycld/core/types/pbSchema'

@@ -1,0 +1,249 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "add-group",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "opaque": "tax-group-dialog",
+            "height": 900,
+            "actions": [
+                { "click": "taxes-add-group" },
+                { "waitFor": "tax-group-dialog" },
+                { "fill": "tax-group-form-name", "value": "Denver combined" },
+                { "clickLabel": "Denver city 4.81%" },
+                { "clickLabel": "Colorado state 2.9%" },
+                { "clickLabel": "RTD transit 1%" },
+                { "pause": 800 }
+            ],
+            "widths": [1280]
+        },
+        {
+            "name": "add-group-phone",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "opaque": "tax-group-dialog",
+            "height": 900,
+            "actions": [
+                { "click": "taxes-add-group" },
+                { "waitFor": "tax-group-dialog" },
+                { "fill": "tax-group-form-name", "value": "Denver combined" },
+                { "clickLabel": "Denver city 4.81%" },
+                { "clickLabel": "Colorado state 2.9%" },
+                { "clickLabel": "RTD transit 1%" },
+                { "pause": 800 }
+            ],
+            "widths": [390]
+        },
+        {
+            "name": "edit-group",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-card",
+            "opaque": "tax-group-dialog",
+            "height": 900,
+            "widths": [1280],
+            "fakeRecords": {
+                "collection": "books_tax_rates",
+                "items": [
+                    {
+                        "id": "taxrtcostate001",
+                        "type": "rate",
+                        "name": "Colorado state",
+                        "sort_key": "colorado state",
+                        "rate_ppm": 29000,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtrtd0000001",
+                        "type": "rate",
+                        "name": "RTD transit",
+                        "sort_key": "rtd transit",
+                        "rate_ppm": 10000,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtadams00001",
+                        "type": "rate",
+                        "name": "Adams County",
+                        "sort_key": "adams county",
+                        "rate_ppm": 7500,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtfoodexmpt1",
+                        "type": "rate",
+                        "name": "Exempt food sales (state)",
+                        "sort_key": "exempt food sales (state)",
+                        "rate_ppm": 0,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtscfd000001",
+                        "type": "rate",
+                        "name": "Scientific and Cultural Facilities District, seven-county Denver metro area",
+                        "sort_key": "scientific and cultural facilities district, seven-county denver metro area",
+                        "rate_ppm": 1050,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtdenvercty1",
+                        "type": "rate",
+                        "name": "Denver city",
+                        "sort_key": "denver city",
+                        "rate_ppm": 48100,
+                        "agency": "taxagdenver0001",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtlodging001",
+                        "type": "rate",
+                        "name": "Denver lodging",
+                        "sort_key": "denver lodging",
+                        "rate_ppm": 88750,
+                        "agency": "taxagdenver0001",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtretired001",
+                        "type": "rate",
+                        "name": "Retired rate",
+                        "sort_key": "retired rate",
+                        "rate_ppm": 35000,
+                        "agency": "taxagdenver0001",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": true,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxrtoldcounty1",
+                        "type": "rate",
+                        "name": "Old county rate",
+                        "sort_key": "old county rate",
+                        "rate_ppm": 12500,
+                        "agency": "taxagoldcounty1",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": true,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxgpdenvercmb1",
+                        "type": "group",
+                        "name": "Denver combined",
+                        "sort_key": "denver combined",
+                        "rate_ppm": 0,
+                        "agency": "",
+                        "components": [
+                            "taxrtcostate001",
+                            "taxrtrtd0000001",
+                            "taxrtdenvercty1",
+                            "taxrtretired001"
+                        ],
+                        "is_default": true,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxgpadamscmb01",
+                        "type": "group",
+                        "name": "Adams County combined",
+                        "sort_key": "adams county combined",
+                        "rate_ppm": 0,
+                        "agency": "",
+                        "components": ["taxrtcostate001", "taxrtadams00001"],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    },
+                    {
+                        "id": "taxgpoldcmb0001",
+                        "type": "group",
+                        "name": "Old combined",
+                        "sort_key": "old combined",
+                        "rate_ppm": 0,
+                        "agency": "",
+                        "components": ["taxrtcostate001", "taxrtrtd0000001"],
+                        "is_default": false,
+                        "inactive": true,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "callHook": {
+                        "from": "taxes-add-group",
+                        "contains": "dialog",
+                        "args": [{ "kind": "group", "id": "taxgpdenvercmb1" }]
+                    }
+                },
+                { "waitFor": "tax-group-dialog" },
+                { "waitFor": "Edit group" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "one-rate",
+            "url": "/a/books/taxes",
+            "ready": "tax-groups-need-rates",
+            "widths": [1280],
+            "fakeRecords": {
+                "collection": "books_tax_rates",
+                "items": [
+                    {
+                        "id": "taxrtcostate001",
+                        "type": "rate",
+                        "name": "Colorado state",
+                        "sort_key": "colorado state",
+                        "rate_ppm": 29000,
+                        "agency": "taxagcolorado01",
+                        "components": [],
+                        "is_default": false,
+                        "inactive": false,
+                        "created": "2026-01-01 00:00:00.000Z",
+                        "updated": "2026-01-01 00:00:00.000Z"
+                    }
+                ]
+            }
+        }
+    ]
+}

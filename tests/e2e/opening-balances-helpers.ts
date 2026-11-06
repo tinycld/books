@@ -73,7 +73,11 @@ export async function openWithIds(
     const prefix = isPhoneSize(page) ? 'account-card-' : 'account-row-'
     const ids: Record<string, string> = {}
     for (const name of [...names, ...excluded]) {
-        const item = page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name })
+        // Match the name text exactly: `hasText` is a caseless substring, so "Rent"
+        // would also match the "Other Current Liability" type of 2200 Sales tax payable.
+        const item = page
+            .locator(`[data-testid^="${prefix}"]`)
+            .filter({ has: page.getByText(name, { exact: true }) })
         if ((await item.count()) === 0) {
             throw new Error(`Chart of Accounts has no row for "${name}"`)
         }
@@ -148,7 +152,11 @@ export async function idsFromChart(page: Page, names: readonly string[] = GRID_N
     const prefix = isPhoneSize(page) ? 'account-card-' : 'account-row-'
     const ids: Record<string, string> = {}
     for (const name of names) {
-        const item = page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name })
+        // Match the name text exactly: `hasText` is a caseless substring, so "Rent"
+        // would also match the "Other Current Liability" type of 2200 Sales tax payable.
+        const item = page
+            .locator(`[data-testid^="${prefix}"]`)
+            .filter({ has: page.getByText(name, { exact: true }) })
         if ((await item.count()) === 0) {
             throw new Error(`Chart of Accounts has no row for "${name}"`)
         }

@@ -1,0 +1,44 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "customer-exempt",
+            "url": "/a/books/customers/new",
+            "ready": "form-field-default_tax_rate",
+            "height": 1600,
+            "actions": [
+                { "fill": "form-input-display_name", "value": "Northwind Traders" },
+                { "clickLabel": "This customer is tax exempt" },
+                { "waitFor": "form-field-exemption_reason" },
+                { "click": "form-input-exemption_reason" },
+                { "waitFor": "form-input-exemption_reason-resale" },
+                { "click": "form-input-exemption_reason-resale" },
+                { "waitForHidden": "form-input-exemption_reason-resale" },
+                { "fill": "form-input-exemption_number", "value": "CO-98-01234-0000" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "customer-not-exempt",
+            "url": "/a/books/customers/new",
+            "ready": "form-field-default_tax_rate",
+            "height": 1600,
+            "widths": [1280],
+            "actions": [
+                { "fill": "form-input-display_name", "value": "Northwind Traders" },
+                { "click": "form-input-default_tax_rate" },
+                { "waitFor": "form-input-default_tax_rate-taxgpadamscmb01" },
+                { "click": "form-input-default_tax_rate-taxgpadamscmb01" },
+                { "waitForHidden": "form-input-default_tax_rate-taxgpadamscmb01" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "product",
+            "url": "/a/books/products/new?type=non_inventory",
+            "ready": "form-field-taxable",
+            "widths": [1280],
+            "actions": [{ "fill": "form-input-name", "value": "Cable kit" }, { "pause": 400 }]
+        }
+    ]
+}

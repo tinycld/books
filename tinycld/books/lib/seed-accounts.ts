@@ -52,6 +52,13 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         detail_type: 'credit_card',
     },
     {
+        key: 'sales-tax',
+        name: 'Sales tax payable',
+        number: '2200',
+        type: 'other_current_liability',
+        detail_type: 'sales_tax_payable',
+    },
+    {
         key: 'equity',
         name: "Owner's Equity",
         number: '3000',

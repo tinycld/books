@@ -1,4 +1,4 @@
-import { Landmark, List } from 'lucide-react-native'
+import { Landmark, List, Percent } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import { hasAvailableReport, REPORT_ENTRIES } from '../tinycld/books/lib/report-registry'
@@ -173,9 +173,9 @@ describe('settings sidebar entry', () => {
         expect(settings?.group).toBe('settings')
     })
 
-    it('sidebarSections puts it in end and not in top or accounting', () => {
+    it('sidebarSections puts it in end, after Taxes, and not in top or accounting', () => {
         const sections = sidebarSections(availableOnly(SIDEBAR_ENTRIES))
-        expect(sections.end.map(e => e.id)).toEqual(['settings'])
+        expect(sections.end.map(e => e.id)).toEqual(['taxes', 'settings'])
         expect(sections.top.map(e => e.id)).not.toContain('settings')
         expect(sections.accounting.map(e => e.id)).not.toContain('settings')
     })
@@ -207,6 +207,30 @@ describe('banking sidebar entry', () => {
             expect(item.href).not.toBe('books/banking')
         }
         expect(hidesNewFab('/a/books/banking')).toBe(false)
+    })
+})
+
+describe('taxes sidebar entry', () => {
+    const taxes = SIDEBAR_ENTRIES.find(e => e.id === 'taxes')
+
+    it('is an available Taxes entry at books/taxes in the settings group', () => {
+        expect(taxes).toEqual({
+            id: 'taxes',
+            label: 'Taxes',
+            icon: Percent,
+            href: 'books/taxes',
+            group: 'settings',
+            available: true,
+        })
+    })
+
+    it('is active on the Taxes page', () => {
+        if (!taxes) throw new Error('SIDEBAR_ENTRIES has no taxes entry')
+        expect(isActivePath('/a/books/taxes', taxes)).toBe(true)
+    })
+
+    it('keeps the New button on the Taxes page', () => {
+        expect(hidesNewFab('/a/books/taxes')).toBe(false)
     })
 })
 
