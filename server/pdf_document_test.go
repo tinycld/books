@@ -168,6 +168,10 @@ func TestPDFView_WhitespaceOrgNameIsTrimmedAndEmptyStaysEmpty(t *testing.T) {
 	if v := pdfViewOf(doc, org); v.Company.Name != "Acme Incorporated" {
 		t.Errorf("company name = %q", v.Company.Name)
 	}
+	org.Name = "  \n "
+	if v := pdfViewOf(doc, org); v.Company.Name != "" {
+		t.Errorf("empty company name = %q", v.Company.Name)
+	}
 }
 
 func TestPDFView_PartyCompanyEqualToNameIsDroppedIgnoringCaseAndSpace(t *testing.T) {
