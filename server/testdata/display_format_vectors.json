@@ -1,0 +1,64 @@
+{
+    "money": [
+        { "cents": 0, "currency": "USD", "text": "$0.00" },
+        { "cents": 5, "currency": "USD", "text": "$0.05" },
+        { "cents": -5, "currency": "USD", "text": "-$0.05" },
+        { "cents": 123456, "currency": "USD", "text": "$1,234.56" },
+        { "cents": -123456789, "currency": "USD", "text": "-$1,234,567.89" },
+        { "cents": 9007199254740991, "currency": "USD", "text": "$90,071,992,547,409.91" },
+        { "cents": -9007199254740991, "currency": "USD", "text": "-$90,071,992,547,409.91" },
+        { "cents": 100000, "currency": "EUR", "text": "€1,000.00" },
+        { "cents": -250, "currency": "GBP", "text": "-£2.50" },
+        { "cents": 250, "currency": "CHF", "text": "CHF 2.50" },
+        { "cents": -250, "currency": "CHF", "text": "-CHF 2.50" },
+        { "cents": 99, "currency": "JPY", "text": "¥0.99" },
+        { "cents": 123456, "currency": "CAD", "text": "CA$1,234.56" },
+        { "cents": 1, "currency": "XAF", "text": "FCFA 0.01" },
+        { "cents": 100, "currency": "XOF", "text": "F CFA 1.00" },
+        { "cents": 100, "currency": "XCG", "text": "Cg. 1.00" },
+        { "cents": 100000, "currency": "XYZ", "text": "XYZ 1,000.00" },
+        { "cents": -100000, "currency": "INR", "text": "-₹1,000.00" }
+    ],
+    "day": [
+        { "day": "2026-11-05", "text": "Nov 5, 2026" },
+        { "day": "2026-09-30", "text": "Sep 30, 2026" },
+        { "day": "1900-01-01", "text": "Jan 1, 1900" },
+        { "day": "2026-05-01", "text": "May 1, 2026" },
+        { "day": "2026-06-15", "text": "Jun 15, 2026" },
+        { "day": "2026-07-04", "text": "Jul 4, 2026" },
+        { "day": "2024-02-29", "text": "Feb 29, 2024" },
+        { "day": "9999-12-31", "text": "Dec 31, 9999" }
+    ],
+    "percent": [
+        { "ppm": 0, "text": "0%" },
+        { "ppm": 1, "text": "0.0001%" },
+        { "ppm": 10000, "text": "1%" },
+        { "ppm": 62500, "text": "6.25%" },
+        { "ppm": 88750, "text": "8.875%" },
+        { "ppm": 105000, "text": "10.5%" },
+        { "ppm": 1000000, "text": "100%" }
+    ],
+    "address": [
+        {
+            "address": { "line1": "123 Main St", "line2": "Suite 4", "city": "Springfield", "region": "IL", "postal_code": "62701", "country": "USA" },
+            "lines": ["123 Main St", "Suite 4", "Springfield, IL 62701", "USA"]
+        },
+        {
+            "address": { "line1": "10 Downing St", "line2": "", "city": "London", "region": "", "postal_code": "SW1A 2AA", "country": "United Kingdom" },
+            "lines": ["10 Downing St", "London SW1A 2AA", "United Kingdom"]
+        },
+        {
+            "address": { "line1": "", "line2": "", "city": "", "region": "", "postal_code": "75001", "country": "" },
+            "lines": ["75001"]
+        },
+        {
+            "address": { "line1": "", "line2": "", "city": "", "region": "CA", "postal_code": "", "country": "" },
+            "lines": ["CA"]
+        },
+        {
+            "address": { "line1": "", "line2": "", "city": "", "region": "", "postal_code": "", "country": "" },
+            "lines": []
+        },
+        { "address": null, "lines": [] }
+    ]
+}
