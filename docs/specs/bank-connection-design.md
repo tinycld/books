@@ -125,9 +125,9 @@ Rules: list/view `READ`; create `WRITE && created_by unset`; update `WRITE && ac
 | `connection` | relation → `books_bank_connections`, required, maxSelect 1, cascadeDelete true | |
 | `file` | file, required, maxSelect 1, maxSize 5242880, `protected: true` | no mimeTypes list (CSV and OFX sniff as text/plain); Go checks the content |
 | `name` | text, max 255 | stamped from the upload's original name |
-| `format` | select `csv`, `ofx` | stamped from the content |
+| `format` | select `csv`, `ofx`, required | stamped from the content |
 | `size` | number, onlyInt, min 0 | stamped from the upload; the quota size field |
-| `content_hash` | text, max 64 | sha256 hex of the bytes, stamped; unique index `(content_hash)` |
+| `content_hash` | text, max 64, required | sha256 hex of the bytes, stamped; unique index `(content_hash)` |
 | `status` | select `uploaded`, `imported`, `failed`, required | stamped `uploaded` on create; this unit never changes it |
 | `uploaded_by` | relation → users | stamped from the request's auth user |
 | `created`, `updated` | autodate | |

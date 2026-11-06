@@ -15,6 +15,8 @@ const NAMES = [
     'books_vendors',
     'books_products',
     'books_bundle_items',
+    'books_bank_connections',
+    'books_bank_files',
 ]
 
 function register() {
@@ -121,5 +123,40 @@ describe('registerCollections', () => {
             expect(calls.has(name), name).toBe(true)
             expect(calls.get(name)?.relations, name).toBeUndefined()
         }
+    })
+
+    // The Banking strip reads each connection's account, and the files list
+    // reads each file's connection and uploader.
+    it('declares the relations Banking reads', () => {
+        const { calls } = register()
+        expect(calls.get('books_bank_connections')?.relations).toEqual({
+            account: { name: 'books_accounts' },
+            created_by: { name: 'users' },
+        })
+        expect(calls.get('books_bank_files')?.relations).toEqual({
+            connection: { name: 'books_bank_connections' },
+            uploaded_by: { name: 'users' },
+        })
+    })
+
+    // The server stamps who connected, and stamps everything a file row says about
+    // its upload, so the client never sends those columns.
+    it('never inserts a banking column the server stamps', () => {
+        const { calls } = register()
+        expect(calls.get('books_bank_connections')?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'created_by',
+        ])
+        expect(calls.get('books_bank_files')?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'name',
+            'format',
+            'size',
+            'content_hash',
+            'status',
+            'uploaded_by',
+        ])
     })
 })

@@ -2,35 +2,10 @@
 // Plain data, and it imports only types, because the seed graph runs in plain node
 // (tests/seed-node.test.ts). Amounts are integer minor units (cents); sizes are bytes.
 // Accounts are the seeded e2e book's (lib/seed-accounts.ts), by number.
-//
-// BankConnectionRecord and BankFileRecord mirror the spec's Data section until the
-// collections exist: checkpoint 1 (the books_banking migration) replaces both with the
-// generated BooksBankConnections / BooksBankFiles and types every row with `satisfies`.
-import type { BooksAccounts } from '../types'
+import type { BooksAccounts, BooksBankConnections, BooksBankFiles } from '../types'
 
-export interface BankConnectionRecord {
-    id: string
-    account: string
-    institution: string
-    account_mask: string
-    created_by: string
-    created: string
-    updated: string
-}
-
-export interface BankFileRecord {
-    id: string
-    connection: string
-    file: string
-    name: string
-    format: 'csv' | 'ofx'
-    size: number
-    content_hash: string
-    status: 'uploaded' | 'imported' | 'failed'
-    uploaded_by: string
-    created: string
-    updated: string
-}
+export type BankConnectionRecord = BooksBankConnections
+export type BankFileRecord = BooksBankFiles
 
 export const BANK_CURRENCY = 'USD'
 
@@ -131,7 +106,7 @@ export const BANK_CONNECTIONS = [
         created: '2026-09-01 15:06:00.000Z',
         updated: '2026-09-01 15:06:00.000Z',
     },
-] satisfies BankConnectionRecord[]
+] satisfies BooksBankConnections[]
 
 // 60 characters, so a file row must truncate it on one line.
 export const BANK_LONG_FILE_NAME = 'First Community Bank - Business Checking - Oct 2026 stmt.qfx'
@@ -200,7 +175,7 @@ export const BANK_FILES = [
         },
         1
     ),
-] satisfies BankFileRecord[]
+] satisfies BooksBankFiles[]
 
 // What a statement export looks like: six rows each, dated after mid-2026.
 export const BANK_CSV_SAMPLE = [
@@ -250,6 +225,25 @@ export const BANK_OFX_SAMPLE = [
 
 // The one file the seed uploads to 1000 Business Checking.
 export const BANK_SEED_FILE = { name: 'checking-2026-09.csv', text: BANK_CSV_SAMPLE } as const
+
+// What seed.ts connects, by seed account number. 1010 Business Savings stays
+// unconnected, so the e2e book always has a bank account left to connect.
+export const BANK_SEED = {
+    connections: [
+        {
+            accountNumber: '1000',
+            institution: 'First Community Bank',
+            account_mask: '4821',
+            files: [BANK_SEED_FILE],
+        },
+        {
+            accountNumber: '2100',
+            institution: 'Northwind Card Services',
+            account_mask: '0937',
+            files: [],
+        },
+    ],
+} as const
 
 // Texts the reference states show.
 export const BANK_REFERENCE_TEXT = {

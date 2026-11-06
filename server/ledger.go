@@ -19,6 +19,7 @@ func registerLedger(app core.App) {
 	registerEntryHooks(app)
 	registerLineHooks(app)
 	registerImmutabilityGuards(app)
+	registerBanking(app)
 }
 
 // serialized runs check and the write it guards in one transaction. A

@@ -27,6 +27,32 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // created_by is stamped from the request's user.
+    const books_bank_connections = newCollection('books_bank_connections', {
+        omitOnInsert: ['created', 'updated', 'created_by'] as const,
+        ...onDemand,
+        relations: { account: books_accounts, created_by: coreStores.users },
+        collectionOptions: indexed,
+    })
+
+    // A row is created by core's uploadRecordWithFile (the file bytes), never by an insert
+    // here; the server stamps everything below the omit line from the upload.
+    const books_bank_files = newCollection('books_bank_files', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'name',
+            'format',
+            'size',
+            'content_hash',
+            'status',
+            'uploaded_by',
+        ] as const,
+        ...onDemand,
+        relations: { connection: books_bank_connections, uploaded_by: coreStores.users },
+        collectionOptions: indexed,
+    })
+
     // Created before entries so the entry's back-relation can name it; `entry`
     // is added once the entries exist (Object.assign, because typing the key
     // would make the two collections' types refer to each other). posted, date and currency are stamped
@@ -143,6 +169,8 @@ export function registerCollections(
 
     return {
         books_accounts,
+        books_bank_connections,
+        books_bank_files,
         books_journal_lines,
         books_journal_entries,
         books_account_balances,

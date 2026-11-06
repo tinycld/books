@@ -17,9 +17,9 @@ import (
 // part of that same logged update. registrations_test.go fails when a new
 // collection is neither here nor declared server-only.
 //
-// It takes the app because three labels read another row: an admin grant is
-// labeled by the user it grants, a line by its account, and a bundle row by
-// its bundle and product.
+// It takes the app because four labels read another row: an admin grant is
+// labeled by the user it grants, a line by its account, a bundle row by its
+// bundle and product, and a bank connection by its account.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -40,6 +40,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_doc_sequences":   {ExtractLabel: audit.LabelFromField("doc_type")},
 		"books_close_overrides": {ExtractLabel: audit.LabelFromField("reason")},
 		"books_admins":          {ExtractLabel: func(r *core.Record) string { return userLabel(app, r.GetString("user")) }},
+		"books_bank_connections": {
+			ExtractLabel: func(r *core.Record) string { return bankConnectionLabel(app, r) },
+		},
+		"books_bank_files": {ExtractLabel: audit.LabelFromField("name")},
 	}
 }
 
