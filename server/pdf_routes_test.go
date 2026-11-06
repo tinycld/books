@@ -179,7 +179,8 @@ func TestPDFContentDisposition_SanitizesTheName(t *testing.T) {
 		"Café Ltd":                `attachment; filename="caf-ltd.pdf"; filename*=UTF-8''Caf%C3%A9%20Ltd.pdf`,
 		"日本":                      `attachment; filename="document.pdf"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.pdf`,
 		"é/\"..\\x\n":             `attachment; filename="x.pdf"; filename*=UTF-8''%C3%A9..x.pdf`,
-		"Café\u202etxt.\u200bexe": `attachment; filename="caf-txt.-exe.pdf"; filename*=UTF-8''Caf%C3%A9txt.exe.pdf`,
+		"Café\u202etxt.\ufeffexe": `attachment; filename="caf-txt.-exe.pdf"; filename*=UTF-8''Caf%C3%A9txt.exe.pdf`,
+		"\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645": `attachment; filename="document.pdf"; filename*=UTF-8''%D9%85%DB%8C%E2%80%8C%D8%AE%D9%88%D8%A7%D9%87%D9%85.pdf`,
 	} {
 		if got := pdfContentDisposition(stem); got != want {
 			t.Errorf("pdfContentDisposition(%q) = %q, want %q", stem, got, want)
