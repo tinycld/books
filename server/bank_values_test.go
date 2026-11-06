@@ -24,6 +24,8 @@ type bankVectors struct {
 		Cents *int64 `json:"cents"`
 		Error string `json:"error"`
 	} `json:"amounts"`
+	OFXMapping bankMapping     `json:"ofxMapping"`
+	Rows       []bankRowVector `json:"rows"`
 }
 
 func loadBankVectors(t *testing.T) bankVectors {
