@@ -118,6 +118,9 @@ func checkNewEntry(r *core.Record) error {
 			return refuse("A reversal must name the entry it reverses.")
 		}
 	}
+	if r.GetString("doc_type") == docTypeTransfer && r.GetString("origin") == originOpeningBalance {
+		return refuse("An opening balance entry cannot be a transfer.")
+	}
 	if reverses && r.GetString("replaces") != "" {
 		return refuse("An entry cannot both reverse and replace another entry.")
 	}
@@ -210,8 +213,9 @@ func refuseServerFields(changed []string) error {
 }
 
 func entryName(r *core.Record) string {
+	noun, this, _ := entryNouns(r.GetString("doc_type"))
 	if n := r.GetString("number"); n != "" {
-		return "Journal entry " + n
+		return noun + " " + n
 	}
-	return "This journal entry"
+	return this
 }

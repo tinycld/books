@@ -5,13 +5,13 @@ tags: [journal entries, post, reverse, void, ledger]
 order: 26
 ---
 
-A journal entry moves money between accounts. Each entry has a date, a memo and two or more lines. Every line has an account and an amount on the debit or credit side. Debits must equal credits before you can post.
+A journal entry moves money between accounts. Each entry has a date, a memo and two or more lines. Every line has an account and an amount on the debit or credit side. Debits must equal credits before you can post. To move money between bank, card, asset, liability or equity accounts, use a [transfer](help://books:transfers).
 
 To see all entries, choose Journal Entries in the sidebar. Use the filters above the list to narrow it by status, search or date range. A read-only user can open entries but cannot change them.
 
 ## Create an entry
 
-To create an entry, choose New journal entry in the list, or choose New in the sidebar and pick Journal entry. Set the date and the memo. Pick an account for each line and type an amount in the Debit or Credit column. An entry can have up to 200 lines. To add a line, use the add line button under the last line.
+To create an entry, choose New journal entry in the list, or choose New in the sidebar and pick Journal entry. In a web browser on a wide screen, the Date field has focus when the form opens. Set the date and the memo. Pick an account for each line and type an amount in the Debit or Credit column. An entry can have up to 200 lines. To add a line, use the add line button under the last line.
 
 The strip under the lines shows Debits, Credits and the balance. If the two sides differ, it shows "Out of balance by" and the difference. Fix the amounts until it shows "In balance". An entry needs an amount on at least two lines.
 
@@ -37,9 +37,31 @@ To edit a posted entry, open it and choose Edit, or choose Edit in the menu of i
 
 To reverse a posted entry, open it and choose Reverse, or choose Reverse in the menu of its row. A dialog asks for the reversal date and a memo. The date cannot be before the entry date. It starts as the first day of the next month, or today if that is later. Choose Reverse entry. Books posts a new entry that swaps every debit and credit, and opens it. An entry that is already reversed cannot be reversed again.
 
+A transfer cannot be reversed. To correct a transfer, edit or void it.
+
 ## Void an entry
 
 To void a posted entry, open it and choose Void, or choose Void in the menu of its row. Books posts a reversing entry in the original period and marks the entry as Void. The number is kept. Both entries stay in the registers, and both count in the balances.
+
+## Keyboard shortcuts
+
+On the journal entry form (a new entry, a draft, or an edit of a posted entry):
+
+- ⌘↵: Post
+- ⌘⇧↵: Post & new
+- ⌘S: Save draft
+- Esc: Cancel
+- ⌘⌫: Delete draft (a saved draft only)
+
+On a posted entry:
+
+- E: Edit
+- V: Void
+- R: Reverse (when the entry can be reversed)
+
+The form keys also work while the cursor is in a text box, for example a date, an amount or the memo. E, V and R do not work while the cursor is in a text box. If a menu or dialog is open, Esc first closes it. While a dialog is open, the other keys do nothing.
+
+To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
@@ -47,6 +69,8 @@ With bookkeeper access you can create, post, edit, reverse, void and delete draf
 
 - A draft can be opened or deleted.
 - A posted entry can be opened, edited, reversed and voided. Reverse is hidden once a reversal exists.
+- A posted transfer can be opened, edited and voided, but not reversed. Its Edit opens the transfer form.
+- A posted reversal or auto reversal can be opened, reversed and voided, but not edited.
 - A void entry can only be opened.
 - A void reversal entry (the reversing entry that a void creates) can only be opened. You cannot edit, reverse or void it.
 

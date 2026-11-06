@@ -6,6 +6,10 @@ describe('docTypeLabel', () => {
         expect(docTypeLabel('journal')).toBe('Journal entries')
         expect(docTypeLabel('quote')).toBe('quote')
     })
+
+    it('labels transfer "Transfers"', () => {
+        expect(docTypeLabel('transfer')).toBe('Transfers')
+    })
 })
 
 describe('nextNumberPreview', () => {
@@ -13,6 +17,10 @@ describe('nextNumberPreview', () => {
         expect(nextNumberPreview('journal', 'JE-', '1001')).toBe('Next entry: JE-1001')
         expect(nextNumberPreview('journal', '', '1001')).toBe('Next entry: 1001')
         expect(nextNumberPreview('journal', 'JE-', '7')).toBe('Next entry: JE-7')
+    })
+
+    it('names the next transfer', () => {
+        expect(nextNumberPreview('transfer', 'TR-', '4')).toBe('Next transfer: TR-4')
     })
 
     it('uses a generic noun for an unknown doc type', () => {

@@ -76,7 +76,7 @@ describe('registries', () => {
         })
     })
 
-    it('NEW_ACTIONS has an available Product or service action in the other column, after Journal entry', () => {
+    it('NEW_ACTIONS has an available Product or service action in the other column, after Transfer', () => {
         const product = NEW_ACTIONS.find(a => a.id === 'product')
         expect(product).toEqual({
             id: 'product',
@@ -86,12 +86,27 @@ describe('registries', () => {
             available: true,
         })
         const ids = NEW_ACTIONS.map(a => a.id)
-        expect(ids.indexOf('product')).toBe(ids.indexOf('journal-entry') + 1)
+        expect(ids.indexOf('transfer')).toBe(ids.indexOf('journal-entry') + 1)
+        expect(ids.indexOf('product')).toBe(ids.indexOf('transfer') + 1)
     })
 
-    it('the New menu Other column lists Journal entry, then Product or service', () => {
+    it('NEW_ACTIONS has an available Transfer action in the other column at books/transfers/new', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'transfer')).toEqual({
+            id: 'transfer',
+            label: 'Transfer',
+            href: 'books/transfers/new',
+            column: 'other',
+            available: true,
+        })
+    })
+
+    it('the New menu Other column lists Journal entry, then Transfer, then Product or service', () => {
         const other = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Other')
-        expect(other?.actions.map(a => a.label)).toEqual(['Journal entry', 'Product or service'])
+        expect(other?.actions.map(a => a.label)).toEqual([
+            'Journal entry',
+            'Transfer',
+            'Product or service',
+        ])
     })
 
     it('the New menu starts with the Customers column holding Customer', () => {
@@ -379,6 +394,9 @@ describe('hidesNewFab', () => {
         '/a/books/vendors/new',
         '/a/books/products/abc',
         '/a/books/products/new',
+        '/a/acme/books/transfers/new',
+        '/a/acme/books/transfers/abc123',
+        '/a/acme/books/transfers/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

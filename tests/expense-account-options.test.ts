@@ -43,6 +43,7 @@ describe('expenseAccountOptions', () => {
         expect(options).toEqual([
             { value: '', label: 'None' },
             { value: idOf('1000'), label: '1000 Business Checking', indent: 0 },
+            { value: idOf('1010'), label: '1010 Business Savings', indent: 0 },
             { value: idOf('1500'), label: '1500 Office Equipment', indent: 0 },
             { value: idOf('2100'), label: '2100 Company Card', indent: 0 },
             { value: idOf('2200'), label: '2200 Sales tax payable', indent: 0 },

@@ -170,18 +170,19 @@ func searchAccounts(ctx context.Context, app core.App, match string, window int)
 }
 
 type entryHit struct {
-	ID     string `db:"id"`
-	Number string `db:"number"`
-	Memo   string `db:"memo"`
-	Date   string `db:"date"`
-	Status string `db:"status"`
+	ID      string `db:"id"`
+	Number  string `db:"number"`
+	Memo    string `db:"memo"`
+	Date    string `db:"date"`
+	Status  string `db:"status"`
+	DocType string `db:"doc_type"`
 }
 
 // A void's reversal repeats the voided entry's number, and the voided entry
 // is the one a person looks for, so reversals are left out.
 var entriesQuery = indexQuery{
 	index: entriesIndex, table: "books_journal_entries", where: "c.origin != 'void_reversal'",
-	columns: "c.id, c.number, c.memo, c.date, c.status", order: "c.date DESC, c.id",
+	columns: "c.id, c.number, c.memo, c.date, c.status, c.doc_type", order: "c.date DESC, c.id",
 }
 
 func searchEntries(ctx context.Context, app core.App, match string, window int) ([]search.Row, int, error) {
@@ -192,12 +193,18 @@ func searchEntries(ctx context.Context, app core.App, match string, window int) 
 	}
 	rows := make([]search.Row, 0, len(hits))
 	for _, h := range hits {
+		// A transfer hit opens the transfer screen, so the client adapter needs
+		// its own id prefix and kind.
+		prefix, kind := "entry:", "journal_entry"
+		if h.DocType == docTypeTransfer {
+			prefix, kind = "transfer:", "transfer"
+		}
 		rows = append(rows, search.Row{
-			ID:       "entry:" + h.ID,
+			ID:       prefix + h.ID,
 			Title:    entryHitTitle(h),
 			Subtitle: h.Memo,
 			Meta:     h.Date,
-			Fields:   map[string]any{"kind": "journal_entry", "status": h.Status},
+			Fields:   map[string]any{"kind": kind, "status": h.Status},
 		})
 	}
 	return rows, total, nil
@@ -314,13 +321,14 @@ func searchProducts(ctx context.Context, app core.App, match string, window int)
 }
 
 func entryHitTitle(h entryHit) string {
+	noun, _, draft := entryNouns(h.DocType)
 	switch {
 	case h.Number == "":
-		return "Draft journal entry"
+		return draft
 	case h.Status == statusVoid:
-		return "Journal entry " + h.Number + " (void)"
+		return noun + " " + h.Number + " (void)"
 	}
-	return "Journal entry " + h.Number
+	return noun + " " + h.Number
 }
 
 func page(rows []search.Row, offset, limit int) []search.Row {
