@@ -17,9 +17,9 @@ import (
 // part of that same logged update. registrations_test.go fails when a new
 // collection is neither here nor declared server-only.
 //
-// It takes the app because four labels read another row: an admin grant is
+// It takes the app because five labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account, a bundle row by its
-// bundle and product, and a bank connection by its account.
+// bundle and product, a bank connection by its account, and a bank import by its file.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -46,6 +46,9 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 			ExtractLabel: func(r *core.Record) string { return bankConnectionLabel(app, r) },
 		},
 		"books_bank_files": {ExtractLabel: audit.LabelFromField("name")},
+		"books_bank_imports": {
+			ExtractLabel: func(r *core.Record) string { return bankImportLabel(app, r) },
+		},
 	}
 }
 
@@ -102,4 +105,14 @@ func userLabel(app core.App, userID string) string {
 		return userID
 	}
 	return u.GetString("name") + " <" + u.Email() + ">"
+}
+
+// bankImportLabel names an import by the file it read. A file that cannot be
+// read gives "", so the audit row is still written.
+func bankImportLabel(app core.App, r *core.Record) string {
+	file, err := app.FindRecordById("books_bank_files", r.GetString("file"))
+	if err != nil {
+		return ""
+	}
+	return file.GetString("name")
 }

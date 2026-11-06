@@ -20,8 +20,14 @@ import (
 	"tinycld.org/core/search"
 )
 
-// serverOnly are Books collections no person writes, so nothing to audit.
-var serverOnly = map[string]bool{"books_account_balances": true}
+// serverOnly are the collections only Go writes. The balance rows are derived
+// from the ledger; a bank file's parsed rows and its transactions are written
+// by the upload and import hooks, and the import row that made them is audited.
+var serverOnly = map[string]bool{
+	"books_account_balances":   true,
+	"books_bank_file_contents": true,
+	"books_bank_transactions":  true,
+}
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
 	t.Helper()
@@ -374,13 +380,12 @@ func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	}
 }
 
-// A token that records transactions also connects bank accounts and uploads
-// their statement files. TestOAuth_CoversEveryBooksCollection checks only that
+// A token that records transactions also connects bank accounts, uploads their statement files and imports them. TestOAuth_CoversEveryBooksCollection checks only that
 // a collection is listed, so this pins the access itself.
 func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 	collections := oauthPackage().Collections
 	want := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
-	for _, c := range []string{"books_bank_connections", "books_bank_files"} {
+	for _, c := range []string{"books_bank_connections", "books_bank_files", "books_bank_imports"} {
 		got, ok := collections[c]
 		if !ok {
 			t.Errorf("%s has no OAuth entry", c)
@@ -389,6 +394,34 @@ func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 		if !reflect.DeepEqual(got.Read, want.Read) || !reflect.DeepEqual(got.Write, want.Write) {
 			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, want.Read, want.Write)
 		}
+	}
+}
+
+// A file's parsed rows and its transactions are written only by the server,
+// so a token reads them and never writes them.
+func TestOAuth_BankRowsAreReadOnly(t *testing.T) {
+	collections := oauthPackage().Collections
+	for _, c := range []string{"books_bank_file_contents", "books_bank_transactions"} {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+			t.Errorf("%s OAuth access = %+v, want read-only %s", c, got, scopeRead)
+		}
+	}
+}
+
+// An import row holds only a file id, so its audit row names the file.
+func TestAudit_LabelsABankImportByItsFile(t *testing.T) {
+	env := newBankRulesEnv(t)
+	imports, ok := auditedCollections(env.app)["books_bank_imports"]
+	if !ok {
+		t.Fatal("books_bank_imports is not audited")
+	}
+	if got, want := imports.ExtractLabel(env.bankImport), "oct-2026.csv"; got != want {
+		t.Errorf("import label = %q, want %q", got, want)
 	}
 }
 
