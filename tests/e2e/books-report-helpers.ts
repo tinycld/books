@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { hubRow, openReportsHub, rowOf } from '@tinycld/core/e2e-helpers'
+import { hubRow, navigateToPackage, rowOf } from '@tinycld/core/e2e-helpers'
 
 // Books' reports run in core's report view (/a/reports/<id>). These helpers drive it
 // through core's test ids (core/reports/components) and read it in one snapshot.
@@ -47,12 +47,48 @@ export function browserToday(page: Page): Promise<string> {
     })
 }
 
+// Below core's mobile breakpoint (useBreakpoint) the Books sidebar lives in the drawer.
+const MOBILE_MAX_WIDTH = 767
+
+// MobileDrawer opens from a pan that starts in the 20px strip at the left edge;
+// react-native-gesture-handler listens for the mouse on web, so a drag drives it
+// (tests/e2e/mobile-drawer.spec.ts).
+async function openBooksMenu(page: Page): Promise<void> {
+    // ActivePkgSync closes the drawer on every route change, so the swipe waits for
+    // the Books index redirect to settle and for the drawer's mount.
+    await expect(page).toHaveURL(/\/a\/books\/\w/)
+    const panel = page.getByTestId('mobile-drawer-panel')
+    await panel.waitFor({ state: 'attached' })
+    const y = (page.viewportSize()?.height ?? 844) / 2
+    await page.mouse.move(5, y)
+    await page.mouse.down()
+    await page.mouse.move(100, y, { steps: 8 })
+    await page.mouse.move(200, y, { steps: 8 })
+    await page.mouse.up()
+    await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
+}
+
+// Core's Reports hub filtered to Books, reached the way a user does: Reports in the Books
+// sidebar (on a phone, in the Books menu, the drawer). Open Books at the desktop viewport
+// first when the page is a phone: navigateToPackage clicks the desktop rail.
+export async function openBooksReports(page: Page): Promise<void> {
+    await navigateToPackage(page, 'books')
+    const width = page.viewportSize()?.width ?? Number.POSITIVE_INFINITY
+    let reports = page.getByTestId('books-nav-reports')
+    if (width <= MOBILE_MAX_WIDTH) {
+        await openBooksMenu(page)
+        reports = page.getByTestId('mobile-drawer-panel').getByTestId('books-nav-reports')
+    }
+    await reports.click()
+    await expect(page).toHaveURL(/\/a\/reports\?package=books/)
+    await page.getByTestId('reports-hub').waitFor()
+}
+
 // The e2e user is not the first admin, who owns the shipped reports (core shipped.go
-// firstAdmin; tinycld/tests/e2e/reports-helpers.ts loginAsShippedOwner), so the Trial
-// Balance reaches it through the viewer share Books keeps, under "Shared with me".
+// firstAdmin), so the Trial Balance reaches it through the viewer share Books keeps. The
+// Books hub has no tabs: it lists every Books report the reader can open (D2).
 export async function openTrialBalance(page: Page): Promise<void> {
-    await openReportsHub(page)
-    await page.getByTestId('reports-hub-tab-shared').click()
+    await openBooksReports(page)
     await hubRow(page, 'Trial Balance').click()
     await expect(page.getByTestId('report-screen')).toBeVisible()
     await expect(
@@ -62,7 +98,7 @@ export async function openTrialBalance(page: Page): Promise<void> {
 
 // The last day of the month before `day`'s: core's endOfLastMonth (server/reports/params.go
 // asOfDay), which reads only the reader's day.
-function endOfLastMonth(day: string): string {
+export function endOfLastMonth(day: string): string {
     const lastDay = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, 0))
     return lastDay.toISOString().slice(0, 10)
 }
