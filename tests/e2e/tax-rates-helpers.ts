@@ -19,6 +19,7 @@ export {
 
 const ACCESS_RECORDS = '**/api/collections/books_access/records*'
 const AGENCIES_RECORDS = '**/api/collections/books_tax_agencies/records*'
+const RATES_RECORDS = '**/api/collections/books_tax_rates/records*'
 
 // Books open at the desktop viewport, then the Sales tax page through its sidebar entry.
 export async function openTaxes(page: Page): Promise<void> {
@@ -83,6 +84,80 @@ export async function fakeReadOnlyAccess(page: Page): Promise<void> {
             }),
         })
     })
+}
+
+// An edit dialog by its title: the dialog role on wide; on a phone core Dialog is a
+// Sheet with no dialog role, so it is the sheet surface (the parent of its drag
+// handle) that holds the title text.
+export function dialogByTitle(page: Page, title: string): Locator {
+    const sheets = page.getByTestId('sheet-handle').locator('xpath=..')
+    return page
+        .getByRole('dialog')
+        .or(sheets)
+        .filter({ has: page.getByText(title, { exact: true }) })
+}
+
+// The id at the end of a test id such as `tax-agency-card-<id>`.
+async function idAfter(locator: Locator, prefix: string): Promise<string> {
+    const testId = (await locator.getAttribute('data-testid')) ?? ''
+    expect(testId.startsWith(prefix)).toBe(true)
+    return testId.slice(prefix.length)
+}
+
+// Adds an agency through Add agency, keeping the preselected liability account, and
+// returns the new card's id.
+export async function createAgency(page: Page, name: string): Promise<string> {
+    await page.getByTestId('taxes-add-agency').click()
+    const dialog = dialogByTitle(page, 'Add agency')
+    await expect(dialog).toBeVisible()
+    const nameInput = page.getByTestId('tax-agency-form-name')
+    await expect(nameInput).toBeFocused()
+    await nameInput.fill(name)
+    await page.getByTestId('tax-agency-form-save').click()
+    await expect(dialog).toBeHidden()
+    const card = agencyCardByName(page, name)
+    await expect(card).toBeVisible()
+    return idAfter(card, 'tax-agency-card-')
+}
+
+// Adds a rate through the agency card's Add rate and returns the new row's id.
+export async function createRate(
+    page: Page,
+    agencyId: string,
+    name: string,
+    percent: string
+): Promise<string> {
+    await page.getByTestId(`tax-agency-add-rate-${agencyId}`).click()
+    const dialog = dialogByTitle(page, 'Add rate')
+    await expect(dialog).toBeVisible()
+    const nameInput = page.getByTestId('tax-rate-form-name')
+    await expect(nameInput).toBeFocused()
+    await nameInput.fill(name)
+    await page.getByTestId('tax-rate-form-percent').fill(percent)
+    await page.getByTestId('tax-rate-form-save').click()
+    await expect(dialog).toBeHidden()
+    const row = rowByName(page.getByTestId(`tax-agency-card-${agencyId}`), name)
+    await expect(row).toBeVisible()
+    return idAfter(row, 'tax-row-')
+}
+
+// A list GET answered with no items; every other request (a create's POST) goes on to
+// the server.
+function emptyList(route: Route) {
+    if (route.request().method() !== 'GET') return route.fallback()
+    return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ page: 1, perPage: 30, totalItems: 0, totalPages: 0, items: [] }),
+    })
+}
+
+// Answers the agencies and rates list reads with no rows, so the page shows its empty
+// state on the shared database. Realtime is shut off, so no event fills the lists.
+export async function fakeEmptyAgencies(page: Page): Promise<void> {
+    await page.route('**/api/realtime*', route => route.abort())
+    await page.route(AGENCIES_RECORDS, emptyList)
+    await page.route(RATES_RECORDS, emptyList)
 }
 
 // Holds every load of the agencies, so the page shows its loading state. `fail()`
