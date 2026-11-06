@@ -242,7 +242,7 @@
 - gate 3 fixes: a fresh test writer removed the six harness options, five helpers and two store fields (git grep before/after: no user; kept `releaseAccessReads`, `holdCoreRead`, `holdAdminRead`, `failsOnceOnDemandCollection`, `refusingOnDemandCollection`); a fresh implementer deleted `AccountChoice` and made the five register-range helpers private (no importer, tests included) and trimmed the comment. Gate 1 after fixes: tests unedited by the implementer · check exit 0 (biome 686, vitest 3051) · `go test` ok · `-g "trial-balance:"` 12 passed (1.4 m).
 - fix review (round 1, fresh reviewer A): no BLOCK, no NOTE; no test lost a hold or failure path (git grep across books/ and the other workspace members); kept options choose the same collections. Rounds used: 1 of 2.
 - reviewer-caught deferrals: none.
-- commit: see the next ledger-only commit for the sha.
+- commit: 6305dfc (pushed); this line is committed with the ledger alone.
 - human: none (review mode C)
 
 ## Final review
