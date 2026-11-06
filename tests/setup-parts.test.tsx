@@ -254,6 +254,7 @@ function startedRow(account: ReturnType<typeof starterChart>[number]): BooksAcco
         id: `seed_${account.number}`,
         number: account.number,
         name: account.name,
+        full_name: account.name,
         type: account.type,
         detail_type: account.detail_type,
         description: '',

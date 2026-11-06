@@ -1,0 +1,19 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "hub",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "actions": [{ "waitFor": "Trial Balance" }]
+        },
+        {
+            "name": "populated",
+            "url": "/a/reports/{reportId:Trial Balance}",
+            "ready": "report-table",
+            "height": 1200
+        }
+    ]
+}

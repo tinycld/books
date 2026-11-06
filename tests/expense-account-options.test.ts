@@ -48,6 +48,7 @@ describe('expenseAccountOptions', () => {
             { value: idOf('2100'), label: '2100 Company Card', indent: 0 },
             { value: idOf('2200'), label: '2200 Sales tax payable', indent: 0 },
             { value: idOf('3000'), label: "3000 Owner's Equity", indent: 0 },
+            { value: idOf('3900'), label: '3900 Retained earnings', indent: 0 },
             { value: idOf('4000'), label: '4000 Consulting Income', indent: 0 },
             { value: idOf('6100'), label: '6100 Rent', indent: 0 },
             { value: idOf('6200'), label: '6200 Software Subscriptions', indent: 0 },

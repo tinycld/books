@@ -20,6 +20,7 @@ import {
     productSurface,
     searchProducts,
     uniqueName,
+    viewportName,
 } from './products-services-helpers'
 
 // The row menu (Edit, Make inactive or Make active, Delete) on product rows, Make inactive,
@@ -46,7 +47,7 @@ test.describe('products-services: inactive and delete', () => {
         page,
     }) => {
         await openBooks(page, DESKTOP)
-        const item = uniqueName(page, 'Part')
+        const item = uniqueName(`Part ${viewportName(page)}`)
         await createProduct(page, { type: 'non_inventory', name: item })
         await createBundle(page, { name: `${item} kit`, items: [{ name: item, quantity: '1' }] })
         await searchProducts(page, item)
@@ -86,7 +87,7 @@ test.describe('products-services: inactive and delete', () => {
         page,
     }) => {
         await openBooks(page, DESKTOP)
-        const prefix = uniqueName(page, 'Pick')
+        const prefix = uniqueName(`Pick ${viewportName(page)}`)
         const kept = `${prefix} kept`
         const old = `${prefix} old`
         const bundle = `${prefix} bundle`

@@ -23,6 +23,7 @@ import {
     vendorHelpers,
     vendorIdOf,
     vendorSurface,
+    viewportName,
 } from './vendor-form-helpers'
 
 // The row menu (Edit, Make inactive or Make active, Delete) on vendor rows and cards, Make
@@ -67,7 +68,7 @@ test.describe('vendor-form: inactive and delete', () => {
             await page.setViewportSize(size)
             const banner = page.getByTestId('vendors-banner')
             const showInactive = page.getByTestId('vendors-show-inactive')
-            const prefix = uniqueName(page, 'Actions')
+            const prefix = uniqueName(`Actions ${viewportName(page)}`)
             const nameP = `${prefix} P`
             const nameQ = `${prefix} Q`
 

@@ -1,4 +1,11 @@
-import { expect, type Locator, type Page, type Route, type ViewportSize } from '@playwright/test'
+import {
+    expect,
+    type Locator,
+    type Page,
+    type Route,
+    test,
+    type ViewportSize,
+} from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 
@@ -41,15 +48,19 @@ export const SETTINGS_URL = /\/a\/settings(\/|$)/
 
 const PANEL_WIDTH = 480
 
-function viewportName(page: Page) {
+export function viewportName(page: Page): string {
     const width = page.viewportSize()?.width ?? DESKTOP.width
     if (width >= WIDE.width) return 'wide'
     return isPhone(page) ? 'phone' : 'desktop'
 }
 
-// A name no other spec, viewport or earlier run can have.
-export function uniqueName(page: Page, label: string) {
-    return `${label} ${viewportName(page)} ${Date.now()}`
+let uniqueCounter = 0
+
+// A name no other worker, test or earlier run can have: the worker index keeps two
+// workers apart in the same millisecond, the counter two calls in one test. Call it
+// inside a test.
+export function uniqueName(prefix: string): string {
+    return `${prefix} w${test.info().workerIndex}-${Date.now()}-${++uniqueCounter}`
 }
 
 // Four digits that differ between runs, for phone numbers and emails.

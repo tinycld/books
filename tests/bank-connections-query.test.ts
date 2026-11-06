@@ -113,7 +113,7 @@ const indexed = {
 }
 
 function bankAccount(seed: Pick<BooksAccounts, 'id' | 'name' | 'number'>): BooksAccounts {
-    return { ...BANK_ACCOUNTS[0], ...seed }
+    return { ...BANK_ACCOUNTS[0], full_name: seed.name, ...seed }
 }
 
 // Chart order (lib/account-tree.ts compareNumberThenName, id breaking a tie): numbers

@@ -17,20 +17,20 @@ Enter the legal business name. It is required and can have up to 200 characters.
 
 Choose how the business is owned. This only decides your equity accounts.
 
-- **One owner or partners** creates Owner's equity, Owner's contributions and Owner's draws.
+- **One owner or partners** creates Owner's equity, Owner's contributions, Owner's draws and Retained earnings.
 - **Corporation** creates Common stock, Paid-in capital and Retained earnings.
 
 To change an earlier answer, choose Back. Your answers stay as you typed them.
 
 ## Starter chart
 
-This part lists the accounts that Books will create, grouped as Assets, Liabilities, Equity, Income and Expenses. To create them, choose Create followed by the number of accounts, for example Create 34 accounts. While it works, Books shows how many accounts it has made. You can change, make inactive or delete any account later in the [Chart of Accounts](help://books:chart-of-accounts).
+This part lists the accounts that Books will create, grouped as Assets, Liabilities, Equity, Income and Expenses. To create them, choose the Create button. Its label shows the number of accounts. While it works, Books shows how many accounts it has made. You can change, make inactive or delete accounts later in the [Chart of Accounts](help://books:chart-of-accounts). The Retained earnings account is different: you can rename it and change its number, but you cannot delete it, make it inactive or change its type.
 
-If you want to build your own chart, choose Start with an empty chart. Books saves your business name and fiscal year and creates no accounts. You can then add accounts one by one or import a file.
+If you want to build your own chart, choose Start with an empty chart. Books saves your business name and fiscal year. When setup finishes, Books creates one Retained earnings account, because every chart needs one. Books creates no other accounts. You can then add accounts one by one or import a file.
 
 ## If the book already has accounts
 
-When the book already has accounts and setup was not left half done, this part says that the book already has accounts and that Books will not add the starter chart. Choose Finish setup to save your business name and fiscal year.
+When the book already has accounts and setup was not left half done, this part says that the book already has accounts and that Books will not add the starter chart. Choose Finish setup to save your business name and fiscal year. If the chart has no Retained earnings account, Books creates one when setup finishes.
 
 ## If an account is refused
 

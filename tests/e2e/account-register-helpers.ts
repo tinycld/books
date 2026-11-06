@@ -216,17 +216,20 @@ export async function revealRegisterItem(page: Page, item: Locator) {
     await item.scrollIntoViewIfNeeded()
 }
 
-// The Chart of Accounts must already be open. Creates a number-less account of the given
-// type and detail type (their menu labels) through the account panel.
+// The Chart of Accounts must already be open. Creates an account of the given type and
+// detail type (their menu labels) through the account panel, number-less unless a
+// number is given.
 export async function createAccount(
     page: Page,
     name: string,
-    kind: { type: string; detailType: string }
+    kind: { type: string; detailType: string },
+    number?: string
 ): Promise<void> {
     await page.getByTestId(isPhone(page) ? 'account-new-header' : 'account-new-toolbar').click()
     const panel = page.getByTestId('account-panel')
     await expect(panel).toBeVisible()
     await page.getByLabel('Account name').fill(name)
+    if (number !== undefined) await panel.getByLabel('Account number', { exact: true }).fill(number)
     await panel.getByTestId('account-type').click()
     await page.getByRole('menuitem', { name: kind.type, exact: true }).click()
     await panel.getByTestId('account-detail-type').click()
