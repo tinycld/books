@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import {
     login,
@@ -763,6 +764,48 @@ test.describe('vendor-1099: Settings → 1099s', () => {
                 await expect(id(view, 'books-1099-vendor-last-four-vendkeystonel01')).toHaveText(
                     '•••2741'
                 )
+            } finally {
+                await reader.close()
+            }
+        } finally {
+            await runRestores([
+                () => openRailSection(page, 'access'),
+                () => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started),
+            ])
+        }
+    })
+})
+
+// Preview PDF is offered to every Books reader, not only to a user who can write. It lives in
+// this file, not pdf-preview.spec.ts, because it changes the shared collaborator's access level
+// (put back afterwards) and this is the only file that does; another worker doing the same
+// would race it.
+test.describe('pdf-preview: a read-only member', () => {
+    test('can preview the sample invoice', async ({ page }) => {
+        await openSettings(page)
+        await openRailSection(page, 'access')
+        const started = await levelOf(accessRow(page, TEST_COLLABORATOR_EMAIL))
+
+        try {
+            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, 'read_only')
+            const reader = await signInAsCollaborator(page)
+            try {
+                const view = reader.page
+                await navigateToPackage(view, 'books')
+                await id(view, 'books-nav-settings').click()
+                await expect(id(view, 'books-settings')).toBeVisible()
+                await expect(id(view, 'books-settings-save')).toHaveCount(0)
+
+                const button = id(view, 'books-settings-preview-pdf')
+                await expect(button).toBeVisible()
+                await expect(button).toBeEnabled()
+                const download = view.waitForEvent('download')
+                await button.click()
+                const file = await download
+                expect(file.suggestedFilename()).toBe('sample-invoice.pdf')
+                const pdf = await readFile(await file.path())
+                expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-')
+                await expect(button).toBeEnabled()
             } finally {
                 await reader.close()
             }

@@ -25,11 +25,13 @@ export function parseRatePercent(text: string) {
 }
 
 export function ratePercentText(ppm: number) {
-    const whole = Math.floor(ppm / PPM_PER_PERCENT)
-    const fraction = String(ppm % PPM_PER_PERCENT)
+    const sign = ppm < 0 ? '-' : ''
+    const magnitude = Math.abs(ppm)
+    const whole = Math.floor(magnitude / PPM_PER_PERCENT)
+    const fraction = String(magnitude % PPM_PER_PERCENT)
         .padStart(FRACTION_DIGITS, '0')
         .replace(/0+$/, '')
-    return fraction ? `${whole}.${fraction}%` : `${whole}%`
+    return fraction ? `${sign}${whole}.${fraction}%` : `${sign}${whole}%`
 }
 
 // Splitting the amount into q·1 000 000 + r keeps every product below 2^53,

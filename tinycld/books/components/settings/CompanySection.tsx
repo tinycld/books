@@ -6,6 +6,7 @@ import { useSettingsForm } from '../../hooks/useSettingsForm'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { type CompanyValues, companySchema, companyValues } from '../../lib/settings-schema'
 import type { BooksSettings } from '../../types'
+import { DocumentPreviewCard } from './DocumentPreviewCard'
 import { FieldNote, ReadOnlyRow, SectionCard } from './SectionCard'
 
 function CompanyReadOnly({ values, isVisible }: { values: CompanyValues; isVisible: boolean }) {
@@ -101,9 +102,19 @@ function CompanyForm({ settings }: { settings: BooksSettings }) {
     )
 }
 
+function CompanyDetails({ settings, isAdmin }: { settings: BooksSettings; isAdmin: boolean }) {
+    if (!isAdmin) return <CompanyReadOnly values={companyValues(settings)} isVisible />
+    return <CompanyForm settings={settings} />
+}
+
+// Every Books reader may preview the printed documents; only an admin edits the details.
 export function CompanySection({ isAdmin }: { isAdmin: boolean }) {
     const { settings } = useBooksSettings()
     if (!settings) return null
-    if (!isAdmin) return <CompanyReadOnly values={companyValues(settings)} isVisible />
-    return <CompanyForm settings={settings} />
+    return (
+        <View className="gap-4">
+            <CompanyDetails settings={settings} isAdmin={isAdmin} />
+            <DocumentPreviewCard />
+        </View>
+    )
 }
