@@ -15,6 +15,7 @@ export const productColumnsSchema = z.strictObject({
     sales_description: optionalText,
     price: z.number().optional(),
     income_account: optionalText,
+    taxable: z.boolean().optional(),
     purchases: z.boolean().optional(),
     purchase_description: optionalText,
     cost: z.number().optional(),
@@ -24,7 +25,8 @@ export const productColumnsSchema = z.strictObject({
 export type ProductColumns = z.infer<typeof productColumnsSchema>
 
 // What a bundle stores in the columns it does not use: the server refuses a bundle
-// with a price, cost, account or purchase field of its own.
+// with a price, cost, account, purchase field or Taxable of its own. A new
+// Non-inventory item switched to Bundle still holds Taxable on in its hidden toggle.
 const BUNDLE_EMPTY_COLUMNS: ReadonlyMap<string, unknown> = new Map<string, unknown>([
     ['price', 0],
     ['cost', 0],
@@ -32,6 +34,7 @@ const BUNDLE_EMPTY_COLUMNS: ReadonlyMap<string, unknown> = new Map<string, unkno
     ['expense_account', ''],
     ['purchase_description', ''],
     ['purchases', false],
+    ['taxable', false],
 ])
 
 const MONEY_KEYS: ReadonlySet<string> = new Set(['price', 'cost'])
@@ -72,6 +75,7 @@ export const EMPTY_PRODUCT_FIELDS: Required<ProductColumns> = {
     sales_description: '',
     price: 0,
     income_account: '',
+    taxable: false,
     purchases: false,
     purchase_description: '',
     cost: 0,

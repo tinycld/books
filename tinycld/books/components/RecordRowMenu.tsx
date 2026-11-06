@@ -14,8 +14,12 @@ interface RecordRowMenuProps<I extends string> {
     labels: Record<I, string>
     testIds: Record<I, string>
     onSelect: (item: I) => void
-    // A write from the list is in flight; the items that start another write wait.
+    // A write from the list is in flight, or writes are unavailable; the items that
+    // start a write are disabled until it clears.
     isWriting: boolean
+    // The items that start a write (default: the record lists' Make inactive, Make
+    // active and Delete).
+    writes?: ReadonlySet<string>
 }
 
 // On a phone the menu is a sheet that slides out for a moment after it closes. Its items
@@ -38,6 +42,7 @@ export function RecordRowMenu<I extends string>({
     testIds,
     onSelect,
     isWriting,
+    writes = RECORD_MENU_WRITES,
 }: RecordRowMenuProps<I>) {
     const color = useThemeColor('muted-foreground')
     const menuItems = items.map(item => (
@@ -46,7 +51,7 @@ export function RecordRowMenu<I extends string>({
             testID={testIds[item]}
             label={labels[item]}
             isDestructive={item === 'delete'}
-            isDisabled={isWriting && RECORD_MENU_WRITES.has(item)}
+            isDisabled={isWriting && writes.has(item)}
             onSelect={() => onSelect(item)}
         />
     ))

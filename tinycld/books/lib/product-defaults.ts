@@ -50,7 +50,10 @@ export function defaultExpenseAccount(accounts: readonly DefaultAccount[]): stri
     return match?.id ?? ''
 }
 
-/** The create form's first values for a new product of `type`. */
+/**
+ * The create form's first values for a new product of `type`. A Non-inventory item
+ * starts taxable; a Service and a bundle do not.
+ */
 export function newProductValues(
     type: ProductType,
     accounts: readonly DefaultAccount[]
@@ -61,5 +64,6 @@ export function newProductValues(
         type,
         income_account: defaultIncomeAccount(accounts, type),
         expense_account: defaultExpenseAccount(accounts),
+        taxable: type === 'non_inventory',
     }
 }

@@ -27,6 +27,8 @@ import type {
     BooksJournalEntries,
     BooksJournalLines,
     BooksSettings,
+    BooksTaxAgencies,
+    BooksTaxRates,
 } from '../tinycld/books/types'
 import { refusedLoad } from './silence-log'
 
@@ -714,6 +716,19 @@ function accountsCollectionFor(opts: {
     return accountsCollection(opts.ledger?.accounts)
 }
 
+function taxAgenciesCollectionFor(
+    opts: { taxAgenciesFailsOnce?: boolean },
+    rows: BooksTaxAgencies[]
+) {
+    if (opts.taxAgenciesFailsOnce) return failsOnceOnDemandCollection<BooksTaxAgencies>(rows)
+    return guarded<BooksTaxAgencies>('books_tax_agencies', rows)
+}
+
+function taxRatesCollectionFor(opts: { taxRatesFailsOnce?: boolean }, rows: BooksTaxRates[]) {
+    if (opts.taxRatesFailsOnce) return failsOnceOnDemandCollection<BooksTaxRates>(rows)
+    return guarded<BooksTaxRates>('books_tax_rates', rows)
+}
+
 function linesCollectionFor(
     opts: { linesNeverReady?: boolean; linesFailsOnce?: boolean },
     rows: BooksJournalLines[]
@@ -913,6 +928,15 @@ export function seedBooks(
         overrides?: BooksCloseOverrides[]
         // The users the overrides and access rows point at; none by default.
         users?: SeedUser[]
+        // The tax agency and tax rate (and group) rows to seed; none by default. Their
+        // writes go through the shared handler, so the refusal and hold helpers reach them.
+        taxAgencies?: BooksTaxAgencies[]
+        taxRates?: BooksTaxRates[]
+        // A tax agencies collection whose first subset load is refused with a 403, as pbtsdb
+        // refuses it, and whose later loads serve `taxAgencies`; it takes no writes.
+        taxAgenciesFailsOnce?: boolean
+        // As taxAgenciesFailsOnce, for the tax rates (and groups) collection and `taxRates`.
+        taxRatesFailsOnce?: boolean
         // Replaces the signed-in user's single access row with these rows.
         accessRows?: BooksAccess[]
         // The org_pkg_access rows to seed; none by default.
@@ -1037,6 +1061,8 @@ export function seedBooks(
         ),
         books_close_overrides: overridesCollectionFor(opts, opts.overrides ?? []),
         users: usersCollectionFor(opts, opts.users ?? []),
+        books_tax_agencies: taxAgenciesCollectionFor(opts, opts.taxAgencies ?? []),
+        books_tax_rates: taxRatesCollectionFor(opts, opts.taxRates ?? []),
     })
 }
 
@@ -1114,6 +1140,14 @@ export function usersStore() {
 
 export function coreAccessStore() {
     return state.registry.org_pkg_access as ReturnType<typeof accessWriteCollection<OrgPkgAccess>>
+}
+
+export function taxAgenciesStore() {
+    return state.registry.books_tax_agencies as ReturnType<typeof guarded<BooksTaxAgencies>>
+}
+
+export function taxRatesStore() {
+    return state.registry.books_tax_rates as ReturnType<typeof guarded<BooksTaxRates>>
 }
 
 export function overrideDeletes() {
