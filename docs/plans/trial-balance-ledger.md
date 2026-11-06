@@ -61,6 +61,8 @@
 - cp 5 · reviewer A NOTEs: help title/summary ("Run and customize a report") kept from the shell topic (Do step 4 keeps them); `tests/help-reports.test.ts` checks 'All', 'Rows', 'Active' as bare substrings; `openBooksReports` calls `navigateToPackage` at the current viewport (callers open Books at desktop first); `isActivePath` with href `reports` matches any path ending `/reports` (harmless after cp6).
 - cp 5 · reviewer B NOTEs: no `isActivePath` test for the new href; `MOBILE_MAX_WIDTH = 767` and the drawer swipe in books-report-helpers.ts copy core's breakpoint and mobile-drawer.spec.ts.
 - cp 5 · fix review NOTE: the report heading also shows the organization's name when the reader cannot view books_settings or the read fails, not only when the business name is empty.
+- cp 6 · reviewer A NOTE: ADR 0002's new title ("Reports run on core's engine as the reader") differs from its file name `0002-reports-read-monthly-balance-rows.md` (the plan keeps the name; only plans/specs link it, so a rename is safe later).
+- cp 6 · for the driver: `memories.md` p5-report-shell lines are stale (`roundedQuotient` in the deleted lib/report-format.ts; the removed harness options `holdAccountsRead`/`holdSettingsRead`/`holdAccessRead`/`accessFailsTwice`; `ReportResult.recovery` — `mergeRecoveries` now lives in `lib/live-recovery.ts`; the report-shell-checkpoints e2e list).
 
 ## Out-of-plan changes
 - cp 1 · `docs/plans/trial-balance-ledger.md` — the run ledger (Do step 1 records the carried tsc check here).
@@ -79,6 +81,7 @@
 - cp 4 (resume) · `docs/specs/trial-balance-design.md`, `docs/plans/trial-balance-checkpoints.md` — the resume amendments (D3 (a), E1, E2, and the gate 2 B2 line order).
 - cp 4 (resume) · `server/report_sources.go` + `server/report_sources_test.go` (checkpoint 2 files) — `sequence` on `books.journal_entries`, needed for the line order (gate 2 B2); named in the plan's Gate fixes bullet.
 - cp 5 · `docs/specs/trial-balance-design.md`, `docs/plans/trial-balance-checkpoints.md` (D3 wording in the help bullet and its test), `docs/plans/trial-balance-evidence/cp5/` (gate 2 evidence, Do step 5), `docs/plans/trial-balance-ledger.md`.
+- cp 6 · `tests/accounts-form-harness.ts`, `tinycld/books/hooks/useAccountOptions.ts`, `tinycld/books/lib/register-range.ts` — gate 3 B2–B4: code only the deleted shell used (harness options and helpers, the `AccountChoice` type, five exports made private). Not weakened (fix review). `docs/plans/trial-balance-ledger.md`.
 
 ## Phase notes
 - phase 1: unattended intake (staging `~/tmp/tinycld/auto-helix-books/staging/p5-trial-balance/intake.md`). Design packet revision 1 designed around engine gaps; at the design gate (2026-11-01) the human set a binding rule: design without the limits of what reports support today; when something is missing, stop and implement it in core. Packet revision 2 turned every gap into a checkpoint 0 extension.
@@ -226,6 +229,20 @@
 - fix review (round 1, fresh reviewer A over the help diff): PASS, 0 BLOCK; each sentence checked against the code (report_trial_balance.go:82-91, SourceChoicePicker.tsx:285, report_shares.go:144/194, report_sources.go:164-173, useReportView.ts:106-108); help-reports 19/19. NOTEs: "until they remove it" → "until someone removes it" (applied, one word); the heading also falls back when the reader cannot view books_settings (to Design notes). Rounds used: 1 of 2.
 - reviewer-caught deferrals: none.
 - commit: 7905bb5 (pushed); this line is committed with the ledger alone.
+- human: none (review mode C)
+
+## Checkpoint 6 — Remove the Books report shell
+- start 2026-11-06 (books at db66f8c, core main 40a3b225).
+- test writer: `tests/live-recovery.test.ts` (new: `mergeRecoveries([])` empty; two parts keep every query and source in order, by identity; a shared source once; plus two cases read from the current function: a part with no `sources`, a disabled `undefined` query kept), `tests/register-range.test.ts` (every `isIsoDay` case of `report-period.test.ts` at 0a166ba — lines 176–218, not the plan's 176–216; 43 lines copied unchanged). Finding: `tests/report-state.test.ts` never tested `mergeRecoveries` (no case to carry). Imports use the repo's `../tinycld/books/…` test style (all 166 test files). Red: live-recovery "Cannot find module '../tinycld/books/lib/live-recovery'" (5/5, the planned red); the isIsoDay cases pass (a move). Untestable: none.
+- implementer: created `tinycld/books/lib/live-recovery.ts` (moved unchanged with its comments); `useSettingsShell.ts`, `useForm1099Section.ts` import it; deleted every listed file (all existed: components/reports 15, lib 9 + lib/reports 3, hooks 5, the store, screens/reports 2, 15 tests); ADR 0002 rewritten ("Reports run on core's engine as the reader"; kept two still-true consequences; added "Books has no report screens of its own"). DONE; disputes none.
+- gate 1: tests unedited: yes · check exit 0 (biome 686, vitest 162 files / 3051) · `go test -count=1 ./...` ok · end-check grep prints nothing; `app/a/(app)/books` has no `reports` · `-g "trial-balance:"` 12 passed (1.4 m): 8.7, 8.9, 8.5, 8.5, 8.0, 8.3, 8.0, 4.2, 4.3, 2.7, 2.8, 3.1 s. Gate 2: n/a (nothing renders).
+- gate 3 input: `review-diff.mjs` 57 staged, 35 listed out-of-plan (all in the Delete line; true out-of-plan: the ledger).
+- gate 3 A: no BLOCK; deferrals none; live-recovery.ts a byte-for-byte move; no reference to a deleted module, route or help topic remains. NOTEs: the harness options only the shell tests used are dead (same as B4, accepted); ADR 0002's new title differs from its file name (the plan keeps the name) — to Design notes; the ledger is out of plan (recorded).
+- gate 3 B: no rule broken; deferrals none. B1 the ledger — accepted. B2 `useAccountOptions.ts` `export type AccountChoice` (for the deleted picker) has no user — accepted. B3 `register-range.ts` `monthIndexOf`, `pad`, `firstDayOf`, `lastDayBefore`, `fiscalYearStartIndex` exported only for the deleted `report-period.ts`, and a comment naming "report period" — accepted. B4 `tests/accounts-form-harness.ts` options and helpers only the deleted tests used — accepted. B5 NOTE: test imports use `../tinycld/books/…` inside the package (not the banned `../../tinycld`). Side note for the driver: memories.md's p5-report-shell lines (`roundedQuotient` in report-format.ts, the harness hold/fail options, `ReportResult.recovery`, report-shell-checkpoints e2e list) are stale now.
+- gate 3 fixes: a fresh test writer removed the six harness options, five helpers and two store fields (git grep before/after: no user; kept `releaseAccessReads`, `holdCoreRead`, `holdAdminRead`, `failsOnceOnDemandCollection`, `refusingOnDemandCollection`); a fresh implementer deleted `AccountChoice` and made the five register-range helpers private (no importer, tests included) and trimmed the comment. Gate 1 after fixes: tests unedited by the implementer · check exit 0 (biome 686, vitest 3051) · `go test` ok · `-g "trial-balance:"` 12 passed (1.4 m).
+- fix review (round 1, fresh reviewer A): no BLOCK, no NOTE; no test lost a hold or failure path (git grep across books/ and the other workspace members); kept options choose the same collections. Rounds used: 1 of 2.
+- reviewer-caught deferrals: none.
+- commit: see the next ledger-only commit for the sha.
 - human: none (review mode C)
 
 ## Final review

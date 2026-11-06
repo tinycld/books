@@ -3,7 +3,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { router } from 'expo-router'
-import { mergeRecoveries } from '../lib/report-state'
+import { mergeRecoveries } from '../lib/live-recovery'
 import {
     SETTINGS_SECTIONS,
     type SectionId,
