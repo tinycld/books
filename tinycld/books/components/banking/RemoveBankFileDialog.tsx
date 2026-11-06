@@ -1,8 +1,10 @@
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { useState } from 'react'
 import { Text } from 'react-native'
 import { useRemoveBankFile } from '../../hooks/useRemoveBankFile'
 import { CloseOnMount } from './CloseOnMount'
+import { DialogSubmitKey } from './DialogSubmitKey'
 
 interface RemoveBankFileDialogProps {
     fileId: string
@@ -33,12 +35,14 @@ export function RemoveBankFileDialog({
     onClose,
 }: RemoveBankFileDialogProps) {
     const { confirm, isPending, refusal } = useRemoveBankFile({ fileId, onDone: onClose })
+    const writes = useServerActionState()
     const [isConfirmed, setConfirmed] = useState(false)
     if (isGone && !isConfirmed) return <CloseOnMount onClose={onClose} />
     const onConfirm = () => {
         setConfirmed(true)
         confirm()
     }
+    const canSubmitKey = !isPending && !writes.isDisabled
     return (
         <Dialog
             isOpen
@@ -47,6 +51,11 @@ export function RemoveBankFileDialog({
             testID="bank-remove-dialog"
         >
             <Dialog.Body>
+                <DialogSubmitKey
+                    description="Remove file"
+                    isEnabled={canSubmitKey}
+                    onSubmit={onConfirm}
+                />
                 <Text className="text-sm text-foreground">
                     The uploaded file is deleted. Nothing in your books changes.
                 </Text>

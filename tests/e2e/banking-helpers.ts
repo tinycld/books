@@ -119,6 +119,26 @@ export function statementFile(stamp: string, ext: 'csv' | 'ofx' = 'csv'): BankTe
     return { name: `${stamp}.csv`, mimeType: 'text/csv', buffer: Buffer.from(text) }
 }
 
+// Makes the signed-in user a read-only Books user by rewriting the books_access read's
+// answer; it fakes a read only, never a write. Install it before login. Realtime is cut
+// too: an access event would undo the fake, and the other worker's banking tests connect
+// accounts whose events would add rows past a faked read.
+export async function fakeReadOnlyAccess(page: Page): Promise<void> {
+    await page.route('**/api/realtime*', route => route.abort())
+    await page.route('**/api/collections/books_access/records*', async route => {
+        const response = await route.fetch()
+        const body = await response.json()
+        const items = (body.items ?? []).map((item: Record<string, unknown>) => ({
+            ...item,
+            level: 'read_only',
+            can_read: true,
+            can_write: false,
+            is_admin: false,
+        }))
+        await route.fulfill({ response, json: { ...body, items } })
+    })
+}
+
 // Core's picker clicks a dynamic file input, so the chooser is caught around the press.
 export async function chooseBankFile(page: Page, file: BankTestFile): Promise<void> {
     const [chooser] = await Promise.all([
