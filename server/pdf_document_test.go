@@ -13,16 +13,24 @@ func testDocument(customer string, lines int) pdfDocument {
 		Number:   "1042",
 		Currency: "USD",
 		Dates:    []pdfDate{{Label: "Date", Day: "2026-11-05"}, {Label: "Due", Day: "2026-12-05"}},
-		Company:  pdfCompany{Name: "Acme Books LLC", Address: "123 Main St\nSpringfield, IL 62701", Email: "billing@acme.test"},
+		Company: pdfCompany{
+			Name:    "Acme Books LLC",
+			Address: "123 Main St\nSpringfield, IL 62701",
+			Email:   "billing@acme.test",
+		},
 		Parties: []pdfParty{{Label: "Bill to", Name: customer, Company: "Northwind Traders",
-			Address: &postalAddress{Line1: "500 Market St", City: "San Francisco", Region: "CA", PostalCode: "94105"}}},
+			Address: &postalAddress{
+				Line1: "500 Market St", City: "San Francisco", Region: "CA", PostalCode: "94105",
+			}}},
 		TaxLines:  []pdfTaxLine{{Name: "State sales tax", RatePpm: 62500, AmountCents: 0}},
 		BigAmount: pdfAmount{Label: "Balance due"},
 		Notes:     "Thank you.\nPay within 30 days.",
 	}
 	for i := 0; i < lines; i++ {
-		doc.Lines = append(doc.Lines, pdfLine{Kind: lineItem, Item: "Consulting", Description: "Consulting hours",
-			Quantity: "2", RateCents: 12500, AmountCents: 25000})
+		doc.Lines = append(doc.Lines, pdfLine{
+			Kind: lineItem, Item: "Consulting", Description: "Consulting hours",
+			Quantity: "2", RateCents: 12500, AmountCents: 25000,
+		})
 		doc.SubtotalCents += 25000
 	}
 	doc.TaxLines[0].AmountCents = taxOn(doc.SubtotalCents, 62500)
@@ -43,13 +51,16 @@ func TestPDFView_FormatsAmountsDatesTaxLinesAndAddresses(t *testing.T) {
 		pdfLine{Kind: lineDescription, Description: "Hours billed at the standard rate."},
 		pdfLine{Kind: lineSubtotal, AmountCents: 25000})
 	v := pdfViewOf(doc, testOrg())
-	if got := v.Rows[0]; got.Rate != "€125.00" || got.Amount != "€250.00" || got.Quantity != "2" || got.Kind != "item" {
+	if got := v.Rows[0]; got.Rate != "€125.00" || got.Amount != "€250.00" ||
+		got.Quantity != "2" || got.Kind != "item" {
 		t.Errorf("item row = %+v", got)
 	}
-	if got := v.Rows[1]; got.Kind != "description" || got.Amount != "" || got.Description[0] != "Hours billed at the standard rate." {
+	if got := v.Rows[1]; got.Kind != "description" || got.Amount != "" ||
+		got.Description[0] != "Hours billed at the standard rate." {
 		t.Errorf("description row = %+v", got)
 	}
-	if got := v.Rows[2]; got.Kind != "subtotal" || got.Description[0] != "Subtotal" || got.Amount != "€250.00" {
+	if got := v.Rows[2]; got.Kind != "subtotal" || got.Description[0] != "Subtotal" ||
+		got.Amount != "€250.00" {
 		t.Errorf("subtotal row = %+v", got)
 	}
 	if v.Dates[0].Text != "Nov 5, 2026" || v.Dates[1].Label != "Due" {
@@ -62,7 +73,8 @@ func TestPDFView_FormatsAmountsDatesTaxLinesAndAddresses(t *testing.T) {
 	if last.Label != "Total" || !last.Final || v.Summary[0].Label != "Subtotal" {
 		t.Errorf("summary = %+v", v.Summary)
 	}
-	if strings.Join(v.Parties[0].Lines, "|") != "Jordan Lee|Northwind Traders|500 Market St|San Francisco, CA 94105" {
+	wantParty := "Jordan Lee|Northwind Traders|500 Market St|San Francisco, CA 94105"
+	if strings.Join(v.Parties[0].Lines, "|") != wantParty {
 		t.Errorf("party lines = %q", v.Parties[0].Lines)
 	}
 	if strings.Join(v.Company.Lines, "|") != "123 Main St|Springfield, IL 62701|billing@acme.test" {
@@ -82,18 +94,28 @@ func TestPDFView_CompanyFallsBackToTheOrgName(t *testing.T) {
 	}
 }
 
-// White text on a light brand color is unreadable: the header text turns dark
-// when white would fall under 3:1 contrast.
+// The column headers take white or near-black, whichever has the higher
+// contrast on the brand color; the title takes the brand color only where it
+// reads as text on white (4.5:1), else the body text color.
 func TestPDFView_PicksReadableTextOnTheBrandColor(t *testing.T) {
-	for color, want := range map[string]string{
-		"#0d9488": "#ffffff", "#000000": "#ffffff", "#1e40af": "#ffffff",
-		"#ffff00": "#111111", "#ffffff": "#111111", "#f9a825": "#111111",
+	for color, want := range map[string]struct{ onColor, ink string }{
+		"#0d9488": {"#111111", "#222222"}, // the default teal: 3.7:1 on white
+		"#000000": {"#ffffff", "#000000"},
+		"#1e40af": {"#ffffff", "#1e40af"},
+		"#767676": {"#ffffff", "#767676"}, // 4.54:1 on white
+		"#777777": {"#ffffff", "#222222"}, // 4.48:1 on white
+		"#ffff00": {"#111111", "#222222"},
+		"#ffffff": {"#111111", "#222222"},
+		"#f9a825": {"#111111", "#222222"},
 	} {
 		org := testOrg()
 		org.Color = color
 		v := pdfViewOf(testDocument("Jordan Lee", 1), org)
-		if string(v.Brand.TextOnColor) != want {
-			t.Errorf("text on %s = %s, want %s", color, v.Brand.TextOnColor, want)
+		if string(v.Brand.TextOnColor) != want.onColor {
+			t.Errorf("text on %s = %s, want %s", color, v.Brand.TextOnColor, want.onColor)
+		}
+		if string(v.Brand.Ink) != want.ink {
+			t.Errorf("ink for %s = %s, want %s", color, v.Brand.Ink, want.ink)
 		}
 		if string(v.Brand.Color) != color {
 			t.Errorf("brand color = %s, want %s", v.Brand.Color, color)
@@ -105,7 +127,8 @@ func TestPDFView_PicksReadableTextOnTheBrandColor(t *testing.T) {
 func TestPDFView_RejectsAColorThatIsNotHex(t *testing.T) {
 	org := testOrg()
 	org.Color = "red;} body{display:none"
-	if v := pdfViewOf(testDocument("Jordan Lee", 1), org); string(v.Brand.Color) != branding.DefaultColor {
+	v := pdfViewOf(testDocument("Jordan Lee", 1), org)
+	if string(v.Brand.Color) != branding.DefaultColor {
 		t.Errorf("brand color = %s", v.Brand.Color)
 	}
 }
@@ -135,7 +158,9 @@ func TestPDFDocument_ValidateRefusesWhatCannotPrint(t *testing.T) {
 		"total too small":   func(d *pdfDocument) { d.Totals[0].Cents = -maxStoredAmount - 1 },
 		"rate out of range": func(d *pdfDocument) { d.TaxLines[0].RatePpm = maxRatePpm + 1 },
 		"no totals row":     func(d *pdfDocument) { d.Totals = nil },
-		"number too long":   func(d *pdfDocument) { d.Number = strings.Repeat("9", maxPDFNumberLen+1) },
+		"number too long": func(d *pdfDocument) {
+			d.Number = strings.Repeat("9", maxPDFNumberLen+1)
+		},
 		"too many lines": func(d *pdfDocument) {
 			d.Lines = make([]pdfLine, maxPDFLines+1)
 		},
@@ -183,10 +208,13 @@ func TestPDFView_PartyCompanyEqualToNameIsDroppedIgnoringCaseAndSpace(t *testing
 	}
 }
 
-func TestPDFView_TextOnIsTotalForANonHexColor(t *testing.T) {
+func TestPDFView_TextOnAndInkAreTotalForANonHexColor(t *testing.T) {
 	for _, bad := range []string{"", "#fff", "red", "#12345", "#gggggg", "0d9488"} {
 		if got := textOn(bad); got != "#111111" {
 			t.Errorf("textOn(%q) = %s", bad, got)
+		}
+		if got := inkOnWhite(bad); got != "#222222" {
+			t.Errorf("inkOnWhite(%q) = %s", bad, got)
 		}
 	}
 }

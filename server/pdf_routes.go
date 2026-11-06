@@ -69,11 +69,15 @@ func servePDF(re *core.RequestEvent, slug, id string) error {
 		return re.InternalServerError("Could not create the PDF.", err)
 	}
 	ctx := re.Request.Context()
-	pdf, err := renderPDFDocument(ctx, doc, branding.Load(re.App), pdfFonts{Dir: docfonts.Dir()}, pdfDiagnostics(ctx))
+	fonts := pdfFonts{Dir: docfonts.Dir()}
+	pdf, err := renderPDFDocument(ctx, doc, branding.Load(re.App), fonts, pdfDiagnostics(ctx))
 	if err != nil {
 		return re.InternalServerError("Could not create the PDF.", err)
 	}
 	re.Response.Header().Set("Content-Disposition", pdfContentDisposition(kind.FileName(doc)))
+	// The client names the saved file from this header; a web app on another
+	// origin may read it only when CORS exposes it.
+	re.Response.Header().Set("Access-Control-Expose-Headers", "Content-Disposition")
 	re.Response.Header().Set("Cache-Control", "no-store")
 	return re.Blob(http.StatusOK, "application/pdf", pdf)
 }
@@ -114,7 +118,8 @@ func isASCII(s string) bool {
 // names and emoji need them.
 func realFileName(stem string) string {
 	clean := strings.Map(func(r rune) rune {
-		if r == '/' || r == '\\' || r == '"' || r == utf8.RuneError || unicode.IsControl(r) || isSpoofingFormat(r) {
+		if r == '/' || r == '\\' || r == '"' || r == utf8.RuneError ||
+			unicode.IsControl(r) || isSpoofingFormat(r) {
 			return -1
 		}
 		return r
@@ -127,7 +132,8 @@ func realFileName(stem string) string {
 }
 
 func isSpoofingFormat(r rune) bool {
-	return r == 0x061C || r == 0x200E || r == 0x200F || (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069) || r == 0xFEFF
+	return r == 0x061C || r == 0x200E || r == 0x200F || r == 0xFEFF ||
+		(r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069)
 }
 
 // percentEncodeFileName encodes every byte outside RFC 5987's attr-char set.
@@ -136,7 +142,8 @@ func percentEncodeFileName(name string) string {
 	var b strings.Builder
 	for i := 0; i < len(name); i++ {
 		c := name[i]
-		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || strings.IndexByte(attrPunct, c) >= 0 {
+		alnum := c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9'
+		if alnum || strings.IndexByte(attrPunct, c) >= 0 {
 			b.WriteByte(c)
 			continue
 		}

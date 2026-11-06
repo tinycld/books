@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
@@ -30,8 +31,15 @@ func pdfReq(t *testing.T, app *tests.TestApp, url, token string, want int) {
 			if got := res.Header.Get("Cache-Control"); got != "no-store" {
 				t.Errorf("Cache-Control = %q", got)
 			}
-			if got := res.Header.Get("Content-Disposition"); !strings.HasPrefix(got, `attachment; filename="`) || !strings.HasSuffix(got, `.pdf"`) {
+			got := res.Header.Get("Content-Disposition")
+			isPDF := strings.HasSuffix(got, `.pdf"`)
+			if !strings.HasPrefix(got, `attachment; filename="`) || !isPDF {
 				t.Errorf("Content-Disposition = %q", got)
+			}
+			// The client names the file from Content-Disposition, also across origins.
+			exposed := res.Header.Get("Access-Control-Expose-Headers")
+			if exposed != "Content-Disposition" {
+				t.Errorf("Access-Control-Expose-Headers = %q", exposed)
 			}
 		}
 	}
@@ -46,7 +54,9 @@ func withDocumentKind(t *testing.T, slug string, kind documentKind) {
 }
 
 func TestPDFRoute_SampleIsAPDFForEveryBooksReader(t *testing.T) {
-	levels := map[string]Level{"read only": LevelReadOnly, "bookkeeper": LevelBookkeeper, "admin": LevelAdmin}
+	levels := map[string]Level{
+		"read only": LevelReadOnly, "bookkeeper": LevelBookkeeper, "admin": LevelAdmin,
+	}
 	for name, level := range levels {
 		t.Run(name, func(t *testing.T) {
 			app := newBooksApp(t)
@@ -81,7 +91,9 @@ func TestPDFRoute_RefusesAnonymousNoAccessAndDisabled(t *testing.T) {
 
 func TestPDFRoute_UnknownKindsAndWrongShapesAreNotFound(t *testing.T) {
 	withDocumentKind(t, "test-customer", documentKind{Collection: "books_customers",
-		Build:    func(core.App, *core.Record) (pdfDocument, error) { return testDocument("x", 1), nil },
+		Build: func(core.App, *core.Record) (pdfDocument, error) {
+			return testDocument("x", 1), nil
+		},
 		FileName: func(pdfDocument) string { return "x" }})
 	for _, url := range []string{
 		"/api/books/pdf/nope",
@@ -113,8 +125,10 @@ func TestPDFRoute_RecordKindsFollowTheViewRule(t *testing.T) {
 		want     int
 	}{
 		{"viewable", "", func(c *core.Record) string { return c.Id }, http.StatusOK},
-		{"missing record", "", func(*core.Record) string { return "doesnotexist123" }, http.StatusNotFound},
-		{"rule refuses", `id = "never"`, func(c *core.Record) string { return c.Id }, http.StatusNotFound},
+		{"missing record", "", func(*core.Record) string { return "doesnotexist123" },
+			http.StatusNotFound},
+		{"rule refuses", `id = "never"`, func(c *core.Record) string { return c.Id },
+			http.StatusNotFound},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -131,7 +145,8 @@ func TestPDFRoute_RecordKindsFollowTheViewRule(t *testing.T) {
 					t.Fatalf("save rule: %v", err)
 				}
 			}
-			pdfReq(t, app, "/api/books/pdf/test-customer/"+tc.id(customer), tokenFor(t, users.readOnly), tc.want)
+			url := "/api/books/pdf/test-customer/" + tc.id(customer)
+			pdfReq(t, app, url, tokenFor(t, users.readOnly), tc.want)
 		})
 	}
 }
@@ -148,11 +163,15 @@ func TestSampleDocument_UsesTheCompanySettingsAndAddsUp(t *testing.T) {
 	if err := app.Save(settings); err != nil {
 		t.Fatalf("save settings: %v", err)
 	}
-	doc, err := buildSampleDocument(app, nil)
+	doc, err := sampleDocument(app, time.Date(2026, 3, 9, 10, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
-	if doc.Company.Name != "Acme Books LLC" || doc.Company.Email != "billing@acme.test" || doc.Currency != settings.GetString("currency") {
+	if got := doc.Dates; len(got) != 2 || got[0].Day != "2026-03-09" || got[1].Day != "2026-04-08" {
+		t.Errorf("dates = %+v, want issued 2026-03-09, due 2026-04-08", got)
+	}
+	if doc.Company.Name != "Acme Books LLC" || doc.Company.Email != "billing@acme.test" ||
+		doc.Currency != settings.GetString("currency") {
 		t.Errorf("company = %+v, currency = %s", doc.Company, doc.Currency)
 	}
 	var items int64
@@ -164,24 +183,53 @@ func TestSampleDocument_UsesTheCompanySettingsAndAddsUp(t *testing.T) {
 	tax := doc.TaxLines[0].AmountCents
 	if items != doc.SubtotalCents || tax != taxOn(doc.SubtotalCents, doc.TaxLines[0].RatePpm) ||
 		doc.Totals[0].Cents != doc.SubtotalCents+tax || doc.BigAmount.Cents != doc.Totals[0].Cents {
-		t.Errorf("sample does not add up: items %d, subtotal %d, tax %d, total %d", items, doc.SubtotalCents, tax, doc.Totals[0].Cents)
+		t.Errorf("sample does not add up: items %d, subtotal %d, tax %d, total %d",
+			items, doc.SubtotalCents, tax, doc.Totals[0].Cents)
 	}
 	if err := doc.validate(); err != nil {
 		t.Errorf("sample is invalid: %v", err)
 	}
 }
 
+// The sample is dated on the local calendar day and due 30 days later, across
+// a month and a year end.
+func TestSampleDocument_IsDatedTodayInTheServerZone(t *testing.T) {
+	app := newBooksApp(t)
+	local := time.FixedZone("UTC-6", -6*60*60)
+	for _, tc := range []struct {
+		now         time.Time
+		issued, due string
+	}{
+		// 23:30 local is already the next day in UTC.
+		{time.Date(2026, 3, 1, 23, 30, 0, 0, local), "2026-03-01", "2026-03-31"},
+		{time.Date(2026, 12, 20, 9, 0, 0, 0, local), "2026-12-20", "2027-01-19"},
+		{time.Date(2028, 1, 30, 9, 0, 0, 0, time.UTC), "2028-01-30", "2028-02-29"},
+	} {
+		doc, err := sampleDocument(app, tc.now)
+		if err != nil {
+			t.Fatalf("build: %v", err)
+		}
+		if doc.Dates[0].Day != tc.issued || doc.Dates[1].Day != tc.due {
+			t.Errorf("at %v: dates = %+v, want %s / %s", tc.now, doc.Dates, tc.issued, tc.due)
+		}
+	}
+}
+
 func TestPDFContentDisposition_SanitizesTheName(t *testing.T) {
+	const attach = `attachment; filename=`
 	for stem, want := range map[string]string{
-		"sample-invoice":          `attachment; filename="sample-invoice.pdf"`,
-		`Invoice 1042/"x"`:        `attachment; filename="invoice-1042-x.pdf"`,
-		"../..":                   `attachment; filename="document.pdf"`,
-		"Café Ltd":                `attachment; filename="caf-ltd.pdf"; filename*=UTF-8''Caf%C3%A9%20Ltd.pdf`,
-		"日本":                      `attachment; filename="document.pdf"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.pdf`,
-		"é/\"..\\x\n":             `attachment; filename="x.pdf"; filename*=UTF-8''%C3%A9..x.pdf`,
-		"Café\u202etxt.\ufeffexe": `attachment; filename="caf-txt.-exe.pdf"; filename*=UTF-8''Caf%C3%A9txt.exe.pdf`,
-		"Caf\u00e9\u061ctxt":      `attachment; filename="caf-txt.pdf"; filename*=UTF-8''Caf%C3%A9txt.pdf`,
-		"\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645": `attachment; filename="document.pdf"; filename*=UTF-8''%D9%85%DB%8C%E2%80%8C%D8%AE%D9%88%D8%A7%D9%87%D9%85.pdf`,
+		"sample-invoice":   attach + `"sample-invoice.pdf"`,
+		`Invoice 1042/"x"`: attach + `"invoice-1042-x.pdf"`,
+		"../..":            attach + `"document.pdf"`,
+		"Café Ltd":         attach + `"caf-ltd.pdf"; filename*=UTF-8''Caf%C3%A9%20Ltd.pdf`,
+		"日本":               attach + `"document.pdf"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.pdf`,
+		"é/\"..\\x\n":      attach + `"x.pdf"; filename*=UTF-8''%C3%A9..x.pdf`,
+		"Café\u202etxt.\ufeffexe": attach +
+			`"caf-txt.-exe.pdf"; filename*=UTF-8''Caf%C3%A9txt.exe.pdf`,
+		"Caf\u00e9\u061ctxt": attach + `"caf-txt.pdf"; filename*=UTF-8''Caf%C3%A9txt.pdf`,
+		"\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645": attach +
+			`"document.pdf"; filename*=UTF-8''%D9%85%DB%8C%E2%80%8C` +
+			`%D8%AE%D9%88%D8%A7%D9%87%D9%85.pdf`,
 	} {
 		if got := pdfContentDisposition(stem); got != want {
 			t.Errorf("pdfContentDisposition(%q) = %q, want %q", stem, got, want)

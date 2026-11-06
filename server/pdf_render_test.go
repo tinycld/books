@@ -52,7 +52,8 @@ func render(t *testing.T, doc pdfDocument, org branding.Org) ([]byte, []string) 
 	t.Helper()
 	var logs []string
 	// Hermetic: the machine's fonts must not hide a glyph the bundle lacks.
-	pdf, err := renderPDFDocument(context.Background(), doc, org, pdfFonts{Hermetic: true}, collectLogs(&logs))
+	fonts := pdfFonts{Hermetic: true}
+	pdf, err := renderPDFDocument(context.Background(), doc, org, fonts, collectLogs(&logs))
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -77,7 +78,10 @@ func TestRenderPDF_ShortDocumentIsOneLetterPageWithItsPageNumber(t *testing.T) {
 		t.Errorf("pages = %d, text has no footer: %q", pages, text)
 	}
 	// Raw text, not whitespace-flattened: a party line that wraps fails here.
-	for _, want := range []string{"Acme Books LLC", "Jordan Lee", "Northwind Traders", "San Francisco, CA 94105", "$250.00", "State sales tax (6.25%)", "Nov 5, 2026"} {
+	for _, want := range []string{
+		"Acme Books LLC", "Jordan Lee", "Northwind Traders", "San Francisco, CA 94105",
+		"$250.00", "State sales tax (6.25%)", "Nov 5, 2026",
+	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text has no %q", want)
 		}
@@ -98,7 +102,8 @@ func TestRenderPDF_LongDocumentRepeatsTheHeaderOnEveryPage(t *testing.T) {
 	}
 	withRows := 0
 	for _, page := range pageFooter.Split(text, -1) {
-		hasRows, hasHeader := strings.Contains(page, "Consulting hours"), strings.Contains(page, "Description")
+		hasRows := strings.Contains(page, "Consulting hours")
+		hasHeader := strings.Contains(page, "Description")
 		if hasRows {
 			withRows++
 		}
@@ -129,18 +134,20 @@ func TestRenderPDF_EscapesHTMLInNames(t *testing.T) {
 		t.Errorf("the name was not escaped as text")
 	}
 	pdf, _ := render(t, doc, testOrg())
-	if _, text := extractPDFText(t, pdf); !strings.Contains(text, `<script>alert(1)</script> & "Co"`) {
+	_, text := extractPDFText(t, pdf)
+	if !strings.Contains(text, `<script>alert(1)</script> & "Co"`) {
 		t.Errorf("the name does not print literally")
 	}
 }
 
 // Small caps are pinned in omnidoc; this test pins only that the bundled fonts
-// cover these names (no glyph is drawn as a box).
+// cover these names (no glyph is drawn as a box) and that they print.
 func TestRenderPDF_PrintsNonLatinNamesWithoutMissingGlyphs(t *testing.T) {
 	doc := testDocument("Zoë Ñandú Łódź", 1)
 	doc.Parties = append(doc.Parties,
 		pdfParty{Label: "Ship to", Name: "Ελληνικά ά", Company: "Москва Київ"},
-		pdfParty{Label: "Contact", Name: "שלום"})
+		pdfParty{Label: "Contact", Name: "שלום"},
+		pdfParty{Label: "Agent", Name: "مرحبا"})
 	pdf, logs := render(t, doc, testOrg())
 	for _, l := range logs {
 		if strings.Contains(l, "no glyph for") {
@@ -148,7 +155,15 @@ func TestRenderPDF_PrintsNonLatinNamesWithoutMissingGlyphs(t *testing.T) {
 		}
 	}
 	_, text := extractPDFText(t, pdf)
-	for _, want := range []string{"Zoë Ñandú Łódź", "Ελληνικά ά", "Москва Київ"} {
+	// Hebrew reads back in logical order. The Arabic word draws correctly
+	// joined, but omnidoc v1.2.0 maps one shaped glyph to U+FFFD and reads the
+	// two joined pieces back in visual order ("ب\ufffdا مرح"; omnidoc BACKLOG
+	// G13), so the check asks for both pieces; "مرحبا" holds them too, so it
+	// keeps passing once the read-back is fixed.
+	text = strings.ReplaceAll(text, "\ufffd", "")
+	for _, want := range []string{
+		"Zoë Ñandú Łódź", "Ελληνικά ά", "Москва Київ", "שלום", "مرح", "با",
+	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text has no %q", want)
 		}
@@ -197,8 +212,25 @@ func TestRenderPDF_UsesTheBrandColor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("html: %v", err)
 	}
-	if !bytes.Contains(page, []byte("background: #1e40af")) || !bytes.Contains(page, []byte("color: #ffffff")) {
-		t.Error("the header does not use the brand color with readable text")
+	for _, want := range []string{"background: #1e40af; color: #ffffff", "h1 { color: #1e40af"} {
+		if !bytes.Contains(page, []byte(want)) {
+			t.Errorf("the page has no %q", want)
+		}
+	}
+}
+
+// A light brand color would leave the title unreadable on the white page.
+func TestRenderPDF_TitleOfALightBrandUsesTheBodyTextColor(t *testing.T) {
+	org := testOrg()
+	org.Color = "#ffff00"
+	page, err := renderPDFHTML(pdfViewOf(testDocument("Jordan Lee", 1), org))
+	if err != nil {
+		t.Fatalf("html: %v", err)
+	}
+	for _, want := range []string{"h1 { color: #222222", "background: #ffff00; color: #111111"} {
+		if !bytes.Contains(page, []byte(want)) {
+			t.Errorf("the page has no %q", want)
+		}
 	}
 }
 
@@ -207,7 +239,8 @@ func TestRenderPDF_UsesTheBrandColor(t *testing.T) {
 func TestRenderPDF_RefusesAnInvalidDocument(t *testing.T) {
 	doc := testDocument("Jordan Lee", 1)
 	doc.Currency = "dollars"
-	if _, err := renderPDFDocument(context.Background(), doc, testOrg(), pdfFonts{}, nil); err == nil {
+	_, err := renderPDFDocument(context.Background(), doc, testOrg(), pdfFonts{}, nil)
+	if err == nil {
 		t.Error("an invalid document rendered")
 	}
 }
@@ -219,7 +252,8 @@ func TestRenderPDF_UsesTheFontsDirectoryForMissingCharacters(t *testing.T) {
 	doc := testDocument("Box ─░▲ Co", 1)
 	missing := func(fonts pdfFonts) int {
 		var logs []string
-		if _, err := renderPDFDocument(context.Background(), doc, testOrg(), fonts, collectLogs(&logs)); err != nil {
+		_, err := renderPDFDocument(context.Background(), doc, testOrg(), fonts, collectLogs(&logs))
+		if err != nil {
 			t.Fatalf("render: %v", err)
 		}
 		n := 0
@@ -262,14 +296,18 @@ func TestPDFDiagnostics_LogsOnlyGlyphAndImageProblemsAndCutsLongOnes(t *testing.
 		t.Fatalf("logged %d layout problems, want 3: %+v", len(got), got)
 	}
 	glyph, image, accented := got[0], got[1], got[2]
-	if glyph.Level != slog.LevelWarn || glyph.Attrs["pkg"] != "books" || !strings.HasPrefix(glyph.Attrs["detail"], "no glyph for") {
+	if glyph.Level != slog.LevelWarn || glyph.Attrs["pkg"] != "books" ||
+		!strings.HasPrefix(glyph.Attrs["detail"], "no glyph for") {
 		t.Errorf("glyph record = %+v", glyph)
 	}
-	if want := 300 + len("…"); len(image.Attrs["detail"]) != want || !strings.HasSuffix(image.Attrs["detail"], "…") {
-		t.Errorf("image detail is %d bytes, want %d ending in an ellipsis", len(image.Attrs["detail"]), want)
+	detail := image.Attrs["detail"]
+	if want := 300 + len("…"); len(detail) != want || !strings.HasSuffix(detail, "…") {
+		t.Errorf("image detail is %d bytes, want %d ending in an ellipsis", len(detail), want)
 	}
 	// Bytes 299-300 hold the first "é": the cut drops it whole.
-	if d := accented.Attrs["detail"]; !utf8.ValidString(d) || d != "image "+strings.Repeat("A", 293)+"…" {
-		t.Errorf("accented detail was cut inside a character or is too long: %q (%d bytes)", d, len(d))
+	d := accented.Attrs["detail"]
+	if !utf8.ValidString(d) || d != "image "+strings.Repeat("A", 293)+"…" {
+		t.Errorf("accented detail was cut inside a character or is too long: %q (%d bytes)",
+			d, len(d))
 	}
 }

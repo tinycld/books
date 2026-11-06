@@ -39,7 +39,10 @@ type pdfFonts struct {
 }
 
 // renderPDFDocument validates, formats and renders a document to PDF bytes.
-func renderPDFDocument(ctx context.Context, doc pdfDocument, org branding.Org, fonts pdfFonts, logf func(string, ...any)) ([]byte, error) {
+func renderPDFDocument(
+	ctx context.Context, doc pdfDocument, org branding.Org,
+	fonts pdfFonts, logf func(string, ...any),
+) ([]byte, error) {
 	if err := doc.validate(); err != nil {
 		return nil, err
 	}
@@ -62,10 +65,14 @@ func renderPDFHTML(v pdfView) ([]byte, error) {
 // PDF. No resource loader is set, so the page can load nothing from the network
 // or disk; the logo is an inline data: URI. A character the bundled fonts lack
 // comes from fonts.Dir, then (system-font mode) from the machine's fonts.
-func htmlToPDF(ctx context.Context, page []byte, fonts pdfFonts, logf func(string, ...any)) ([]byte, error) {
+func htmlToPDF(
+	ctx context.Context, page []byte, fonts pdfFonts, logf func(string, ...any),
+) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, pdfRenderTimeout)
 	defer cancel()
-	opts := []omnidoc.HTMLOption{omnidoc.WithDefaultPaged(), omnidoc.WithPrintMedia(), omnidoc.WithContext(ctx)}
+	opts := []omnidoc.HTMLOption{
+		omnidoc.WithDefaultPaged(), omnidoc.WithPrintMedia(), omnidoc.WithContext(ctx),
+	}
 	if fonts.Dir != "" {
 		opts = append(opts, omnidoc.WithFallbackFontDir(fonts.Dir))
 	}
@@ -92,7 +99,8 @@ func htmlToPDF(ctx context.Context, page []byte, fonts pdfFonts, logf func(strin
 func pdfDiagnostics(ctx context.Context) func(string, ...any) {
 	return func(format string, args ...any) {
 		msg := fmt.Sprintf(format, args...)
-		if !strings.Contains(msg, "no glyph for") && !(strings.Contains(msg, "image") && strings.Contains(msg, "failed")) {
+		imageFailed := strings.Contains(msg, "image") && strings.Contains(msg, "failed")
+		if !strings.Contains(msg, "no glyph for") && !imageFailed {
 			return
 		}
 		// An image message quotes its data: URI; keep the log line short.
