@@ -1,4 +1,5 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Menu } from '@tinycld/core/ui/menu'
 import { usePopoverContext } from '@tinycld/core/ui/popover'
 import { EllipsisVertical } from 'lucide-react-native'
@@ -32,6 +33,8 @@ export function BankPanelMenu({
     onDisconnect,
 }: BankPanelMenuProps) {
     const color = useThemeColor('muted-foreground')
+    // The dialog's Disconnect disables itself too; the item says so before it opens.
+    const writes = useServerActionState()
     return (
         <Menu
             title={title}
@@ -66,6 +69,7 @@ export function BankPanelMenu({
                     testID="bank-menu-disconnect"
                     label="Disconnect"
                     isDestructive
+                    isDisabled={writes.isDisabled}
                     onSelect={onDisconnect}
                 />
             </WhileOpen>

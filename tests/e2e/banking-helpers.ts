@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { BANK_CSV_SAMPLE, BANK_OFX_SAMPLE } from '../../tinycld/books/lib/bank-connection-fixture'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import { uniqueName } from './record-form-helpers'
 
@@ -89,4 +90,54 @@ export async function createBankTestAccount(page: Page): Promise<string> {
     const name = uniqueName(page, 'Bank e2e')
     await createAccount(page, name, { type: 'Bank', detailType: 'Checking' })
     return name
+}
+
+export type BankTestFile = { name: string; mimeType: string; buffer: Buffer }
+
+const STAMPED_OFX_TRANSACTION = (stamp: string) =>
+    [
+        '<STMTTRN>',
+        '<TRNTYPE>DEBIT',
+        '<DTPOSTED>20261020',
+        '<TRNAMT>-1.00',
+        `<FITID>${stamp}`,
+        `<NAME>${stamp}`,
+        '</STMTTRN>',
+    ].join('\n')
+
+// The fixture sample plus one row (CSV) or transaction (OFX) that holds `stamp`, so its
+// bytes differ from every other file: the server refuses the same bytes anywhere in Books.
+export function statementFile(stamp: string, ext: 'csv' | 'ofx' = 'csv'): BankTestFile {
+    if (ext === 'ofx') {
+        const text = BANK_OFX_SAMPLE.replace(
+            '</BANKTRANLIST>',
+            `${STAMPED_OFX_TRANSACTION(stamp)}\n</BANKTRANLIST>`
+        )
+        return { name: `${stamp}.ofx`, mimeType: 'application/x-ofx', buffer: Buffer.from(text) }
+    }
+    const text = `${BANK_CSV_SAMPLE}2026-10-20,${stamp},-1.00\n`
+    return { name: `${stamp}.csv`, mimeType: 'text/csv', buffer: Buffer.from(text) }
+}
+
+// Core's picker clicks a dynamic file input, so the chooser is caught around the press.
+export async function chooseBankFile(page: Page, file: BankTestFile): Promise<void> {
+    const [chooser] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        page.getByTestId('bank-choose-file').click(),
+    ])
+    await chooser.setFiles(file)
+}
+
+// A drop of `files` on the upload area, as a browser delivers one from the desktop.
+export async function dropBankFiles(
+    page: Page,
+    files: { name: string; text: string }[]
+): Promise<void> {
+    const dataTransfer = await page.evaluateHandle(list => {
+        const transfer = new DataTransfer()
+        for (const file of list) transfer.items.add(new File([file.text], file.name))
+        return transfer
+    }, files)
+    await page.getByTestId('bank-file-drop').dispatchEvent('drop', { dataTransfer })
+    await dataTransfer.dispose()
 }

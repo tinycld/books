@@ -1,4 +1,5 @@
 import { ScrollView, View } from 'react-native'
+import { type BankFileUpload, useBankFileUpload } from '../../hooks/useBankFileUpload'
 import type { BankingScreenModel } from '../../hooks/useBankingScreen'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import { BankAccountPanel } from './BankAccountPanel'
@@ -8,7 +9,7 @@ import { BankingHeader } from './BankingHeader'
 import { BankingIntro } from './BankingIntro'
 import { BankingLoadError, BankingLoading } from './BankingStates'
 
-function BankingContent({ model }: { model: BankingScreenModel }) {
+function BankingContent({ model, upload }: { model: BankingScreenModel; upload: BankFileUpload }) {
     if (model.state === 'intro') {
         return <BankingIntro canWrite={model.canWrite} onConnect={model.onConnect} />
     }
@@ -33,6 +34,7 @@ function BankingContent({ model }: { model: BankingScreenModel }) {
                 onEditDetails={model.onEditDetails}
                 onViewRegister={model.onViewRegister}
                 onDisconnect={model.onDisconnect}
+                upload={upload}
             />
         </>
     )
@@ -40,6 +42,8 @@ function BankingContent({ model }: { model: BankingScreenModel }) {
 
 export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     const fabClearanceStyle = useFabClearanceStyle()
+    // One upload for the selected connection, shared by the upload area and the page keys.
+    const upload = useBankFileUpload(model.selected?.id ?? '')
     if (model.state === 'loading') return <BankingLoading />
     if (model.state === 'error') return <BankingLoadError onRetry={model.onRetry} />
     const padding = model.isWide ? 'p-6' : 'p-4'
@@ -58,7 +62,7 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
                         isWide={model.isWide}
                         onConnect={model.onConnect}
                     />
-                    <BankingContent model={model} />
+                    <BankingContent model={model} upload={upload} />
                 </View>
             </ScrollView>
             <BankingDialogs model={model} />

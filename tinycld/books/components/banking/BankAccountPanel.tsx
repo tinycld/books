@@ -1,9 +1,14 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
+import { Button, ButtonText } from '@tinycld/core/ui/button'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { BankConnectionRow } from '../../hooks/useBankConnections'
 import type { BankFileItem } from '../../hooks/useBankFiles'
+import type { BankFileUpload } from '../../hooks/useBankFileUpload'
 import { bankDetailsText, connectionLabel } from '../../lib/bank-connections'
+import { useBankingUIStore } from '../../stores/banking-ui-store'
+import { BankFileDrop } from './BankFileDrop'
 import { BankFileList } from './BankFileList'
 import { BankPanelMenu } from './BankPanelMenu'
 
@@ -48,9 +53,45 @@ function PanelActions({
     )
 }
 
+interface RemoveFileButtonProps {
+    file: BankFileItem
+    isDisabled: boolean
+    accessibilityHint: string | undefined
+    onRemove: (file: BankFileItem) => void
+}
+
+// The server deletes a file only while it is waiting to import.
+function RemoveFileButton({
+    file,
+    isDisabled,
+    accessibilityHint,
+    onRemove,
+}: RemoveFileButtonProps) {
+    if (file.status !== 'uploaded') return null
+    const onPress = () => onRemove(file)
+    return (
+        <Button
+            testID={`bank-file-remove-${file.id}`}
+            variant="outline"
+            size="sm"
+            style={{ minHeight: 36 }}
+            isDisabled={isDisabled}
+            accessibilityHint={accessibilityHint}
+            onPress={onPress}
+        >
+            <ButtonText>Remove</ButtonText>
+        </Button>
+    )
+}
+
+function UploadArea({ isVisible, upload }: { isVisible: boolean; upload: BankFileUpload }) {
+    if (!isVisible) return null
+    return <BankFileDrop upload={upload} />
+}
+
 interface PanelBodyProps {
     isLoading: boolean
-    upload?: ReactNode
+    upload: BankFileUpload
     children?: ReactNode
     files: BankFileItem[]
     canWrite: boolean
@@ -78,7 +119,7 @@ function PanelBody({
     }
     return (
         <>
-            {upload}
+            <UploadArea isVisible={canWrite} upload={upload} />
             {children}
             <BankFileList
                 files={files}
@@ -101,11 +142,10 @@ interface BankAccountPanelProps {
     onEditDetails: () => void
     onViewRegister: () => void
     onDisconnect: () => void
-    // The upload area, for a writer.
-    upload?: ReactNode
+    // The selected connection's upload; a writer gets its upload area.
+    upload: BankFileUpload
     // What the import and review units add, under the upload area and above the files.
     children?: ReactNode
-    renderAction?: (file: BankFileItem) => ReactNode
 }
 
 export function BankAccountPanel({
@@ -116,10 +156,23 @@ export function BankAccountPanel({
     isLoading,
     upload,
     children,
-    renderAction,
     ...actions
 }: BankAccountPanelProps) {
+    // Called here once: a hook cannot run inside the row callback below.
+    const writes = useServerActionState()
+    const openDialog = useBankingUIStore(s => s.openDialog)
     if (!row) return null
+    const onRemove = (file: BankFileItem) =>
+        openDialog({ kind: 'remove', connectionId: row.id, fileId: file.id, fileName: file.name })
+    const renderRemove = (file: BankFileItem) => (
+        <RemoveFileButton
+            file={file}
+            isDisabled={writes.isDisabled}
+            accessibilityHint={writes.accessibilityHint}
+            onRemove={onRemove}
+        />
+    )
+    const renderAction = canWrite ? renderRemove : undefined
     const title = connectionLabel(row.accountNumber, row.accountName)
     const details = bankDetailsText(row)
     const detailsTone = details ? 'text-foreground' : 'text-muted-foreground'
