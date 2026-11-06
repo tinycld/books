@@ -27,10 +27,13 @@ export function isPhone(page: Page) {
 }
 
 // A row on wide screens, a card on phones. Only the visible chart's: the stack keeps an
-// earlier chart mounted but hidden under a screen the sidebar opened on top of it.
+// earlier chart mounted but hidden under a screen the sidebar opened on top of it. The
+// name text matches exactly: `hasText` is a caseless substring of the whole row.
 export function accountItem(page: Page, name: string): Locator {
     const prefix = isPhone(page) ? 'account-card-' : 'account-row-'
-    return page.locator(`[data-testid^="${prefix}"]`).filter({ hasText: name, visible: true })
+    return page
+        .locator(`[data-testid^="${prefix}"]`)
+        .filter({ has: page.getByText(name, { exact: true }), visible: true })
 }
 
 function chartSearch(page: Page) {

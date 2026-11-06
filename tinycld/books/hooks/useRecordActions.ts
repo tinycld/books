@@ -35,7 +35,7 @@ function refusalOf(error: unknown, id: string | undefined): RecordRefusal | null
 // so the default toast must not show it a second time. A server failure, a request lost
 // while the app thought it was online, or a client error with no status is still a bug
 // to report.
-function reportUnexpected(logContext: string, error: unknown) {
+export function reportUnexpected(logContext: string, error: unknown) {
     const status = errorStatus(error)
     const isClientError = status === undefined
     const isServerFailure = status !== undefined && status >= 500

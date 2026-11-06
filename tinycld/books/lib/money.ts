@@ -4,6 +4,10 @@ import { warnOnce } from './warn-once'
 // float64, which is exact only up to 2^53-1, so nothing above that is accepted.
 export const maxStoredAmount = Number.MAX_SAFE_INTEGER
 
+// The server's per-line limit (`maxAmount`, server/posting.go), below maxStoredAmount so
+// one line alone always fits; tests/transfer.test.ts drift-tests it against the Go source.
+export const maxLineAmount = 1_000_000_000_000_000
+
 // The epsilon nudge makes values such as 1000.4999999999999 (10.005 * 100) round
 // the way a person reading the decimal would expect.
 export function roundHalfAwayFromZero(value: number): number {

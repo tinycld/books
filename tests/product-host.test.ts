@@ -30,6 +30,7 @@ const ALL_COLUMNS = {
     purchase_description: true,
     cost: true,
     expense_account: true,
+    taxable: true,
     inactive: true,
     currency: true,
     form: true,
@@ -49,6 +50,7 @@ const BUILTINS = [
     ['items', 'Bundle items', 'table', false, undefined],
     ['price', 'Sales price', 'custom', false, 'MoneyField'],
     ['income_account', 'Income account', 'custom', false, 'IncomeAccountField'],
+    ['taxable', 'Taxable', 'toggle', false, undefined],
     ['purchases', 'I purchase this from a vendor', 'toggle', false, undefined],
     ['purchase_description', 'Purchase description', 'textarea', false, undefined],
     ['cost', 'Cost', 'custom', false, 'MoneyField'],
@@ -122,6 +124,15 @@ describe('books:product forms host', () => {
         expect(definition.fields.every(f => f.page === page)).toBe(true)
         const half = definition.fields.filter(f => f.width === 'half').map(f => f.key)
         expect(half).toEqual(HALF_WIDTH)
+    })
+
+    it('seeds the Taxable toggle with its help text, and no other field with one', () => {
+        expect(builtin('taxable').storage).toBe('column')
+        const definition = defaultDefinitionFor(parsedHost())
+        const described = definition.fields.filter(f => f.description !== undefined)
+        expect(described.map(f => [f.key, f.description])).toEqual([
+            ['taxable', 'Charge sales tax on this item when it is sold.'],
+        ])
     })
 
     it('seeds one rule that hides the purchase fields while purchasing is off', () => {

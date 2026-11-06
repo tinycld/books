@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react-native'
-import { BarChart3, BookOpen, FileText, List, Settings } from 'lucide-react-native'
+import { BarChart3, BookOpen, FileText, List, Percent, Settings } from 'lucide-react-native'
 import type { BooksAccessState } from './access'
 
 export interface SidebarEntry {
@@ -60,6 +60,14 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         available: true,
     },
     {
+        id: 'taxes',
+        label: 'Taxes',
+        icon: Percent,
+        href: 'books/taxes',
+        group: 'settings',
+        available: true,
+    },
+    {
         id: 'settings',
         label: 'Settings',
         icon: Settings,
@@ -88,6 +96,13 @@ export const NEW_ACTIONS: NewAction[] = [
         id: 'journal-entry',
         label: 'Journal entry',
         href: 'books/entries/new',
+        column: 'other',
+        available: true,
+    },
+    {
+        id: 'transfer',
+        label: 'Transfer',
+        href: 'books/transfers/new',
         column: 'other',
         available: true,
     },
@@ -179,9 +194,10 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
 }
 
-// The entry, customer, vendor and product forms and the entry view own the bottom of
-// the phone screen, so the New button stays off them. `/entries`, `/customers`,
-// `/vendors` and `/products` alone are the lists, which keep them.
+// The entry, customer, vendor, product and transfer forms and the entry and transfer
+// views own the bottom of the phone screen, so the New button stays off them.
+// `/entries`, `/customers`, `/vendors` and `/products` alone are the lists, which keep
+// them; transfers have no list.
 export function hidesNewFab(pathname: string): boolean {
-    return /\/books\/(entries|customers|vendors|products)\/[^/]+\/?$/.test(pathname)
+    return /\/books\/(entries|customers|vendors|products|transfers)\/[^/]+\/?$/.test(pathname)
 }

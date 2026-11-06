@@ -24,6 +24,13 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         detail_type: 'checking',
     },
     {
+        key: 'savings',
+        name: 'Business Savings',
+        number: '1010',
+        type: 'bank',
+        detail_type: 'savings',
+    },
+    {
         key: 'receivable',
         name: 'Accounts receivable',
         number: '1100',
@@ -43,6 +50,13 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         number: '2100',
         type: 'credit_card',
         detail_type: 'credit_card',
+    },
+    {
+        key: 'sales-tax',
+        name: 'Sales tax payable',
+        number: '2200',
+        type: 'other_current_liability',
+        detail_type: 'sales_tax_payable',
     },
     {
         key: 'equity',

@@ -857,3 +857,33 @@ func TestProductRules_NameKeyIsHidden(t *testing.T) {
 		})
 	}
 }
+
+// A bundle's lines take their taxability from each item, so the bundle has
+// none of its own; an item keeps whichever value it is given.
+func TestProduct_BundleIsNeverTaxable(t *testing.T) {
+	app := newGuardedApp(t)
+	const notTaxable = "A bundle has no tax setting of its own; each item in it has one."
+	_, err := newProduct(app, map[string]any{"type": "bundle", "name": "Office starter kit", "taxable": true})
+	requireFieldRefusal(t, err, "taxable", notTaxable)
+	requireProductCount(t, app, 0)
+
+	kit := mkBundle(t, app, "Network starter kit")
+	requireFieldRefusal(t, setFields(t, app, "books_products", kit.Id, map[string]any{"taxable": true}), "taxable", notTaxable)
+	if reload(t, app, "books_products", kit.Id).GetBool("taxable") {
+		t.Error("the bundle is taxable after the refusal")
+	}
+
+	income := mkIncomeAccount(t, app)
+	for _, kind := range []string{"service", "non_inventory"} {
+		for _, taxable := range []bool{true, false} {
+			name := fmt.Sprintf("%s taxable %v", kind, taxable)
+			p, err := newProduct(app, map[string]any{"type": kind, "name": name, "income_account": income.Id, "taxable": taxable})
+			if err != nil {
+				t.Fatalf("save %s: %v", name, err)
+			}
+			if got := reload(t, app, "books_products", p.Id).GetBool("taxable"); got != taxable {
+				t.Errorf("%s taxable = %v, want %v", name, got, taxable)
+			}
+		}
+	}
+}

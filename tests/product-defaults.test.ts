@@ -124,12 +124,19 @@ describe('newProductValues', () => {
         expect(values.purchases).toBe(false)
     })
 
-    it('starts a non-inventory item with both defaults', () => {
+    it('starts a non-inventory item with both defaults, taxable', () => {
         expect(newProductValues('non_inventory', ACCOUNTS)).toEqual({
             ...EMPTY_PRODUCT_FIELDS,
             type: 'non_inventory',
             income_account: idOf('4100'),
             expense_account: idOf('5000'),
+            taxable: true,
         })
+    })
+
+    it('starts a non-inventory item taxable, and a service and a bundle not taxable', () => {
+        expect(newProductValues('non_inventory', ACCOUNTS).taxable).toBe(true)
+        expect(newProductValues('service', ACCOUNTS).taxable).toBe(false)
+        expect(newProductValues('bundle', ACCOUNTS).taxable).toBe(false)
     })
 })

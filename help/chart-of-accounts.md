@@ -23,11 +23,15 @@ To add an account, choose New account. Enter a name, choose the type and the det
 
 To edit an account, press its row. The type is locked when the account has journal lines or sub-accounts.
 
+When a tax agency uses an account as its liability account, the account stays an Other current liability account. If you change its type, Books refuses the save. This is true for an active or an inactive agency. To change the type, first choose another account for each agency that uses it.
+
 You need bookkeeper access to change accounts. With read-only access you can look at accounts but not change them.
 
 ## Make an account inactive
 
 An inactive account stays in your books but you cannot post to it. To make an account inactive, open the menu on its row and choose Make inactive. To do the same for several accounts, select them with the checkboxes and choose Make inactive from Batch actions. To use an inactive account again, turn on Show inactive and choose Make active in its menu. You cannot make the Retained earnings account inactive.
+
+You cannot make an account inactive while an active tax agency uses it as its liability account. First choose another account for the agency, or make the agency inactive.
 
 ## The Retained earnings account
 
@@ -35,7 +39,13 @@ Books needs exactly one Retained earnings account in every chart. If a chart has
 
 ## Delete an account
 
-To delete an account, open the menu on its row and choose Delete. An account that has journal lines or sub-accounts cannot be deleted. The dialog tells you why and offers Make inactive instead. You cannot delete the Retained earnings account. Books needs exactly one, so rename it instead.
+To delete an account, open the menu on its row and choose Delete. An account that has journal lines or sub-accounts cannot be deleted. For those two, the dialog tells you why and offers Make inactive instead.
+
+Books also refuses to delete an account in these cases, and tells you why:
+
+- A product or service uses the account as its income or expense account. Make the account inactive instead, or first choose another account on each product or service.
+- A tax agency uses the account as its liability account. This is true for an active or an inactive agency. First choose another account for each agency that uses it.
+- The account is the Retained earnings account. Books needs exactly one, so rename it instead.
 
 ## Import accounts from a CSV file
 

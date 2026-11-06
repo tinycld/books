@@ -62,6 +62,7 @@ type Props = {
     saved: readonly EntryFormLine[]
     replaces?: string
     currency?: string
+    docType?: BooksJournalEntries['doc_type']
 }
 
 function renderSave(initialProps: Props = { entryId: null, saved: [], currency: 'USD' }) {
@@ -196,6 +197,26 @@ describe('useEntrySave: new entry', () => {
             await hook.result.current.saveDraft(values([debit(), credit()]))
         })
         expect(entries()[0].replaces).toBe('je_old')
+    })
+
+    it('writes the document type it is given on the new entry', async () => {
+        const hook = renderSave({ entryId: null, saved: [], docType: 'transfer' })
+        let id = ''
+        await act(async () => {
+            id = await hook.result.current.saveDraft(values([debit(), credit()]))
+        })
+        expect(entries()).toHaveLength(1)
+        expect(entries()[0]).toMatchObject({ id, doc_type: 'transfer', origin: 'manual' })
+    })
+
+    it('writes doc_type journal when no document type is given', async () => {
+        const hook = renderSave({ entryId: null, saved: [] })
+        let id = ''
+        await act(async () => {
+            id = await hook.result.current.saveDraft(values([debit(), credit()]))
+        })
+        expect(entries()).toHaveLength(1)
+        expect(entries()[0]).toMatchObject({ id, doc_type: 'journal' })
     })
 
     it('reports isPending while a write is held', async () => {

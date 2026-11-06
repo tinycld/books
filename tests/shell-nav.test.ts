@@ -1,4 +1,4 @@
-import { List } from 'lucide-react-native'
+import { List, Percent } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import {
@@ -75,7 +75,7 @@ describe('registries', () => {
         })
     })
 
-    it('NEW_ACTIONS has an available Product or service action in the other column, after Journal entry', () => {
+    it('NEW_ACTIONS has an available Product or service action in the other column, after Transfer', () => {
         const product = NEW_ACTIONS.find(a => a.id === 'product')
         expect(product).toEqual({
             id: 'product',
@@ -85,12 +85,27 @@ describe('registries', () => {
             available: true,
         })
         const ids = NEW_ACTIONS.map(a => a.id)
-        expect(ids.indexOf('product')).toBe(ids.indexOf('journal-entry') + 1)
+        expect(ids.indexOf('transfer')).toBe(ids.indexOf('journal-entry') + 1)
+        expect(ids.indexOf('product')).toBe(ids.indexOf('transfer') + 1)
     })
 
-    it('the New menu Other column lists Journal entry, then Product or service', () => {
+    it('NEW_ACTIONS has an available Transfer action in the other column at books/transfers/new', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'transfer')).toEqual({
+            id: 'transfer',
+            label: 'Transfer',
+            href: 'books/transfers/new',
+            column: 'other',
+            available: true,
+        })
+    })
+
+    it('the New menu Other column lists Journal entry, then Transfer, then Product or service', () => {
         const other = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Other')
-        expect(other?.actions.map(a => a.label)).toEqual(['Journal entry', 'Product or service'])
+        expect(other?.actions.map(a => a.label)).toEqual([
+            'Journal entry',
+            'Transfer',
+            'Product or service',
+        ])
     })
 
     it('the New menu starts with the Customers column holding Customer', () => {
@@ -157,9 +172,9 @@ describe('settings sidebar entry', () => {
         expect(settings?.group).toBe('settings')
     })
 
-    it('sidebarSections puts it in end and not in top or accounting', () => {
+    it('sidebarSections puts it in end, after Taxes, and not in top or accounting', () => {
         const sections = sidebarSections(availableOnly(SIDEBAR_ENTRIES))
-        expect(sections.end.map(e => e.id)).toEqual(['settings'])
+        expect(sections.end.map(e => e.id)).toEqual(['taxes', 'settings'])
         expect(sections.top.map(e => e.id)).not.toContain('settings')
         expect(sections.accounting.map(e => e.id)).not.toContain('settings')
     })
@@ -168,6 +183,30 @@ describe('settings sidebar entry', () => {
         const { top, accounting, end } = sidebarSections(availableOnly(SIDEBAR_ENTRIES))
         const rendered = [...top, ...accounting, ...end]
         expect(rendered[rendered.length - 1]?.id).toBe('settings')
+    })
+})
+
+describe('taxes sidebar entry', () => {
+    const taxes = SIDEBAR_ENTRIES.find(e => e.id === 'taxes')
+
+    it('is an available Taxes entry at books/taxes in the settings group', () => {
+        expect(taxes).toEqual({
+            id: 'taxes',
+            label: 'Taxes',
+            icon: Percent,
+            href: 'books/taxes',
+            group: 'settings',
+            available: true,
+        })
+    })
+
+    it('is active on the Taxes page', () => {
+        if (!taxes) throw new Error('SIDEBAR_ENTRIES has no taxes entry')
+        expect(isActivePath('/a/books/taxes', taxes)).toBe(true)
+    })
+
+    it('keeps the New button on the Taxes page', () => {
+        expect(hidesNewFab('/a/books/taxes')).toBe(false)
     })
 })
 
@@ -349,6 +388,9 @@ describe('hidesNewFab', () => {
         '/a/books/vendors/new',
         '/a/books/products/abc',
         '/a/books/products/new',
+        '/a/acme/books/transfers/new',
+        '/a/acme/books/transfers/abc123',
+        '/a/acme/books/transfers/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

@@ -617,3 +617,52 @@ func TestRetainedEarningsRules(t *testing.T) {
 		}
 	})
 }
+
+// PocketBase refuses to delete an account a required relation names with a
+// generic message; the guard says what to do instead. An inactive agency still
+// names its account, so it blocks the delete and the type change, but not
+// making the account inactive.
+func TestAccount_TaxAgencyRefusals(t *testing.T) {
+	app := newGuardedApp(t)
+	state := mkLiabilityAccount(t, app, "Sales tax payable")
+	city := mkLiabilityAccount(t, app, "City sales tax payable")
+	county := mkLiabilityAccount(t, app, "Old county payable")
+	mkTaxAgency(t, app, "Colorado DOR", state)
+	mkTaxAgency(t, app, "City and County of Denver", city)
+	mkTaxAgency(t, app, "Denver airport district", city)
+	old := mkTaxAgency(t, app, "Old county agency", county)
+	if err := setTaxAgency(t, app, old.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Old county agency inactive: %v", err)
+	}
+
+	const oneAgency = "This account is the liability account of 1 tax agency and cannot be deleted. Choose another account for the agency first."
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", state.Id)), oneAgency)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", city.Id)),
+		"This account is the liability account of 2 tax agencies and cannot be deleted. Choose another account for them first.")
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", county.Id)), oneAgency)
+	for _, account := range []*core.Record{state, city, county} {
+		if _, err := app.FindRecordById("books_accounts", account.Id); err != nil {
+			t.Errorf("%s is gone after a refused delete: %v", account.GetString("name"), err)
+		}
+	}
+
+	requireMessageOnlyRefusal(t, setFields(t, app, "books_accounts", state.Id, map[string]any{"inactive": true}),
+		"This account is the liability account of an active tax agency. Choose another account for the agency or make the agency inactive first.")
+	if reload(t, app, "books_accounts", state.Id).GetBool("inactive") {
+		t.Error("Sales tax payable is inactive after the refusal")
+	}
+	makeAccountInactive(t, app, county)
+
+	const keepsType = "This account is the liability account of a tax agency, so it stays an Other current liability account."
+	for _, account := range []*core.Record{state, county} {
+		err := setFields(t, app, "books_accounts", account.Id, map[string]any{"type": "expense", "detail_type": "rent_lease"})
+		requireMessageOnlyRefusal(t, err, keepsType)
+		if got := reload(t, app, "books_accounts", account.Id).GetString("type"); got != "other_current_liability" {
+			t.Errorf("%s type = %q after the refusal, want other_current_liability", account.GetString("name"), got)
+		}
+	}
+	// A detail type change keeps the type, so it is not refused.
+	if err := setFields(t, app, "books_accounts", state.Id, map[string]any{"detail_type": "accrued_liabilities"}); err != nil {
+		t.Errorf("changing only the detail type of an agency's account was refused: %v", err)
+	}
+}

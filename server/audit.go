@@ -31,6 +31,8 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id", "sort_key"}},
 		"books_products":        {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_bundle_items":    {ExtractLabel: func(r *core.Record) string { return bundleItemLabel(app, r) }},
+		"books_tax_agencies":    {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
+		"books_tax_rates":       {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_journal_entries": {ExtractLabel: entryLabel},
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},
 		"books_settings": {
@@ -53,10 +55,11 @@ func registerAudit(app *pocketbase.PocketBase) {
 var accountLabel = audit.LabelFromFields("number", "name")
 
 func entryLabel(r *core.Record) string {
+	noun, _, draft := entryNouns(r.GetString("doc_type"))
 	if n := r.GetString("number"); n != "" {
-		return "Journal entry " + n
+		return noun + " " + n
 	}
-	return "Draft journal entry " + r.GetString("date")
+	return draft + " " + r.GetString("date")
 }
 
 // lineLabel names a line by its account and side: "1010:Petty Cash debit

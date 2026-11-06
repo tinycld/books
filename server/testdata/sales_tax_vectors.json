@@ -1,0 +1,137 @@
+{
+    "_notes": [
+        "Shared vectors for lib/sales-tax.ts (tests/sales-tax.test.ts) and server/sales_tax_math.go (server/sales_tax_math_test.go).",
+        "taxOn(cents, ppm): a = |cents|, q = floor(a / 1e6), r = a - q*1e6, n = r*ppm, tax = q*ppm + floor(n / 1e6) + (2*(n mod 1e6) >= 1e6 ? 1 : 0), with the sign of cents (half away from zero).",
+        "ppm = parts per million of the taxable amount: 1% = 10000, 8.875% = 88750.",
+        "groupTax rounds each component separately; the group's tax is the sum of the list."
+    ],
+    "taxOn": [
+        {
+            "_note": "q=0 r=10000 n=887500000: floor=887, n mod 1e6=500000, 2*500000=1000000 >= 1e6 so +1 -> 888 ($8.875 rounds up)",
+            "cents": 10000,
+            "ppm": 88750,
+            "tax": 888
+        },
+        {
+            "_note": "n=10000*48100=481000000: floor=481, remainder 0 -> 481",
+            "cents": 10000,
+            "ppm": 48100,
+            "tax": 481
+        },
+        {
+            "_note": "n=10000*29000=290000000: floor=290, remainder 0 -> 290",
+            "cents": 10000,
+            "ppm": 29000,
+            "tax": 290
+        },
+        {
+            "_note": "n=0 -> 0",
+            "cents": 10000,
+            "ppm": 0,
+            "tax": 0
+        },
+        {
+            "_note": "n=10000*1000000=1e10: floor=10000, remainder 0 -> 10000 (100%)",
+            "cents": 10000,
+            "ppm": 1000000,
+            "tax": 10000
+        },
+        {
+            "_note": "n=500000: floor=0, 2*500000=1e6 >= 1e6 so +1 -> 1 (0.5 rounds up)",
+            "cents": 1,
+            "ppm": 500000,
+            "tax": 1
+        },
+        {
+            "_note": "n=1500000: floor=1, remainder 500000, 2*500000 >= 1e6 so +1 -> 2 (1.5 rounds up)",
+            "cents": 3,
+            "ppm": 500000,
+            "tax": 2
+        },
+        {
+            "_note": "n=499999: floor=0, 2*499999=999998 < 1e6 -> 0",
+            "cents": 1,
+            "ppm": 499999,
+            "tax": 0
+        },
+        {
+            "_note": "a=1 gives 1 (as above), sign of cents -> -1 (half away from zero, not toward +infinity)",
+            "cents": -1,
+            "ppm": 500000,
+            "tax": -1
+        },
+        {
+            "_note": "a=10000 gives 888 (first row), sign of cents -> -888",
+            "cents": -10000,
+            "ppm": 88750,
+            "tax": -888
+        },
+        {
+            "_note": "a=1, n=1: floor=0, 2*1 < 1e6 -> 0; a negative amount whose tax rounds to zero is 0, never -0 (JS Object.is(-0, 0) is false)",
+            "cents": -1,
+            "ppm": 1,
+            "tax": 0
+        },
+        {
+            "_note": "a=2^53-1: q=9007199254, r=740991; q*ppm=9007199254000000; n=740991*1e6, floor=740991, remainder 0; 9007199254000000+740991=9007199254740991",
+            "cents": 9007199254740991,
+            "ppm": 1000000,
+            "tax": 9007199254740991
+        },
+        {
+            "_note": "q=9007199254, r=740991. q*88750 = 9007199254*100000 - 9007199254*11250 = 900719925400000 - 101330991607500 = 799388933792500. n = 740991*88750 = 74099100000 - 8336148750 = 65762951250: floor=65762, remainder 951250, 2*951250=1902500 >= 1e6 so +1 -> 65763. Total 799388933792500 + 65763 = 799388933858263",
+            "cents": 9007199254740991,
+            "ppm": 88750,
+            "tax": 799388933858263
+        },
+        {
+            "_note": "q=1, r=234567: q*7500=7500; n=234567*7500=1759252500, floor=1759, remainder 252500, 2*252500=505000 < 1e6 -> 0. Total 7500+1759=9259 (1234567*0.0075=9259.2525)",
+            "cents": 1234567,
+            "ppm": 7500,
+            "tax": 9259
+        }
+    ],
+    "groupTax": [
+        {
+            "_note": "10000*29000=290000000 -> 290; 10000*10000=100000000 -> 100; 10000*48100=481000000 -> 481; all remainders 0",
+            "cents": 10000,
+            "ppms": [29000, 10000, 48100],
+            "taxes": [290, 100, 481]
+        },
+        {
+            "_note": "333*29000=9657000: floor=9, remainder 657000, 2*657000=1314000 >= 1e6 so +1 -> 10 (9.657); 333*7500=2497500: floor=2, remainder 497500, 2*497500=995000 < 1e6 -> 2 (2.4975)",
+            "cents": 333,
+            "ppms": [29000, 7500],
+            "taxes": [10, 2]
+        },
+        {
+            "_note": "50*10000=500000: floor=0, 2*500000=1e6 so +1 -> 1, for each rate. The group is 2 cents; one rounding of 2% on 50 cents (1.0) would give 1",
+            "cents": 50,
+            "ppms": [10000, 10000],
+            "taxes": [1, 1]
+        }
+    ],
+    "parse": [
+        { "_note": "8*10000 + 8750 (\"875\" padded to \"8750\")", "text": "8.875", "ppm": 88750 },
+        { "_note": "2*10000 + 9000 (\"9\" padded to \"9000\")", "text": "2.9", "ppm": 29000 },
+        { "_note": "0*10000", "text": "0", "ppm": 0 },
+        { "_note": "100*10000, the upper limit", "text": "100", "ppm": 1000000 },
+        { "_note": "0*10000 + 1 (\"0001\")", "text": "0.0001", "ppm": 1 },
+        { "_note": "trimmed, \"%\" with spaces around it allowed: 8*10000 + 2500", "text": " 8.25 % ", "ppm": 82500 },
+        { "_note": "a fifth decimal", "text": "8.88888", "ppm": null },
+        { "_note": "over 100", "text": "100.0001", "ppm": null },
+        { "_note": "a sign", "text": "-1", "ppm": null },
+        { "_note": "empty", "text": "", "ppm": null },
+        { "_note": "not a number", "text": "abc", "ppm": null },
+        { "_note": "exponent form", "text": "1e2", "ppm": null },
+        { "_note": "no whole digits", "text": ".5", "ppm": null }
+    ],
+    "text": [
+        { "_note": "2 + 9000/10000, trailing zeros dropped", "ppm": 29000, "text": "2.9%" },
+        { "_note": "8 + 8750/10000 -> \"8750\" -> \"875\"", "ppm": 88750, "text": "8.875%" },
+        { "_note": "fraction 0, no dot", "ppm": 0, "text": "0%" },
+        { "_note": "100 + 0, no dot", "ppm": 1000000, "text": "100%" },
+        { "_note": "0 + \"0001\"", "ppm": 1, "text": "0.0001%" },
+        { "_note": "8 + \"2500\" -> \"25\"", "ppm": 82500, "text": "8.25%" }
+    ]
+}

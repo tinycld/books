@@ -27,6 +27,6 @@ To change a posted entry, open Opening balances and choose Edit balances. The fo
 
 If you choose Save draft, the posted balances stay until you post the draft. Choose Discard draft to remove it. On a narrow screen, such as a phone, Discard draft is in the More menu (the ··· button).
 
-Journal Entries cannot edit this entry. Use Edit balances instead.
+In Journal Entries, Edit on this entry opens Opening balances in edit mode, the same as Edit balances.
 
 To see the entry in an account, open the [account register](help://books:account-register). The Type column shows Opening balances.

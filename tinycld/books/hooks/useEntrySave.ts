@@ -10,12 +10,14 @@ import {
     planLineWrites,
 } from '../lib/entry-lines'
 import type { EntryFormValues } from '../lib/entry-schema'
+import type { BooksJournalEntries } from '../types'
 
 interface EntrySaveProps {
     entryId: string | null
     saved: readonly EntryFormLine[]
     replaces?: string
     currency: string
+    docType?: BooksJournalEntries['doc_type']
     // Called once the entry and every line are written, before a post sets the status, so
     // the form can take the saved draft as its baseline even when the post is then refused.
     onDraftSaved?: (values: EntryFormValues) => void
@@ -51,7 +53,14 @@ const emptyStored = (): Stored => ({ entryId: null, saved: [], assigned: new Map
 // rows behind. `stored` remembers what was written, for a new entry and for an existing
 // draft alike (its `saved` prop stays stale until the live query catches up), so the next
 // save updates those rows instead of inserting them again.
-export function useEntrySave({ entryId, saved, replaces, currency, onDraftSaved }: EntrySaveProps) {
+export function useEntrySave({
+    entryId,
+    saved,
+    replaces,
+    currency,
+    docType = 'journal',
+    onDraftSaved,
+}: EntrySaveProps) {
     const [entriesCollection, linesCollection] = useStore(
         'books_journal_entries',
         'books_journal_lines'
@@ -102,7 +111,7 @@ export function useEntrySave({ entryId, saved, replaces, currency, onDraftSaved 
                     id,
                     ...fields,
                     status: 'draft',
-                    doc_type: 'journal',
+                    doc_type: docType,
                     origin: 'manual',
                     reverses: '',
                     replaces: replaces ?? '',

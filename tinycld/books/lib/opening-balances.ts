@@ -1,7 +1,7 @@
 import type { BooksAccounts } from '../types'
 import { buildAccountTree, defaultSort, type TreeAccount, type TreeNode } from './account-tree'
 import { accountTypeDef } from './account-types'
-import { centsToText, isWellFormedMoney, maxStoredAmount, parseMoney } from './money'
+import { centsToText, isWellFormedMoney, maxLineAmount, maxStoredAmount, parseMoney } from './money'
 import type { OpeningPreset } from './opening-balances-schema'
 import { formatDay, isIsoDay, rangeForPreset } from './register-range'
 import type { SidebarEntry } from './shell-nav'
@@ -24,8 +24,7 @@ export type OpeningBand = {
     rows: OpeningRow[]
 }
 
-// The server's per-line limit.
-export const maxLineAmount = 1_000_000_000_000_000
+export { maxLineAmount }
 // The balancing line is saved too, so amounts are capped one below the line limit.
 export const maxOpeningAmounts = 999
 
