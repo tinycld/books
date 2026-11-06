@@ -93,3 +93,4 @@
 ## Final review
 - eval:
 - native: not executed in this run
+- 2026-11-05 driver: the human decided at the eval-gate preview that a card press keeps the header and strip and shows LoadingState only in the panel (`bank-panel-loading`); spec §3 States and plan Decisions/cp4 updated before cp3 (plan-check 0 errors). Core PR tinycld#439 (DropZone overlay opaque + readable label) opened on branch books/p4-bank-connection at the human's request; merges before cp4.

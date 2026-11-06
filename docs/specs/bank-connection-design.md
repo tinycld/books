@@ -85,7 +85,7 @@ A bookkeeper connects a Books bank or credit card account to Banking and uploads
 
 ### States
 
-- Loading: `LoadingState` until access, settings, the connections query and (when one is selected) its files query are ready.
+- Loading: the page shows `LoadingState` until access, settings and the connections query are ready. After that the header and the account strip stay on screen; while the selected connection's files query is not ready (first load, or after a card press), only the account panel shows `LoadingState` (decided by the human 2026-11-05, so a card press does not flash the whole page).
 - Error: "Books could not load your bank accounts." with Retry, which calls `recoverLiveQueries` once over the failed queries (merged recoveries, as the reports and transfer screens do).
 - A user with no Books access never reaches the page (the shell hides Books).
 - Access: Books write access (bookkeeper or admin) connects, edits bank details, uploads, removes files and disconnects. A read-only user sees the strip, the panel and the files, with no upload area, no Remove, no More menu and no Connect.
