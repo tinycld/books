@@ -239,6 +239,8 @@
 - reviewer-caught deferrals: (B) the refusal list and the field's load state → fixed (F2, F4)
 
 ## Final review
+- eval gate integration: merged books origin/main (p3-transfer) as cde2511 (seed.ts, helix-lessons.md conflicts, both kept); books check 3817, go ok, `tax-rates:` 12 passed
+- full e2e 1 (cde2511): 271 passed, 1 failed (`opening-balances.spec.ts` "the grid lists only balance-sheet accounts"): `openWithIds` found "Rent" by a caseless substring (`hasText`) and matched the new 2200 Sales tax payable row's type "Other Current Liability" → fixed at the source in the e2e helpers (`opening-balances-helpers.ts` ×2, `account-register-helpers.ts` `accountItem`: exact name text); reviewer A pass: clean; full e2e 2: 272 passed, 1 skipped
 - eval:
 - human comments and what changed
 - native: not executed in this run
