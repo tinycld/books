@@ -205,6 +205,8 @@
 - fix review (round 1, fresh reviewer A over the fix diff): 0 BLOCK; both fixes do what was asked; group order and paging unchanged (a formula sort key that reads a row path is skipped on group levels, levels.go:228/885); `sequence` leaks nothing (`number` already shows it). NOTEs to Design notes. Rounds used: 1 of 2.
 - gate 3 A notes (resume): A2, A3, A4 under Design notes; fix review NOTEs 1-2 under Design notes.
 - reviewer-caught deferrals (resume): none.
+- commit: 4be0644 (pushed). These lines were written after it and are committed with the ledger alone.
+- human: none (review mode C)
 
 ## Final review
 - eval:
