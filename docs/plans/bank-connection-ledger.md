@@ -139,6 +139,8 @@
 - reviewer-caught deferrals: none
 - out-of-plan: useStripScroll interface; scratch capture spec `fakeRecords` array (see Out-of-plan changes)
 - rounds: 1
+- commit: 0b4f5fe
+- human: n/a (review mode C)
 
 ## Final review
 - eval:
