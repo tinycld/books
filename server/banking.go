@@ -107,6 +107,7 @@ func registerBanking(app core.App) {
 			func(tx core.App) error { return checkBankFileCreate(tx, e.Record) },
 			func(tx core.App) error { return saveBankContent(tx, e.Record, content.Columns, rows) })
 	})
+	registerBankImport(app)
 }
 
 // checkBankConnection refuses a connection to an account that is missing,

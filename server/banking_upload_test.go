@@ -204,11 +204,17 @@ func paddedCSV(size int) []byte {
 // hash. It returns the save's error, so a racing goroutine or a refusal check
 // can read it.
 func saveBankFile(app core.App, connectionID, name, hash string, status string) (*core.Record, error) {
+	return storeBankFile(app, connectionID, name, "csv", bankCSV, hash, status)
+}
+
+// storeBankFile is the one body of saveBankFile and saveBankFileBytes: data
+// stored as a bank file of the given format.
+func storeBankFile(app core.App, connectionID, name, format, data, hash, status string) (*core.Record, error) {
 	col, err := app.FindCollectionByNameOrId("books_bank_files")
 	if err != nil {
 		return nil, err
 	}
-	file, err := filesystem.NewFileFromBytes([]byte(bankCSV), name)
+	file, err := filesystem.NewFileFromBytes([]byte(data), name)
 	if err != nil {
 		return nil, err
 	}
@@ -216,14 +222,25 @@ func saveBankFile(app core.App, connectionID, name, hash string, status string) 
 	r.Set("connection", connectionID)
 	r.Set("file", file)
 	r.Set("name", name)
-	r.Set("format", "csv")
-	r.Set("size", len(bankCSV))
+	r.Set("format", format)
+	r.Set("size", len(data))
 	r.Set("content_hash", hash)
 	r.Set("status", status)
 	if err := app.Save(r); err != nil {
 		return nil, err
 	}
 	return r, nil
+}
+
+// saveBankFileBytes stores data as an uploaded bank file on the model path (no
+// request hook), so the upload hook parses these bytes.
+func saveBankFileBytes(t testing.TB, app core.App, connectionID, name, format, data string) *core.Record {
+	t.Helper()
+	r, err := storeBankFile(app, connectionID, name, format, data, sha256Hex([]byte(data)), bankFileStatusUploaded)
+	if err != nil {
+		t.Fatalf("save bank file %s: %v", name, err)
+	}
+	return r
 }
 
 // mustSaveBankFile is saveBankFile for a file the test needs stored.
