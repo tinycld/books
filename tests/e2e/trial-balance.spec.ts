@@ -1,6 +1,8 @@
 import { expect, type Page, test } from '@playwright/test'
 import {
+    authStorageKey,
     chooseParamOption,
+    hubRow,
     login,
     navigateToPackage,
     pressToolbar,
@@ -12,8 +14,10 @@ import {
     chooseAsOf,
     dayWords,
     detailsUnder,
+    endOfLastMonth,
     filterToAccounts,
     openAccountRow,
+    openBooksReports,
     openTrialBalance,
     type TbSnapshot,
     tbSnapshot,
@@ -605,4 +609,93 @@ test.describe("trial-balance: the report in core's view", () => {
                 tableFits: true,
             })
     })
+})
+
+// The heading core's document header prints (useReportView headingOf): the Books business
+// name, else the organization's name. Read-only: books-settings.spec.ts types over the
+// business name and restores it on the shared DB, so it is read when compared.
+async function expectedHeading(page: Page): Promise<string> {
+    const key = await authStorageKey(page)
+    const token = await page.evaluate(
+        k => (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? '',
+        key
+    )
+    const settings = await page.request.get(
+        '/api/collections/books_settings/records/bookssettings01',
+        { headers: { Authorization: token } }
+    )
+    expect(settings.ok()).toBe(true)
+    const businessName = ((await settings.json()) as { business_name?: string }).business_name
+    if (businessName?.trim()) return businessName.trim()
+    const org = await page.request.get('/api/org-info')
+    expect(org.ok()).toBe(true)
+    return (((await org.json()) as { name?: string }).name ?? '').trim()
+}
+
+// The test ids of the report's controls, in the order the row draws them.
+function controlOrder(page: Page): Promise<string[]> {
+    return page
+        .getByTestId('report-controls')
+        .locator('[data-testid^="report-param-"], [data-testid="report-add-filter"]')
+        .evaluateAll(elements => elements.map(element => element.getAttribute('data-testid') ?? ''))
+}
+
+test.describe('trial-balance: from the Books sidebar', () => {
+    for (const [sizeName, size] of SIZES) {
+        test(`Reports opens the Books hub, the Trial Balance, and back (${sizeName})`, async ({
+            page,
+        }) => {
+            await login(page)
+            await navigateToPackage(page, 'books')
+            await page.setViewportSize(size)
+
+            await openBooksReports(page)
+            await expect(page).toHaveURL(/\/a\/reports\?package=books/)
+            await expect(page.getByTestId('reports-hub-filter')).toContainText(
+                'Showing reports from Books'
+            )
+            await expect(page.getByTestId('reports-hub-tab-shared')).toHaveCount(0)
+
+            await hubRow(page, 'Trial Balance').click()
+            await expect(page.getByTestId('report-screen')).toBeVisible()
+            await expect(page.getByTestId('report-document-title')).toHaveText('Trial Balance')
+            await expect
+                .poll(async () => {
+                    const shown = (
+                        await page.getByTestId('report-business-name').allInnerTexts()
+                    )[0]
+                    const expected = await expectedHeading(page)
+                    return {
+                        matches: shown?.trim() === expected && expected !== '',
+                        shown,
+                        expected,
+                    }
+                })
+                .toMatchObject({ matches: true })
+            const lastMonthEnd = endOfLastMonth(await browserToday(page))
+            await expect(page.getByTestId('report-document-period')).toHaveText(
+                `As of ${dayWords(lastMonthEnd)}`
+            )
+
+            await expect(page.getByTestId('report-param-asOf')).toContainText('End of last month')
+            await expect(page.getByTestId('report-param-rows')).toContainText('Non-zero')
+            expect(await controlOrder(page)).toEqual([
+                'report-param-asOf',
+                'report-param-rows',
+                'report-add-filter',
+            ])
+            await page.getByTestId('report-add-filter').click()
+            await expect(page.getByTestId('report-add-filter-accounts')).toBeVisible()
+            await page.keyboard.press('Escape')
+            await expect(page.getByTestId('report-add-filter-accounts')).toHaveCount(0)
+
+            await page.getByTestId('report-back').click()
+            await expect(page).toHaveURL(/\/a\/reports\?package=books/)
+            await expect(page.getByTestId('reports-hub-filter')).toBeVisible()
+
+            await page.getByTestId('reports-hub-show-all').click()
+            await expect(page.getByTestId('reports-hub-filter')).toHaveCount(0)
+            await expect(page).toHaveURL(/\/a\/reports(?!.*package=)/)
+        })
+    }
 })

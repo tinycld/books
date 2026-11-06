@@ -56,7 +56,7 @@ Five sources (§5 table). Books days register as `Date` (E1); every source print
 ### Books sidebar, Help
 
 - Sidebar entry `{ href: 'reports', params: { package: 'books' }, available: true }` through `SidebarEntry.params` and `orgHref`.
-- `books/help/reports.md` rewritten: Open Books reports; Read the Trial Balance (debit and credit by sign, Rows, Accounts filter, retained earnings, as-of presets, opening an account into its lines); Who sees Books reports (every Books reader, through a share); Build your own Books report (`[Build, share and publish reports](help://core:reports)`). `help/navigating-books.md` updates its Reports line.
+- `books/help/reports.md` rewritten: Open Books reports; Read the Trial Balance (debit and credit by sign, Rows, Accounts filter, retained earnings, as-of presets, opening an account into its lines); Who sees Books reports (every Books reader, through a share; a user who has been offboarded gets none, D3); Build your own Books report (`[Build, share and publish reports](help://core:reports)`). `help/navigating-books.md` updates its Reports line.
 
 ## 4. Checkpoint 0 — core extensions (branch `books/p5-trial-balance` in `tinycld`, merged before checkpoint 1)
 

@@ -25,6 +25,14 @@ describe('useBooksSidebar', () => {
         expect(result.current.accounting.map(e => e.id)).toEqual(['accounts', 'entries'])
     })
 
+    // The real entries, not allAvailable: Reports must be available on its own.
+    it('with the real entries, top is Lists then Reports, and Reports opens the Books hub', () => {
+        const { result } = renderHook(() => useBooksSidebar())
+        expect(result.current.top.map(e => e.id)).toEqual(['lists', 'reports'])
+        const reports = result.current.top.find(e => e.id === 'reports')
+        expect(reports).toMatchObject({ href: 'reports', params: { package: 'books' } })
+    })
+
     it('returns an empty accounting list when no accounting entry is available', () => {
         const entries = allAvailable.map(e =>
             e.group === 'accounting' ? { ...e, available: false } : e
