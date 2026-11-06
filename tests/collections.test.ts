@@ -174,6 +174,8 @@ describe('registerCollections', () => {
             'content_hash',
             'status',
             'uploaded_by',
+            'statement_balance',
+            'statement_date',
         ])
         expect(calls.get('books_bank_imports')?.omitOnInsert).toEqual([
             'created',

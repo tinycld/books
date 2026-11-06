@@ -124,6 +124,8 @@ function bankFile(
         file: `${seed.id}.bin`,
         content_hash: contentHash(n),
         status: 'uploaded',
+        statement_balance: 0,
+        statement_date: '',
         updated: seed.created,
         ...seed,
     }
