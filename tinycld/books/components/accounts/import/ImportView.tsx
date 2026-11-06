@@ -8,13 +8,16 @@ import { ArrowLeft } from 'lucide-react-native'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { useAccountImport } from '../../../hooks/useAccountImport'
 import { useBackToAccounts } from '../../../hooks/useBackToAccounts'
-import { ImportSteps } from './ImportSteps'
+import { ImportSteps } from '../../ImportSteps'
 import { ImportSummary } from './ImportSummary'
 import { MapStep } from './MapStep'
 import { PreviewStep } from './PreviewStep'
 import { UploadStep } from './UploadStep'
 
 type Flow = ReturnType<typeof useAccountImport>
+
+// The summary is step 4: every step is reached and none is current.
+export const ACCOUNT_IMPORT_STEPS = ['Upload', 'Map columns', 'Import'] as const
 
 interface ImportViewProps {
     canWrite: boolean
@@ -125,7 +128,7 @@ function Steps({ isVisible, ...props }: StepsProps & { isVisible: boolean }) {
     if (!isVisible) return null
     return (
         <View className="gap-4">
-            <ImportSteps step={props.flow.step} />
+            <ImportSteps steps={ACCOUNT_IMPORT_STEPS} current={props.flow.step} />
             <StepBody {...props} />
         </View>
     )

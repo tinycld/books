@@ -17,7 +17,8 @@ const COLUMNS = {
     size: { flex: 1 },
     uploaded: { flex: 3 },
     status: { flex: 2 },
-    actions: { width: 96, flexShrink: 0 },
+    // Wide enough for Import and Remove side by side.
+    actions: { width: 200, flexShrink: 0 },
 } satisfies Record<string, ViewStyle>
 
 const EMPTY_TEXT = {
@@ -44,6 +45,8 @@ export function BankFileRow({
     file: BankFileItem
     renderAction?: RenderAction
 }) {
+    const statusText = bankFileStatusLabel(file.status, file.importedCount)
+    const actions = renderAction?.(file)
     return (
         <View
             testID={`bank-file-${file.id}`}
@@ -70,11 +73,11 @@ export function BankFileRow({
             </View>
             <View className="min-w-0 pr-3" style={COLUMNS.status}>
                 <Text numberOfLines={1} className="text-sm text-foreground">
-                    {bankFileStatusLabel(file.status)}
+                    {statusText}
                 </Text>
             </View>
-            <View className="items-end" style={COLUMNS.actions}>
-                {renderAction?.(file)}
+            <View className="flex-row justify-end gap-2" style={COLUMNS.actions}>
+                {actions}
             </View>
         </View>
     )
@@ -115,6 +118,8 @@ export function BankFileCard({
     file: BankFileItem
     renderAction?: RenderAction
 }) {
+    const statusText = bankFileStatusLabel(file.status, file.importedCount)
+    const actions = renderAction?.(file)
     return (
         <View
             testID={`bank-file-${file.id}`}
@@ -133,8 +138,8 @@ export function BankFileCard({
                 {uploadedText(file.created, file.uploadedByName)}
             </Text>
             <View className="flex-row items-center justify-between gap-2 pt-1">
-                <Text className="text-sm text-foreground">{bankFileStatusLabel(file.status)}</Text>
-                {renderAction?.(file)}
+                <Text className="text-sm text-foreground">{statusText}</Text>
+                <View className="flex-row gap-2">{actions}</View>
             </View>
         </View>
     )

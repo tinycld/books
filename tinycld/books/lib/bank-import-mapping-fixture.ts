@@ -342,6 +342,47 @@ export const BANK_IMPORT_RESULTS = {
     allDuplicates: { imported: 0, duplicates: 4 },
 } as const
 
+// The card statement's transactions: [day, amount, name], OFX signs (a charge is negative).
+const CARD_STATEMENT_ENTRIES: [string, string, string][] = [
+    ['20261002', '-86.47', 'AMAZON MKTPLACE PMTS'],
+    ['20261004', '-412.80', 'UNITED AIRLINES'],
+    ['20261007', '1200.00', 'PAYMENT THANK YOU'],
+    ['20261015', '-87.50', 'SLACK TECHNOLOGIES'],
+]
+
+// seed.ts uploads this file to 2100 Company Card, so the e2e book has a card statement to
+// import and a statement line to show. It has the same name, balance and day as the
+// card-2026-10.ofx row of BANK_IMPORT_FILES; the parser reads CCSTMTRS and the ledger
+// balance (server/bank_ofx.go parseBankOFX).
+export const BANK_IMPORT_SEED_STATEMENT = {
+    accountNumber: '2100',
+    name: 'card-2026-10.ofx',
+    text: [
+        'OFXHEADER:100',
+        'DATA:OFXSGML',
+        'VERSION:102',
+        '',
+        '<OFX>',
+        '<CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>',
+        '<CURDEF>USD',
+        '<BANKTRANLIST>',
+        ...CARD_STATEMENT_ENTRIES.flatMap(([day, amount, name], i) => [
+            '<STMTTRN>',
+            `<TRNTYPE>${amount.startsWith('-') ? 'DEBIT' : 'CREDIT'}`,
+            `<DTPOSTED>${day}`,
+            `<TRNAMT>${amount}`,
+            `<FITID>card2026${String(i + 1).padStart(4, '0')}`,
+            `<NAME>${name}`,
+            '</STMTTRN>',
+        ]),
+        '</BANKTRANLIST>',
+        '<LEDGERBAL><BALAMT>-3410.17<DTASOF>20261028</LEDGERBAL>',
+        '</CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1>',
+        '</OFX>',
+        '',
+    ].join('\n'),
+} as const
+
 // Texts the reference states show.
 export const BANK_IMPORT_REFERENCE_TEXT = {
     refusal: 'Line 14: "13/45/2026" is not a date in the MM/DD/YYYY format.',

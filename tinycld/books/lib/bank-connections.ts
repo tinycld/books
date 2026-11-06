@@ -111,8 +111,15 @@ const STATUS_LABELS: Record<BooksBankFiles['status'], string> = {
     failed: 'Import failed',
 }
 
-export function bankFileStatusLabel(status: BooksBankFiles['status']): string {
-    return STATUS_LABELS[status] ?? ''
+// `importedCount` is the sum of `imported` over the file's imports.
+export function bankFileStatusLabel(
+    status: BooksBankFiles['status'],
+    importedCount: number
+): string {
+    if (status !== 'imported') return STATUS_LABELS[status] ?? ''
+    if (importedCount === 0) return 'Imported: no new transactions'
+    if (importedCount === 1) return 'Imported: 1 transaction'
+    return `Imported: ${importedCount} transactions`
 }
 
 const KIB = 1024
