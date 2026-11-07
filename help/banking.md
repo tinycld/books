@@ -25,7 +25,9 @@ Upload one file at a time, up to 5 MB. TXT files are not accepted: if your bank 
 
 The same file cannot be uploaded twice. If you choose a file that is already in Books, Books tells you where it is, for example "oct-2026.csv was already uploaded to 1000 Business Checking on Nov 3, 2026."
 
-Each uploaded file shows in the list with its format, size, upload date and the person who uploaded it, and the status Waiting to import. Books keeps it until you import its transactions.
+Each uploaded file shows in the list with its format, size, upload date and the person who uploaded it, and its status: Waiting to import until you import it, then Imported: N transactions, the number of transactions its imports added. To add a file's transactions to Books, see [Import bank transactions](help://books:bank-import).
+
+After an upload, choose Import transactions beside the "uploaded." line to import the new file at once, or choose Import on any file's row later.
 
 ## Remove a file
 
@@ -43,16 +45,17 @@ On the Banking page:
 
 - N: Connect account
 - U: Choose file for the selected account
+- I: Import transactions from the newest file waiting to import
 
 In a dialog:
 
 - ⌘↵: Connect, Save, Remove file or Disconnect, also while the cursor is in a text box
 - Esc: close the dialog
 
-N and U do nothing while a dialog is open or the cursor is in a text box.
+N, U and I do nothing while a dialog is open or the cursor is in a text box.
 
 To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
-With bookkeeper or admin access you can connect accounts, edit bank details, upload and remove files, and disconnect accounts. With read-only access you can see the connected accounts and their files, and open an account's register with View register.
+With bookkeeper or admin access you can connect accounts, edit bank details, upload, import and remove files, and disconnect accounts. With read-only access you can see the connected accounts and their files, and open an account's register with View register.

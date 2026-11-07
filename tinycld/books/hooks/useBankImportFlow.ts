@@ -17,6 +17,7 @@ import {
     mappingFromForm,
 } from '../lib/bank-import-form'
 import { guessBankMapping } from '../lib/bank-import-guess'
+import type { BankImportKeyStep } from '../lib/bank-import-shortcuts'
 import {
     alreadyImportedLines,
     BANK_IMPORT_TRANSPORT_TEXT,
@@ -150,6 +151,10 @@ export function useBankImportFlow(data: BankImportData) {
         amount_sign,
     ])
 
+    // Set at the start of an Import press and cleared when the import settles (or the
+    // choice fails validation): two quick ⌘↵ presses both run before `isPending`
+    // re-renders, so only this synchronous flag stops a second import being sent.
+    const importStarted = useRef(false)
     const importMutation = useMutation({
         mutationFn: function* ({ id, values }: { id: string; values: BankImportFormValues }) {
             yield importsCollection.insert(
@@ -174,6 +179,9 @@ export function useBankImportFlow(data: BankImportData) {
             handleMutationErrorsWithForm({ setError: form.setError, getValues: form.getValues })(
                 error
             )
+        },
+        onSettled: () => {
+            importStarted.current = false
         },
     })
     const isBusy = importMutation.isPending
@@ -206,14 +214,18 @@ export function useBankImportFlow(data: BankImportData) {
     // only the rows that are ready and chosen now are sent, in file order: the count the
     // button shows.
     const onImport = () => {
-        if (isBusy) return
+        if (isBusy || importStarted.current) return
+        importStarted.current = true
+        const onInvalid = () => {
+            importStarted.current = false
+        }
         void form.handleSubmit(values => {
             const chosenNow = new Set(values.lines)
             const sent = rows
                 .filter(row => row.kind === 'ready' && chosenNow.has(row.line))
                 .map(row => row.line)
             importMutation.mutate({ id: newRecordId(), values: { ...values, lines: sent } })
-        })()
+        }, onInvalid)()
     }
     const onCancel = useBackToBanking(data.connectionId)
 
@@ -278,11 +290,36 @@ export function useBankImportFlow(data: BankImportData) {
         setStep('choose')
     }
 
+    const nothing = nothingToChoose(rows)
+    const isCsv = data.format === 'csv'
+    // What the page's keys do now: ⌘↵ presses the step's main button, Esc goes back one
+    // (Back on a CSV file's Choose step, else back to Banking), A chooses all or none. A
+    // Choose step with nothing to choose shows only "Back to Banking", so its keys are the
+    // message state's: Esc is Cancel.
+    const hasRows = nothing === null
+    const keyStep: BankImportKeyStep = step === 'choose' && !hasRows ? 'message' : step
+    const keys = {
+        step: keyStep,
+        isCsv,
+        hasRows,
+        run: {
+            submit: () => {
+                if (keyStep === 'map') void onContinue()
+                else if (keyStep === 'choose') onImport()
+            },
+            back: () => {
+                if (keyStep === 'choose' && isCsv) onBack()
+                else onCancel()
+            },
+            toggleAll: onToggleAll,
+        },
+    }
+
     return {
         step,
         form,
         rows,
-        nothing: nothingToChoose(rows),
+        nothing,
         summary: importSummary(rows),
         selection: selectionText(totals, data.currency),
         selectState: selectAllState(rows),
@@ -300,6 +337,7 @@ export function useBankImportFlow(data: BankImportData) {
         result,
         onImportMore,
         isSubmitted: form.formState.isSubmitted,
+        keys,
     }
 }
 

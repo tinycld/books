@@ -28,6 +28,7 @@ import {
     selectAllState,
     selectionText,
     selectionTotals,
+    statementBalance,
     toggleAllLines,
     toggleLine,
 } from '../tinycld/books/lib/bank-import-view'
@@ -487,5 +488,45 @@ describe('mapIntroText', () => {
         expect(mapIntroText(true, '1000 Business Checking')).toBe(
             'Books used the columns of your last import to 1000 Business Checking. Check each one before you continue.'
         )
+    })
+})
+
+describe('statementBalance', () => {
+    it('shows a bank account’s statement balance as stated', () => {
+        expect(
+            statementBalance({ statement_balance: 1042317, statement_date: '2026-10-31' }, 'bank')
+        ).toEqual({ cents: 1042317, day: '2026-10-31' })
+    })
+
+    it('negates a credit card’s statement balance, so what the card owes reads positive', () => {
+        expect(
+            statementBalance(
+                { statement_balance: -341017, statement_date: '2026-10-28' },
+                'credit_card'
+            )
+        ).toEqual({ cents: 341017, day: '2026-10-28' })
+    })
+
+    it('negates a card balance the bank wrote positive', () => {
+        expect(
+            statementBalance(
+                { statement_balance: 5000, statement_date: '2026-10-28' },
+                'credit_card'
+            )
+        ).toEqual({ cents: -5000, day: '2026-10-28' })
+    })
+
+    it('has no balance for a file with no statement date', () => {
+        expect(statementBalance({ statement_balance: 1042317, statement_date: '' }, 'bank')).toBe(
+            null
+        )
+        expect(statementBalance({ statement_balance: 0, statement_date: '' }, 'credit_card')).toBe(
+            null
+        )
+    })
+
+    it('has no balance with no file', () => {
+        expect(statementBalance(undefined, 'bank')).toBe(null)
+        expect(statementBalance(undefined, 'credit_card')).toBe(null)
     })
 })

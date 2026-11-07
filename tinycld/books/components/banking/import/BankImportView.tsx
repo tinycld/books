@@ -1,3 +1,4 @@
+import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
@@ -9,6 +10,7 @@ import type {
     BankImportModel,
 } from '../../../hooks/useBankImport'
 import { useBankImportFlow } from '../../../hooks/useBankImportFlow'
+import { useBankImportShortcuts } from '../../../hooks/useBankImportShortcuts'
 import { bankImportStepLabels, chooseStepNumber } from '../../../lib/bank-import-view'
 import { useFabClearanceStyle } from '../../../lib/fab-clearance'
 import { ImportSteps } from '../../ImportSteps'
@@ -37,7 +39,12 @@ function PageHeader({ onBack, isBusy }: { onBack: () => void; isBusy: boolean })
                 <ChevronLeft size={16} color={color} />
                 <Text className="text-sm text-muted-foreground">Banking</Text>
             </Pressable>
-            <Text className="text-2xl font-semibold text-foreground">Import bank transactions</Text>
+            <View className="flex-row items-center gap-2">
+                <Text className="text-2xl font-semibold text-foreground">
+                    Import bank transactions
+                </Text>
+                <HelpIcon topic="books:bank-import" />
+            </View>
         </>
     )
 }
@@ -96,6 +103,7 @@ function StepBody({
 // header too, so the back link can read whether the import runs.
 function BankImportFlowView({ model, data }: { model: BankImportModel; data: BankImportData }) {
     const flow = useBankImportFlow(data)
+    useBankImportShortcuts({ ...flow.keys, isBusy: flow.isBusy })
     const steps = bankImportStepLabels(data.format)
     const current = flow.step === 'map' ? 2 : chooseStepNumber(data.format)
     // The result replaces the steps.
@@ -117,8 +125,18 @@ function BankImportFlowView({ model, data }: { model: BankImportModel; data: Ban
     )
 }
 
-// Every state but the ready one: nothing runs, so the back link is always enabled.
+const NO_KEY_ACTION = () => {}
+
+// Every state but the ready one: nothing runs, so the back link is always enabled, and
+// Esc is the only key (back to Banking).
 function PageMessage({ model }: { model: BankImportModel }) {
+    useBankImportShortcuts({
+        step: 'message',
+        isCsv: false,
+        isBusy: false,
+        hasRows: false,
+        run: { submit: NO_KEY_ACTION, back: model.backToBanking, toggleAll: NO_KEY_ACTION },
+    })
     return (
         <>
             <PageHeader onBack={model.backToBanking} isBusy={false} />
