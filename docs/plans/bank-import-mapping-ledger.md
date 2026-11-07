@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/bank-import-mapping-checkpoints.md
 - reference: docs/plans/bank-import-mapping-reference/
 - evidence: docs/plans/bank-import-mapping-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-06)
 - capture manifest: docs/plans/bank-import-mapping-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -123,4 +123,4 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
+- eval: approved 2026-11-06 by the human; CI full suite green at a5edba7 (PR books#32); retro items 1–4 approved.
