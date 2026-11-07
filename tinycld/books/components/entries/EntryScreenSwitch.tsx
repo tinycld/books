@@ -11,6 +11,7 @@ import type { LineTotals } from '../../lib/entry-lines'
 import { DeleteDraftDialog } from './DeleteDraftDialog'
 import { EntryForm } from './EntryForm'
 import { EntryHeader, EntryHeaderMenu } from './EntryHeader'
+import { EntryLoadError } from './EntryLoadError'
 import { EntryNotice } from './EntryNotice'
 import { EntryReadOnlyView } from './EntryReadOnlyView'
 import { EntryStatusBadge } from './EntryStatusBadge'
@@ -128,7 +129,10 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
     }
     const isReady = detail.viewState === 'ready'
     const isDraftRow = isReady && detail.entry.status === 'draft'
-    const isLoadingHere = detail.viewState === 'loading' && isFocused
+    // A failed reload is held like a loading one: the form already has its rows, and an
+    // error screen in its place would drop what the user typed.
+    const isLoadingHere =
+        (detail.viewState === 'loading' || detail.viewState === 'error') && isFocused
     const showsDraft =
         held !== null && (isBusy || isLoadingHere || (isReady && (detail.isEditable || isDraftRow)))
     if (held && showsDraft) {
@@ -143,6 +147,7 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
         )
     }
     if (detail.viewState === 'loading') return <LoadingState />
+    if (detail.viewState === 'error') return <EntryLoadError onRetry={detail.retry} />
     if (detail.viewState === 'not-found') {
         return <EntryNotice testID="entry-not-found" message="This entry does not exist" />
     }

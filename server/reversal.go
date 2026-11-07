@@ -108,6 +108,7 @@ func reversalTarget(tx core.App, entry *core.Record) (*core.Record, error) {
 }
 
 // writeReversalLines copies the target's lines with debit and credit swapped.
+// Each copy keeps the line's customer or vendor, even an inactive one.
 func writeReversalLines(tx core.App, reversal, target *core.Record) error {
 	existing, err := tx.CountRecords("books_journal_lines", dbx.HashExp{"entry": reversal.Id})
 	if err != nil {
@@ -132,6 +133,8 @@ func writeReversalLines(tx core.App, reversal, target *core.Record) error {
 		l.Set("credit", src.GetInt("debit"))
 		l.Set("memo", src.GetString("memo"))
 		l.Set("position", src.GetInt("position"))
+		l.Set("customer", src.GetString("customer"))
+		l.Set("vendor", src.GetString("vendor"))
 		if err := tx.Save(l); err != nil {
 			return fmt.Errorf("books: write reversal line: %w", err)
 		}

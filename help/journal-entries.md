@@ -13,6 +13,8 @@ To see all entries, choose Journal Entries in the sidebar. Use the filters above
 
 To create an entry, choose New journal entry in the list, or choose New in the sidebar and pick Journal entry. In a web browser on a wide screen, the Date field has focus when the form opens. Set the date and the memo. Pick an account for each line and type an amount in the Debit or Credit column. An entry can have up to 200 lines. To add a line, use the add line button under the last line.
 
+To name who a line is for, pick a customer or a vendor in its Name field (on a phone, the Name field is under the account). Name is optional, and a line can name a customer or a vendor, not both. The list shows only active customers and vendors, in two groups; type to search it, or choose None to clear the name. A posted entry and the entry panel of an account register show the name. The name stays on the line when the entry posts, a void keeps it on the reversing entry, and Edit keeps it even when the customer or vendor became inactive. A customer or vendor on journal lines cannot be deleted: make it inactive instead.
+
 The strip under the lines shows Debits, Credits and the balance. If the two sides differ, it shows "Out of balance by" and the difference. Fix the amounts until it shows "In balance". An entry needs an amount on at least two lines.
 
 ## Save a draft

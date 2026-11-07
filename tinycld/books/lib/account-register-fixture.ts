@@ -94,6 +94,8 @@ function line(seed: LineSeed, parent: BooksJournalEntries): BooksJournalLines {
         debit: 0,
         credit: 0,
         memo: '',
+        customer: '',
+        vendor: '',
         position: 0,
         posted: isPosted,
         date: isPosted ? parent.date : '',

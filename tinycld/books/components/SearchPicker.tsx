@@ -1,15 +1,31 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
+import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Menu } from '@tinycld/core/ui/menu'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { ChevronDown } from 'lucide-react-native'
-import { forwardRef, useState } from 'react'
+import { Fragment, forwardRef, useState } from 'react'
 import { Pressable, type PressableInstance, Text, View } from 'react-native'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 
-export type SearchPickerOption = { id: string; label: string }
+// `group` puts the option under a heading of that name; options of one group are
+// consecutive in the list the caller passes.
+export type SearchPickerOption = { id: string; label: string; group?: string }
 
 const NO_OPTIONS: readonly SearchPickerOption[] = []
+
+type OptionRun = { group: string | undefined; options: SearchPickerOption[] }
+
+// Consecutive options of one group, in list order.
+function groupRuns(options: readonly SearchPickerOption[]): OptionRun[] {
+    const runs: OptionRun[] = []
+    for (const option of options) {
+        const last = runs[runs.length - 1]
+        if (last && last.group === option.group) last.options.push(option)
+        else runs.push({ group: option.group, options: [option] })
+    }
+    return runs
+}
 
 // Local, synchronous UI state that nothing else reads. Closing the menu clears the
 // search, so the next open starts from the full list.
@@ -90,6 +106,105 @@ function NoneItem({
     )
 }
 
+interface OptionItemsProps {
+    options: readonly SearchPickerOption[]
+    optionTestIdPrefix: string
+    value: string
+    onChange: (id: string) => void
+}
+
+function OptionItems({ options, optionTestIdPrefix, value, onChange }: OptionItemsProps) {
+    const items = options.map(option => (
+        <Menu.Item
+            key={option.id}
+            label={option.label}
+            testID={`${optionTestIdPrefix}-${option.id}`}
+            isSelected={option.id === value}
+            onSelect={() => onChange(option.id)}
+        />
+    ))
+    return <>{items}</>
+}
+
+// The options, each group under its heading (a core menu section: muted, not pressable).
+function GroupedOptions(props: OptionItemsProps) {
+    const runs = groupRuns(props.options).map((run, index) => {
+        const items = <OptionItems {...props} options={run.options} />
+        if (run.group === undefined) return <Fragment key={`run-${index}`}>{items}</Fragment>
+        return (
+            <Menu.Section
+                key={`run-${index}`}
+                label={run.group}
+                testID={`${props.optionTestIdPrefix}-group-${run.group}`}
+            >
+                {items}
+            </Menu.Section>
+        )
+    })
+    return <>{runs}</>
+}
+
+function StatusRow({ text, testID }: { text: string; testID: string }) {
+    return (
+        <Menu.Custom className="px-3 py-2">
+            <Text testID={testID} className="text-sm text-muted-foreground">
+                {text}
+            </Text>
+        </Menu.Custom>
+    )
+}
+
+function RetryRow({ testID, onRetry }: { testID: string; onRetry?: () => void }) {
+    return (
+        <Menu.Custom className="px-3 py-2">
+            <View
+                testID={testID}
+                accessibilityRole="alert"
+                className="flex-row items-center justify-between gap-2"
+            >
+                <Text className="min-w-0 flex-1 text-sm text-danger">Could not load.</Text>
+                <Button variant="outline" size="sm" style={{ minHeight: 44 }} onPress={onRetry}>
+                    <ButtonText>Retry</ButtonText>
+                </Button>
+            </View>
+        </Menu.Custom>
+    )
+}
+
+type ListState = 'loading' | 'failed' | 'empty' | 'options'
+
+function listStateOf({
+    isLoading,
+    loadFailed,
+    hasOptions,
+    emptyText,
+}: {
+    isLoading: boolean
+    loadFailed: boolean
+    hasOptions: boolean
+    emptyText?: string
+}): ListState {
+    if (loadFailed) return 'failed'
+    if (isLoading) return 'loading'
+    if (!hasOptions && emptyText) return 'empty'
+    return 'options'
+}
+
+interface OptionListProps extends OptionItemsProps {
+    state: ListState
+    emptyText?: string
+    onRetry?: () => void
+}
+
+// What stands under the search field: the options, or the loading, error or empty row.
+function OptionList({ state, emptyText, onRetry, ...items }: OptionListProps) {
+    const prefix = items.optionTestIdPrefix
+    if (state === 'failed') return <RetryRow testID={`${prefix}-retry`} onRetry={onRetry} />
+    if (state === 'loading') return <StatusRow text="Loading…" testID={`${prefix}-loading`} />
+    if (state === 'empty') return <StatusRow text={emptyText ?? ''} testID={`${prefix}-empty`} />
+    return <GroupedOptions {...items} />
+}
+
 interface SearchPickerProps {
     picker: ReturnType<typeof useSearchPicker>
     title: string
@@ -107,6 +222,14 @@ interface SearchPickerProps {
     onChange: (id: string) => void
     // An item above the options that picks no record (an empty value).
     noneOption?: { label: string; testID: string }
+    // The options' query is loading: a "Loading…" row stands in for the options.
+    isLoading?: boolean
+    // The options' query failed: a "Could not load." row with Retry (onRetry) stands in
+    // for the options.
+    loadFailed?: boolean
+    onRetry?: () => void
+    // Shown when the options loaded and none matches.
+    emptyText?: string
 }
 
 /**
@@ -132,21 +255,19 @@ export function SearchPicker({
     value,
     onChange,
     noneOption,
+    isLoading = false,
+    loadFailed = false,
+    onRetry,
+    emptyText,
 }: SearchPickerProps) {
     const placeholderColor = useThemeColor('field-placeholder')
     // A core Sheet keeps its content mounted while it slides out, so items render only
     // while the menu is open (helix lesson 8), whatever the caller's query returns.
     const shown = picker.isOpen ? options : NO_OPTIONS
     const shownNone = picker.isOpen ? noneOption : undefined
-    const items = shown.map(option => (
-        <Menu.Item
-            key={option.id}
-            label={option.label}
-            testID={`${optionTestIdPrefix}-${option.id}`}
-            isSelected={option.id === value}
-            onSelect={() => onChange(option.id)}
-        />
-    ))
+    const state = picker.isOpen
+        ? listStateOf({ isLoading, loadFailed, hasOptions: options.length > 0, emptyText })
+        : 'options'
     const trigger = (
         <PickerTrigger
             label={triggerLabel}
@@ -180,7 +301,15 @@ export function SearchPicker({
                 />
             </Menu.Custom>
             <NoneItem option={shownNone} value={value} onChange={onChange} />
-            {items}
+            <OptionList
+                state={state}
+                emptyText={emptyText}
+                onRetry={onRetry}
+                options={shown}
+                optionTestIdPrefix={optionTestIdPrefix}
+                value={value}
+                onChange={onChange}
+            />
         </Menu>
     )
 }

@@ -54,11 +54,32 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // No relations: the customers list materializes each row's parent with a
+    // subquery on this same collection, so nothing is filed through a relation.
+    const books_customers = newCollection('books_customers', {
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // No relations: the list loads one page of vendors at a time; the expense
+    // account picker reads books_accounts itself.
+    const books_vendors = newCollection('books_vendors', {
+        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     // Created before entries so the entry's back-relation can name it; `entry`
     // is added once the entries exist (Object.assign, because typing the key
     // would make the two collections' types refer to each other). posted, date and currency are stamped
-    // when the entry posts.
-    const lineRelations: { account: typeof books_accounts } = { account: books_accounts }
+    // when the entry posts. A line's customer and vendor (its Name) file into the
+    // customers and vendors collections, declared above for that reason.
+    const lineRelations: {
+        account: typeof books_accounts
+        customer: typeof books_customers
+        vendor: typeof books_vendors
+    } = { account: books_accounts, customer: books_customers, vendor: books_vendors }
     const books_journal_lines = newCollection('books_journal_lines', {
         omitOnInsert: ['created', 'updated', 'posted', 'date', 'currency'] as const,
         ...onDemand,
@@ -134,22 +155,6 @@ export function registerCollections(
     const books_access = newCollection('books_access', {
         ...onDemand,
         relations: { user: coreStores.users },
-        collectionOptions: indexed,
-    })
-
-    // No relations: the customers list materializes each row's parent with a
-    // subquery on this same collection, so nothing is filed through a relation.
-    const books_customers = newCollection('books_customers', {
-        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
-        ...onDemand,
-        collectionOptions: indexed,
-    })
-
-    // No relations: the list loads one page of vendors at a time; the expense
-    // account picker reads books_accounts itself.
-    const books_vendors = newCollection('books_vendors', {
-        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key'] as const,
-        ...onDemand,
         collectionOptions: indexed,
     })
 

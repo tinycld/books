@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import { EntryForm } from '../../components/entries/EntryForm'
 import { EntryHeader } from '../../components/entries/EntryHeader'
+import { EntryLoadError } from '../../components/entries/EntryLoadError'
 import { EntryNotice } from '../../components/entries/EntryNotice'
 import { EntryStatusBadge } from '../../components/entries/EntryStatusBadge'
 import { ReplaceHeader } from '../../components/entries/ReplaceHeader'
@@ -120,6 +121,7 @@ function ReplaceForm({ replaces }: { replaces: string }) {
         )
     }
     if (detail.viewState === 'loading') return <LoadingState />
+    if (detail.viewState === 'error') return <EntryLoadError onRetry={detail.retry} />
     return <OriginalNotFound />
 }
 

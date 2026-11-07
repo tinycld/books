@@ -19,6 +19,8 @@ function row(id: string, position: number, over: Partial<BooksJournalLines>): Bo
         debit: 0,
         credit: 0,
         memo: '',
+        customer: '',
+        vendor: '',
         position,
         posted: false,
         date: entry.date,

@@ -2,10 +2,8 @@
 // accounts are the seeded e2e book's (seed-accounts.ts); the run results are typed
 // against core's report contract, so tsc checks every field. Money is integer cents.
 //
-// Two parts stand in for core features that checkpoint 0 builds (spec §4): the
-// "Beginning balance" row is a detail row here (F5 adds the row kind `opening`),
-// and a balance is the running balance by the account's normal side, computed
-// below as the spec's `balance` formula computes it on the server (F1–F3, F6).
+// A balance is the running balance by the account's normal side, computed below
+// as the spec's `balance` formula computes it on the server.
 import type { DisplayLayout, ParamDef } from '@tinycld/core/reports/lib/spec'
 import type {
     CellValue,
@@ -16,7 +14,9 @@ import type {
 } from '@tinycld/core/reports/lib/types'
 import type { BooksAccounts, BooksJournalLines } from '../types'
 import { accountTypeDef } from './account-types'
+import { CUSTOMER_IDS } from './customer-form-fixture'
 import { SEED_ACCOUNTS } from './seed-accounts'
+import { VENDOR_IDS } from './vendor-form-fixture'
 
 export const GENERAL_LEDGER_TITLE = 'General Ledger'
 export const GENERAL_LEDGER_HEADING = 'Harbor Lane Design LLC'
@@ -298,6 +298,8 @@ const blankZero = (cents: number): number | null => (cents === 0 ? null : cents)
 const sumOf = (values: number[]): number | null =>
     values.length === 0 ? null : values.reduce((a, v) => a + v, 0)
 
+// Every column but Balance is sortable: the engine refuses a window formula (the
+// running balance) as a viewer sort key.
 export const GENERAL_LEDGER_COLUMNS: ResultColumn[] = [
     {
         id: 'account',
@@ -305,14 +307,29 @@ export const GENERAL_LEDGER_COLUMNS: ResultColumn[] = [
         type: 'relation',
         labelCell: 'account@label',
         labelType: 'text',
+        sortable: true,
     },
-    { id: 'type', label: 'Type', type: 'text' },
-    { id: 'number', label: 'No.', type: 'text' },
-    { id: 'name', label: 'Name', type: 'text' },
-    { id: 'description', label: 'Description', type: 'text' },
-    { id: 'split', label: 'Split', type: 'text' },
-    { id: 'debit', label: 'Debit', type: 'money', currency: CURRENCY, aggregate: 'sum' },
-    { id: 'credit', label: 'Credit', type: 'money', currency: CURRENCY, aggregate: 'sum' },
+    { id: 'type', label: 'Type', type: 'text', sortable: true },
+    { id: 'number', label: 'No.', type: 'text', sortable: true },
+    { id: 'name', label: 'Name', type: 'text', sortable: true },
+    { id: 'description', label: 'Description', type: 'text', sortable: true },
+    { id: 'split', label: 'Split', type: 'text', sortable: true },
+    {
+        id: 'debit',
+        label: 'Debit',
+        type: 'money',
+        currency: CURRENCY,
+        aggregate: 'sum',
+        sortable: true,
+    },
+    {
+        id: 'credit',
+        label: 'Credit',
+        type: 'money',
+        currency: CURRENCY,
+        aggregate: 'sum',
+        sortable: true,
+    },
     { id: 'balance', label: 'Balance', type: 'money', currency: CURRENCY },
 ]
 
@@ -389,13 +406,13 @@ function sectionRows(section: Section, isOpen: boolean, sort: LineSort): ResultR
         cells: { account: section.acct.id, 'account@label': section.label, ...figures },
     }
     if (!isOpen) return [group]
-    // F5 draws this as row kind `opening`; core today has detail rows only.
     const opening: ResultRow = {
-        id: `o:${section.acct.id}`,
-        kind: 'detail',
+        id: `opening:${JSON.stringify([section.acct.id, CURRENCY])}`,
+        kind: 'opening',
         depth: 1,
         label: 'Beginning balance',
         section: id,
+        groupKey: [section.acct.id, CURRENCY],
         cells: { balance: section.beginning },
     }
     const subtotal: ResultRow = {
@@ -431,8 +448,8 @@ export interface GeneralLedgerInput {
     /** Every section folded (Collapse all). */
     isCollapsed?: boolean
     isAllDates?: boolean
-    /** Only the first sections, as a first page whose next page is loading (F7). */
-    sectionLimit?: number
+    /** Only the first rows, as a first page that ends inside a section, its next page loading. */
+    pageRows?: number
 }
 
 function isShown(section: Section, input: GeneralLedgerInput): boolean {
@@ -456,8 +473,9 @@ function sectionsOf(input: GeneralLedgerInput): Section[] {
 }
 
 function resolvedParams(input: GeneralLedgerInput): ResolvedParam[] {
+    // All dates is a set range with no bounds, as the server resolves the preset.
     const period: ResolvedParam = input.isAllDates
-        ? { id: 'period', type: 'dateRange', unset: true }
+        ? { id: 'period', type: 'dateRange' }
         : { id: 'period', type: 'dateRange', from: GENERAL_LEDGER_FROM, to: GENERAL_LEDGER_TODAY }
     return [
         period,
@@ -470,16 +488,16 @@ function resolvedParams(input: GeneralLedgerInput): ResolvedParam[] {
 
 export function generalLedgerResult(input: GeneralLedgerInput = {}): RunResult {
     const sections = sectionsOf(input)
-    const shown = input.sectionLimit ? sections.slice(0, input.sectionLimit) : sections
-    const rows = shown.flatMap(section =>
+    const rows = sections.flatMap(section =>
         sectionRows(section, !input.isCollapsed, input.sort ?? 'report')
     )
     const lines = sections.flatMap(section => section.lines)
-    // A page with a next page ends inside the document: the Total comes with the last page.
-    const total = input.sectionLimit ? [] : [totalRow(lines)]
+    // A page with a next page ends inside the document: the section's subtotal and
+    // the Total come with a later page.
+    const page = input.pageRows ? rows.slice(0, input.pageRows) : [...rows, totalRow(lines)]
     return {
         columns: GENERAL_LEDGER_COLUMNS,
-        rows: [...rows, ...total],
+        rows: page,
         notices: [],
         topics: [
             'collection/books_journal_lines',
@@ -490,7 +508,7 @@ export function generalLedgerResult(input: GeneralLedgerInput = {}): RunResult {
             'collection/books_settings',
         ],
         heading: GENERAL_LEDGER_HEADING,
-        page: input.sectionLimit ? { next: 'reference-next-page', size: 200 } : null,
+        page: input.pageRows ? { next: 'reference-next-page', size: input.pageRows } : null,
         params: resolvedParams(input),
     }
 }
@@ -508,7 +526,8 @@ export const accountIdOf = (key: string) =>
 
 // The spec's `display.layouts` (§3 Phone, §5): a phone row wraps onto four lines
 // (date · type · No.; Name · Description; Split; Debit · Credit · Balance), a
-// tablet row onto two (figures on line 1, the long text on line 2).
+// tablet row onto two (figures on line 1, the long text on line 2). The spec ships
+// no desktop layout: core fits the one line to the view's width.
 export const GENERAL_LEDGER_PHONE_LAYOUT: DisplayLayout = {
     width: 'mobile',
     tracks: 3,
@@ -541,48 +560,16 @@ export const GENERAL_LEDGER_TABLET_LAYOUT: DisplayLayout = {
     ],
 }
 
-// Reference only, standing in for F10 (fit, never clip) until checkpoint 0 builds
-// it: the one line at 1280 with the text columns narrowed (about 96 px each, with
-// an ellipsis) and the figures at core's full 128 px. Core refuses more than 12
-// tracks in a saved spec; F10 measures widths instead, so the GL spec ships no
-// desktop layout.
-export const F10_ONE_LINE_STAND_IN: DisplayLayout = {
-    width: 'desktop',
-    tracks: 30,
-    cells: [
-        { col: 'account', line: 1, span: 4 },
-        { col: 'type', line: 1, span: 3 },
-        { col: 'number', line: 1, span: 2 },
-        { col: 'name', line: 1, span: 3 },
-        { col: 'description', line: 1, span: 3 },
-        { col: 'split', line: 1, span: 3 },
-        { col: 'debit', line: 1, span: 4 },
-        { col: 'credit', line: 1, span: 4 },
-        { col: 'balance', line: 1, span: 4 },
-    ],
-}
-
-// Reference only: where the one line does not fit a desktop view even narrowed,
-// F10 wraps to the tablet layout.
-export const F10_WRAP_STAND_IN: DisplayLayout = {
-    ...GENERAL_LEDGER_TABLET_LAYOUT,
-    width: 'desktop',
-}
-
 // --- e2e seed (wired by the checkpoint that adds the Name to journal lines) ---
 
-// Local shape until the ledger checkpoint (spec §5 "Ledger change", migration
-// 2100000002) adds `customer` and `vendor` to books_journal_lines; that checkpoint
-// replaces `name` with the generated relation fields.
-type SeedPartyLine = Pick<BooksJournalLines, 'debit' | 'credit' | 'memo'> & {
-    account: string
-    customer?: string
-    vendor?: string
-}
+const NORTHWIND = CUSTOMER_IDS.northwind
+const SUMMIT_IT = VENDOR_IDS.summit
 
-// Seeded lines that name a customer or a vendor (display names from the customer
-// and vendor fixtures), so the Name column shows in the seeded book.
-export const GENERAL_LEDGER_PARTY_SEED: { memo: string; lines: SeedPartyLine[] }[] = [
+// Seeded lines that name a customer or a vendor, so the Name column shows in the seeded
+// book. `customer` and `vendor` are fixture ids ('' for none): the CUSTOMERS row
+// "Northwind Traders" and the VENDORS row "Summit IT Services"; `account` is a seed
+// account key.
+export const GENERAL_LEDGER_PARTY_SEED = [
     {
         memo: 'Q4 retainer',
         lines: [
@@ -591,14 +578,16 @@ export const GENERAL_LEDGER_PARTY_SEED: { memo: string; lines: SeedPartyLine[] }
                 debit: 320000,
                 credit: 0,
                 memo: '',
-                customer: 'Northwind Traders',
+                customer: NORTHWIND,
+                vendor: '',
             },
             {
                 account: 'consulting',
                 debit: 0,
                 credit: 320000,
                 memo: '',
-                customer: 'Northwind Traders',
+                customer: NORTHWIND,
+                vendor: '',
             },
         ],
     },
@@ -610,12 +599,18 @@ export const GENERAL_LEDGER_PARTY_SEED: { memo: string; lines: SeedPartyLine[] }
                 debit: 12000,
                 credit: 0,
                 memo: 'Project management seats',
-                vendor: 'Summit IT Services',
+                customer: '',
+                vendor: SUMMIT_IT,
             },
-            { account: 'card', debit: 0, credit: 12000, memo: '' },
+            { account: 'card', debit: 0, credit: 12000, memo: '', customer: '', vendor: '' },
         ],
     },
-]
+] satisfies {
+    memo: string
+    lines: (Pick<BooksJournalLines, 'debit' | 'credit' | 'memo' | 'customer' | 'vendor'> & {
+        account: string
+    })[]
+}[]
 
 // One long section, so the first page of 200 detail rows ends inside it (spec §7
 // item 8): this many one-dollar transfers from checking to savings.

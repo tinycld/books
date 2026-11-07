@@ -66,6 +66,8 @@ function lineRow(id: string, entry: string, position: number): BooksJournalLines
         debit: 100,
         credit: 0,
         memo: '',
+        customer: '',
+        vendor: '',
         position,
         posted: false,
         date: '2026-10-12',

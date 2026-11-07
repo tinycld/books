@@ -273,8 +273,8 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if spec.Version != 2 || info.UpgradedFrom != 0 {
-		t.Errorf("version %d, upgraded from %d; want version 2 with no upgrade", spec.Version, info.UpgradedFrom)
+	if spec.Version != reports.CurrentVersion || info.UpgradedFrom != 0 {
+		t.Errorf("version %d, upgraded from %d; want version %d with no upgrade", spec.Version, info.UpgradedFrom, reports.CurrentVersion)
 	}
 	if spec.Source != "books.journal_lines" {
 		t.Errorf("source = %q, want books.journal_lines", spec.Source)

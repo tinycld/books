@@ -76,7 +76,7 @@ func registerCustomerGuard(app core.App) {
 			if subs > 0 {
 				return refuse(msgDeleteHasSubs)
 			}
-			return nil
+			return refusePartyOnLines(tx, "customer", e.Record)
 		})
 	})
 }

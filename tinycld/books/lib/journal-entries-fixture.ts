@@ -144,6 +144,8 @@ function line(seed: LineSeed, isPosted: boolean): BooksJournalLines {
         debit: 0,
         credit: 0,
         memo: '',
+        customer: '',
+        vendor: '',
         posted: isPosted,
         date: isPosted ? '2026-09-30' : '',
         currency: ENTRIES_CURRENCY,

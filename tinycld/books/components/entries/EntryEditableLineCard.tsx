@@ -1,6 +1,7 @@
 import { Text, View } from 'react-native'
 import { AmountCell, MemoCell } from './AmountCell'
 import { AccountPick, type LineActions, LineError, LineMenu } from './EntryLineRow'
+import { LinePartyPicker } from './LinePartyPicker'
 
 interface EntryEditableLineCardProps {
     index: number
@@ -27,6 +28,10 @@ export function EntryEditableLineCard({
                     <AccountPick index={index} options={options} actions={actions} />
                 </View>
                 <LineMenu index={index} lineCount={lineCount} actions={actions} />
+            </View>
+            <View className="min-w-0">
+                <Text className="text-xs text-muted-foreground">Name</Text>
+                <LinePartyPicker index={index} />
             </View>
             <View className="flex-row gap-2">
                 <View className="min-w-0 flex-1">

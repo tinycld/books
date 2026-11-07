@@ -436,6 +436,7 @@ describe('entryDetail fields', () => {
                     debit: 10,
                     credit: 0,
                     memo: 'first',
+                    partyName: '',
                     isThisAccount: true,
                 },
                 {
@@ -444,6 +445,7 @@ describe('entryDetail fields', () => {
                     debit: 20,
                     credit: 0,
                     memo: 'second',
+                    partyName: '',
                     isThisAccount: false,
                 },
                 {
@@ -452,6 +454,7 @@ describe('entryDetail fields', () => {
                     debit: 0,
                     credit: 30,
                     memo: 'third',
+                    partyName: '',
                     isThisAccount: false,
                 },
             ],
