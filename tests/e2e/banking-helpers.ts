@@ -11,7 +11,9 @@ import { uniqueName } from './record-form-helpers'
 export const BANKING_DESKTOP = DESKTOP
 export const BANKING_PHONE = PHONE
 
-// From the Books sidebar to Banking. Waits for whichever state the page settles in.
+// From the Books sidebar to Banking. Waits for whichever state the page settles in. After a
+// trip away and back, the earlier Banking screen stays stacked and hidden, so only the
+// visible screen counts.
 export async function openBanking(page: Page): Promise<void> {
     await page.getByTestId('books-nav-banking').click()
     await expect(
@@ -19,6 +21,7 @@ export async function openBanking(page: Page): Promise<void> {
             .getByTestId('bank-strip')
             .or(page.getByTestId('bank-intro'))
             .or(page.getByTestId('bank-error'))
+            .filter({ visible: true })
             .first()
     ).toBeVisible()
 }

@@ -23,12 +23,18 @@ interface ListToolbarProps {
 const WIDE_SEARCH_STYLE = { minHeight: 40, minWidth: 160, maxWidth: 360 }
 const PHONE_SEARCH_STYLE = { minHeight: 40, minWidth: 0 }
 
-function SearchField({
+// Typed on the search alone, so a toolbar without the Show inactive chip uses it too.
+export function SearchField({
     testIdPrefix,
     placeholder,
     list,
     isWide,
-}: Omit<ListToolbarProps, 'isVisible'>) {
+}: {
+    testIdPrefix: string
+    placeholder: string
+    list: { query: string; setQuery(text: string): void }
+    isWide: boolean
+}) {
     const color = useThemeColor('muted-foreground')
     return (
         <View

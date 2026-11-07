@@ -44,8 +44,17 @@ export function useBankingScreen() {
     const setPanelMenuOpen = useBankingUIStore(s => s.setPanelMenuOpen)
     const openDialog = useBankingUIStore(s => s.openDialog)
     const closeAll = useBankingUIStore(s => s.closeAll)
+    const resetReviewFilters = useBankingUIStore(s => s.resetReviewFilters)
 
-    useFocusEffect(useCallback(() => () => closeAll(), [closeAll]))
+    useFocusEffect(
+        useCallback(
+            () => () => {
+                closeAll()
+                resetReviewFilters()
+            },
+            [closeAll, resetReviewFilters]
+        )
+    )
 
     // The page waits for access, settings and the connections only; the files of the
     // selected card load inside the panel, so a card press never blanks the page.
