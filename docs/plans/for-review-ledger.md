@@ -78,6 +78,8 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 4, listed under Design notes
 - fix review: round 1: 4 findings (cp/cp1-fix.md in staging; causes appearance ×2, jsx-logic, other: comment reflow) fixed — strip and phone tab-bar `ScrollView`s no longer grow (`flexGrow: 0, flexShrink: 0` style; `grow-0` class did not apply on web), tab body `min-h-0 flex-1 overflow-hidden`, states centered in the body, `min-h-11`, comment reflowed; declared: `text-center` on the error sentence, `py-10`→`py-6` · gate 1 again: check pass (203 files / 4131), `for-review:` 2 passed, banking-page 3, banking-keys 3, banking-upload 2, bank-import-mapping 9 passed · shots re-captured (critic 1c: Reviewed draws rows once it has height, no second defect) · fix reviewer: 0 BLOCK, 2 NOTE (card heights → Design notes; the error-390 note done → struck) · fresh critic (evidence/cp1/critique-round2.md): 0 INVALID, 0 BLOCKING, 4 NOTE → Design notes · rounds: 1
 - reviewer-caught deferrals: none
+- commit: 329a419
+- human: none (review mode C)
 
 ## Final review
 - eval:
