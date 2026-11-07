@@ -641,3 +641,117 @@ test.describe('bank-import-mapping: csv mapping', () => {
         )
     })
 })
+
+function shortcutList(page: Page) {
+    return page.getByRole('dialog').filter({ hasText: 'Keyboard shortcuts' })
+}
+
+test.describe('bank-import-mapping: keys and statement', () => {
+    // The test imports into its own connection, so it cannot disconnect it; the older
+    // file stays waiting to import.
+    test('drives the import from the keyboard', async ({ page }) => {
+        await openBooksBanking(page)
+        const name = await connectTestAccount(page)
+        const stamp = stampOf('csv-keys')
+        const header = 'Date,Description,Amount'
+
+        const older = csvStatement(`${stamp}-old`, [header, `2026-10-09,${stamp} old,9.00`])
+        await chooseBankFile(page, older)
+        await expect(page.getByTestId('bank-upload-done')).toContainText(`${older.name} uploaded.`)
+        const newer = csvStatement(stamp, [
+            header,
+            `2026-10-01,${stamp} k1,10.00`,
+            `2026-10-02,${stamp} k2,-20.00`,
+            `2026-10-03,${stamp} k3,30.00`,
+        ])
+        await chooseBankFile(page, newer)
+        await expect(page.getByTestId('bank-upload-done')).toContainText(`${newer.name} uploaded.`)
+        await expect(fileRowByName(page, older.name)).toHaveCount(1)
+        await expect(fileRowByName(page, newer.name)).toHaveCount(1)
+
+        // i opens the newest file waiting to import; Map columns opens with its first
+        // question focused.
+        await page.keyboard.press('i')
+        await expect(page).toHaveURL(/\/banking\/import\//)
+        const fileLine = page.getByTestId('bank-import-file')
+        await expect(fileLine).toContainText(`File: ${newer.name}`)
+        const map = page.getByTestId('bank-import-map')
+        await expect(map).toBeVisible()
+        await expect(page.getByTestId('bank-import-q-header')).toBeFocused()
+
+        await page.keyboard.press('Shift+?')
+        const list = shortcutList(page)
+        await expect(list).toBeVisible()
+        const group = list.getByText('Bank import', { exact: true }).locator('..')
+        await expect(group.getByText('Continue', { exact: true })).toBeVisible()
+        await expect(group.getByText('Cancel', { exact: true })).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(list).toHaveCount(0)
+        await expect(map).toBeVisible()
+
+        // An open select menu takes Escape first: it closes, the page stays.
+        await page.getByTestId('bank-import-q-format').click()
+        const formatItem = page.getByTestId('bank-import-q-format-YYYY-MM-DD')
+        await expect(formatItem).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(formatItem).toHaveCount(0)
+        await expect(map).toBeVisible()
+        await expect(page).toHaveURL(/\/banking\/import\//)
+
+        await page.keyboard.press('ControlOrMeta+Enter')
+        const choose = page.getByTestId('bank-import-choose')
+        await expect(choose).toBeVisible()
+        await expect(page.getByTestId('bank-import-select-all')).toBeFocused()
+
+        const selection = page.getByTestId('bank-import-selection')
+        await expect(selection).toHaveText('3 selected · Money in $40.00 · Money out $20.00')
+        await page.keyboard.press('a')
+        await expect(selection).toHaveText('0 selected · Money in $0.00 · Money out $0.00')
+        await page.keyboard.press('a')
+        await expect(selection).toHaveText('3 selected · Money in $40.00 · Money out $20.00')
+
+        // Esc on a CSV file's Choose transactions goes back one step.
+        await page.keyboard.press('Escape')
+        await expect(map).toBeVisible()
+        await expect(choose).toHaveCount(0)
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await expect(choose).toBeVisible()
+        await expect(selection).toHaveText('3 selected · Money in $40.00 · Money out $20.00')
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await expect(page.getByTestId('bank-import-result-text')).toHaveText(
+            `Imported 3 transactions into ${name}.`
+        )
+
+        await page.keyboard.press('Escape')
+        await expect(page).toHaveURL(/\/banking\?(.*&)?account=/)
+        await expect(page).not.toHaveURL(/\/import\//)
+        await expect(
+            fileRowByName(page, newer.name).getByText('Imported: 3 transactions', { exact: true })
+        ).toBeVisible()
+
+        // Now the older file is the only one waiting; Esc on Map columns is Cancel.
+        await page.keyboard.press('i')
+        await expect(page).toHaveURL(/\/banking\/import\//)
+        await expect(fileLine).toContainText(`File: ${older.name}`)
+        await expect(map).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(page).toHaveURL(/\/banking\?(.*&)?account=/)
+        await expect(page).not.toHaveURL(/\/import\//)
+    })
+
+    test('shows the card’s bank statement', async ({ page }) => {
+        await openBooksBanking(page)
+        await openBanking(page)
+
+        const card = bankCard(page, CARD)
+        const cardId = await connectionIdOf(card)
+        const statement = card.getByTestId(`bank-statement-${cardId}`)
+        await expect(statement.getByText('Bank statement', { exact: true })).toBeVisible()
+        await expect(statement.getByText('$3,410.17', { exact: true })).toBeVisible()
+        await expect(statement.getByText('as of Oct 28, 2026', { exact: true })).toBeVisible()
+
+        const checking = bankCard(page, CHECKING)
+        await expect(checking).toBeVisible()
+        await expect(checking.locator('[data-testid^="bank-statement-"]')).toHaveCount(0)
+    })
+})

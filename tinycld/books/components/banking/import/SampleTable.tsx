@@ -9,6 +9,10 @@ const COLUMN_WIDTH = 120
 // COLUMN_WIDTH wide and the columns grow equally to fill the box.
 const COLUMN_STYLE: ViewStyle = { minWidth: COLUMN_WIDTH, flexBasis: COLUMN_WIDTH, flexGrow: 1 }
 const HEAD_STYLE: ViewStyle = { ...COLUMN_STYLE, paddingLeft: 8 }
+// The table is a flex item of the scroller's row-direction content container. With
+// `flexGrow` alone its basis is its content (each cell's whole text), so it grew wider than
+// the box and scrolled; `flex: 1` sizes it from the container's width instead.
+const TABLE_STYLE: ViewStyle = { flex: 1 }
 
 function SampleCell({ text, isBold }: { text: string; isBold: boolean }) {
     const weight = isBold ? 'font-semibold' : ''
@@ -76,7 +80,7 @@ export function SampleTable({
                 className="rounded-lg border border-border"
                 contentContainerStyle={{ width: '100%', minWidth }}
             >
-                <View style={{ flexGrow: 1 }}>
+                <View style={TABLE_STYLE}>
                     <View
                         className="flex-row items-center border-b border-border"
                         style={{ minHeight: 36 }}

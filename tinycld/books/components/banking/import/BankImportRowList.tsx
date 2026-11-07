@@ -1,5 +1,6 @@
-import { memo } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { type ComponentRef, memo } from 'react'
+import { type Pressable, ScrollView, Text, View } from 'react-native'
+import { useFocusOnOpen } from '../../../hooks/useFocusOnOpen'
 import { useRowWindow } from '../../../hooks/useRowWindow'
 import type { ChoiceRow, SelectBoxState } from '../../../lib/bank-import-view'
 import { ListHeaderCell } from '../../ListTable'
@@ -175,9 +176,13 @@ interface ListHeadProps {
     onToggleAll: () => void
 }
 
+// On a wide web screen the select-all box has focus when the Choose step opens (this list
+// mounts with the step), so A, Space and ⌘↵ work at once.
 function ListHead({ isWide, isBusy, selectState, onToggleAll }: ListHeadProps) {
+    const focus = useFocusOnOpen<ComponentRef<typeof Pressable>>(isWide)
     const box = (
         <SelectBox
+            ref={focus.ref}
             testID="bank-import-select-all"
             label={SELECT_ALL_LABEL}
             state={selectState}

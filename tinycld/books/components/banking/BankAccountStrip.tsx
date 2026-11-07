@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { BankConnectionRow } from '../../hooks/useBankConnections'
+import { useStatementBalance } from '../../hooks/useStatementBalance'
 import { PHONE_CARD_GAP, PHONE_CARD_WIDTH, useStripScroll } from '../../hooks/useStripScroll'
 import { accountTypeDef } from '../../lib/account-types'
 import {
@@ -8,10 +9,40 @@ import {
     connectionLabel,
     waitingText,
 } from '../../lib/bank-connections'
+import { formatMoney } from '../../lib/money'
+import { formatDay } from '../../lib/register-range'
 
 const WIDE_CARD_WIDTH = 280
 // The phone strip's scroll position is computed from this gap, so it is a style, not a class.
 const PHONE_STRIP_STYLE = { gap: PHONE_CARD_GAP }
+
+// The latest bank statement's balance under the In Books balance. With no statement (only
+// CSV files, no file, still loading or a load error) the card draws no line and keeps no
+// space for one.
+function StatementLine({
+    connectionId,
+    accountType,
+    currency,
+}: {
+    connectionId: string
+    accountType: string
+    currency: string
+}) {
+    const { statement } = useStatementBalance(connectionId, accountType)
+    if (!statement) return null
+    const amountTone = statement.cents < 0 ? 'text-danger' : 'text-foreground'
+    const amountText = formatMoney(statement.cents, currency)
+    const asOfText = `as of ${formatDay(statement.day)}`
+    return (
+        <View testID={`bank-statement-${connectionId}`}>
+            <Text className="pt-1 text-xs text-muted-foreground">Bank statement</Text>
+            <Text className={`text-base font-semibold tabular-nums ${amountTone}`}>
+                {amountText}
+            </Text>
+            <Text className="text-xs text-muted-foreground">{asOfText}</Text>
+        </View>
+    )
+}
 
 interface BankAccountCardProps {
     row: BankConnectionRow
@@ -56,6 +87,11 @@ export function BankAccountCard({
             <Text className={`text-xl font-semibold tabular-nums ${balanceTone}`}>
                 {balance.text}
             </Text>
+            <StatementLine
+                connectionId={row.id}
+                accountType={row.accountType}
+                currency={currency}
+            />
             <Text className={`text-sm ${waitingTone}`}>{waitingText(row.waitingCount)}</Text>
         </Pressable>
     )

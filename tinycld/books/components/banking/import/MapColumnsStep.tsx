@@ -133,6 +133,7 @@ function Questions({ flow, isWide }: { flow: BankImportFlow; isWide: boolean }) 
                         placeholder={CHOICE_PLACEHOLDER}
                         wrapperProps={wrapperProps}
                         onValueChange={map.onAnswerChange}
+                        autoFocus={isWide}
                     />
                     <SelectInput
                         testID="bank-import-q-amounts"

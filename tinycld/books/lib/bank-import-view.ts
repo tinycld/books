@@ -369,6 +369,21 @@ export function mapIntroText(remembered: boolean, accountLabel: string): string 
     return "Books matched your file's columns. Check each one before you continue."
 }
 
+// The balance of the account's latest statement, on the same side as the card's In Books
+// balance: a bank states what the account holds, and a card statement states what the card
+// owes as a negative ledger balance, so a card's balance is negated. `0 - x` keeps a zero
+// balance from turning into -0. No file, or a file with no statement date (every CSV
+// file), has no balance.
+export function statementBalance(
+    file: Pick<BooksBankFiles, 'statement_balance' | 'statement_date'> | undefined,
+    accountType: string
+): { cents: number; day: string } | null {
+    if (!file || file.statement_date === '') return null
+    const cents =
+        accountType === 'credit_card' ? 0 - file.statement_balance : file.statement_balance
+    return { cents, day: file.statement_date }
+}
+
 export type BankImportPageState =
     | 'loading'
     | 'error'
