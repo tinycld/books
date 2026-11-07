@@ -37,10 +37,11 @@ export function useBankFileUpload(connectionId: string) {
             return
         }
         setUpload(connectionId, { kind: 'uploading', name: picked.name })
+        const id = newRecordId()
         try {
             const row = await uploadRecordWithFile({
                 collection: 'books_bank_files',
-                fields: { id: newRecordId(), connection: connectionId },
+                fields: { id, connection: connectionId },
                 file: picked,
                 fileField: 'file',
             })
@@ -51,7 +52,7 @@ export function useBankFileUpload(connectionId: string) {
                 // The server stored the file, so the echo or the next load lists it.
                 log.warn('books.banking', 'upload answered with no row', { connectionId })
             }
-            setUpload(connectionId, { kind: 'done', name: picked.name })
+            setUpload(connectionId, { kind: 'done', name: picked.name, fileId: id })
         } catch (error) {
             const { text, isTransport } = uploadErrorText(error)
             if (isTransport) log.warn('books.banking', 'upload failed', { connectionId })

@@ -29,7 +29,9 @@ function stampOf(label: string) {
 function fileRows(page: Page): Locator {
     return page
         .getByTestId('bank-files')
-        .locator('[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"])')
+        .locator(
+            '[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"]):not([data-testid^="bank-file-import-"])'
+        )
 }
 
 function fileRow(page: Page, name: string): Locator {
@@ -225,7 +227,7 @@ test.describe('bank-connection: upload', () => {
                     names =>
                         Array.from(
                             document.querySelectorAll(
-                                '[data-testid="bank-files"] [data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"])'
+                                '[data-testid="bank-files"] [data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"]):not([data-testid^="bank-file-import-"])'
                             )
                         ).map(
                             node => names.find(name => node.textContent?.includes(name)) ?? 'other'
