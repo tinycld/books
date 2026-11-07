@@ -103,7 +103,7 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 4, listed under Design notes
 - fix review: round 1: 2 findings (staging cp/cp2-fix.md; causes appearance, load-state). Test first: a fresh test writer added the `settleRows` case "prev error, now loading under another key → shown is now" (red for that reason). Fixed: phone toolbar two rows (local `PhoneFilterMenu` on core `Menu`, triggers `flex-1 min-w-0`, 44 high, same test ids, item ids and label as `PickMenu`; wide keeps `PickMenu size="touch"`); `settleRows` never shows a kept error under a load. Declared: the phone menus are not core `PickMenu` (its touch size is `min-w-40` and takes no class; core not editable in this lane → core change request under Design notes); the error is dropped under a same-key load too (Retry is built from `now` there as well) · gate 1 again: check pass (203 files / 4152), `for-review:` 3 passed · shots re-captured (4 states × 2 widths × 2 schemes) · fix reviewer: 0 BLOCK, 3 NOTE (comment "A failed load is never kept" wrong → fixed by the loop as a one-line comment change: "never shown under a later load"; the core change request and the label truncation → Design notes) · fresh critic (evidence/cp2/critique-round2.md): 0 INVALID, 0 BLOCKING, 2 NOTE (truncation → Design notes; phone-bar arrow already listed) · rounds: 1
 - reviewer-caught deferrals: none
-- commit: (this commit)
+- commit: 9caaa2d
 - human: none (review mode C)
 
 ## Final review
