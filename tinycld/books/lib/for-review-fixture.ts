@@ -359,6 +359,77 @@ export const FILTERED_ROWS = FOR_REVIEW_ROWS.filter(
     row => row.description.toLowerCase().includes(FILTERED_SEARCH) && row.amount < 0
 )
 
+// The statement seed.ts uploads to 1000 Business Checking and imports, so the e2e book and
+// the help screenshots show For review and Excluded rows. OFX, not CSV, because only the OFX
+// parser (server/bank_ofx.go) fills a row's memo and check number. No <LEDGERBAL>, so the
+// 1000 card keeps showing no statement line.
+// [DTPOSTED, TRNAMT, NAME, MEMO, CHECKNUM]
+export const REVIEW_SEED_ENTRIES = [
+    ['20261001', '3100.00', 'DEPOSIT HARBOR DESIGN', 'INV-1041', ''],
+    ['20261002', '-86.47', 'OFFICE DEPOT #2231', '', ''],
+    ['20261005', '-67.31', 'TRADER JOES 118', 'Personal', ''],
+    ['20261006', '-450.00', 'CHECK 1047', 'Sign installation deposit', '1047'],
+    ['20261008', '2240.00', 'ZELLE FROM LUMEN LABS', '', ''],
+    ['20261012', '-12843.10', 'GUSTO PAYROLL', 'Payroll Oct 1-15', ''],
+    ['20261013', '86.47', 'OFFICE DEPOT #2231', 'Refund of duplicate charge', ''],
+    ['20261014', '-34.55', 'AMAZON MARKETPLACE', '', ''],
+    ['20261016', '1250.00', 'DEPOSIT CEDAR & PINE LLC', '', ''],
+    ['20261022', '-200.00', 'ZELLE TO MARCO RUIZ', '', ''],
+    ['20261027', '-362.40', 'CHECK 1050', 'Hartwell Insurance, policy BOP-22871', '1050'],
+    ['20261030', '-15.49', 'NETFLIX.COM', 'Personal - not a business cost', ''],
+] as const
+
+function seedFitid(index: number): string {
+    return `chk20261000${String(index + 1).padStart(2, '0')}`
+}
+
+// SGML OFX escapes `&`; the parser unescapes it.
+function ofxText(value: string): string {
+    return value.replaceAll('&', '&amp;')
+}
+
+function seedTransaction(
+    [day, amount, name, memo, checkNumber]: (typeof REVIEW_SEED_ENTRIES)[number],
+    index: number
+): string[] {
+    return [
+        '<STMTTRN>',
+        `<TRNTYPE>${amount.startsWith('-') ? 'DEBIT' : 'CREDIT'}`,
+        `<DTPOSTED>${day}`,
+        `<TRNAMT>${amount}`,
+        `<FITID>${seedFitid(index)}`,
+        ...(checkNumber ? [`<CHECKNUM>${checkNumber}`] : []),
+        `<NAME>${ofxText(name)}`,
+        ...(memo ? [`<MEMO>${ofxText(memo)}`] : []),
+        '</STMTTRN>',
+    ]
+}
+
+// TRADER JOES, the refund, ZELLE TO MARCO RUIZ and NETFLIX: entries 3, 7, 10 and 12.
+const EXCLUDED_SEED_INDEXES = [2, 6, 9, 11]
+
+export const REVIEW_SEED_STATEMENT = {
+    accountNumber: '1000',
+    name: 'checking-2026-10.ofx',
+    text: [
+        'OFXHEADER:100',
+        'DATA:OFXSGML',
+        'VERSION:102',
+        '',
+        '<OFX>',
+        '<BANKMSGSRSV1><STMTTRNRS><STMTRS>',
+        '<CURDEF>USD',
+        '<BANKACCTFROM><BANKID>121000248<ACCTID>4821<ACCTTYPE>CHECKING</BANKACCTFROM>',
+        '<BANKTRANLIST>',
+        ...REVIEW_SEED_ENTRIES.flatMap(seedTransaction),
+        '</BANKTRANLIST>',
+        '</STMTRS></STMTTRNRS></BANKMSGSRSV1>',
+        '</OFX>',
+        '',
+    ].join('\n'),
+    excludedFitids: EXCLUDED_SEED_INDEXES.map(seedFitid),
+} as const
+
 export const REVIEW_REFERENCE_TEXT = {
     excluded: 'Excluded 3 transactions.',
     partial: '2 of 3 transactions could not be excluded. Try again.',

@@ -11,9 +11,7 @@ import { BankingIntro } from './BankingIntro'
 import { BankingLoadError, BankingLoading } from './BankingStates'
 
 function BankingContent({ model, upload }: { model: BankingScreenModel; upload: BankFileUpload }) {
-    if (model.state === 'intro') {
-        return <BankingIntro canWrite={model.canWrite} onConnect={model.onConnect} />
-    }
+    if (model.state === 'intro') return null
     const selectedId = model.selected?.id ?? ''
     return (
         <>
@@ -36,13 +34,31 @@ function BankingContent({ model, upload }: { model: BankingScreenModel; upload: 
                 onViewRegister={model.onViewRegister}
                 onDisconnect={model.onDisconnect}
                 upload={upload}
+                tab={model.tab}
+                onTab={model.onTab}
+                onGoToFiles={model.onGoToFiles}
+                currency={model.currency}
+                pageRecovery={model.pageRecovery}
             />
         </>
     )
 }
 
-export function BankingScreenView({ model }: { model: BankingScreenModel }) {
+// Before the first connection the page is the intro band, which scrolls on its own.
+function IntroBody({ model }: { model: BankingScreenModel }) {
     const fabClearanceStyle = useFabClearanceStyle()
+    if (model.state !== 'intro') return null
+    return (
+        <ScrollView className="flex-1" contentContainerStyle={fabClearanceStyle}>
+            <BankingIntro canWrite={model.canWrite} onConnect={model.onConnect} />
+        </ScrollView>
+    )
+}
+
+// A fixed column: the header, the strip, the panel heading and the tab bar stay put, and the
+// tab's body fills the rest of the height and scrolls its own content, so a long list can
+// window.
+export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     // One upload for the selected connection, shared by the upload area and the page keys.
     const upload = useBankFileUpload(model.selected?.id ?? '')
     useBankingShortcuts({ model, upload })
@@ -53,20 +69,17 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     const canConnect = model.canWrite && model.state === 'ready'
     return (
         <>
-            <ScrollView
-                testID="banking-screen"
-                className="flex-1 bg-background"
-                contentContainerStyle={fabClearanceStyle}
-            >
-                <View className={`gap-4 ${padding}`}>
+            <View testID="banking-screen" className="flex-1 bg-background">
+                <View className={`min-h-0 flex-1 gap-4 ${padding}`}>
                     <BankingHeader
                         canConnect={canConnect}
                         isWide={model.isWide}
                         onConnect={model.onConnect}
                     />
+                    <IntroBody model={model} />
                     <BankingContent model={model} upload={upload} />
                 </View>
-            </ScrollView>
+            </View>
             <BankingDialogs model={model} />
         </>
     )

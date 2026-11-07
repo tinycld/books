@@ -2,6 +2,7 @@ import type PocketBase from 'pocketbase'
 import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
+import { REVIEW_SEED_STATEMENT } from './lib/for-review-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
@@ -550,4 +551,76 @@ async function seedBanking(pb: PocketBase, ctx: SeedContext, accountIds: Map<str
         uploaded_by: ctx.user.id,
         file: new File([statement.text], statement.name, { type: 'application/x-ofx' }),
     })
+    await seedReviewStatement(pb, ctx, connectionIds)
+}
+
+// The parser's output as the upload hook stored it (server/bank_contents.go): one row per
+// transaction, each with its file line. Read here without lib/bank-import.ts, which pulls
+// form code into the seed graph.
+function contentLines(rows: unknown): number[] {
+    if (!Array.isArray(rows)) throw new Error('seed: the review statement has no parsed rows')
+    return rows.map((row: unknown) => {
+        if (typeof row !== 'object' || row === null || !('line' in row)) {
+            throw new Error('seed: a parsed row of the review statement has no line')
+        }
+        const { line } = row
+        if (typeof line !== 'number') {
+            throw new Error('seed: a parsed row of the review statement has no line')
+        }
+        return line
+    })
+}
+
+// Uploads and imports the For review statement on 1000 Business Checking, through the same
+// upload and import hooks the app uses, then excludes four of its rows, so the e2e book and
+// the help screenshots show For review and Excluded lists. Nothing is marked reviewed.
+async function seedReviewStatement(
+    pb: PocketBase,
+    ctx: SeedContext,
+    connectionIds: Map<string, string>
+) {
+    const statement = REVIEW_SEED_STATEMENT
+    const connection = connectionIds.get(statement.accountNumber)
+    if (connection === undefined) {
+        throw new Error(
+            `seed: review statement names the connection of account ${statement.accountNumber}, which was not created`
+        )
+    }
+    const file = await pb.collection('books_bank_files').create({
+        connection,
+        uploaded_by: ctx.user.id,
+        file: new File([statement.text], statement.name, { type: 'application/x-ofx' }),
+    })
+    const contents = await pb
+        .collection('books_bank_file_contents')
+        .getFirstListItem(pb.filter('file = {:f}', { f: file.id }))
+    // The OFX fields of an import (lib/bank-import-form.ts OFX_IMPORT_FIELDS): OFX needs no
+    // column mapping.
+    await pb.collection('books_bank_imports').create({
+        file: file.id,
+        lines: contentLines(contents.rows),
+        created_by: ctx.user.id,
+        header_row: false,
+        date_column: 0,
+        date_format: '',
+        description_column: 0,
+        amount_columns: '',
+        amount_column: 0,
+        money_in_column: 0,
+        money_out_column: 0,
+        amount_sign: '',
+    })
+    const transactions = await pb.collection('books_bank_transactions').getFullList({
+        filter: pb.filter('connection = {:c} && file = {:f}', { c: connection, f: file.id }),
+    })
+    const excluded = new Set<string>(statement.excludedFitids)
+    const toExclude = transactions.filter(txn => excluded.has(txn.fitid))
+    if (toExclude.length !== excluded.size) {
+        throw new Error(
+            `seed: the review import holds ${toExclude.length} of the ${excluded.size} rows to exclude`
+        )
+    }
+    for (const txn of toExclude) {
+        await pb.collection('books_bank_transactions').update(txn.id, { status: 'excluded' })
+    }
 }
