@@ -39,6 +39,9 @@
 - cp 0 · reviewer A (engine) NOTE: `c.pivotMixed` is set per level, last wins; levels agree today (`pivot.go`).
 - cp 0 · for the Books plan: the sort control's label is "Sort by <column>, sorted ascending|descending" while sorted (`ReportTable.tsx:584-590`); checkpoints 2–3 assert `Sort by Debit, sorted descending` in the `sorted` state.
 
+- cp 0 · CI fix (PR #443, red e2e reports-ledger-v3:290; root cause: a live rerun's `refetch()` cancelled the next-page fetch, 8bd9b6e3; fix round 1 c6dbf4b1; fix review round 2 clean) NOTE: `core/tests/fake-pb-server.ts:39-41` says `vi.unstubAllGlobals()` restores `fetch` but nothing calls it (safe only by vitest per-file isolation).
+- cp 0 · CI fix NOTE: `core/reports/hooks/useReportRun.ts:138-146` — after a params change, a waiting call that wakes before the observer moves to the new query sends one request on the old run (nothing wrong on screen).
+
 ## Out-of-plan changes
 Core (checkpoint 0; each is now also named in the core plan's File Structure, fix item 24):
 - core/server/reports fill.go, rules.go, detail.go, lookup.go, levels.go (Task 22 + fix rounds: engine defects the balance-shaped test found — a 1m51s detail run, quadratic per-row lookups under a joined list rule, multi-hop linkBound dropping rows). rules.go: a DISTINCT list rule is applied as `+id IN (SELECT id FROM (<rule select>))` for every report — the driver names this in the core PR description.
@@ -48,6 +51,7 @@ Core (checkpoint 0; each is now also named in the core plan's File Structure, fi
 - core/reports/lib/builder/__tests__/draft.test.ts (Task 10, ruling P3); formula-type.ts (Task 16a); draft.ts openingCellRows (Task 18, P9).
 - core/reports/screens/NewReportScreen.tsx, ReportScreen.tsx (`ReportViewInput.layouts` became `spec`, for `rowLevels`); core/reports/hooks/useReportRun.ts (fold keeps the reader's place, fix items 9, 27).
 - app/a/(app)/settings/audit-log.tsx (explicit `queryKey`; fixes a `useLiveQuery` warning the full vitest run printed).
+- core/tests/fake-pb-server.ts (CI fix round 1: shared test helper that fakes only fetch and the realtime stream, so the useReportRun hook test mocks no module of ours, as CLAUDE.md requires); core/reports/hooks/__tests__/useReportRun.test.tsx (CI fix: red/green proof).
 - tests/e2e/reports-scroll-anchor.spec.ts (R14 drops a figure-less wrapped group row's empty line; the phone fixture sums its amount so a group row keeps its figures line); tests/e2e/reports-wrap.spec.ts (a column so it still wraps under R21; polls).
 - docs/plans/2026-11-06-report-engine-v3.md (P1 text; File Structure; R14 sentence).
 - Books scratch route helix-mockup.tsx (git-excluded): gained sort, onSortColumn, onClearSort, sortProblem, rowLevels.
