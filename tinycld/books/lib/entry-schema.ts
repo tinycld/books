@@ -1,5 +1,6 @@
 import { type useForm, z, zodResolver } from '@tinycld/core/ui/form'
 import { type EntryFormLine, isBlankLine, maxLines, parseAmountText, sumLines } from './entry-lines'
+import { LINE_BOTH_PARTIES } from './entry-messages'
 import { isIsoDay, nextMonthStart } from './register-range'
 
 export type EntryFormValues = {
@@ -12,7 +13,7 @@ export type EntryFormValues = {
 export type ReverseValues = { date: string; memo: string }
 
 export function emptyLine(): EntryFormLine {
-    return { id: '', account: '', debit: '', credit: '', memo: '' }
+    return { id: '', account: '', debit: '', credit: '', memo: '', customer: '', vendor: '' }
 }
 
 export function newEntryDefaults(today: string): EntryFormValues {
@@ -30,11 +31,16 @@ function buildSchemas(currency?: string) {
             debit: z.string(),
             credit: z.string(),
             memo: z.string(),
+            customer: z.string(),
+            vendor: z.string(),
         })
         .superRefine((line, ctx) => {
             if (isBlankLine(line)) return
             if (line.account === '') {
                 ctx.addIssue({ code: 'custom', path: ['account'], message: 'Choose an account' })
+            }
+            if (line.customer !== '' && line.vendor !== '') {
+                ctx.addIssue({ code: 'custom', path: ['customer'], message: LINE_BOTH_PARTIES })
             }
             const debit = parseAmountText(line.debit, currency)
             const credit = parseAmountText(line.credit, currency)

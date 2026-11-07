@@ -119,6 +119,24 @@ describe('help/journal-entries.md', () => {
         })
     })
 
+    describe('the Name field under "Create an entry"', () => {
+        const create = /## Create an entry([\s\S]*?)(\n## |$)/.exec(body)?.[1] ?? ''
+
+        it('names the Name field for a customer or a vendor', () => {
+            expect(create).toMatch(/\bName\b/)
+            expect(create).toMatch(/customer[^\n]*vendor|vendor[^\n]*customer/i)
+        })
+
+        it('says only active customers and vendors are listed', () => {
+            expect(create).toMatch(/only active customers and vendors/i)
+        })
+
+        it('says a customer or vendor on lines is made inactive, not deleted', () => {
+            expect(create).toMatch(/cannot be deleted/i)
+            expect(create).toMatch(/make it inactive/i)
+        })
+    })
+
     it('says under "Reverse an entry" that a transfer cannot be reversed', () => {
         const reverse = /## Reverse an entry([\s\S]*?)(\n## |$)/.exec(body)?.[1] ?? ''
         expect(reverse).not.toBe('')

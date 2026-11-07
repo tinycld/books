@@ -237,6 +237,8 @@ function lines(
     const base = {
         entry: entry.id,
         memo: '',
+        customer: '',
+        vendor: '',
         posted: isPosted,
         date: isPosted ? entry.date : '',
         currency: TRANSFER_CURRENCY,

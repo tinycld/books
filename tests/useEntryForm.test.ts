@@ -4,7 +4,15 @@ import { describe, expect, it } from 'vitest'
 import { useEntryForm } from '../tinycld/books/hooks/useEntryForm'
 import type { EntryFormValues } from '../tinycld/books/lib/entry-schema'
 
-const line = (id: string, memo: string) => ({ id, account: '', debit: '', credit: '', memo })
+const line = (id: string, memo: string) => ({
+    id,
+    account: '',
+    debit: '',
+    credit: '',
+    memo,
+    customer: '',
+    vendor: '',
+})
 const initial: EntryFormValues = {
     date: '2026-01-01',
     memo: '',

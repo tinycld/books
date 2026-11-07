@@ -137,6 +137,8 @@ export function useOpeningDraftWrites(screen: OpeningScreen) {
                         entry: draft.id,
                         ...line,
                         memo: '',
+                        customer: '',
+                        vendor: '',
                         position: positions.get(line) ?? 0,
                     })
                 }
@@ -167,6 +169,8 @@ export function useOpeningDraftWrites(screen: OpeningScreen) {
                     entry: entryId,
                     ...line,
                     memo: '',
+                    customer: '',
+                    vendor: '',
                     position,
                 })
             }

@@ -23,9 +23,16 @@ const (
 
 // The vendor guard reads other vendors and the expense account inside
 // serialized, so no other write can commit between the check and the write
-// it allows. Nothing references a vendor yet, so there is no delete hook.
+// it allows. The delete guard counts the journal lines that name the vendor
+// inside serialized, so no line write can commit between the count and the
+// delete.
 func registerVendorGuard(app core.App) {
 	bindSerializedGuard(app, "books_vendors", validateVendor)
+	app.OnRecordDelete("books_vendors").BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error {
+			return refusePartyOnLines(tx, "vendor", e.Record)
+		})
+	})
 }
 
 // validateVendor stores the display name trimmed, then checks the address,

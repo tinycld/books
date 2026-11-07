@@ -14,8 +14,10 @@ import { materialize } from 'pbtsdb'
 import type {
     BooksAccountBalances,
     BooksAccounts,
+    BooksCustomers,
     BooksJournalEntries,
     BooksJournalLines,
+    BooksVendors,
 } from '../types'
 import { monthStartOf, periodOf, type RegisterRange } from './register-range'
 
@@ -29,13 +31,25 @@ type Rows<T extends object, I extends object> = Collection<
     I
 >
 
+export type RegisterParties<CI extends object, VI extends object> = {
+    customers: Rows<BooksCustomers, CI>
+    vendors: Rows<BooksVendors, VI>
+}
+
 // The entry comes through materialize, so the lines side always drives the query
-// and a missing entry cannot drop a line.
-export function registerLinesQuery<LI extends object, EI extends object>(
+// and a missing entry cannot drop a line. Each entry line materializes its customer's
+// and vendor's display name (the entry drawer's Name).
+export function registerLinesQuery<
+    LI extends object,
+    EI extends object,
+    CI extends object,
+    VI extends object,
+>(
     lines: Rows<BooksJournalLines, LI>,
     entries: Rows<BooksJournalEntries, EI>,
     accountId: string,
-    range: RegisterRange
+    range: RegisterRange,
+    parties: RegisterParties<CI, VI>
 ) {
     return (query: InitialQueryBuilder) =>
         query
@@ -57,7 +71,26 @@ export function registerLinesQuery<LI extends object, EI extends object>(
                         .findOne()
                 ),
                 entryLines: materialize(
-                    query.from({ l: lines }).where(({ l }) => eq(l.entry, line.entry))
+                    query
+                        .from({ l: lines })
+                        .where(({ l }) => eq(l.entry, line.entry))
+                        .select(({ l }) => ({
+                            ...l,
+                            customerRow: materialize(
+                                query
+                                    .from({ c: parties.customers })
+                                    .where(({ c }) => eq(c.id, l.customer))
+                                    .select(({ c }) => ({ display_name: c.display_name }))
+                                    .findOne()
+                            ),
+                            vendorRow: materialize(
+                                query
+                                    .from({ v: parties.vendors })
+                                    .where(({ v }) => eq(v.id, l.vendor))
+                                    .select(({ v }) => ({ display_name: v.display_name }))
+                                    .findOne()
+                            ),
+                        }))
                 ),
             }))
 }

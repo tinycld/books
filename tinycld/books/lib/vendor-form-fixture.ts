@@ -102,6 +102,8 @@ export const VENDOR_IDS = {
     // Inactive, shown only with Show inactive.
     coastalCoffee: 'vendcoastalcf01',
     oldTownPrint: 'vendoldtownpr01',
+    // Named on seeded journal lines (general-ledger-fixture.ts).
+    summit: 'vendsummitit001',
 } as const
 
 export const VENDORS = [
@@ -177,7 +179,7 @@ export const VENDORS = [
         expense_account_number: '6200',
     }),
     vendor({
-        id: 'vendsummitit001',
+        id: VENDOR_IDS.summit,
         display_name: 'Summit IT Services',
         company: 'Summit IT Services LLC',
         email: 'support@summitit.example',

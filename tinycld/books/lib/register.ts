@@ -1,5 +1,6 @@
 import type { BooksJournalEntries, BooksJournalLines } from '../types'
 import { ownBalance } from './account-tree'
+import { type LinePartyRow, linePartyName } from './line-party-options'
 import { maxStoredAmount } from './money'
 import type { RegisterRange } from './register-range'
 
@@ -8,10 +9,15 @@ export type RegisterEntry = Pick<
     'id' | 'number' | 'memo' | 'status' | 'origin' | 'doc_type' | 'posted_at' | 'reverses' | 'date'
 >
 
+// The line's customer and vendor rows come through materialize (registerLinesQuery):
+// absent for a line that names none, or while the row is not loaded.
 export type RegisterEntryLine = Pick<
     BooksJournalLines,
     'id' | 'account' | 'debit' | 'credit' | 'memo' | 'position'
->
+> & {
+    customerRow?: LinePartyRow
+    vendorRow?: LinePartyRow
+}
 
 export type RegisterSourceLine = Pick<
     BooksJournalLines,
@@ -68,6 +74,8 @@ export type EntryDetail = {
         debit: number
         credit: number
         memo: string
+        // The customer's or vendor's display name, '' when the line names none.
+        partyName: string
         isThisAccount: boolean
     }[]
 }
@@ -205,6 +213,7 @@ export function entryDetail(line: RegisterSourceLine, accountId: string): EntryD
                 debit: l.debit,
                 credit: l.credit,
                 memo: l.memo,
+                partyName: linePartyName(l),
                 isThisAccount: l.account === accountId,
             })),
     }

@@ -1,0 +1,54 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [390, 1024, 1280],
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/books/helix-mockup?state=collapsed",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "rows-all",
+            "url": "/a/books/helix-mockup?state=rows-all",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "sorted",
+            "url": "/a/books/helix-mockup?state=sorted",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "all-dates",
+            "url": "/a/books/helix-mockup?state=all-dates",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "more",
+            "url": "/a/books/helix-mockup?state=more",
+            "ready": "report-loading-more",
+            "hideLabels": ["New"]
+        }
+    ]
+}

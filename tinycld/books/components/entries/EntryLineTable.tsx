@@ -2,10 +2,12 @@ import { Text, View } from 'react-native'
 import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
 import { amountText } from '../../lib/money'
 
-// Header and rows share these; Account and Memo take the free space, amounts never shrink.
+// Header and rows share these; Account, Name and Memo take the free space, amounts never
+// shrink.
 export const LINE_COLUMNS = {
     index: { width: 44 },
     account: { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 140 },
+    name: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 120 },
     debit: { width: 116, flexShrink: 0 },
     credit: { width: 116, flexShrink: 0 },
     memo: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 100 },
@@ -32,6 +34,9 @@ function HeadingRow() {
             </View>
             <View style={LINE_COLUMNS.account}>
                 <HeadingText label="Account" />
+            </View>
+            <View style={LINE_COLUMNS.name}>
+                <HeadingText label="Name" />
             </View>
             <View style={LINE_COLUMNS.debit} className="items-end">
                 <HeadingText label="Debit" />
@@ -71,6 +76,15 @@ function LineRow({
                     className="text-sm text-foreground"
                 >
                     {accountNames.get(line.account) ?? ''}
+                </Text>
+            </View>
+            <View style={LINE_COLUMNS.name} className="min-w-0">
+                <Text
+                    testID={`entry-line-party-${index}`}
+                    numberOfLines={1}
+                    className="text-sm text-foreground"
+                >
+                    {line.partyName}
                 </Text>
             </View>
             <View

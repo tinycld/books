@@ -1,0 +1,66 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new-lines",
+            "url": "/a/books/entries/new",
+            "ready": "entry-title",
+            "widths": [390, 1280]
+        },
+        {
+            "name": "new-name-open",
+            "url": "/a/books/entries/new",
+            "ready": "entry-title",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entry-line-name-0"
+                },
+                {
+                    "waitFor": "entry-line-name-option-group-Customers"
+                }
+            ]
+        },
+        {
+            "name": "new-name-open",
+            "url": "/a/books/entries/new",
+            "ready": "entry-title",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entry-line-name-0"
+                },
+                {
+                    "waitFor": "entry-line-name-option-group-Customers"
+                }
+            ]
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-search",
+            "widths": [390, 1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 retainer"
+                },
+                {
+                    "clickText": "Q4 retainer"
+                },
+                {
+                    "waitFor": "entry-read-only"
+                },
+                {
+                    "waitFor": "entry-line-party-0"
+                }
+            ]
+        }
+    ]
+}

@@ -101,6 +101,8 @@ export function useEntrySave({
                 debit: cents(line.debit),
                 credit: cents(line.credit),
                 memo: line.memo,
+                customer: line.customer,
+                vendor: line.vendor,
                 position: lines.indexOf(line),
             })
 

@@ -9,6 +9,7 @@ import type { EntryFormValues } from '../../lib/entry-schema'
 import type { FocusNode, LineColumn } from '../../lib/line-focus'
 import { AmountCell, MemoCell } from './AmountCell'
 import { LINE_COLUMNS } from './EntryLineTable'
+import { LinePartyPicker } from './LinePartyPicker'
 
 export interface LineActions {
     onAdd(): void
@@ -123,6 +124,7 @@ export function LineError({ index }: { index: number }) {
     const line = errors.lines?.[index]
     const messages = [
         line?.account?.message,
+        line?.customer?.message,
         line?.debit?.message,
         line?.credit?.message,
         errors.root?.[`line${index}`]?.message,
@@ -172,6 +174,9 @@ function LineFields({ index, lineCount, currency, options, actions }: LineProps)
             </View>
             <View style={LINE_COLUMNS.account} className="min-w-0">
                 <AccountPick index={index} options={options} actions={actions} />
+            </View>
+            <View style={LINE_COLUMNS.name} className="min-w-0">
+                <LinePartyPicker index={index} />
             </View>
             <View style={LINE_COLUMNS.debit}>
                 <AmountCell side="debit" index={index} currency={currency} actions={actions} />

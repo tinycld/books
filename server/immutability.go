@@ -93,15 +93,26 @@ func registerImmutabilityGuards(app core.App) {
 			if stored.GetString("entry") != e.Record.GetString("entry") {
 				return refuse("A line cannot move to another journal entry.")
 			}
-			return requireDraftEntry(tx, e.Record)
+			if err := requireDraftEntry(tx, e.Record); err != nil {
+				return err
+			}
+			return checkLineParty(tx, stored, e.Record)
 		})
 	})
 	app.OnRecordDelete("books_journal_lines").BindFunc(lineGuard)
 }
 
+// lineGuard guards a line create and delete. A new line's customer or vendor
+// is checked too; a delete names no party to check.
 func lineGuard(e *core.RecordEvent) error {
 	return serializedLine(e, func(tx core.App) error {
-		return requireDraftEntry(tx, e.Record)
+		if err := requireDraftEntry(tx, e.Record); err != nil {
+			return err
+		}
+		if !e.Record.IsNew() {
+			return nil
+		}
+		return checkLineParty(tx, nil, e.Record)
 	})
 }
 

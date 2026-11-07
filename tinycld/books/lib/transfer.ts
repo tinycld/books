@@ -128,6 +128,9 @@ export type TransferLineIds = { from: string; to: string }
 
 export const EMPTY_LINE_IDS: TransferLineIds = { from: '', to: '' }
 
+// A transfer's lines have no memo and name no customer or vendor.
+const noParty = { memo: '', customer: '', vendor: '' }
+
 // From is line 1 and To line 2, because the server checks that line 1 is From's credit
 // and line 2 is To's debit, and names a refused line by that number.
 export function transferLines(
@@ -135,8 +138,8 @@ export function transferLines(
     ids: TransferLineIds
 ): [EntryFormLine, EntryFormLine] {
     return [
-        { id: ids.from, account: values.from, debit: '', credit: values.amount, memo: '' },
-        { id: ids.to, account: values.to, debit: values.amount, credit: '', memo: '' },
+        { ...noParty, id: ids.from, account: values.from, debit: '', credit: values.amount },
+        { ...noParty, id: ids.to, account: values.to, debit: values.amount, credit: '' },
     ]
 }
 

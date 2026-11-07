@@ -269,8 +269,18 @@ describe('transferLines and transferEntryValues', () => {
                 debit: '',
                 credit: FILLED_FORM.amount,
                 memo: '',
+                customer: '',
+                vendor: '',
             },
-            { id: 'l1', account: FILLED_FORM.to, debit: FILLED_FORM.amount, credit: '', memo: '' },
+            {
+                id: 'l1',
+                account: FILLED_FORM.to,
+                debit: FILLED_FORM.amount,
+                credit: '',
+                memo: '',
+                customer: '',
+                vendor: '',
+            },
         ])
     })
 
@@ -286,6 +296,8 @@ describe('transferLines and transferEntryValues', () => {
                     debit: '',
                     credit: FILLED_FORM.amount,
                     memo: '',
+                    customer: '',
+                    vendor: '',
                 },
                 {
                     id: '',
@@ -293,6 +305,8 @@ describe('transferLines and transferEntryValues', () => {
                     debit: FILLED_FORM.amount,
                     credit: '',
                     memo: '',
+                    customer: '',
+                    vendor: '',
                 },
             ],
         })
