@@ -2,6 +2,7 @@ import { expect, type Page, type Route, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     connectTestAccount,
+    csvStatement,
     fileIdOf,
     fileRowByName,
     importBox,
@@ -11,6 +12,7 @@ import {
 } from './bank-import-helpers'
 import {
     BANKING_DESKTOP,
+    BANKING_PHONE,
     bankCard,
     chooseBankFile,
     connectionIdOf,
@@ -342,5 +344,300 @@ test.describe('bank-import-mapping: import', () => {
         )
         await page.getByTestId('bank-import-cancel').click()
         await expect(page).toHaveURL(bankingUrl(cardId))
+    })
+})
+
+const PREVIEW_PROMPT = 'Books shows your first rows here once every question above has an answer.'
+const AMOUNT_ERROR = 'Choose the column that holds the amount.'
+
+// Core SelectInput is a popover Menu: its items exist only while it is open, and an
+// item's test id is `${testID}-${value}`.
+async function chooseOption(page: Page, testId: string, value: string) {
+    await page.getByTestId(testId).click()
+    const item = page.getByTestId(`${testId}-${value}`)
+    await item.click()
+    await expect(item).toHaveCount(0)
+}
+
+async function uploadAndOpen(page: Page, file: { name: string }) {
+    await expect(page.getByTestId('bank-upload-done')).toContainText(`${file.name} uploaded.`)
+    await openImportFromUpload(page)
+    await expect(page.getByTestId('bank-import-map')).toBeVisible()
+}
+
+async function backToBanking(page: Page) {
+    await page.getByTestId('bank-import-to-banking').click()
+    await expect(page).toHaveURL(/\/banking\?(.*&)?account=/)
+    await expect(page).not.toHaveURL(/\/import\//)
+}
+
+// A two-amount-column bank export: line 4 holds a date no format reads.
+function twoColumnLines(stamp: string): string[] {
+    return [
+        'Posted Date,Payee,Debit,Credit,Balance',
+        `10/01/2026,${stamp} client,,3100.00,9100.00`,
+        `10/02/2026,${stamp} supplies,64.20,,9035.80`,
+        `13/45/2026,${stamp} staples,42.00,,8993.80`,
+        `10/05/2026,${stamp} retainer,,1500.00,10493.80`,
+        `10/06/2026,${stamp} software,59.99,,10433.81`,
+    ]
+}
+
+test.describe('bank-import-mapping: csv mapping', () => {
+    test('maps a CSV file, reads the rows and imports them', async ({ page }) => {
+        await openBooksBanking(page)
+        const name = await connectTestAccount(page)
+        const stamp = stampOf('csv-map')
+        const file = csvStatement(stamp, twoColumnLines(stamp))
+        await chooseBankFile(page, file)
+        await uploadAndOpen(page, file)
+
+        const steps = page.getByTestId('bank-import-steps')
+        for (const label of ['Upload', 'Map columns', 'Choose transactions']) {
+            await expect(steps.getByText(label, { exact: true })).toBeVisible()
+        }
+        const current = steps.locator('[aria-current="step"]')
+        await expect(current).toHaveCount(1)
+        await expect(current).toContainText('Map columns')
+
+        await expect(page.getByTestId('bank-import-intro')).toHaveText(
+            "Books matched your file's columns. Check each one before you continue."
+        )
+        const triggers: [string, string][] = [
+            ['bank-import-q-header', 'Yes'],
+            ['bank-import-q-amounts', 'Two columns: money in and money out'],
+            ['bank-import-q-format', 'MM/DD/YYYY (10/01/2026)'],
+            ['bank-import-f-date', 'Column 1: Posted Date'],
+            ['bank-import-f-description', 'Column 2: Payee'],
+            ['bank-import-f-in', 'Column 4: Credit'],
+            ['bank-import-f-out', 'Column 3: Debit'],
+        ]
+        for (const [testId, text] of triggers) {
+            await expect(page.getByTestId(testId)).toHaveText(text)
+        }
+
+        const sample = page.getByTestId('bank-import-sample')
+        await expect(sample.getByText('Posted Date', { exact: true })).toBeVisible()
+        await expect(sample.getByText(`${stamp} client`, { exact: true })).toBeVisible()
+        for (const line of ['1', '2', '3', '4', '5', '6']) {
+            await expect(sample.getByText(line, { exact: true })).toBeVisible()
+        }
+
+        const preview = page.getByTestId('bank-import-preview')
+        await expect(preview.getByText('Oct 1, 2026', { exact: true })).toBeVisible()
+        await expect(preview.getByText(`${stamp} client`, { exact: true })).toBeVisible()
+        await expect(preview.getByText('$3,100.00', { exact: true })).toBeVisible()
+
+        await chooseOption(page, 'bank-import-q-format', 'DD/MM/YYYY')
+        await expect(preview.getByText('Jan 10, 2026', { exact: true })).toBeVisible()
+        await expect(preview.getByText('Oct 1, 2026', { exact: true })).toHaveCount(0)
+        await chooseOption(page, 'bank-import-q-format', 'MM/DD/YYYY')
+        await expect(preview.getByText('Oct 1, 2026', { exact: true })).toBeVisible()
+
+        await chooseOption(page, 'bank-import-q-amounts', 'one')
+        await expect(page.getByTestId('bank-import-preview-prompt')).toHaveText(PREVIEW_PROMPT)
+        await expect(page.getByTestId('bank-import-f-amount')).toHaveText('Choose a column')
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-form-errors')).toContainText(AMOUNT_ERROR)
+        // Once under the Amount select and once in the summary.
+        await expect(page.getByText(AMOUNT_ERROR, { exact: true })).toHaveCount(2)
+        await expect(page.getByTestId('bank-import-choose')).toHaveCount(0)
+
+        // Once Continue was pressed, the errors describe the current answers: fixing the
+        // field clears its error under the select and in the summary.
+        await chooseOption(page, 'bank-import-f-amount', '4')
+        await expect(page.getByTestId('bank-import-f-amount')).toHaveText('Column 4: Credit')
+        await expect(
+            page.getByTestId('bank-import-form-errors').getByText(AMOUNT_ERROR, { exact: true })
+        ).toHaveCount(0)
+        await expect(page.getByText(AMOUNT_ERROR, { exact: true })).toHaveCount(0)
+        await expect(page.getByTestId('bank-import-preview-prompt')).toHaveCount(0)
+        await expect(preview.getByText('Oct 1, 2026', { exact: true })).toBeVisible()
+        await expect(preview.getByText('$3,100.00', { exact: true })).toBeVisible()
+
+        await chooseOption(page, 'bank-import-q-amounts', 'two')
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-choose')).toBeVisible()
+
+        const staples = page
+            .getByTestId('bank-import-list')
+            .locator('[data-testid^="bank-import-line-"]')
+            .filter({
+                has: page.getByText(
+                    'Line 4: "13/45/2026" is not a date in the MM/DD/YYYY format.',
+                    {
+                        exact: true,
+                    }
+                ),
+            })
+        await expect(staples).toHaveCount(1)
+        await expect(importBox(staples)).toHaveAttribute('aria-disabled', 'true')
+        await expect(importBox(staples)).toHaveAttribute('aria-checked', 'false')
+        await expect(page.getByTestId('bank-import-band')).toContainText(
+            '1 row has an error and cannot be imported. Change the mapping to read it, or import the other rows.'
+        )
+        await expect(page.getByTestId('bank-import-change-mapping')).toBeVisible()
+
+        const client = importLine(page, `${stamp} client`)
+        const supplies = importLine(page, `${stamp} supplies`)
+        const retainer = importLine(page, `${stamp} retainer`)
+        const software = importLine(page, `${stamp} software`)
+        await importBox(software).click()
+        await expect(importBox(software)).toHaveAttribute('aria-checked', 'false')
+
+        await page.getByTestId('bank-import-step-back').click()
+        await expect(page.getByTestId('bank-import-map')).toBeVisible()
+        await expect(page.getByTestId('bank-import-q-format')).toHaveText('MM/DD/YYYY (10/01/2026)')
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-choose')).toBeVisible()
+        await expect(importBox(software)).toHaveAttribute('aria-checked', 'false')
+        await expect(importBox(client)).toHaveAttribute('aria-checked', 'true')
+        const selection = page.getByTestId('bank-import-selection')
+        await expect(selection).toHaveText('3 selected · Money in $4,600.00 · Money out $64.20')
+
+        const submit = page.getByTestId('bank-import-submit')
+        const resultText = page.getByTestId('bank-import-result-text')
+        await submit.click()
+        await expect(resultText).toHaveText(`Imported 3 transactions into ${name}.`)
+        await backToBanking(page)
+
+        const row = fileRowByName(page, file.name)
+        await expect(row.getByText('Imported: 3 transactions', { exact: true })).toBeVisible()
+        const fileId = await fileIdOf(row)
+        await page.getByTestId(`bank-file-import-${fileId}`).click()
+        await expect(page.getByTestId('bank-import-map')).toBeVisible()
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-choose')).toBeVisible()
+        for (const imported of [client, supplies, retainer]) {
+            await expect(imported.getByText('Already imported', { exact: true })).toBeVisible()
+            await expect(importBox(imported)).toHaveAttribute('aria-disabled', 'true')
+            await expect(importBox(imported)).toHaveAttribute('aria-checked', 'false')
+        }
+        await expect(importBox(software)).toHaveAttribute('aria-checked', 'true')
+        await expect(selection).toHaveText('1 selected · Money in $0.00 · Money out $59.99')
+        await submit.click()
+        await expect(resultText).toHaveText(`Imported 1 transaction into ${name}.`)
+    })
+
+    test('remembers the columns, skips rows already in Books, and shows an empty file', async ({
+        page,
+    }) => {
+        await openBooksBanking(page)
+        const name = await connectTestAccount(page)
+        const stamp = stampOf('csv-memory')
+
+        // A header-only file: no body cell, so the date format is not guessed.
+        const empty = csvStatement(`${stamp}-e`, [`Date,Description,Amount,Note ${stamp}`])
+        await chooseBankFile(page, empty)
+        await uploadAndOpen(page, empty)
+        await chooseOption(page, 'bank-import-q-format', 'YYYY-MM-DD')
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-empty')).toContainText(
+            'This file has no transactions.'
+        )
+        await page.getByTestId('bank-import-change-mapping').click()
+        await expect(page.getByTestId('bank-import-map')).toBeVisible()
+        await page.getByTestId('bank-import-cancel').click()
+        await expect(page).toHaveURL(/\/banking\?(.*&)?account=/)
+        await expect(page).not.toHaveURL(/\/import\//)
+
+        const header = 'Date,Description,Amount'
+        const a2 = `2026-10-02,${stamp} a2,20.00`
+        const a3 = `2026-10-03,${stamp} a3,30.00`
+        const fileA = csvStatement(`${stamp}-a`, [header, `2026-10-01,${stamp} a1,10.00`, a2, a3])
+        await chooseBankFile(page, fileA)
+        await uploadAndOpen(page, fileA)
+        await chooseOption(page, 'bank-import-f-sign', 'out_positive')
+        await expect(
+            page.getByTestId('bank-import-preview').getByText('-$10.00', { exact: true })
+        ).toBeVisible()
+        await page.getByTestId('bank-import-continue').click()
+        await page.getByTestId('bank-import-submit').click()
+        const resultText = page.getByTestId('bank-import-result-text')
+        await expect(resultText).toHaveText(`Imported 3 transactions into ${name}.`)
+        await backToBanking(page)
+
+        const fileB = csvStatement(`${stamp}-b`, [
+            header,
+            a2,
+            a3,
+            `2026-10-04,${stamp} b1,40.00`,
+            `2026-10-05,${stamp} b2,50.00`,
+        ])
+        await chooseBankFile(page, fileB)
+        await uploadAndOpen(page, fileB)
+        await expect(page.getByTestId('bank-import-intro')).toHaveText(
+            `Books used the columns of your last import to ${name}. Check each one before you continue.`
+        )
+        await expect(page.getByTestId('bank-import-f-sign')).toHaveText('Money out')
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-selection')).toHaveText(
+            '4 selected · Money in $0.00 · Money out $140.00'
+        )
+        await page.getByTestId('bank-import-submit').click()
+        await expect(resultText).toHaveText(`Imported 2 transactions into ${name}.`)
+        await expect(page.getByTestId('bank-import-result-detail')).toHaveText(
+            '2 chosen transactions were already in Books, so they were skipped.'
+        )
+        await expect(page.getByTestId('bank-import-more')).toHaveCount(0)
+        await backToBanking(page)
+
+        const rowA = fileRowByName(page, fileA.name)
+        const rowB = fileRowByName(page, fileB.name)
+        await expect(rowA.getByText('Imported: 3 transactions', { exact: true })).toBeVisible()
+        await expect(rowB.getByText('Imported: 2 transactions', { exact: true })).toBeVisible()
+        const fileAId = await fileIdOf(rowA)
+        await page.getByTestId(`bank-file-import-${fileAId}`).click()
+        await expect(page.getByTestId('bank-import-map')).toBeVisible()
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-all-imported')).toContainText(
+            'Every transaction in this file is already imported.'
+        )
+    })
+
+    test('maps and imports on a phone', async ({ page }) => {
+        await openBooksBanking(page)
+        const name = await connectTestAccount(page)
+        await page.setViewportSize(BANKING_PHONE)
+        const stamp = stampOf('csv-phone')
+        const file = csvStatement(stamp, twoColumnLines(stamp))
+        await chooseBankFile(page, file)
+        await uploadAndOpen(page, file)
+
+        const sample = page.getByTestId('bank-import-sample')
+        const question = page.getByTestId('bank-import-q-header')
+        await expect
+            .poll(async () => {
+                const top = await sample.boundingBox()
+                const below = await question.boundingBox()
+                return top !== null && below !== null && top.y + top.height <= below.y
+            })
+            .toBe(true)
+        await expect
+            .poll(() =>
+                sample.evaluate(node => node.clientWidth > 0 && node.scrollWidth > node.clientWidth)
+            )
+            .toBe(true)
+        await sample.evaluate(node => {
+            node.scrollLeft = 200
+        })
+        await expect.poll(() => sample.evaluate(node => node.scrollLeft)).toBeGreaterThan(0)
+
+        const preview = page.getByTestId('bank-import-preview')
+        await chooseOption(page, 'bank-import-q-format', 'DD/MM/YYYY')
+        await expect(preview.getByText('Jan 10, 2026', { exact: true })).toBeVisible()
+        await chooseOption(page, 'bank-import-q-format', 'MM/DD/YYYY')
+        await expect(preview.getByText('Oct 1, 2026', { exact: true })).toBeVisible()
+
+        await page.getByTestId('bank-import-continue').click()
+        await expect(page.getByTestId('bank-import-choose')).toBeVisible()
+        await expect(
+            importLine(page, `${stamp} client`).getByText('Oct 1, 2026 · Line 2', { exact: true })
+        ).toBeVisible()
+        await expect(page.getByText('Select all', { exact: true })).toBeVisible()
+        await page.getByTestId('bank-import-submit').click()
+        await expect(page.getByTestId('bank-import-result-text')).toHaveText(
+            `Imported 4 transactions into ${name}.`
+        )
     })
 })

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { type BankMapping, OFX_MAPPING, previewBankRows } from '../tinycld/books/lib/bank-import'
+import { type BankImportFormValues, formFromMapping } from '../tinycld/books/lib/bank-import-form'
 import {
     BANK_IMPORT_CHECKING_ROWS,
     BANK_IMPORT_GUESSED_MAPPING,
+    BANK_IMPORT_LONG_PAYEE,
     BANK_IMPORT_OFX_ROWS,
 } from '../tinycld/books/lib/bank-import-mapping-fixture'
 import {
@@ -12,12 +14,17 @@ import {
     type ChoiceRow,
     choiceRows,
     chooseStepNumber,
+    columnOptions,
+    dateFormatOptions,
     errorBandText,
     importButtonText,
     importResultText,
     importSummary,
+    keepChoice,
+    mapIntroText,
     nothingToChoose,
     readyLines,
+    samplePreview,
     selectAllState,
     selectionText,
     selectionTotals,
@@ -367,6 +374,118 @@ describe('bankImportPageState', () => {
         expect(bankImportPageState(base)).toBe('ready')
         expect(bankImportPageState({ ...base, rows: [{ line: 1, cells: ['2026-10-01'] }] })).toBe(
             'ready'
+        )
+    })
+})
+
+describe('columnOptions', () => {
+    it('names each column by the text of the first row', () => {
+        expect(columnOptions(BANK_IMPORT_CHECKING_ROWS, 5)).toEqual([
+            { value: '1', label: 'Column 1: Posted Date' },
+            { value: '2', label: 'Column 2: Payee' },
+            { value: '3', label: 'Column 3: Debit' },
+            { value: '4', label: 'Column 4: Credit' },
+            { value: '5', label: 'Column 5: Balance' },
+        ])
+    })
+
+    it('cuts a long cell to 29 characters and an ellipsis, and names a blank cell by number', () => {
+        expect(BANK_IMPORT_LONG_PAYEE).toHaveLength(70)
+        const rows = [{ line: 1, cells: ['10/05/2026', BANK_IMPORT_LONG_PAYEE, '  '] }]
+        expect(columnOptions(rows, 3).map(option => option.label)).toEqual([
+            'Column 1: 10/05/2026',
+            `Column 2: ${BANK_IMPORT_LONG_PAYEE.slice(0, 29)}…`,
+            'Column 3',
+        ])
+    })
+})
+
+describe('dateFormatOptions', () => {
+    it('shows the first date in each format that reads it, else a fixed example', () => {
+        expect(dateFormatOptions('10/01/2026')).toEqual([
+            { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (10/01/2026)' },
+            { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (10/01/2026)' },
+            { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2026-09-30)' },
+            { value: 'MM/DD/YY', label: 'MM/DD/YY (09/30/26)' },
+            { value: 'DD/MM/YY', label: 'DD/MM/YY (30/09/26)' },
+        ])
+    })
+
+    it('shows the fixed examples when there is no date', () => {
+        expect(dateFormatOptions('').map(option => option.label)).toEqual([
+            'MM/DD/YYYY (09/30/2026)',
+            'DD/MM/YYYY (30/09/2026)',
+            'YYYY-MM-DD (2026-09-30)',
+            'MM/DD/YY (09/30/26)',
+            'DD/MM/YY (30/09/26)',
+        ])
+    })
+})
+
+describe('keepChoice', () => {
+    it('chooses every ready line the first time', () => {
+        expect(keepChoice({ chosen: [], seen: [] }, [2, 3, 5])).toEqual([2, 3, 5])
+    })
+
+    it('keeps the choice, chooses lines ready for the first time and drops lines no longer ready', () => {
+        // 2 chosen and still ready; 3 seen and unchosen; 4 chosen but now an error;
+        // 6 ready for the first time.
+        const previous = { chosen: [4, 2], seen: [2, 3, 4] }
+        expect(keepChoice(previous, [2, 3, 6])).toEqual([2, 6])
+    })
+})
+
+describe('samplePreview', () => {
+    const guessed: BankImportFormValues = {
+        ...formFromMapping(BANK_IMPORT_GUESSED_MAPPING),
+        lines: [],
+    }
+
+    it('reads the first 3 body rows with a complete mapping', () => {
+        const preview = samplePreview(BANK_IMPORT_CHECKING_ROWS, guessed, 5)
+        expect(preview.isComplete).toBe(true)
+        expect(preview.lines).toHaveLength(3)
+        expect(preview.lines[0]).toEqual({
+            line: 2,
+            dateText: 'Oct 1, 2026',
+            description: 'Harbor Design – client payment',
+            amountText: '$3,100.00',
+            error: '',
+        })
+        expect(preview.lines[1]).toMatchObject({ line: 3, amountText: '-$64.20' })
+    })
+
+    it('reads the rows again with another date format', () => {
+        const preview = samplePreview(
+            BANK_IMPORT_CHECKING_ROWS,
+            { ...guessed, date_format: 'DD/MM/YYYY' },
+            5
+        )
+        expect(preview.lines[0].dateText).toBe('Jan 10, 2026')
+    })
+
+    it('shows the parser message of a row it cannot read', () => {
+        const preview = samplePreview(
+            BANK_IMPORT_CHECKING_ROWS,
+            { ...guessed, date_format: 'YYYY-MM-DD' },
+            5
+        )
+        expect(preview.lines[0].error).toBe('"10/01/2026" is not a date in the YYYY-MM-DD format.')
+    })
+
+    it('shows no rows while a question has no answer', () => {
+        const preview = samplePreview(BANK_IMPORT_CHECKING_ROWS, { ...guessed, date_format: '' }, 5)
+        expect(preview).toEqual({ isComplete: false, lines: [] })
+    })
+})
+
+describe('mapIntroText', () => {
+    it('says where the mapping came from', () => {
+        expect(mapIntroText(false, '1000 Business Checking')).toBe(
+            "Books matched your file's columns. Check each one before you continue."
+        )
+        expect(mapIntroText(true, '1000 Business Checking')).toBe(
+            'Books used the columns of your last import to 1000 Business Checking. Check each one before you continue.'
         )
     })
 })

@@ -1,8 +1,17 @@
 // The pure rules of the bank import page: which rows can be chosen, the summary, the
 // selection totals, the select-all box and the texts. Kept out of the components so
 // tests/bank-import-view.test.ts can drive them with the fixture's files.
+import type { SelectOption } from '@tinycld/core/ui/form'
 import type { BooksBankFiles } from '../types'
-import type { BankMapping, BankPreviewRow, BankRow } from './bank-import'
+import {
+    BANK_DATE_FORMATS,
+    type BankMapping,
+    type BankPreviewRow,
+    type BankRow,
+    parseBankDate,
+    previewBankRows,
+} from './bank-import'
+import { type BankImportFormValues, mappingFromForm, mappingIssues } from './bank-import-form'
 import { formatMoney } from './money'
 import { formatDay } from './register-range'
 
@@ -255,6 +264,109 @@ export function nothingToChoose(rows: readonly ChoiceRow[]): 'empty' | 'allImpor
     const hasAlready = rows.some(row => row.kind === 'already')
     if (!hasReady && hasAlready) return 'allImported'
     return null
+}
+
+export const HEADER_OPTIONS: SelectOption[] = [
+    { value: 'yes', label: 'Yes' },
+    { value: 'no', label: 'No' },
+]
+
+export const AMOUNT_COLUMNS_OPTIONS: SelectOption[] = [
+    { value: 'one', label: 'One column' },
+    { value: 'two', label: 'Two columns: money in and money out' },
+]
+
+export const SIGN_OPTIONS: SelectOption[] = [
+    { value: 'in_positive', label: 'Money in' },
+    { value: 'out_positive', label: 'Money out' },
+]
+
+const COLUMN_LABEL_CHARS = 30
+
+// Row 0 is the header when the file has one and the first body row when it has not, so
+// the label reads the same row either way.
+export function columnOptions(rows: readonly BankRow[], columns: number): SelectOption[] {
+    const first = rows[0]?.cells ?? []
+    return Array.from({ length: columns }, (_, i) => {
+        const chars = [...(first[i] ?? '').trim()]
+        const text =
+            chars.length > COLUMN_LABEL_CHARS
+                ? `${chars.slice(0, COLUMN_LABEL_CHARS - 1).join('')}…`
+                : chars.join('')
+        const value = String(i + 1)
+        const label = text ? `Column ${value}: ${text}` : `Column ${value}`
+        return { value, label }
+    })
+}
+
+const FIXED_DATE_EXAMPLES: Record<(typeof BANK_DATE_FORMATS)[number], string> = {
+    'MM/DD/YYYY': '09/30/2026',
+    'DD/MM/YYYY': '30/09/2026',
+    'YYYY-MM-DD': '2026-09-30',
+    'MM/DD/YY': '09/30/26',
+    'DD/MM/YY': '30/09/26',
+}
+
+// Each format shows the file's own first date when that format reads it, so the person
+// sees which reading matches their file.
+export function dateFormatOptions(firstDate: string): SelectOption[] {
+    const date = firstDate.trim()
+    return BANK_DATE_FORMATS.map(format => {
+        const example = parseBankDate(date, format).ok ? date : FIXED_DATE_EXAMPLES[format]
+        return { value: format, label: `${format} (${example})` }
+    })
+}
+
+export type ChoiceMemory = { chosen: readonly number[]; seen: readonly number[] }
+
+// After Back and a new mapping: a line still ready keeps its choice, a line ready for the
+// first time is chosen, and a line no longer ready drops out. File order.
+export function keepChoice(previous: ChoiceMemory, ready: readonly number[]): number[] {
+    const seen = new Set(previous.seen)
+    const chosen = new Set(previous.chosen)
+    return [...ready].sort((a, b) => a - b).filter(line => !seen.has(line) || chosen.has(line))
+}
+
+export type SamplePreviewLine = {
+    line: number
+    dateText: string
+    description: string
+    amountText: string
+    error: string
+}
+
+const PREVIEW_ROWS = 3
+
+// Rows are read only once every question has a valid answer; before that a row error would
+// quote a gap of the mapping ("… in the  format.") as if the file were wrong.
+export function samplePreview(
+    rows: readonly BankRow[],
+    values: BankImportFormValues,
+    columns: number,
+    currency = 'USD'
+): { isComplete: boolean; lines: SamplePreviewLine[] } {
+    if (mappingIssues(values, columns).length > 0) return { isComplete: false, lines: [] }
+    const preview = previewBankRows(rows, mappingFromForm(values)).rows.slice(0, PREVIEW_ROWS)
+    const lines = preview.map(({ line, result }) => {
+        if (!result.ok) {
+            return { line, dateText: '', description: '', amountText: '', error: result.message }
+        }
+        return {
+            line,
+            dateText: formatDay(result.value.date),
+            description: result.value.description,
+            amountText: formatMoney(result.value.amount, currency),
+            error: '',
+        }
+    })
+    return { isComplete: true, lines }
+}
+
+export function mapIntroText(remembered: boolean, accountLabel: string): string {
+    if (remembered) {
+        return `Books used the columns of your last import to ${accountLabel}. Check each one before you continue.`
+    }
+    return "Books matched your file's columns. Check each one before you continue."
 }
 
 export type BankImportPageState =
