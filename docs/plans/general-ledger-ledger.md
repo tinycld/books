@@ -141,3 +141,5 @@ Books (checkpoint 1):
 - fix review: round 1: clean (0 BLOCK); 1 NOTE (an empty Name node adds the column's 2 px gap under the account on a card/drawer line with no Name) → Design notes
 - gate 3 A notes: 3, listed under Design notes
 - reviewer-caught deferrals: reviewer B listed 4: deferral 2 (blank Name row) and 4 (read-view load error) fixed now — the implementer had declared 2 as a difference and 4 in its self-check ("I did not add one"), not as deferrals: that gap is signal; deferrals 1 and 3 rebutted (see Rebuttals); 0 remain
+- commit: 151a57a (books, branch books/p5-general-ledger; not pushed)
+- human: n/a (mode C)
