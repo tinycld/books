@@ -1,6 +1,8 @@
+import { View } from 'react-native'
 import type { ReviewRowData, ReviewTabModel } from '../../../hooks/useReviewTab'
 import { REVIEW_CARD_HEIGHT } from '../../../lib/bank-review'
 import { ListCards } from '../../ListCards'
+import { DateOrderToggle } from './DateOrderToggle'
 import { ReviewCard } from './ReviewRow'
 
 // Module level: ListCards memoizes the heights on it.
@@ -12,19 +14,36 @@ function keyOf(row: ReviewRowData): string {
     return row.id
 }
 
+// Above the cards: the date order on the right (the select-all box goes on the left).
+function ReviewPhoneBar({ model }: { model: ReviewTabModel }) {
+    return (
+        <View
+            testID="bank-review-phone-bar"
+            className="flex-row items-center justify-between"
+            style={{ minHeight: 44 }}
+        >
+            <View />
+            <DateOrderToggle order={model.dateOrder} onToggle={model.onToggleOrder} variant="bar" />
+        </View>
+    )
+}
+
 // The phone list of a transaction tab: windowed cards of one fixed height.
 export function ReviewCards({ model, currency }: { model: ReviewTabModel; currency: string }) {
     const renderCard = (row: ReviewRowData, height: number) => (
         <ReviewCard row={row} currency={currency} height={height} />
     )
     return (
-        <ListCards
-            testID="bank-review-cards"
-            rows={model.rows}
-            heightOf={heightOf}
-            keyOf={keyOf}
-            renderCard={renderCard}
-            onNearEnd={model.onNearEnd}
-        />
+        <View className="min-h-0 flex-1">
+            <ReviewPhoneBar model={model} />
+            <ListCards
+                testID="bank-review-cards"
+                rows={model.rows}
+                heightOf={heightOf}
+                keyOf={keyOf}
+                renderCard={renderCard}
+                onNearEnd={model.onNearEnd}
+            />
+        </View>
     )
 }

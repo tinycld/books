@@ -51,12 +51,13 @@ export function reviewRow(page: Page, text: string): Locator {
 
 // Presses a tab of the account panel and waits for its body and the URL. The chosen tab is
 // read from the URL and the body, never from aria-selected (core SetupTabs sets only
-// accessibilityState, which react-native-web does not write as aria-selected).
+// accessibilityState, which react-native-web does not write as aria-selected). Only the
+// visible screen counts: an earlier Banking screen can stay stacked and hidden.
 export async function openReviewTab(
     page: Page,
     tab: 'review' | 'reviewed' | 'excluded' | 'files'
 ): Promise<void> {
-    await page.getByTestId(`bank-tabs-${tab}`).click()
-    await expect(page.getByTestId(`bank-tab-body-${tab}`)).toBeVisible()
+    await page.getByTestId(`bank-tabs-${tab}`).filter({ visible: true }).click()
+    await expect(page.getByTestId(`bank-tab-body-${tab}`).filter({ visible: true })).toBeVisible()
     await expect(page).toHaveURL(new RegExp(`[?&]tab=${tab}(&|$)`))
 }

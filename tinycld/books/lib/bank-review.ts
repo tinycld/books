@@ -1,7 +1,15 @@
+import { and, eq, gt, gte, ilike, lt, lte, or, type Ref } from '@tanstack/db'
 import type { SetupTab } from '@tinycld/core/components/setup/wizard/SetupTabs'
 import type { BooksBankTransactions } from '../types'
-import { formatMoney } from './money'
-import { formatDay } from './register-range'
+import { searchPieces } from './list-search'
+import { formatMoney, parseMoney } from './money'
+import {
+    formatDay,
+    RANGE_PRESETS,
+    type RangePreset,
+    type RegisterRange,
+    rangeForPreset,
+} from './register-range'
 
 // The tabs of a bank account's panel, in tab-bar order. The three transaction tabs list
 // the connection's rows of one status; Files holds the upload area and the file list.
@@ -125,3 +133,147 @@ export const REVIEW_CELLS = {
     spent: { width: 128 },
     received: { width: 128 },
 } as const
+
+// The toolbar of the three transaction tabs: one set for every tab and every account.
+export type ReviewDatePreset = 'all' | RangePreset
+export type ReviewType = 'all' | 'in' | 'out'
+export type ReviewFilters = { search: string; preset: ReviewDatePreset; type: ReviewType }
+export const EMPTY_REVIEW_FILTERS: ReviewFilters = { search: '', preset: 'all', type: 'all' }
+export type DateOrder = 'newest' | 'oldest'
+
+export const REVIEW_DATE_ITEMS: readonly { id: ReviewDatePreset; label: string }[] = [
+    { id: 'all', label: 'All dates' },
+    ...RANGE_PRESETS,
+]
+
+export const REVIEW_TYPE_ITEMS: readonly { id: ReviewType; label: string }[] = [
+    { id: 'all', label: 'All transactions' },
+    { id: 'in', label: 'Money in' },
+    { id: 'out', label: 'Money out' },
+]
+
+// A search of only `%`, `_`, `\` or spaces has no pieces, so it filters nothing.
+export function hasReviewFilter(filters: ReviewFilters): boolean {
+    return (
+        searchPieces(filters.search).length > 0 ||
+        filters.preset !== 'all' ||
+        filters.type !== 'all'
+    )
+}
+
+// The whole search text as an amount in unsigned cents: a search finds money spent and
+// received alike. Zero finds nothing, so it is no amount.
+export function parseSearchAmount(text: string, currency: string): number | null {
+    const cents = parseMoney(text.trim(), currency)
+    if (cents === null || cents === 0) return null
+    return Math.abs(cents)
+}
+
+export function reviewRange(
+    preset: ReviewDatePreset,
+    today: string,
+    fiscalStart: number
+): RegisterRange | null {
+    if (preset === 'all') return null
+    return rangeForPreset(preset, today, fiscalStart)
+}
+
+type TextColumn = Parameters<typeof ilike>[0]
+type Clause = ReturnType<typeof eq>
+
+// The other columns are typed as the transaction row's refs: `Parameters<typeof eq>[0]`
+// reads the last overload of `eq`, which takes only an aggregate.
+type TxnRef = Ref<BooksBankTransactions>
+
+export type ReviewColumns = {
+    connection: TxnRef['connection']
+    status: TxnRef['status']
+    description: TextColumn
+    memo: TextColumn
+    checkNumber: TextColumn
+    amount: TxnRef['amount']
+    date: TxnRef['date']
+}
+
+export type ReviewWhereInput = {
+    connection: string
+    status: TxnStatus
+    filters: ReviewFilters
+    range: RegisterRange | null
+    currency: string
+}
+
+function allOf(first: Clause, rest: Clause[]): Clause {
+    const [second, ...others] = rest
+    return second === undefined ? first : and(first, second, ...others)
+}
+
+// Every piece of the search in the description, the memo or the check number; or, when
+// the whole text reads as money, that amount spent or received.
+function searchClause(columns: ReviewColumns, search: string, currency: string): Clause | null {
+    const [first, ...rest] = searchPieces(search).map(piece =>
+        or(
+            ilike(columns.description, `%${piece}%`),
+            ilike(columns.memo, `%${piece}%`),
+            ilike(columns.checkNumber, `%${piece}%`)
+        )
+    )
+    if (first === undefined) return null
+    const textClause = allOf(first, rest)
+    const cents = parseSearchAmount(search, currency)
+    if (cents === null) return textClause
+    return or(textClause, eq(columns.amount, cents), eq(columns.amount, -cents))
+}
+
+function typeClause(columns: ReviewColumns, type: ReviewType): Clause | null {
+    if (type === 'in') return gt(columns.amount, 0)
+    if (type === 'out') return lt(columns.amount, 0)
+    return null
+}
+
+// The `where` of a transaction tab's read: the connection and the tab's status, then the
+// search, the range and the type. pbtsdb sends it to the server as the request filter and
+// TanStack DB applies it to the rows in the store. `and` and `or` never get one argument
+// (lib/list-search.ts). Dates are ISO days in a text field, so the range compares as text.
+export function reviewWhere(columns: ReviewColumns, input: ReviewWhereInput): Clause {
+    const clauses: Clause[] = [eq(columns.status, input.status)]
+    const search = searchClause(columns, input.filters.search, input.currency)
+    if (search) clauses.push(search)
+    if (input.range) {
+        clauses.push(gte(columns.date, input.range.start), lte(columns.date, input.range.end))
+    }
+    const type = typeClause(columns, input.filters.type)
+    if (type) clauses.push(type)
+    return allOf(eq(columns.connection, input.connection), clauses)
+}
+
+// The rows a list shows, with the query key they came from.
+export type SettledRows<Row> = { key: string; rows: readonly Row[]; viewState: ReviewViewState }
+
+function sameRows<Row>(a: readonly Row[], b: readonly Row[]) {
+    return a.length === b.length && a.every((row, i) => row === b[i])
+}
+
+// A new search, filter or order starts a new query, which loads before it shows. Until it
+// settles the last settled rows stay on screen, so the search field being typed in stays
+// mounted and the list does not blank. A load under the same key keeps the last state but
+// shows the current rows, so a row that left the list does not come back. The kept value
+// is replaced only when its contents differ, so a caller that stores it converges.
+// A failed load is never shown under a later load: Retry recovers the current query, so the error on screen
+// must be the current query's own, and a new query that loads shows its loading state.
+// (As keepLastSettled, lib/list-state.ts, keyed by the query key.)
+export function settleRows<Row>(
+    prev: SettledRows<Row> | undefined,
+    now: SettledRows<Row>
+): { next: SettledRows<Row> | undefined; shown: SettledRows<Row> } {
+    const isSameKey = prev !== undefined && prev.key === now.key
+    if (now.viewState === 'loading') {
+        if (prev?.viewState === 'error') return { next: undefined, shown: now }
+        if (isSameKey) return { next: prev, shown: { ...prev, rows: now.rows } }
+        return { next: prev, shown: prev ?? now }
+    }
+    if (isSameKey && prev.viewState === now.viewState && sameRows(prev.rows, now.rows)) {
+        return { next: prev, shown: prev }
+    }
+    return { next: now, shown: now }
+}

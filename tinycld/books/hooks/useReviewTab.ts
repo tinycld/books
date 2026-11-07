@@ -1,38 +1,116 @@
-import { and, eq } from '@tanstack/db'
 import { useLiveInfiniteQuery, useLiveQuery } from '@tanstack/react-db'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
+import { useRef } from 'react'
 import {
+    type DateOrder,
+    hasReviewFilter,
+    type ReviewFilters,
     type ReviewViewState,
+    type ReviewWhereInput,
     reviewEmptyText,
+    reviewRange,
     reviewViewState,
+    reviewWhere,
+    type SettledRows,
+    settleRows,
     TXN_STATUS_OF,
     type TxnTab,
 } from '../lib/bank-review'
-import { ID_ORDER, LIST_PAGE_SIZE } from '../lib/list-search'
+import { ID_ORDER, LIST_PAGE_SIZE, SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
+import { fiscalStartMonth, todayIso } from '../lib/register-range'
+import { useBankingUIStore } from '../stores/banking-ui-store'
 import { useBooksAccess } from './useBooksAccess'
+import { useBooksSettings } from './useBooksSettings'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 const NO_MORE_PAGES = () => {}
-// Dates are ISO days, so a lexical order is a date order; TanStack DB builds a page cursor
-// only for a lexical order (lib/list-search.ts).
-const NEWEST_FIRST = { direction: 'desc', stringSort: 'lexical' } as const
 
-// For review: every for-review row of the connection, newest first, then in file order
-// inside a day. Not paged: the connections query already holds these rows for the counts.
-function useReviewQueueQuery(connectionId: string) {
+// What a transaction tab's read runs with: the `where` input over the applied filters, the
+// date direction, and the parts of its query key after the read's name and connection.
+export type ReviewQueryInput = {
+    where: ReviewWhereInput
+    // Dates are ISO days, so a lexical order is a date order; TanStack DB builds a page
+    // cursor only for a lexical order (lib/list-search.ts).
+    dateDirection: { direction: 'asc' | 'desc'; stringSort: 'lexical' }
+    keyParts: string[]
+    // The filters as typed and picked; `where.filters` holds the search once applied.
+    filters: ReviewFilters
+    dateOrder: DateOrder
+}
+
+// The toolbar's filters and the date order from the banking UI store, with the search
+// applied after a pause in typing (SEARCH_DELAY_MS), so the server gets one request per
+// pause.
+export function useReviewQueryInput(
+    tab: TxnTab,
+    connectionId: string,
+    currency: string
+): ReviewQueryInput {
+    const filters = useBankingUIStore(s => s.reviewFilters)
+    const dateOrder = useBankingUIStore(s => s.dateOrder)
+    const settings = useBooksSettings()
+    const applied = useDebouncedValue(filters.search, SEARCH_DELAY_MS)
+    const range = reviewRange(filters.preset, todayIso(), fiscalStartMonth(settings.settings))
+    return {
+        where: {
+            connection: connectionId,
+            status: TXN_STATUS_OF[tab],
+            filters: { ...filters, search: applied },
+            range,
+            currency,
+        },
+        dateDirection: {
+            direction: dateOrder === 'newest' ? 'desc' : 'asc',
+            stringSort: 'lexical',
+        },
+        // The currency decides whether the search reads as an amount.
+        keyParts: [
+            applied,
+            filters.preset,
+            filters.type,
+            dateOrder,
+            range?.start ?? '',
+            range?.end ?? '',
+            currency,
+        ],
+        filters,
+        dateOrder,
+    }
+}
+
+// For review: every for-review row of the connection under the filters, by date in the
+// chosen direction, then in file order inside a day. Not paged: the connections query
+// already holds these rows for the counts.
+function queueKey(connectionId: string, input: ReviewQueryInput) {
+    return ['books.review.queue', connectionId, ...input.keyParts]
+}
+
+function useReviewQueueQuery(connectionId: string, input: ReviewQueryInput) {
     const [txns] = useStore('books_bank_transactions')
     return useLiveQuery({
         query: q =>
             q
                 .from({ txn: txns })
                 .where(({ txn }) =>
-                    and(eq(txn.connection, connectionId), eq(txn.status, 'for_review'))
+                    reviewWhere(
+                        {
+                            connection: txn.connection,
+                            status: txn.status,
+                            description: txn.description,
+                            memo: txn.memo,
+                            checkNumber: txn.check_number,
+                            amount: txn.amount,
+                            date: txn.date,
+                        },
+                        input.where
+                    )
                 )
-                .orderBy(({ txn }) => txn.date, NEWEST_FIRST)
+                .orderBy(({ txn }) => txn.date, input.dateDirection)
                 .orderBy(({ txn }) => txn.line, 'asc')
                 .orderBy(({ txn }) => txn.id, ID_ORDER)
                 .select(({ txn }) => ({
@@ -45,15 +123,16 @@ function useReviewQueueQuery(connectionId: string) {
                     line: txn.line,
                     status: txn.status,
                 })),
-        queryKey: ['books.review.queue', connectionId],
+        queryKey: queueKey(connectionId, input),
     })
 }
 
 export type ReviewRowData = NonNullable<ReturnType<typeof useReviewQueueQuery>['data']>[number]
 
 // What one transaction tab read hands to `useReviewTab`. `collection` is the live query's
-// own collection, for the Retry.
+// own collection, for the Retry; `key` names the query, so kept rows know what they answer.
 export type ReviewRead = {
+    key: string
     rows: ReviewRowData[]
     isReady: boolean
     isError: boolean
@@ -61,9 +140,10 @@ export type ReviewRead = {
     onNearEnd: () => void
 }
 
-export function useReviewQueueRows(connectionId: string): ReviewRead {
-    const query = useReviewQueueQuery(connectionId)
+export function useReviewQueueRows(connectionId: string, input: ReviewQueryInput): ReviewRead {
+    const query = useReviewQueueQuery(connectionId, input)
     return {
+        key: queueKey(connectionId, input).join('|'),
         rows: query.data ?? [],
         isReady: query.isReady,
         isError: query.isError,
@@ -72,18 +152,35 @@ export function useReviewQueueRows(connectionId: string): ReviewRead {
     }
 }
 
-// Reviewed and Excluded grow without bound, so they load a page at a time: newest first,
-// then id. A separate hook from the For review read because `useLiveInfiniteQuery` cannot
-// be disabled; each is called by its own tab body.
-export function useReviewPagedRows(tab: 'reviewed' | 'excluded', connectionId: string): ReviewRead {
+// Reviewed and Excluded grow without bound, so they load a page at a time: by date in the
+// chosen direction, then id. A separate hook from the For review read because
+// `useLiveInfiniteQuery` cannot be disabled; each is called by its own tab body.
+export function useReviewPagedRows(
+    tab: 'reviewed' | 'excluded',
+    connectionId: string,
+    input: ReviewQueryInput
+): ReviewRead {
     const [txns] = useStore('books_bank_transactions')
-    const status = TXN_STATUS_OF[tab]
+    const queryKey = [`books.review.${tab}`, connectionId, ...input.keyParts]
     const query = useLiveInfiniteQuery(
         q =>
             q
                 .from({ txn: txns })
-                .where(({ txn }) => and(eq(txn.connection, connectionId), eq(txn.status, status)))
-                .orderBy(({ txn }) => txn.date, NEWEST_FIRST)
+                .where(({ txn }) =>
+                    reviewWhere(
+                        {
+                            connection: txn.connection,
+                            status: txn.status,
+                            description: txn.description,
+                            memo: txn.memo,
+                            checkNumber: txn.check_number,
+                            amount: txn.amount,
+                            date: txn.date,
+                        },
+                        input.where
+                    )
+                )
+                .orderBy(({ txn }) => txn.date, input.dateDirection)
                 .orderBy(({ txn }) => txn.id, ID_ORDER)
                 .select(({ txn }) => ({
                     id: txn.id,
@@ -95,7 +192,7 @@ export function useReviewPagedRows(tab: 'reviewed' | 'excluded', connectionId: s
                     line: txn.line,
                     status: txn.status,
                 })),
-        { queryKey: [`books.review.${tab}`, connectionId], pageSize: LIST_PAGE_SIZE }
+        { queryKey, pageSize: LIST_PAGE_SIZE }
     )
     // The table and the cards call this on every scroll event near the end; only one page
     // is asked for at a time.
@@ -103,6 +200,7 @@ export function useReviewPagedRows(tab: 'reviewed' | 'excluded', connectionId: s
         if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage()
     }
     return {
+        key: queryKey.join('|'),
         rows: query.data,
         isReady: query.isReady,
         isError: query.isError,
@@ -118,13 +216,14 @@ type ReviewTabInput = {
     waitingCount: number
     currency: string
     read: ReviewRead
+    queryInput: ReviewQueryInput
     // The page's own failed reads (connections, files, settings, access), recovered by the
     // same Retry press.
     pageRecovery: LiveRecovery
 }
 
 export type ReviewTabModel = {
-    rows: ReviewRowData[]
+    rows: readonly ReviewRowData[]
     viewState: ReviewViewState
     emptyText: string
     recovery: LiveRecovery
@@ -132,14 +231,42 @@ export type ReviewTabModel = {
     onNearEnd: () => void
     isWide: boolean
     canWrite: boolean
+    // The filters as typed and picked, for the toolbar.
+    filters: ReviewFilters
+    hasFilter: boolean
+    // The rows on screen are not yet the answer to the filters as they stand: the typed
+    // search waits for a pause, or the new query loads under the kept rows.
+    isBusy: boolean
+    dateOrder: DateOrder
+    onToggleOrder: () => void
+    onClearFilters: () => void
 }
 
-// The shared model of a transaction tab body, over the read of its tab.
+// The shared model of a transaction tab body, over the read of its tab. While the query for
+// a new search, filter or order loads, the last settled rows stay on screen (settleRows),
+// kept in a ref that is written during render, as useRecordList keeps its value.
 export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
-    const { tab, waitingCount, read, pageRecovery } = input
+    const { tab, waitingCount, read, queryInput, pageRecovery } = input
     const [txns] = useStore('books_bank_transactions')
     const { canWrite } = useBooksAccess()
     const isWide = useBreakpoint() !== 'mobile'
+    const toggleDateOrder = useBankingUIStore(s => s.toggleDateOrder)
+    const clearReviewFilters = useBankingUIStore(s => s.clearReviewFilters)
+    const kept = useRef<SettledRows<ReviewRowData>>(undefined)
+    // The state describes the query's result, so it reads the filters the query ran with,
+    // not the text still being typed.
+    const now: SettledRows<ReviewRowData> = {
+        key: read.key,
+        rows: read.rows,
+        viewState: reviewViewState({
+            isReady: read.isReady,
+            isError: read.isError,
+            rowCount: read.rows.length,
+            hasFilter: hasReviewFilter(queryInput.where.filters),
+        }),
+    }
+    const { next, shown } = settleRows(kept.current, now)
+    kept.current = next
     const recovery: LiveRecovery = read.isError
         ? { queries: [read.collection], sources: [txns] }
         : NO_RECOVERY
@@ -149,19 +276,22 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
             onError: err => log.error('books.banking', err),
         })
     }
+    const isTyping = queryInput.filters.search !== queryInput.where.filters.search
+    const isLoadingUnderKeptRows = now.viewState === 'loading' && shown !== now
     return {
-        rows: read.rows,
-        viewState: reviewViewState({
-            isReady: read.isReady,
-            isError: read.isError,
-            rowCount: read.rows.length,
-            hasFilter: false,
-        }),
+        rows: shown.rows,
+        viewState: shown.viewState,
         emptyText: reviewEmptyText(tab, waitingCount),
         recovery,
         onRetry,
         onNearEnd: read.onNearEnd,
         isWide,
         canWrite,
+        filters: queryInput.filters,
+        hasFilter: hasReviewFilter(queryInput.filters),
+        isBusy: isTyping || isLoadingUnderKeptRows,
+        dateOrder: queryInput.dateOrder,
+        onToggleOrder: toggleDateOrder,
+        onClearFilters: clearReviewFilters,
     }
 }
