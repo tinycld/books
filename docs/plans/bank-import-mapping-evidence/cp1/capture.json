@@ -1,0 +1,165 @@
+{
+    "outDir": ".",
+    "lookups": [
+        {
+            "name": "$cardConnection",
+            "url": "/a/books/banking",
+            "prefix": "bank-card-",
+            "hasText": "2100 Company Card"
+        },
+        {
+            "name": "$cardFile",
+            "url": "/a/books/banking?account=$cardConnection",
+            "prefix": "bank-file-",
+            "not": ["bank-file-remove-", "bank-file-import-"],
+            "hasText": "card-2026-10.ofx"
+        }
+    ],
+    "shots": [
+        {
+            "name": "choose-ofx",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-choose",
+            "height": 1150
+        },
+        {
+            "name": "choose-none",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-choose",
+            "height": 1350,
+            "actions": [
+                { "click": "bank-import-select-all" },
+                { "click": "bank-import-submit" },
+                { "waitFor": "bank-import-form-errors" }
+            ]
+        },
+        {
+            "name": "importing",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-choose",
+            "height": 1250,
+            "writes": { "collection": "books_bank_imports", "answers": ["hold"] },
+            "actions": [{ "click": "bank-import-submit" }, { "waitFor": "Importing…" }]
+        },
+        {
+            "name": "refusal",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-choose",
+            "height": 1350,
+            "writes": {
+                "collection": "books_bank_imports",
+                "answers": [400],
+                "message": "Line 14: \"13/45/2026\" is not a date in the MM/DD/YYYY format."
+            },
+            "actions": [{ "click": "bank-import-submit" }, { "waitFor": "bank-import-form-errors" }]
+        },
+        {
+            "name": "transport",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-choose",
+            "height": 1350,
+            "writes": { "collection": "books_bank_imports", "answers": ["abort"] },
+            "actions": [
+                { "click": "bank-import-submit" },
+                { "waitFor": "The import could not be sent. Check your connection and try again." }
+            ]
+        },
+        {
+            "name": "result",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-choose",
+            "writes": {
+                "collection": "books_bank_imports",
+                "answers": [{ "ok": { "imported": 2, "duplicates": 1 } }]
+            },
+            "actions": [
+                { "clickLabel": "Import line" },
+                { "click": "bank-import-submit" },
+                { "waitFor": "bank-import-result" }
+            ]
+        },
+        {
+            "name": "result-none",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-choose",
+            "writes": {
+                "collection": "books_bank_imports",
+                "answers": [{ "ok": { "imported": 0, "duplicates": 4 } }]
+            },
+            "actions": [{ "click": "bank-import-submit" }, { "waitFor": "bank-import-result" }]
+        },
+        {
+            "name": "all-imported",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-all-imported",
+            "fakeRecords": {
+                "collection": "books_bank_imports",
+                "items": [
+                    {
+                        "id": "helixearlierimp",
+                        "collectionName": "books_bank_imports",
+                        "file": "$cardFile",
+                        "lines": [
+                            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+                            21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38,
+                            39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56,
+                            57, 58, 59, 60
+                        ],
+                        "imported": 4,
+                        "duplicates": 0,
+                        "created": "2026-11-01 10:00:00.000Z",
+                        "updated": "2026-11-01 10:00:00.000Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-loading",
+            "fakeRecords": { "collection": "books_bank_files", "hold": true }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-load-error",
+            "fakeRecords": { "collection": "books_bank_files", "status": 400 }
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/banking/import/nosuchbankfile1",
+            "ready": "bank-import-not-found"
+        },
+        {
+            "name": "unreadable",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-unreadable",
+            "fakeRecords": { "collection": "books_bank_file_contents", "items": [] }
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/banking/import/$cardFile",
+            "ready": "bank-import-read-only",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "id": "$authId",
+                        "collectionName": "books_access",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "banking",
+            "url": "/a/books/banking?account=$cardConnection",
+            "ready": "bank-file-import-$cardFile",
+            "height": 1600
+        }
+    ]
+}

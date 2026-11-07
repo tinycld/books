@@ -13,18 +13,22 @@ import {
 import { navigateInApp } from './record-form-helpers'
 
 // The Banking page reads the seeded connections only (1000 Business Checking with one
-// uploaded file, 2100 Company Card with none) and writes nothing, so it needs no account
-// of its own. Other banking specs add number-less accounts, which sort after these two.
+// uploaded file, checking-2026-09.csv; 2100 Company Card with one uploaded OFX statement,
+// card-2026-10.ofx) and writes nothing, so it needs no account of its own. Other banking
+// specs add number-less accounts, which sort after these two.
 
 const CHECKING = '1000 Business Checking'
 const CARD = '2100 Company Card'
 const SEED_FILE = 'checking-2026-09.csv'
+const CARD_FILE = 'card-2026-10.ofx'
 const UPLOADED_DAY_BY = /[A-Z][a-z]{2} \d{1,2}, \d{4} by /
 
 function fileItems(page: Page): Locator {
     return page
         .getByTestId('bank-files')
-        .locator('[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"])')
+        .locator(
+            '[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"]):not([data-testid^="bank-file-import-"])'
+        )
 }
 
 // The ids of the Books sidebar's nav items, in rendered order.
@@ -146,10 +150,14 @@ test.describe('bank-connection: page', () => {
         await hold.release()
 
         await expect(page.getByTestId('bank-panel-title')).toHaveText(CARD)
-        await expect(page.getByTestId('bank-files-empty')).toHaveText(
-            'No files uploaded yet. Upload the statement you exported from your bank.'
-        )
-        await expect(card.getByText('No files waiting', { exact: true })).toBeVisible()
+        const cardFile = fileItems(page).filter({
+            has: page.getByText(CARD_FILE, { exact: true }),
+        })
+        await expect(cardFile).toHaveCount(1)
+        await expect(cardFile.getByText('OFX', { exact: true })).toBeVisible()
+        await expect(cardFile.getByText('Waiting to import', { exact: true })).toBeVisible()
+        await expect(page.getByTestId('bank-files-empty')).toHaveCount(0)
+        await expect(card.getByText('1 file waiting', { exact: true })).toBeVisible()
 
         await page.getByTestId('bank-panel-more').click()
         await expect(page.getByRole('menuitem')).toHaveText([

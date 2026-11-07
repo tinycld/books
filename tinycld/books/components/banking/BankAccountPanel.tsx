@@ -1,6 +1,8 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { router } from 'expo-router'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { BankConnectionRow } from '../../hooks/useBankConnections'
@@ -84,6 +86,36 @@ function RemoveFileButton({
     )
 }
 
+interface ImportFileButtonProps {
+    file: BankFileItem
+    isDisabled: boolean
+    accessibilityHint: string | undefined
+    onImport: (file: BankFileItem) => void
+}
+
+// Every file can be imported again: the rest of its rows, or to see that all are in.
+function ImportFileButton({
+    file,
+    isDisabled,
+    accessibilityHint,
+    onImport,
+}: ImportFileButtonProps) {
+    const onPress = () => onImport(file)
+    return (
+        <Button
+            testID={`bank-file-import-${file.id}`}
+            variant="outline"
+            size="sm"
+            style={{ minHeight: 36 }}
+            isDisabled={isDisabled}
+            accessibilityHint={accessibilityHint}
+            onPress={onPress}
+        >
+            <ButtonText>Import</ButtonText>
+        </Button>
+    )
+}
+
 function UploadArea({ isVisible, upload }: { isVisible: boolean; upload: BankFileUpload }) {
     if (!isVisible) return null
     return <BankFileDrop upload={upload} />
@@ -161,18 +193,28 @@ export function BankAccountPanel({
     // Called here once: a hook cannot run inside the row callback below.
     const writes = useServerActionState()
     const openDialog = useBankingUIStore(s => s.openDialog)
+    const orgHref = useOrgHref()
     if (!row) return null
     const onRemove = (file: BankFileItem) =>
         openDialog({ kind: 'remove', connectionId: row.id, fileId: file.id, fileName: file.name })
-    const renderRemove = (file: BankFileItem) => (
-        <RemoveFileButton
-            file={file}
-            isDisabled={writes.isDisabled}
-            accessibilityHint={writes.accessibilityHint}
-            onRemove={onRemove}
-        />
+    const onImport = (file: BankFileItem) => router.push(orgHref(`books/banking/import/${file.id}`))
+    const renderWriterActions = (file: BankFileItem) => (
+        <>
+            <ImportFileButton
+                file={file}
+                isDisabled={writes.isDisabled}
+                accessibilityHint={writes.accessibilityHint}
+                onImport={onImport}
+            />
+            <RemoveFileButton
+                file={file}
+                isDisabled={writes.isDisabled}
+                accessibilityHint={writes.accessibilityHint}
+                onRemove={onRemove}
+            />
+        </>
     )
-    const renderAction = canWrite ? renderRemove : undefined
+    const renderAction = canWrite ? renderWriterActions : undefined
     const title = connectionLabel(row.accountNumber, row.accountName)
     const details = bankDetailsText(row)
     const detailsTone = details ? 'text-foreground' : 'text-muted-foreground'

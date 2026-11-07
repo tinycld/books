@@ -70,6 +70,18 @@ async function openBankingForShot(page: Page) {
     await expect(page.getByTestId('bank-files')).toBeVisible()
 }
 
+// The seeded checking-2026-09.csv waits to import on 1000 Business Checking: its import
+// opens on Map columns. Nothing is imported.
+async function openBankImportForShot(page: Page) {
+    await openBankingForShot(page)
+    const row = page
+        .locator('[data-testid^="bank-file-"]')
+        .filter({ has: page.getByText('checking-2026-09.csv', { exact: true }) })
+        .first()
+    await row.locator('[data-testid^="bank-file-import-"]').click()
+    await expect(page.getByTestId('bank-import-map')).toBeVisible()
+}
+
 export default {
     'chart-of-accounts': [
         {
@@ -90,6 +102,13 @@ export default {
             name: 'banking-1',
             setup: openBankingForShot,
             target: '[data-testid="banking-screen"]',
+        },
+    ],
+    'bank-import': [
+        {
+            name: 'bank-import-1',
+            setup: openBankImportForShot,
+            target: '[data-testid="bank-import-screen"]',
         },
     ],
 } satisfies ScreenshotPlan
