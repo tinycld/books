@@ -6,6 +6,7 @@ import {
     createBankTestAccount,
     fakeReadOnlyAccess,
     openBanking,
+    openFilesTab,
     statementFile,
 } from './banking-helpers'
 
@@ -99,6 +100,7 @@ test.describe('bank-connection: keys', () => {
         await expect(card).toHaveAttribute('aria-selected', 'true')
         await expect(card.getByText('Key Bank', { exact: true })).toBeVisible()
 
+        await openFilesTab(page)
         const file = statementFile(`keys-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`)
         const [chooser] = await Promise.all([
             page.waitForEvent('filechooser'),
@@ -166,6 +168,7 @@ test.describe('bank-connection: keys', () => {
         await expect(page.getByTestId('bank-panel-title')).toHaveText(CHECKING)
         await expect(page.getByTestId('bank-view-register')).toBeVisible()
         await expect(page.getByTestId('bank-panel-more')).toHaveCount(0)
+        await openFilesTab(page)
         await expect(page.getByTestId('bank-file-drop')).toHaveCount(0)
         await expect(page.getByTestId('bank-connect')).toHaveCount(0)
         await expect(page.getByTestId('bank-files')).toContainText(SEED_FILE)

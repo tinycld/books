@@ -23,7 +23,7 @@ export async function connectTestAccount(page: Page): Promise<string> {
 
 // `day` is 'YYYYMMDD' or any text; text the server cannot read as a day stays in the
 // row's date cell, so the import shows it in the row error.
-export type OfxEntry = { day: string; amount: string; name: string; memo?: string }
+export type OfxEntry = { day: string; amount: string; name: string; memo?: string; check?: string }
 
 function ofxTransaction(stamp: string, entry: OfxEntry, index: number): string[] {
     return [
@@ -34,6 +34,7 @@ function ofxTransaction(stamp: string, entry: OfxEntry, index: number): string[]
         `<FITID>${stamp}-${index + 1}`,
         `<NAME>${entry.name}`,
         ...(entry.memo === undefined ? [] : [`<MEMO>${entry.memo}`]),
+        ...(entry.check === undefined ? [] : [`<CHECKNUM>${entry.check}`]),
         '</STMTTRN>',
     ]
 }

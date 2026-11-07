@@ -26,12 +26,18 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- ~~cp 1 · error-390: `ReviewLoadError` — the error sentence is left-aligned while the empty sentences and the reference are centered (critic NOTE; `text-center` as `ReviewEmptyState`).~~ Done in fix round 1 (part of finding 2's centering).
+- cp 1 · strip (review/reviewed/excluded/files/loading/error-1280): the full cards end at different heights (1000 y 85–295, 2100 y 85–357, its statement adds two lines); round 1 set `alignItems: 'flex-start'` to stop the stretch to the free height. Now that `STRIP_STYLE` stops the scroll view growing, removing `alignItems: 'flex-start'` would even them (critic round 2 NOTE, fix reviewer NOTE).
+- cp 1 · error-1280/390: the error sentence is semibold `text-foreground`; the reference and the sibling empty sentences are regular `text-muted-foreground` (critic round 2 NOTE).
+- cp 1 · tab body (review/reviewed/excluded/files, both widths): ~24–28 px between the tab bar rule and the first content; the reference has ~16. When checkpoint 2's toolbar lands, check the bar-to-toolbar gap is 16 (critic round 2 NOTE).
+- cp 1 · files-1280: only the upload area is in view; the file list starts below the panel bottom (the taller 2100 card and the body padding), reachable by scrolling the tab body as spec §2 allows (critic round 2 NOTE).
+- cp 1 · reviewer A: key U still runs `upload.pick()` on the For review tab, where the upload area and its refusal are not shown; checkpoint 5 plans "U also switches to the Files tab" (spec §3 Keyboard).
+- cp 1 · reviewer A: the wide strip (horizontal `ScrollView`) does not scroll to the selected card; after a deep link (`account=<id>`) with more cards than fit, the chosen card can be off screen. The spec asks the auto-scroll only on the phone strip.
+- cp 1 · reviewer A: `useReviewTab` takes `accountLabel` and `currency` and does not read them yet (the interface names them for later checkpoints); remove at the end if no checkpoint reads them.
+- cp 1 · reviewer A: the two out-of-plan tests (see Out-of-plan changes) should have been named in the plan.
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- cp 1 · `tests/use-connect-account-form.test.tsx`, `tests/use-disconnect-connection.test.tsx`: each builds a hand-made `BankConnectionRow`; the planned `reviewCount` field made tsc refuse them (TS2741). `reviewCount: 0` added to each row, nothing else (implementer).
 
 ## Phase notes
 - phase 1: unattended; intake in auto-helix staging (p4-for-review/intake.md).
@@ -59,6 +65,19 @@ and again at the end)
   - source facts: core `SetupTabs` writes no `aria-selected` → e2e read the tab from the URL and the tab body; `useLiveInfiniteQuery` cannot be disabled → two read hooks in two components; `drawerPlacement` reused; `refuseAfterNow`; `TestAudit_LabelsBankRecords`; `TestRegister_BindsEachPartOnce` needs no edit; `TOPICS` in help-screenshots.spec; `dataSet` for `data-focused`; `topLayer()` for an open menu; row focus is the store's, not DOM focus; sticky-header scroll offset; nested `materialize` for the importer (no join); `formatMoney` currency arg.
   - names: `importReviewStatement(page, entriesOf)` only; `onOpen` row prop; `accountLabel` and `pageRecovery` inputs of `useReviewTab`; CP5 `isBatchPending`; `onTab` prop on `ReviewTabBody`; spec-name refinements listed in the plan notes; test-id prefix rule narrowed to the `^=` locators.
 - review mode switches: none
+
+## Checkpoint 1
+- test writer: tests/bank-review.test.ts, tests/for-review-fixture.test.ts, tests/bank-connections-query.test.ts, tests/e2e/for-review.spec.ts, tests/e2e/for-review-helpers.ts, tests/e2e/banking-helpers.ts, tests/e2e/bank-import-helpers.ts, tests/e2e/banking-page.spec.ts, tests/e2e/banking-keys.spec.ts, tests/e2e/banking-upload.spec.ts, tests/e2e/bank-import-mapping.spec.ts; red for the right reason: yes (fixture id-uniqueness guard passes already, by design; banking-keys/-upload/bank-import-mapping red not run, expected at openFilesTab); untestable: none
+- implementer: tabs in the URL, Files tab, three lists (table/cards) with loading/error/empty, review counts on cards and tab, fixed-column page, one-row strip with compact phone cards, "Review transactions", OFX seed import with four excluded; DONE
+- test disputes: none
+- self-declared differences: (1) `useBackToBanking(…, 'review')` called at the top of `ResultOrLoading` (gets `connectionId`), not in `BankImportView`'s body; (2) `BankingTabs` wraps `SetupTabs` in a horizontal `ScrollView` on mobile only (four tabs do not fit at 390); (3) panel `gap-3` instead of `gap-4` (SetupTabs adds `mb-4`); (4) "Go to files" is an outline Button, the empty sentence `text-sm text-muted-foreground` (as the `empty-waiting` reference); (5) seed OFX has `<BANKACCTFROM>` and `<CHECKNUM>` before `<NAME>`; (6) `seedReviewStatement` throws `seed:` also when contents rows lack `line` or the import lacks the four FITIDs
+- gate 1: tests unedited: yes (the test writer's files; see Out-of-plan for two older tests) · check pass (one biome warning in the git-excluded scratch `tests/e2e/helix-capture.spec.ts`; the capture step fixes it) · e2e `for-review:` 2 passed · banking-page 3, banking-keys 3, banking-upload 2, bank-import-mapping 9 passed, each file alone
+- gate 2: invalid shots: none (capture reached the built states from `/a/books/banking` with card/tab presses; the scratch capture spec gained general `fakeRecords` options and its complexity warning was fixed — staging cp/cp1-capture.md) · blocking: (1) the strip took the column's free height (cards stretched), tab body ~100 px → accepted, fix round 1; (2) the tab body not bounded by the panel (buttons drawn past the border, phone cards offset) → accepted, fix round 1 · notes: 1, listed under Design notes
+- gate 3 A (correctness): 0 BLOCK · NOTE 3 (inline `minHeight` style objects in ReviewEmptyState) accepted+fixed in round 1 (one-line change in a checkpoint file) · other NOTEs to Design notes / Out-of-plan
+- gate 3 B (conformance): script lines: 0 real, 2 false positive (`#2231` is a store number in a bank description string) · finding 1 (two out-of-plan tests) accepted as a plan omission, recorded under Out-of-plan changes, no change · finding 2 (comment reflow in bank-connections-query.ts) accepted+fixed in round 1
+- gate 3 A notes: 4, listed under Design notes
+- fix review: round 1: 4 findings (cp/cp1-fix.md in staging; causes appearance ×2, jsx-logic, other: comment reflow) fixed — strip and phone tab-bar `ScrollView`s no longer grow (`flexGrow: 0, flexShrink: 0` style; `grow-0` class did not apply on web), tab body `min-h-0 flex-1 overflow-hidden`, states centered in the body, `min-h-11`, comment reflowed; declared: `text-center` on the error sentence, `py-10`→`py-6` · gate 1 again: check pass (203 files / 4131), `for-review:` 2 passed, banking-page 3, banking-keys 3, banking-upload 2, bank-import-mapping 9 passed · shots re-captured (critic 1c: Reviewed draws rows once it has height, no second defect) · fix reviewer: 0 BLOCK, 2 NOTE (card heights → Design notes; the error-390 note done → struck) · fresh critic (evidence/cp1/critique-round2.md): 0 INVALID, 0 BLOCKING, 4 NOTE → Design notes · rounds: 1
+- reviewer-caught deferrals: none
 
 ## Final review
 - eval:

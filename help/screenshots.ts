@@ -67,6 +67,9 @@ async function openBankingForShot(page: Page) {
         .filter({ has: page.getByText('1000 Business Checking', { exact: true }) })
     await checking.click()
     await expect(checking).toHaveAttribute('aria-selected', 'true')
+    // The upload area and the file list live in the panel's Files tab.
+    await page.getByTestId('bank-tabs-files').click()
+    await expect(page.getByTestId('bank-tab-body-files')).toBeVisible()
     await expect(page.getByTestId('bank-files')).toBeVisible()
 }
 
