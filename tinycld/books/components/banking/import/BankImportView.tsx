@@ -87,7 +87,7 @@ function StepBody({
     data: BankImportData
     isWide: boolean
 }) {
-    if (flow.step === 'map') return <MapColumnsStep onCancel={flow.onCancel} />
+    if (flow.step === 'map') return <MapColumnsStep flow={flow} isWide={isWide} />
     if (flow.step === 'result') return <ResultOrLoading flow={flow} />
     return <ChooseStep flow={flow} format={data.format} isWide={isWide} />
 }

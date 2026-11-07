@@ -1,0 +1,172 @@
+{
+    "outDir": ".",
+    "lookups": [
+        {
+            "name": "$checkConnection",
+            "url": "/a/books/banking",
+            "prefix": "bank-card-",
+            "hasText": "1000 Business Checking"
+        },
+        {
+            "name": "$checkFile",
+            "url": "/a/books/banking?account=$checkConnection",
+            "prefix": "bank-file-",
+            "not": ["bank-file-remove-", "bank-file-import-"],
+            "hasText": "checking-2026-09.csv"
+        }
+    ],
+    "shots": [
+        {
+            "name": "map",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1750
+        },
+        {
+            "name": "map-one",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1750,
+            "fakeRecords": {
+                "collection": "books_bank_imports",
+                "items": [
+                    {
+                        "id": "helixearlierimp",
+                        "collectionName": "books_bank_imports",
+                        "file": "$checkFile",
+                        "header_row": true,
+                        "date_column": 1,
+                        "date_format": "YYYY-MM-DD",
+                        "description_column": 2,
+                        "amount_columns": "one",
+                        "amount_column": 3,
+                        "money_in_column": 0,
+                        "money_out_column": 0,
+                        "amount_sign": "out_positive",
+                        "lines": [],
+                        "imported": 0,
+                        "duplicates": 0,
+                        "created_by": "$authId",
+                        "created": "2026-10-01 10:00:00.000Z",
+                        "updated": "2026-10-01 10:00:00.000Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "map-errors",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "bank-import-q-amounts"
+                },
+                {
+                    "click": "bank-import-q-amounts-two"
+                },
+                {
+                    "waitFor": "bank-import-preview-prompt"
+                },
+                {
+                    "click": "bank-import-continue"
+                },
+                {
+                    "waitFor": "bank-import-form-errors"
+                }
+            ]
+        },
+        {
+            "name": "map-preview-errors",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1750,
+            "actions": [
+                {
+                    "click": "bank-import-q-format"
+                },
+                {
+                    "click": "bank-import-q-format-DD/MM/YYYY"
+                },
+                {
+                    "waitForHidden": "bank-import-q-format-DD/MM/YYYY"
+                }
+            ]
+        },
+        {
+            "name": "choose",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1250,
+            "actions": [
+                {
+                    "click": "bank-import-continue"
+                },
+                {
+                    "waitFor": "bank-import-choose"
+                }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "fakeRecords": {
+                "collection": "books_bank_file_contents",
+                "items": [
+                    {
+                        "id": "helixemptycont1",
+                        "collectionName": "books_bank_file_contents",
+                        "file": "$checkFile",
+                        "columns": 3,
+                        "rows": [
+                            {
+                                "line": 1,
+                                "cells": ["Date", "Description", "Amount"]
+                            }
+                        ],
+                        "created": "2026-10-01 10:00:00.000Z",
+                        "updated": "2026-10-01 10:00:00.000Z"
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "bank-import-q-format"
+                },
+                {
+                    "click": "bank-import-q-format-YYYY-MM-DD"
+                },
+                {
+                    "click": "bank-import-continue"
+                },
+                {
+                    "waitFor": "bank-import-empty"
+                }
+            ]
+        },
+        {
+            "name": "choose-errors",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1350,
+            "actions": [
+                {
+                    "click": "bank-import-q-format"
+                },
+                {
+                    "click": "bank-import-q-format-DD/MM/YYYY"
+                },
+                {
+                    "waitForHidden": "bank-import-q-format-DD/MM/YYYY"
+                },
+                {
+                    "click": "bank-import-continue"
+                },
+                {
+                    "waitFor": "bank-import-band"
+                }
+            ]
+        }
+    ]
+}

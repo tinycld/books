@@ -1,4 +1,4 @@
-import { eq } from '@tanstack/db'
+import { and, eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
@@ -7,7 +7,8 @@ import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { materialize } from 'pbtsdb'
 import { useMemo, useRef } from 'react'
 import { bankDetailsText, connectionLabel } from '../lib/bank-connections'
-import { type BankRow, bankContentRows } from '../lib/bank-import'
+import { type BankMapping, type BankRow, bankContentRows } from '../lib/bank-import'
+import { mappingFromImport } from '../lib/bank-import-guess'
 import { type BankImportPageState, bankImportPageState } from '../lib/bank-import-view'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import type { BooksBankFiles } from '../types'
@@ -28,6 +29,9 @@ export type BankImportData = {
     columns: number
     rows: BankRow[]
     earlier: { id: string; lines: unknown }[]
+    // The mapping of the account's newest CSV import when every column it names is in
+    // this file; null for an OFX file or when there is none.
+    lastMapping: BankMapping | null
 }
 
 // The header lines of the page, known as soon as the file and its account load: the
@@ -112,6 +116,33 @@ export function useBankImport(fileId: string) {
     })
     const contents = fileId ? contentsQuery.data : undefined
 
+    // The account's newest CSV import: its mapping prefills the Map step. A join, because
+    // it filters by the import's file.
+    const prefillConnection = file?.format === 'csv' ? (file.connection ?? '') : ''
+    const prefillQuery = useLiveQuery({
+        query: q => {
+            if (!prefillConnection) return undefined
+            return q
+                .from({ imp: importsCollection })
+                .innerJoin({ f: filesCollection }, ({ imp, f }) => eq(imp.file, f.id))
+                .where(({ f }) => and(eq(f.connection, prefillConnection), eq(f.format, 'csv')))
+                .orderBy(({ imp }) => imp.created, 'desc')
+                .limit(1)
+                .select(({ imp }) => ({
+                    header_row: imp.header_row,
+                    date_column: imp.date_column,
+                    date_format: imp.date_format,
+                    description_column: imp.description_column,
+                    amount_columns: imp.amount_columns,
+                    amount_column: imp.amount_column,
+                    money_in_column: imp.money_in_column,
+                    money_out_column: imp.money_out_column,
+                    amount_sign: imp.amount_sign,
+                }))
+        },
+        queryKey: ['books.bankImport.lastMapping', prefillConnection],
+    })
+
     const earlierQuery = useLiveQuery({
         query: q => {
             if (!fileId) return undefined
@@ -132,20 +163,23 @@ export function useBankImport(fileId: string) {
     const accountReady = !accountId || (accountQuery.isEnabled && accountQuery.isReady)
     const contentsReady = !fileId || (contentsQuery.isEnabled && contentsQuery.isReady)
     const earlierReady = !fileId || (earlierQuery.isEnabled && earlierQuery.isReady)
+    const prefillReady = !prefillConnection || (prefillQuery.isEnabled && prefillQuery.isReady)
     const isReady =
         access.isReady &&
         settings.isReady &&
         fileReady &&
         accountReady &&
         contentsReady &&
-        earlierReady
+        earlierReady &&
+        prefillReady
     const isError =
         access.isError ||
         settings.hasLoadError ||
         fileQuery.isError ||
         accountQuery.isError ||
         contentsQuery.isError ||
-        earlierQuery.isError
+        earlierQuery.isError ||
+        prefillQuery.isError
 
     // Parsed once per stored row, so the flow's preview (keyed on the rows) is not rebuilt
     // on every render.
@@ -185,6 +219,7 @@ export function useBankImport(fileId: string) {
                 recoveryOf(accountQuery, [accountsCollection]),
                 recoveryOf(contentsQuery, [contentsCollection]),
                 recoveryOf(earlierQuery, [importsCollection]),
+                recoveryOf(prefillQuery, [importsCollection, filesCollection]),
             ]),
             onError: err => log.error('books.banking', err),
         })
@@ -198,6 +233,7 @@ export function useBankImport(fileId: string) {
               accountMask: connection.account_mask,
           })
         : ''
+    const lastImport = prefillConnection ? prefillQuery.data?.[0] : undefined
     const header: BankImportHeader | null =
         file && account ? { fileName: file.name, format: file.format, accountLabel, details } : null
     const data: BankImportData | null =
@@ -213,6 +249,7 @@ export function useBankImport(fileId: string) {
                   columns: contents.columns,
                   rows,
                   earlier: earlierQuery.data ?? [],
+                  lastMapping: lastImport ? mappingFromImport(lastImport, contents.columns) : null,
               }
             : null
 
