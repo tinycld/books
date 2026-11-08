@@ -9,7 +9,7 @@
 - checkpoints: docs/plans/for-review-checkpoints.md
 - reference: docs/plans/for-review-reference/
 - evidence: docs/plans/for-review-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~
 - capture manifest: docs/plans/for-review-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -211,6 +211,6 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved (2026-11-07; CI green 5/5 on books#33 at 76998bd)
+- human comments and what changed: asked what Excluded, Clear filters and the check boxes do, and how a transaction is approved (answer: Accept/Categorize come in p4-match and p4-categorize-split); approved as built, no change. Open questions not answered, current behaviour kept: drawer stays open when a filter hides its row; search does not split at white space; a refusal after a tab change shows no result line; core requests PickMenu className/width, drainTransactions all-settled yield, global `g` vs scoped `g i` prefix gap.
 - native: not executed in this run
