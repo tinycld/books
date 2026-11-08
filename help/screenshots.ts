@@ -57,8 +57,8 @@ async function openBusinessCheckingRegister(page: Page) {
     )
 }
 
-// The seeded 1000 Business Checking connection holds the seeded statement file.
-async function openBankingForShot(page: Page) {
+// The seeded 1000 Business Checking connection holds the seeded statement files.
+async function selectCheckingForShot(page: Page) {
     await navigateToPackage(page, 'books')
     await page.getByTestId('books-nav-banking').click()
     const checking = page
@@ -67,6 +67,20 @@ async function openBankingForShot(page: Page) {
         .filter({ has: page.getByText('1000 Business Checking', { exact: true }) })
     await checking.click()
     await expect(checking).toHaveAttribute('aria-selected', 'true')
+}
+
+// The seeded checking-2026-10.ofx left eight transactions for review on 1000 Business
+// Checking (twelve lines, four excluded); the page opens on For review.
+async function openBankReviewForShot(page: Page) {
+    await selectCheckingForShot(page)
+    await expect(page.getByTestId('bank-tab-body-review')).toBeVisible()
+    await expect(
+        page.locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
+    ).toHaveCount(8)
+}
+
+async function openBankingForShot(page: Page) {
+    await selectCheckingForShot(page)
     // The upload area and the file list live in the panel's Files tab.
     await page.getByTestId('bank-tabs-files').click()
     await expect(page.getByTestId('bank-tab-body-files')).toBeVisible()
@@ -104,6 +118,13 @@ export default {
         {
             name: 'banking-1',
             setup: openBankingForShot,
+            target: '[data-testid="banking-screen"]',
+        },
+    ],
+    'bank-review': [
+        {
+            name: 'bank-review-1',
+            setup: openBankReviewForShot,
             target: '[data-testid="banking-screen"]',
         },
     ],

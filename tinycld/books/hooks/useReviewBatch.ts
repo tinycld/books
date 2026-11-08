@@ -1,7 +1,7 @@
 import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
     BATCH_TARGET,
     type BatchFailure,
@@ -84,6 +84,20 @@ export function useReviewBatch() {
         },
     })
 
+    // One run at a time. The callers' `isPending` checks read the last render, so two key
+    // presses in one frame could each start a run. The run in flight is held here from the
+    // moment it starts, so a second call sends nothing and gets the outcome of that run
+    // (its caller then applies the same outcome a second time, which changes nothing).
+    const inFlight = useRef<Promise<BatchOutcome> | null>(null)
+    const run = (input: ReviewBatchInput): Promise<BatchOutcome> => {
+        if (inFlight.current) return inFlight.current
+        const started = mutation.mutateAsync(input).finally(() => {
+            inFlight.current = null
+        })
+        inFlight.current = started
+        return started
+    }
+
     // A tab or account change hides the result line. A reset while a run is in flight would
     // also drop its pending state and free the controls before the run ends, so a run in
     // flight is only marked hidden, by its start time, and its result never shows.
@@ -100,7 +114,7 @@ export function useReviewBatch() {
     }
 
     return {
-        run: mutation.mutateAsync,
+        run,
         isPending: mutation.isPending,
         pending,
         result,

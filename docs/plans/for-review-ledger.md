@@ -33,7 +33,7 @@
 - cp 1 · error-1280/390: the error sentence is semibold `text-foreground`; the reference and the sibling empty sentences are regular `text-muted-foreground` (critic round 2 NOTE).
 - cp 1 · tab body (review/reviewed/excluded/files, both widths): ~24–28 px between the tab bar rule and the first content; the reference has ~16. When checkpoint 2's toolbar lands, check the bar-to-toolbar gap is 16 (critic round 2 NOTE).
 - cp 1 · files-1280: only the upload area is in view; the file list starts below the panel bottom (the taller 2100 card and the body padding), reachable by scrolling the tab body as spec §2 allows (critic round 2 NOTE).
-- cp 1 · reviewer A: key U still runs `upload.pick()` on the For review tab, where the upload area and its refusal are not shown; checkpoint 5 plans "U also switches to the Files tab" (spec §3 Keyboard).
+- ~~cp 1 · reviewer A: key U still runs `upload.pick()` on the For review tab, where the upload area and its refusal are not shown; checkpoint 5 plans "U also switches to the Files tab" (spec §3 Keyboard).~~ Done in checkpoint 5 (`for-review: keys` proves `u` from For review opens Files with the file chooser).
 - cp 1 · reviewer A: the wide strip (horizontal `ScrollView`) does not scroll to the selected card; after a deep link (`account=<id>`) with more cards than fit, the chosen card can be off screen. The spec asks the auto-scroll only on the phone strip.
 - cp 1 · reviewer A: `useReviewTab` takes `accountLabel` and `currency` and does not read them yet (the interface names them for later checkpoints); remove at the end if no checkpoint reads them.
 - cp 1 · reviewer A: the two out-of-plan tests (see Out-of-plan changes) should have been named in the plan.
@@ -66,6 +66,11 @@
 - cp 4 · fix reviewer: after a tab or account change during a bar run, a refusal that settles later shows no result line; the refused rows come back to For review unchosen with no message (spec §4 "until the next action or tab change"). Question for the human: keep the line for a hidden run that ends with failures?
 - cp 4 · fix reviewer: `useReviewBatch` keeps `hiddenRun` in a local `useState` (no paired effect); recorded so the reason is known.
 - cp 4 · reviewer A NOTE 2 / reviewer B finding 5: the header check cell is a plain `View` with `REVIEW_CELLS.check`, not a `ListHeaderCell` (spec §3 "Header cells are `ListHeaderCell`"), because `ListHeaderCell` (components/ListTable.tsx) takes only a label; accepted as a refinement (implementer difference 3).
+- ~~cp 5 · review-*: after the keys, the selected account card drew the browser's blue focus-visible ring (it kept DOM focus from the mouse press) beside the teal stripe and tab (critic NOTE).~~ Gone after fix round 1 (a movement key now releases DOM focus); critic round 2 found nothing.
+- cp 5 · review-1280: the sidebar "Banking" item is highlighted at `?account=<id>` but not at `?account=<id>&tab=files`; the active-route match seems to read the query string (critic NOTE and "for gate 3"; core sidebar, outside this unit).
+- cp 5 · reviewer A NOTE 5: after E or R takes the focused row off the list, nothing is focused and the next J starts at the top; keeping the index of the row that left would let a user work down the queue (the brief's "the first press focuses the first row" is met).
+- cp 5 · reviewer A NOTE 9: the `ListTable` header is now wrapped in a measuring `View` (the sticky child) for every Books `ListTable`; no other list's e2e ran in this checkpoint (CI's full suite covers them).
+- cp 5 · fix round 1 declared: `/` is not offered while the selection bar shows (no search field there); Esc is offered during a bar run and `onClearChoice` does nothing while it runs; a second `useReviewBatch.run` while one is in flight joins it (returns the same promise) rather than refusing.
 
 ## Out-of-plan changes
 - cp 1 · `tests/use-connect-account-form.test.tsx`, `tests/use-disconnect-connection.test.tsx`: each builds a hand-made `BankConnectionRow`; the planned `reviewCount` field made tsc refuse them (TS2741). `reviewCount: 0` added to each row, nothing else (implementer).
@@ -78,6 +83,13 @@
 - cp 4 · `docs/plans/for-review-checkpoints.md`: the runner fixed two e2e steps of checkpoint 4's Tests bullet that the plan itself made untestable (see Checkpoint 4, test writer); reviewer B finding 2.
 - cp 4 · `tinycld/books/hooks/useReviewBatch.ts`: a required `origin: 'bar' | 'drawer'` on `ReviewBatchInput` (fix round 1, item 2) in place of the implementer's empty-summary convention; reviewer B finding 1.
 - cp 4 · `tests/review-batch.test.ts` (checkpoint 3's test): `origin` on every `run` call and the case "keeps a bar run pending when its result is cleared mid-run" (fix-round test writer).
+- cp 5 · `tests/accounts-form-harness.ts`: **approved by the human** (retro check): a doc comment and a guard so `refuseAfter` / `refuseAfterNow` / `refuseAfterMore` throw "refuseAfter suits sequential writes; refuse a chosen row instead" when more than one write is in flight at once (implementer); fix round 1 counts in-flight writes per seed generation, never below 0 (test writer, reviewer A NOTE 7). All 208 vitest files pass.
+- cp 5 · `tinycld/books/components/banking/BankingScreenView.tsx`: owns the one `list` scope (`useShortcutScope('list')` + core `ScopeProvider`) and passes `drawer` to the panel; a second `list` scope in the tab body takes the top of the scope stack and turns off N/U/I (declared differences 1–2; reviewer B finding 2).
+- cp 5 · `tinycld/books/components/banking/review/ReviewTable.tsx`, `ReviewCards.tsx`: pass `isFocused` and `scrollToIndex`; `ReviewToolbar.tsx`: passes `searchRef` to `SearchField` (implementer; Do 2, 3 need them).
+- cp 5 · `tinycld/books/lib/scroll-into-view.ts` (new): the pure `scrollIntoViewY` that `ListTable` and `ListCards` share, with `tests/scroll-into-view.test.ts` (new, fix round 1).
+- cp 5 · `tinycld/books/types/react-native-web.d.ts` (new): the `dataSet` augment of `ViewProps` (the app shell's augment is not in Books' tsc program).
+- cp 5 · `tinycld/books/hooks/useReviewBatch.ts`: fix round 1 item 7, a run in flight is held in a ref so a second run while one is pending sends nothing.
+- cp 5 · `help/images/bank-review-1(.dark).png` (new) and `help/images/banking-1(.dark).png` (re-shot): generated by `help:screenshots` as Do 5 asks; not named in the Files block.
 
 ## Phase notes
 - phase 1: unattended; intake in auto-helix staging (p4-for-review/intake.md).
@@ -181,6 +193,21 @@
 - gate 2: not run · gate 3: not run · fix review: not run
 - state: the checkpoint's code and staged tests stay in the working tree, uncommitted. On resume (after the core change merges, or the human picks another key): a fresh implementer continues from the tree, then gate 1 from the start.
 - commit: none (ledger only)
+
+## Checkpoint 5 — resumed (core tinycld#446 merged, core main 9775bc52)
+- resume: the human chose the core fix. Core `pickFiring` (`tinycld/core/lib/shortcuts/matcher.ts`) makes an active scoped shortcut beat a `global` one with the same keys, and the ⇧? list drops the shadowed global; spec "/ — focus the search field" stays. Brief rebuilt; tests unchanged since the stop.
+- implementer (resume): finished the tree; `/` needed no package change; differences 1, 4 and 5 re-checked and kept (a second `list` scope still takes the top of the scope stack; core #446 changed only scoped vs global); trace line for `/` added; the approved harness guard (see Out-of-plan changes); DONE, 0 disputes, the 11 declared differences unchanged (staging cp/cp5-impl-2.md)
+- gate 1: tests unedited: yes · check pass (biome 923 files, tsc, vitest 207 files / 4256) · e2e `for-review:` 9 passed (`for-review: keys` to its end: `/` focuses the search, Escape blurs, `a`, Escape, and `u` from For review opens Files with the file chooser — the cp 1 carry-over "U also switches to the Files tab" is proved) · banking-keys 3 passed · help-screenshots 10 passed (staging cp/cp5-gate1-*.log)
+- gate 2: invalid shots: none (capture spec gained a `press` action; the wide `review` state is the shot `review-wide`, pressed at 1280, because keys pressed at 390 and then a resize mounted the wide table scrolled past the focused row — a product defect, fix item 4) · blocking: none · notes: 2, listed under Design notes
+- test disputes: none
+- self-declared differences: the 11 of the first run (Checkpoint 5 — STOPPED, above), unchanged
+- gate 3 A (correctness): BLOCK 1 (↵ / Space act on the element that holds DOM focus — a mouse-pressed row, box, tab or menu trigger — not on the striped row; RN-web stops plain Enter/Space on a focused Pressable) accepted+fixed, fix round 1 · NOTE 2 (help text) accepted+fixed · NOTE 3 (`/` offered while the selection bar hides the search) raised to a finding (spec §3 "each key only while its action is offered") accepted+fixed · NOTE 4 (trace comment) fixed with BLOCK 1 · NOTE 6 (two E presses in one frame) accepted+fixed (no guard existed) · NOTE 7 (harness counter below 0) accepted+fixed · NOTE 8 (no test for `scroll-into-view.ts`) accepted+fixed · NOTEs 5, 9 to Design notes
+- gate 3 B (conformance): script lines: 0 real, 1 false positive (`document.activeElement` in `focusPressesKey`: returns early when `document` is undefined; keys are web-only, spec §6) · finding 1 (help text) accepted+fixed with A NOTE 2 · finding 2 (8 out-of-plan entries, 11 paths) accepted: recorded under Out-of-plan changes; its unit-test suggestion fixed with A NOTE 8 · DEFERRALS: none
+- runner finding (gate-2 capture): a list mounted with a focused row (390 → 1280 resize) scrolled before layout was measured (`viewHeight` 0) and hid the focused row → accepted+fixed, fix round 1 item 4
+- gate 3 A notes: 2, listed under Design notes
+- reviewer-caught deferrals: none
+- fix review: round 1: 7 findings (staging cp/cp5-fix.md; causes spec-logic ×2, help-text, other: unmeasured layout, weak-test ×2, write-guard). Test first (staging cp/cp5-fix-tests.md): a new step in `for-review: keys` (mouse-press a row or box, move the stripe, ↵ / Space act on the striped row; red: ↵ opened the pressed row), `search` not offered while rows are chosen (7 unit cases red), new `tests/scroll-into-view.test.ts` (unmeasured view → null red; 5 others green), harness counter per seed generation. Fixed (staging cp/cp5-fix-impl.md): a movement key releases DOM focus on web (`releaseDomFocus`), trace comment corrected; `search` only with no rows chosen, `chosenCount` from `selection.count`; `scrollIntoViewY` null when unmeasured and the lists scroll again on their first measure; `useReviewBatch` holds a run in flight in a ref; help text. · gate 1 again: tests unedited: yes · check pass (208 files / 4264) · `for-review:` 9 passed · banking-keys 3 passed · help-screenshots 10 passed · a probe capture pressed at 390 then resized to 1280 shows the focused row in view · shots re-captured (the plain `review` state, 390 then 1280; the `review-wide` workaround removed) · fix reviewer: clean (1 conformance line, false positive: `releaseDomFocus` returns when `document` is undefined) · fresh critic (evidence/cp5/critique-round2.md): 0 INVALID, 0 BLOCKING, 0 NOTE · rounds: 1
+- human: none (review mode C)
 
 ## Final review
 - eval:

@@ -256,6 +256,9 @@ export type ReviewTabModel = {
     onClearFilters: () => void
     openTxnId: string | null
     onOpenRow: (id: string) => void
+    // The row the review keys focused, when the list shows it; its index in `rows`, or -1.
+    focusedTxnId: string | null
+    focusedIndex: number
     batch: ReviewBatch
     result: { text: string; tone: 'muted' | 'danger' } | null
     // Choosing rows: writers on For review and Excluded only.
@@ -315,6 +318,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const isWide = useBreakpoint() !== 'mobile'
     const openTxnId = useBankingUIStore(s => s.openTxnId)
     const openTxn = useBankingUIStore(s => s.openTxn)
+    const storedFocus = useBankingUIStore(s => s.focusedTxnId)
     const toggleDateOrder = useBankingUIStore(s => s.toggleDateOrder)
     const clearReviewFilters = useBankingUIStore(s => s.clearReviewFilters)
     const kept = useRef<SettledRows<ReviewRowData>>(undefined)
@@ -351,6 +355,10 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const chosenIds = isChoosable ? shownChoice(rows, chosenSet) : []
     const shownSet = new Set(chosenIds)
     const summary = selectionSummary(rows, shownSet, currency)
+    // As the choice, the key focus is of a row on screen: a focused row that left the list
+    // focuses nothing, and the next movement key starts again at the first row.
+    const focusedIndex = storedFocus === null ? -1 : rows.findIndex(row => row.id === storedFocus)
+    const focusedTxnId = focusedIndex >= 0 ? storedFocus : null
     // The optimistic update takes the rows off the list at once, so while the bar's own
     // run is in flight it shows the choice as it was sent. A tab or account change clears
     // the choice, so after one the bar of that run is gone (the controls stay disabled).
@@ -410,6 +418,8 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         onClearFilters: clearReviewFilters,
         openTxnId,
         onOpenRow: openTxn,
+        focusedTxnId,
+        focusedIndex,
         batch,
         result: batch.result,
         canChoose: isChoosable,

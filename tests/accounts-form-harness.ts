@@ -48,6 +48,11 @@ const state = {
     refusalFor: {} as Record<string, unknown>,
     // Ids of every account write that reached the server handler, in order.
     entered: [] as string[],
+    // Writes inside refuseSharedWrite now, so refuseAfter can refuse a parallel use.
+    sharedInFlight: 0,
+    // Bumped by each seedBooks, so a write held by an earlier test that settles later
+    // does not change this test's in-flight count.
+    seedGeneration: 0,
     // Refuses every write after the first `after` ones that reached the handler.
     refuseAfter: null as { after: number; error: unknown } | null,
     // Refuses every settings write with this error.
@@ -107,9 +112,6 @@ export function resetWriteCounts() {
     state.log = []
 }
 
-// Lets the next `after` account writes through and refuses each later one. Unlike
-// the `refuseAfter` seed option, the count starts now, so it ignores the writes
-// a test made while setting up.
 // Lets the next `after` settings writes through and refuses each later one, so a
 // test can refuse only the closing write.
 export function refuseSettingsAfterNow(after: number, error: unknown) {
@@ -117,6 +119,14 @@ export function refuseSettingsAfterNow(after: number, error: unknown) {
     state.refuseSettingsAfter = { after, error }
 }
 
+// Lets the next `after` account writes through and refuses each later one. Unlike
+// the `refuseAfter` seed option, the count starts now, so it ignores the writes
+// a test made while setting up.
+// A refusal by position suits sequential writes only: when writes run in parallel,
+// which of them is "after" the count depends on timing. So while this refusal (or the
+// seed option's, or refuseAfterMore's) is set, a write that starts while another is
+// still in flight throws instead. To refuse some of a parallel batch, refuse chosen
+// rows (the `refusalFor` seed option).
 export function refuseAfterNow(after: number, error: unknown) {
     resetWriteCounts()
     state.refuseAfter = { after, error }
@@ -243,6 +253,21 @@ async function refuseSharedWrite({
 }) {
     const keys = transaction.mutations.map(m => String(m.key))
     state.entered.push(...keys)
+    const generation = state.seedGeneration
+    state.sharedInFlight += 1
+    try {
+        await settleSharedWrite(keys)
+    } finally {
+        if (generation === state.seedGeneration) {
+            state.sharedInFlight = Math.max(0, state.sharedInFlight - 1)
+        }
+    }
+}
+
+async function settleSharedWrite(keys: string[]) {
+    if (state.refuseAfter && state.sharedInFlight > 1) {
+        throw new Error('refuseAfter suits sequential writes; refuse a chosen row instead')
+    }
     if (state.gate) await state.gate
     await waitForStep()
     const refusedAt = state.refuseAt.find(refusal => refusal.at === state.entered.length)
@@ -840,7 +865,9 @@ export function seedBooks(
         refusal?: unknown
         // Refuses only the writes on these account ids, by id.
         refusalFor?: Record<string, unknown>
-        // Lets the first `after` writes through and refuses each later one.
+        // Lets the first `after` writes through and refuses each later one. For
+        // sequential writes only: a write that starts while another is in flight
+        // throws (see refuseAfterNow); refuse a parallel batch's rows by `refusalFor`.
         refuseAfter?: { after: number; error: unknown }
         // Refuses every write to the settings row with this error.
         refuseSettings?: unknown
@@ -972,6 +999,10 @@ export function seedBooks(
         is_admin: level === 'admin',
     }
     state.refusal = opts.refusal ?? null
+    // A held write of an earlier test may never settle, or settle later; it must not count
+    // as in flight here, nor lower this test's count when it does settle.
+    state.seedGeneration += 1
+    state.sharedInFlight = 0
     state.refusalFor = opts.refusalFor ?? {}
     state.refuseAfter = opts.refuseAfter ?? null
     state.refuseSettings = opts.refuseSettings ?? null

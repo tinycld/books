@@ -822,3 +822,165 @@ test.describe('for-review: phone', () => {
             .toBe(1)
     })
 })
+
+// The names of `names` whose row carries the focus stripe, read in one snapshot. ReviewRow
+// writes data-focused="true" on the web for the row the keys focused.
+function focusedNames(page: Page, names: string[]) {
+    return page.evaluate(
+        list =>
+            Array.from(
+                document.querySelectorAll('[data-testid^="bank-review-row-"][data-focused="true"]')
+            )
+                .filter(node => (node as HTMLElement).offsetParent !== null)
+                .map(node => list.find(name => node.textContent?.includes(name)) ?? 'other'),
+        names
+    )
+}
+
+test.describe('for-review: keys', () => {
+    test('works the queue from the keyboard', async ({ page }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(BANKING_DESKTOP)
+
+        // Every name holds a "j", so a "j" typed in the search keeps all three rows shown.
+        const { stamp } = await importReviewStatement(page, s => [
+            { day: '20261020', amount: '-10.00', name: `${s} jam` },
+            { day: '20261021', amount: '-20.00', name: `${s} jet` },
+            { day: '20261022', amount: '30.00', name: `${s} joy` },
+        ])
+        const a = `${stamp} jam`
+        const b = `${stamp} jet`
+        const c = `${stamp} joy`
+        const names = [a, b, c]
+        const selection = page.getByTestId('bank-review-selection')
+        const selectionText = page.getByTestId('bank-review-selection-text')
+        const drawer = page.getByTestId('bank-txn-drawer')
+        const result = page.getByTestId('bank-review-result')
+        const drawerShows = (name: string) =>
+            page.getByTestId('bank-txn-field-description').getByText(name, { exact: true })
+        await expect.poll(() => shownNames(page, names)).toEqual([c, b, a])
+
+        // Row focus: the first press focuses the first row, then the keys move it.
+        await page.keyboard.press('Escape')
+        await page.keyboard.press('j')
+        await expect.poll(() => focusedNames(page, names)).toEqual([c])
+        await page.keyboard.press('j')
+        await expect.poll(() => focusedNames(page, names)).toEqual([b])
+        await page.keyboard.press('k')
+        await expect.poll(() => focusedNames(page, names)).toEqual([c])
+        await page.keyboard.press('ArrowDown')
+        await expect.poll(() => focusedNames(page, names)).toEqual([b])
+        await page.keyboard.press('ArrowDown')
+        await expect.poll(() => focusedNames(page, names)).toEqual([a])
+        await page.keyboard.press('ArrowUp')
+        await expect.poll(() => focusedNames(page, names)).toEqual([b])
+
+        // Choose the focused row, then all.
+        await page.keyboard.press('x')
+        await expect(selectionText).toHaveText('1 selected · Spent $20.00 · Received $0.00')
+        await page.keyboard.press('Space')
+        await expect(selection).toHaveCount(0)
+        await page.keyboard.press('a')
+        await expect(selectionText).toHaveText('3 selected · Spent $30.00 · Received $30.00')
+        await page.keyboard.press('a')
+        await expect(selection).toHaveCount(0)
+
+        // After a mouse press, ↵ and Space act on the striped row, not on the pressed row or
+        // box that holds DOM focus. Two j presses land on a whether or not the press moved
+        // the stripe (they clamp at the last row).
+        await reviewRow(page, c).click()
+        await expect(drawerShows(c)).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(drawer).toHaveCount(0)
+        await page.keyboard.press('j')
+        await page.keyboard.press('j')
+        await expect.poll(() => focusedNames(page, names)).toEqual([a])
+        await page.keyboard.press('Enter')
+        await expect(drawerShows(a)).toBeVisible()
+        await expect(drawerShows(c)).toHaveCount(0)
+        await page.keyboard.press('Escape')
+        await expect(drawer).toHaveCount(0)
+        await rowBox(page, c).click()
+        await expect(selectionText).toHaveText('1 selected · Spent $0.00 · Received $30.00')
+        await page.keyboard.press('j')
+        await page.keyboard.press('j')
+        await expect.poll(() => focusedNames(page, names)).toEqual([a])
+        await page.keyboard.press('Space')
+        await expect(selectionText).toHaveText('2 selected · Spent $10.00 · Received $30.00')
+        await page.keyboard.press('Escape')
+        await expect(selection).toHaveCount(0)
+        await page.keyboard.press('k')
+        await expect.poll(() => focusedNames(page, names)).toEqual([b])
+
+        // Open the focused row; Esc closes it; E excludes the drawer's transaction.
+        await page.keyboard.press('Enter')
+        await expect(drawer).toBeVisible()
+        await expect(drawerShows(b)).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(drawer).toHaveCount(0)
+        await page.keyboard.press('o')
+        await expect(drawerShows(b)).toBeVisible()
+        await page.keyboard.press('e')
+        await expect(drawer).toHaveCount(0)
+        await expect(result).toHaveText('Excluded 1 transaction.')
+        await expect(reviewRow(page, b)).toHaveCount(0)
+
+        // 3 opens Excluded; R moves the chosen row back.
+        await page.keyboard.press('3')
+        await expect(page).toHaveURL(/[?&]tab=excluded(&|$)/)
+        await expect(page.getByTestId('bank-tab-body-excluded')).toBeVisible()
+        await expect(reviewRow(page, b)).toHaveCount(1)
+        await page.keyboard.press('j')
+        await expect.poll(() => focusedNames(page, names)).toEqual([b])
+        await page.keyboard.press('x')
+        await expect(selectionText).toHaveText('1 selected · Spent $20.00 · Received $0.00')
+        await page.keyboard.press('r')
+        await expect(result).toHaveText('Moved 1 transaction to For review.')
+        await expect(page.getByTestId('bank-review-empty')).toBeVisible()
+        await page.keyboard.press('x')
+        await expect(selection).toHaveCount(0)
+        await expect(page.getByTestId('bank-review-empty')).toBeVisible()
+
+        // The tab keys; on Files the review keys are not registered.
+        await page.keyboard.press('2')
+        await expect(page).toHaveURL(/[?&]tab=reviewed(&|$)/)
+        await expect(page.getByTestId('bank-tab-body-reviewed')).toBeVisible()
+        await page.keyboard.press('1')
+        await expect(page).toHaveURL(/[?&]tab=review(&|$)/)
+        await expect(page.getByTestId('bank-tab-body-review')).toBeVisible()
+        await page.keyboard.press('4')
+        await expect(page).toHaveURL(/[?&]tab=files(&|$)/)
+        await expect(page.getByTestId('bank-tab-body-files')).toBeVisible()
+        await page.keyboard.press('1')
+        await expect(page).toHaveURL(/[?&]tab=files(&|$)/)
+        await expect(page.getByTestId('bank-tab-body-files')).toBeVisible()
+        await expect(page.getByTestId('bank-tab-body-review')).toHaveCount(0)
+        await openReviewTab(page, 'review')
+        await expect.poll(() => shownNames(page, names)).toEqual([c, b, a])
+
+        // / focuses the search; a letter typed there stays text.
+        await page.keyboard.press('/')
+        const search = page.getByTestId('bank-review-search')
+        await expect(search).toBeFocused()
+        await page.keyboard.type('j')
+        await expect(search).toHaveValue('j')
+        await expect.poll(() => shownNames(page, names)).toEqual([c, b, a])
+        expect(await focusedNames(page, names)).toEqual([])
+
+        // Esc leaves the field; with the drawer closed Esc clears the choice.
+        await page.keyboard.press('Escape')
+        await expect(search).not.toBeFocused()
+        await page.keyboard.press('a')
+        await expect(selectionText).toHaveText('3 selected · Spent $30.00 · Received $30.00')
+        await page.keyboard.press('Escape')
+        await expect(selection).toHaveCount(0)
+
+        // U opens the Files tab with the file chooser.
+        const chooser = page.waitForEvent('filechooser')
+        await page.keyboard.press('u')
+        await chooser
+        await expect(page.getByTestId('bank-tab-body-files')).toBeVisible()
+        await expect(page).toHaveURL(/[?&]tab=files(&|$)/)
+    })
+})

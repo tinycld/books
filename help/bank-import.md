@@ -12,7 +12,7 @@ To add the transactions of a statement file to Books, upload the file on the [Ba
 There are three ways to start:
 
 - After an upload, choose Import transactions beside the "uploaded." line.
-- Choose Import on the file's row in the account's file list.
+- Choose Import on the file's row in the Files tab of the account.
 - Press I on the Banking page to import the newest file of the selected account that is waiting to import.
 
 The import page names the file and its format, and the account it goes into. The account is the one you uploaded the file to and cannot change here. To import into another account, upload the file to that account's card.
@@ -53,6 +53,8 @@ Choose Import to add the chosen rows. Choose at least one transaction first.
 ## After the import
 
 Books says how many transactions it added to the account. A transaction that is already in Books, from this file or another file of the same account, is skipped: Books says how many chosen transactions were skipped. On the Banking page the file then shows Imported: and the number of transactions it added.
+
+Choose Review transactions to go back to Banking on the account's For review tab, where the new transactions wait. See [Review bank transactions](help://books:bank-review). Choose Back to Banking to return to the page as you left it.
 
 You can import a file in parts. When rows of the file are still not imported, choose Import more from this file to choose from the rest. You can also open the import again later from the file's row. Imports cannot be undone or changed.
 

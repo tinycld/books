@@ -49,12 +49,14 @@ function ReviewHeader({ model }: { model: ReviewTabModel }) {
 export function ReviewTable({ model, currency }: { model: ReviewTabModel; currency: string }) {
     const renderRow = (row: ReviewRowData) => {
         const isOpen = row.id === model.openTxnId
+        const isFocused = row.id === model.focusedTxnId
         const choice = rowChoiceOf(model, row.id)
         return (
             <ReviewRow
                 row={row}
                 currency={currency}
                 isOpen={isOpen}
+                isFocused={isFocused}
                 onOpen={model.onOpenRow}
                 choice={choice}
             />
@@ -71,6 +73,7 @@ export function ReviewTable({ model, currency }: { model: ReviewTabModel; curren
             keyOf={keyOf}
             renderRow={renderRow}
             onNearEnd={model.onNearEnd}
+            scrollToIndex={model.focusedIndex}
         />
     )
 }

@@ -9,6 +9,7 @@ import type { BankConnectionRow } from '../../hooks/useBankConnections'
 import type { BankFileItem } from '../../hooks/useBankFiles'
 import type { BankFileUpload } from '../../hooks/useBankFileUpload'
 import type { ReviewBatch } from '../../hooks/useReviewBatch'
+import type { ReviewDrawerModel } from '../../hooks/useReviewDrawer'
 import { bankDetailsText, connectionLabel } from '../../lib/bank-connections'
 import type { ReviewTab } from '../../lib/bank-review'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
@@ -186,16 +187,28 @@ function FilesTabBody(props: PanelBodyProps) {
 
 interface TabBodyProps extends PanelBodyProps {
     tab: ReviewTab
+    onTab: (tab: ReviewTab) => void
     row: BankConnectionRow
     currency: string
     onGoToFiles: () => void
     pageRecovery: LiveRecovery
     batch: ReviewBatch
+    drawer: ReviewDrawerModel
 }
 
 // The transaction tabs show their own loading state, so only the Files tab waits for the
 // files of the selected connection.
-function TabBody({ tab, row, currency, onGoToFiles, pageRecovery, batch, ...files }: TabBodyProps) {
+function TabBody({
+    tab,
+    onTab,
+    row,
+    currency,
+    onGoToFiles,
+    pageRecovery,
+    batch,
+    drawer,
+    ...files
+}: TabBodyProps) {
     if (tab === 'files') return <FilesTabBody {...files} />
     return (
         <ReviewTabBody
@@ -203,8 +216,10 @@ function TabBody({ tab, row, currency, onGoToFiles, pageRecovery, batch, ...file
             connection={row}
             currency={currency}
             onGoToFiles={onGoToFiles}
+            onTab={onTab}
             pageRecovery={pageRecovery}
             batch={batch}
+            drawer={drawer}
         />
     )
 }
@@ -230,6 +245,8 @@ interface BankAccountPanelProps {
     pageRecovery: LiveRecovery
     // The page's status change of transactions, shared with the drawer beside the page.
     batch: ReviewBatch
+    // The page's transaction drawer, for the review keys (batch keys, Esc).
+    drawer: ReviewDrawerModel
     // What the import and review units add, under the upload area and above the files.
     children?: ReactNode
 }
@@ -247,6 +264,7 @@ export function BankAccountPanel({
     currency,
     pageRecovery,
     batch,
+    drawer,
     children,
     ...actions
 }: BankAccountPanelProps) {
@@ -300,6 +318,8 @@ export function BankAccountPanel({
             <BankingTabs tab={tab} reviewCount={row.reviewCount} onTab={onTab} />
             <TabBody
                 tab={tab}
+                onTab={onTab}
+                drawer={drawer}
                 row={row}
                 currency={currency}
                 onGoToFiles={onGoToFiles}
