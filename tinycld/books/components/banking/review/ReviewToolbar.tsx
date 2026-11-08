@@ -2,7 +2,8 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { type PickItem, PickMenu } from '@tinycld/core/ui/pick-menu'
 import { ChevronDown } from 'lucide-react-native'
-import { Pressable, Text, View } from 'react-native'
+import type { RefObject } from 'react'
+import { Pressable, Text, type TextInputInstance, View } from 'react-native'
 import type { ReviewTabModel } from '../../../hooks/useReviewTab'
 import {
     REVIEW_DATE_ITEMS,
@@ -15,7 +16,18 @@ import { SearchField } from '../../ListToolbar'
 
 const SEARCH_PLACEHOLDER = 'Search description, memo, check no. or amount'
 
-function SearchBox({ search, isWide }: { search: string; isWide: boolean }) {
+type SearchRef = RefObject<TextInputInstance | null>
+
+// The review keys focus the field through `searchRef` (`/`).
+function SearchBox({
+    search,
+    isWide,
+    searchRef,
+}: {
+    search: string
+    isWide: boolean
+    searchRef: SearchRef
+}) {
     const setReviewSearch = useBankingUIStore(s => s.setReviewSearch)
     const list = { query: search, setQuery: setReviewSearch }
     return (
@@ -24,6 +36,7 @@ function SearchBox({ search, isWide }: { search: string; isWide: boolean }) {
             placeholder={SEARCH_PLACEHOLDER}
             list={list}
             isWide={isWide}
+            inputRef={searchRef}
         />
     )
 }
@@ -146,11 +159,17 @@ function Filters({ model }: { model: ReviewTabModel }) {
 // Search, Dates and Type of the transaction tabs: one row on wide, two on a phone (the
 // search alone on the first, the menus and "Clear filters" on one line under it). It stays
 // in every view state, the first load included.
-export function ReviewToolbar({ model }: { model: ReviewTabModel }) {
+export function ReviewToolbar({
+    model,
+    searchRef,
+}: {
+    model: ReviewTabModel
+    searchRef: SearchRef
+}) {
     const layout = model.isWide ? 'flex-row items-center gap-2' : 'gap-2'
     return (
         <View testID="bank-review-toolbar" className={`pb-2 ${layout}`}>
-            <SearchBox search={model.filters.search} isWide={model.isWide} />
+            <SearchBox search={model.filters.search} isWide={model.isWide} searchRef={searchRef} />
             <Filters model={model} />
         </View>
     )

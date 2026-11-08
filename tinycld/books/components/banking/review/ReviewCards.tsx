@@ -62,6 +62,7 @@ function ReviewPhoneBar({ model }: { model: ReviewTabModel }) {
 export function ReviewCards({ model, currency }: { model: ReviewTabModel; currency: string }) {
     const renderCard = (row: ReviewRowData, height: number) => {
         const isOpen = row.id === model.openTxnId
+        const isFocused = row.id === model.focusedTxnId
         const choice = rowChoiceOf(model, row.id)
         return (
             <ReviewCard
@@ -69,6 +70,7 @@ export function ReviewCards({ model, currency }: { model: ReviewTabModel; curren
                 currency={currency}
                 height={height}
                 isOpen={isOpen}
+                isFocused={isFocused}
                 onOpen={model.onOpenRow}
                 choice={choice}
             />
@@ -84,6 +86,7 @@ export function ReviewCards({ model, currency }: { model: ReviewTabModel; curren
                 keyOf={keyOf}
                 renderCard={renderCard}
                 onNearEnd={model.onNearEnd}
+                scrollToIndex={model.focusedIndex}
             />
         </View>
     )

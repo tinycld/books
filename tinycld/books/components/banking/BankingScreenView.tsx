@@ -1,3 +1,4 @@
+import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { ScrollView, View } from 'react-native'
 import { type BankFileUpload, useBankFileUpload } from '../../hooks/useBankFileUpload'
 import type { BankingScreenModel } from '../../hooks/useBankingScreen'
@@ -41,6 +42,7 @@ function BankingContent({ model, upload }: { model: BankingScreenModel; upload: 
                 currency={model.currency}
                 pageRecovery={model.pageRecovery}
                 batch={model.batch}
+                drawer={model.drawer}
             />
         </>
     )
@@ -62,10 +64,15 @@ function IntroBody({ model }: { model: BankingScreenModel }) {
 // window. The transaction drawer sits beside the whole column, as the register's
 // EntryDrawer sits beside its screen: inline at full height on a wide window (the column
 // narrows), an overlay or a sheet otherwise.
+// The page owns one `list` shortcut scope, published to the account panel only (the
+// dialogs and the drawer keep their own scopes), where the transaction tab keys register
+// against it: a second `useShortcutScope('list')` in a tab body would push its own scope on
+// top and turn the page keys (N, U, I) off.
 export function BankingScreenView({ model }: { model: BankingScreenModel }) {
+    const listScope = useShortcutScope('list')
     // One upload for the selected connection, shared by the upload area and the page keys.
     const upload = useBankFileUpload(model.selected?.id ?? '')
-    useBankingShortcuts({ model, upload })
+    useBankingShortcuts({ model, upload, owner: listScope })
     if (model.state === 'loading') return <BankingLoading />
     if (model.state === 'error') return <BankingLoadError onRetry={model.onRetry} />
     const padding = model.isWide ? 'p-6' : 'p-4'
@@ -81,7 +88,9 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
                         onConnect={model.onConnect}
                     />
                     <IntroBody model={model} />
-                    <BankingContent model={model} upload={upload} />
+                    <ScopeProvider owner={listScope}>
+                        <BankingContent model={model} upload={upload} />
+                    </ScopeProvider>
                 </View>
                 <BankTxnDrawer drawer={model.drawer} currency={model.currency} />
             </View>

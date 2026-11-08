@@ -83,6 +83,14 @@ describe('help/banking.md', () => {
         expect(source).toContain('help://books:bank-import')
     })
 
+    it('mentions the Files tab', () => {
+        expect(body.toLowerCase()).toContain('files tab')
+    })
+
+    it('links to the Review bank transactions topic', () => {
+        expect(source).toContain('help://books:bank-review')
+    })
+
     it('no longer says Books keeps a file until you import it', () => {
         expect(topicExists).toBe(true)
         expect(body).not.toContain('Books keeps it until you import its transactions')

@@ -1,3 +1,5 @@
+import { rowFocusStyle } from '@tinycld/core/components/focusable-row'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Pressable, Text, View } from 'react-native'
 import type { ReviewRowData, ReviewTabModel } from '../../../hooks/useReviewTab'
 import {
@@ -44,8 +46,21 @@ type RowProps = {
     row: ReviewRowData
     currency: string
     isOpen: boolean
+    // The review keys' focus stripe (web only, core rowFocusStyle).
+    isFocused: boolean
     onOpen: (id: string) => void
     choice: RowChoice
+}
+
+// The register's focus stripe, and `data-focused` on the web for the e2e (react-native-web
+// renders `dataSet`; a bare data- prop is dropped).
+function useRowFocus(isFocused: boolean) {
+    const borderColor = useThemeColor('border')
+    const activeIndicator = useThemeColor('primary')
+    return {
+        style: rowFocusStyle({ isFocused, borderColor, activeIndicator }),
+        dataSet: { focused: isFocused ? 'true' : undefined },
+    }
 }
 
 // The row's check box, on the cell the header's select-all uses. SelectBox stops its own
@@ -76,13 +91,15 @@ function rowBackground(isOpen: boolean): string {
 // Description (memo and check number under it) · Spent · Received, on the cells the header
 // uses. Pressing it opens the drawer. react-native-web writes no aria-selected from
 // accessibilityState, so both are set.
-export function ReviewRow({ row, currency, isOpen, onOpen, choice }: RowProps) {
+export function ReviewRow({ row, currency, isOpen, isFocused, onOpen, choice }: RowProps) {
     const amounts = txnAmountCells(row.amount, currency)
     const secondLine = txnSecondLine(row.memo, row.checkNumber)
     const day = formatDay(row.date)
     const onPress = () => onOpen(row.id)
     const selected = { selected: isOpen }
     const className = `${PARTY_ROW_CLASS} border-b border-border ${rowBackground(isOpen)}`
+    const focus = useRowFocus(isFocused)
+    const style = [ROW_STYLE, focus.style]
     return (
         <Pressable
             testID={`bank-review-row-${row.id}`}
@@ -91,7 +108,8 @@ export function ReviewRow({ row, currency, isOpen, onOpen, choice }: RowProps) {
             aria-selected={isOpen}
             onPress={onPress}
             className={className}
-            style={ROW_STYLE}
+            style={style}
+            dataSet={focus.dataSet}
         >
             <RowBox row={row} choice={choice} />
             <View className="min-w-0 pr-3" style={REVIEW_CELLS.date}>
@@ -127,10 +145,12 @@ export function ReviewCard({
     currency,
     height,
     isOpen,
+    isFocused,
     onOpen,
     choice,
 }: RowProps & { height: number }) {
-    const cardStyle = { height }
+    const focus = useRowFocus(isFocused)
+    const cardStyle = [{ height }, focus.style]
     const phoneLine = txnPhoneLine(row.date, row.checkNumber)
     const amountText = formatMoney(row.amount, currency)
     const onPress = () => onOpen(row.id)
@@ -145,6 +165,7 @@ export function ReviewCard({
             onPress={onPress}
             className={className}
             style={cardStyle}
+            dataSet={focus.dataSet}
         >
             <RowBox row={row} choice={choice} />
             <View className="min-w-0 flex-1">

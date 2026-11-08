@@ -1,6 +1,8 @@
-import { View } from 'react-native'
+import { type RefObject, useRef } from 'react'
+import { type TextInputInstance, View } from 'react-native'
 import type { BankConnectionRow } from '../../../hooks/useBankConnections'
 import type { ReviewBatch } from '../../../hooks/useReviewBatch'
+import { type ReviewShortcutsInput, useReviewShortcuts } from '../../../hooks/useReviewShortcuts'
 import {
     type ReviewQueryInput,
     type ReviewRead,
@@ -10,7 +12,7 @@ import {
     useReviewQueueRows,
     useReviewTab,
 } from '../../../hooks/useReviewTab'
-import type { TxnTab } from '../../../lib/bank-review'
+import type { ReviewTab, TxnTab } from '../../../lib/bank-review'
 import type { LiveRecovery } from '../../../lib/live-recovery'
 import { ReviewCards } from './ReviewCards'
 import { ReviewEmptyState, ReviewLoadError, ReviewLoading } from './ReviewEmptyState'
@@ -24,9 +26,15 @@ type ReviewTabBodyProps = {
     connection: BankConnectionRow
     currency: string
     onGoToFiles: () => void
+    // The tab keys 1–4 switch the tab through the page's own tab change.
+    onTab: (tab: ReviewTab) => void
     pageRecovery: LiveRecovery
     batch: ReviewBatch
+    // The page's drawer, for the batch keys and Esc.
+    drawer: ReviewShortcutsInput['drawer']
 }
+
+type SearchRef = RefObject<TextInputInstance | null>
 
 const NO_MATCH_TEXT = 'No transactions match these filters.'
 
@@ -45,10 +53,10 @@ function NoMatchState({ model }: { model: ReviewTabModel }) {
 
 // While rows are chosen, or the bar's own run is in flight (its rows have already left the
 // list), the selection bar takes the toolbar's place.
-function ToolbarOrSelection({ model }: { model: ReviewTabModel }) {
+function ToolbarOrSelection({ model, searchRef }: { model: ReviewTabModel; searchRef: SearchRef }) {
     const showsSelection = model.canChoose && (model.chosenIds.length > 0 || model.isBatchRunning)
     if (showsSelection) return <ReviewSelectionBar model={model} />
-    return <ReviewToolbar model={model} />
+    return <ReviewToolbar model={model} searchRef={searchRef} />
 }
 
 function ReviewList({ model, currency }: { model: ReviewTabModel; currency: string }) {
@@ -83,9 +91,11 @@ type ReviewTabViewProps = ReviewTabBodyProps & {
 // The shared view of a transaction tab over the read its tab body made: the toolbar (or
 // the selection bar) in every view state and the last batch's result under it, then the
 // list or its state. The drawer is the page's (BankingScreenView), so opening it changes
-// nothing in this tree and the list keeps its scroll position.
+// nothing in this tree and the list keeps its scroll position. The tab's keys are
+// registered while this body shows, so none is on the Files tab.
 function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
-    const { tab, connection, currency, onGoToFiles, pageRecovery, batch } = props
+    const { tab, connection, currency, onGoToFiles, onTab, pageRecovery, batch, drawer } = props
+    const searchRef = useRef<TextInputInstance | null>(null)
     const model = useReviewTab({
         tab,
         connectionId: connection.id,
@@ -96,9 +106,10 @@ function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
         pageRecovery,
         batch,
     })
+    useReviewShortcuts({ ...model, tab, searchRef, onTab, drawer })
     return (
         <View testID={`bank-tab-body-${tab}`} className="min-h-0 flex-1 overflow-hidden">
-            <ToolbarOrSelection model={model} />
+            <ToolbarOrSelection model={model} searchRef={searchRef} />
             <ReviewResultLine result={model.result} />
             <View aria-busy={model.isBusy} className="min-h-0 min-w-0 flex-1">
                 <ReviewStateBody
