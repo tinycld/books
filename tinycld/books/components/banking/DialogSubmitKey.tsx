@@ -1,4 +1,5 @@
 import { useRegisterShortcuts } from '@tinycld/core/lib/shortcuts'
+import { useLayerActive } from '@tinycld/core/ui/overlay/escape'
 import { useId, useMemo, useRef } from 'react'
 import { dialogSubmitShortcut } from '../../lib/banking-shortcuts'
 
@@ -13,13 +14,15 @@ interface DialogSubmitKeyProps {
 // content: the key fires only while that layer is on top, and it shares the scope with
 // the layer's Escape. No scope is pushed here: a second `modal` scope above the layer's
 // would stop the layer's Escape "Close" from matching. Each Banking dialog renders only
-// while open, so the key unregisters when its dialog closes, also on a phone where the
-// sheet slides out. `isEnabled` and `onSubmit` are read at press time, so a render never
-// re-registers.
+// while open, so the key unregisters when its dialog closes, also on a phone, where the
+// dialog is a sheet. The key also stops while its layer closes (`useLayerActive`), so a
+// sheet's exit animation cannot take a second ⌘↵. `isEnabled` and `onSubmit` are read at
+// press time, so a render never re-registers.
 export function DialogSubmitKey({ description, isEnabled, onSubmit }: DialogSubmitKeyProps) {
     const instance = useId()
+    const isLayerActive = useLayerActive()
     const enabledRef = useRef(isEnabled)
-    enabledRef.current = isEnabled
+    enabledRef.current = isEnabled && isLayerActive
     const submitRef = useRef(onSubmit)
     submitRef.current = onSubmit
     const shortcuts = useMemo(
