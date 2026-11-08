@@ -56,6 +56,7 @@ const CONNECTION: BankConnectionRow = publishedRow(
         creditTotal: 0,
         waitingCount: 0,
         lastUploadAt: undefined,
+        reviewCount: 0,
     },
     'books.banking.connections'
 )

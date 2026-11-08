@@ -32,8 +32,11 @@
 // columns). A person imports chosen lines by creating a books_bank_imports row
 // with the column mapping; its Go hook (server/bank_import.go) maps the rows,
 // skips duplicates, writes books_bank_transactions and sets the file to
-// `imported`. Only Go writes the parsed rows and the transactions, so they have
-// no client write rules; an import is never changed or removed. A file line is
+// `imported`. Only Go writes the parsed rows and creates the transactions; an
+// import is never changed or removed. A writer may change only a transaction's
+// `status`, and only between `for_review` and `excluded` (Exclude and Move to
+// For review); a `reviewed` row is not changeable by a client. Transactions have
+// no create or delete rule. A file line is
 // imported once (unique file, line) and a transaction once per connection
 // (unique dedupe_hash).
 //
@@ -227,7 +230,7 @@ migrate(
                 listRule: READ,
                 viewRule: READ,
                 createRule: null,
-                updateRule: null,
+                updateRule: `${WRITE} && ${unset('connection', 'file', 'bank_import', 'line', 'date', 'description', 'memo', 'amount', 'fitid', 'check_number', 'dedupe_hash')} && ((status = "for_review" && @request.body.status = "excluded") || (status = "excluded" && @request.body.status = "for_review"))`,
                 deleteRule: null,
                 fields: [
                     relation('connection', connections.id, false),

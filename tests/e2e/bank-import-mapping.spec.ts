@@ -18,6 +18,7 @@ import {
     connectionIdOf,
     fakeReadOnlyAccess,
     openBanking,
+    openFilesTab,
 } from './banking-helpers'
 import { navigateInApp, uniqueName } from './record-form-helpers'
 
@@ -148,6 +149,7 @@ test.describe('bank-import-mapping: import', () => {
         await expect(more).toHaveCount(0)
         await page.getByTestId('bank-import-to-banking').click()
         await expect(page).toHaveURL(/\/banking\?(.*&)?account=/)
+        await openFilesTab(page)
 
         const row = fileRowByName(page, file.name)
         await expect(row.getByText('Imported: 3 transactions', { exact: true })).toBeVisible()
@@ -260,6 +262,7 @@ test.describe('bank-import-mapping: import', () => {
         const card = bankCard(page, CARD)
         await card.click()
         await expect(card).toHaveAttribute('aria-selected', 'true')
+        await openFilesTab(page)
         const row = fileRowByName(page, CARD_FILE)
         await expect(row).toHaveCount(1)
         await expect(page.locator('[data-testid^="bank-file-import-"]')).toHaveCount(0)
@@ -288,6 +291,7 @@ test.describe('bank-import-mapping: import', () => {
         await checking.click()
         await expect(checking).toHaveAttribute('aria-selected', 'true')
         const checkingId = await connectionIdOf(checking)
+        await openFilesTab(page)
         const checkingFileId = await fileIdOf(fileRowByName(page, CHECKING_FILE))
         const bankingPath = new URL(page.url()).pathname
         const toBanking = page.getByTestId('bank-import-to-banking')
@@ -328,6 +332,7 @@ test.describe('bank-import-mapping: import', () => {
         await card.click()
         await expect(card).toHaveAttribute('aria-selected', 'true')
         const cardId = await connectionIdOf(card)
+        await openFilesTab(page)
         const fileId = await fileIdOf(fileRowByName(page, CARD_FILE))
         await page.getByTestId(`bank-file-import-${fileId}`).click()
         await expect(page.getByTestId('bank-import-load-error')).toContainText(
@@ -500,6 +505,7 @@ test.describe('bank-import-mapping: csv mapping', () => {
         await submit.click()
         await expect(resultText).toHaveText(`Imported 3 transactions into ${name}.`)
         await backToBanking(page)
+        await openFilesTab(page)
 
         const row = fileRowByName(page, file.name)
         await expect(row.getByText('Imported: 3 transactions', { exact: true })).toBeVisible()
@@ -581,6 +587,7 @@ test.describe('bank-import-mapping: csv mapping', () => {
         )
         await expect(page.getByTestId('bank-import-more')).toHaveCount(0)
         await backToBanking(page)
+        await openFilesTab(page)
 
         const rowA = fileRowByName(page, fileA.name)
         const rowB = fileRowByName(page, fileB.name)
@@ -725,6 +732,7 @@ test.describe('bank-import-mapping: keys and statement', () => {
         await page.keyboard.press('Escape')
         await expect(page).toHaveURL(/\/banking\?(.*&)?account=/)
         await expect(page).not.toHaveURL(/\/import\//)
+        await openFilesTab(page)
         await expect(
             fileRowByName(page, newer.name).getByText('Imported: 3 transactions', { exact: true })
         ).toBeVisible()

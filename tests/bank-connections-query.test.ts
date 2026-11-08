@@ -14,11 +14,13 @@ import {
     BANK_FILES,
 } from '../tinycld/books/lib/bank-connection-fixture'
 import { bankConnectionsQuery } from '../tinycld/books/lib/bank-connections-query'
+import { REVIEW_TRANSACTIONS } from '../tinycld/books/lib/for-review-fixture'
 import type {
     BooksAccountBalances,
     BooksAccounts,
     BooksBankConnections,
     BooksBankFiles,
+    BooksBankTransactions,
 } from '../tinycld/books/types'
 
 const STAMP = '2026-01-01 00:00:00.000Z'
@@ -107,6 +109,47 @@ const ORPHAN_CONNECTION = connection({
     account_mask: '1111',
 })
 
+function txn(
+    seed: Pick<BooksBankTransactions, 'id' | 'connection' | 'status' | 'line'>
+): BooksBankTransactions {
+    return { ...REVIEW_TRANSACTIONS[0], ...seed }
+}
+
+// Checking has two rows for review, one excluded and one reviewed: only the two count.
+// The card has one reviewed row and nothing to review; savings has no row at all.
+const TRANSACTIONS = [
+    txn({
+        id: 'txnchkreview001',
+        connection: BANK_CONNECTION_IDS.checking,
+        status: 'for_review',
+        line: 1,
+    }),
+    txn({
+        id: 'txnchkreview002',
+        connection: BANK_CONNECTION_IDS.checking,
+        status: 'for_review',
+        line: 2,
+    }),
+    txn({
+        id: 'txnchkexclude01',
+        connection: BANK_CONNECTION_IDS.checking,
+        status: 'excluded',
+        line: 3,
+    }),
+    txn({
+        id: 'txnchkreviewed1',
+        connection: BANK_CONNECTION_IDS.checking,
+        status: 'reviewed',
+        line: 4,
+    }),
+    txn({
+        id: 'txncardreviewd1',
+        connection: BANK_CONNECTION_IDS.card,
+        status: 'reviewed',
+        line: 1,
+    }),
+]
+
 const indexed = {
     autoIndex: 'eager' as const,
     defaultIndexType: BasicIndex,
@@ -138,7 +181,11 @@ const CHART_ORDER_CONNECTIONS = CHART_ORDER_ACCOUNTS.map(row =>
     })
 )
 
-async function runQuery(connections: BooksBankConnections[], accounts = BANK_ACCOUNTS) {
+async function runQuery(
+    connections: BooksBankConnections[],
+    accounts = BANK_ACCOUNTS,
+    transactions = TRANSACTIONS
+) {
     const connectionsCollection = createCollection(
         localOnlyCollectionOptions({
             id: `bank-connections-${Math.random()}`,
@@ -171,12 +218,21 @@ async function runQuery(connections: BooksBankConnections[], accounts = BANK_ACC
             ...indexed,
         })
     )
+    const transactionsCollection = createCollection(
+        localOnlyCollectionOptions({
+            id: `bank-transactions-${Math.random()}`,
+            getKey: (row: BooksBankTransactions) => row.id,
+            initialData: transactions,
+            ...indexed,
+        })
+    )
     const live = createLiveQueryCollection({
         query: bankConnectionsQuery(
             connectionsCollection,
             accountsCollection,
             balancesCollection,
-            filesCollection
+            filesCollection,
+            transactionsCollection
         ),
         startSync: true,
     })
@@ -242,5 +298,32 @@ describe('bankConnectionsQuery', () => {
             BANK_CONNECTION_IDS.checking,
             BANK_CONNECTION_IDS.card,
         ])
+    })
+
+    it('counts only the for-review transactions of each connection', async () => {
+        const rows = await runQuery([...BANK_CONNECTIONS, SAVINGS_CONNECTION])
+        expect(rows.map(row => [row.id, row.reviewCount])).toEqual([
+            [BANK_CONNECTION_IDS.checking, 2],
+            [SAVINGS_CONNECTION.id, 0],
+            [BANK_CONNECTION_IDS.card, 0],
+        ])
+    })
+
+    it('keeps one row per connection however many transactions it has', async () => {
+        const many = Array.from({ length: 30 }, (_, index) =>
+            txn({
+                id: `txnchkmany${String(index).padStart(5, '0')}`,
+                connection: BANK_CONNECTION_IDS.checking,
+                status: index % 3 === 0 ? 'excluded' : 'for_review',
+                line: index + 1,
+            })
+        )
+        const rows = await runQuery(BANK_CONNECTIONS, BANK_ACCOUNTS, many)
+        expect(rows.map(row => row.id)).toEqual([
+            BANK_CONNECTION_IDS.checking,
+            BANK_CONNECTION_IDS.card,
+        ])
+        expect(rows[0].reviewCount).toBe(20)
+        expect(rows[0].waitingCount).toBe(4)
     })
 })

@@ -21,12 +21,12 @@ import (
 )
 
 // serverOnly are the collections only Go writes. The balance rows are derived
-// from the ledger; a bank file's parsed rows and its transactions are written
-// by the upload and import hooks, and the import row that made them is audited.
+// from the ledger; a bank file's parsed rows are written by the upload hook, and
+// the import row that made the transactions is audited. A writer changes a
+// transaction's status, so the transactions are audited, not server-only.
 var serverOnly = map[string]bool{
 	"books_account_balances":   true,
 	"books_bank_file_contents": true,
-	"books_bank_transactions":  true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
@@ -200,6 +200,19 @@ func TestAudit_LabelsBankRecords(t *testing.T) {
 	file := mustSaveBankFile(t, app, connection.Id, "checking-2026-09.csv", sha256Hex([]byte(bankCSV)), "uploaded")
 	if got, want := files.ExtractLabel(file), "checking-2026-09.csv"; got != want {
 		t.Errorf("bank file label = %q, want %q", got, want)
+	}
+	txns, ok := audited["books_bank_transactions"]
+	if !ok {
+		t.Fatal("books_bank_transactions is not audited")
+	}
+	bankImport := saveRecord(t, app, "books_bank_imports", map[string]any{"file": file.Id, "lines": []int{2}})
+	txn := saveRecord(t, app, "books_bank_transactions", map[string]any{
+		"connection": connection.Id, "file": file.Id, "bank_import": bankImport.Id, "line": 2,
+		"date": "2026-10-27", "description": "CHECK 1050", "amount": -36240,
+		"dedupe_hash": strings.Repeat("c", 64), "status": "for_review",
+	})
+	if got, want := txns.ExtractLabel(txn), "2026-10-27 CHECK 1050"; got != want {
+		t.Errorf("bank transaction label = %q, want %q", got, want)
 	}
 }
 
@@ -397,8 +410,9 @@ func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 	}
 }
 
-// A file's parsed rows and its transactions are written only by the server,
-// so a token reads them and never writes them.
+// A file's parsed rows are written only by the server, and a person changes a
+// transaction only to move its status between For review and Excluded, so a
+// token reads them and never writes them.
 func TestOAuth_BankRowsAreReadOnly(t *testing.T) {
 	collections := oauthPackage().Collections
 	for _, c := range []string{"books_bank_file_contents", "books_bank_transactions"} {

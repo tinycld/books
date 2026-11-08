@@ -9,6 +9,7 @@ const TOPICS = [
     { title: 'Account register', image: 'account-register-1' },
     { title: 'Banking', image: 'banking-1' },
     { title: 'Import bank transactions', image: 'bank-import-1' },
+    { title: 'Review bank transactions', image: 'bank-review-1' },
 ]
 
 async function openTopic(page: Page, title: string) {
