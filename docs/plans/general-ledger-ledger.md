@@ -231,3 +231,4 @@ Books (checkpoint 3, in the tree, not committed):
 - fix review: round 1: 0 BLOCK, 1 NOTE → Design notes (cp3-fix-review.md) · fresh critic on the re-captured set (critique.md): 0 INVALID, 0 BLOCKING (the 3 are gone: Split and Name whole on tablet line 2), 8 NOTE — 4 new → Design notes, 4 already there (heading sort control on wrap layouts, more-390 toolbar, collapsed 0.00; and the 1280 Split note is fixed). Rounds: 1.
 - deferrals: none · rebuttals: none.
 - human: n/a (mode C)
+- commit: bdaec3b (books, branch books/p5-general-ledger; not pushed)
