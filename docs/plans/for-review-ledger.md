@@ -207,6 +207,7 @@
 - gate 3 A notes: 2, listed under Design notes
 - reviewer-caught deferrals: none
 - fix review: round 1: 7 findings (staging cp/cp5-fix.md; causes spec-logic ×2, help-text, other: unmeasured layout, weak-test ×2, write-guard). Test first (staging cp/cp5-fix-tests.md): a new step in `for-review: keys` (mouse-press a row or box, move the stripe, ↵ / Space act on the striped row; red: ↵ opened the pressed row), `search` not offered while rows are chosen (7 unit cases red), new `tests/scroll-into-view.test.ts` (unmeasured view → null red; 5 others green), harness counter per seed generation. Fixed (staging cp/cp5-fix-impl.md): a movement key releases DOM focus on web (`releaseDomFocus`), trace comment corrected; `search` only with no rows chosen, `chosenCount` from `selection.count`; `scrollIntoViewY` null when unmeasured and the lists scroll again on their first measure; `useReviewBatch` holds a run in flight in a ref; help text. · gate 1 again: tests unedited: yes · check pass (208 files / 4264) · `for-review:` 9 passed · banking-keys 3 passed · help-screenshots 10 passed · a probe capture pressed at 390 then resized to 1280 shows the focused row in view · shots re-captured (the plain `review` state, 390 then 1280; the `review-wide` workaround removed) · fix reviewer: clean (1 conformance line, false positive: `releaseDomFocus` returns when `document` is undefined) · fresh critic (evidence/cp5/critique-round2.md): 0 INVALID, 0 BLOCKING, 0 NOTE · rounds: 1
+- commit: b272e80
 - human: none (review mode C)
 
 ## Final review
