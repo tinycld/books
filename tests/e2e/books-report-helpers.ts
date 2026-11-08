@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { hubRow, navigateToPackage, rowOf } from '@tinycld/core/e2e-helpers'
+import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
 // Books' reports run in core's report view (/a/reports/<id>). These helpers drive it
 // through core's test ids (core/reports/components) and read it in one snapshot.
@@ -234,4 +235,115 @@ export async function openAccountRow(page: Page, label: string): Promise<void> {
     await expect
         .poll(async () => detailsUnder(await tbSnapshot(page), label).length)
         .toBeGreaterThan(0)
+}
+
+// The General Ledger's two days: after 2026-07-01, so no close date or fiscal start month
+// that books-settings.spec.ts sets on the shared DB refuses a post or moves a fiscal year
+// between them, and in one month for the custom periods.
+export const GL_DAY_1 = '2026-08-04'
+export const GL_DAY_2 = '2026-08-18'
+
+export type GlSnapshot = {
+    // The period the document header prints (report-document-period).
+    header: string
+    rows: {
+        id: string
+        kind: 'group' | 'opening' | 'detail' | 'subtotal' | 'total'
+        label: string
+        // Each cell's text by column id (type, number, name, description, split, debit,
+        // credit, balance).
+        cells: Record<string, string>
+    }[]
+}
+
+// The shipped General Ledger from the Books hub, reached as openTrialBalance reaches the
+// Trial Balance: through the viewer share Books keeps, with no tab press.
+export async function openGeneralLedger(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, 'General Ledger').click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(
+        page.getByTestId('report-table').or(page.getByTestId('report-empty'))
+    ).toBeVisible()
+}
+
+// Sets the Period: a preset applies at once and closes the popover; Custom days apply as
+// they are typed (the URL holds them) and Escape closes the popover.
+export async function choosePeriod(
+    page: Page,
+    choice: { preset: 'thisMonthToDate' | 'allDates' } | { from: string; to: string }
+): Promise<void> {
+    await page.getByTestId('report-param-period').click()
+    const popover = page.getByTestId('report-period-popover')
+    await expect(popover).toBeVisible()
+    if ('preset' in choice) {
+        await page.getByTestId(`report-period-preset-${choice.preset}`).click()
+    } else {
+        await page.getByTestId('report-period-preset-custom').click()
+        await page.getByTestId('report-period-from').fill(choice.from)
+        await page.getByTestId('report-period-to').fill(choice.to)
+        await expect(page.getByTestId('report-period-error')).toHaveCount(0)
+        await expect
+            .poll(() => new URL(page.url()).searchParams.get('p-period'))
+            .toBe(`${choice.from}..${choice.to}`)
+        await page.keyboard.press('Escape')
+    }
+    await expect(popover).toHaveCount(0)
+}
+
+// Every mounted row of the report table, top to bottom, with every cell, and the document
+// period, read in ONE pass so no re-render lands between two reads. The row kind comes from
+// core's row id: g: a section, opening: its beginning balance, d: a line, s: its total.
+export function glSnapshot(page: Page): Promise<GlSnapshot> {
+    return page.evaluate(() => {
+        const table = document.querySelector('[data-testid="report-table"]')
+        const period = document.querySelector('[data-testid="report-document-period"]')
+        const cells = new Map<string, Record<string, string>>()
+        for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {
+            const rest = (cell.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
+            const dash = rest.indexOf('-')
+            const column = rest.slice(0, dash)
+            const id = rest.slice(dash + 1)
+            const row = cells.get(id) ?? {}
+            row[column] = (cell as HTMLElement).innerText.trim()
+            cells.set(id, row)
+        }
+        const kindOf = (id: string): GlSnapshot['rows'][number]['kind'] | null => {
+            if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('opening:')) return 'opening'
+            if (id.startsWith('d:')) return 'detail'
+            if (id.startsWith('s:')) return 'subtotal'
+            if (id.startsWith('total')) return 'total'
+            return null
+        }
+        const rows: GlSnapshot['rows'] = []
+        const labels = [...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? [])]
+            .map(element => ({
+                id: (element.getAttribute('data-testid') ?? '').slice('report-row-'.length),
+                label: (element as HTMLElement).innerText.trim(),
+                top: element.getBoundingClientRect().top,
+            }))
+            .sort((a, b) => a.top - b.top)
+        for (const { id, label } of labels) {
+            const kind = kindOf(id)
+            if (kind) rows.push({ id, kind, label, cells: cells.get(id) ?? {} })
+        }
+        return { header: (period as HTMLElement | null)?.innerText.trim() ?? '', rows }
+    })
+}
+
+// Posts a journal entry on `date`: Books must be open on a screen openNewEntry reaches. The
+// form starts with two lines; each line past them is added with Add line.
+export async function postEntryOn(
+    page: Page,
+    entry: { date: string; memo: string; lines: LineInput[] }
+): Promise<void> {
+    await openNewEntry(page)
+    await page.getByTestId('entry-date').fill(entry.date)
+    await page.getByTestId('entry-memo').fill(entry.memo)
+    for (const [index, line] of entry.lines.entries()) {
+        if (index >= 2) await page.getByTestId('entry-add-line').click()
+        await fillLine(page, index, line)
+    }
+    await postOpenEntry(page)
 }

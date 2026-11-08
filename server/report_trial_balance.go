@@ -1,11 +1,6 @@
 package books
 
-import (
-	"encoding/json"
-	"fmt"
-
-	"tinycld.org/core/reports"
-)
+import "tinycld.org/core/reports"
 
 // trialBalanceKey names the shipped Trial Balance for good.
 const trialBalanceKey = "books.trial_balance"
@@ -122,62 +117,4 @@ func trialBalanceSpec() *reports.Spec {
 			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
 		)},
 	}
-}
-
-// profitAndLossTypes are the account types whose group is income or expense,
-// in account_types.json order.
-func profitAndLossTypes() []string {
-	var out []string
-	for _, t := range accountTypes {
-		if t.Group == "income" || t.Group == "expense" {
-			out = append(out, t.Key)
-		}
-	}
-	return out
-}
-
-// typeRankCase ranks an account type by its place in account_types.json, so
-// the chart order follows the file, not the type keys.
-func typeRankCase(n *reports.Node) *reports.Node {
-	args := make([]*reports.Node, 0, 2*len(accountTypes)+1)
-	for i, t := range accountTypes {
-		args = append(args, op("eq", n, lit(t.Key)), lit(i+1))
-	}
-	return op("case", append(args, lit(len(accountTypes)+1))...)
-}
-
-// path is links, then the field.
-func path(names ...string) reports.Path {
-	p := reports.Path{}
-	for _, l := range names[:len(names)-1] {
-		p = append(p, reports.Hop{Link: l})
-	}
-	return append(p, reports.Hop{Field: names[len(names)-1]})
-}
-
-func fld(names ...string) *reports.Node { return &reports.Node{Path: path(names...)} }
-
-func link(name string) *reports.Node { return &reports.Node{Path: reports.Path{{Link: name}}} }
-
-func op(name string, args ...*reports.Node) *reports.Node {
-	return &reports.Node{Op: name, Args: args}
-}
-
-func lit(v any) *reports.Node { return &reports.Node{Value: mustJSON(v)} }
-
-func prm(id string) *reports.Node { return &reports.Node{Param: id} }
-
-func col(id string) *reports.Node { return &reports.Node{Col: id} }
-
-// rec reads a field of the group's linked record.
-func rec(group, field string) *reports.Node {
-	return &reports.Node{Record: group, Path: reports.Path{{Field: field}}}
-}
-
-func mustJSON(v any) json.RawMessage {
-	raw, err := json.Marshal(v)
-	if err != nil {
-		panic(fmt.Sprintf("books: trial balance spec: %v", err))
-	}
-	return raw
 }

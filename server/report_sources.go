@@ -14,8 +14,8 @@ import (
 // §5). Books stores days as YYYY-MM-DD text, so its days are TextDay dates.
 // No source sets Currency: each money field names its row's currency column,
 // which posting stamps from the Books currency setting. Json columns, sort and
-// name keys, form links, positions, close overrides and user relations are
-// left out.
+// name keys, form links, close overrides, user relations and the vendors' terms,
+// account number, expense account, 1099 and tax id fields are left out.
 func reportSources() []reports.Source {
 	sources := []reports.Source{
 		{
@@ -53,9 +53,7 @@ func reportSources() []reports.Source {
 					{Value: "void_reversal", Label: "Void reversal"},
 					{Value: "opening_balance", Label: "Opening balance"},
 				}},
-				{Key: "doc_type", Label: "Document type", Type: reports.Select, Options: []reports.Option{
-					{Value: "journal", Label: "Journal entry"},
-				}},
+				{Key: "doc_type", Label: "Document type", Type: reports.Select, Options: entryDocTypeOptions()},
 				{Key: "number", Label: "Number", Type: reports.Text, Aggregates: reports.MinMax},
 				// The posting order behind number, which sorts as text.
 				{Key: "sequence", Label: "Sequence", Type: reports.Number},
@@ -80,10 +78,14 @@ func reportSources() []reports.Source {
 				{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 				{Key: "posted", Label: "Posted", Type: reports.Bool},
 				{Key: "currency", Label: "Currency", Type: reports.Text},
+				// The line's order in its entry: the General Ledger's last sort key.
+				{Key: "position", Label: "Position", Type: reports.Number},
 			},
 			Links: []reports.Link{
 				{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
 				{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
+				{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
+				{Key: "vendor", Label: "Vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "vendor"},
 			},
 		},
 		{
@@ -117,6 +119,24 @@ func reportSources() []reports.Source {
 				{Key: "sub_customers", Label: "Sub-customers", Target: "books.customers", Cardinality: reports.ToMany, BackField: "parent"},
 			},
 		},
+		{
+			// The customers source's shape. Left out: address, terms,
+			// account_number, expense_account, track_1099, legal_name,
+			// tax_id_type, tax_id, form, fields, name_key and sort_key.
+			Key: "books.vendors", Collection: "books_vendors", Label: "Vendors",
+			Fields: []reports.Field{
+				{Key: "display_name", Label: "Display name", Type: reports.Text, Aggregates: reports.MinMax},
+				{Key: "company", Label: "Company", Type: reports.Text},
+				{Key: "first_name", Label: "First name", Type: reports.Text},
+				{Key: "last_name", Label: "Last name", Type: reports.Text},
+				{Key: "email", Label: "Email", Type: reports.Text},
+				{Key: "phone", Label: "Phone", Type: reports.Text},
+				{Key: "mobile", Label: "Mobile", Type: reports.Text},
+				{Key: "website", Label: "Website", Type: reports.Text},
+				{Key: "notes", Label: "Notes", Type: reports.Text},
+				{Key: "inactive", Label: "Inactive", Type: reports.Bool},
+			},
+		},
 	}
 	for i := range sources {
 		sources[i].FiscalStartMonth = booksFiscalStart
@@ -134,6 +154,16 @@ func accountTypeSelectOptions() []reports.Option {
 		out[i] = reports.Option{Value: t.Key, Label: t.Label}
 	}
 	return out
+}
+
+// entryDocTypeOptions are the entry document types, in the migration's select
+// order (report_sources_test.go compares the two), labelled as a reader sees
+// them in the register.
+func entryDocTypeOptions() []reports.Option {
+	return []reports.Option{
+		{Value: docTypeJournal, Label: entryTypeLabels.Origins["manual"]},
+		{Value: docTypeTransfer, Label: entryTypeLabels.Transfer},
+	}
 }
 
 // booksFiscalStart is the Books fiscal start month. Core calls it with the
