@@ -91,7 +91,12 @@ describe('useReviewBatch', () => {
 
         let running: Promise<BatchOutcome> | undefined
         act(() => {
-            running = result.current.run({ kind: 'exclude', ids, summary: '120 selected' })
+            running = result.current.run({
+                kind: 'exclude',
+                ids,
+                summary: '120 selected',
+                origin: 'bar',
+            })
         })
         await waitFor(() => expect(enteredWrites()).toHaveLength(50))
         await settle()
@@ -101,6 +106,7 @@ describe('useReviewBatch', () => {
             kind: 'exclude',
             ids,
             summary: '120 selected',
+            origin: 'bar',
         })
 
         release()
@@ -124,6 +130,46 @@ describe('useReviewBatch', () => {
         await waitFor(() => expect(result.current.result).toBeNull())
     })
 
+    // A tab or account change calls clearResult: it hides the result line but must keep
+    // a run in flight pending, so the controls stay disabled until the run ends.
+    it('keeps a bar run pending when its result is cleared mid-run', async () => {
+        const ids = seedTxns(3)
+        const release = holdWrites()
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let running: Promise<BatchOutcome> | undefined
+        act(() => {
+            running = result.current.run({
+                kind: 'exclude',
+                ids,
+                summary: '3 selected',
+                origin: 'bar',
+            })
+        })
+        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
+
+        act(() => result.current.clearResult())
+        await settle()
+        expect(result.current.isPending).toBe(true)
+        expect(result.current.pending).toEqual({
+            kind: 'exclude',
+            ids,
+            summary: '3 selected',
+            origin: 'bar',
+        })
+
+        release()
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await running
+        })
+        expect(outcome?.failed).toEqual([])
+        expect([...(outcome?.done ?? [])].sort()).toEqual(ids)
+        expect(ids.filter(id => statusOf(id) !== 'excluded')).toEqual([])
+        await waitFor(() => expect(result.current.isPending).toBe(false))
+        expect(result.current.pending).toBeNull()
+    })
+
     it('rolls a refused row back and shows the refusal', async () => {
         // The chunk's writes run in parallel, so the refusal names the row, not a write position.
         const ids = seedTxns(3, { txn_002: messageRefusal(CANNOT_CHANGE) })
@@ -131,7 +177,12 @@ describe('useReviewBatch', () => {
 
         let outcome: BatchOutcome | undefined
         await act(async () => {
-            outcome = await result.current.run({ kind: 'exclude', ids, summary: '' })
+            outcome = await result.current.run({
+                kind: 'exclude',
+                ids,
+                summary: '',
+                origin: 'drawer',
+            })
         })
         expect([...(outcome?.done ?? [])].sort()).toEqual(['txn_001', 'txn_003'])
         expect(outcome?.failed).toEqual([
@@ -154,7 +205,12 @@ describe('useReviewBatch', () => {
 
         let outcome: BatchOutcome | undefined
         await act(async () => {
-            outcome = await result.current.run({ kind: 'exclude', ids: [kept, gone], summary: '' })
+            outcome = await result.current.run({
+                kind: 'exclude',
+                ids: [kept, gone],
+                summary: '',
+                origin: 'drawer',
+            })
         })
         expect(outcome?.done).toEqual([kept])
         expect(outcome?.failed).toEqual([{ id: gone, message: '', isTransport: false }])
@@ -174,7 +230,12 @@ describe('useReviewBatch', () => {
 
         let outcome: BatchOutcome | undefined
         await act(async () => {
-            outcome = await result.current.run({ kind: 'exclude', ids, summary: '' })
+            outcome = await result.current.run({
+                kind: 'exclude',
+                ids,
+                summary: '',
+                origin: 'drawer',
+            })
         })
         expect(outcome?.done).toEqual([])
         expect(outcome?.failed.map(f => f.id).sort()).toEqual(ids)

@@ -66,7 +66,7 @@ export function useReviewDrawer({
     const onAction = () => {
         if (!detail || !action || control.isDisabled) return
         closeTxn()
-        void batch.run({ kind: action.kind, ids: [detail.id], summary: '' })
+        void batch.run({ kind: action.kind, ids: [detail.id], summary: '', origin: 'drawer' })
     }
     return {
         detail,

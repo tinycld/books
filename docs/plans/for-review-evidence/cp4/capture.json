@@ -1,0 +1,126 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "selected",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickNth": "bank-review-check-", "index": 0 },
+                { "clickNth": "bank-review-check-", "index": 1 },
+                { "clickNth": "bank-review-check-", "index": 2 },
+                { "waitFor": "bank-review-selection" },
+                { "waitFor": "bank-review-exclude" }
+            ]
+        },
+        {
+            "name": "busy",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "writes": {
+                "collection": "books_bank_transactions",
+                "answers": ["hold", "hold", "hold"]
+            },
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickNth": "bank-review-check-", "index": 0 },
+                { "clickNth": "bank-review-check-", "index": 1 },
+                { "clickNth": "bank-review-check-", "index": 2 },
+                { "waitFor": "bank-review-exclude" },
+                { "click": "bank-review-exclude" },
+                { "waitFor": "Excluding…" }
+            ]
+        },
+        {
+            "name": "failed",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "writes": {
+                "collection": "books_bank_transactions",
+                "answers": ["ok", "ok", 400],
+                "message": "This transaction is locked."
+            },
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickNth": "bank-review-check-", "index": 0 },
+                { "clickNth": "bank-review-check-", "index": 1 },
+                { "clickNth": "bank-review-check-", "index": 2 },
+                { "waitFor": "bank-review-exclude" },
+                { "click": "bank-review-exclude" },
+                { "waitFor": "bank-review-result" },
+                { "waitFor": "bank-review-selection" }
+            ]
+        },
+        {
+            "name": "done",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "writes": { "collection": "books_bank_transactions", "answers": ["ok", "ok", "ok"] },
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickNth": "bank-review-check-", "index": 0 },
+                { "clickNth": "bank-review-check-", "index": 1 },
+                { "clickNth": "bank-review-check-", "index": 2 },
+                { "waitFor": "bank-review-exclude" },
+                { "click": "bank-review-exclude" },
+                { "waitFor": "bank-review-result" },
+                { "waitForHidden": "bank-review-selection" }
+            ]
+        },
+        {
+            "name": "excluded-selected",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "click": "bank-tabs-excluded" },
+                { "waitFor": "bank-tab-body-excluded" },
+                { "waitFor": "bank-review-cards" },
+                { "clickNth": "bank-review-check-", "index": 0 },
+                { "clickNth": "bank-review-check-", "index": 1 },
+                { "waitFor": "bank-review-selection" },
+                { "waitFor": "bank-review-restore" }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickText": "CHECK 1050" },
+                { "waitFor": "bank-txn-drawer" },
+                { "waitFor": "bank-txn-field-check" },
+                { "waitFor": "bank-txn-field-imported" }
+            ]
+        }
+    ]
+}

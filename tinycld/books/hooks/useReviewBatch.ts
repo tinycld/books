@@ -1,6 +1,7 @@
 import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { useState } from 'react'
 import {
     BATCH_TARGET,
     type BatchFailure,
@@ -15,7 +16,14 @@ import {
 // browser's connection limit and the server see a steady flow.
 const BATCH_SIZE = 50
 
-export type ReviewBatchInput = { kind: BatchKind; ids: readonly string[]; summary: string }
+// `summary` is the selection bar's text of the choice as it was sent. `origin` names the
+// control that started the run: the selection bar stays up, busy, for its own run only.
+export type ReviewBatchInput = {
+    kind: BatchKind
+    ids: readonly string[]
+    summary: string
+    origin: 'bar' | 'drawer'
+}
 
 // Exclude or Move to For review of many transactions: each is a pbtsdb update of its
 // status (optimistic, so the rows leave the tab at once), 50 at a time. A refused row is
@@ -76,18 +84,27 @@ export function useReviewBatch() {
         },
     })
 
+    // A tab or account change hides the result line. A reset while a run is in flight would
+    // also drop its pending state and free the controls before the run ends, so a run in
+    // flight is only marked hidden, by its start time, and its result never shows.
+    const [hiddenRun, setHiddenRun] = useState<number | null>(null)
+    const isHidden = mutation.submittedAt === hiddenRun
     const result =
-        mutation.data && mutation.variables
+        mutation.data && mutation.variables && !isHidden
             ? batchResultText(mutation.variables.kind, mutation.data)
             : null
     const pending = mutation.isPending && mutation.variables ? mutation.variables : null
+    const clearResult = () => {
+        if (mutation.isPending) setHiddenRun(mutation.submittedAt)
+        else mutation.reset()
+    }
 
     return {
         run: mutation.mutateAsync,
         isPending: mutation.isPending,
         pending,
         result,
-        clearResult: mutation.reset,
+        clearResult,
     }
 }
 

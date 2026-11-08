@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from 'react-native'
-import type { ReviewRowData } from '../../../hooks/useReviewTab'
+import type { ReviewRowData, ReviewTabModel } from '../../../hooks/useReviewTab'
 import {
     REVIEW_CELLS,
     REVIEW_ROW_HEIGHT,
@@ -10,6 +10,7 @@ import {
 import { formatMoney } from '../../../lib/money'
 import { PARTY_ROW_CLASS } from '../../../lib/party-list'
 import { formatDay } from '../../../lib/register-range'
+import { SelectBox } from '../../SelectBox'
 
 const ROW_STYLE = { height: REVIEW_ROW_HEIGHT }
 const AMOUNT_CLASS = 'text-right text-sm tabular-nums text-foreground'
@@ -23,11 +24,47 @@ function SecondLine({ text }: { text: string }) {
     )
 }
 
+// The row's part in the choice; null where rows cannot be chosen (Reviewed, readers).
+export type RowChoice = {
+    isChosen: boolean
+    isDisabled: boolean
+    onToggle: (id: string) => void
+} | null
+
+export function rowChoiceOf(model: ReviewTabModel, id: string): RowChoice {
+    if (!model.canChoose) return null
+    return {
+        isChosen: model.isChosen(id),
+        isDisabled: model.isChoiceDisabled,
+        onToggle: model.onToggle,
+    }
+}
+
 type RowProps = {
     row: ReviewRowData
     currency: string
     isOpen: boolean
     onOpen: (id: string) => void
+    choice: RowChoice
+}
+
+// The row's check box, on the cell the header's select-all uses. SelectBox stops its own
+// press, so pressing it does not open the drawer.
+function RowBox({ row, choice }: { row: ReviewRowData; choice: RowChoice }) {
+    if (!choice) return null
+    const state = choice.isChosen ? 'checked' : 'empty'
+    const onPress = () => choice.onToggle(row.id)
+    return (
+        <View style={REVIEW_CELLS.check}>
+            <SelectBox
+                testID={`bank-review-check-${row.id}`}
+                label={`Choose ${row.description}`}
+                state={state}
+                isDisabled={choice.isDisabled}
+                onPress={onPress}
+            />
+        </View>
+    )
 }
 
 // The open row is highlighted as the register's open row is.
@@ -35,10 +72,11 @@ function rowBackground(isOpen: boolean): string {
     return isOpen ? 'bg-accent' : 'bg-background'
 }
 
-// One transaction of the wide table: Date · Description (memo and check number under it)
-// · Spent · Received, on the cells the header uses. Pressing it opens the drawer.
-// react-native-web writes no aria-selected from accessibilityState, so both are set.
-export function ReviewRow({ row, currency, isOpen, onOpen }: RowProps) {
+// One transaction of the wide table: the check box (when rows can be chosen) · Date ·
+// Description (memo and check number under it) · Spent · Received, on the cells the header
+// uses. Pressing it opens the drawer. react-native-web writes no aria-selected from
+// accessibilityState, so both are set.
+export function ReviewRow({ row, currency, isOpen, onOpen, choice }: RowProps) {
     const amounts = txnAmountCells(row.amount, currency)
     const secondLine = txnSecondLine(row.memo, row.checkNumber)
     const day = formatDay(row.date)
@@ -55,6 +93,7 @@ export function ReviewRow({ row, currency, isOpen, onOpen }: RowProps) {
             className={className}
             style={ROW_STYLE}
         >
+            <RowBox row={row} choice={choice} />
             <View className="min-w-0 pr-3" style={REVIEW_CELLS.date}>
                 <Text numberOfLines={1} className="text-sm tabular-nums text-foreground">
                     {day}
@@ -80,14 +119,16 @@ export function ReviewRow({ row, currency, isOpen, onOpen }: RowProps) {
     )
 }
 
-// One transaction on a phone: description and "day · Check n" on the left, the signed
-// amount on the right. Pressing it opens the drawer as a sheet.
+// One transaction on a phone: the check box (when rows can be chosen), description and
+// "day · Check n", then the signed amount on the right. Pressing it opens the drawer as a
+// sheet.
 export function ReviewCard({
     row,
     currency,
     height,
     isOpen,
     onOpen,
+    choice,
 }: RowProps & { height: number }) {
     const cardStyle = { height }
     const phoneLine = txnPhoneLine(row.date, row.checkNumber)
@@ -105,6 +146,7 @@ export function ReviewCard({
             className={className}
             style={cardStyle}
         >
+            <RowBox row={row} choice={choice} />
             <View className="min-w-0 flex-1">
                 <Text numberOfLines={1} className="text-sm text-foreground">
                     {row.description}

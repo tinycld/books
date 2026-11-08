@@ -11,6 +11,7 @@ import {
     type BatchFailure,
     batchFailure,
     batchResultText,
+    canChoose,
     chunksOf,
     drawerAction,
     EMPTY_REVIEW_FILTERS,
@@ -26,8 +27,13 @@ import {
     reviewViewState,
     reviewWhere,
     type SettledRows,
+    selectAllState,
+    selectionSummary,
     settleRows,
+    shownChoice,
     type TxnStatus,
+    toggleAllChoice,
+    toggleChoice,
     txnAmountCells,
     txnPhoneLine,
     txnSecondLine,
@@ -676,5 +682,101 @@ describe('writeControlState', () => {
         expect(
             writeControlState({ isPending: false, writesDisabled: true, writesHint: 'h' })
         ).toEqual({ isDisabled: true, hint: 'h' })
+    })
+})
+
+// Three shown rows in list order, and a chosen id ('gone') that the list no longer shows.
+const CHOICE_ROWS = [
+    { id: 'a', amount: -8647 },
+    { id: 'b', amount: -12583 },
+    { id: 'c', amount: 425000 },
+]
+const chosenOf = (...ids: string[]): ReadonlySet<string> => new Set(ids)
+
+describe('shownChoice', () => {
+    it('keeps the chosen shown rows in list order and drops an id the list no longer shows', () => {
+        expect(shownChoice(CHOICE_ROWS, chosenOf('c', 'gone', 'a'))).toEqual(['a', 'c'])
+    })
+
+    it('is empty when nothing shown is chosen', () => {
+        expect(shownChoice(CHOICE_ROWS, chosenOf('gone'))).toEqual([])
+        expect(shownChoice([], chosenOf('a'))).toEqual([])
+    })
+})
+
+describe('selectionSummary', () => {
+    it('counts and sums only the chosen rows the list shows', () => {
+        expect(selectionSummary(CHOICE_ROWS, chosenOf('a', 'b', 'gone'), 'USD')).toEqual({
+            count: 2,
+            spent: 21230,
+            received: 0,
+            text: '2 selected · Spent $212.30 · Received $0.00',
+        })
+    })
+
+    it('sums money in as Received', () => {
+        expect(selectionSummary(CHOICE_ROWS, chosenOf('c'), 'USD')).toEqual({
+            count: 1,
+            spent: 0,
+            received: 425000,
+            text: '1 selected · Spent $0.00 · Received $4,250.00',
+        })
+    })
+})
+
+describe('selectAllState', () => {
+    it('is empty with nothing chosen', () => {
+        expect(selectAllState(CHOICE_ROWS, chosenOf())).toBe('empty')
+    })
+
+    it('is mixed with some shown rows chosen', () => {
+        expect(selectAllState(CHOICE_ROWS, chosenOf('a'))).toBe('mixed')
+    })
+
+    it('is checked with every shown row chosen', () => {
+        expect(selectAllState(CHOICE_ROWS, chosenOf('a', 'b', 'c'))).toBe('checked')
+    })
+
+    it('is empty when only a row the list no longer shows is chosen', () => {
+        expect(selectAllState(CHOICE_ROWS, chosenOf('gone'))).toBe('empty')
+    })
+
+    it('is empty with no rows', () => {
+        expect(selectAllState([], chosenOf('a'))).toBe('empty')
+    })
+})
+
+describe('toggleChoice', () => {
+    it('adds a row in list order and drops an id the list no longer shows', () => {
+        expect(toggleChoice(CHOICE_ROWS, chosenOf('c', 'gone'), 'a')).toEqual(['a', 'c'])
+        expect(toggleChoice(CHOICE_ROWS, chosenOf(), 'b')).toEqual(['b'])
+    })
+
+    it('removes a chosen row', () => {
+        expect(toggleChoice(CHOICE_ROWS, chosenOf('a', 'c', 'gone'), 'a')).toEqual(['c'])
+    })
+})
+
+describe('toggleAllChoice', () => {
+    it('chooses every shown row in list order', () => {
+        expect(toggleAllChoice(CHOICE_ROWS, chosenOf())).toEqual(['a', 'b', 'c'])
+        expect(toggleAllChoice(CHOICE_ROWS, chosenOf('b', 'gone'))).toEqual(['a', 'b', 'c'])
+    })
+
+    it('chooses none when every shown row is chosen', () => {
+        expect(toggleAllChoice(CHOICE_ROWS, chosenOf('a', 'b', 'c'))).toEqual([])
+        expect(toggleAllChoice(CHOICE_ROWS, chosenOf('c', 'a', 'gone', 'b'))).toEqual([])
+    })
+})
+
+describe('canChoose', () => {
+    it('lets a writer choose on For review and Excluded only', () => {
+        expect(canChoose('review', true)).toBe(true)
+        expect(canChoose('excluded', true)).toBe(true)
+        expect(canChoose('reviewed', true)).toBe(false)
+    })
+
+    it('never lets a reader choose', () => {
+        expect(canChoose('review', false)).toBe(false)
     })
 })

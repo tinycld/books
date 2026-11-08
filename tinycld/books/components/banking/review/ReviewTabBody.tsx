@@ -15,6 +15,7 @@ import type { LiveRecovery } from '../../../lib/live-recovery'
 import { ReviewCards } from './ReviewCards'
 import { ReviewEmptyState, ReviewLoadError, ReviewLoading } from './ReviewEmptyState'
 import { ReviewResultLine } from './ReviewResultLine'
+import { ReviewSelectionBar } from './ReviewSelectionBar'
 import { ReviewTable } from './ReviewTable'
 import { ReviewToolbar } from './ReviewToolbar'
 
@@ -40,6 +41,14 @@ function emptyAction(model: ReviewTabModel, tab: TxnTab, onGoToFiles: () => void
 function NoMatchState({ model }: { model: ReviewTabModel }) {
     const action = { label: 'Clear filters', onPress: model.onClearFilters }
     return <ReviewEmptyState text={NO_MATCH_TEXT} action={action} />
+}
+
+// While rows are chosen, or the bar's own run is in flight (its rows have already left the
+// list), the selection bar takes the toolbar's place.
+function ToolbarOrSelection({ model }: { model: ReviewTabModel }) {
+    const showsSelection = model.canChoose && (model.chosenIds.length > 0 || model.isBatchRunning)
+    if (showsSelection) return <ReviewSelectionBar model={model} />
+    return <ReviewToolbar model={model} />
 }
 
 function ReviewList({ model, currency }: { model: ReviewTabModel; currency: string }) {
@@ -71,10 +80,10 @@ type ReviewTabViewProps = ReviewTabBodyProps & {
     queryInput: ReviewQueryInput
 }
 
-// The shared view of a transaction tab over the read its tab body made: the toolbar in
-// every view state and the last batch's result under it, then the list or its state. The
-// drawer is the page's (BankingScreenView), so opening it changes nothing in this tree
-// and the list keeps its scroll position.
+// The shared view of a transaction tab over the read its tab body made: the toolbar (or
+// the selection bar) in every view state and the last batch's result under it, then the
+// list or its state. The drawer is the page's (BankingScreenView), so opening it changes
+// nothing in this tree and the list keeps its scroll position.
 function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
     const { tab, connection, currency, onGoToFiles, pageRecovery, batch } = props
     const model = useReviewTab({
@@ -89,7 +98,7 @@ function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
     })
     return (
         <View testID={`bank-tab-body-${tab}`} className="min-h-0 flex-1 overflow-hidden">
-            <ReviewToolbar model={model} />
+            <ToolbarOrSelection model={model} />
             <ReviewResultLine result={model.result} />
             <View aria-busy={model.isBusy} className="min-h-0 min-w-0 flex-1">
                 <ReviewStateBody
