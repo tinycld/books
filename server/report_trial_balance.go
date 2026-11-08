@@ -116,5 +116,13 @@ func trialBalanceSpec() *reports.Spec {
 			fld("entry", "number"), lit(" · "),
 			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
 		)},
+		// A long account name wraps onto a second line on a phone rather than
+		// losing its end to an ellipsis (column-fit decision 3).
+		Display: &reports.Display{Columns: map[string]reports.ColumnFit{
+			"account": {MinWidth: "5ch", WhiteSpace: "normal", LineClamp: 2},
+			"number":  {MinWidth: "max-content"},
+			"debit":   {MinWidth: "max-content"},
+			"credit":  {MinWidth: "max-content"},
+		}},
 	}
 }

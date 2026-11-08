@@ -5,8 +5,9 @@ import {
     login,
     navigateToPackage,
     pressToolbar,
+    waitForTableFit,
 } from '@tinycld/core/e2e-helpers'
-import { createAccount, DESKTOP, openChart } from './account-register-helpers'
+import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     browserToday,
     choosePeriod,
@@ -153,6 +154,232 @@ async function expectedHeading(page: Page): Promise<string> {
 function rangeWords(from: string, to: string): string {
     return `${dayWords(from).replace(/, \d{4}$/, '')} – ${dayWords(to)}`
 }
+
+async function expectDocumentHeader(page: Page) {
+    await expect(page.getByTestId('report-document-title')).toHaveText('General Ledger')
+    await expect
+        .poll(async () => {
+            const shown = (await page.getByTestId('report-business-name').allInnerTexts())[0]
+            const expected = await expectedHeading(page)
+            return { matches: shown?.trim() === expected && expected !== '', shown, expected }
+        })
+        .toMatchObject({ matches: true })
+}
+
+// Posts `amounts` as entries on today that debit `account` and credit Business Checking.
+async function postDebitsToday(page: Page, account: string, amounts: readonly string[]) {
+    await openEntriesFromSidebar(page)
+    const today = await browserToday(page)
+    for (const amount of amounts) {
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName(`GL ${amount}`),
+            lines: [
+                { account, debit: amount },
+                { account: ACCOUNT_LABELS.checking, credit: amount },
+            ],
+        })
+    }
+}
+
+// `cut`: the element, or a child, shows an ellipsis (its text is wider than its box).
+type Box = { top: number; bottom: number; cut: boolean }
+type RowBoxes = { label: Box | null; cells: Record<string, Box> }
+
+// The label box and every drawn cell box of each row, read in ONE pass.
+function rowBoxes(page: Page, ids: readonly string[]): Promise<Record<string, RowBoxes>> {
+    return page.evaluate(rowIds => {
+        const table = document.querySelector('[data-testid="report-table"]')
+        const box = (element: Element | null | undefined) => {
+            if (!element) return null
+            const rect = element.getBoundingClientRect()
+            const cut = [element, ...element.querySelectorAll('*')].some(
+                e => e instanceof HTMLElement && e.scrollWidth > e.clientWidth
+            )
+            return rect.height > 0 ? { top: rect.top, bottom: rect.bottom, cut } : null
+        }
+        const out: Record<string, { label: Box | null; cells: Record<string, Box> }> = {}
+        for (const id of rowIds) {
+            const label = box(
+                table?.querySelector(`[data-testid="${CSS.escape(`report-row-${id}`)}"]`)
+            )
+            const cells: Record<string, Box> = {}
+            for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {
+                const rest = (cell.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
+                const dash = rest.indexOf('-')
+                if (rest.slice(dash + 1) !== id) continue
+                const cellBox = box(cell)
+                if (cellBox) cells[rest.slice(0, dash)] = cellBox
+            }
+            out[id] = { label, cells }
+        }
+        return out
+    }, ids)
+}
+
+// The parts of a row the reader needs whole (spec "Every width fits"): each one that is
+// missing or shows an ellipsis, named `<what>:<column>`.
+function cutParts(what: string, row: RowBoxes | undefined, columns: readonly string[]): string[] {
+    return columns
+        .filter(col => {
+            const part = col === 'account' ? row?.label : row?.cells[col]
+            return part == null || part.cut
+        })
+        .map(col => `${what}:${col}`)
+}
+
+const LINE_NEEDED = ['account', 'type', 'number', 'debit', 'credit', 'balance'] as const
+
+const near = (a: number | undefined, b: number | undefined) =>
+    a !== undefined && b !== undefined && Math.abs(a - b) <= 1
+
+// The top of a row's column: the label column ("Account / Date") is the row's label box.
+function topOf(row: RowBoxes | undefined, col: string): number | undefined {
+    if (col === 'account') return row?.label?.top
+    return row?.cells[col]?.top
+}
+
+// Spec §3 Phone: date · type · No.; then Name and Description; then Split; then Debit,
+// Credit and Balance.
+const PHONE_LINES = [
+    ['account', 'type', 'number'],
+    ['name', 'description'],
+    ['split'],
+    ['debit', 'credit', 'balance'],
+] as const
+
+function phoneLineShape(row: RowBoxes | undefined) {
+    const tops = PHONE_LINES.map(cols => cols.map(col => topOf(row, col)))
+    return {
+        measured: tops.flat().every(top => top !== undefined),
+        eachLineOneTop: tops.map(line => line.every(top => near(top, line[0]))),
+        linesInOrder: tops
+            .slice(1)
+            .every((line, i) => (line[0] ?? 0) > (tops[i]?.[0] ?? Number.POSITIVE_INFINITY) + 1),
+    }
+}
+
+// An opening or section total row on a phone (spec §3 Phone): label and figures on one
+// line when they fit, else the label, then every figure on the line right below it.
+// `figures` is 'beside' (all on the label's line), 'below' (all on the next line) or
+// 'mixed'.
+function labelAndFigures(row: RowBoxes | undefined) {
+    const label = row?.label
+    const cells = Object.values(row?.cells ?? {})
+    const tops = [label?.top, ...cells.map(cell => cell.top)]
+    const distinct: number[] = []
+    for (const top of tops) {
+        if (top !== undefined && !distinct.some(seen => near(seen, top))) distinct.push(top)
+    }
+    const figuresWhere = () => {
+        if (cells.every(cell => near(cell.top, label?.top))) return 'beside'
+        if (cells.every(cell => near(cell.top, label?.bottom))) return 'below'
+        return 'mixed'
+    }
+    return {
+        measured: label != null && row?.cells.balance !== undefined,
+        lines: distinct.length,
+        figures: figuresWhere(),
+    }
+}
+
+// At a tablet or desktop view: where the line's cells sit, whether the figure columns end
+// inside the table, which parts the reader needs show an ellipsis, and whether anything
+// scrolls sideways — read in ONE pass.
+function widthGeometry(page: Page, ids: { line: string; opening: string; total: string }) {
+    return page.evaluate(({ line: id, opening, total }) => {
+        const table = document.querySelector('[data-testid="report-table"]') as HTMLElement | null
+        if (!table) return null
+        const find = (testId: string) =>
+            table.querySelector(`[data-testid="${CSS.escape(testId)}"]`) as HTMLElement | null
+        const visible = (element: Element) => element.getBoundingClientRect().height > 0
+        const tableRight = table.getBoundingClientRect().right
+        const figureRights = ['debit', 'credit', 'balance'].flatMap(column =>
+            [
+                ...table.querySelectorAll(
+                    `[data-testid="report-heading-${column}"], [data-testid^="report-cell-${column}-"]`
+                ),
+            ]
+                .filter(visible)
+                .map(element => element.getBoundingClientRect().right)
+        )
+        const rect = (testId: string) => {
+            const element = find(testId)
+            return element && visible(element) ? element.getBoundingClientRect() : null
+        }
+        const isCut = (element: HTMLElement | null) =>
+            element === null ||
+            [element, ...element.querySelectorAll('*')].some(
+                e => e instanceof HTMLElement && e.scrollWidth > e.clientWidth
+            )
+        const date = rect(`report-row-${id}`)
+        const tops = Object.fromEntries(
+            ['type', 'number', 'debit', 'credit', 'balance', 'name', 'description', 'split'].map(
+                col => [col, rect(`report-cell-${col}-${id}`)?.top]
+            )
+        )
+        const near = (a: number | undefined, b: number | undefined) =>
+            a !== undefined && b !== undefined && Math.abs(a - b) <= 1
+        const scrollers = [table, ...table.querySelectorAll('*')].filter(element => {
+            const overflowX = getComputedStyle(element).overflowX
+            return element === table || overflowX === 'auto' || overflowX === 'scroll'
+        })
+        const numberCell = find(`report-cell-number-${id}`)
+        // Split is a long text column that may narrow, but an ordinary account name (about
+        // 20 characters, here "Business Checking") must show whole, or "Accounts
+        // receivable" cannot be told from "Accounts payable".
+        const needed: Record<string, string> = {
+            'line:account': `report-row-${id}`,
+            ...Object.fromEntries(
+                ['type', 'number', 'debit', 'credit', 'balance', 'split'].map(col => [
+                    `line:${col}`,
+                    `report-cell-${col}-${id}`,
+                ])
+            ),
+            'heading:number': 'report-heading-number',
+            'opening:account': `report-row-${opening}`,
+            'sectionTotal:account': `report-row-${total}`,
+        }
+        return {
+            measured: date !== null && figureRights.length >= 6,
+            figuresInsideTable: figureRights.every(right => right <= tableRight + 1),
+            figuresOnDateLine: ['debit', 'credit', 'balance'].every(col =>
+                near(tops[col], date?.top)
+            ),
+            textOnNextLine: ['name', 'description', 'split'].every(col =>
+                near(tops[col], date?.bottom)
+            ),
+            allOnDateLine: Object.values(tops).every(top => near(top, date?.top)),
+            numberText: numberCell?.innerText.trim() ?? '',
+            splitText: find(`report-cell-split-${id}`)?.textContent?.trim() ?? '',
+            cut: Object.entries(needed)
+                .filter(([, testId]) => isCut(find(testId)))
+                .map(([name]) => name),
+            noSidewaysScroll: scrollers.every(
+                element => element.scrollWidth === element.clientWidth
+            ),
+        }
+    }, ids)
+}
+
+const SAVINGS = 'Business Savings'
+const LONG_SECTION_MEMO = 'Daily sweep'
+
+type AnswerRow = {
+    id: string
+    kind: string
+    label: string
+    section?: string
+    cells: Record<string, number | string | boolean | null>
+}
+type Answer = { cursor: string; rows: AnswerRow[]; next: string }
+type SentRun = {
+    params?: { period?: { preset?: string }; accounts?: unknown[] }
+    options?: { cursor?: string }
+}
+
+const cents = (value: number | string | boolean | null | undefined) =>
+    typeof value === 'number' ? value : 0
 
 test.describe('general-ledger: report', () => {
     test('the Books hub opens the General Ledger, and its figures fit the table', async ({
@@ -634,5 +861,263 @@ test.describe('general-ledger: report', () => {
         )
         expect(notReloaded).toBe(true)
         await otherContext.close()
+    })
+
+    test('on a phone each line wraps onto its own lines and nothing scrolls sideways', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const account = uniqueName('GL phone')
+        await createAccounts(page, [{ name: account, kind: EXPENSE }])
+        await postDebitsToday(page, account, ['12.00', '30.00'])
+
+        // The phone path: Reports from the Books menu drawer (openBooksReports).
+        await page.setViewportSize(PHONE)
+        await openGeneralLedger(page)
+        await expectDocumentHeader(page)
+        await expect(page.getByTestId('report-param-period')).toBeVisible()
+        await expect(page.getByTestId('report-param-rows')).toBeVisible()
+
+        await filterToAccounts(page, [account])
+        const s = await snapshotWhen(
+            page,
+            snap => hasTotal(snap) && linesOf(snap, account).length === 2,
+            'the account and its two lines'
+        )
+        expect(await waitForTableFit(page)).toBe('mobile')
+        const lineId = linesOf(s, account)[0]?.id ?? ''
+        const openingId = openingOf(s, account)?.id ?? ''
+        const totalId = sectionTotal(s, account)?.id ?? ''
+        await expect
+            .poll(
+                async () => {
+                    const boxes = await rowBoxes(page, [lineId, openingId, totalId])
+                    return {
+                        line: phoneLineShape(boxes[lineId]),
+                        opening: labelAndFigures(boxes[openingId]),
+                        sectionTotal: labelAndFigures(boxes[totalId]),
+                        cut: [
+                            ...cutParts('line', boxes[lineId], LINE_NEEDED),
+                            ...cutParts('opening', boxes[openingId], ['account']),
+                            ...cutParts('sectionTotal', boxes[totalId], ['account']),
+                        ],
+                    }
+                },
+                { message: 'the authored phone lines (spec §3 Phone), nothing cut' }
+            )
+            .toEqual({
+                line: {
+                    measured: true,
+                    eachLineOneTop: [true, true, true, true],
+                    linesInOrder: true,
+                },
+                // The seeded data at 390: "Beginning balance … 0.00" fits on one line; the
+                // section total's three figures do not, so they go on the line below.
+                opening: { measured: true, lines: 1, figures: 'beside' },
+                sectionTotal: { measured: true, lines: 2, figures: 'below' },
+                cut: [],
+            })
+        expect(
+            await page
+                .getByTestId('report-table')
+                .evaluate(table => table.scrollWidth === table.clientWidth)
+        ).toBe(true)
+    })
+
+    test('at tablet and desktop widths a line wraps only where its one line does not fit, all inside the table and nothing cut', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const account = uniqueName('GL tablet')
+        await createAccounts(page, [{ name: account, kind: EXPENSE }])
+        // A long description, as the seeded book has: it competes with Split for the
+        // line's room, and only an ordinary account name in Split must stay whole.
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: await browserToday(page),
+            memo: uniqueName(
+                'GL tablet monthly software subscription for the whole design team, billed by the vendor on the first business day of every month'
+            ),
+            lines: [
+                { account, debit: '1234.56' },
+                { account: ACCOUNT_LABELS.checking, credit: '1234.56' },
+            ],
+        })
+
+        await openGeneralLedger(page)
+        await filterToAccounts(page, [account])
+        const s = await snapshotWhen(
+            page,
+            snap => hasTotal(snap) && linesOf(snap, account).length === 1,
+            'the account and its line'
+        )
+        const ids = {
+            line: linesOf(s, account)[0]?.id ?? '',
+            opening: openingOf(s, account)?.id ?? '',
+            total: sectionTotal(s, account)?.id ?? '',
+        }
+
+        // The report view at /a/reports has no Books sidebar, so its rows are the window
+        // less the 64 px rail: 836 at 900, 960 at 1024, 1216 at 1280. The spec tries one
+        // line only from 1040 px (display.oneLine.minWidth), so 900 and 1024 take the
+        // tablet layout (from 600 px) and 1280 takes the one line.
+        for (const { size, layout } of [
+            { size: { width: 900, height: 800 }, layout: 'tablet' },
+            { size: { width: 1024, height: 800 }, layout: 'tablet' },
+            { size: { width: 1280, height: 800 }, layout: 'one-line' },
+        ]) {
+            const isTablet = layout === 'tablet'
+            await page.setViewportSize(size)
+            expect(await waitForTableFit(page), `the layout at ${size.width}`).toBe(layout)
+            // The Split check is read once the rest has settled, and soft, so a cut Split at
+            // one width does not hide the other widths (there is no expect.soft.poll).
+            const withoutSplit = async () => {
+                const geometry = await widthGeometry(page, ids)
+                return (
+                    geometry && { ...geometry, cut: geometry.cut.filter(n => n !== 'line:split') }
+                )
+            }
+            await expect
+                .poll(withoutSplit, {
+                    message: `the ${isTablet ? 'tablet layout' : 'one line'} at ${size.width}`,
+                })
+                .toEqual({
+                    measured: true,
+                    figuresInsideTable: true,
+                    figuresOnDateLine: true,
+                    textOnNextLine: isTablet,
+                    allOnDateLine: !isTablet,
+                    numberText: expect.stringMatching(/^JE-\d+$/),
+                    splitText: 'Business Checking',
+                    cut: [],
+                    noSidewaysScroll: true,
+                })
+            expect
+                .soft((await widthGeometry(page, ids))?.cut, `Split cut at ${size.width}`)
+                .not.toContain('line:split')
+        }
+    })
+
+    test('a long section pages as it scrolls and its running balance continues across the page seam', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        await openGeneralLedger(page)
+        await choosePeriod(page, { preset: 'allDates' })
+
+        // The answers of the Business Savings runs, in the order they arrive.
+        const answers: Promise<Answer>[] = []
+        page.on('response', response => {
+            if (!response.url().includes('/api/reports/run') || !response.ok()) return
+            const body = response.request().postDataJSON() as SentRun | null
+            const accounts = body?.params?.accounts
+            if (body?.params?.period?.preset !== 'allDates' || !Array.isArray(accounts)) return
+            if (accounts.length !== 1) return
+            answers.push(
+                response
+                    .json()
+                    .then((result: { rows: AnswerRow[]; page: { next?: string } | null }) => ({
+                        cursor: body.options?.cursor ?? '',
+                        rows: result.rows,
+                        next: result.page?.next ?? '',
+                    }))
+            )
+        })
+        // The first next page waits until the test has seen the list ask for it.
+        let release = () => {}
+        const held = new Promise<void>(resolve => {
+            release = resolve
+        })
+        await page.route('**/api/reports/run', async route => {
+            const body = route.request().postDataJSON() as SentRun | null
+            if (body?.options?.cursor) await held
+            await route.continue()
+        })
+
+        await filterToAccounts(page, [SAVINGS])
+        await snapshotWhen(
+            page,
+            snap => snap.rows.some(row => row.kind === 'group' && row.label.includes(SAVINGS)),
+            'the savings section'
+        )
+        const firstPages = async () =>
+            (await Promise.all(answers)).filter(answer => answer.cursor === '')
+        await expect.poll(async () => (await firstPages()).length).toBeGreaterThan(0)
+        const first = (await firstPages()).at(-1) as Answer
+        const firstLines = first.rows.filter(row => row.kind === 'detail')
+        const savingsGroup = first.rows.find(
+            row => row.kind === 'group' && row.label.includes(SAVINGS)
+        )
+        expect(firstLines.length).toBeLessThanOrEqual(200)
+        expect(first.next, 'the first answer ends inside the savings section').not.toBe('')
+        // Core ends every page in the report's total row(s); the document's own rows end before them.
+        const lastBeforeTotals = first.rows.findLast(row => row.kind !== 'total')
+        expect(lastBeforeTotals?.kind).toBe('detail')
+        expect(lastBeforeTotals?.section).toBe(savingsGroup?.id)
+        expect(first.rows.some(row => row.kind === 'subtotal')).toBe(false)
+
+        // The list's vertical scroller: the nearest ancestor of a line that scrolls.
+        const toEnd = () =>
+            page
+                .getByTestId('report-table')
+                .locator('[data-testid^="report-row-d:"]')
+                .first()
+                .evaluate(row => {
+                    let scroller = row.parentElement
+                    while (scroller && getComputedStyle(scroller).overflowY !== 'auto') {
+                        scroller = scroller.parentElement
+                    }
+                    if (scroller) scroller.scrollTop = scroller.scrollHeight
+                })
+        await expect
+            .poll(async () => {
+                await toEnd()
+                return page.getByTestId('report-loading-more').isVisible()
+            })
+            .toBe(true)
+        release()
+
+        const nextPages = async () =>
+            (await Promise.all(answers)).filter(answer => answer.cursor !== '')
+        await expect.poll(async () => (await nextPages()).length).toBeGreaterThan(0)
+        const second = (await nextPages()).find(answer => answer.cursor === first.next) as Answer
+        expect(second, 'the next page follows the first page').toBeDefined()
+        const secondIds = new Set(
+            second.rows.filter(row => row.kind === 'detail').map(row => row.id)
+        )
+        // The snapshot's row ids are core's row ids (report-row-<id>), as the answer's are.
+        await snapshotWhen(
+            page,
+            snap =>
+                snap.rows.some(
+                    row => secondIds.has(row.id) && row.cells.description === LONG_SECTION_MEMO
+                ),
+            `more "${LONG_SECTION_MEMO}" lines from the next page in the list`
+        )
+
+        // Business Savings is debit-normal: each line adds its debit and takes its credit.
+        const lastOfFirst = firstLines.at(-1) as AnswerRow
+        const firstOfNext = second.rows.find(row => row.kind === 'detail') as AnswerRow
+        expect(firstOfNext.section).toBe(savingsGroup?.id)
+        expect(cents(firstOfNext.cells.balance)).toBe(
+            cents(lastOfFirst.cells.balance) +
+                cents(firstOfNext.cells.debit) -
+                cents(firstOfNext.cells.credit)
+        )
+
+        // The rest of the pages, until the last: only it carries the section total.
+        await expect
+            .poll(async () => {
+                await toEnd()
+                return (await nextPages()).some(answer => answer.next === '')
+            })
+            .toBe(true)
+        const pages = [first, ...(await nextPages())]
+        const withTotal = pages.filter(answer =>
+            answer.rows.some(row => row.kind === 'subtotal' && row.section === savingsGroup?.id)
+        )
+        expect(withTotal.length).toBe(1)
+        expect(withTotal[0]?.next).toBe('')
+        await page.unrouteAll({ behavior: 'wait' })
     })
 })
