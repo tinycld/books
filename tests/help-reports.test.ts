@@ -70,6 +70,45 @@ describe('help/reports.md', () => {
         ).toBe(true)
     })
 
+    describe('the "Read the General Ledger" section', () => {
+        const ledger = section('## Read the General Ledger')
+
+        it('has the heading', () => {
+            expect(body).toMatch(/^## Read the General Ledger$/m)
+        })
+
+        it.each([
+            ['sections', /\bsections?\b/i],
+            ['Beginning balance', /Beginning balance/],
+            ["the running balance by the account's normal side", /normal side/i],
+            ['Split', /\bSplit\b/],
+            ['Rows', /\bRows\b/],
+            ['Period', /\bPeriod\b/],
+            ['All dates', /All dates/],
+            ['sorting by a heading', /\bsort/i],
+            ['folding a section', /\bfold/i],
+        ])('names %s', (_name, phrase) => {
+            expect(ledger).toMatch(phrase)
+        })
+
+        // "To open it" (opening the report) and "one section for each account" each
+        // match a bare word; only one sentence that names both pins opening a section.
+        it('says the sections are open, in one sentence', () => {
+            const sentences = ledger.split(/(?<=[.!?])\s+/)
+            expect(sentences.some(s => /\bsections?\b/i.test(s) && /\bopen\b/i.test(s))).toBe(true)
+        })
+
+        it('says the running balance follows the normal side in one sentence', () => {
+            const sentences = ledger.split(/(?<=[.!?])\s+/)
+            expect(sentences.some(s => /\bbalance\b/i.test(s) && /normal side/i.test(s))).toBe(true)
+        })
+
+        it('says a press on a column heading sorts the lines', () => {
+            const sentences = ledger.split(/(?<=[.!?])\s+/)
+            expect(sentences.some(s => /\bheading\b/i.test(s) && /\bsort/i.test(s))).toBe(true)
+        })
+    })
+
     it('drops the Books shell: no Accrual or Cash section and no Show rows', () => {
         expect(body).not.toMatch(/^## Choose Accrual or Cash$/m)
         expect(body).not.toContain('Show rows')

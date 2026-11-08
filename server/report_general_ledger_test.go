@@ -299,12 +299,12 @@ func TestGeneralLedgerSpecLoads(t *testing.T) {
 		t.Errorf("the shipped spec is not generalLedgerSpec()")
 	}
 
-	spec, info, err := reports.Load(shipped.Spec)
+	spec, _, err := reports.Load(shipped.Spec)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if spec.Version != 3 || info.UpgradedFrom != 0 {
-		t.Errorf("version %d, upgraded from %d; want version 3 with no upgrade", spec.Version, info.UpgradedFrom)
+	if spec.Version != reports.CurrentVersion {
+		t.Errorf("version %d, want %d", spec.Version, reports.CurrentVersion)
 	}
 	if spec.Source != "books.journal_lines" {
 		t.Errorf("source = %q, want books.journal_lines", spec.Source)
@@ -1046,4 +1046,128 @@ func TestGeneralLedgerShippedUnpublished(t *testing.T) {
 		t.Fatalf("reconcileBooksReportShares: %v", err)
 	}
 	requireViewer(t, app, row, reader, "a Books reader")
+}
+
+// glCell is a layout cell with its defaults spelled out (span and lines 1, start
+// 0), so a cell that writes `span: 1` equals one that leaves it out.
+type glCell struct {
+	col                      string
+	line, start, span, lines int
+}
+
+func glCellOf(c reports.DisplayCell) glCell {
+	one := func(n int) int {
+		if n == 0 {
+			return 1
+		}
+		return n
+	}
+	return glCell{c.Col, c.Line, c.Start, one(c.Span), one(c.Lines)}
+}
+
+// The spec's authored layouts (spec §3 Phone, §5 display.layouts), written out
+// here rather than read from lib/general-ledger-fixture.ts, so a drift on either
+// side fails. The spec authors no desktop layout: the one line is tried only from
+// 1040 px (display.oneLine.minWidth), below that the tablet layout from 600 px
+// (its MinWidth), and on a phone the mobile layout. The tablet layout gives No. two
+// tracks, room for a whole entry number ("JE-41", "TR-12").
+func TestGeneralLedgerLayouts(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	spec, _, err := reports.Load(generalLedgerShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if spec.Display == nil {
+		t.Fatalf("the General Ledger spec has no display; want the phone (mobile) and tablet layouts of spec §3/§5")
+	}
+
+	type layout struct {
+		width  string
+		tracks int
+		cells  []glCell
+	}
+	want := []layout{
+		{"mobile", 3, []glCell{
+			{"account", 1, 0, 1, 1}, {"type", 1, 0, 1, 1}, {"number", 1, 0, 1, 1},
+			{"name", 2, 0, 1, 1}, {"description", 2, 0, 2, 1},
+			{"split", 3, 0, 3, 1},
+			{"debit", 4, 0, 1, 1}, {"credit", 4, 0, 1, 1}, {"balance", 4, 0, 1, 1},
+		}},
+		{"tablet", 12, []glCell{
+			{"account", 1, 0, 2, 1}, {"type", 1, 0, 2, 1}, {"number", 1, 0, 2, 1},
+			{"debit", 1, 0, 2, 1}, {"credit", 1, 0, 2, 1}, {"balance", 1, 0, 2, 1},
+			{"name", 2, 0, 3, 1}, {"description", 2, 0, 5, 1}, {"split", 2, 0, 4, 1},
+		}},
+	}
+
+	got := spec.Display.Layouts
+	for _, l := range got {
+		if l.Width == "desktop" {
+			t.Errorf("the spec authors a desktop layout %+v; want none (core fits the one line, then wraps to the tablet layout)", l)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("display.layouts = %+v, want %d layouts (mobile, tablet)", got, len(want))
+	}
+	for i, w := range want {
+		g := got[i]
+		if g.Width != w.width || g.Tracks != w.tracks {
+			t.Errorf("layout %d = width %q, %d tracks; want %q, %d tracks", i, g.Width, g.Tracks, w.width, w.tracks)
+		}
+		if len(g.Cells) != len(w.cells) {
+			t.Errorf("%s layout has %d cells %+v, want %d", w.width, len(g.Cells), g.Cells, len(w.cells))
+			continue
+		}
+		for j, wc := range w.cells {
+			if gc := glCellOf(g.Cells[j]); gc != wc {
+				t.Errorf("%s layout cell %d = %+v, want %+v", w.width, j, gc, wc)
+			}
+		}
+	}
+
+	for _, l := range got {
+		if l.Width != "tablet" {
+			continue
+		}
+		for _, c := range l.Cells {
+			if c.Col == "number" && glCellOf(c).span < 2 {
+				t.Errorf("tablet No. spans %d track(s); want at least 2, room for a whole entry number", glCellOf(c).span)
+			}
+		}
+	}
+
+	// Spec §5 (core spec v4): the one line is tried only from 1040 px, the
+	// tablet layout from 600 px, and the column fit settings below.
+	if spec.Display.OneLine == nil || spec.Display.OneLine.MinWidth != "1040px" {
+		t.Errorf("display.oneLine = %+v, want minWidth \"1040px\"", spec.Display.OneLine)
+	}
+	for _, l := range got {
+		if l.Width == "tablet" && l.MinWidth != "600px" {
+			t.Errorf("tablet layout minWidth = %q, want \"600px\"", l.MinWidth)
+		}
+	}
+	grow := 2
+	wantFit := map[string]reports.ColumnFit{
+		"type":        {MinWidth: "12ch"},
+		"number":      {MinWidth: "max-content"},
+		"debit":       {MinWidth: "max-content"},
+		"credit":      {MinWidth: "max-content"},
+		"balance":     {MinWidth: "max-content"},
+		"description": {FlexGrow: &grow},
+		"split":       {MinWidth: "20ch"},
+		"name":        {MinWidth: "16ch"},
+	}
+	if !reflect.DeepEqual(spec.Display.Columns, wantFit) {
+		gotFit := map[string]string{}
+		for k, v := range spec.Display.Columns {
+			b, _ := json.Marshal(v)
+			gotFit[k] = string(b)
+		}
+		t.Errorf("display.columns = %v, want type minWidth 12ch, number/debit/credit/balance minWidth max-content, description flexGrow 2, split minWidth 20ch, name minWidth 16ch, and no other column", gotFit)
+	}
+
+	if err := reports.Validate(app, spec); err != nil {
+		t.Errorf("Validate refuses the layouts: %v", err)
+	}
 }

@@ -6,6 +6,7 @@ import {
     login,
     navigateToPackage,
     pressToolbar,
+    waitForTableFit,
 } from '@tinycld/core/e2e-helpers'
 import { ACCOUNT_TYPES } from '~/tinycld/books/lib/account-types'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
@@ -60,6 +61,20 @@ const CREDIT_CARD = { type: 'Credit card', detailType: 'Credit card' }
 const BANK = { type: 'Bank', detailType: 'Checking' }
 
 const SEEDED_EQUITY_AND_INCOME = ['Retained earnings', "Owner's Equity", 'Consulting Income']
+
+// The seeded accounts the Trial Balance shows as of the end of last month.
+const SEEDED_DEFAULT_ROWS = [
+    'Business Checking',
+    'Business Savings',
+    'Accounts receivable',
+    'Office Equipment',
+    'Company Card',
+    "Owner's Equity",
+    'Retained earnings',
+    'Consulting Income',
+    'Rent',
+    'Software Subscriptions',
+]
 
 // The account types in chart order (server/account_types.json, mirrored by lib).
 const CHART_TYPE_ORDER = ACCOUNT_TYPES.map(type => type.key)
@@ -550,50 +565,124 @@ test.describe("trial-balance: the report in core's view", () => {
         })
     }
 
-    test('on a phone each account row wraps onto two lines and nothing scrolls sideways', async ({
+    // At 390 the four columns' least widths (account: its longest word, as a wrapping
+    // column never splits a word, core PR #451; No., Debit and Credit: their whole
+    // values) add up to more than the row, so core's automatic lines draw the Trial
+    // Balance: the account, its number and the debit on line 1, the credit on line 2.
+    // The same holds for the 375 px rows of Linux CI, where the scroll bar gutter takes
+    // 15 px of the 390 (measureColumns + fitTable: account 202 px at 375, 217 at 390).
+    // The report is narrowed to the seeded accounts it shows by default, so another
+    // spec's account, with its longer name and number, cannot change the measure. An
+    // account name wraps only between words, is never cut by the two-line clamp, and no
+    // figure is cut. The phone's report-controls chip row is the one element that
+    // scrolls sideways, on purpose (core PR #447, layout decision D11).
+    test('on a phone the credit goes to a second line, account names wrap only between words, and only the chip row scrolls sideways', async ({
         page,
     }) => {
         await startBooks(page, DESKTOP)
         await openTrialBalance(page)
+        await filterToAccounts(page, SEEDED_DEFAULT_ROWS)
         await page.setViewportSize(PHONE)
+        expect(await waitForTableFit(page)).toBe('auto')
         await expect
             .poll(() =>
                 page.evaluate(() => {
                     const table = document.querySelector('[data-testid="report-table"]')
                     const tableBox = table?.getBoundingClientRect()
-                    const rows = [
+                    const cellOf = (column: string, id: string) =>
+                        table?.querySelector(
+                            `[data-testid="${CSS.escape(`report-cell-${column}-${id}`)}"]`
+                        ) ?? undefined
+                    const labels = [
                         ...(table?.querySelectorAll('[data-testid^="report-row-g:"]') ?? []),
-                    ].map(label => {
+                    ]
+                    const rows = labels.map(label => {
                         const id = (label.getAttribute('data-testid') ?? '').slice(
                             'report-row-'.length
                         )
-                        const debit = table?.querySelector(
-                            `[data-testid="${CSS.escape(`report-cell-debit-${id}`)}"]`
-                        )
                         return {
-                            label: label.getBoundingClientRect(),
-                            debit: debit?.getBoundingClientRect(),
+                            label,
+                            box: label.getBoundingClientRect(),
+                            number: cellOf('number', id)?.getBoundingClientRect(),
+                            debit: cellOf('debit', id),
+                            credit: cellOf('credit', id),
                         }
                     })
-                    const measured = rows.filter(row => row.debit && row.label.height > 0)
+                    const measured = rows.filter(row => row.box.height > 0)
+                    const onLineOne = (row: (typeof measured)[number], box?: DOMRect) =>
+                        box === undefined ||
+                        (box.top >= row.box.top - 1 &&
+                            box.bottom <= row.box.bottom + 1 &&
+                            box.left >= row.box.right - 1)
+                    const texts = (element: Element) =>
+                        [...element.querySelectorAll('[dir="auto"]')].filter(
+                            text => (text.textContent ?? '').trim() !== ''
+                        )
+                    // A word split across lines has two client rects (one per line).
+                    const splitWords = (text: Element) => {
+                        const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT)
+                        const split: string[] = []
+                        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                            for (const match of (node.textContent ?? '').matchAll(/\S+/g)) {
+                                const range = document.createRange()
+                                range.setStart(node, match.index)
+                                range.setEnd(node, match.index + match[0].length)
+                                if (range.getClientRects().length !== 1) split.push(match[0])
+                            }
+                        }
+                        return split
+                    }
+                    // The two-line clamp cuts a name when a line of its text falls below
+                    // the text's box.
+                    const isCut = (text: Element) => {
+                        const box = text.getBoundingClientRect()
+                        const range = document.createRange()
+                        range.selectNodeContents(text)
+                        return [...range.getClientRects()].some(
+                            rect => rect.bottom > box.bottom + 1
+                        )
+                    }
+                    const figures = measured.flatMap(row =>
+                        [row.debit, row.credit].flatMap(cell => (cell ? texts(cell) : []))
+                    )
                     const scrollers = [...(table?.querySelectorAll('*') ?? [])].filter(element => {
+                        if (element.closest('[data-testid="report-controls"]')) return false
                         const overflowX = getComputedStyle(element).overflowX
                         return overflowX === 'auto' || overflowX === 'scroll'
                     })
                     const scrolling = document.scrollingElement
                     return {
-                        rowsMeasured: measured.length >= 2,
-                        wrapped: measured.every(
-                            row => row.debit !== undefined && row.label.bottom <= row.debit.top + 1
+                        rowsMeasured:
+                            measured.filter(row => row.debit).length >= 1 &&
+                            measured.filter(row => row.credit).length >= 1,
+                        numberAndDebitBeside: measured.every(
+                            row =>
+                                onLineOne(row, row.number) &&
+                                onLineOne(row, row.debit?.getBoundingClientRect())
                         ),
+                        creditBelow: measured.every(row => {
+                            const credit = row.credit?.getBoundingClientRect()
+                            return credit === undefined || credit.top >= row.box.bottom - 1
+                        }),
+                        splitWords: measured.flatMap(row => texts(row.label).flatMap(splitWords)),
+                        cutNames: measured
+                            .filter(row => texts(row.label).some(isCut))
+                            .map(row => row.label.textContent ?? ''),
+                        cutFigures: figures
+                            .filter(text => text.scrollWidth > text.clientWidth + 1)
+                            .map(text => text.textContent ?? ''),
                         insideTable:
                             tableBox !== undefined &&
-                            measured.every(
-                                row =>
-                                    row.debit !== undefined &&
-                                    row.label.left >= tableBox.left - 1 &&
-                                    row.debit.right <= tableBox.right + 1
-                            ),
+                            measured.every(row => {
+                                const credit = row.credit?.getBoundingClientRect()
+                                const debit = row.debit?.getBoundingClientRect()
+                                return (
+                                    row.box.left >= tableBox.left - 1 &&
+                                    [credit, debit].every(
+                                        box => box === undefined || box.right <= tableBox.right + 1
+                                    )
+                                )
+                            }),
                         pageFits: scrolling !== null && scrolling.scrollWidth <= window.innerWidth,
                         tableFits: scrollers.every(
                             element => element.scrollWidth <= element.clientWidth + 1
@@ -603,7 +692,11 @@ test.describe("trial-balance: the report in core's view", () => {
             )
             .toEqual({
                 rowsMeasured: true,
-                wrapped: true,
+                numberAndDebitBeside: true,
+                creditBelow: true,
+                splitWords: [],
+                cutNames: [],
+                cutFigures: [],
                 insideTable: true,
                 pageFits: true,
                 tableFits: true,

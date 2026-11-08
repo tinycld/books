@@ -526,8 +526,10 @@ export const accountIdOf = (key: string) =>
 
 // The spec's `display.layouts` (§3 Phone, §5): a phone row wraps onto four lines
 // (date · type · No.; Name · Description; Split; Debit · Credit · Balance), a
-// tablet row onto two (figures on line 1, the long text on line 2). The spec ships
-// no desktop layout: core fits the one line to the view's width.
+// tablet row onto two (figures on line 1, the long text on line 2; No. takes two
+// tracks so a whole entry number such as "JE-41" shows). The spec ships no desktop
+// layout: core tries the one line only from 1040 px (`display.oneLine.minWidth`)
+// and where it fits, else the tablet layout from 600 px, else the phone layout.
 export const GENERAL_LEDGER_PHONE_LAYOUT: DisplayLayout = {
     width: 'mobile',
     tracks: 3,
@@ -546,11 +548,12 @@ export const GENERAL_LEDGER_PHONE_LAYOUT: DisplayLayout = {
 
 export const GENERAL_LEDGER_TABLET_LAYOUT: DisplayLayout = {
     width: 'tablet',
+    minWidth: '600px',
     tracks: 12,
     cells: [
-        { col: 'account', line: 1, span: 3 },
+        { col: 'account', line: 1, span: 2 },
         { col: 'type', line: 1, span: 2 },
-        { col: 'number', line: 1, span: 1 },
+        { col: 'number', line: 1, span: 2 },
         { col: 'debit', line: 1, span: 2 },
         { col: 'credit', line: 1, span: 2 },
         { col: 'balance', line: 1, span: 2 },
@@ -613,11 +616,15 @@ export const GENERAL_LEDGER_PARTY_SEED = [
 }[]
 
 // One long section, so the first page of 200 detail rows ends inside it (spec §7
-// item 8): this many one-dollar transfers from checking to savings.
+// item 8): two entries of 130 one-dollar lines to savings and their offsets, one
+// credit to checking each. Savings gets 260 lines; each entry has 131 lines, under
+// the entry form's 200-line limit, so a user can still edit either one. `days` are
+// month-day of the current year.
 export const GENERAL_LEDGER_LONG_SECTION = {
     account: 'savings',
     offset: 'checking',
-    count: 260,
+    days: ['09-15', '09-16'],
+    linesPerEntry: 130,
     cents: 100,
     memo: 'Daily sweep',
 }

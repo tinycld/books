@@ -490,7 +490,7 @@ func TestReportSourcesHeadingAndFiscalStart(t *testing.T) {
 }
 
 // debitToDay sums the debit of every journal line dated on or before the day.
-const debitToDay = `{"version":2,"source":"books.journal_lines",
+const debitToDay = `{"version":4,"source":"books.journal_lines",
 	"columns":[{"id":"debit","path":[{"field":"debit"}],"aggregate":"sum"}],
 	"filter":{"op":"lte","args":[{"path":[{"field":"date"}]},{"value":"2026-03-31"}]}}`
 

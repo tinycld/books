@@ -111,7 +111,76 @@ func generalLedgerSpec() *reports.Spec {
 			{Formula: fld("entry", "posted_at")},
 			{Formula: fld("position")},
 		},
-		Detail: &reports.Detail{Label: fld("date")},
+		Detail:  &reports.Detail{Label: fld("date")},
+		Display: generalLedgerDisplay(),
+	}
+}
+
+// generalLedgerDisplay tries one line only from 1040 px (below that the nine
+// columns cut the text), keeps entry numbers and figures whole, keeps an
+// ordinary account name in Split and a customer name in Name whole, and gives
+// the description the most of the spare room.
+func generalLedgerDisplay() *reports.Display {
+	descriptionGrow := 2
+	return &reports.Display{
+		OneLine: &reports.DisplayOneLine{MinWidth: "1040px"},
+		Columns: map[string]reports.ColumnFit{
+			// "Journal entry" shows whole; a longer type ends in an ellipsis.
+			"type":   {MinWidth: "12ch"},
+			"number": {MinWidth: "max-content"},
+			// Core shares a line's spare room by what each column lacks of its
+			// natural width, so a long description takes the room and the
+			// default 8ch floor cuts "Accounts receivable" to "Accounts r…".
+			// These floors keep about 20 characters of Split and 16 of Name.
+			"name":        {MinWidth: "16ch"},
+			"split":       {MinWidth: "20ch"},
+			"description": {FlexGrow: &descriptionGrow},
+			"debit":       {MinWidth: "max-content"},
+			"credit":      {MinWidth: "max-content"},
+			"balance":     {MinWidth: "max-content"},
+		},
+		Layouts: generalLedgerLayouts(),
+	}
+}
+
+// generalLedgerLayouts are the authored narrow layouts (spec §3 Phone, §5). A
+// phone row wraps onto four lines; a tablet row keeps its figures on the
+// date's line and its long text on the line below. No. spans two tracks so a
+// whole entry number ("JE-41") shows. No desktop layout: core fits the one
+// line to the view, and wraps to the tablet layout when it does not fit.
+func generalLedgerLayouts() []reports.DisplayLayout {
+	return []reports.DisplayLayout{
+		{
+			Width:  "mobile",
+			Tracks: 3,
+			Cells: []reports.DisplayCell{
+				{Col: "account", Line: 1},
+				{Col: "type", Line: 1},
+				{Col: "number", Line: 1},
+				{Col: "name", Line: 2},
+				{Col: "description", Line: 2, Span: 2},
+				{Col: "split", Line: 3, Span: 3},
+				{Col: "debit", Line: 4},
+				{Col: "credit", Line: 4},
+				{Col: "balance", Line: 4},
+			},
+		},
+		{
+			Width:    "tablet",
+			MinWidth: "600px",
+			Tracks:   12,
+			Cells: []reports.DisplayCell{
+				{Col: "account", Line: 1, Span: 2},
+				{Col: "type", Line: 1, Span: 2},
+				{Col: "number", Line: 1, Span: 2},
+				{Col: "debit", Line: 1, Span: 2},
+				{Col: "credit", Line: 1, Span: 2},
+				{Col: "balance", Line: 1, Span: 2},
+				{Col: "name", Line: 2, Span: 3},
+				{Col: "description", Line: 2, Span: 5},
+				{Col: "split", Line: 2, Span: 4},
+			},
+		},
 	}
 }
 
