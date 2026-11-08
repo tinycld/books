@@ -267,7 +267,7 @@ describe('the page and dialog keys in core’s registry', () => {
             }),
             pushScope('list')
         )
-        // Core's LayerEscape pushes ONE modal scope while the dialog is open and registers
+        // Core's LayerScope pushes ONE modal scope while the dialog is open and registers
         // its Escape "Close" there; the dialog's ⌘↵ joins that same scope, because a
         // second modal scope above it would shadow the layer's Escape.
         const layer = pushScope('modal')
