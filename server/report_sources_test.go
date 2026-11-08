@@ -47,6 +47,7 @@ var booksSourceKeys = []string{
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
+	"books.vendors",
 }
 
 func TestReportSourcesPass(t *testing.T) {
@@ -169,7 +170,9 @@ func expectedCatalog(t *testing.T) []wantSource {
 					{Value: "void_reversal", Label: "Void reversal"},
 					{Value: "opening_balance", Label: "Opening balance"},
 				}},
-				{key: "doc_type", typ: reports.Select, options: []reports.Option{{Value: "journal", Label: "Journal entry"}}},
+				{key: "doc_type", typ: reports.Select, options: []reports.Option{
+					{Value: "journal", Label: "Journal entry"}, {Value: "transfer", Label: "Transfer"},
+				}},
 				textMinMax("number"),
 				// The posting order behind number, so opened lines sort 9 before 10.
 				{key: "sequence", typ: reports.Number, label: "Sequence"},
@@ -189,10 +192,14 @@ func expectedCatalog(t *testing.T) []wantSource {
 				money("debit"), money("credit"), text("memo"),
 				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
 				boolField("posted"), text("currency"),
+				// The line's order in its entry: the General Ledger's last sort key.
+				{key: "position", typ: reports.Number},
 			},
 			links: []wantLink{
 				toOne("entry", "books.journal_entries", "entry"),
 				toOne("account", "books.accounts", "account"),
+				toOne("customer", "books.customers", "customer"),
+				toOne("vendor", "books.vendors", "vendor"),
 			},
 		},
 		{
@@ -216,6 +223,17 @@ func expectedCatalog(t *testing.T) []wantSource {
 				toMany("sub_customers", "books.customers", "parent"),
 			},
 		},
+		{
+			// The customers source's shape; 1099 fields, tax id and json
+			// columns left out.
+			key: "books.vendors", collection: "books_vendors", label: "Vendors",
+			fields: []wantField{
+				textMinMax("display_name"),
+				text("company"), text("first_name"), text("last_name"), text("email"),
+				text("phone"), text("mobile"), text("website"), text("notes"),
+				boolField("inactive"),
+			},
+		},
 	}
 }
 
@@ -229,8 +247,9 @@ func aggsOf(a []reports.Aggregate) []reports.Aggregate {
 
 // leftOut are the columns spec §5 keeps out of every Books source.
 var leftOut = []string{
-	"sort_key", "name_key", "form", "form_1099_box", "position", "close_override",
+	"sort_key", "name_key", "form", "form_1099_box", "close_override",
 	"billing_address", "shipping_address", "fields",
+	"address", "track_1099", "legal_name", "tax_id", "tax_id_type",
 }
 
 func TestReportSourcesCatalog(t *testing.T) {
@@ -282,6 +301,39 @@ func TestReportSourcesCatalog(t *testing.T) {
 			checkLinks(t, src, want.links)
 			checkLeftOut(t, app, src, users.Id)
 		})
+	}
+}
+
+// The doc_type options come from one Go list that matches the migration's
+// select values, in order, so a report can filter on every document type.
+func TestReportSourcesDocTypesMatchTheMigration(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	col, err := app.FindCollectionByNameOrId("books_journal_entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	field, ok := col.Fields.GetByName("doc_type").(*core.SelectField)
+	if !ok {
+		t.Fatal("books_journal_entries.doc_type is not a select field")
+	}
+	var options []reports.Option
+	for _, s := range reportSources() {
+		if s.Key != "books.journal_entries" {
+			continue
+		}
+		for _, f := range s.Fields {
+			if f.Key == "doc_type" {
+				options = f.Options
+			}
+		}
+	}
+	values := make([]string, len(options))
+	for i, o := range options {
+		values[i] = o.Value
+	}
+	if len(field.Values) == 0 || !slices.Equal(values, field.Values) {
+		t.Errorf("doc_type options %v, want the migration's values %v", values, field.Values)
 	}
 }
 

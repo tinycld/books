@@ -20,6 +20,16 @@
             "name": "rows-all",
             "url": "/a/books/helix-mockup?state=rows-all",
             "ready": "report-table",
+            "widths": [390],
+            "height": 1200,
+            "actions": [{ "scrollTo": "report-param-rows" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "rows-all",
+            "url": "/a/books/helix-mockup?state=rows-all",
+            "ready": "report-table",
+            "widths": [1280],
             "height": 1200,
             "hideLabels": ["New"]
         },
@@ -27,6 +37,16 @@
             "name": "filtered",
             "url": "/a/books/helix-mockup?state=filtered",
             "ready": "report-table",
+            "widths": [390],
+            "height": 1200,
+            "actions": [{ "scrollTo": "report-param-accounts" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "report-table",
+            "widths": [1280],
             "height": 1200,
             "hideLabels": ["New"]
         },
@@ -48,6 +68,15 @@
             "name": "more",
             "url": "/a/books/helix-mockup?state=more",
             "ready": "report-loading-more",
+            "widths": [390],
+            "actions": [{ "scrollTo": "report-loading-more" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "more",
+            "url": "/a/books/helix-mockup?state=more",
+            "ready": "report-loading-more",
+            "widths": [1280],
             "hideLabels": ["New"]
         }
     ]

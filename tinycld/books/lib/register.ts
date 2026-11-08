@@ -80,7 +80,9 @@ export type EntryDetail = {
     }[]
 }
 
-const originLabels: Record<string, string> = {
+// Copies of server/entry_type_labels.json, which the Go General Ledger reads for
+// its Type column; tests/register.test.ts fails when the two differ.
+export const originLabels: Record<string, string> = {
     manual: 'Journal entry',
     reversal: 'Reversal',
     void_reversal: 'Void reversal',
@@ -88,7 +90,9 @@ const originLabels: Record<string, string> = {
     opening_balance: 'Opening balances',
 }
 
-const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])
+export const TRANSFER_LABEL = 'Transfer'
+
+export const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])
 
 // A transfer's reversal keeps doc_type 'transfer' and its "Void reversal of TR-3" label.
 export function entryTypeLabel(
@@ -96,7 +100,7 @@ export function entryTypeLabel(
     reversesNumber: string,
     docType: string = 'journal'
 ): string {
-    if (docType === 'transfer' && origin === 'manual') return 'Transfer'
+    if (docType === 'transfer' && origin === 'manual') return TRANSFER_LABEL
     const label = originLabels[origin] ?? originLabels.manual
     if (!reversalOrigins.has(origin) || !reversesNumber) return label
     return `${label} of ${reversesNumber}`

@@ -85,7 +85,7 @@ Core tests: Go unit tests per extension (F1 sum/count incl. money currency and a
 
 - `books.journal_entries.doc_type` options: `journal` "Journal entry" **and `transfer` "Transfer"** (today only `journal` is listed, while the migration allows both). Options come from one Go list checked against the migration's select values by a test.
 - `books.journal_lines` gains `position` (Number, the line's order in its entry) and links `customer` → `books.customers`, `vendor` → `books.vendors` (Q1).
-- New source `books.vendors` "Vendors": `display_name` Text MinMax; `company`, `first_name`, `last_name`, `email`, `phone`, `website`, `notes` Text; `inactive` Bool (the customers source's shape; 1099 fields, tax id and json columns left out). `CheckSources` pinned in `server/report_sources_test.go`.
+- New source `books.vendors` "Vendors": `display_name` Text MinMax; `company`, `first_name`, `last_name`, `email`, `phone`, `mobile`, `website`, `notes` Text; `inactive` Bool (the customers source's shape; 1099 fields, tax id and json columns left out). `CheckSources` pinned in `server/report_sources_test.go`.
 - **Entry type labels:** `server/entry_type_labels.json` (origin → label, the transfer label, the reversal origins) read by the Go spec builder and by `lib/register.ts` `entryTypeLabel`, with a drift test both sides (the `transfer_account_types.json` pattern).
 
 ### Ledger change (Q1)

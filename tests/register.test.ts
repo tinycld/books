@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
     BALANCES,
@@ -14,8 +16,11 @@ import {
     entryDetail,
     entryNumberLabel,
     entryTypeLabel,
+    originLabels,
     type RegisterEntry,
     type RegisterSourceLine,
+    reversalOrigins,
+    TRANSFER_LABEL,
     toggleOrder,
 } from '../tinycld/books/lib/register'
 import { rangeForPreset } from '../tinycld/books/lib/register-range'
@@ -538,6 +543,34 @@ describe('entryTypeLabel for transfers', () => {
                 entryTypeLabel(origin, 'JE-7', 'journal')
             )
         }
+    })
+})
+
+// The Go General Ledger reads the same table, so the two must not drift.
+describe('entry type labels match server/entry_type_labels.json', () => {
+    const server = JSON.parse(
+        readFileSync(join(__dirname, '..', 'server', 'entry_type_labels.json'), 'utf8')
+    ) as { origins: Record<string, string>; transfer: string; reversalOrigins: string[] }
+
+    it('holds the same origin labels, transfer label and reversal origins', () => {
+        expect({
+            origins: originLabels,
+            transfer: TRANSFER_LABEL,
+            reversalOrigins: Array.from(reversalOrigins ?? []),
+        }).toEqual(server)
+        expect(TRANSFER_LABEL).toBe('Transfer')
+    })
+
+    it('labels every origin of the table as before', () => {
+        const origins = Object.entries(server.origins ?? {})
+        expect(origins.map(([origin]) => origin).sort()).toEqual(
+            ['auto_reversal', 'manual', 'opening_balance', 'reversal', 'void_reversal'].sort()
+        )
+        for (const [origin, label] of origins) {
+            expect(entryTypeLabel(origin, ''), origin).toBe(label)
+        }
+        expect(entryTypeLabel('manual', '', 'transfer')).toBe(server.transfer)
+        expect(entryTypeLabel('void_reversal', 'TR-3', 'transfer')).toBe('Void reversal of TR-3')
     })
 })
 
