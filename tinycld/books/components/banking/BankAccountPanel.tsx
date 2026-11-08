@@ -8,6 +8,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { BankConnectionRow } from '../../hooks/useBankConnections'
 import type { BankFileItem } from '../../hooks/useBankFiles'
 import type { BankFileUpload } from '../../hooks/useBankFileUpload'
+import type { ReviewBatch } from '../../hooks/useReviewBatch'
 import { bankDetailsText, connectionLabel } from '../../lib/bank-connections'
 import type { ReviewTab } from '../../lib/bank-review'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
@@ -189,11 +190,12 @@ interface TabBodyProps extends PanelBodyProps {
     currency: string
     onGoToFiles: () => void
     pageRecovery: LiveRecovery
+    batch: ReviewBatch
 }
 
 // The transaction tabs show their own loading state, so only the Files tab waits for the
 // files of the selected connection.
-function TabBody({ tab, row, currency, onGoToFiles, pageRecovery, ...files }: TabBodyProps) {
+function TabBody({ tab, row, currency, onGoToFiles, pageRecovery, batch, ...files }: TabBodyProps) {
     if (tab === 'files') return <FilesTabBody {...files} />
     return (
         <ReviewTabBody
@@ -202,6 +204,7 @@ function TabBody({ tab, row, currency, onGoToFiles, pageRecovery, ...files }: Ta
             currency={currency}
             onGoToFiles={onGoToFiles}
             pageRecovery={pageRecovery}
+            batch={batch}
         />
     )
 }
@@ -225,6 +228,8 @@ interface BankAccountPanelProps {
     currency: string
     // The page's failed reads, recovered with a transaction tab's Retry.
     pageRecovery: LiveRecovery
+    // The page's status change of transactions, shared with the drawer beside the page.
+    batch: ReviewBatch
     // What the import and review units add, under the upload area and above the files.
     children?: ReactNode
 }
@@ -241,6 +246,7 @@ export function BankAccountPanel({
     onGoToFiles,
     currency,
     pageRecovery,
+    batch,
     children,
     ...actions
 }: BankAccountPanelProps) {
@@ -298,6 +304,7 @@ export function BankAccountPanel({
                 currency={currency}
                 onGoToFiles={onGoToFiles}
                 pageRecovery={pageRecovery}
+                batch={batch}
                 isLoading={isLoading}
                 upload={upload}
                 files={files}

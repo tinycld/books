@@ -26,6 +26,7 @@ import { fiscalStartMonth, todayIso } from '../lib/register-range'
 import { useBankingUIStore } from '../stores/banking-ui-store'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
+import type { ReviewBatch } from './useReviewBatch'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 const NO_MORE_PAGES = () => {}
@@ -212,7 +213,6 @@ export function useReviewPagedRows(
 type ReviewTabInput = {
     tab: TxnTab
     connectionId: string
-    accountLabel: string
     waitingCount: number
     currency: string
     read: ReviewRead
@@ -220,6 +220,9 @@ type ReviewTabInput = {
     // The page's own failed reads (connections, files, settings, access), recovered by the
     // same Retry press.
     pageRecovery: LiveRecovery
+    // The page's one batch, shared with the drawer beside the page; the page clears its
+    // result on a tab or account change.
+    batch: ReviewBatch
 }
 
 export type ReviewTabModel = {
@@ -240,16 +243,22 @@ export type ReviewTabModel = {
     dateOrder: DateOrder
     onToggleOrder: () => void
     onClearFilters: () => void
+    openTxnId: string | null
+    onOpenRow: (id: string) => void
+    batch: ReviewBatch
+    result: { text: string; tone: 'muted' | 'danger' } | null
 }
 
 // The shared model of a transaction tab body, over the read of its tab. While the query for
 // a new search, filter or order loads, the last settled rows stay on screen (settleRows),
 // kept in a ref that is written during render, as useRecordList keeps its value.
 export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
-    const { tab, waitingCount, read, queryInput, pageRecovery } = input
+    const { tab, waitingCount, read, queryInput, pageRecovery, batch } = input
     const [txns] = useStore('books_bank_transactions')
     const { canWrite } = useBooksAccess()
     const isWide = useBreakpoint() !== 'mobile'
+    const openTxnId = useBankingUIStore(s => s.openTxnId)
+    const openTxn = useBankingUIStore(s => s.openTxn)
     const toggleDateOrder = useBankingUIStore(s => s.toggleDateOrder)
     const clearReviewFilters = useBankingUIStore(s => s.clearReviewFilters)
     const kept = useRef<SettledRows<ReviewRowData>>(undefined)
@@ -293,5 +302,9 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         dateOrder: queryInput.dateOrder,
         onToggleOrder: toggleDateOrder,
         onClearFilters: clearReviewFilters,
+        openTxnId,
+        onOpenRow: openTxn,
+        batch,
+        result: batch.result,
     }
 }

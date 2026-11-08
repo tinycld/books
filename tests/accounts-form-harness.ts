@@ -24,6 +24,8 @@ import type {
     BooksAdmins,
     BooksBankConnections,
     BooksBankFiles,
+    BooksBankImports,
+    BooksBankTransactions,
     BooksCloseOverrides,
     BooksDocSequences,
     BooksJournalEntries,
@@ -610,12 +612,21 @@ function rowMatches(row: object, comparisons: SimpleComparison[]) {
 // entry id is refused with a 4xx that pbtsdb does not retry, so only the live query that
 // asked for that entry fails; the source stays ready and a later load of it succeeds.
 function onDemandEntriesCollection(rows: BooksJournalEntries[], refuseOnceFor?: string) {
+    return onDemandCollection('books_journal_entries', rows, refuseOnceFor)
+}
+
+// Any collection loaded on demand as onDemandEntriesCollection describes, by name.
+function onDemandCollection<T extends { id: string }>(
+    name: string,
+    rows: T[],
+    refuseOnceFor?: string
+) {
     counter += 1
-    const id = `books_journal_entries-on-demand-${counter}`
+    const id = `${name}-on-demand-${counter}`
     let isRefused = refuseOnceFor === undefined
     return createCollection({
         id,
-        getKey: (row: BooksJournalEntries) => row.id,
+        getKey: (row: T) => row.id,
         ...indexed,
         syncMode: 'on-demand',
         sync: {
@@ -876,6 +887,15 @@ export function seedBooks(
         bankConnections?: BooksBankConnections[]
         // The bank file rows to seed; none by default.
         bankFiles?: BooksBankFiles[]
+        // The bank import rows to seed; none by default. Read only.
+        bankImports?: BooksBankImports[]
+        // The bank transaction rows, loaded on demand as pbtsdb loads them (each read gets
+        // the rows its equality filter names); none by default. Read only: a write test
+        // registers its own with guardedStore.
+        bankTransactions?: BooksBankTransactions[]
+        // The first read whose filter names this transaction id is refused with a 403, as
+        // pbtsdb refuses it; later reads of it succeed.
+        bankTransactionReadFailsOnceFor?: string
         // The tax agency and tax rate (and group) rows to seed; none by default. Their
         // writes go through the shared handler, so the refusal and hold helpers reach them.
         taxAgencies?: BooksTaxAgencies[]
@@ -1008,6 +1028,12 @@ export function seedBooks(
             opts.bankConnections ?? []
         ),
         books_bank_files: bankFilesCollection(opts.bankFiles ?? []),
+        books_bank_imports: local<BooksBankImports>('books_bank_imports', opts.bankImports ?? []),
+        books_bank_transactions: onDemandCollection<BooksBankTransactions>(
+            'books_bank_transactions',
+            opts.bankTransactions ?? [],
+            opts.bankTransactionReadFailsOnceFor
+        ),
         books_tax_agencies: taxAgenciesCollectionFor(opts, opts.taxAgencies ?? []),
         books_tax_rates: taxRatesCollectionFor(opts, opts.taxRates ?? []),
     })
@@ -1015,6 +1041,12 @@ export function seedBooks(
 
 export function bankConnectionsStore() {
     return state.registry.books_bank_connections as ReturnType<typeof guarded<BooksBankConnections>>
+}
+
+export function bankTransactionsStore() {
+    return state.registry.books_bank_transactions as ReturnType<
+        typeof onDemandCollection<BooksBankTransactions>
+    >
 }
 
 export function bankFilesStore() {

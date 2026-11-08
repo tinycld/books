@@ -9,6 +9,7 @@ import { BankingDialogs } from './BankingDialogs'
 import { BankingHeader } from './BankingHeader'
 import { BankingIntro } from './BankingIntro'
 import { BankingLoadError, BankingLoading } from './BankingStates'
+import { BankTxnDrawer } from './review/BankTxnDrawer'
 
 function BankingContent({ model, upload }: { model: BankingScreenModel; upload: BankFileUpload }) {
     if (model.state === 'intro') return null
@@ -39,6 +40,7 @@ function BankingContent({ model, upload }: { model: BankingScreenModel; upload: 
                 onGoToFiles={model.onGoToFiles}
                 currency={model.currency}
                 pageRecovery={model.pageRecovery}
+                batch={model.batch}
             />
         </>
     )
@@ -57,7 +59,9 @@ function IntroBody({ model }: { model: BankingScreenModel }) {
 
 // A fixed column: the header, the strip, the panel heading and the tab bar stay put, and the
 // tab's body fills the rest of the height and scrolls its own content, so a long list can
-// window.
+// window. The transaction drawer sits beside the whole column, as the register's
+// EntryDrawer sits beside its screen: inline at full height on a wide window (the column
+// narrows), an overlay or a sheet otherwise.
 export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     // One upload for the selected connection, shared by the upload area and the page keys.
     const upload = useBankFileUpload(model.selected?.id ?? '')
@@ -69,8 +73,8 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     const canConnect = model.canWrite && model.state === 'ready'
     return (
         <>
-            <View testID="banking-screen" className="flex-1 bg-background">
-                <View className={`min-h-0 flex-1 gap-4 ${padding}`}>
+            <View className="flex-1 flex-row bg-background">
+                <View testID="banking-screen" className={`min-h-0 min-w-0 flex-1 gap-4 ${padding}`}>
                     <BankingHeader
                         canConnect={canConnect}
                         isWide={model.isWide}
@@ -79,6 +83,7 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
                     <IntroBody model={model} />
                     <BankingContent model={model} upload={upload} />
                 </View>
+                <BankTxnDrawer drawer={model.drawer} currency={model.currency} />
             </View>
             <BankingDialogs model={model} />
         </>

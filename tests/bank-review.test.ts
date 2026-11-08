@@ -6,6 +6,13 @@ import {
 } from '@tanstack/db'
 import { describe, expect, it } from 'vitest'
 import {
+    BANK_BATCH_TRANSPORT_TEXT,
+    BATCH_TARGET,
+    type BatchFailure,
+    batchFailure,
+    batchResultText,
+    chunksOf,
+    drawerAction,
     EMPTY_REVIEW_FILTERS,
     hasReviewFilter,
     parseSearchAmount,
@@ -24,6 +31,9 @@ import {
     txnAmountCells,
     txnPhoneLine,
     txnSecondLine,
+    txnSourceText,
+    txnStatusLabel,
+    writeControlState,
 } from '../tinycld/books/lib/bank-review'
 import {
     REVIEW_CONNECTION_IDS,
@@ -444,5 +454,227 @@ describe('settleRows', () => {
         const result = settleRows(prev, settled('q1', [rowA, rowB]))
         expect(result.next).toBe(prev)
         expect(result.shown).toBe(prev)
+    })
+})
+
+const refused = (id: string, message: string): BatchFailure => ({
+    id,
+    message,
+    isTransport: false,
+})
+const unsent = (id: string): BatchFailure => ({
+    id,
+    message: 'Failed to fetch',
+    isTransport: true,
+})
+const CANNOT_CHANGE = 'This transaction cannot be changed.'
+
+describe('BATCH_TARGET', () => {
+    it('excludes to excluded and restores to for_review', () => {
+        expect(BATCH_TARGET).toEqual({ exclude: 'excluded', restore: 'for_review' })
+    })
+})
+
+describe('batchResultText', () => {
+    it('counts the excluded transactions, muted', () => {
+        expect(batchResultText('exclude', { done: ['a', 'b', 'c'], failed: [] })).toEqual({
+            text: 'Excluded 3 transactions.',
+            tone: 'muted',
+        })
+        expect(batchResultText('exclude', { done: ['a'], failed: [] })).toEqual({
+            text: 'Excluded 1 transaction.',
+            tone: 'muted',
+        })
+    })
+
+    it('counts the transactions moved to For review, muted', () => {
+        expect(batchResultText('restore', { done: ['a', 'b', 'c'], failed: [] })).toEqual({
+            text: 'Moved 3 transactions to For review.',
+            tone: 'muted',
+        })
+        expect(batchResultText('restore', { done: ['a'], failed: [] })).toEqual({
+            text: 'Moved 1 transaction to For review.',
+            tone: 'muted',
+        })
+    })
+
+    it("shows the server's message when every failure has the same one", () => {
+        const failed = [refused('a', CANNOT_CHANGE), refused('b', CANNOT_CHANGE)]
+        expect(batchResultText('exclude', { done: [], failed })).toEqual({
+            text: CANNOT_CHANGE,
+            tone: 'danger',
+        })
+        expect(batchResultText('restore', { done: ['c'], failed })).toEqual({
+            text: CANNOT_CHANGE,
+            tone: 'danger',
+        })
+    })
+
+    it('counts the failures of all when the messages differ', () => {
+        const failed = [refused('b', CANNOT_CHANGE), refused('c', 'Another reason.')]
+        expect(batchResultText('exclude', { done: ['a'], failed })).toEqual({
+            text: '2 of 3 transactions could not be excluded. Try again.',
+            tone: 'danger',
+        })
+        expect(batchResultText('restore', { done: ['a'], failed })).toEqual({
+            text: '2 of 3 transactions could not be moved to For review. Try again.',
+            tone: 'danger',
+        })
+    })
+
+    it('shows the transport text when no failure reached the server', () => {
+        const failed = [unsent('a'), unsent('b')]
+        expect(batchResultText('exclude', { done: [], failed })).toEqual({
+            text: BANK_BATCH_TRANSPORT_TEXT,
+            tone: 'danger',
+        })
+        expect(BANK_BATCH_TRANSPORT_TEXT).toBe(
+            'The change could not be sent. Check your connection and try again.'
+        )
+    })
+
+    it('counts a transport failure and a refusal together', () => {
+        const failed = [unsent('a'), refused('b', CANNOT_CHANGE)]
+        expect(batchResultText('exclude', { done: [], failed })).toEqual({
+            text: '2 of 2 transactions could not be excluded. Try again.',
+            tone: 'danger',
+        })
+        expect(batchResultText('restore', { done: [], failed })).toEqual({
+            text: '2 of 2 transactions could not be moved to For review. Try again.',
+            tone: 'danger',
+        })
+    })
+
+    // A change that was never sent (its row left the store) carries no message, so the
+    // line falls back to the count, never an empty or internal text.
+    it('counts a lone failure that has no message', () => {
+        expect(batchResultText('exclude', { done: [], failed: [refused('a', '')] })).toEqual({
+            text: '1 of 1 transactions could not be excluded. Try again.',
+            tone: 'danger',
+        })
+    })
+
+    it('counts a failure with no message beside a refusal', () => {
+        const failed = [refused('b', ''), refused('c', 'No.')]
+        expect(batchResultText('restore', { done: ['a'], failed })).toEqual({
+            text: '2 of 3 transactions could not be moved to For review. Try again.',
+            tone: 'danger',
+        })
+    })
+
+    it('counts failures that all have no message', () => {
+        const failed = [refused('a', ''), refused('b', '')]
+        const line = batchResultText('exclude', { done: [], failed })
+        expect(line).toEqual({
+            text: '2 of 2 transactions could not be excluded. Try again.',
+            tone: 'danger',
+        })
+        expect(line.text).not.toBe('')
+    })
+})
+
+describe('batchFailure', () => {
+    it("keeps a message-only refusal's message", () => {
+        const error = { status: 400, response: { message: 'No.', data: {} } }
+        expect(batchFailure('t1', error)).toEqual({ id: 't1', message: 'No.', isTransport: false })
+    })
+
+    it('marks a request that got no answer as transport', () => {
+        expect(batchFailure('t1', { status: 0 })).toMatchObject({ id: 't1', isTransport: true })
+    })
+
+    it('reads the message of the first refused field', () => {
+        const error = {
+            status: 400,
+            response: {
+                message: 'Failed to update record.',
+                data: { status: { message: 'Invalid value.' } },
+            },
+        }
+        expect(batchFailure('t1', error)).toEqual({
+            id: 't1',
+            message: 'Invalid value.',
+            isTransport: false,
+        })
+    })
+})
+
+describe('chunksOf', () => {
+    it('cuts the items into runs of the size, the last one shorter', () => {
+        const items = Array.from({ length: 120 }, (_, i) => i)
+        const chunks = chunksOf(items, 50)
+        expect(chunks.map(chunk => chunk.length)).toEqual([50, 50, 20])
+        expect(chunks.flat()).toEqual(items)
+    })
+
+    it('has no chunk for no items', () => {
+        expect(chunksOf([], 50)).toEqual([])
+    })
+})
+
+describe('txnSourceText', () => {
+    it('names the file and the line', () => {
+        expect(txnSourceText('oct-2026.csv', 7)).toBe('oct-2026.csv, line 7')
+    })
+
+    it('is empty with no file name', () => {
+        expect(txnSourceText('', 7)).toBe('')
+    })
+})
+
+describe('txnStatusLabel', () => {
+    it('labels each status', () => {
+        expect(txnStatusLabel('for_review')).toBe('For review')
+        expect(txnStatusLabel('reviewed')).toBe('Reviewed')
+        expect(txnStatusLabel('excluded')).toBe('Excluded')
+    })
+})
+
+describe('drawerAction', () => {
+    it('offers a writer Exclude on a for-review transaction', () => {
+        expect(drawerAction('for_review', true)).toEqual({
+            kind: 'exclude',
+            label: 'Exclude',
+            busyLabel: 'Excluding…',
+            testID: 'bank-txn-exclude',
+        })
+    })
+
+    it('offers a writer Move to For review on an excluded transaction', () => {
+        expect(drawerAction('excluded', true)).toEqual({
+            kind: 'restore',
+            label: 'Move to For review',
+            busyLabel: 'Moving…',
+            testID: 'bank-txn-restore',
+        })
+    })
+
+    it('offers nothing on a reviewed transaction', () => {
+        expect(drawerAction('reviewed', true)).toBeNull()
+    })
+
+    it('offers a reader nothing', () => {
+        expect(drawerAction('for_review', false)).toBeNull()
+        expect(drawerAction('excluded', false)).toBeNull()
+    })
+})
+
+describe('writeControlState', () => {
+    it('is enabled with no hint while idle and writes are on', () => {
+        expect(
+            writeControlState({ isPending: false, writesDisabled: false, writesHint: undefined })
+        ).toEqual({ isDisabled: false, hint: undefined })
+    })
+
+    it('is disabled with no hint while a change runs', () => {
+        expect(
+            writeControlState({ isPending: true, writesDisabled: false, writesHint: 'h' })
+        ).toEqual({ isDisabled: true, hint: undefined })
+    })
+
+    it('is disabled with the hint while writes are off', () => {
+        expect(
+            writeControlState({ isPending: false, writesDisabled: true, writesHint: 'h' })
+        ).toEqual({ isDisabled: true, hint: 'h' })
     })
 })

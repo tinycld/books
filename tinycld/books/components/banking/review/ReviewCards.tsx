@@ -30,9 +30,18 @@ function ReviewPhoneBar({ model }: { model: ReviewTabModel }) {
 
 // The phone list of a transaction tab: windowed cards of one fixed height.
 export function ReviewCards({ model, currency }: { model: ReviewTabModel; currency: string }) {
-    const renderCard = (row: ReviewRowData, height: number) => (
-        <ReviewCard row={row} currency={currency} height={height} />
-    )
+    const renderCard = (row: ReviewRowData, height: number) => {
+        const isOpen = row.id === model.openTxnId
+        return (
+            <ReviewCard
+                row={row}
+                currency={currency}
+                height={height}
+                isOpen={isOpen}
+                onOpen={model.onOpenRow}
+            />
+        )
+    }
     return (
         <View className="min-h-0 flex-1">
             <ReviewPhoneBar model={model} />

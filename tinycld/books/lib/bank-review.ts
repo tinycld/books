@@ -1,8 +1,10 @@
 import { and, eq, gt, gte, ilike, lt, lte, or, type Ref } from '@tanstack/db'
 import type { SetupTab } from '@tinycld/core/components/setup/wizard/SetupTabs'
+import { errorToString } from '@tinycld/core/lib/errors'
 import type { BooksBankTransactions } from '../types'
 import { searchPieces } from './list-search'
 import { formatMoney, parseMoney } from './money'
+import { errorStatus, messageOnlyRefusal } from './refusal'
 import {
     formatDay,
     RANGE_PRESETS,
@@ -276,4 +278,144 @@ export function settleRows<Row>(
         return { next: prev, shown: prev }
     }
     return { next: now, shown: now }
+}
+
+// Exclude and Move to For review: what each sets a transaction's status to. The server's
+// update rule allows only these two moves (pb-migrations/2100000008_create_books_banking.js).
+export type BatchKind = 'exclude' | 'restore'
+export const BATCH_TARGET: Record<BatchKind, TxnStatus> = {
+    exclude: 'excluded',
+    restore: 'for_review',
+}
+
+export type BatchFailure = { id: string; message: string; isTransport: boolean }
+export type BatchOutcome = { done: string[]; failed: BatchFailure[] }
+
+export const BANK_BATCH_TRANSPORT_TEXT =
+    'The change could not be sent. Check your connection and try again.'
+
+function firstFieldMessage(error: unknown): string | null {
+    const data = (error as { response?: { data?: unknown } } | null)?.response?.data
+    if (typeof data !== 'object' || data === null) return null
+    for (const value of Object.values(data)) {
+        const message = (value as { message?: unknown } | null)?.message
+        if (typeof message === 'string' && message !== '') return message
+    }
+    return null
+}
+
+// One refused or unsent status change. A write with no HTTP status (0, or none at all)
+// and no server message never reached the server.
+export function batchFailure(id: string, error: unknown): BatchFailure {
+    const refusal = messageOnlyRefusal(error)
+    const status = errorStatus(error)
+    const isTransport = (status === 0 || status === undefined) && refusal === null
+    const message = refusal ?? firstFieldMessage(error) ?? errorToString(error)
+    return { id, message, isTransport }
+}
+
+function transactionsNoun(count: number): string {
+    return count === 1 ? 'transaction' : 'transactions'
+}
+
+const DONE_TEXT: Record<BatchKind, (count: number) => string> = {
+    exclude: count => `Excluded ${count} ${transactionsNoun(count)}.`,
+    restore: count => `Moved ${count} ${transactionsNoun(count)} to For review.`,
+}
+
+const FAILED_VERB: Record<BatchKind, string> = {
+    exclude: 'excluded',
+    restore: 'moved to For review',
+}
+
+// The line under the toolbar after a batch: the count when every change went through;
+// the transport text when none of the failures reached the server; the server's message
+// when every failure is a refusal with the same non-empty one; else how many of the
+// batch failed. A failure with no message (a row that left the store before its change
+// was sent) is only counted.
+export function batchResultText(
+    kind: BatchKind,
+    outcome: BatchOutcome
+): { text: string; tone: 'muted' | 'danger' } {
+    const { done, failed } = outcome
+    const [first] = failed
+    if (first === undefined) return { text: DONE_TEXT[kind](done.length), tone: 'muted' }
+    if (failed.every(failure => failure.isTransport)) {
+        return { text: BANK_BATCH_TRANSPORT_TEXT, tone: 'danger' }
+    }
+    const isOneRefusal = failed.every(
+        failure =>
+            !failure.isTransport && failure.message !== '' && failure.message === first.message
+    )
+    if (isOneRefusal) return { text: first.message, tone: 'danger' }
+    const total = done.length + failed.length
+    return {
+        text: `${failed.length} of ${total} transactions could not be ${FAILED_VERB[kind]}. Try again.`,
+        tone: 'danger',
+    }
+}
+
+export function chunksOf<T>(items: readonly T[], size: number): T[][] {
+    const chunks: T[][] = []
+    for (let start = 0; start < items.length; start += size) {
+        chunks.push(items.slice(start, start + size))
+    }
+    return chunks
+}
+
+// The drawer's From file line: "oct-2026.csv, line 7"; nothing when the file is unknown.
+export function txnSourceText(fileName: string, line: number): string {
+    if (!fileName) return ''
+    return `${fileName}, line ${line}`
+}
+
+const STATUS_LABELS: Record<TxnStatus, string> = {
+    for_review: 'For review',
+    reviewed: 'Reviewed',
+    excluded: 'Excluded',
+}
+
+export function txnStatusLabel(status: TxnStatus): string {
+    return STATUS_LABELS[status]
+}
+
+export type ReviewAction = { kind: BatchKind; label: string; busyLabel: string }
+
+// The drawer's one action follows the transaction's own status: a writer excludes a
+// for-review row and moves an excluded one back; a reviewed row and a reader get none.
+export function drawerAction(
+    status: TxnStatus,
+    canWrite: boolean
+): (ReviewAction & { testID: 'bank-txn-exclude' | 'bank-txn-restore' }) | null {
+    if (!canWrite) return null
+    if (status === 'for_review') {
+        return {
+            kind: 'exclude',
+            label: 'Exclude',
+            busyLabel: 'Excluding…',
+            testID: 'bank-txn-exclude',
+        }
+    }
+    if (status === 'excluded') {
+        return {
+            kind: 'restore',
+            label: 'Move to For review',
+            busyLabel: 'Moving…',
+            testID: 'bank-txn-restore',
+        }
+    }
+    return null
+}
+
+// Every write control of the queue: disabled while a change runs or while the server
+// cannot take writes; the hint says why only in the second case.
+export function writeControlState(input: {
+    isPending: boolean
+    writesDisabled: boolean
+    writesHint: string | undefined
+}): { isDisabled: boolean; hint: string | undefined } {
+    return {
+        isDisabled: input.isPending || input.writesDisabled,
+        hint: input.writesDisabled ? input.writesHint : undefined,
+    }
 }
