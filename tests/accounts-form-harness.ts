@@ -24,6 +24,8 @@ import type {
     BooksAdmins,
     BooksBankConnections,
     BooksBankFiles,
+    BooksBankImports,
+    BooksBankTransactions,
     BooksCloseOverrides,
     BooksCustomers,
     BooksDocSequences,
@@ -48,6 +50,11 @@ const state = {
     refusalFor: {} as Record<string, unknown>,
     // Ids of every account write that reached the server handler, in order.
     entered: [] as string[],
+    // Writes inside refuseSharedWrite now, so refuseAfter can refuse a parallel use.
+    sharedInFlight: 0,
+    // Bumped by each seedBooks, so a write held by an earlier test that settles later
+    // does not change this test's in-flight count.
+    seedGeneration: 0,
     // Refuses every write after the first `after` ones that reached the handler.
     refuseAfter: null as { after: number; error: unknown } | null,
     // Refuses every settings write with this error.
@@ -107,9 +114,6 @@ export function resetWriteCounts() {
     state.log = []
 }
 
-// Lets the next `after` account writes through and refuses each later one. Unlike
-// the `refuseAfter` seed option, the count starts now, so it ignores the writes
-// a test made while setting up.
 // Lets the next `after` settings writes through and refuses each later one, so a
 // test can refuse only the closing write.
 export function refuseSettingsAfterNow(after: number, error: unknown) {
@@ -117,6 +121,14 @@ export function refuseSettingsAfterNow(after: number, error: unknown) {
     state.refuseSettingsAfter = { after, error }
 }
 
+// Lets the next `after` account writes through and refuses each later one. Unlike
+// the `refuseAfter` seed option, the count starts now, so it ignores the writes
+// a test made while setting up.
+// A refusal by position suits sequential writes only: when writes run in parallel,
+// which of them is "after" the count depends on timing. So while this refusal (or the
+// seed option's, or refuseAfterMore's) is set, a write that starts while another is
+// still in flight throws instead. To refuse some of a parallel batch, refuse chosen
+// rows (the `refusalFor` seed option).
 export function refuseAfterNow(after: number, error: unknown) {
     resetWriteCounts()
     state.refuseAfter = { after, error }
@@ -243,6 +255,21 @@ async function refuseSharedWrite({
 }) {
     const keys = transaction.mutations.map(m => String(m.key))
     state.entered.push(...keys)
+    const generation = state.seedGeneration
+    state.sharedInFlight += 1
+    try {
+        await settleSharedWrite(keys)
+    } finally {
+        if (generation === state.seedGeneration) {
+            state.sharedInFlight = Math.max(0, state.sharedInFlight - 1)
+        }
+    }
+}
+
+async function settleSharedWrite(keys: string[]) {
+    if (state.refuseAfter && state.sharedInFlight > 1) {
+        throw new Error('refuseAfter suits sequential writes; refuse a chosen row instead')
+    }
     if (state.gate) await state.gate
     await waitForStep()
     const refusedAt = state.refuseAt.find(refusal => refusal.at === state.entered.length)
@@ -612,12 +639,21 @@ function rowMatches(row: object, comparisons: SimpleComparison[]) {
 // entry id is refused with a 4xx that pbtsdb does not retry, so only the live query that
 // asked for that entry fails; the source stays ready and a later load of it succeeds.
 function onDemandEntriesCollection(rows: BooksJournalEntries[], refuseOnceFor?: string) {
+    return onDemandCollection('books_journal_entries', rows, refuseOnceFor)
+}
+
+// Any collection loaded on demand as onDemandEntriesCollection describes, by name.
+function onDemandCollection<T extends { id: string }>(
+    name: string,
+    rows: T[],
+    refuseOnceFor?: string
+) {
     counter += 1
-    const id = `books_journal_entries-on-demand-${counter}`
+    const id = `${name}-on-demand-${counter}`
     let isRefused = refuseOnceFor === undefined
     return createCollection({
         id,
-        getKey: (row: BooksJournalEntries) => row.id,
+        getKey: (row: T) => row.id,
         ...indexed,
         syncMode: 'on-demand',
         sync: {
@@ -833,7 +869,9 @@ export function seedBooks(
         refusal?: unknown
         // Refuses only the writes on these account ids, by id.
         refusalFor?: Record<string, unknown>
-        // Lets the first `after` writes through and refuses each later one.
+        // Lets the first `after` writes through and refuses each later one. For
+        // sequential writes only: a write that starts while another is in flight
+        // throws (see refuseAfterNow); refuse a parallel batch's rows by `refusalFor`.
         refuseAfter?: { after: number; error: unknown }
         // Refuses every write to the settings row with this error.
         refuseSettings?: unknown
@@ -880,6 +918,15 @@ export function seedBooks(
         bankConnections?: BooksBankConnections[]
         // The bank file rows to seed; none by default.
         bankFiles?: BooksBankFiles[]
+        // The bank import rows to seed; none by default. Read only.
+        bankImports?: BooksBankImports[]
+        // The bank transaction rows, loaded on demand as pbtsdb loads them (each read gets
+        // the rows its equality filter names); none by default. Read only: a write test
+        // registers its own with guardedStore.
+        bankTransactions?: BooksBankTransactions[]
+        // The first read whose filter names this transaction id is refused with a 403, as
+        // pbtsdb refuses it; later reads of it succeed.
+        bankTransactionReadFailsOnceFor?: string
         // The tax agency and tax rate (and group) rows to seed; none by default. Their
         // writes go through the shared handler, so the refusal and hold helpers reach them.
         taxAgencies?: BooksTaxAgencies[]
@@ -956,6 +1003,10 @@ export function seedBooks(
         is_admin: level === 'admin',
     }
     state.refusal = opts.refusal ?? null
+    // A held write of an earlier test may never settle, or settle later; it must not count
+    // as in flight here, nor lower this test's count when it does settle.
+    state.seedGeneration += 1
+    state.sharedInFlight = 0
     state.refusalFor = opts.refusalFor ?? {}
     state.refuseAfter = opts.refuseAfter ?? null
     state.refuseSettings = opts.refuseSettings ?? null
@@ -1012,6 +1063,12 @@ export function seedBooks(
             opts.bankConnections ?? []
         ),
         books_bank_files: bankFilesCollection(opts.bankFiles ?? []),
+        books_bank_imports: local<BooksBankImports>('books_bank_imports', opts.bankImports ?? []),
+        books_bank_transactions: onDemandCollection<BooksBankTransactions>(
+            'books_bank_transactions',
+            opts.bankTransactions ?? [],
+            opts.bankTransactionReadFailsOnceFor
+        ),
         books_tax_agencies: taxAgenciesCollectionFor(opts, opts.taxAgencies ?? []),
         books_tax_rates: taxRatesCollectionFor(opts, opts.taxRates ?? []),
         // Read by the register and entry queries for a line's Name; empty unless a test
@@ -1023,6 +1080,12 @@ export function seedBooks(
 
 export function bankConnectionsStore() {
     return state.registry.books_bank_connections as ReturnType<typeof guarded<BooksBankConnections>>
+}
+
+export function bankTransactionsStore() {
+    return state.registry.books_bank_transactions as ReturnType<
+        typeof onDemandCollection<BooksBankTransactions>
+    >
 }
 
 export function bankFilesStore() {

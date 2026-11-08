@@ -79,6 +79,23 @@ describe('help/banking.md', () => {
         expect(read(name)).toContain('help://books:banking')
     })
 
+    it('links to the Import bank transactions topic', () => {
+        expect(source).toContain('help://books:bank-import')
+    })
+
+    it('mentions the Files tab', () => {
+        expect(body.toLowerCase()).toContain('files tab')
+    })
+
+    it('links to the Review bank transactions topic', () => {
+        expect(source).toContain('help://books:bank-review')
+    })
+
+    it('no longer says Books keeps a file until you import it', () => {
+        expect(topicExists).toBe(true)
+        expect(body).not.toContain('Books keeps it until you import its transactions')
+    })
+
     it('references its screenshot', () => {
         expect(body).toContain('images/banking-1.png')
     })
@@ -97,6 +114,10 @@ describe('help/banking.md', () => {
         it('names N for Connect account and U for Choose file', () => {
             expect(keys).toMatch(/\bN\b[^\n]*Connect account|Connect account[^\n]*\bN\b/)
             expect(keys).toMatch(/\bU\b[^\n]*Choose file|Choose file[^\n]*\bU\b/)
+        })
+
+        it('names I for importing transactions', () => {
+            expect(keys).toMatch(/\bI\b[^\n]*Import|Import[^\n]*\bI\b/)
         })
 
         it('says N and U do not work while a dialog is open', () => {

@@ -187,7 +187,8 @@ func sha256Hex(data []byte) string {
 // paddedCSV is bankCSV followed by CSV rows, exactly size bytes long.
 func paddedCSV(size int) []byte {
 	b := []byte(bankCSV)
-	row := []byte("2026-09-30,Padding row to reach the size limit,0.00\n")
+	// Long rows, so a 5 MB file stays under maxBankRows.
+	row := []byte("2026-09-30,Padding row to reach the size limit " + strings.Repeat("x", 900) + ",0.00\n")
 	for len(b)+len(row) <= size {
 		b = append(b, row...)
 	}
@@ -203,11 +204,17 @@ func paddedCSV(size int) []byte {
 // hash. It returns the save's error, so a racing goroutine or a refusal check
 // can read it.
 func saveBankFile(app core.App, connectionID, name, hash string, status string) (*core.Record, error) {
+	return storeBankFile(app, connectionID, name, "csv", bankCSV, hash, status)
+}
+
+// storeBankFile is the one body of saveBankFile and saveBankFileBytes: data
+// stored as a bank file of the given format.
+func storeBankFile(app core.App, connectionID, name, format, data, hash, status string) (*core.Record, error) {
 	col, err := app.FindCollectionByNameOrId("books_bank_files")
 	if err != nil {
 		return nil, err
 	}
-	file, err := filesystem.NewFileFromBytes([]byte(bankCSV), name)
+	file, err := filesystem.NewFileFromBytes([]byte(data), name)
 	if err != nil {
 		return nil, err
 	}
@@ -215,14 +222,25 @@ func saveBankFile(app core.App, connectionID, name, hash string, status string) 
 	r.Set("connection", connectionID)
 	r.Set("file", file)
 	r.Set("name", name)
-	r.Set("format", "csv")
-	r.Set("size", len(bankCSV))
+	r.Set("format", format)
+	r.Set("size", len(data))
 	r.Set("content_hash", hash)
 	r.Set("status", status)
 	if err := app.Save(r); err != nil {
 		return nil, err
 	}
 	return r, nil
+}
+
+// saveBankFileBytes stores data as an uploaded bank file on the model path (no
+// request hook), so the upload hook parses these bytes.
+func saveBankFileBytes(t testing.TB, app core.App, connectionID, name, format, data string) *core.Record {
+	t.Helper()
+	r, err := storeBankFile(app, connectionID, name, format, data, sha256Hex([]byte(data)), bankFileStatusUploaded)
+	if err != nil {
+		t.Fatalf("save bank file %s: %v", name, err)
+	}
+	return r
 }
 
 // mustSaveBankFile is saveBankFile for a file the test needs stored.
@@ -390,12 +408,13 @@ func TestBankUpload_RefusesWhatIsNotABankFile(t *testing.T) {
 // The create rule pins the fields the server stamps, so a client cannot claim
 // a format, a hash or an uploader.
 func TestBankUpload_ClientCannotSetStampedFields(t *testing.T) {
-	for _, field := range []string{"name", "format", "size", "content_hash", "status", "uploaded_by"} {
+	for _, field := range []string{"name", "format", "size", "content_hash", "status", "uploaded_by", "statement_balance", "statement_date"} {
 		t.Run(field, func(t *testing.T) {
 			env := newBankEnv(t)
 			values := map[string]string{
 				"name": "other.csv", "format": "csv", "size": "10", "content_hash": strings.Repeat("a", 64),
 				"status": "uploaded", "uploaded_by": env.users.bookkeeper.Id,
+				"statement_balance": "10", "statement_date": "2026-10-31",
 			}
 			req := env.upload(t, "oct-2026.csv", []byte(bankCSV))
 			req.extra = map[string]string{field: values[field]}
@@ -575,6 +594,9 @@ func TestSniffBankFile(t *testing.T) {
 		{"blank lines then a tab header", "\r\n\r\nDate\tAmount", "csv", true},
 		{"BOM then a comma header", "\xEF\xBB\xBFDate,Amount\n", "csv", true},
 		{"no delimiter", "hello\n", "", false},
+		{"preamble line without a delimiter", "Account: 4821\nDate,Amount\n", "csv", true},
+		{"preamble, blank line, tab header", "Rekening 4821\r\n\r\nDate\tAmount\n", "csv", true},
+		{"only a quoted comma", "\"a,b\"\n", "", false},
 		{"NUL byte with commas", "Date,Amount\n2026-09-02,\x00,1.00\n", "", false},
 		{"OFX header after the sniffed head", noDelimiters + "OFXHEADER:100\n", "", false},
 	}
@@ -586,6 +608,21 @@ func TestSniffBankFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBankUpload_AcceptsACSVPreamble(t *testing.T) {
+	env := newBankEnv(t)
+	data := "Account: 4821\nPeriod: October 2026\nDate,Description,Amount\n2026-10-02,Deposit,100.00\n"
+	req := env.upload(t, "preamble.csv", []byte(data))
+	req.want = http.StatusOK
+	req.after = func(t testing.TB, app *tests.TestApp) {
+		file := onlyBankFile(t, app, env.connection.Id)
+		columns, rows := bankContentOf(t, app, file.Id)
+		if columns != 3 || len(rows) != 4 || rows[3].Cells[2] != "100.00" {
+			t.Errorf("stored %d columns and rows %v, want 3 columns and the 4 lines", columns, rows)
+		}
+	}
+	req.run(t, env.app)
 }
 
 func TestTruncateRunes(t *testing.T) {

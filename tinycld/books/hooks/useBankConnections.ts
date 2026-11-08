@@ -3,22 +3,30 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { bankConnectionsQuery } from '../lib/bank-connections-query'
 import type { LiveRecovery } from '../lib/live-recovery'
 
-// Every connection in chart order, with its account, its posted totals and its count of
-// files waiting to import: the cards of the account strip.
+// Every connection in chart order, with its account, its posted totals, its count of
+// files waiting to import and its count of transactions for review: the cards of the
+// account strip.
 export function useBankConnections() {
-    const [connectionsCollection, accountsCollection, balancesCollection, filesCollection] =
-        useStore(
-            'books_bank_connections',
-            'books_accounts',
-            'books_account_balances',
-            'books_bank_files'
-        )
+    const [
+        connectionsCollection,
+        accountsCollection,
+        balancesCollection,
+        filesCollection,
+        transactionsCollection,
+    ] = useStore(
+        'books_bank_connections',
+        'books_accounts',
+        'books_account_balances',
+        'books_bank_files',
+        'books_bank_transactions'
+    )
     const query = useLiveQuery({
         query: bankConnectionsQuery(
             connectionsCollection,
             accountsCollection,
             balancesCollection,
-            filesCollection
+            filesCollection,
+            transactionsCollection
         ),
         queryKey: ['books.banking.connections'],
     })
@@ -32,6 +40,7 @@ export function useBankConnections() {
                   accountsCollection,
                   balancesCollection,
                   filesCollection,
+                  transactionsCollection,
               ],
           }
         : { queries: [], sources: [] }

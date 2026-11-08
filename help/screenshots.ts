@@ -57,8 +57,8 @@ async function openBusinessCheckingRegister(page: Page) {
     )
 }
 
-// The seeded 1000 Business Checking connection holds the seeded statement file.
-async function openBankingForShot(page: Page) {
+// The seeded 1000 Business Checking connection holds the seeded statement files.
+async function selectCheckingForShot(page: Page) {
     await navigateToPackage(page, 'books')
     await page.getByTestId('books-nav-banking').click()
     const checking = page
@@ -67,7 +67,36 @@ async function openBankingForShot(page: Page) {
         .filter({ has: page.getByText('1000 Business Checking', { exact: true }) })
     await checking.click()
     await expect(checking).toHaveAttribute('aria-selected', 'true')
+}
+
+// The seeded checking-2026-10.ofx left eight transactions for review on 1000 Business
+// Checking (twelve lines, four excluded); the page opens on For review.
+async function openBankReviewForShot(page: Page) {
+    await selectCheckingForShot(page)
+    await expect(page.getByTestId('bank-tab-body-review')).toBeVisible()
+    await expect(
+        page.locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
+    ).toHaveCount(8)
+}
+
+async function openBankingForShot(page: Page) {
+    await selectCheckingForShot(page)
+    // The upload area and the file list live in the panel's Files tab.
+    await page.getByTestId('bank-tabs-files').click()
+    await expect(page.getByTestId('bank-tab-body-files')).toBeVisible()
     await expect(page.getByTestId('bank-files')).toBeVisible()
+}
+
+// The seeded checking-2026-09.csv waits to import on 1000 Business Checking: its import
+// opens on Map columns. Nothing is imported.
+async function openBankImportForShot(page: Page) {
+    await openBankingForShot(page)
+    const row = page
+        .locator('[data-testid^="bank-file-"]')
+        .filter({ has: page.getByText('checking-2026-09.csv', { exact: true }) })
+        .first()
+    await row.locator('[data-testid^="bank-file-import-"]').click()
+    await expect(page.getByTestId('bank-import-map')).toBeVisible()
 }
 
 export default {
@@ -90,6 +119,20 @@ export default {
             name: 'banking-1',
             setup: openBankingForShot,
             target: '[data-testid="banking-screen"]',
+        },
+    ],
+    'bank-review': [
+        {
+            name: 'bank-review-1',
+            setup: openBankReviewForShot,
+            target: '[data-testid="banking-screen"]',
+        },
+    ],
+    'bank-import': [
+        {
+            name: 'bank-import-1',
+            setup: openBankImportForShot,
+            target: '[data-testid="bank-import-screen"]',
         },
     ],
 } satisfies ScreenshotPlan

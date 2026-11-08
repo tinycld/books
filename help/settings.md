@@ -11,7 +11,7 @@ To let someone post into a closed period, open Settings, choose Accounting and p
 
 ## Company details
 
-To change company details, open Settings and choose Company. Enter the legal business name, tax ID, address, phone, email and website, then press Save. Books uses one currency, US dollars. The logo and brand color are set in the organization settings. If you only have read access, you see the details but cannot change them. To set up Books for the first time, see [Set up Books](help://books:setup-wizard).
+To change company details, open Settings and choose Company. Enter the legal business name, tax ID, address, phone, email and website, then press Save. Books uses one currency, US dollars. The logo and brand color are set in the organization settings. To see how documents print with these details, press Preview PDF. See [Printed documents](help://books:documents). If you only have read access, you see the details but cannot change them. To set up Books for the first time, see [Set up Books](help://books:setup-wizard).
 
 ## Fiscal year
 

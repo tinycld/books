@@ -42,4 +42,9 @@ describe('help/settings.md', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)
     })
+
+    it('links the printed documents topic from Company details', () => {
+        expect(body).toContain('Preview PDF')
+        expect(body).toContain('(help://books:documents)')
+    })
 })
