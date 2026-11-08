@@ -1,0 +1,121 @@
+{
+    "outDir": "for-review-reference",
+    "shots": [
+        {
+            "name": "review",
+            "url": "/a/books/helix-mockup?state=review",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "oldest",
+            "url": "/a/books/helix-mockup?state=oldest",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "selected",
+            "url": "/a/books/helix-mockup?state=selected",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "busy",
+            "url": "/a/books/helix-mockup?state=busy",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "done",
+            "url": "/a/books/helix-mockup?state=done",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "failed",
+            "url": "/a/books/helix-mockup?state=failed",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "drawer",
+            "url": "/a/books/helix-mockup?state=drawer",
+            "ready": "bank-txn-drawer",
+            "stable": "bank-txn-drawer",
+            "settleMs": 500
+        },
+        {
+            "name": "drawer-long",
+            "url": "/a/books/helix-mockup?state=drawer-long",
+            "ready": "bank-txn-drawer",
+            "stable": "bank-txn-drawer",
+            "settleMs": 500
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "filtered-empty",
+            "url": "/a/books/helix-mockup?state=filtered-empty",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "empty-waiting",
+            "url": "/a/books/helix-mockup?state=empty-waiting",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "empty-none",
+            "url": "/a/books/helix-mockup?state=empty-none",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "reviewed",
+            "url": "/a/books/helix-mockup?state=reviewed",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "reviewed-card",
+            "url": "/a/books/helix-mockup?state=reviewed-card",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "reviewed-empty",
+            "url": "/a/books/helix-mockup?state=reviewed-empty",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "excluded",
+            "url": "/a/books/helix-mockup?state=excluded",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "excluded-selected",
+            "url": "/a/books/helix-mockup?state=excluded-selected",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "excluded-empty",
+            "url": "/a/books/helix-mockup?state=excluded-empty",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "files",
+            "url": "/a/books/helix-mockup?state=files",
+            "ready": "bank-tab-body-files"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "bank-tabs-review"
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "bank-txn-drawer",
+            "stable": "bank-txn-drawer",
+            "settleMs": 500
+        }
+    ]
+}

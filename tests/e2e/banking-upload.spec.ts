@@ -9,6 +9,7 @@ import {
     disconnectSelected,
     dropBankFiles,
     openBanking,
+    openFilesTab,
     statementFile,
 } from './banking-helpers'
 import { isDisabled } from './record-form-helpers'
@@ -110,6 +111,7 @@ async function openConnectedAccount(page: Page, details?: { institution: string;
     const name = await createBankTestAccount(page)
     await openBanking(page)
     await connectAccount(page, name, details)
+    await openFilesTab(page)
     return name
 }
 

@@ -43,6 +43,14 @@ describe('help/bank-import.md', () => {
         expect(body.toLowerCase()).toContain(phrase)
     })
 
+    it('mentions "review transactions"', () => {
+        expect(body.toLowerCase()).toContain('review transactions')
+    })
+
+    it('links to the Review bank transactions topic', () => {
+        expect(source).toContain('help://books:bank-review')
+    })
+
     it('says to import each account’s statements in one format, word for word', () => {
         expect(body.replace(/\s+/g, ' ')).toContain(ONE_FORMAT)
     })

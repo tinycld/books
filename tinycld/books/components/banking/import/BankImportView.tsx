@@ -4,6 +4,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ChevronLeft } from 'lucide-react-native'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useBackToBanking } from '../../../hooks/useBackToBanking'
 import type {
     BankImportData,
     BankImportHeader,
@@ -74,7 +75,14 @@ function FileLines({ header }: { header: BankImportHeader | null }) {
     )
 }
 
-function ResultOrLoading({ flow }: { flow: ReturnType<typeof useBankImportFlow> }) {
+function ResultOrLoading({
+    flow,
+    connectionId,
+}: {
+    flow: ReturnType<typeof useBankImportFlow>
+    connectionId: string
+}) {
+    const onReview = useBackToBanking(connectionId, 'review')
     if (!flow.result) {
         return (
             <View testID="bank-import-loading">
@@ -82,7 +90,14 @@ function ResultOrLoading({ flow }: { flow: ReturnType<typeof useBankImportFlow> 
             </View>
         )
     }
-    return <ImportResult result={flow.result} onBack={flow.onCancel} onMore={flow.onImportMore} />
+    return (
+        <ImportResult
+            result={flow.result}
+            onReview={onReview}
+            onBack={flow.onCancel}
+            onMore={flow.onImportMore}
+        />
+    )
 }
 
 function StepBody({
@@ -95,7 +110,9 @@ function StepBody({
     isWide: boolean
 }) {
     if (flow.step === 'map') return <MapColumnsStep flow={flow} isWide={isWide} />
-    if (flow.step === 'result') return <ResultOrLoading flow={flow} />
+    if (flow.step === 'result') {
+        return <ResultOrLoading flow={flow} connectionId={data.connectionId} />
+    }
     return <ChooseStep flow={flow} format={data.format} isWide={isWide} />
 }
 

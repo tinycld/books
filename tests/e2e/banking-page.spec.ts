@@ -8,18 +8,20 @@ import {
     bankStrip,
     connectionIdOf,
     openBanking,
+    openFilesTab,
     selectedCard,
 } from './banking-helpers'
 import { navigateInApp } from './record-form-helpers'
 
 // The Banking page reads the seeded connections only (1000 Business Checking with one
-// uploaded file, checking-2026-09.csv; 2100 Company Card with one uploaded OFX statement,
-// card-2026-10.ofx) and writes nothing, so it needs no account of its own. Other banking
+// uploaded file, checking-2026-09.csv, and the imported checking-2026-10.ofx; 2100 Company
+// Card with one uploaded OFX statement, card-2026-10.ofx) and writes nothing, so it needs no account of its own. Other banking
 // specs add number-less accounts, which sort after these two.
 
 const CHECKING = '1000 Business Checking'
 const CARD = '2100 Company Card'
 const SEED_FILE = 'checking-2026-09.csv'
+const REVIEW_SEED_FILE = 'checking-2026-10.ofx'
 const CARD_FILE = 'card-2026-10.ofx'
 const UPLOADED_DAY_BY = /[A-Z][a-z]{2} \d{1,2}, \d{4} by /
 
@@ -131,11 +133,20 @@ test.describe('bank-connection: page', () => {
         await expect(page.getByTestId('bank-panel-details')).toHaveText(
             'First Community Bank ••4821'
         )
+        await openFilesTab(page)
+        await expect(fileItems(page)).toHaveCount(2)
         const seedRow = fileItems(page).filter({ hasText: SEED_FILE })
         await expect(seedRow).toHaveCount(1)
         await expect(seedRow.getByText('CSV', { exact: true })).toBeVisible()
         await expect(seedRow.getByText('Waiting to import', { exact: true })).toBeVisible()
         await expect(seedRow).toContainText(UPLOADED_DAY_BY)
+        const reviewSeedRow = fileItems(page).filter({
+            has: page.getByText(REVIEW_SEED_FILE, { exact: true }),
+        })
+        await expect(reviewSeedRow).toHaveCount(1)
+        await expect(
+            reviewSeedRow.getByText('Imported: 12 transactions', { exact: true })
+        ).toBeVisible()
         await expect(checking.getByText('1 file waiting', { exact: true })).toBeVisible()
 
         const hold = await holdFilesOf(page, cardId)
@@ -202,6 +213,7 @@ test.describe('bank-connection: page', () => {
         await expect.poll(() => cardInsideStrip(page, card)).toBe(true)
 
         await checking.click()
+        await openFilesTab(page)
         const seedFile = fileItems(page).filter({ hasText: SEED_FILE })
         await expect(seedFile).toHaveCount(1)
         await expect(seedFile.getByText(/^Uploaded [A-Z][a-z]{2} \d{1,2}, \d{4} by /)).toBeVisible()

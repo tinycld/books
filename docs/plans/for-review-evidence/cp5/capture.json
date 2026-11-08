@@ -1,0 +1,55 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "review",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "waitFor": "bank-review-cards"
+                },
+                {
+                    "press": "Escape"
+                },
+                {
+                    "press": "j"
+                },
+                {
+                    "press": "j"
+                },
+                {
+                    "pause": 400
+                }
+            ]
+        },
+        {
+            "name": "files",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-files"
+                },
+                {
+                    "waitFor": "bank-tab-body-files"
+                },
+                {
+                    "waitFor": "bank-files"
+                }
+            ]
+        }
+    ]
+}

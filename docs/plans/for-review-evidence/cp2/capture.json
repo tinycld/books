@@ -1,0 +1,56 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "review",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-toolbar" },
+                { "waitFor": "bank-review-cards" }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "fill": "bank-review-search", "value": "office depot" },
+                { "click": "bank-review-type" },
+                { "clickMenuItem": "Money out" },
+                { "waitFor": "bank-review-clear" },
+                { "pause": 800 },
+                { "waitFor": "bank-review-cards" }
+            ]
+        },
+        {
+            "name": "filtered-empty",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "fill": "bank-review-search", "value": "zelle to marco" },
+                { "waitFor": "bank-review-empty" }
+            ]
+        },
+        {
+            "name": "oldest",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "click": "bank-review-sort-date" },
+                { "pause": 800 }
+            ]
+        }
+    ]
+}
