@@ -11,7 +11,9 @@ import { uniqueName } from './record-form-helpers'
 export const BANKING_DESKTOP = DESKTOP
 export const BANKING_PHONE = PHONE
 
-// From the Books sidebar to Banking. Waits for whichever state the page settles in.
+// From the Books sidebar to Banking. Waits for whichever state the page settles in. After a
+// trip away and back, the earlier Banking screen stays stacked and hidden, so only the
+// visible screen counts.
 export async function openBanking(page: Page): Promise<void> {
     await page.getByTestId('books-nav-banking').click()
     await expect(
@@ -19,6 +21,7 @@ export async function openBanking(page: Page): Promise<void> {
             .getByTestId('bank-strip')
             .or(page.getByTestId('bank-intro'))
             .or(page.getByTestId('bank-error'))
+            .filter({ visible: true })
             .first()
     ).toBeVisible()
 }
@@ -139,8 +142,15 @@ export async function fakeReadOnlyAccess(page: Page): Promise<void> {
     })
 }
 
+// The upload area and the file list live in the account panel's Files tab.
+export async function openFilesTab(page: Page): Promise<void> {
+    await page.getByTestId('bank-tabs-files').click()
+    await expect(page.getByTestId('bank-tab-body-files')).toBeVisible()
+}
+
 // Core's picker clicks a dynamic file input, so the chooser is caught around the press.
 export async function chooseBankFile(page: Page, file: BankTestFile): Promise<void> {
+    await openFilesTab(page)
     const [chooser] = await Promise.all([
         page.waitForEvent('filechooser'),
         page.getByTestId('bank-choose-file').click(),
@@ -153,6 +163,7 @@ export async function dropBankFiles(
     page: Page,
     files: { name: string; text: string }[]
 ): Promise<void> {
+    await openFilesTab(page)
     const dataTransfer = await page.evaluateHandle(list => {
         const transfer = new DataTransfer()
         for (const file of list) transfer.items.add(new File([file.text], file.name))

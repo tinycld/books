@@ -9,6 +9,7 @@ import {
     disconnectSelected,
     dropBankFiles,
     openBanking,
+    openFilesTab,
     statementFile,
 } from './banking-helpers'
 import { isDisabled } from './record-form-helpers'
@@ -29,7 +30,9 @@ function stampOf(label: string) {
 function fileRows(page: Page): Locator {
     return page
         .getByTestId('bank-files')
-        .locator('[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"])')
+        .locator(
+            '[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"]):not([data-testid^="bank-file-import-"])'
+        )
 }
 
 function fileRow(page: Page, name: string): Locator {
@@ -108,6 +111,7 @@ async function openConnectedAccount(page: Page, details?: { institution: string;
     const name = await createBankTestAccount(page)
     await openBanking(page)
     await connectAccount(page, name, details)
+    await openFilesTab(page)
     return name
 }
 
@@ -225,7 +229,7 @@ test.describe('bank-connection: upload', () => {
                     names =>
                         Array.from(
                             document.querySelectorAll(
-                                '[data-testid="bank-files"] [data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"])'
+                                '[data-testid="bank-files"] [data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"]):not([data-testid^="bank-file-import-"])'
                             )
                         ).map(
                             node => names.find(name => node.textContent?.includes(name)) ?? 'other'

@@ -1,6 +1,8 @@
 import { DropZone } from '@tinycld/core/components/DropZone'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { router } from 'expo-router'
 import { Upload } from 'lucide-react-native'
 import { ActivityIndicator, Platform, Text, View } from 'react-native'
 import type { BankFileUpload } from '../../hooks/useBankFileUpload'
@@ -26,13 +28,40 @@ function DropPrompt({ state }: { state: UploadState }) {
     return <Text className="text-center text-base font-medium text-foreground">{PROMPT}</Text>
 }
 
-function UploadStatus({ state }: { state: UploadState }) {
-    if (state.kind === 'done') {
-        const doneText = `${state.name} uploaded.`
-        return (
+function UploadDone({
+    name,
+    fileId,
+    isWriteBlocked,
+}: {
+    name: string
+    fileId: string
+    isWriteBlocked: boolean
+}) {
+    const orgHref = useOrgHref()
+    const doneText = `${name} uploaded.`
+    const openImport = () => router.push(orgHref(`books/banking/import/${fileId}`))
+    return (
+        <View className="flex-row flex-wrap items-center gap-2">
             <Text testID="bank-upload-done" className="text-sm text-success">
                 {doneText}
             </Text>
+            <Button
+                testID="bank-upload-import"
+                size="sm"
+                style={{ minHeight: 36 }}
+                isDisabled={isWriteBlocked}
+                onPress={openImport}
+            >
+                <ButtonText>Import transactions</ButtonText>
+            </Button>
+        </View>
+    )
+}
+
+function UploadStatus({ state, isWriteBlocked }: { state: UploadState; isWriteBlocked: boolean }) {
+    if (state.kind === 'done') {
+        return (
+            <UploadDone name={state.name} fileId={state.fileId} isWriteBlocked={isWriteBlocked} />
         )
     }
     if (state.kind === 'error') {
@@ -79,7 +108,7 @@ export function BankFileDrop({ upload }: { upload: BankFileUpload }) {
                     </Text>
                 </View>
             </DropZone>
-            <UploadStatus state={state} />
+            <UploadStatus state={state} isWriteBlocked={isWriteBlocked} />
         </View>
     )
 }

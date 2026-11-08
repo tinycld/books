@@ -1,0 +1,59 @@
+{
+    "outDir": ".",
+    "lookups": [
+        {
+            "name": "$cardConnection",
+            "url": "/a/books/banking",
+            "prefix": "bank-card-",
+            "hasText": "2100 Company Card"
+        },
+        {
+            "name": "$cardFile",
+            "url": "/a/books/banking?account=$cardConnection",
+            "prefix": "bank-file-",
+            "not": ["bank-file-remove-", "bank-file-import-"],
+            "hasText": "card-2026-10.ofx"
+        },
+        {
+            "name": "$checkConnection",
+            "url": "/a/books/banking",
+            "prefix": "bank-card-",
+            "hasText": "1000 Business Checking"
+        },
+        {
+            "name": "$checkFile",
+            "url": "/a/books/banking?account=$checkConnection",
+            "prefix": "bank-file-",
+            "not": ["bank-file-remove-", "bank-file-import-"],
+            "hasText": "checking-2026-09.csv"
+        }
+    ],
+    "shots": [
+        {
+            "name": "map",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1750
+        },
+        {
+            "name": "choose",
+            "url": "/a/books/banking/import/$checkFile",
+            "ready": "bank-import-map",
+            "height": 1250,
+            "actions": [
+                {
+                    "click": "bank-import-continue"
+                },
+                {
+                    "waitFor": "bank-import-choose"
+                }
+            ]
+        },
+        {
+            "name": "banking",
+            "url": "/a/books/banking?account=$cardConnection",
+            "ready": "bank-statement-$cardConnection",
+            "height": 1600
+        }
+    ]
+}

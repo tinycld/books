@@ -1,15 +1,21 @@
 import type { Shortcut } from '@tinycld/core/lib/shortcuts'
 
-// The keys of the Banking page (N Connect account, U Choose file) and of its dialogs
-// (⌘↵ submits). Pure, so the key map and when each key may fire are unit-tested.
+// The keys of the Banking page (N Connect account, U Choose file, I Import transactions)
+// and of its dialogs (⌘↵ submits). Pure, so the key map and when each key may fire are
+// unit-tested.
 
-export type BankingKeyAction = 'connect' | 'chooseFile'
+export type BankingKeyAction = 'connect' | 'chooseFile' | 'importFile'
 
-export const BANKING_KEYS: Record<BankingKeyAction, string> = { connect: 'n', chooseFile: 'u' }
+export const BANKING_KEYS: Record<BankingKeyAction, string> = {
+    connect: 'n',
+    chooseFile: 'u',
+    importFile: 'i',
+}
 
 const BANKING_DESCRIPTIONS: Record<BankingKeyAction, string> = {
     connect: 'Connect account',
     chooseFile: 'Choose file',
+    importFile: 'Import transactions',
 }
 
 const BANKING_ACTIONS = Object.keys(BANKING_KEYS) as BankingKeyAction[]
@@ -32,18 +38,23 @@ export function bankingKeyAvailable(action: BankingKeyAction, state: BankingKeyS
 
 // Connect account is offered with Books write access while the server takes writes, on
 // the introduction or the page; Choose file also needs the page and a selected connection
-// whose panel has loaded (the Choose file button shows only then).
+// whose panel has loaded (the Choose file button shows only then); Import transactions
+// needs what Choose file needs and a file of that connection waiting to import.
 export function offeredBankingKeys(input: {
     canWrite: boolean
     isWriteBlocked: boolean
     state: 'loading' | 'error' | 'intro' | 'ready'
     hasSelection: boolean
     isPanelLoading: boolean
+    hasWaitingFile: boolean
 }): BankingKeyAction[] {
     if (!input.canWrite || input.isWriteBlocked) return []
     if (input.state === 'intro') return ['connect']
     if (input.state !== 'ready') return []
-    return input.hasSelection && !input.isPanelLoading ? ['connect', 'chooseFile'] : ['connect']
+    if (!input.hasSelection || input.isPanelLoading) return ['connect']
+    return input.hasWaitingFile
+        ? ['connect', 'chooseFile', 'importFile']
+        : ['connect', 'chooseFile']
 }
 
 // Single letters, so they never fire while a text field has focus (no allowInInputs).

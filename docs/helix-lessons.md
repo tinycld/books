@@ -28,5 +28,5 @@
 - E2E finds a row or card by its name with `filter({ has: page.getByText(name, { exact: true }) })`, never `filter({ hasText: name })` (a caseless substring of the whole row: 'Rent' matched the type 'Other Current Liability'). — tax-rates, retro, p2-tax-rates
 - A plan step or code that depends on how a core or library API behaves (error shape, status code, ref type, export, effect timing) names the source file that shows it; read that file before writing the step. — bank-connection, retro, p4-bank-connection
 - An e2e test that fakes a list read cuts realtime before login; otherwise rows that other workers create arrive by realtime. — bank-connection, retro, p4-bank-connection
-- Add a help topic's image lines only after help-screenshots.spec.ts has written the images; packages:generate refuses a topic whose image is missing. — bank-connection, retro, p4-bank-connection
+- Add a help topic's image lines only after `tinycld-pkg help:screenshots --topic <id>` has written the images (help-screenshots.spec.ts only checks them); packages:generate refuses a topic whose image is missing. — bank-connection, retro, p4-bank-connection; corrected p4-import-mapping
 - Artboards of a report table show every column inside the view at each width; a column cut off at the right edge is a defect. — general-ledger, retro, p5-general-ledger

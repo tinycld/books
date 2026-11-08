@@ -1,0 +1,329 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "review",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "waitFor": "bank-review-cards"
+                }
+            ]
+        },
+        {
+            "name": "reviewed",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "bank-review-cards"
+                }
+            ],
+            "fakeRecords": {
+                "collection": "books_bank_transactions",
+                "urlContains": "reviewed",
+                "items": [
+                    {
+                        "id": "revtxn000000038",
+                        "connection": "$param:account",
+                        "file": "revfilechk0aug0",
+                        "bank_import": "revimpchk0aug00",
+                        "line": 12,
+                        "date": "2026-09-01",
+                        "description": "Transfer to savings",
+                        "memo": "",
+                        "amount": -50000,
+                        "fitid": "",
+                        "check_number": "",
+                        "dedupe_hash": "000000000000000000000000000000000000000000000000000000000000040e",
+                        "status": "reviewed",
+                        "created": "2026-09-01 12:00:00.000Z",
+                        "updated": "2026-09-01 12:00:00.000Z"
+                    },
+                    {
+                        "id": "revtxn000000039",
+                        "connection": "$param:account",
+                        "file": "revfilechk0aug0",
+                        "bank_import": "revimpchk0aug00",
+                        "line": 13,
+                        "date": "2026-09-01",
+                        "description": "Card purchase - Shell Oil 57442",
+                        "memo": "",
+                        "amount": -5204,
+                        "fitid": "",
+                        "check_number": "",
+                        "dedupe_hash": "000000000000000000000000000000000000000000000000000000000000040f",
+                        "status": "reviewed",
+                        "created": "2026-09-01 12:00:00.000Z",
+                        "updated": "2026-09-01 12:00:00.000Z"
+                    },
+                    {
+                        "id": "revtxn000000040",
+                        "connection": "$param:account",
+                        "file": "revfilechk0aug0",
+                        "bank_import": "revimpchk0aug00",
+                        "line": 14,
+                        "date": "2026-09-01",
+                        "description": "Zelle from Lumen Labs",
+                        "memo": "",
+                        "amount": 60000,
+                        "fitid": "",
+                        "check_number": "",
+                        "dedupe_hash": "0000000000000000000000000000000000000000000000000000000000000410",
+                        "status": "reviewed",
+                        "created": "2026-09-01 12:00:00.000Z",
+                        "updated": "2026-09-01 12:00:00.000Z"
+                    },
+                    {
+                        "id": "revtxn000000037",
+                        "connection": "$param:account",
+                        "file": "revfilechk0aug0",
+                        "bank_import": "revimpchk0aug00",
+                        "line": 11,
+                        "date": "2026-08-30",
+                        "description": "ACH - Comcast Business",
+                        "memo": "",
+                        "amount": -18995,
+                        "fitid": "",
+                        "check_number": "",
+                        "dedupe_hash": "000000000000000000000000000000000000000000000000000000000000040d",
+                        "status": "reviewed",
+                        "created": "2026-08-30 12:00:00.000Z",
+                        "updated": "2026-08-30 12:00:00.000Z"
+                    },
+                    {
+                        "id": "revtxn000000036",
+                        "connection": "$param:account",
+                        "file": "revfilechk0aug0",
+                        "bank_import": "revimpchk0aug00",
+                        "line": 10,
+                        "date": "2026-08-29",
+                        "description": "Card purchase - Staples 0419",
+                        "memo": "",
+                        "amount": -3120,
+                        "fitid": "",
+                        "check_number": "",
+                        "dedupe_hash": "000000000000000000000000000000000000000000000000000000000000040c",
+                        "status": "reviewed",
+                        "created": "2026-08-29 12:00:00.000Z",
+                        "updated": "2026-08-29 12:00:00.000Z"
+                    },
+                    {
+                        "id": "revtxn000000035",
+                        "connection": "$param:account",
+                        "file": "revfilechk0aug0",
+                        "bank_import": "revimpchk0aug00",
+                        "line": 9,
+                        "date": "2026-08-28",
+                        "description": "Deposit - Brightline Studio",
+                        "memo": "",
+                        "amount": 150000,
+                        "fitid": "",
+                        "check_number": "",
+                        "dedupe_hash": "000000000000000000000000000000000000000000000000000000000000040b",
+                        "status": "reviewed",
+                        "created": "2026-08-28 12:00:00.000Z",
+                        "updated": "2026-08-28 12:00:00.000Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "reviewed-empty",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "bank-review-empty"
+                }
+            ]
+        },
+        {
+            "name": "excluded",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-excluded"
+                },
+                {
+                    "waitFor": "bank-tab-body-excluded"
+                },
+                {
+                    "waitFor": "bank-review-cards"
+                }
+            ]
+        },
+        {
+            "name": "excluded-empty",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "2100 Company Card"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-excluded"
+                },
+                {
+                    "waitFor": "bank-tab-body-excluded"
+                },
+                {
+                    "waitFor": "bank-review-empty"
+                }
+            ]
+        },
+        {
+            "name": "empty-waiting",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "2100 Company Card"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "waitFor": "bank-review-empty"
+                }
+            ]
+        },
+        {
+            "name": "empty-none",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "2100 Company Card"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "waitFor": "bank-review-empty"
+                }
+            ],
+            "fakeRecords": {
+                "collection": "books_bank_files",
+                "items": []
+            }
+        },
+        {
+            "name": "files",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-files"
+                },
+                {
+                    "waitFor": "bank-tab-body-files"
+                },
+                {
+                    "waitFor": "bank-files"
+                }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-excluded"
+                },
+                {
+                    "waitFor": "bank-tab-body-excluded"
+                },
+                {
+                    "waitFor": "bank-review-loading"
+                }
+            ],
+            "fakeRecords": {
+                "collection": "books_bank_transactions",
+                "urlContains": "excluded",
+                "hold": true
+            }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "actions": [
+                {
+                    "clickText": "1000 Business Checking"
+                },
+                {
+                    "waitFor": "bank-tab-body-review"
+                },
+                {
+                    "click": "bank-tabs-excluded"
+                },
+                {
+                    "waitFor": "bank-tab-body-excluded"
+                },
+                {
+                    "waitFor": "bank-review-error"
+                }
+            ],
+            "fakeRecords": {
+                "collection": "books_bank_transactions",
+                "urlContains": "excluded",
+                "status": 400
+            }
+        }
+    ]
+}

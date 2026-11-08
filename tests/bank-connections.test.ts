@@ -221,9 +221,11 @@ describe('banking texts', () => {
         expect(bankFileFormatLabel('ofx')).toBe('OFX')
         // A row read before the server stamps its format.
         expect(bankFileFormatLabel('' as BooksBankFiles['format'])).toBe('')
-        expect(bankFileStatusLabel('uploaded')).toBe('Waiting to import')
-        expect(bankFileStatusLabel('imported')).toBe('Imported')
-        expect(bankFileStatusLabel('failed')).toBe('Import failed')
+        expect(bankFileStatusLabel('uploaded', 0)).toBe('Waiting to import')
+        expect(bankFileStatusLabel('imported', 36)).toBe('Imported: 36 transactions')
+        expect(bankFileStatusLabel('imported', 1)).toBe('Imported: 1 transaction')
+        expect(bankFileStatusLabel('imported', 0)).toBe('Imported: no new transactions')
+        expect(bankFileStatusLabel('failed', 0)).toBe('Import failed')
     })
 
     it('writes the bank details line', () => {

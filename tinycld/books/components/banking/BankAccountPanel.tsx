@@ -1,16 +1,25 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { router } from 'expo-router'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { BankConnectionRow } from '../../hooks/useBankConnections'
 import type { BankFileItem } from '../../hooks/useBankFiles'
 import type { BankFileUpload } from '../../hooks/useBankFileUpload'
+import type { ReviewBatch } from '../../hooks/useReviewBatch'
+import type { ReviewDrawerModel } from '../../hooks/useReviewDrawer'
 import { bankDetailsText, connectionLabel } from '../../lib/bank-connections'
+import type { ReviewTab } from '../../lib/bank-review'
+import { useFabClearanceStyle } from '../../lib/fab-clearance'
+import type { LiveRecovery } from '../../lib/live-recovery'
 import { useBankingUIStore } from '../../stores/banking-ui-store'
 import { BankFileDrop } from './BankFileDrop'
 import { BankFileList } from './BankFileList'
 import { BankPanelMenu } from './BankPanelMenu'
+import { BankingTabs } from './review/BankingTabs'
+import { ReviewTabBody } from './review/ReviewTabBody'
 
 interface PanelActionsProps {
     canWrite: boolean
@@ -84,6 +93,36 @@ function RemoveFileButton({
     )
 }
 
+interface ImportFileButtonProps {
+    file: BankFileItem
+    isDisabled: boolean
+    accessibilityHint: string | undefined
+    onImport: (file: BankFileItem) => void
+}
+
+// Every file can be imported again: the rest of its rows, or to see that all are in.
+function ImportFileButton({
+    file,
+    isDisabled,
+    accessibilityHint,
+    onImport,
+}: ImportFileButtonProps) {
+    const onPress = () => onImport(file)
+    return (
+        <Button
+            testID={`bank-file-import-${file.id}`}
+            variant="outline"
+            size="sm"
+            style={{ minHeight: 36 }}
+            isDisabled={isDisabled}
+            accessibilityHint={accessibilityHint}
+            onPress={onPress}
+        >
+            <ButtonText>Import</ButtonText>
+        </Button>
+    )
+}
+
 function UploadArea({ isVisible, upload }: { isVisible: boolean; upload: BankFileUpload }) {
     if (!isVisible) return null
     return <BankFileDrop upload={upload} />
@@ -99,8 +138,8 @@ interface PanelBodyProps {
     renderAction?: (file: BankFileItem) => ReactNode
 }
 
-// While the selected connection's files load, only the panel shows it is loading; the
-// header and the strip stay.
+// While the selected connection's files load, only the Files tab shows it is loading; the
+// header, the strip and the tab bar stay.
 function PanelBody({
     isLoading,
     upload,
@@ -131,6 +170,60 @@ function PanelBody({
     )
 }
 
+// The Files tab scrolls on its own: the page above it stays put.
+function FilesTabBody(props: PanelBodyProps) {
+    const fabClearanceStyle = useFabClearanceStyle()
+    return (
+        <ScrollView
+            testID="bank-tab-body-files"
+            className="min-h-0 flex-1"
+            contentContainerClassName="gap-4"
+            contentContainerStyle={fabClearanceStyle}
+        >
+            <PanelBody {...props} />
+        </ScrollView>
+    )
+}
+
+interface TabBodyProps extends PanelBodyProps {
+    tab: ReviewTab
+    onTab: (tab: ReviewTab) => void
+    row: BankConnectionRow
+    currency: string
+    onGoToFiles: () => void
+    pageRecovery: LiveRecovery
+    batch: ReviewBatch
+    drawer: ReviewDrawerModel
+}
+
+// The transaction tabs show their own loading state, so only the Files tab waits for the
+// files of the selected connection.
+function TabBody({
+    tab,
+    onTab,
+    row,
+    currency,
+    onGoToFiles,
+    pageRecovery,
+    batch,
+    drawer,
+    ...files
+}: TabBodyProps) {
+    if (tab === 'files') return <FilesTabBody {...files} />
+    return (
+        <ReviewTabBody
+            tab={tab}
+            connection={row}
+            currency={currency}
+            onGoToFiles={onGoToFiles}
+            onTab={onTab}
+            pageRecovery={pageRecovery}
+            batch={batch}
+            drawer={drawer}
+        />
+    )
+}
+
 interface BankAccountPanelProps {
     row: BankConnectionRow | undefined
     files: BankFileItem[]
@@ -144,6 +237,16 @@ interface BankAccountPanelProps {
     onDisconnect: () => void
     // The selected connection's upload; a writer gets its upload area.
     upload: BankFileUpload
+    tab: ReviewTab
+    onTab: (tab: ReviewTab) => void
+    onGoToFiles: () => void
+    currency: string
+    // The page's failed reads, recovered with a transaction tab's Retry.
+    pageRecovery: LiveRecovery
+    // The page's status change of transactions, shared with the drawer beside the page.
+    batch: ReviewBatch
+    // The page's transaction drawer, for the review keys (batch keys, Esc).
+    drawer: ReviewDrawerModel
     // What the import and review units add, under the upload area and above the files.
     children?: ReactNode
 }
@@ -155,29 +258,49 @@ export function BankAccountPanel({
     isWide,
     isLoading,
     upload,
+    tab,
+    onTab,
+    onGoToFiles,
+    currency,
+    pageRecovery,
+    batch,
+    drawer,
     children,
     ...actions
 }: BankAccountPanelProps) {
     // Called here once: a hook cannot run inside the row callback below.
     const writes = useServerActionState()
     const openDialog = useBankingUIStore(s => s.openDialog)
+    const orgHref = useOrgHref()
     if (!row) return null
     const onRemove = (file: BankFileItem) =>
         openDialog({ kind: 'remove', connectionId: row.id, fileId: file.id, fileName: file.name })
-    const renderRemove = (file: BankFileItem) => (
-        <RemoveFileButton
-            file={file}
-            isDisabled={writes.isDisabled}
-            accessibilityHint={writes.accessibilityHint}
-            onRemove={onRemove}
-        />
+    const onImport = (file: BankFileItem) => router.push(orgHref(`books/banking/import/${file.id}`))
+    const renderWriterActions = (file: BankFileItem) => (
+        <>
+            <ImportFileButton
+                file={file}
+                isDisabled={writes.isDisabled}
+                accessibilityHint={writes.accessibilityHint}
+                onImport={onImport}
+            />
+            <RemoveFileButton
+                file={file}
+                isDisabled={writes.isDisabled}
+                accessibilityHint={writes.accessibilityHint}
+                onRemove={onRemove}
+            />
+        </>
     )
-    const renderAction = canWrite ? renderRemove : undefined
+    const renderAction = canWrite ? renderWriterActions : undefined
     const title = connectionLabel(row.accountNumber, row.accountName)
     const details = bankDetailsText(row)
     const detailsTone = details ? 'text-foreground' : 'text-muted-foreground'
     return (
-        <View testID="bank-panel" className="gap-4 rounded-xl border border-border p-4">
+        <View
+            testID="bank-panel"
+            className="min-h-0 flex-1 gap-3 rounded-xl border border-border p-4"
+        >
             <View className="flex-row items-start justify-between gap-3">
                 <View className="min-w-0 shrink gap-0.5">
                     <Text
@@ -192,7 +315,16 @@ export function BankAccountPanel({
                 </View>
                 <PanelActions canWrite={canWrite} title={title} {...actions} />
             </View>
-            <PanelBody
+            <BankingTabs tab={tab} reviewCount={row.reviewCount} onTab={onTab} />
+            <TabBody
+                tab={tab}
+                onTab={onTab}
+                drawer={drawer}
+                row={row}
+                currency={currency}
+                onGoToFiles={onGoToFiles}
+                pageRecovery={pageRecovery}
+                batch={batch}
                 isLoading={isLoading}
                 upload={upload}
                 files={files}
@@ -201,7 +333,7 @@ export function BankAccountPanel({
                 renderAction={renderAction}
             >
                 {children}
-            </PanelBody>
+            </TabBody>
         </View>
     )
 }

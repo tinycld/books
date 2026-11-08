@@ -1,0 +1,116 @@
+{
+    "outDir": "bank-import-mapping-reference",
+    "shots": [
+        {
+            "name": "map",
+            "url": "/a/books/helix-mockup?state=map",
+            "ready": "bank-import-screen",
+            "height": 1750
+        },
+        {
+            "name": "map-one",
+            "url": "/a/books/helix-mockup?state=map-one",
+            "ready": "bank-import-screen",
+            "height": 1750
+        },
+        {
+            "name": "map-errors",
+            "url": "/a/books/helix-mockup?state=map-errors",
+            "ready": "bank-import-screen",
+            "height": 1900
+        },
+        {
+            "name": "map-preview-errors",
+            "url": "/a/books/helix-mockup?state=map-preview-errors",
+            "ready": "bank-import-screen",
+            "height": 1750
+        },
+        {
+            "name": "choose",
+            "url": "/a/books/helix-mockup?state=choose",
+            "ready": "bank-import-screen",
+            "height": 1250
+        },
+        {
+            "name": "choose-ofx",
+            "url": "/a/books/helix-mockup?state=choose-ofx",
+            "ready": "bank-import-screen",
+            "height": 1150
+        },
+        {
+            "name": "choose-none",
+            "url": "/a/books/helix-mockup?state=choose-none",
+            "ready": "bank-import-screen",
+            "height": 1350
+        },
+        {
+            "name": "importing",
+            "url": "/a/books/helix-mockup?state=importing",
+            "ready": "bank-import-screen",
+            "height": 1250
+        },
+        {
+            "name": "refusal",
+            "url": "/a/books/helix-mockup?state=refusal",
+            "ready": "bank-import-screen",
+            "height": 1350
+        },
+        {
+            "name": "transport",
+            "url": "/a/books/helix-mockup?state=transport",
+            "ready": "bank-import-screen",
+            "height": 1350
+        },
+        {
+            "name": "result",
+            "url": "/a/books/helix-mockup?state=result",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "result-none",
+            "url": "/a/books/helix-mockup?state=result-none",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "all-imported",
+            "url": "/a/books/helix-mockup?state=all-imported",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "unreadable",
+            "url": "/a/books/helix-mockup?state=unreadable",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "bank-import-screen"
+        },
+        {
+            "name": "banking",
+            "url": "/a/books/helix-mockup?state=banking",
+            "ready": "banking-mock",
+            "height": 1600
+        }
+    ]
+}

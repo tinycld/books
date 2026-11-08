@@ -20,10 +20,13 @@ const WRITER = {
     state: 'ready',
     hasSelection: true,
     isPanelLoading: false,
+    hasWaitingFile: false,
 } as const
 
+const WAITING = { ...WRITER, hasWaitingFile: true } as const
+
 function handlers() {
-    return { connect: vi.fn(), chooseFile: vi.fn() }
+    return { connect: vi.fn(), chooseFile: vi.fn(), importFile: vi.fn() }
 }
 
 function byKeys(shortcuts: Shortcut[], keys: string): Shortcut {
@@ -47,8 +50,8 @@ afterEach(() => {
 })
 
 describe('BANKING_KEYS', () => {
-    it('maps Connect account to n and Choose file to u', () => {
-        expect(BANKING_KEYS).toEqual({ connect: 'n', chooseFile: 'u' })
+    it('maps Connect account to n, Choose file to u and Import transactions to i', () => {
+        expect(BANKING_KEYS).toEqual({ connect: 'n', chooseFile: 'u', importFile: 'i' })
     })
 })
 
@@ -84,6 +87,34 @@ describe('offeredBankingKeys', () => {
 
     it('offers only Connect account while the selected connection’s panel loads', () => {
         expect(offeredBankingKeys({ ...WRITER, isPanelLoading: true })).toEqual(['connect'])
+    })
+
+    // Each case starts from the offered Import transactions, so a missing key fails here
+    // instead of passing the "not offered" checks below.
+    it('offers Import transactions with Choose file when the selected account has a waiting file', () => {
+        expect(offeredBankingKeys(WAITING)).toEqual(['connect', 'chooseFile', 'importFile'])
+    })
+
+    it('offers no Import transactions without a waiting file', () => {
+        expect(offeredBankingKeys(WAITING)).toContain('importFile')
+        expect(offeredBankingKeys(WRITER)).toEqual(['connect', 'chooseFile'])
+    })
+
+    it('offers no Import transactions to a reader or while the server takes no writes', () => {
+        expect(offeredBankingKeys(WAITING)).toContain('importFile')
+        expect(offeredBankingKeys({ ...WAITING, canWrite: false })).toEqual([])
+        expect(offeredBankingKeys({ ...WAITING, isWriteBlocked: true })).toEqual([])
+    })
+
+    it('offers no Import transactions until the page and the selection are loaded', () => {
+        expect(offeredBankingKeys(WAITING)).toContain('importFile')
+        expect(offeredBankingKeys({ ...WAITING, state: 'loading' })).toEqual([])
+        expect(offeredBankingKeys({ ...WAITING, state: 'error' })).toEqual([])
+        expect(offeredBankingKeys({ ...WAITING, state: 'intro', hasSelection: false })).toEqual([
+            'connect',
+        ])
+        expect(offeredBankingKeys({ ...WAITING, hasSelection: false })).toEqual(['connect'])
+        expect(offeredBankingKeys({ ...WAITING, isPanelLoading: true })).toEqual(['connect'])
     })
 })
 
@@ -144,6 +175,35 @@ describe('bankingShortcuts', () => {
         state.current = { isMenuOpen: false, isBusy: true }
         expect(byKeys(shortcuts, 'n').when?.() ?? true).toBe(true)
         expect(byKeys(shortcuts, 'u').when?.()).toBe(false)
+    })
+
+    it('gives i Import transactions in the list scope, not inside a text field', () => {
+        const { shortcuts } = build(['connect', 'chooseFile', 'importFile'])
+        expect(shortcuts.map(s => s.keys).sort()).toEqual(['i', 'n', 'u'])
+        const importFile = byKeys(shortcuts, 'i')
+        expect(importFile.description).toBe('Import transactions')
+        expect(importFile.scope).toBe('list')
+        expect(importFile.group).toBe('Banking')
+        expect(importFile.allowInInputs).toBeFalsy()
+        expect(importFile.id.startsWith('books.banking.page.r1'), importFile.id).toBe(true)
+        expect(new Set(shortcuts.map(s => s.id)).size).toBe(3)
+        expect(build(BOTH).shortcuts.map(s => s.keys)).not.toContain('i')
+    })
+
+    it('withholds i while the More menu is open', () => {
+        const { state, shortcuts } = build(['importFile'])
+        const importFile = byKeys(shortcuts, 'i')
+        expect(importFile.when?.() ?? true).toBe(true)
+        state.current = { isMenuOpen: true, isBusy: false }
+        expect(importFile.when?.()).toBe(false)
+    })
+
+    it('runs Import transactions on i', () => {
+        const { run, shortcuts } = build(['connect', 'chooseFile', 'importFile'])
+        byKeys(shortcuts, 'i').run({ keys: 'i' })
+        expect(run.importFile).toHaveBeenCalledTimes(1)
+        expect(run.connect).not.toHaveBeenCalled()
+        expect(run.chooseFile).not.toHaveBeenCalled()
     })
 
     it('runs only its own handler for each key', () => {

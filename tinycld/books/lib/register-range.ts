@@ -102,7 +102,10 @@ export function periodOf(day: string): string {
 
 export function formatDay(day: string): string {
     const [year, month, date] = day.split('-').map(Number)
-    return new Date(Date.UTC(year, month - 1, date)).toLocaleDateString('en-US', {
+    // Date.UTC maps years 0-99 to 1900-1999; setUTCFullYear keeps the year as stored.
+    const parsed = new Date(0)
+    parsed.setUTCFullYear(year, month - 1, date)
+    return parsed.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',

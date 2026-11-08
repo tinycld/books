@@ -20,8 +20,14 @@ import (
 	"tinycld.org/core/search"
 )
 
-// serverOnly are Books collections no person writes, so nothing to audit.
-var serverOnly = map[string]bool{"books_account_balances": true}
+// serverOnly are the collections only Go writes. The balance rows are derived
+// from the ledger; a bank file's parsed rows are written by the upload hook, and
+// the import row that made the transactions is audited. A writer changes a
+// transaction's status, so the transactions are audited, not server-only.
+var serverOnly = map[string]bool{
+	"books_account_balances":   true,
+	"books_bank_file_contents": true,
+}
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
 	t.Helper()
@@ -194,6 +200,19 @@ func TestAudit_LabelsBankRecords(t *testing.T) {
 	file := mustSaveBankFile(t, app, connection.Id, "checking-2026-09.csv", sha256Hex([]byte(bankCSV)), "uploaded")
 	if got, want := files.ExtractLabel(file), "checking-2026-09.csv"; got != want {
 		t.Errorf("bank file label = %q, want %q", got, want)
+	}
+	txns, ok := audited["books_bank_transactions"]
+	if !ok {
+		t.Fatal("books_bank_transactions is not audited")
+	}
+	bankImport := saveRecord(t, app, "books_bank_imports", map[string]any{"file": file.Id, "lines": []int{2}})
+	txn := saveRecord(t, app, "books_bank_transactions", map[string]any{
+		"connection": connection.Id, "file": file.Id, "bank_import": bankImport.Id, "line": 2,
+		"date": "2026-10-27", "description": "CHECK 1050", "amount": -36240,
+		"dedupe_hash": strings.Repeat("c", 64), "status": "for_review",
+	})
+	if got, want := txns.ExtractLabel(txn), "2026-10-27 CHECK 1050"; got != want {
+		t.Errorf("bank transaction label = %q, want %q", got, want)
 	}
 }
 
@@ -374,13 +393,12 @@ func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	}
 }
 
-// A token that records transactions also connects bank accounts and uploads
-// their statement files. TestOAuth_CoversEveryBooksCollection checks only that
+// A token that records transactions also connects bank accounts, uploads their statement files and imports them. TestOAuth_CoversEveryBooksCollection checks only that
 // a collection is listed, so this pins the access itself.
 func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 	collections := oauthPackage().Collections
 	want := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
-	for _, c := range []string{"books_bank_connections", "books_bank_files"} {
+	for _, c := range []string{"books_bank_connections", "books_bank_files", "books_bank_imports"} {
 		got, ok := collections[c]
 		if !ok {
 			t.Errorf("%s has no OAuth entry", c)
@@ -389,6 +407,35 @@ func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 		if !reflect.DeepEqual(got.Read, want.Read) || !reflect.DeepEqual(got.Write, want.Write) {
 			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, want.Read, want.Write)
 		}
+	}
+}
+
+// A file's parsed rows are written only by the server, and a person changes a
+// transaction only to move its status between For review and Excluded, so a
+// token reads them and never writes them.
+func TestOAuth_BankRowsAreReadOnly(t *testing.T) {
+	collections := oauthPackage().Collections
+	for _, c := range []string{"books_bank_file_contents", "books_bank_transactions"} {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+			t.Errorf("%s OAuth access = %+v, want read-only %s", c, got, scopeRead)
+		}
+	}
+}
+
+// An import row holds only a file id, so its audit row names the file.
+func TestAudit_LabelsABankImportByItsFile(t *testing.T) {
+	env := newBankRulesEnv(t)
+	imports, ok := auditedCollections(env.app)["books_bank_imports"]
+	if !ok {
+		t.Fatal("books_bank_imports is not audited")
+	}
+	if got, want := imports.ExtractLabel(env.bankImport), "oct-2026.csv"; got != want {
+		t.Errorf("import label = %q, want %q", got, want)
 	}
 }
 
@@ -416,6 +463,36 @@ func TestOAuth_ConfigurationIsReadOnly(t *testing.T) {
 	if oauth.ScopeForRoute(http.MethodPost, "/api/books/balances/rebuild").SatisfiedBy(both) {
 		t.Error("the rebuild route must stay session-only")
 	}
+	// Session only: the app's download button is the only caller (plan p2-pdf).
+	for _, path := range []string{"/api/books/pdf/sample", "/api/books/pdf/invoice/abc123"} {
+		if oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy(both) {
+			t.Errorf("GET %s must stay session-only", path)
+		}
+	}
+}
+
+// Register mounts the PDF routes once: the registered app serves the sample.
+func TestRegister_ServesTheSamplePDF(t *testing.T) {
+	app, _ := newRegisteredApp(t)
+	users := newLevelUsers(t, app)
+	apiReq{
+		method:  http.MethodGet,
+		url:     "/api/books/pdf/sample",
+		token:   tokenFor(t, users.readOnly),
+		want:    http.StatusOK,
+		content: []string{"%PDF-"},
+		response: func(t testing.TB, res *http.Response) {
+			for header, want := range map[string]string{
+				"Content-Type":        "application/pdf",
+				"Content-Disposition": `attachment; filename="sample-invoice.pdf"`,
+				"Cache-Control":       "no-store",
+			} {
+				if got := res.Header.Get(header); got != want {
+					t.Errorf("%s = %q, want %q", header, got, want)
+				}
+			}
+		},
+	}.run(t, app)
 }
 
 func TestOAuth_CoversEveryBooksCollection(t *testing.T) {
@@ -681,6 +758,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerReportShares(parts)
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
+		bindPDFRoutes(e)
 		return e.Next()
 	})
 

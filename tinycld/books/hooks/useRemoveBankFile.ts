@@ -3,11 +3,21 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRef, useState } from 'react'
 import { writeRefusalText } from '../lib/refusal'
+import { useBankingUIStore } from '../stores/banking-ui-store'
 
 // Deletes one uploaded file. The server allows it only while the file's status is
 // `uploaded`; a refusal is local, because the open dialog is its only reader.
-export function useRemoveBankFile({ fileId, onDone }: { fileId: string; onDone(): void }) {
+export function useRemoveBankFile({
+    connectionId,
+    fileId,
+    onDone,
+}: {
+    connectionId: string
+    fileId: string
+    onDone(): void
+}) {
     const [files] = useStore('books_bank_files')
+    const clearRemovedUpload = useBankingUIStore(s => s.clearRemovedUpload)
     const [refusal, setRefusal] = useState<string | null>(null)
     const inFlight = useRef(false)
     const mutation = useMutation({
@@ -16,6 +26,7 @@ export function useRemoveBankFile({ fileId, onDone }: { fileId: string; onDone()
         },
         onSuccess: () => {
             inFlight.current = false
+            clearRemovedUpload(connectionId, fileId)
             onDone()
         },
         // A supplied onError replaces core's default report, so the failure is logged here.

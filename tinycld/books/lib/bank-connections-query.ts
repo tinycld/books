@@ -13,6 +13,7 @@ import type {
     BooksAccounts,
     BooksBankConnections,
     BooksBankFiles,
+    BooksBankTransactions,
 } from '../types'
 import { compareNumbers, compareText } from './account-tree'
 
@@ -24,23 +25,30 @@ import { compareNumbers, compareText } from './account-tree'
 // compareNumberThenName then compareId (lib/account-tree.ts), so the sort keys reuse its
 // compares instead of the default string sort, which would put a number-less account
 // first and '10500' before '900': number-less last (false sorts before true), numbers
-// numerically, names without case, then id by code unit. The key and insert-input type parameters follow
-// accountsWithBalances (lib/accounts-query.ts): a pbtsdb collection omits server-stamped
-// fields on insert, a plain collection does not; the query reads rows only.
+// numerically, names without case, then id by code unit. The for-review side is grouped
+// to one row per connection too, so a connection with many transactions stays one row and
+// one with none gets a count of 0. It loads every for-review transaction of every
+// connection: each card and the For review tab show the count (for-review decision 4).
+// The key and insert-input type parameters follow accountsWithBalances
+// (lib/accounts-query.ts): a pbtsdb collection omits server-stamped fields on insert, a
+// plain collection does not; the query reads rows only.
 export function bankConnectionsQuery<
     CK extends string | number,
     AK extends string | number,
     BK extends string | number,
     FK extends string | number,
+    TK extends string | number,
     CI extends object,
     AI extends object,
     BI extends object,
     FI extends object,
+    TI extends object,
 >(
     connections: Collection<BooksBankConnections, CK, UtilsRecord, never, CI>,
     accounts: Collection<BooksAccounts, AK, UtilsRecord, never, AI>,
     balances: Collection<BooksAccountBalances, BK, UtilsRecord, never, BI>,
-    files: Collection<BooksBankFiles, FK, UtilsRecord, never, FI>
+    files: Collection<BooksBankFiles, FK, UtilsRecord, never, FI>,
+    transactions: Collection<BooksBankTransactions, TK, UtilsRecord, never, TI>
 ) {
     return (query: InitialQueryBuilder) => {
         const totals = query
@@ -60,6 +68,11 @@ export function bankConnectionsQuery<
                 count: count(file.id),
                 last: max(file.created),
             }))
+        const review = query
+            .from({ txn: transactions })
+            .where(({ txn }) => eq(txn.status, 'for_review'))
+            .groupBy(({ txn }) => txn.connection)
+            .select(({ txn }) => ({ connection: txn.connection, count: count(txn.id) }))
         return query
             .from({ connection: connections })
             .innerJoin({ account: accounts }, ({ connection, account }) =>
@@ -69,6 +82,7 @@ export function bankConnectionsQuery<
             .leftJoin({ files: waiting }, ({ connection, files }) =>
                 eq(connection.id, files.connection)
             )
+            .leftJoin({ review }, ({ connection, review }) => eq(connection.id, review.connection))
             .orderBy(({ account }) => eq(account.number, ''))
             .orderBy(({ account }) => account.number, {
                 stringSort: 'custom',
@@ -76,7 +90,7 @@ export function bankConnectionsQuery<
             })
             .orderBy(({ account }) => account.name, { stringSort: 'custom', compare: compareText })
             .orderBy(({ account }) => account.id, { stringSort: 'lexical' })
-            .select(({ connection, account, total, files }) => ({
+            .select(({ connection, account, total, files, review }) => ({
                 id: connection.id,
                 account: connection.account,
                 accountName: account.name,
@@ -88,6 +102,7 @@ export function bankConnectionsQuery<
                 creditTotal: coalesce(total?.credit_total, 0),
                 waitingCount: coalesce(files?.count, 0),
                 lastUploadAt: files?.last,
+                reviewCount: coalesce(review?.count, 0),
             }))
     }
 }

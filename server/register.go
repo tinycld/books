@@ -18,8 +18,8 @@ import (
 // Authorization is rule-first: the collection rules (pb-migrations) decide
 // who may read and write, by Books access level. The Go here adds what a rule
 // cannot express: posting validation, immutability, numbering, balance rows
-// and reversals. Core learns what Books provides through its registries and
-// never names Books.
+// and reversals, and the PDF routes (pdf_routes.go). Core learns what Books
+// provides through its registries and never names Books.
 func Register(app *pocketbase.PocketBase) {
 	registerLedger(app)
 	for _, s := range reportSources() {
@@ -37,6 +37,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerAutoReverseSweep(app)
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
+		bindPDFRoutes(e)
 		return e.Next()
 	})
 }

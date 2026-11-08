@@ -7,6 +7,7 @@ import { CloseOnMount } from './CloseOnMount'
 import { DialogSubmitKey } from './DialogSubmitKey'
 
 interface RemoveBankFileDialogProps {
+    connectionId: string
     fileId: string
     fileName: string
     // The file is no longer in the selected connection's files.
@@ -29,12 +30,17 @@ function RemoveRefusal({ message }: { message: string | null }) {
 // dialog closes itself for a missing file only until the user confirms; after that a
 // refusal brings the row back and shows here.
 export function RemoveBankFileDialog({
+    connectionId,
     fileId,
     fileName,
     isGone,
     onClose,
 }: RemoveBankFileDialogProps) {
-    const { confirm, isPending, refusal } = useRemoveBankFile({ fileId, onDone: onClose })
+    const { confirm, isPending, refusal } = useRemoveBankFile({
+        connectionId,
+        fileId,
+        onDone: onClose,
+    })
     const writes = useServerActionState()
     const [isConfirmed, setConfirmed] = useState(false)
     if (isGone && !isConfirmed) return <CloseOnMount onClose={onClose} />

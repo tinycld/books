@@ -6,6 +6,7 @@ import {
     createBankTestAccount,
     fakeReadOnlyAccess,
     openBanking,
+    openFilesTab,
     statementFile,
 } from './banking-helpers'
 
@@ -16,6 +17,7 @@ import {
 const CHECKING = '1000 Business Checking'
 const CARD = '2100 Company Card'
 const SEED_FILE = 'checking-2026-09.csv'
+const CARD_FILE = 'card-2026-10.ofx'
 
 function shortcutList(page: Page): Locator {
     return page.getByRole('dialog').filter({ hasText: 'Keyboard shortcuts' })
@@ -28,7 +30,9 @@ function menuItem(page: Page, name: string) {
 function fileRow(page: Page, name: string): Locator {
     return page
         .getByTestId('bank-files')
-        .locator('[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"])')
+        .locator(
+            '[data-testid^="bank-file-"]:not([data-testid^="bank-file-remove-"]):not([data-testid^="bank-file-import-"])'
+        )
         .filter({ has: page.getByText(name, { exact: true }) })
 }
 
@@ -96,6 +100,7 @@ test.describe('bank-connection: keys', () => {
         await expect(card).toHaveAttribute('aria-selected', 'true')
         await expect(card.getByText('Key Bank', { exact: true })).toBeVisible()
 
+        await openFilesTab(page)
         const file = statementFile(`keys-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`)
         const [chooser] = await Promise.all([
             page.waitForEvent('filechooser'),
@@ -163,13 +168,15 @@ test.describe('bank-connection: keys', () => {
         await expect(page.getByTestId('bank-panel-title')).toHaveText(CHECKING)
         await expect(page.getByTestId('bank-view-register')).toBeVisible()
         await expect(page.getByTestId('bank-panel-more')).toHaveCount(0)
+        await openFilesTab(page)
         await expect(page.getByTestId('bank-file-drop')).toHaveCount(0)
         await expect(page.getByTestId('bank-connect')).toHaveCount(0)
         await expect(page.getByTestId('bank-files')).toContainText(SEED_FILE)
         await expect(page.locator('[data-testid^="bank-file-remove-"]')).toHaveCount(0)
 
         await bankCard(page, CARD).click()
-        await expect(page.getByTestId('bank-files-empty')).toHaveText('No files uploaded yet.')
+        await expect(fileRow(page, CARD_FILE)).toHaveCount(1)
+        await expect(page.locator('[data-testid^="bank-file-import-"]')).toHaveCount(0)
 
         // The shortcut list opening after n proves the page read the keys in order.
         await page.keyboard.press('n')
