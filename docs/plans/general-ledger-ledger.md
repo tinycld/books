@@ -177,3 +177,4 @@ Books (checkpoint 2):
 - fix review: round 1: 0 BLOCK, 3 NOTE → Design notes (the --fix input left out the two test files, staged before it was built; the reviewer read them directly)
 - gate 3 A notes: 3 (NOTEs 1, 4 → Design notes; NOTE 6 → Out-of-plan changes)
 - human: n/a (mode C)
+- commit: d0d7671 (books, branch books/p5-general-ledger; not pushed)
