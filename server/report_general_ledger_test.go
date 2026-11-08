@@ -106,8 +106,8 @@ func (b glBook) postEntry(t *testing.T, date, memo string, lines ...glLine) *cor
 	return mustPost(t, b.app, entry.Id, "")
 }
 
-// lineOf is entry's line on account.
-func lineOf(t *testing.T, app core.App, entryID string, account *core.Record) *core.Record {
+// entryLineOn is entry's line on account.
+func entryLineOn(t *testing.T, app core.App, entryID string, account *core.Record) *core.Record {
 	t.Helper()
 	line, err := app.FindFirstRecordByFilter("books_journal_lines", "entry = {:e} && account = {:a}",
 		dbx.Params{"e": entryID, "a": account.Id})
@@ -687,13 +687,13 @@ func TestGeneralLedgerLineColumns(t *testing.T) {
 		}
 	}
 
-	officeLine := lineRow(t, res, lineOf(t, b.app, manual.Id, office))
+	officeLine := lineRow(t, res, entryLineOn(t, b.app, manual.Id, office))
 	check("the manual entry's Office supplies line", officeLine, cols{
 		typ: "Journal entry", number: manual.GetString("number"), name: "Northwind Traders",
 		description: "Toner", split: "Operating",
 	})
 	requireSplit(t, officeLine, int64(1200), nil)
-	operatingLine := lineRow(t, res, lineOf(t, b.app, manual.Id, operating))
+	operatingLine := lineRow(t, res, entryLineOn(t, b.app, manual.Id, operating))
 	check("the manual entry's Operating line", operatingLine, cols{
 		typ: "Journal entry", number: manual.GetString("number"), name: "Paper Supply Co",
 		description: "Entry memo", split: "Office supplies",
@@ -701,7 +701,7 @@ func TestGeneralLedgerLineColumns(t *testing.T) {
 	requireSplit(t, operatingLine, nil, int64(1200))
 
 	for _, a := range []*core.Record{office, postage, operating} {
-		check("the 3-line entry's "+a.GetString("full_name")+" line", lineRow(t, res, lineOf(t, b.app, split.Id, a)), cols{
+		check("the 3-line entry's "+a.GetString("full_name")+" line", lineRow(t, res, entryLineOn(t, b.app, split.Id, a)), cols{
 			typ: "Journal entry", number: split.GetString("number"), description: "Three ways", split: "-Split-",
 		})
 	}
@@ -710,25 +710,25 @@ func TestGeneralLedgerLineColumns(t *testing.T) {
 	if !strings.HasPrefix(transferNumber, "TR-") {
 		t.Fatalf("transfer number %q, want TR-<n>", transferNumber)
 	}
-	check("the transfer's Reserve line", lineRow(t, res, lineOf(t, b.app, transfer.Id, reserve)), cols{
+	check("the transfer's Reserve line", lineRow(t, res, entryLineOn(t, b.app, transfer.Id, reserve)), cols{
 		typ: "Transfer", number: transferNumber, split: "Operating",
 	})
-	check("the opening entry's Reserve line", lineRow(t, res, lineOf(t, b.app, opening.Id, reserve)), cols{
+	check("the opening entry's Reserve line", lineRow(t, res, entryLineOn(t, b.app, opening.Id, reserve)), cols{
 		typ: "Opening balances", number: opening.GetString("number"), split: "Owner's equity",
 	})
-	check("the reversal's Postage line", lineRow(t, res, lineOf(t, b.app, reversal.Id, postage)), cols{
+	check("the reversal's Postage line", lineRow(t, res, entryLineOn(t, b.app, reversal.Id, postage)), cols{
 		typ: "Reversal of " + reversed.GetString("number"), number: reversal.GetString("number"),
 		description: reversal.GetString("memo"), split: "Operating",
 	})
-	check("the void reversal's Postage line", lineRow(t, res, lineOf(t, b.app, voidReversal.Id, postage)), cols{
+	check("the void reversal's Postage line", lineRow(t, res, entryLineOn(t, b.app, voidReversal.Id, postage)), cols{
 		typ: "Void reversal of " + voided.GetString("number"), number: voided.GetString("number"),
 		description: voidReversal.GetString("memo"), split: "Operating",
 	})
-	check("the auto reversal's Rent line", lineRow(t, res, lineOf(t, b.app, autoReversal.Id, b.env.rent)), cols{
+	check("the auto reversal's Rent line", lineRow(t, res, entryLineOn(t, b.app, autoReversal.Id, b.env.rent)), cols{
 		typ: "Auto reversal of " + accrued.GetString("number"), number: autoReversal.GetString("number"),
 		description: autoReversal.GetString("memo"), split: "Checking",
 	})
-	unnumberedLine := lineRow(t, res, lineOf(t, b.app, unnumbered.Id, postage))
+	unnumberedLine := lineRow(t, res, entryLineOn(t, b.app, unnumbered.Id, postage))
 	if got := textCell(t, unnumberedLine, "number"); got != "" {
 		t.Errorf("No. of an entry with no number = %q, want blank", got)
 	}
@@ -808,11 +808,11 @@ func TestGeneralLedgerDraftsAndVoids(t *testing.T) {
 	voidReversal := findReversal(t, b.app, voided.Id)
 
 	res := runGL(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-08-01", "2026-08-31")}, reports.Options{Today: glToday})
-	if hasLineRow(res, lineOf(t, b.app, draft.Id, rent)) {
+	if hasLineRow(res, entryLineOn(t, b.app, draft.Id, rent)) {
 		t.Errorf("the draft's line shows")
 	}
 	for name, entry := range map[string]*core.Record{"posted": kept, "voided": voided, "void reversal": voidReversal} {
-		if !hasLineRow(res, lineOf(t, b.app, entry.Id, rent)) {
+		if !hasLineRow(res, entryLineOn(t, b.app, entry.Id, rent)) {
 			t.Errorf("the %s entry's Office rent line does not show", name)
 		}
 	}
