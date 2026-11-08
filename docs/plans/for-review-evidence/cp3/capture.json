@@ -1,0 +1,56 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "drawer",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickText": "CHECK 1050" },
+                { "waitFor": "bank-txn-drawer" },
+                { "waitFor": "bank-txn-amount" },
+                { "waitFor": "bank-txn-field-check" },
+                { "waitFor": "bank-txn-field-imported" }
+            ]
+        },
+        {
+            "name": "drawer-long",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickText": "GUSTO PAYROLL" },
+                { "waitFor": "bank-txn-drawer" },
+                { "waitFor": "bank-txn-amount" },
+                { "waitFor": "bank-txn-field-memo" },
+                { "waitFor": "bank-txn-field-imported" }
+            ]
+        },
+        {
+            "name": "done",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "writes": { "collection": "books_bank_transactions", "answers": ["ok"] },
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "bank-tab-body-review" },
+                { "waitFor": "bank-review-cards" },
+                { "clickText": "CHECK 1050" },
+                { "waitFor": "bank-txn-drawer" },
+                { "waitFor": "bank-txn-exclude" },
+                { "click": "bank-txn-exclude" },
+                { "waitForHidden": "bank-txn-drawer" },
+                { "waitFor": "bank-review-result" }
+            ]
+        }
+    ]
+}

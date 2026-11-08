@@ -26,7 +26,10 @@ function ReviewHeader({ model }: { model: ReviewTabModel }) {
 // The wide list of a transaction tab: windowed rows under a sticky header, sideways scroll
 // below the table's minimum width.
 export function ReviewTable({ model, currency }: { model: ReviewTabModel; currency: string }) {
-    const renderRow = (row: ReviewRowData) => <ReviewRow row={row} currency={currency} />
+    const renderRow = (row: ReviewRowData) => {
+        const isOpen = row.id === model.openTxnId
+        return <ReviewRow row={row} currency={currency} isOpen={isOpen} onOpen={model.onOpenRow} />
+    }
     const header = <ReviewHeader model={model} />
     return (
         <ListTable

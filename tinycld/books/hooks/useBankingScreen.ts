@@ -5,7 +5,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import { useCallback } from 'react'
-import { selectedConnectionId } from '../lib/bank-connections'
+import { connectionLabel, selectedConnectionId } from '../lib/bank-connections'
 import { type ReviewTab, reviewTabFromParam } from '../lib/bank-review'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { useBankingUIStore } from '../stores/banking-ui-store'
@@ -13,6 +13,8 @@ import { useBankConnections } from './useBankConnections'
 import { useBankFiles } from './useBankFiles'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
+import { useReviewBatch } from './useReviewBatch'
+import { useReviewDrawer } from './useReviewDrawer'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
@@ -82,7 +84,24 @@ export function useBankingScreen() {
             onError: err => log.error('books.banking', err),
         })
     }
-    const onTab = (next: ReviewTab) => router.setParams({ tab: next })
+    const resetReviewSelection = useBankingUIStore(s => s.resetReviewSelection)
+    // One batch for the page: the transaction tabs show its result line and the drawer
+    // beside the page runs it. The line lasts until the next action or a tab or account
+    // change.
+    const batch = useReviewBatch()
+    const drawer = useReviewDrawer({
+        accountLabel: selected ? connectionLabel(selected.accountNumber, selected.accountName) : '',
+        canWrite: access.canWrite,
+        batch,
+    })
+    const leaveRows = () => {
+        resetReviewSelection()
+        batch.clearResult()
+    }
+    const onTab = (next: ReviewTab) => {
+        leaveRows()
+        router.setParams({ tab: next })
+    }
 
     const onViewRegister = () => {
         if (!selected) return
@@ -108,7 +127,12 @@ export function useBankingScreen() {
         onTab,
         onGoToFiles: () => onTab('files'),
         // Only the account changes: the tab stays as it was.
-        onSelect: (id: string) => router.setParams({ account: id }),
+        onSelect: (id: string) => {
+            leaveRows()
+            router.setParams({ account: id })
+        },
+        batch,
+        drawer,
         onRetry,
         pageRecovery,
         onConnect: () => openDialog({ kind: 'connect' }),

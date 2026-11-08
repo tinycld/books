@@ -1,5 +1,6 @@
 import { View } from 'react-native'
 import type { BankConnectionRow } from '../../../hooks/useBankConnections'
+import type { ReviewBatch } from '../../../hooks/useReviewBatch'
 import {
     type ReviewQueryInput,
     type ReviewRead,
@@ -9,11 +10,11 @@ import {
     useReviewQueueRows,
     useReviewTab,
 } from '../../../hooks/useReviewTab'
-import { connectionLabel } from '../../../lib/bank-connections'
 import type { TxnTab } from '../../../lib/bank-review'
 import type { LiveRecovery } from '../../../lib/live-recovery'
 import { ReviewCards } from './ReviewCards'
 import { ReviewEmptyState, ReviewLoadError, ReviewLoading } from './ReviewEmptyState'
+import { ReviewResultLine } from './ReviewResultLine'
 import { ReviewTable } from './ReviewTable'
 import { ReviewToolbar } from './ReviewToolbar'
 
@@ -23,6 +24,7 @@ type ReviewTabBodyProps = {
     currency: string
     onGoToFiles: () => void
     pageRecovery: LiveRecovery
+    batch: ReviewBatch
 }
 
 const NO_MATCH_TEXT = 'No transactions match these filters.'
@@ -70,23 +72,26 @@ type ReviewTabViewProps = ReviewTabBodyProps & {
 }
 
 // The shared view of a transaction tab over the read its tab body made: the toolbar in
-// every view state, then the list or its state.
+// every view state and the last batch's result under it, then the list or its state. The
+// drawer is the page's (BankingScreenView), so opening it changes nothing in this tree
+// and the list keeps its scroll position.
 function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
-    const { tab, connection, currency, onGoToFiles, pageRecovery } = props
+    const { tab, connection, currency, onGoToFiles, pageRecovery, batch } = props
     const model = useReviewTab({
         tab,
         connectionId: connection.id,
-        accountLabel: connectionLabel(connection.accountNumber, connection.accountName),
         waitingCount: connection.waitingCount,
         currency,
         read,
         queryInput,
         pageRecovery,
+        batch,
     })
     return (
         <View testID={`bank-tab-body-${tab}`} className="min-h-0 flex-1 overflow-hidden">
             <ReviewToolbar model={model} />
-            <View aria-busy={model.isBusy} className="min-h-0 flex-1">
+            <ReviewResultLine result={model.result} />
+            <View aria-busy={model.isBusy} className="min-h-0 min-w-0 flex-1">
                 <ReviewStateBody
                     model={model}
                     tab={tab}

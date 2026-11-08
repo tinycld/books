@@ -16,6 +16,7 @@ import {
 // every account, so it stays while the user switches tabs and accounts. The screen resets
 // it when it loses focus, for the same reason as the dialog: a stacked earlier Banking
 // screen would keep showing it (lesson 5). `dateOrder` is the date order of those tabs.
+// `openTxnId` is the transaction in the detail drawer; closeAll closes it too.
 
 export type BankingDialog =
     | { kind: 'none' }
@@ -55,6 +56,12 @@ interface BankingUIState {
     resetReviewFilters: () => void
     dateOrder: DateOrder
     toggleDateOrder: () => void
+    // The transaction shown in the detail drawer; null when the drawer is closed.
+    openTxnId: string | null
+    openTxn: (id: string) => void
+    closeTxn: () => void
+    // A tab or account change leaves the rows the drawer belonged to, so it closes.
+    resetReviewSelection: () => void
 }
 
 export const useBankingUIStore = create<BankingUIState>()(set => ({
@@ -72,7 +79,7 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
             if (upload?.kind !== 'done' || upload.fileId !== fileId) return s
             return { uploads: { ...s.uploads, [connectionId]: { kind: 'idle' } } }
         }),
-    closeAll: () => set({ dialog: NO_DIALOG, isPanelMenuOpen: false }),
+    closeAll: () => set({ dialog: NO_DIALOG, isPanelMenuOpen: false, openTxnId: null }),
     reviewFilters: EMPTY_REVIEW_FILTERS,
     setReviewSearch: search => set(s => ({ reviewFilters: { ...s.reviewFilters, search } })),
     setReviewPreset: preset => set(s => ({ reviewFilters: { ...s.reviewFilters, preset } })),
@@ -82,4 +89,8 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
     dateOrder: 'newest',
     toggleDateOrder: () =>
         set(s => ({ dateOrder: s.dateOrder === 'newest' ? 'oldest' : 'newest' })),
+    openTxnId: null,
+    openTxn: id => set({ openTxnId: id }),
+    closeTxn: () => set({ openTxnId: null }),
+    resetReviewSelection: () => set({ openTxnId: null }),
 }))

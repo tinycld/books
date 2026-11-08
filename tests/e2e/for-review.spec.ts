@@ -21,6 +21,7 @@ const SEEDED_EXCLUDED = [
     'NETFLIX.COM',
 ]
 const TRANSACTIONS_URL = '**/api/collections/books_bank_transactions/records*'
+const CANNOT_CHANGE = 'This transaction cannot be changed.'
 
 function todayDigits(): string {
     const now = new Date()
@@ -325,5 +326,127 @@ test.describe('for-review: filters', () => {
         await expect.poll(() => shownNames(page, names)).toEqual([oldFee, refund, hardware, client])
         await sortDate.click()
         await expect.poll(() => shownNames(page, names)).toEqual(newestFirst)
+    })
+})
+
+function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+test.describe('for-review: drawer', () => {
+    test('opens a transaction and excludes it, then moves it back', async ({ page }) => {
+        // Realtime stays on: the imported rows and the file's status reach the client only
+        // through it.
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(BANKING_DESKTOP)
+
+        const { accountName, stamp, fileName } = await importReviewStatement(page, s => [
+            {
+                day: '20261027',
+                amount: '-362.40',
+                name: `${s} insurance`,
+                memo: `${s} policy`,
+                check: '1050',
+            },
+            { day: '20261028', amount: '75.00', name: `${s} refund` },
+        ])
+        const insurance = reviewRow(page, `${stamp} insurance`)
+        const refund = reviewRow(page, `${stamp} refund`)
+        const drawer = page.getByTestId('bank-txn-drawer')
+        const field = (name: string) => page.getByTestId(`bank-txn-field-${name}`)
+        // A field row holds its label and its value; the value is matched whole.
+        const fieldValue = (name: string, value: string | RegExp) =>
+            field(name).getByText(value, { exact: true })
+
+        // The drawer's load error and Retry are covered in tests/bank-txn-detail.test.ts: the
+        // list has filed the row, so pbtsdb serves the drawer's reads from the store with no
+        // request to fake.
+        await insurance.click()
+        await expect(drawer).toBeVisible()
+        await expect(fieldValue('check', '1050')).toBeVisible()
+
+        // The facts of the open row.
+        await expect(insurance).toHaveAttribute('aria-selected', 'true')
+        await expect(page.getByTestId('bank-txn-amount')).toHaveText('$362.40')
+        await expect(page.getByTestId('bank-txn-direction')).toHaveText('Spent')
+        await expect(page.getByTestId('bank-txn-status')).toHaveText('For review')
+        await expect(fieldValue('date', 'Oct 27, 2026')).toBeVisible()
+        await expect(fieldValue('description', `${stamp} insurance`)).toBeVisible()
+        await expect(fieldValue('memo', `${stamp} policy`)).toBeVisible()
+        await expect(fieldValue('account', accountName)).toBeVisible()
+        await expect(
+            fieldValue('file', new RegExp(`^${escapeRegExp(fileName)}, line \\d+$`))
+        ).toBeVisible()
+        await expect(fieldValue('imported', /^[A-Z][a-z]{2} \d{1,2}, \d{4} by \S/)).toBeVisible()
+
+        // Another row shows that one; a field with no value is not drawn.
+        await refund.click()
+        await expect(page.getByTestId('bank-txn-amount')).toHaveText('$75.00')
+        await expect(page.getByTestId('bank-txn-direction')).toHaveText('Received')
+        await expect(fieldValue('description', `${stamp} refund`)).toBeVisible()
+        await expect(field('memo')).toHaveCount(0)
+        await expect(field('check')).toHaveCount(0)
+        await expect(refund).toHaveAttribute('aria-selected', 'true')
+        await expect(insurance).toHaveAttribute('aria-selected', 'false')
+
+        await page.getByTestId('bank-txn-close').click()
+        await expect(drawer).toHaveCount(0)
+
+        // A tab change and an account change close the drawer.
+        await refund.click()
+        await expect(drawer).toBeVisible()
+        await openReviewTab(page, 'excluded')
+        await expect(drawer).toHaveCount(0)
+        await openReviewTab(page, 'review')
+        await refund.click()
+        await expect(drawer).toBeVisible()
+        const checking = bankCard(page, CHECKING)
+        await checking.click()
+        await expect(checking).toHaveAttribute('aria-selected', 'true')
+        await expect(drawer).toHaveCount(0)
+        const own = bankCard(page, accountName)
+        await own.click()
+        await expect(own).toHaveAttribute('aria-selected', 'true')
+
+        // Exclude from the drawer.
+        const result = page.getByTestId('bank-review-result')
+        await insurance.click()
+        await expect(page.getByTestId('bank-txn-status')).toHaveText('For review')
+        await page.getByTestId('bank-txn-exclude').click()
+        await expect(drawer).toHaveCount(0)
+        await expect(insurance).toHaveCount(0)
+        await expect(result).toHaveText('Excluded 1 transaction.')
+        await expect(page.getByTestId('bank-tabs-review')).toHaveText('For review (1)')
+
+        // Move it back from Excluded.
+        await openReviewTab(page, 'excluded')
+        await expect(result).toHaveCount(0)
+        await expect(insurance).toHaveCount(1)
+        await insurance.click()
+        await expect(page.getByTestId('bank-txn-status')).toHaveText('Excluded')
+        await expect(page.getByTestId('bank-txn-exclude')).toHaveCount(0)
+        await page.getByTestId('bank-txn-restore').click()
+        await expect(drawer).toHaveCount(0)
+        await expect(insurance).toHaveCount(0)
+        await expect(result).toHaveText('Moved 1 transaction to For review.')
+        await openReviewTab(page, 'review')
+        await expect(insurance).toHaveCount(1)
+        await expect(page.getByTestId('bank-tabs-review')).toHaveText('For review (2)')
+
+        // A refused exclude puts the row back and shows the server's message.
+        await page.route('**/api/collections/books_bank_transactions/records/*', (route: Route) =>
+            route.request().method() === 'PATCH'
+                ? route.fulfill({
+                      status: 400,
+                      json: { status: 400, message: CANNOT_CHANGE, data: {} },
+                  })
+                : route.continue()
+        )
+        await insurance.click()
+        await page.getByTestId('bank-txn-exclude').click()
+        await expect(result).toHaveText(CANNOT_CHANGE)
+        await expect(insurance).toHaveCount(1)
+        await page.unrouteAll({ behavior: 'wait' })
     })
 })
