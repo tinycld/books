@@ -4,8 +4,13 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { useRef } from 'react'
+import type { SelectBoxState } from '../lib/bank-import-view'
 import {
+    type BatchKind,
+    type BatchOutcome,
+    canChoose,
     type DateOrder,
     hasReviewFilter,
     type ReviewFilters,
@@ -16,9 +21,15 @@ import {
     reviewViewState,
     reviewWhere,
     type SettledRows,
+    selectAllState,
+    selectionSummary,
     settleRows,
+    shownChoice,
     TXN_STATUS_OF,
     type TxnTab,
+    toggleAllChoice,
+    toggleChoice,
+    writeControlState,
 } from '../lib/bank-review'
 import { ID_ORDER, LIST_PAGE_SIZE, SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
@@ -247,15 +258,60 @@ export type ReviewTabModel = {
     onOpenRow: (id: string) => void
     batch: ReviewBatch
     result: { text: string; tone: 'muted' | 'danger' } | null
+    // Choosing rows: writers on For review and Excluded only.
+    canChoose: boolean
+    // The chosen ids the list shows, in list order (shownChoice).
+    chosenIds: string[]
+    isChosen: (id: string) => boolean
+    selection: { count: number; text: string }
+    selectState: SelectBoxState
+    // The boxes and select-all wait while a change runs.
+    isChoiceDisabled: boolean
+    onToggle: (id: string) => void
+    onToggleAll: () => void
+    onClearChoice: () => void
+    onBatch: () => void
+    batchAction: BarAction | null
+    // The selection bar's own run is in flight: its button is busy and the bar stays up.
+    isBatchRunning: boolean
+    isBatchDisabled: boolean
+    batchHint: string | undefined
+}
+
+type BarAction = {
+    kind: BatchKind
+    label: string
+    busyLabel: string
+    testID: 'bank-review-exclude' | 'bank-review-restore'
+}
+
+const BAR_ACTIONS: Record<TxnTab, BarAction | null> = {
+    review: {
+        kind: 'exclude',
+        label: 'Exclude',
+        busyLabel: 'Excluding…',
+        testID: 'bank-review-exclude',
+    },
+    excluded: {
+        kind: 'restore',
+        label: 'Move to For review',
+        busyLabel: 'Moving…',
+        testID: 'bank-review-restore',
+    },
+    reviewed: null,
 }
 
 // The shared model of a transaction tab body, over the read of its tab. While the query for
 // a new search, filter or order loads, the last settled rows stay on screen (settleRows),
 // kept in a ref that is written during render, as useRecordList keeps its value.
 export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
-    const { tab, waitingCount, read, queryInput, pageRecovery, batch } = input
+    const { tab, waitingCount, currency, read, queryInput, pageRecovery, batch } = input
     const [txns] = useStore('books_bank_transactions')
     const { canWrite } = useBooksAccess()
+    const writes = useServerActionState()
+    const chosenSet = useBankingUIStore(s => s.chosen)
+    const setChosen = useBankingUIStore(s => s.setChosen)
+    const clearChosen = useBankingUIStore(s => s.clearChosen)
     const isWide = useBreakpoint() !== 'mobile'
     const openTxnId = useBankingUIStore(s => s.openTxnId)
     const openTxn = useBankingUIStore(s => s.openTxn)
@@ -287,6 +343,56 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     }
     const isTyping = queryInput.filters.search !== queryInput.where.filters.search
     const isLoadingUnderKeptRows = now.viewState === 'loading' && shown !== now
+
+    // The choice is always of the rows on screen: every read and every write of it goes
+    // through the shown rows, so a row that left the list left the choice.
+    const isChoosable = canChoose(tab, canWrite)
+    const rows = shown.rows
+    const chosenIds = isChoosable ? shownChoice(rows, chosenSet) : []
+    const shownSet = new Set(chosenIds)
+    const summary = selectionSummary(rows, shownSet, currency)
+    // The optimistic update takes the rows off the list at once, so while the bar's own
+    // run is in flight it shows the choice as it was sent. A tab or account change clears
+    // the choice, so after one the bar of that run is gone (the controls stay disabled).
+    const isBarRun = batch.pending?.origin === 'bar' && chosenSet.size > 0
+    const barRun = isBarRun ? batch.pending : null
+    const selection = barRun
+        ? { count: barRun.ids.length, text: barRun.summary }
+        : { count: summary.count, text: summary.text }
+    const control = writeControlState({
+        isPending: batch.isPending,
+        writesDisabled: writes.isDisabled,
+        writesHint: writes.accessibilityHint,
+    })
+    const batchAction = isChoosable ? BAR_ACTIONS[tab] : null
+    const onToggle = (id: string) => {
+        if (batch.isPending) return
+        setChosen(toggleChoice(rows, chosenSet, id))
+    }
+    const onToggleAll = () => {
+        if (batch.isPending) return
+        setChosen(toggleAllChoice(rows, chosenSet))
+    }
+    const onClearChoice = () => {
+        if (batch.isPending) return
+        clearChosen()
+    }
+    // The done rows leave the list and the choice; the refused rows come back by pbtsdb's
+    // rollback and stay chosen, unless a tab or account change cleared the choice while
+    // the run was in flight: only refused ids still in the store's choice stay. The run
+    // returns refusals as its outcome (the result line) instead of throwing; anything else
+    // it throws is a bug, so it is logged.
+    const keepRefused = (outcome: BatchOutcome) => {
+        const current = useBankingUIStore.getState().chosen
+        setChosen(outcome.failed.map(failure => failure.id).filter(id => current.has(id)))
+    }
+    const onBatch = () => {
+        if (!batchAction || control.isDisabled || chosenIds.length === 0) return
+        void batch
+            .run({ kind: batchAction.kind, ids: chosenIds, summary: summary.text, origin: 'bar' })
+            .then(keepRefused)
+            .catch(err => log.error('books.banking', err))
+    }
     return {
         rows: shown.rows,
         viewState: shown.viewState,
@@ -306,5 +412,19 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         onOpenRow: openTxn,
         batch,
         result: batch.result,
+        canChoose: isChoosable,
+        chosenIds,
+        isChosen: id => shownSet.has(id),
+        selection,
+        selectState: selectAllState(rows, chosenSet),
+        isChoiceDisabled: batch.isPending,
+        onToggle,
+        onToggleAll,
+        onClearChoice,
+        onBatch,
+        batchAction,
+        isBatchRunning: barRun !== null,
+        isBatchDisabled: control.isDisabled,
+        batchHint: control.hint,
     }
 }

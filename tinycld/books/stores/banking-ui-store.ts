@@ -16,7 +16,8 @@ import {
 // every account, so it stays while the user switches tabs and accounts. The screen resets
 // it when it loses focus, for the same reason as the dialog: a stacked earlier Banking
 // screen would keep showing it (lesson 5). `dateOrder` is the date order of those tabs.
-// `openTxnId` is the transaction in the detail drawer; closeAll closes it too.
+// `openTxnId` is the transaction in the detail drawer and `chosen` the rows chosen for a
+// batch; closeAll closes the drawer and clears the choice too.
 
 export type BankingDialog =
     | { kind: 'none' }
@@ -60,7 +61,14 @@ interface BankingUIState {
     openTxnId: string | null
     openTxn: (id: string) => void
     closeTxn: () => void
-    // A tab or account change leaves the rows the drawer belonged to, so it closes.
+    // The chosen rows of the shown transaction tab. Readers intersect it with the rows on
+    // screen (shownChoice), so an id that left the list counts nowhere. A new Set on
+    // every change, so a selector sees the change.
+    chosen: ReadonlySet<string>
+    setChosen: (ids: readonly string[]) => void
+    clearChosen: () => void
+    // A tab or account change leaves the rows the drawer and the choice belonged to, so
+    // the drawer closes and the choice clears.
     resetReviewSelection: () => void
 }
 
@@ -79,7 +87,8 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
             if (upload?.kind !== 'done' || upload.fileId !== fileId) return s
             return { uploads: { ...s.uploads, [connectionId]: { kind: 'idle' } } }
         }),
-    closeAll: () => set({ dialog: NO_DIALOG, isPanelMenuOpen: false, openTxnId: null }),
+    closeAll: () =>
+        set({ dialog: NO_DIALOG, isPanelMenuOpen: false, openTxnId: null, chosen: new Set() }),
     reviewFilters: EMPTY_REVIEW_FILTERS,
     setReviewSearch: search => set(s => ({ reviewFilters: { ...s.reviewFilters, search } })),
     setReviewPreset: preset => set(s => ({ reviewFilters: { ...s.reviewFilters, preset } })),
@@ -92,5 +101,8 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
     openTxnId: null,
     openTxn: id => set({ openTxnId: id }),
     closeTxn: () => set({ openTxnId: null }),
-    resetReviewSelection: () => set({ openTxnId: null }),
+    chosen: new Set(),
+    setChosen: ids => set({ chosen: new Set(ids) }),
+    clearChosen: () => set({ chosen: new Set() }),
+    resetReviewSelection: () => set({ openTxnId: null, chosen: new Set() }),
 }))

@@ -2,6 +2,7 @@ import { and, eq, gt, gte, ilike, lt, lte, or, type Ref } from '@tanstack/db'
 import type { SetupTab } from '@tinycld/core/components/setup/wizard/SetupTabs'
 import { errorToString } from '@tinycld/core/lib/errors'
 import type { BooksBankTransactions } from '../types'
+import type { SelectBoxState } from './bank-import-view'
 import { searchPieces } from './list-search'
 import { formatMoney, parseMoney } from './money'
 import { errorStatus, messageOnlyRefusal } from './refusal'
@@ -405,6 +406,70 @@ export function drawerAction(
         }
     }
     return null
+}
+
+// Rows are chosen only to batch them: on For review and Excluded, by a writer.
+export function canChoose(tab: TxnTab, canWrite: boolean): boolean {
+    return canWrite && tab !== 'reviewed'
+}
+
+type ChoiceRow = { id: string }
+
+// The chosen ids that the list shows, in list order. The store may still hold an id that
+// left the list (a new search hid it, or another user's change took it away); every
+// reader and every write of the choice goes through this, so such an id counts nowhere.
+export function shownChoice(rows: readonly ChoiceRow[], chosen: ReadonlySet<string>): string[] {
+    return rows.filter(row => chosen.has(row.id)).map(row => row.id)
+}
+
+function selectedText(count: number, spent: number, received: number, currency: string) {
+    return `${count} selected · Spent ${formatMoney(spent, currency)} · Received ${formatMoney(received, currency)}`
+}
+
+// The selection bar's count and sums, over the shown choice only. Amounts are integer
+// cents, so the sums are exact; `spent` is positive.
+export function selectionSummary(
+    rows: readonly (ChoiceRow & { amount: number })[],
+    chosen: ReadonlySet<string>,
+    currency: string
+): { count: number; spent: number; received: number; text: string } {
+    let count = 0
+    let spent = 0
+    let received = 0
+    for (const row of rows) {
+        if (!chosen.has(row.id)) continue
+        count += 1
+        if (row.amount < 0) spent -= row.amount
+        else received += row.amount
+    }
+    return { count, spent, received, text: selectedText(count, spent, received, currency) }
+}
+
+// The select-all box: checked when every shown row is chosen (and there is one), empty
+// when none is, mixed otherwise.
+export function selectAllState(
+    rows: readonly ChoiceRow[],
+    chosen: ReadonlySet<string>
+): SelectBoxState {
+    const count = shownChoice(rows, chosen).length
+    if (count === 0) return 'empty'
+    return count === rows.length ? 'checked' : 'mixed'
+}
+
+// The shown choice with `id` flipped, in list order.
+export function toggleChoice(
+    rows: readonly ChoiceRow[],
+    chosen: ReadonlySet<string>,
+    id: string
+): string[] {
+    const isChosen = chosen.has(id)
+    return rows.filter(row => (row.id === id ? !isChosen : chosen.has(row.id))).map(row => row.id)
+}
+
+// Every shown row, or none when every shown row is already chosen.
+export function toggleAllChoice(rows: readonly ChoiceRow[], chosen: ReadonlySet<string>): string[] {
+    if (selectAllState(rows, chosen) === 'checked') return []
+    return rows.map(row => row.id)
 }
 
 // Every write control of the queue: disabled while a change runs or while the server
