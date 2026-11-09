@@ -40,6 +40,11 @@
 - cp 2 · whole table: no seeded row in the This-month period has a Name, so the shots cannot show how a 30-character Name shares room with Description (e2e 8 covers it: Description wider than Name at 1024/1280). Evidence gap only.
 - cp 2 · runner ruling (dispute): `display.oneLine.minWidth: "880px"` from spec §5's conditional, after the implementer measured the numbered 20-character Account cut at a 900 window on the shipping route; phase 3 pass 2's "900 → tablet, no gate" measure did not hold after J2. The px gate fits this measure; a much longer account label at ≥ 880 px rows still ends in an ellipsis (spec §3 "about 20 characters"). Human: accept, or ask for a wider Account floor instead.
 - cp 2 · e2e 8 test data: the account number is "9" + the run's start second mod 10,000; two runs on one kept local DB collide only if they start in the same second or exactly 10,000 s apart (CI starts empty).
+- cp 3 · more-1280: sticky block heading "JE-20 · Journal entry" — the row scrolling under it shows a few pixels between the heading label and its separator (core ReportTable sticky group row; D5).
+- cp 3 · empty-390: a "Sort" chip shows beside Period in the empty state, where there is nothing to sort; the reference shows Period alone (core phone sort control; D5).
+- cp 3 · empty-1280 / empty-390: no rail icon or tab is marked active on core's `/a/reports/<id>` route, and no Books sidebar (same cause as the cp 1 populated note).
+- cp 3 · capture (runner): right after a 1280 → 390 resize, core's title toolbar shows "Customize" + "Save as…" with no overflow menu (so no "Copy link") until it re-measures, within ~1.5 s; the first capture caught it and the critic marked it BLOCKING. Settled before capture, the overflow menu shows. A real phone never resizes from desktop; a desktop user who narrows the window sees the stale toolbar for a moment.
+- cp 3 · e2e 9 (fix item 4): the long-block test skips when today is `<year>-09-15` or `-16`: other specs post entries dated today, which take page-1 rows between the two seeded sweep blocks, so the page-1 seam cannot be asserted on those two days (Go `TestJournalPaging` still pins the seam). Human: accept, or ask to move the seeded long section to days no spec can post on.
 
 ## Out-of-plan changes
 - cp 0 (core; the Files block says "the core plan names every file", and the core plan's file table names all but one): `core/lib/query-errors.ts` (+ test, new `QueryRefusal`: a later-page refusal is logged at info, not reported), `core/reports/lib/run-state.ts` (+ test), `core/reports/components/ReportView.tsx`, `core/tests/fake-pb-server.ts` (`FakeAnswer`) — support for the next-page Retry row; `having_test.go` (pageSize 2 → 3, J1a counts the group row), `mixedcondition_test.go` (J1a page count), `run_test.go` `TestTheRowCapNoticeIsGivenOnce` (moved to a pivot: a grouped report has no cap now), `statement_test.go` (page statement; not in the core plan table → added, fix item 13), `tests/e2e/reports-helpers.ts` (helpers moved from ledger-v3), `reports-ledger-v3.spec.ts`, `reports-wrap.spec.ts` (J2 widths); the core plan is an outline + two parts (`-part-1.md`, `-part-2.md`) where the brief named one file.
@@ -126,6 +131,25 @@
 - fix review: n/a (round 1 touched test code only) · rounds: 0
 - gate 3 A notes: 0 to Design notes (1–5 fixed; 6, 7 recorded)
 - commit: the commit that holds this line, `feat(books): Journal fit at every width` (`git log -1 -- server/report_journal.go`); not pushed
+
+## Checkpoint 3
+- core: main ee5ca9f4
+- test writer: `server/report_journal_test.go` (`TestJournalPaging`, `TestJournalTopics`, `TestJournalEmpty`, helpers `jnPages`/`jnMerged`/`jnRowIDs`/`jnDebitCredit`), `tests/help-reports.test.ts` (12 tests), `tests/e2e/journal-report.spec.ts` (e2e 9 Long block, 10 Live, 11 Empty); red for the right reason: yes (12 vitest: no Journal section); Go 3 and e2e 3 green on checkpoints 0–1 as Do step 0 expects — without J1 group paging the page-1 seam checks fail (Go `len(page1) != 2` / second block whole; e2e `secondSweep?.total` toBeUndefined, `lastBeforeTotal?.section`); untestable: none. Empty day `<year>-07-02` (07-03 if today). Test writer's own slips (a `rowIDs` name clash; a `perl -pi` rename) are in the retro log.
+- implementer: Do 3 — `help/reports.md` "Read the Journal" after "Read the General Ledger", "Who sees Books reports" names the Journal; `packages:generate`; no core gap at Do 1/2; DONE
+- test disputes: none
+- self-declared differences: (1) `journal` added to the topic's frontmatter `tags`; (2) the section also states the empty state, the live re-run, block order, folded heading totals, an entry with no number, and that a narrow desktop window shows the tablet arrangement (spec §3/§5; reviewer A: matches the spec)
+- gate 1: tests unedited: yes · `go test ./...` ok · `tinycld-pkg check` pass (vitest 4312) · e2e `journal-report:` 11/11 · logs staging `cp/cp3-g1-*.log`
+- gate 2 capture: `evidence/cp3/capture.json`: `more` (Custom Sep 15–16 of the seed's year, next-page run held, list scrolled to its end) and `empty` (Custom July 2) at 1280 and 390, light and dark. The git-excluded capture spec gained `holdNextPage`, `customPeriod` ("$year"), `scrollTableEnd` (repeated before each width). First capture: the Period chip kept its focus ring → `click report-document-title` added, re-captured.
+- gate 2: invalid shots: 1 in effect — empty-390-light caught core's toolbar before it re-measured after the 1280→390 resize (critic: BLOCKING, "Copy link" unreachable; dark, taken later, had the overflow) → root cause the capture's missing settle, proven by re-capture with `settleMs` 1500 (overflow shows); fresh critic on the re-captured empty shots: 0 INVALID, 0 BLOCKING (`critique-empty-recapture.md`) · blocking: none left · notes: 4, listed under Design notes (sticky heading bleed, Sort chip in empty, no active rail/tab, the resize transient)
+- gate 3 A (correctness): 0 BLOCK · 5 NOTE, all weak tests with a small fix in files the checkpoint touches → accepted (fix items 1–5)
+- gate 3 B (conformance): script lines: 0 real, 0 false positive · 0 findings
+- reviewer-caught deferrals: none
+- fix round 1: findings file staging `cp/cp3-fix.md` (5 items, all test code) → fresh test writer: 5/5 (items 1, 2 shown red on a scratch copy of the help with the phrase removed, help file restored, same sha; item 3 follows the page chain from the first-page answer whose `next` is the held request's cursor; item 4 a skip on `<year>-09-15`/`-16` → Design notes; item 5 scoped to `report-empty`, also in e2e 10)
+- gate 1 after fixes: tests changed only by the fix test writer (re-staged) · `go test ./...` ok · check pass (vitest 4312) · e2e `journal-report:` 11/11 · logs `cp/cp3-g1b-*.log`
+- gate 2 after fixes: no fix changed rendering; no re-capture
+- fix review: n/a (round 1 touched test code only, no non-test source) · rounds: 0
+- gate 3 A notes: 0 to Design notes (1–5 fixed)
+- commit: the commit that holds this line, `feat(books): Journal long periods, live, empty, help` (`git log -1 -- help/reports.md`); not pushed
 
 ## Final review
 - eval:

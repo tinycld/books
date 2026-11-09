@@ -1,0 +1,37 @@
+{
+    "outDir": ".",
+    "widths": [1280, 390],
+    "shots": [
+        {
+            "name": "more",
+            "url": "/a/reports",
+            "openReport": "Journal",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "holdNextPage": true,
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "customPeriod": { "from": "$year-09-15", "to": "$year-09-16" } },
+                { "click": "report-document-title" },
+                { "waitFor": "Daily sweep" },
+                { "waitForHidden": "report-updating" },
+                { "scrollTableEnd": true }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports",
+            "settleMs": 1500,
+            "openReport": "Journal",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "customPeriod": { "from": "$year-07-02", "to": "$year-07-02" } },
+                { "click": "report-document-title" },
+                { "waitFor": "report-empty" }
+            ]
+        }
+    ]
+}
