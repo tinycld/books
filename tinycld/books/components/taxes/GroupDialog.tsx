@@ -45,7 +45,7 @@ export function GroupDialog({ id }: GroupDialogProps) {
                     name="name"
                     label="Name"
                     testID="tax-group-form-name"
-                    {...nameFocus}
+                    inputRef={nameFocus.ref}
                 />
                 <RateChecklist isVisible={!dialog.loadFailed} dialog={dialog} />
                 <DialogLoadError

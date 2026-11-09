@@ -819,6 +819,79 @@ func requireLineRefusal(t testing.TB, err error, n int) {
 	}
 }
 
+// Deleting a user or a form that a posted or void invoice names makes
+// PocketBase clear the link with a save of the invoice; that save changes
+// nothing else, so the posted/void guard lets it through. Any other change
+// to a posted invoice is still refused.
+func TestInvoice_PostedKeepsUnlinksOfDeletedRows(t *testing.T) {
+	ie := newInvoiceEnv(t)
+	poster := mkUser(t, ie.app, "member")
+	voider := mkUser(t, ie.app, "member")
+	form := saveRecord(t, ie.app, "forms", map[string]any{
+		"host": "books:invoice", "name": "Invoice", "slug": "invoice", "definition": map[string]any{"pages": []any{}},
+	})
+	posted := ie.mkInvoice(t, nil)
+	mkInvoiceLine(t, ie.app, posted, 0, item(ie.service, 1, 45000, false))
+	void := ie.mkInvoice(t, nil)
+	mkInvoiceLine(t, ie.app, void, 0, item(ie.service, 1, 45000, false))
+	// Written past the hooks: the links a posting stamps, without posting.
+	for id, set := range map[string]dbx.Params{
+		posted.Id: {"status": statusPosted, "number": "1001", "posted_by": poster.Id, "form": form.Id},
+		void.Id:   {"status": statusVoid, "number": "1002", "posted_by": poster.Id, "voided_by": voider.Id},
+	} {
+		if _, err := ie.app.DB().Update("books_invoices", set, dbx.HashExp{"id": id}).Execute(); err != nil {
+			t.Fatalf("stamp invoice %s: %v", id, err)
+		}
+	}
+
+	t.Run("another change with the unlink is refused", func(t *testing.T) {
+		err := setFields(t, ie.app, "books_invoices", posted.Id, map[string]any{"posted_by": "", "memo": "Changed"})
+		requireRefusalText(t, err, "A posted or void invoice cannot be changed.")
+		if got := reload(t, ie.app, "books_invoices", posted.Id).GetString("posted_by"); got != poster.Id {
+			t.Errorf("posted_by = %q after the refusal, want the poster", got)
+		}
+		err = setFields(t, ie.app, "books_invoices", posted.Id, map[string]any{"posted_by": voider.Id})
+		requireRefusalText(t, err, "A posted or void invoice cannot be changed.")
+	})
+
+	if err := ie.app.Delete(reload(t, ie.app, "forms", form.Id)); err != nil {
+		t.Fatalf("delete the form a posted invoice names: %v", err)
+	}
+	if err := ie.app.Delete(reload(t, ie.app, "users", voider.Id)); err != nil {
+		t.Fatalf("delete the user who voided an invoice: %v", err)
+	}
+	if err := ie.app.Delete(reload(t, ie.app, "users", poster.Id)); err != nil {
+		t.Fatalf("delete the user who posted two invoices: %v", err)
+	}
+	p := reload(t, ie.app, "books_invoices", posted.Id)
+	v := reload(t, ie.app, "books_invoices", void.Id)
+	if p.GetString("form") != "" || p.GetString("posted_by") != "" || v.GetString("posted_by") != "" || v.GetString("voided_by") != "" {
+		t.Errorf("links after the deletes: form %q posted_by %q / %q voided_by %q, want all cleared",
+			p.GetString("form"), p.GetString("posted_by"), v.GetString("posted_by"), v.GetString("voided_by"))
+	}
+	if p.GetString("status") != statusPosted || p.GetString("number") != "1001" || v.GetString("status") != statusVoid {
+		t.Errorf("status/number after the deletes: %q %q / %q, want posted 1001 / void", p.GetString("status"), p.GetString("number"), v.GetString("status"))
+	}
+}
+
+// The delete guard reads the stored status inside serialized, not the record
+// the caller holds: a record loaded while the invoice was a draft cannot
+// delete it once it is posted.
+func TestInvoice_DeleteRereadsTheStoredStatus(t *testing.T) {
+	ie := newInvoiceEnv(t)
+	inv := ie.mkInvoice(t, nil)
+	mkInvoiceLine(t, ie.app, inv, 0, item(ie.service, 1, 45000, false))
+	stale := reload(t, ie.app, "books_invoices", inv.Id)
+	setInvoiceStatus(t, ie.app, inv.Id, statusPosted)
+
+	err := ie.app.Delete(stale)
+	requireRefusalText(t, err, "Only a draft invoice can be deleted.")
+	if _, err := ie.app.FindRecordById("books_invoices", inv.Id); err != nil {
+		t.Fatalf("the posted invoice is gone: %v", err)
+	}
+	requireLineCount(t, ie.app, inv, 1)
+}
+
 // An item line has no percent; a percent line has no quantity or rate.
 func TestInvoiceLine_RefusesAnotherKindsCells(t *testing.T) {
 	cases := map[string]struct {

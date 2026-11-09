@@ -159,6 +159,7 @@ function OpenEntryLink({ detail, onClose }: { detail: EntryDetail | null; onClos
         id: entryId,
         doc_type: detail?.docType ?? 'journal',
         origin: detail?.origin ?? 'manual',
+        document: detail?.document ?? '',
     })
     return (
         <Pressable

@@ -39,8 +39,11 @@ func isTransferAccountType(key string) bool {
 // refusals (entryName), the audit log (entryLabel) and search (entryHitTitle)
 // cannot drift apart when another type is added.
 func entryNouns(docType string) (noun, this, draft string) {
-	if docType == docTypeTransfer {
+	switch docType {
+	case docTypeTransfer:
 		return "Transfer", "This transfer", "Draft transfer"
+	case docTypeInvoice:
+		return "Invoice", "This invoice", "Draft invoice"
 	}
 	return "Journal entry", "This journal entry", "Draft journal entry"
 }

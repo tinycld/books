@@ -734,6 +734,49 @@ func TestGeneralLedgerLineColumns(t *testing.T) {
 	}
 }
 
+// An invoice's entry reads Type "Invoice", No. its number and Name its
+// customer on every line; its void reversal reads "Void reversal of <number>"
+// and names the customer too; a transfer still reads "Transfer" (spec Q24).
+func TestGeneralLedgerInvoiceRows(t *testing.T) {
+	b := newGLBook(t)
+	registerInvoiceGuards(b.app)
+	ie := invoiceEnvOn(t, b.env)
+	receivable := b.account(t, "Receivables", "1200", "accounts_receivable", "accounts_receivable")
+	operating := b.account(t, "Operating", "1000", "bank", "checking")
+	reserve := b.account(t, "Reserve", "1010", "bank", "savings")
+	transfer := mustPost(t, b.app, transferDraft(t, b.app, "2026-11-04", operating, reserve, 2500).Id, "")
+
+	inv := ie.mkInvoice(t, nil)
+	mkInvoiceLine(t, b.app, inv, 0, item(ie.service, 1, 45000, false))
+	entryID := mustPostInvoice(t, b.app, inv.Id, b.env.users.bookkeeper.Id).GetString("entry")
+	if err := voidInvoiceAs(b.app, inv.Id, b.env.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void the invoice: %v", err)
+	}
+	voidReversal := findReversal(t, b.app, entryID)
+
+	res := runGL(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-11-01", "2026-11-30")}, reports.Options{Today: glToday})
+	type cols struct{ typ, number, name string }
+	read := func(r reports.Row) cols {
+		return cols{typ: textCell(t, r, "type"), number: textCell(t, r, "number"), name: textCell(t, r, "name")}
+	}
+	for _, w := range []struct {
+		what    string
+		entry   string
+		account *core.Record
+		want    cols
+	}{
+		{"the invoice's A/R line", entryID, receivable, cols{"Invoice", "1001", "Harborview Dental"}},
+		{"the invoice's income line", entryID, b.env.revenue, cols{"Invoice", "1001", "Harborview Dental"}},
+		{"the void reversal's A/R line", voidReversal.Id, receivable, cols{"Void reversal of 1001", "1001", "Harborview Dental"}},
+		{"the void reversal's income line", voidReversal.Id, b.env.revenue, cols{"Void reversal of 1001", "1001", "Harborview Dental"}},
+		{"the transfer's Reserve line", transfer.Id, reserve, cols{"Transfer", transfer.GetString("number"), ""}},
+	} {
+		if got := read(lineRow(t, res, entryLineOn(t, b.app, w.entry, w.account))); got != w.want {
+			t.Errorf("%s = %+v, want %+v", w.what, got, w.want)
+		}
+	}
+}
+
 // Rows With activity shows an account with a line in the period or a
 // beginning balance that is not zero; All adds every active account. Accounts
 // narrows the sections, and the Total adds the lines shown.
@@ -1196,8 +1239,10 @@ const generalLedgerSpecGolden = "" +
 	`ype":"choice","label":"Rows","default":"active","options":[{"value":"active","label":"With activity"},{"value":"all","label":"All"}]},{"id":"accounts","type":"c` +
 	`hoice","label":"Accounts","optionsFrom":{"source":"books.accounts","value":[{"field":"id"}],"label":[{"field":"full_name"}],"group":[{"field":"type"}],"groupOrd` +
 	`er":{"by":"declared"},"groupLabel":"All {group} accounts"},"multiple":true}],"columns":[{"id":"account","label":"Account / Date","path":[{"link":"account"}]},{"` +
-	`id":"type","label":"Type","formula":{"op":"case","args":[{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"trans` +
-	`fer"}]},{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"manual"}]}]},{"value":"Transfer"},{"op":"eq","args":[{"path":[{"link":"entry` +
+	`id":"type","label":"Type","formula":{"op":"case","args":[{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"invo` +
+	`ice"}]},{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Invoice"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"transfer"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},{"value":"Transfer"},{"op":"eq","args":[{"path":[{"link":"entry` +
 	`"},{"field":"origin"}]},{"value":"reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]},{` +
 	`"value":"Reversal"},{"op":"concat","args":[{"value":"Reversal"},{"value":" of "},{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]}]},{"op":"e` +
 	`q","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"void_reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"lin` +

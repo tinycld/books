@@ -82,7 +82,7 @@ export function AgencyDialog({ id }: { id: string | null }) {
                     name="name"
                     label="Name"
                     testID="tax-agency-form-name"
-                    {...nameFocus}
+                    inputRef={nameFocus.ref}
                 />
                 <AccountSelect isVisible={showsSelect} dialog={dialog} />
                 <NoAccountNote isVisible={showsNoAccountNote} dialog={dialog} />

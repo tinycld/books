@@ -113,6 +113,20 @@ describe('entryActions for a transfer', () => {
     })
 })
 
+// A document's entry is changed from its document (Edit or Void there); the
+// server refuses a reversal or correction that names it.
+describe('entryActions for an invoice entry', () => {
+    const postedInvoiceEntry = { ...posted, origin: 'document', doc_type: 'invoice' } as const
+
+    it('gives a writer on a posted invoice entry open, edit and void, never reverse', () => {
+        expect(entryActions(postedInvoiceEntry, writer)).toEqual(['open', 'edit', 'void'])
+    })
+
+    it('gives a reader open only on an invoice entry', () => {
+        expect(entryActions(postedInvoiceEntry, reader)).toEqual(['open'])
+    })
+})
+
 describe('newEntryVisible', () => {
     it('follows canWrite', () => {
         expect(newEntryVisible({ canWrite: false })).toBe(false)

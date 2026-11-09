@@ -214,13 +214,19 @@ func ensureRetainedEarnings(tx core.App) error {
 
 // freeRetainedEarningsName is "Retained earnings", or the first of
 // "Retained earnings 2", "Retained earnings 3", … that no top-level account
-// holds. The name index (parent, name COLLATE NOCASE) ignores case, so the
-// lookup does too.
+// holds.
 func freeRetainedEarningsName(tx core.App) (string, error) {
+	return freeTopLevelName(tx, "Retained earnings")
+}
+
+// freeTopLevelName is base, or the first of "<base> 2", "<base> 3", … that no
+// top-level account holds, for an account Books creates itself. The name index
+// (parent, name COLLATE NOCASE) ignores case, so the lookup does too.
+func freeTopLevelName(tx core.App, base string) (string, error) {
 	for i := 1; ; i++ {
-		name := "Retained earnings"
+		name := base
 		if i > 1 {
-			name = fmt.Sprintf("Retained earnings %d", i)
+			name = fmt.Sprintf("%s %d", base, i)
 		}
 		taken, err := tx.CountRecords("books_accounts", dbx.NewExp(
 			"parent = '' AND name = {:name} COLLATE NOCASE", dbx.Params{"name": name},

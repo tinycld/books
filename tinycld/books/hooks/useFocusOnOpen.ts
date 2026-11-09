@@ -7,10 +7,9 @@ import type { TextInputInstance } from 'react-native'
 // does. With `isEnabled` false (a phone layout) nothing is focused. On native a view's
 // `focus` does nothing.
 //
-// For a text input the result is spread onto core TextInput (`{...nameFocus}`). React 19
-// passes `ref` as a prop and core TextInput hands every prop it does not own to its React
-// Native input, but its props type does not list `ref` yet (a core change request), so a
-// spread carries it.
+// For a text input pass the ref as core TextInput's `inputRef`
+// (`inputRef={nameFocus.ref}`): TextInput sets its input's `ref` from `inputRef` after
+// the props spread, so a spread `ref` never reaches the input.
 export function useFocusOnOpen<T extends { focus(): void } = TextInputInstance>(
     isEnabled = true
 ): { ref: RefObject<T | null> } {

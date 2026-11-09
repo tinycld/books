@@ -76,17 +76,23 @@ func rec(group string, names ...string) *reports.Node {
 }
 
 // entryTypeLabel is the register's entry type label (entryTypeLabel in
-// lib/register.ts) from entry_type_labels.json: "Transfer" for a manual
-// transfer, "<label> of <number>" for a reversal origin whose reversed entry
-// has a number, the origin's label otherwise, and the manual label for an
-// origin the table does not name. read reads a field of the entry (a line's
+// lib/register.ts) from entry_type_labels.json: the doc type's label for an
+// entry whose doc type the table names and whose origin is not a reversal
+// ("Transfer", "Invoice"), "<label> of <number>" for a reversal origin whose
+// reversed entry has a number, the origin's label otherwise, and the manual
+// label for an origin the table does not name. read reads a field of the entry (a line's
 // path, or a group's record).
 func entryTypeLabel(read func(names ...string) *reports.Node) *reports.Node {
 	origin := read("origin")
 	reversed := read("reverses", "number")
-	args := []*reports.Node{
-		op("and", op("eq", read("doc_type"), lit(docTypeTransfer)), op("eq", origin, lit("manual"))),
-		lit(entryTypeLabels.Transfer),
+	notReversal := op("not", op("in", origin, lit(entryTypeLabels.ReversalOrigins)))
+	var args []*reports.Node
+	// Sorted, so the spec's JSON does not move with map order.
+	for _, docType := range slices.Sorted(maps.Keys(entryTypeLabels.DocTypes)) {
+		args = append(args,
+			op("and", op("eq", read("doc_type"), lit(docType)), notReversal),
+			lit(entryTypeLabels.DocTypes[docType]),
+		)
 	}
 	for _, o := range entryTypeLabels.ReversalOrigins {
 		label := lit(entryTypeLabels.Origins[o])

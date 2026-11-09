@@ -10,6 +10,10 @@ describe('docTypeLabel', () => {
     it('labels transfer "Transfers"', () => {
         expect(docTypeLabel('transfer')).toBe('Transfers')
     })
+
+    it('labels invoice "Invoices"', () => {
+        expect(docTypeLabel('invoice')).toBe('Invoices')
+    })
 })
 
 describe('nextNumberPreview', () => {
@@ -21,6 +25,10 @@ describe('nextNumberPreview', () => {
 
     it('names the next transfer', () => {
         expect(nextNumberPreview('transfer', 'TR-', '4')).toBe('Next transfer: TR-4')
+    })
+
+    it('names the next invoice, which has no prefix', () => {
+        expect(nextNumberPreview('invoice', '', '1001')).toBe('Next invoice: 1001')
     })
 
     it('uses a generic noun for an unknown doc type', () => {

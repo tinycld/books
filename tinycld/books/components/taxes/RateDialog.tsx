@@ -47,7 +47,7 @@ export function RateDialog({ id, agencyId }: RateDialogProps) {
                     name="name"
                     label="Name"
                     testID="tax-rate-form-name"
-                    {...nameFocus}
+                    inputRef={nameFocus.ref}
                 />
                 <PercentInput
                     control={control}

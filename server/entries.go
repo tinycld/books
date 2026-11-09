@@ -30,7 +30,17 @@ var draftEditable = map[string]bool{
 }
 
 func registerEntryHooks(app core.App) {
+	// A document's entry (origin document) is created, posted and voided only by
+	// its document's Go hooks, which save it through the model path. These
+	// request hooks refuse a person's create of one, and a reversal or a
+	// correction that names one; the update hook refuses its status change.
 	app.OnRecordCreateRequest("books_journal_entries").BindFunc(func(e *core.RecordRequestEvent) error {
+		if e.Record.GetString("origin") == originDocument {
+			return refuse(msgDocumentEntryByBooks)
+		}
+		if err := refuseDocumentLink(e.App, e.Record); err != nil {
+			return err
+		}
 		stampActor(e.Record, "created_by", e.Auth)
 		return e.Next()
 	})
@@ -39,6 +49,9 @@ func registerEntryHooks(app core.App) {
 		// a post, and rewriting its poster would be a change to a posted entry.
 		if e.Record.Original().GetString("status") == e.Record.GetString("status") {
 			return e.Next()
+		}
+		if e.Record.Original().GetString("origin") == originDocument {
+			return refuse(msgDocumentEntryStatus, entryName(e.Record.Original()), documentNoun(e.Record.Original()))
 		}
 		switch e.Record.GetString("status") {
 		case statusPosted:
@@ -128,8 +141,55 @@ func checkNewEntry(r *core.Record) error {
 	if r.GetString("doc_type") == docTypeInvoice && !isInvoiceEntryOrigin(r.GetString("origin")) {
 		return refuse("An invoice entry comes only from posting its invoice.")
 	}
+	// A document's entry is an invoice's (the one document type that posts so
+	// far) and names it; no other entry names a document.
+	if r.GetString("origin") == originDocument {
+		if r.GetString("doc_type") != docTypeInvoice || r.GetString("document") == "" {
+			return refuse(msgDocumentEntryNeedsLink)
+		}
+	} else if r.GetString("document") != "" {
+		return refuse(msgDocumentOnlyOnDocument)
+	}
 	if reverses && r.GetString("replaces") != "" {
 		return refuse("An entry cannot both reverse and replace another entry.")
+	}
+	return nil
+}
+
+// Refusals of a person's write that reaches a document's entry. %s is the
+// entry's name ("Invoice 1001"), then its document's noun ("invoice").
+const (
+	msgDocumentEntryByBooks   = "Books writes a document's journal entry when the document posts."
+	msgDocumentEntryStatus    = "%s is posted and voided from its %s."
+	msgDocumentEntryLinked    = "%s is changed from its %s: use Edit or Void there."
+	msgDocumentEntryNeedsLink = "A document's journal entry names its invoice."
+	msgDocumentOnlyOnDocument = "Only a document's journal entry names a document."
+)
+
+// documentNoun is the lowercase noun of a document entry's doc type: "invoice".
+func documentNoun(entry *core.Record) string {
+	noun, _, _ := entryNouns(entry.GetString("doc_type"))
+	return strings.ToLower(noun)
+}
+
+// refuseDocumentLink refuses a new entry that reverses or replaces a document's
+// entry: the document is edited or voided on its own screen, which writes the
+// correction or the void reversal itself.
+func refuseDocumentLink(app core.App, r *core.Record) error {
+	for _, field := range []string{"reverses", "replaces"} {
+		id := r.GetString(field)
+		if id == "" {
+			continue
+		}
+		target, err := app.FindRecordById("books_journal_entries", id)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			// PocketBase's relation validation refuses the entry next.
+		case err != nil:
+			return err
+		case target.GetString("origin") == originDocument:
+			return refuse(msgDocumentEntryLinked, entryName(target), documentNoun(target))
+		}
 	}
 	return nil
 }

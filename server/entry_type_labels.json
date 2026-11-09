@@ -6,6 +6,9 @@
         "auto_reversal": "Auto reversal",
         "opening_balance": "Opening balances"
     },
-    "transfer": "Transfer",
+    "docTypes": {
+        "transfer": "Transfer",
+        "invoice": "Invoice"
+    },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

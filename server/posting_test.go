@@ -246,7 +246,8 @@ func TestCreate_InvoiceEntriesComeOnlyFromDocuments(t *testing.T) {
 func TestCreate_DocumentInvoiceEntryPostsAndVoids(t *testing.T) {
 	env := newLedgerEnv(t)
 	entry := saveRecord(t, env.app, "books_journal_entries", map[string]any{
-		"date": "2026-11-04", "doc_type": docTypeInvoice, "status": "draft", "origin": "document", "currency": "USD",
+		"date": "2026-11-04", "doc_type": docTypeInvoice, "status": "draft", "origin": "document",
+		"document": "invc1", "currency": "USD",
 	})
 	for i, l := range []ln{{env.checking, 4500, 0}, {env.revenue, 0, 4500}} {
 		saveRecord(t, env.app, "books_journal_lines", map[string]any{
