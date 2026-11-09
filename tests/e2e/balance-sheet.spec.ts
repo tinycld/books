@@ -660,7 +660,8 @@ test.describe('balance-sheet: report', () => {
             NET_INCOME_LABEL,
             TOTAL_LIABILITIES_AND_EQUITY_LABEL,
         ]) {
-            expect(figure(empty, label, 'current'), label).toBe(0)
+            // No line gives these rows a currency: the Books currency does.
+            expect(rowOf(empty, label).cells.current?.trim(), label).toBe('$0.00')
         }
     })
 
