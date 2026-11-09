@@ -1,5 +1,6 @@
 import type { BooksJournalEntries, BooksJournalLines } from '../types'
 import { ownBalance } from './account-tree'
+import { type LinePartyRow, linePartyName } from './line-party-options'
 import { maxStoredAmount } from './money'
 import type { RegisterRange } from './register-range'
 
@@ -8,10 +9,15 @@ export type RegisterEntry = Pick<
     'id' | 'number' | 'memo' | 'status' | 'origin' | 'doc_type' | 'posted_at' | 'reverses' | 'date'
 >
 
+// The line's customer and vendor rows come through materialize (registerLinesQuery):
+// absent for a line that names none, or while the row is not loaded.
 export type RegisterEntryLine = Pick<
     BooksJournalLines,
     'id' | 'account' | 'debit' | 'credit' | 'memo' | 'position'
->
+> & {
+    customerRow?: LinePartyRow
+    vendorRow?: LinePartyRow
+}
 
 export type RegisterSourceLine = Pick<
     BooksJournalLines,
@@ -68,11 +74,15 @@ export type EntryDetail = {
         debit: number
         credit: number
         memo: string
+        // The customer's or vendor's display name, '' when the line names none.
+        partyName: string
         isThisAccount: boolean
     }[]
 }
 
-const originLabels: Record<string, string> = {
+// Copies of server/entry_type_labels.json, which the Go General Ledger reads for
+// its Type column; tests/register.test.ts fails when the two differ.
+export const originLabels: Record<string, string> = {
     manual: 'Journal entry',
     reversal: 'Reversal',
     void_reversal: 'Void reversal',
@@ -80,7 +90,9 @@ const originLabels: Record<string, string> = {
     opening_balance: 'Opening balances',
 }
 
-const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])
+export const TRANSFER_LABEL = 'Transfer'
+
+export const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])
 
 // A transfer's reversal keeps doc_type 'transfer' and its "Void reversal of TR-3" label.
 export function entryTypeLabel(
@@ -88,7 +100,7 @@ export function entryTypeLabel(
     reversesNumber: string,
     docType: string = 'journal'
 ): string {
-    if (docType === 'transfer' && origin === 'manual') return 'Transfer'
+    if (docType === 'transfer' && origin === 'manual') return TRANSFER_LABEL
     const label = originLabels[origin] ?? originLabels.manual
     if (!reversalOrigins.has(origin) || !reversesNumber) return label
     return `${label} of ${reversesNumber}`
@@ -205,6 +217,7 @@ export function entryDetail(line: RegisterSourceLine, accountId: string): EntryD
                 debit: l.debit,
                 credit: l.credit,
                 memo: l.memo,
+                partyName: linePartyName(l),
                 isThisAccount: l.account === accountId,
             })),
     }

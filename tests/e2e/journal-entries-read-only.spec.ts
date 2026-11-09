@@ -97,7 +97,7 @@ for (const [sizeName, size] of SIZES) {
 
             await expect(
                 page.locator(
-                    '[data-testid^="entry-line-"]:not([data-testid^="entry-line-a"]):not([data-testid^="entry-line-d"]):not([data-testid^="entry-line-c"]):not([data-testid^="entry-line-m"])'
+                    '[data-testid^="entry-line-"]:not([data-testid^="entry-line-a"]):not([data-testid^="entry-line-d"]):not([data-testid^="entry-line-c"]):not([data-testid^="entry-line-m"]):not([data-testid^="entry-line-party-"])'
                 )
             ).toHaveCount(2)
             await expect(page.getByTestId('entry-line-account-0')).toHaveText(

@@ -30,6 +30,8 @@ export function registerLine(
         debit: 1_000,
         credit: 0,
         memo: '',
+        customer: '',
+        vendor: '',
         position: 0,
         posted: true,
         date: '2026-10-12',

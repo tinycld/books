@@ -20,8 +20,10 @@ import {
 import type {
     BooksAccountBalances,
     BooksAccounts,
+    BooksCustomers,
     BooksJournalEntries,
     BooksJournalLines,
+    BooksVendors,
 } from '../tinycld/books/types'
 import { BALANCES, RANGE, SEED_ENTRIES, SEED_LINES } from './register-test-data'
 
@@ -48,6 +50,8 @@ function stores(seed: {
         entries: local<BooksJournalEntries>('entries', seed.entries ?? SEED_ENTRIES),
         balances: local<BooksAccountBalances>('balances', seed.balances ?? BALANCES),
         accounts: local<BooksAccounts>('accounts', ACCOUNTS),
+        customers: local<BooksCustomers>('customers', []),
+        vendors: local<BooksVendors>('vendors', []),
     }
 }
 
@@ -63,8 +67,10 @@ async function registerRows(
     seed: Parameters<typeof stores>[0],
     range: { start: string; end: string } = RANGE
 ) {
-    const { lines, entries } = stores(seed)
-    return run(registerLinesQuery(lines, entries, REGISTER_ACCOUNT_ID, range))
+    const { lines, entries, customers, vendors } = stores(seed)
+    return run(
+        registerLinesQuery(lines, entries, REGISTER_ACCOUNT_ID, range, { customers, vendors })
+    )
 }
 
 const expectedIds = SEED_LINES.filter(

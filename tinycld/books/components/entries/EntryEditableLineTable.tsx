@@ -25,6 +25,9 @@ function HeadingRow() {
             <View style={LINE_COLUMNS.account}>
                 <HeadingText label="Account" />
             </View>
+            <View style={LINE_COLUMNS.name}>
+                <HeadingText label="Name" />
+            </View>
             <View style={LINE_COLUMNS.debit} className="items-end">
                 <HeadingText label="Debit" />
             </View>

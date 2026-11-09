@@ -5,13 +5,16 @@ export const maxLines = 200
 // Shown in place of an amount that cannot be stored.
 export const TOO_LARGE_TEXT = 'Too large'
 
-// `id` is the saved line id, or '' for a line that is not saved yet.
+// `id` is the saved line id, or '' for a line that is not saved yet. `customer` and
+// `vendor` are the line's Name: at most one is set, '' for none.
 export type EntryFormLine = {
     id: string
     account: string
     debit: string
     credit: string
     memo: string
+    customer: string
+    vendor: string
 }
 
 export type LineTotals = {
@@ -66,7 +69,9 @@ export function isBlankLine(line: EntryFormLine): boolean {
         line.account.trim() === '' &&
         line.debit.trim() === '' &&
         line.credit.trim() === '' &&
-        line.memo.trim() === ''
+        line.memo.trim() === '' &&
+        line.customer === '' &&
+        line.vendor === ''
     )
 }
 
@@ -98,7 +103,9 @@ function isChanged(saved: EntryFormLine, next: EntryFormLine): boolean {
         saved.account !== next.account ||
         saved.debit !== next.debit ||
         saved.credit !== next.credit ||
-        saved.memo !== next.memo
+        saved.memo !== next.memo ||
+        saved.customer !== next.customer ||
+        saved.vendor !== next.vendor
     )
 }
 

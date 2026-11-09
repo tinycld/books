@@ -23,6 +23,8 @@ export function entryInitialValues(
                 debit: amountText(line.debit, currency),
                 credit: amountText(line.credit, currency),
                 memo: line.memo,
+                customer: line.customer ?? '',
+                vendor: line.vendor ?? '',
             })),
     }
 }

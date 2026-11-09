@@ -54,6 +54,8 @@ describe('registerCollections', () => {
         // Spike outcome (a): the lines reach their entry through a relation.
         expect(calls.get('books_journal_lines')?.relations).toEqual({
             account: { name: 'books_accounts' },
+            customer: { name: 'books_customers' },
+            vendor: { name: 'books_vendors' },
             entry: { name: 'books_journal_entries' },
         })
         expect(calls.get('books_journal_entries')?.relations).toEqual({

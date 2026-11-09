@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { EntryFormLine } from '../tinycld/books/lib/entry-lines'
+import { LINE_BOTH_PARTIES } from '../tinycld/books/lib/entry-messages'
 import {
     defaultReverseDate,
     type EntryFormValues,
+    emptyLine,
     entryResolver,
     newEntryDefaults,
     postSchema,
@@ -17,6 +19,8 @@ const line = (over: Partial<EntryFormLine> = {}): EntryFormLine => ({
     debit: '',
     credit: '',
     memo: '',
+    customer: '',
+    vendor: '',
     ...over,
 })
 
@@ -266,7 +270,46 @@ describe('newEntryDefaults', () => {
         expect(defaults.date).toBe('2026-10-31')
         expect(defaults.lines).toHaveLength(2)
         for (const l of defaults.lines) {
-            expect(l).toEqual({ id: '', account: '', debit: '', credit: '', memo: '' })
+            expect(l).toEqual({
+                id: '',
+                account: '',
+                debit: '',
+                credit: '',
+                memo: '',
+                customer: '',
+                vendor: '',
+            })
         }
+    })
+})
+
+describe('line customer or vendor', () => {
+    it('a line with only a customer is not blank and asks for an account', () => {
+        const result = saveDraftSchema.safeParse(
+            values({ lines: [line({ account: '', customer: 'cust1' })] })
+        )
+        expect(result.success).toBe(false)
+        expect(issuesOf(result)).toContainEqual(
+            expect.objectContaining({ path: ['lines', 0, 'account'], message: 'Choose an account' })
+        )
+    })
+
+    it('a line with a customer and a vendor is refused on customer', () => {
+        const result = saveDraftSchema.safeParse(
+            values({
+                lines: [
+                    line({ debit: '$10.00', customer: 'cust1', vendor: 'vend1' }),
+                    line({ account: 'acc2', credit: '$10.00' }),
+                ],
+            })
+        )
+        expect(result.success).toBe(false)
+        expect(issuesOf(result)).toContainEqual(
+            expect.objectContaining({ path: ['lines', 0, 'customer'], message: LINE_BOTH_PARTIES })
+        )
+    })
+
+    it('emptyLine names no customer and no vendor', () => {
+        expect(emptyLine()).toEqual(expect.objectContaining({ customer: '', vendor: '' }))
     })
 })

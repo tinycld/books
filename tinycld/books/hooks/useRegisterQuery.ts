@@ -34,7 +34,12 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
         'books_journal_entries',
         'books_account_balances'
     )
-    const [settingsCollection] = useStore('books_settings')
+    const [settingsCollection, customersCollection, vendorsCollection] = useStore(
+        'books_settings',
+        'books_customers',
+        'books_vendors'
+    )
+    const parties = { customers: customersCollection, vendors: vendorsCollection }
     const settingsQuery = useLiveQuery({
         query: query => query.from({ settings: settingsCollection }),
         queryKey: ['books.register.settings'],
@@ -48,7 +53,13 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
     const linesQuery = useLiveQuery({
         query: query =>
             range
-                ? registerLinesQuery(linesCollection, entriesCollection, accountId, range)(query)
+                ? registerLinesQuery(
+                      linesCollection,
+                      entriesCollection,
+                      accountId,
+                      range,
+                      parties
+                  )(query)
                 : undefined,
         queryKey: ['books.register.lines', accountId, range?.start, range?.end],
     })
@@ -111,6 +122,8 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
                 linesCollection,
                 entriesCollection,
                 balancesCollection,
+                customersCollection,
+                vendorsCollection,
             ],
             onError: err => log.error('books.register', err),
         })

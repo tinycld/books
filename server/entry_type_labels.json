@@ -1,0 +1,11 @@
+{
+    "origins": {
+        "manual": "Journal entry",
+        "reversal": "Reversal",
+        "void_reversal": "Void reversal",
+        "auto_reversal": "Auto reversal",
+        "opening_balance": "Opening balances"
+    },
+    "transfer": "Transfer",
+    "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
+}

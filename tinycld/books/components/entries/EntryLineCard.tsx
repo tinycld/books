@@ -14,6 +14,20 @@ function SideMarker({ isVisible, label }: { isVisible: boolean; label: string })
     return <Text className="text-xs text-muted-foreground">{label}</Text>
 }
 
+// The line's customer or vendor; an empty node when it names none, so the line's Name is
+// present (blank) like the desktop table's empty cell.
+function PartyLine({ name, index }: { name: string; index: number }) {
+    return (
+        <Text
+            testID={`entry-line-party-${index}`}
+            numberOfLines={1}
+            className="text-xs text-foreground"
+        >
+            {name}
+        </Text>
+    )
+}
+
 function MemoLine({ memo }: { memo: string }) {
     if (memo === '') return null
     return (
@@ -55,6 +69,7 @@ export function EntryLineCard({ line, index, accountNames, currency }: EntryLine
                     <SideMarker isVisible={line.credit !== 0} label="Cr" />
                 </View>
             </View>
+            <PartyLine name={line.partyName} index={index} />
             <MemoLine memo={line.memo} />
         </View>
     )

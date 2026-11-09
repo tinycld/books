@@ -74,7 +74,29 @@ function LineMemo({ memo }: { memo: string }) {
     )
 }
 
-function DrawerLine({ line, currency }: { line: DetailLine; currency: string }) {
+// The line's customer or vendor, under its account; an empty node when it names none, so
+// the line's Name is present (blank) like the read view's.
+function LineParty({ name, index }: { name: string; index: number }) {
+    return (
+        <Text
+            testID={`entry-line-party-${index}`}
+            numberOfLines={1}
+            className="text-xs text-foreground"
+        >
+            {name}
+        </Text>
+    )
+}
+
+function DrawerLine({
+    line,
+    index,
+    currency,
+}: {
+    line: DetailLine
+    index: number
+    currency: string
+}) {
     const bg = line.isThisAccount ? 'bg-accent' : ''
     return (
         <View
@@ -90,6 +112,7 @@ function DrawerLine({ line, currency }: { line: DetailLine; currency: string }) 
                     {amountText(line.credit, currency)}
                 </Text>
             </View>
+            <LineParty name={line.partyName} index={index} />
             <LineMemo memo={line.memo} />
         </View>
     )
@@ -108,8 +131,8 @@ function LinesHeading() {
 
 function EntryFields({ detail, currency }: { detail: EntryDetail | null; currency: string }) {
     if (!detail) return null
-    const lines = detail.lines.map(line => (
-        <DrawerLine key={line.id} line={line} currency={currency} />
+    const lines = detail.lines.map((line, index) => (
+        <DrawerLine key={line.id} line={line} index={index} currency={currency} />
     ))
     return (
         <View className="gap-3">
