@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/general-ledger-checkpoints.md
 - reference: docs/plans/general-ledger-reference/
 - evidence: docs/plans/general-ledger-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-08)
 - capture manifest: docs/plans/general-ledger-capture.json
 - review mode: C — none (unattended)
 - core extension: report spec v3 and engine extensions F1–F11 (spec §4) — checkpoint 0, core PR on branch books/p5-general-ledger, merges before checkpoint 1; MAJOR, lane purchases takes `exclusive` before the core build. Core merge: pre-approved by the human (2026-11-06) — merge when checks are green, unless the checkpoint 0 runner reports an out-of-plan file, a deferral, a rebuttal, or STOPPED. Runs as writing-plans → the human's plan review → subagent-driven development → core PR.
@@ -232,3 +232,6 @@ Books (checkpoint 3, in the tree, not committed):
 - deferrals: none · rebuttals: none.
 - human: n/a (mode C)
 - commit: bdaec3b (books, branch books/p5-general-ledger; not pushed)
+
+## Final review
+- eval: approved 2026-11-08 by the human; CI full suite green at 3f5e261 (PR books#34, run 42537025783 attempt 2, after core PR #452 report-engine performance fix); CI fixes: Banking dialog ⌘↵ scope owner (cb19429, 3f5e261); retro items pending the human.
