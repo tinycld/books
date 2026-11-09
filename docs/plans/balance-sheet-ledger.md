@@ -86,6 +86,7 @@
 - gate 3 A notes: 2 (Design notes)
 - reviewer-caught deferrals: none
 - out-of-plan: none (`docs/plans/balance-sheet-evidence/cp1/*` is the gate 2 evidence path the brief names)
+- commit: 9954c69 (not pushed; the driver pushes)
 - human: none (review mode C)
 
 ## Final review
