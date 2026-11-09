@@ -39,6 +39,9 @@
 // renaming a parent re-keys its sub-customers in the same transaction. It is
 // not hidden: the list sorts, filters and pages on it.
 //
+// TERMS. terms is the customer's default payment terms, which a new invoice
+// takes. Empty is none.
+//
 // form and fields are the core forms engine's host columns (books:customer).
 //
 // The rule constants repeat 2100000002's: a migration cannot import another.
@@ -78,6 +81,14 @@ migrate(
                     { name: 'shipping_address', type: 'json', maxSize: 8192 },
                     { name: 'notes', type: 'text', max: 5000 },
                     { name: 'inactive', type: 'bool' },
+                    // Must equal PAYMENT_TERM_KEYS (tinycld/books/lib/payment-terms.ts);
+                    // tests/payment-terms.test.ts fails when they drift.
+                    {
+                        name: 'terms',
+                        type: 'select',
+                        maxSelect: 1,
+                        values: ['due_on_receipt', 'net_10', 'net_15', 'net_30', 'net_60'],
+                    },
                     {
                         name: 'form',
                         type: 'relation',

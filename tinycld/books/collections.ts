@@ -136,6 +136,7 @@ export function registerCollections(
             'created_by',
             'close_override',
             'currency',
+            'document',
         ] as const,
         ...onDemand,
         relations: {
@@ -220,6 +221,46 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // Every field below the omit line is Books' own: the number at posting, the
+    // totals at every draft write, who and when by the request, sort_key by the
+    // guard. No relations: the invoice screen reads its customer, tax rate and
+    // users through their own queries.
+    const books_invoices = newCollection('books_invoices', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'tax_total',
+            'total',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // amount is recomputed by the server at every line write.
+    const books_invoice_lines = newCollection('books_invoice_lines', {
+        omitOnInsert: ['created', 'updated', 'amount'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // Written by the server at posting; clients only read it.
+    const books_invoice_tax_lines = newCollection('books_invoice_tax_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_bank_connections,
@@ -241,5 +282,8 @@ export function registerCollections(
         books_bundle_items,
         books_tax_agencies,
         books_tax_rates,
+        books_invoices,
+        books_invoice_lines,
+        books_invoice_tax_lines,
     }
 }

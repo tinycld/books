@@ -76,6 +76,7 @@ function entry(seed: EntrySeed): BooksJournalEntries {
         updated: `${seed.date} 08:00:00.000Z`,
         reverses: '',
         replaces: '',
+        document: '',
         ...seed,
     }
 }

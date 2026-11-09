@@ -56,7 +56,14 @@ type productReference struct {
 // a product on any of those lines cannot be deleted either.
 var productReferences = []productReference{
 	{collection: "books_bundle_items", field: "product", distinct: "bundle", message: productOnBundlesMessage},
+	{collection: "books_invoice_lines", field: "product", distinct: "invoice", message: productOnInvoicesMessage},
 }
+
+// The delete refusals of a product on invoice lines, counted by invoice.
+const (
+	msgProductOnOneInvoice = "This product or service is on 1 invoice. Make it inactive instead."
+	msgProductOnInvoices   = "This product or service is on %d invoices. Make it inactive instead."
+)
 
 // The product and bundle row guards read other products and the accounts
 // inside serialized, so no other write can commit between the check and the
@@ -255,6 +262,15 @@ func productOnBundlesMessage(count int) string {
 		return msgProductOnOneBundle
 	}
 	return fmt.Sprintf(msgProductOnBundles, count)
+}
+
+// productOnInvoicesMessage is the delete refusal for a product on the lines of
+// count distinct invoices, draft or posted.
+func productOnInvoicesMessage(count int) string {
+	if count == 1 {
+		return msgProductOnOneInvoice
+	}
+	return fmt.Sprintf(msgProductOnInvoices, count)
 }
 
 // productTypeLabel is a product type as a person reads it; an unknown type

@@ -172,6 +172,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 				}},
 				{key: "doc_type", typ: reports.Select, options: []reports.Option{
 					{Value: "journal", Label: "Journal entry"}, {Value: "transfer", Label: "Transfer"},
+					{Value: "invoice", Label: "Invoice"},
 				}},
 				textMinMax("number"),
 				// The posting order behind number, so opened lines sort 9 before 10.

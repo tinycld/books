@@ -217,6 +217,59 @@ func TestCreate_EntriesStartAsDrafts(t *testing.T) {
 	}
 }
 
+// An invoice's entry is made only by posting the invoice (origin document) or
+// by reversing such an entry. A manual or opening-balance one from Go would
+// post and take a number from the invoice sequence.
+func TestCreate_InvoiceEntriesComeOnlyFromDocuments(t *testing.T) {
+	for _, origin := range []string{originManual, originOpeningBalance} {
+		t.Run(origin, func(t *testing.T) {
+			env := newLedgerEnv(t)
+			_, err := saveNew(env.app, "books_journal_entries", map[string]any{
+				"date": "2026-05-01", "doc_type": docTypeInvoice, "status": "draft", "origin": origin, "currency": "USD",
+			})
+			if apiErr := apiErrorOf(t, err); apiErr.Status != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400", apiErr.Status)
+			}
+			n, err := env.app.CountRecords("books_journal_entries", dbx.HashExp{"doc_type": docTypeInvoice})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n != 0 {
+				t.Errorf("%d invoice entries stored, want 0", n)
+			}
+		})
+	}
+}
+
+// The posting path of checkpoint 2 saves origin-document invoice entries from
+// Go and voids them; the guard keeps that path open.
+func TestCreate_DocumentInvoiceEntryPostsAndVoids(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := saveRecord(t, env.app, "books_journal_entries", map[string]any{
+		"date": "2026-11-04", "doc_type": docTypeInvoice, "status": "draft", "origin": "document", "currency": "USD",
+	})
+	for i, l := range []ln{{env.checking, 4500, 0}, {env.revenue, 0, 4500}} {
+		saveRecord(t, env.app, "books_journal_lines", map[string]any{
+			"entry": entry.Id, "account": l.account.Id, "debit": l.debit, "credit": l.credit,
+			"position": i, "currency": "USD",
+		})
+	}
+	posted := mustPost(t, env.app, entry.Id, env.users.bookkeeper.Id)
+	if n := posted.GetString("number"); n != "1001" {
+		t.Errorf("invoice entry number %q, want 1001", n)
+	}
+	if err := setStatus(env.app, entry.Id, statusVoid, env.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void the invoice entry: %v", err)
+	}
+	rev, err := postedReversalOf(env.app, entry.Id)
+	if err != nil {
+		t.Fatalf("find the void's reversal: %v", err)
+	}
+	if rev.GetString("doc_type") != docTypeInvoice || rev.GetString("origin") != originVoidReversal {
+		t.Errorf("reversal doc_type %q origin %q, want invoice, void_reversal", rev.GetString("doc_type"), rev.GetString("origin"))
+	}
+}
+
 // The create rule pins Books' fields for REST. A Go caller passes no rule,
 // so the create hook refuses the same fields: a draft cannot start with a
 // number, a total, a poster or a close-date override.

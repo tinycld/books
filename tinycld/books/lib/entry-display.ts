@@ -29,12 +29,20 @@ export function entryStatusText(status: EntryStatus): string {
     return STATUS_LABELS[status]
 }
 
-// A transfer's reversal keeps doc_type 'transfer' but is labelled by its origin.
+const DOC_TYPE_TEXT: Record<BooksJournalEntries['doc_type'], string> = {
+    journal: 'Journal entry',
+    transfer: 'Transfer',
+    invoice: 'Invoice',
+}
+
+// A transfer's reversal keeps doc_type 'transfer' but is labelled by its origin. A
+// document's entry (an invoice's) is labelled by its doc type.
 export function entryTypeText(
     origin: EntryOrigin,
     docType: BooksJournalEntries['doc_type'] = 'journal'
 ): string {
     if (docType === 'transfer' && origin === 'manual') return 'Transfer'
+    if (origin === 'document') return DOC_TYPE_TEXT[docType]
     return ENTRY_TYPE_LABELS[origin]
 }
 

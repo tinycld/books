@@ -29,6 +29,7 @@ const ALL_COLUMNS = {
     exemption_number: true,
     default_tax_rate: true,
     inactive: true,
+    terms: true,
     form: true,
     fields: true,
     name_key: true,

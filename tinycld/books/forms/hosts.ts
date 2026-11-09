@@ -134,6 +134,7 @@ const hosts: FormHostDefInput[] = [
             'exemption_number',
             'default_tax_rate',
             'inactive',
+            'terms',
             'form',
             'fields',
             'name_key',
