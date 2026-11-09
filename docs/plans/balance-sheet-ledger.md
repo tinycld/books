@@ -107,6 +107,7 @@
 - gate 3 A notes: 2 (Design notes)
 - reviewer-caught deferrals: none
 - out-of-plan: 3 (see Out-of-plan changes)
+- commit: e96ba0a (not pushed; the driver pushes)
 - human: none (review mode C)
 
 ## Final review
