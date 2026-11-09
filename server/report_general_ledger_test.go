@@ -1171,3 +1171,151 @@ func TestGeneralLedgerLayouts(t *testing.T) {
 		t.Errorf("Validate refuses the layouts: %v", err)
 	}
 }
+
+// The General Ledger's spec JSON stays byte-identical when its type label, its
+// account label and blankZero move to the shared helpers the Journal uses
+// (journal-report spec §5). The golden is mustJSON(generalLedgerSpec()) taken
+// before the move.
+func TestGeneralLedgerSpecUnchanged(t *testing.T) {
+	got := string(mustJSON(generalLedgerSpec()))
+	if got == generalLedgerSpecGolden {
+		return
+	}
+	at := 0
+	for at < len(got) && at < len(generalLedgerSpecGolden) && got[at] == generalLedgerSpecGolden[at] {
+		at++
+	}
+	from := max(at-80, 0)
+	t.Errorf("the General Ledger spec JSON changed at byte %d (%d bytes, golden %d):\n got  …%s…\n want …%s…",
+		at, len(got), len(generalLedgerSpecGolden),
+		got[from:min(at+80, len(got))], generalLedgerSpecGolden[from:min(at+80, len(generalLedgerSpecGolden))])
+}
+
+const generalLedgerSpecGolden = "" +
+	`{"version":4,"source":"books.journal_lines","params":[{"id":"period","type":"dateRange","label":"Period","default":{"preset":"thisMonthToDate"}},{"id":"rows","t` +
+	`ype":"choice","label":"Rows","default":"active","options":[{"value":"active","label":"With activity"},{"value":"all","label":"All"}]},{"id":"accounts","type":"c` +
+	`hoice","label":"Accounts","optionsFrom":{"source":"books.accounts","value":[{"field":"id"}],"label":[{"field":"full_name"}],"group":[{"field":"type"}],"groupOrd` +
+	`er":{"by":"declared"},"groupLabel":"All {group} accounts"},"multiple":true}],"columns":[{"id":"account","label":"Account / Date","path":[{"link":"account"}]},{"` +
+	`id":"type","label":"Type","formula":{"op":"case","args":[{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"trans` +
+	`fer"}]},{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"manual"}]}]},{"value":"Transfer"},{"op":"eq","args":[{"path":[{"link":"entry` +
+	`"},{"field":"origin"}]},{"value":"reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]},{` +
+	`"value":"Reversal"},{"op":"concat","args":[{"value":"Reversal"},{"value":" of "},{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]}]},{"op":"e` +
+	`q","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"void_reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"lin` +
+	`k":"reverses"},{"field":"number"}]}]},{"value":"Void reversal"},{"op":"concat","args":[{"value":"Void reversal"},{"value":" of "},{"path":[{"link":"entry"},{"li` +
+	`nk":"reverses"},{"field":"number"}]}]}]},{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"auto_reversal"}]},{"op":"if","args":[{"op":` +
+	`"isEmpty","args":[{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]},{"value":"Auto reversal"},{"op":"concat","args":[{"value":"Auto reversal"` +
+	`},{"value":" of "},{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]}]},{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"va` +
+	`lue":"manual"}]},{"value":"Journal entry"},{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"opening_balance"}]},{"value":"Opening bal` +
+	`ances"},{"value":"Journal entry"}]}},{"id":"number","label":"No.","formula":{"path":[{"link":"entry"},{"field":"number"}]}},{"id":"name","label":"Name","formula` +
+	`":{"op":"coalesce","args":[{"path":[{"link":"customer"},{"field":"display_name"}]},{"path":[{"link":"vendor"},{"field":"display_name"}]}]}},{"id":"description",` +
+	`"label":"Description","formula":{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"field":"memo"}]}]},{"path":[{"link":"entry"},{"field":"memo"}]},{"path":[{` +
+	`"field":"memo"}]}]}},{"id":"split","label":"Split","formula":{"op":"case","args":[{"op":"eq","args":[{"op":"lookup","value":{"path":[{"field":"id"}]},"where":{"` +
+	`op":"eq","args":[{"path":[{"link":"entry"}]},{"outer":[{"link":"entry"}]}]},"source":"books.journal_lines","pick":"count"},{"value":2}]},{"op":"lookup","value":` +
+	`{"path":[{"link":"account"},{"field":"full_name"}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"}]},{"outer":[{"link":"entry"}]}]},{"` +
+	`op":"ne","args":[{"path":[{"field":"id"}]},{"outer":[{"field":"id"}]}]}]},"source":"books.journal_lines","pick":"min"},{"op":"gt","args":[{"op":"lookup","value"` +
+	`:{"path":[{"field":"id"}]},"where":{"op":"eq","args":[{"path":[{"link":"entry"}]},{"outer":[{"link":"entry"}]}]},"source":"books.journal_lines","pick":"count"},` +
+	`{"value":2}]},{"value":"-Split-"},{"value":null}]}},{"id":"debit","label":"Debit","formula":{"op":"if","args":[{"op":"eq","args":[{"path":[{"field":"debit"}]},{` +
+	`"value":0}]},{"value":null},{"path":[{"field":"debit"}]}]},"rollup":{"op":"sum","args":[{"path":[{"field":"debit"}]}]}},{"id":"credit","label":"Credit","formula` +
+	`":{"op":"if","args":[{"op":"eq","args":[{"path":[{"field":"credit"}]},{"value":0}]},{"value":null},{"path":[{"field":"credit"}]}]},"rollup":{"op":"sum","args":[` +
+	`{"path":[{"field":"credit"}]}]}},{"id":"balance","label":"Balance","formula":{"op":"if","args":[{"op":"in","args":[{"path":[{"field":"type"}],"record":"byAccoun` +
+	`t"},{"value":["accounts_payable","credit_card","other_current_liability","long_term_liability","equity","income","other_income"]}]},{"op":"sub","args":[{"value"` +
+	`:0},{"op":"add","args":[{"op":"add","args":[{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"` +
+	`credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"account"}]},{"path":[{"field":"id"}],"record":"byAccount"}]},{"op":"eq","args":[{"` +
+	`path":[{"field":"posted"}]},{"value":true}]},{"op":"lt","args":[{"path":[{"field":"date"}]},{"param":"period","bound":"from"}]},{"op":"or","args":[{"op":"not","` +
+	`args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]}]},` +
+	`{"op":"gte","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]}]},"source":"book` +
+	`s.journal_lines","pick":"sum"},{"value":0}]},{"op":"if","args":[{"op":"eq","args":[{"path":[{"field":"detail_type"}],"record":"byAccount"},{"value":"retained_ea` +
+	`rnings"}]},{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and",` +
+	`"args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","` +
+	`other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear",` +
+	`"args":[{"param":"period","bound":"from"}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"value":0}]}]},{"op":"runningSum","args":[{"op":"sub` +
+	`","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]}]}]},{"op":"add","args":[{"op":"add","args":[{"op":"coalesce","args":[{"op":"lookup","va` +
+	`lue":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"account"}` +
+	`]},{"path":[{"field":"id"}],"record":"byAccount"}]},{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"lt","args":[{"path":[{"field":"date` +
+	`"}]},{"param":"period","bound":"from"}]},{"op":"or","args":[{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["inc` +
+	`ome","other_income","cost_of_goods_sold","expense","other_expense"]}]}]},{"op":"gte","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fis` +
+	`calYear","args":[{"param":"period","bound":"from"}]}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"op":"if","args":[{"op":"eq","args":[{"pa` +
+	`th":[{"field":"detail_type"}],"record":"byAccount"},{"value":"retained_earnings"}]},{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":` +
+	`[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"in","a` +
+	`rgs":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","args":[{"o` +
+	`p":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]},"source":"books.journal_lines","pick":"` +
+	`sum"},{"value":0}]},{"value":0}]}]},{"op":"runningSum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]}]}]},"rollup":{` +
+	`"op":"if","args":[{"op":"in","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":["accounts_payable","credit_card","other_current_liability","long` +
+	`_term_liability","equity","income","other_income"]}]},{"op":"sub","args":[{"value":0},{"op":"add","args":[{"op":"add","args":[{"op":"coalesce","args":[{"op":"lo` +
+	`okup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"` +
+	`account"}]},{"path":[{"field":"id"}],"record":"byAccount"}]},{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"lt","args":[{"path":[{"fie` +
+	`ld":"date"}]},{"param":"period","bound":"from"}]},{"op":"or","args":[{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"val` +
+	`ue":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]}]},{"op":"gte","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{` +
+	`"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"op":"if","args":[{"op":"eq","ar` +
+	`gs":[{"path":[{"field":"detail_type"}],"record":"byAccount"},{"value":"retained_earnings"}]},{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":` +
+	`[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op` +
+	`":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","a` +
+	`rgs":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]},"source":"books.journal_lines"` +
+	`,"pick":"sum"},{"value":0}]},{"value":0}]}]},{"op":"coalesce","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"cr` +
+	`edit"}]}]}]},{"value":0}]}]}]},{"op":"add","args":[{"op":"add","args":[{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"de` +
+	`bit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"account"}]},{"path":[{"field":"id"}],"record":"byAccoun` +
+	`t"}]},{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"lt","args":[{"path":[{"field":"date"}]},{"param":"period","bound":"from"}]},{"op"` +
+	`:"or","args":[{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expe` +
+	`nse","other_expense"]}]}]},{"op":"gte","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"fr` +
+	`om"}]}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"op":"if","args":[{"op":"eq","args":[{"path":[{"field":"detail_type"}],"record":"byAcco` +
+	`unt"},{"value":"retained_earnings"}]},{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit` +
+	`"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"in","args":[{"path":[{"link":"account"},{"field":"ty` +
+	`pe"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","args":[{"op":"fiscalYear","args":[{"path":[{"field":"dat` +
+	`e"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"value":0}]}]},{"op":"coa` +
+	`lesce","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":0}]}]}]}}],"filter":{"op":"and","` +
+	`args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"between","args":[{"path":[{"field":"date"}]},{"param":"period"}]},{"op":"in","ar` +
+	`gs":[{"col":"account"},{"param":"accounts"}]}]},"sort":[{"formula":{"op":"case","args":[{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"va` +
+	`lue":"bank"}]},{"value":1},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"accounts_receivable"}]},{"value":2},{"op":"eq","args":[` +
+	`{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_current_asset"}]},{"value":3},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount` +
+	`"},{"value":"fixed_asset"}]},{"value":4},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_asset"}]},{"value":5},{"op":"eq","a` +
+	`rgs":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"accounts_payable"}]},{"value":6},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAcco` +
+	`unt"},{"value":"credit_card"}]},{"value":7},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_current_liability"}]},{"value":8` +
+	`},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"long_term_liability"}]},{"value":9},{"op":"eq","args":[{"path":[{"field":"type"}` +
+	`],"record":"byAccount"},{"value":"equity"}]},{"value":10},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"income"}]},{"value":11},` +
+	`{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_income"}]},{"value":12},{"op":"eq","args":[{"path":[{"field":"type"}],"recor` +
+	`d":"byAccount"},{"value":"cost_of_goods_sold"}]},{"value":13},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"expense"}]},{"value"` +
+	`:14},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_expense"}]},{"value":15},{"value":16}]}},{"formula":{"path":[{"field":"` +
+	`number"}],"record":"byAccount"}},{"formula":{"path":[{"field":"full_name"}],"record":"byAccount"}},{"formula":{"path":[{"field":"date"}]}},{"formula":{"path":[{` +
+	`"link":"entry"},{"field":"posted_at"}]}},{"formula":{"path":[{"field":"position"}]}}],"groups":[{"id":"byAccount","col":"account","subtotals":true,"open":true,"` +
+	`label":{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"field":"number"}],"record":"byAccount"}]},{"path":[{"field":"full_name"}],"record":"byAccount"},{"o` +
+	`p":"concat","args":[{"path":[{"field":"number"}],"record":"byAccount"},{"value":" "},{"path":[{"field":"full_name"}],"record":"byAccount"}]}]},"fill":{"where":{` +
+	`"op":"in","args":[{"path":[{"field":"id"}]},{"param":"accounts"}]}},"having":{"op":"or","args":[{"op":"gt","args":[{"op":"count","args":[{"path":[{"field":"id"}` +
+	`]}]},{"value":0}]},{"op":"ne","args":[{"op":"add","args":[{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"pat` +
+	`h":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"account"}]},{"path":[{"field":"id"}],"record":"byAccount"}]},{"op":"` +
+	`eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"lt","args":[{"path":[{"field":"date"}]},{"param":"period","bound":"from"}]},{"op":"or","args":` +
+	`[{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_e` +
+	`xpense"]}]}]},{"op":"gte","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]}]},` +
+	`"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"op":"if","args":[{"op":"eq","args":[{"path":[{"field":"detail_type"}],"record":"byAccount"},{"value` +
+	`":"retained_earnings"}]},{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where` +
+	`":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"valu` +
+	`e":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op"` +
+	`:"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"value":0}]}]},{"value":0}]},{"op":"an` +
+	`d","args":[{"op":"eq","args":[{"param":"rows"},{"value":"all"}]},{"op":"eq","args":[{"path":[{"field":"inactive"}],"record":"byAccount"},{"value":false}]}]}]},"` +
+	`opening":{"label":"Beginning balance","cells":{"balance":{"op":"if","args":[{"op":"in","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":["accou` +
+	`nts_payable","credit_card","other_current_liability","long_term_liability","equity","income","other_income"]}]},{"op":"sub","args":[{"value":0},{"op":"add","arg` +
+	`s":[{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":` +
+	`[{"op":"eq","args":[{"path":[{"link":"account"}]},{"path":[{"field":"id"}],"record":"byAccount"}]},{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":tru` +
+	`e}]},{"op":"lt","args":[{"path":[{"field":"date"}]},{"param":"period","bound":"from"}]},{"op":"or","args":[{"op":"not","args":[{"op":"in","args":[{"path":[{"lin` +
+	`k":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]}]},{"op":"gte","args":[{"op":"fiscalYear","` +
+	`args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":` +
+	`0}]},{"op":"if","args":[{"op":"eq","args":[{"path":[{"field":"detail_type"}],"record":"byAccount"},{"value":"retained_earnings"}]},{"op":"coalesce","args":[{"op` +
+	`":"lookup","value":{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"fi` +
+	`eld":"posted"}]},{"value":true}]},{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expe` +
+	`nse","other_expense"]}]},{"op":"lt","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"` +
+	`}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"value":0}]}]}]},{"op":"add","args":[{"op":"coalesce","args":[{"op":"lookup","value":{"op":"` +
+	`sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"account"}]},{"path":[` +
+	`{"field":"id"}],"record":"byAccount"}]},{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"lt","args":[{"path":[{"field":"date"}]},{"param` +
+	`":"period","bound":"from"}]},{"op":"or","args":[{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_` +
+	`income","cost_of_goods_sold","expense","other_expense"]}]}]},{"op":"gte","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","ar` +
+	`gs":[{"param":"period","bound":"from"}]}]}]}]},"source":"books.journal_lines","pick":"sum"},{"value":0}]},{"op":"if","args":[{"op":"eq","args":[{"path":[{"field` +
+	`":"detail_type"}],"record":"byAccount"},{"value":"retained_earnings"}]},{"op":"coalesce","args":[{"op":"lookup","value":{"op":"sub","args":[{"path":[{"field":"d` +
+	`ebit"}]},{"path":[{"field":"credit"}]}]},"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"in","args":[{"path` +
+	`":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","args":[{"op":"fiscalYe` +
+	`ar","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"period","bound":"from"}]}]}]},"source":"books.journal_lines","pick":"sum"},{"valu` +
+	`e":0}]},{"value":0}]}]}]}}}}],"detail":{"label":{"path":[{"field":"date"}]}},"display":{"oneLine":{"minWidth":"1040px"},"columns":{"balance":{"minWidth":"max-co` +
+	`ntent"},"credit":{"minWidth":"max-content"},"debit":{"minWidth":"max-content"},"description":{"flexGrow":2},"name":{"minWidth":"16ch"},"number":{"minWidth":"max` +
+	`-content"},"split":{"minWidth":"20ch"},"type":{"minWidth":"12ch"}},"layouts":[{"width":"mobile","tracks":3,"cells":[{"col":"account","line":1},{"col":"type","li` +
+	`ne":1},{"col":"number","line":1},{"col":"name","line":2},{"col":"description","line":2,"span":2},{"col":"split","line":3,"span":3},{"col":"debit","line":4},{"co` +
+	`l":"credit","line":4},{"col":"balance","line":4}]},{"width":"tablet","minWidth":"600px","tracks":12,"cells":[{"col":"account","line":1,"span":2},{"col":"type","` +
+	`line":1,"span":2},{"col":"number","line":1,"span":2},{"col":"debit","line":1,"span":2},{"col":"credit","line":1,"span":2},{"col":"balance","line":1,"span":2},{"` +
+	`col":"name","line":2,"span":3},{"col":"description","line":2,"span":5},{"col":"split","line":2,"span":4}]}]}}`
