@@ -7,8 +7,8 @@ import (
 	"tinycld.org/core/reports"
 )
 
-// The builders the shipped Books report specs (Trial Balance, General Ledger)
-// are written with, so a spec reads close to its JSON.
+// The builders the shipped Books report specs (Trial Balance, General Ledger,
+// Balance Sheet) are written with, so a spec reads close to its JSON.
 
 // profitAndLossTypes are the account types whose group is income or expense,
 // in account_types.json order.
@@ -32,6 +32,28 @@ func creditNormalTypes() []string {
 		}
 	}
 	return out
+}
+
+// typesInGroup are the account types whose group is group ("asset",
+// "liability", "equity", "income", "expense"), in account_types.json order.
+func typesInGroup(group string) []string {
+	var out []string
+	for _, t := range accountTypes {
+		if t.Group == group {
+			out = append(out, t.Key)
+		}
+	}
+	return out
+}
+
+// accountRowLabel labels a record group of accounts "<number> <full name>",
+// or the full name alone when the account has no number.
+func accountRowLabel(group string) *reports.Node {
+	return op("if",
+		op("isEmpty", rec(group, "number")),
+		rec(group, "full_name"),
+		op("concat", rec(group, "number"), lit(" "), rec(group, "full_name")),
+	)
 }
 
 // typeRankCase ranks an account type by its place in account_types.json, so
