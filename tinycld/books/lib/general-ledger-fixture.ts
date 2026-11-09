@@ -617,13 +617,18 @@ export const GENERAL_LEDGER_PARTY_SEED = [
 
 // One long section, so the first page of 200 detail rows ends inside it (spec §7
 // item 8): two entries of 130 one-dollar lines to savings and their offsets, one
-// credit to checking each. Savings gets 260 lines; each entry has 131 lines, under
-// the entry form's 200-line limit, so a user can still edit either one. `days` are
-// month-day of the current year.
+// credit to equity each. Savings gets 260 lines; each entry has 131 lines, under
+// the entry form's 200-line limit, so a user can still edit either one. The offset is
+// equity, not checking: these days come before checking's first seeded line, and the
+// register and transfer specs rely on the seeded Business Checking balance never going
+// below zero. `dates` are whole days of a fixed past year: specs post on today or days
+// near it (two years back at most) and read relative periods (This/Last fiscal year,
+// the 13-month opening-balance window), so no other entry falls on these days and a
+// period over them holds the two sweep entries alone on every day of every year.
 export const GENERAL_LEDGER_LONG_SECTION = {
     account: 'savings',
-    offset: 'checking',
-    days: ['09-15', '09-16'],
+    offset: 'equity',
+    dates: ['2020-09-15', '2020-09-16'],
     linesPerEntry: 130,
     cents: 100,
     memo: 'Daily sweep',

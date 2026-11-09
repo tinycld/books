@@ -12,7 +12,7 @@
             "holdNextPage": true,
             "actions": [
                 { "waitForHidden": "report-updating" },
-                { "customPeriod": { "from": "$year-09-15", "to": "$year-09-16" } },
+                { "customPeriod": { "from": "2020-09-15", "to": "2020-09-16" } },
                 { "click": "report-document-title" },
                 { "waitFor": "Daily sweep" },
                 { "waitForHidden": "report-updating" },
