@@ -25,6 +25,7 @@
   **impact:** until core gains it, a Description line left empty is caught at save by the server refusal, not inline by core's `Description is required` under the cell.
   **unblock:** a core change (E1 addition: per-kind `required` column keys on `HostRowKind`, honored by the per-kind row schema and the Go host check) merged before checkpoint 3; the driver raises it as a core change request (a Books checkpoint may not edit core); checkpoint 3 then sets the `description` kind's required column.
   **tracked in:** unit p2-invoice, checkpoint 3 (spec §3.3, §7 E1)
+  **update (checkpoint 0b, 2026-11-09):** the core dependency is built: core 6bcc2dca on core branch books/p2-invoice adds `HostRowKind.required` (TS schema, per-kind row schema, Go `RowKind.Required` + `(*Builtin).RowError`). The deferral ends when that core commit is merged and checkpoint 3 sets `required: ['description']` on the `description` kind (and may call `RowError` from the Books line hook).
   **found by:** reviewer B (the implementer declared the fact as D2, not as a deferral)
   **checkpoint:** 1
 
@@ -55,6 +56,7 @@
 - cp 1 · reviewer A NOTE 9: a taxable total below −2^53 sets `TooLarge`, so the refusal says "more than Books can store" for a hugely negative total (extreme input only).
 - cp 1 · reviewer A NOTE 11 (second part) → **checkpoint 3**: `INVOICE_LINE_MAPPER` writes rate or percent text that does not parse as 0 (D3); checkpoint 3's schema must refuse every text `parseMoney` / `percentTextToPpm` return null for (one test per cell).
 - cp 1 · carried from rebuttals → **checkpoint 2**: move the report-source `invoice` option to `entryTypeLabels` `docTypes["invoice"]` and delete Go `invoiceDocTypeLabel`; make `entryTypeText` read `DOC_TYPE_LABELS` and delete `DOC_TYPE_TEXT` (`lib/entry-display.ts`); keep the `document` exception in `TestEntryTypeLabels_CoverEveryOrigin`.
+- cp 0b · reviewer A NOTE 4: a row kind may list a toggle or computed column in `required`; the host check accepts it and both runtimes ignore it (docs: "A hidden, toggle, or computed column is never required"), so a host author gets no signal that the entry has no effect.
 
 ## Out-of-plan changes
 - cp 0 · core `core/ui/form/TextInput.tsx` (`inputRef`) and `core/ui/form/NumberInput.tsx` (`inputRef`, `onSubmitEditing`): a table cell registers its real input as the focus target, and the `addOnSubmit` Qty column is a NumberInput, which had no submit prop.
@@ -106,6 +108,24 @@
 - commit: core 49aa4a50 on books/p2-invoice (42 files); Books: this ledger + `help/products-services.md` + `tests/e2e/products-services-bundle.spec.ts`
 - human: review mode C — none
 
+## Checkpoint 0b
+- origin: core change request from the cp 1 deferral (per-kind required columns), approved by the human in chat; not in the plan, so the runner wrote the brief's checkpoint text (cp/cp0b.md: brief.mjs header for checkpoint 0 + a 0b section with Do / Files / Tests) and built the gate-3 input with `review-diff.mjs … 0 --repo`, correcting its out-of-plan list by hand against the 0b Files block (the script matched checkpoint 0's Files)
+- test writer: core `lib/forms/__tests__/row-kinds.test.ts` (13), `ui/forms/__tests__/table-field-kinds.test.tsx` (1), `server/forms/defs_test.go` (9); 23 new, all red for the right reason (Go: compile failure on the missing `Required` / `RowError`); untestable: none
+- implementer: `rowKindSchema.required` + `rowKindIssues` (not a kind column, duplicate), `kindRowSchema` required = table-wide OR per kind (hidden, toggle, computed never), Go `RowKind.Required`, `rowKindsError`, `(*Builtin).RowError`, docs `docs/forms-computed-tables.md` "Row kinds"; DONE
+- test disputes: none
+- self-declared differences: 3 (cp0b-impl.md): method `RowError`; missing/unknown kind text `<Table label>: unknown row kind "<kind>"`; TS may report both issues at one path for a repeated key that is also not a kind column
+- gate 1: tests unedited: yes · pass (core check 452 files / 3906 tests; gofmt, go vet, `go test ./forms/...` ok); no e2e (no core spec covers row kinds)
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 0 BLOCK; NOTE 1 Go duplicate refusal untested → accepted+fixed (test writer); NOTE 2 refusal test asserts only `err != nil` → accepted+fixed (message asserted); NOTE 3 required select `''` gave "Invalid option" and date `'   '` gave the format text, not `<Label> is required` (brief Do 2) → accepted+fixed (values.ts, tests first); NOTE 4 → Design notes
+- gate 3 B (conformance): script lines: 0 · finding 1 (same as A NOTE 1) → accepted+fixed
+- fix review: round 1: clean · rounds: 1
+- gate 1 after fixes: tests unedited: yes · core check 452 files / 3908 tests; gofmt, go vet, `go test ./forms/...` ok
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
+- findings files: cp/cp0b-fix.md (round 1, 3 items)
+- commit: core 6bcc2dca on books/p2-invoice (7 files, all in the 0b Files block; out-of-plan: none)
+- human: review mode C — none
+
 ## Checkpoint 1
 - test writer: Go `server/testdata/document_totals.json`, `document_totals_test.go`, `invoices_test.go` (new); `customers_test.go`, `products_test.go`, `sales_tax_test.go`, `numbering_test.go` (changed); TS `tests/document-lines.test.ts`, `document-dates.test.ts`, `invoice-messages.test.ts`, `invoice-form-fixture.test.ts` (new), `payment-terms.test.ts` (changed); 24 new Go tests + 3 changed + 5 TS, all red for the right reason; untestable: none
 - implementer: invoice collections (migration 2100000010; `terms` on customers; `document` origin and `invoice` doc type on entries), Go invoice + line guards, restatement, shared totals (TS `document-lines.ts` / Go `document_totals.go`, one JSON case file), `dueDateFor`, `INVOICE_ROW_KINDS` / line mapper, messages, fixture on generated types, seed; DONE
@@ -123,6 +143,10 @@
 - carried: checkpoint 2 validates each line's kind and cells in Books Go (core Go checks only the host; cp 0 NOTE 7); checkpoint 4 calls `noteFocus` / `noteBlur` in every line host cell (cp 0 fix review r1 NOTE 4)
 - commit: `feat(books): invoice data and server rules` (sha in git log)
 - human: review mode C — none
+
+## Checkpoint 2
+- Q25: books origin/main 9cf2b70 has `entryTypeLabel` in `server/report_spec_helpers.go` (p5-journal-report merged). The runner merged books main into books/p2-invoice (e3cc7c4, clean; core main already holds core 07ce512d), and the checkpoint makes that helper read `docTypes` (no `typeLabelCase` exists any more). Runner notes: cp/cp2-runner-notes.md (Q25 and five carried items).
+- test writer: Go `server/invoice_posting_test.go`, `document_posting_test.go` (new); `entry_type_labels_test.go`, `report_general_ledger_test.go`, `report_journal_test.go` (Q25), `search_test.go`, `transfers_test.go`, `invoices_test.go` (carried items 3, 4) changed; TS `tests/register.test.ts`, `entry-route.test.ts`, `entry-actions.test.ts`, `doc-types.test.ts`, `search-target.test.ts`, `entry-display.test.ts` (carried item 2); 29 tests, red for the right reason (one REST subtest, create with origin `document`, is green already: the cp1 createRule refuses it); untestable: none
 
 ## Final review
 - eval: 
