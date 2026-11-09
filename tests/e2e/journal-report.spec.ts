@@ -9,11 +9,13 @@ import {
 import { textWidth } from '@tinycld/core/reports/lib/text-width'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
+    browserToday,
     choosePeriod,
     dayWords,
     GL_DAY_1,
     GL_DAY_2,
     type GlSnapshot,
+    glSnapshot,
     openJournal,
     postEntryOn,
     voidPostedEntry,
@@ -645,6 +647,60 @@ async function cutOnRows(page: Page, rows: FitRows, extra: readonly string[] = [
     return cut
 }
 
+// The seeded long section (seed.ts seedLongSection, GENERAL_LEDGER_LONG_SECTION): two entries
+// of 131 lines each (130 one-dollar debits and one offset credit), dated <year>-09-15 and
+// <year>-09-16, every line described by the entry memo "Daily sweep".
+const SWEEP_MEMO = 'Daily sweep'
+const SWEEP_LINES = 131
+const SWEEP_CENTS = 13000
+
+// One /api/reports/run answer, as the server sent it: money cells are minor units.
+type AnswerRow = {
+    id: string
+    kind: string
+    label: string
+    section?: string
+    cells: Record<string, number | string | boolean | null>
+}
+type Answer = { cursor: string; rows: AnswerRow[]; next: string }
+type SentRun = {
+    params?: { period?: { from?: string; to?: string } }
+    options?: { cursor?: string }
+}
+
+const answerCents = (value: number | string | boolean | null | undefined) =>
+    typeof value === 'number' ? value : 0
+
+// The sweep blocks of an answer, found by their lines' Description, never by position.
+function sweepBlocks(rows: AnswerRow[]) {
+    return rows
+        .filter(row => row.kind === 'group')
+        .map(group => {
+            const lines = rows.filter(row => row.kind === 'detail' && row.section === group.id)
+            const total = rows.find(row => row.kind === 'subtotal' && row.section === group.id)
+            return { group, lines, total }
+        })
+        .filter(
+            ({ lines }) =>
+                lines.length > 0 && lines.every(line => line.cells.description === SWEEP_MEMO)
+        )
+}
+
+// Scrolls the report's list to its end.
+function scrollToEnd(page: Page) {
+    return page
+        .getByTestId('report-table')
+        .locator('[data-testid^="report-row-"]')
+        .first()
+        .evaluate(row => {
+            let scroller = row.parentElement
+            while (scroller && getComputedStyle(scroller).overflowY !== 'auto') {
+                scroller = scroller.parentElement
+            }
+            if (scroller) scroller.scrollTop = scroller.scrollHeight
+        })
+}
+
 test.describe('journal-report: report', () => {
     test('the Books hub opens the Journal: business name, title and one Period chip', async ({
         page,
@@ -1129,5 +1185,235 @@ test.describe('journal-report: report', () => {
                 )
                 .toEqual([])
         }
+    })
+
+    test('a long period pages as it scrolls: a block longer than the first page continues on the next, then the Total', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        await openJournal(page)
+        const today = await browserToday(page)
+        const year = today.slice(0, 4)
+        const from = `${year}-09-15`
+        const to = `${year}-09-16`
+        // Other specs post entries dated today. On a sweep day those entries share the
+        // period with the seeded sweeps and take page-1 rows, so the first page no longer
+        // ends inside the second sweep block. The seeded days are fixed, so the run skips.
+        test.skip(
+            today === from || today === to,
+            "today is a sweep day: other specs' entries of today take page-1 rows"
+        )
+
+        // The answers of the runs over the sweep days, in the order they arrive.
+        const answers: Promise<Answer>[] = []
+        page.on('response', response => {
+            if (!response.url().includes('/api/reports/run') || !response.ok()) return
+            const body = response.request().postDataJSON() as SentRun | null
+            if (body?.params?.period?.from !== from || body.params.period.to !== to) return
+            answers.push(
+                response
+                    .json()
+                    .then((result: { rows: AnswerRow[]; page: { next?: string } | null }) => ({
+                        cursor: body.options?.cursor ?? '',
+                        rows: result.rows,
+                        next: result.page?.next ?? '',
+                    }))
+            )
+        })
+        // The first next page waits until the test has seen the list ask for it. The cursor
+        // of that held request names the first page the list follows.
+        let release = () => {}
+        const held = new Promise<void>(resolve => {
+            release = resolve
+        })
+        let heldCursor = ''
+        await page.route('**/api/reports/run', async route => {
+            const body = route.request().postDataJSON() as SentRun | null
+            const cursor = body?.options?.cursor ?? ''
+            if (cursor) {
+                if (heldCursor === '') heldCursor = cursor
+                await held
+            }
+            await route.continue()
+        })
+
+        await choosePeriod(page, { from, to })
+        await expect
+            .poll(async () => {
+                await scrollToEnd(page)
+                if (heldCursor === '') return false
+                return page.getByTestId('report-loading-more').isVisible()
+            })
+            .toBe(true)
+
+        // A live re-run (another worker's post) can bring more than one first page: the one
+        // the list follows is the first page whose next cursor the held request carries.
+        const first = (await Promise.all(answers)).findLast(
+            answer => answer.cursor === '' && answer.next === heldCursor
+        ) as Answer
+        expect(first, 'the first page whose next page the list asked for').toBeDefined()
+
+        // The first answer: the first sweep block whole, the second cut after its group row.
+        const [firstSweep, secondSweep] = sweepBlocks(first.rows)
+        expect(firstSweep?.lines.length, 'the first sweep block is whole on page 1').toBe(
+            SWEEP_LINES
+        )
+        expect(answerCents(firstSweep?.total?.cells.debit)).toBe(SWEEP_CENTS)
+        expect(answerCents(firstSweep?.total?.cells.credit)).toBe(SWEEP_CENTS)
+        expect(secondSweep, "the second sweep block's group row is on page 1").toBeDefined()
+        expect(secondSweep?.lines.length).toBeGreaterThan(0)
+        expect(secondSweep?.lines.length).toBeLessThan(SWEEP_LINES)
+        expect(secondSweep?.total, 'the second block has no block total on page 1').toBeUndefined()
+        expect(first.next, 'the first answer ends inside the second block').not.toBe('')
+        const lastBeforeTotal = first.rows.findLast(row => row.kind !== 'total')
+        expect(lastBeforeTotal?.section).toBe(secondSweep?.group.id)
+        release()
+
+        // Every page after the first, following page.next to the last page.
+        await expect
+            .poll(async () => {
+                await scrollToEnd(page)
+                return (await Promise.all(answers)).some(
+                    answer => answer.cursor !== '' && answer.next === ''
+                )
+            })
+            .toBe(true)
+        const all = await Promise.all(answers)
+        const chain = [first]
+        for (let at = first; at.next !== ''; ) {
+            const next = all.find(answer => answer.cursor === at.next)
+            expect(next, 'each next page follows the page before it').toBeDefined()
+            if (!next) break
+            chain.push(next)
+            at = next
+        }
+        const later = chain.slice(1)
+        const secondId = secondSweep?.group.id
+        const laterLines = later.flatMap(answer =>
+            answer.rows.filter(row => row.kind === 'detail' && row.section === secondId)
+        )
+        expect(laterLines.length).toBeGreaterThan(0)
+        expect(laterLines.every(row => row.cells.description === SWEEP_MEMO)).toBe(true)
+        const secondLineIds = [...(secondSweep?.lines ?? []), ...laterLines].map(row => row.id)
+        expect(new Set(secondLineIds).size, 'no line of the second block repeats').toBe(
+            secondLineIds.length
+        )
+        expect(secondLineIds.length, 'the second block holds all its lines').toBe(SWEEP_LINES)
+        expect(
+            later.some(answer => answer.rows.some(row => row.id === secondId)),
+            "the second block's group row is not sent again"
+        ).toBe(false)
+
+        // The second block's total after its last line, then the report's Total.
+        const last = chain.at(-1) as Answer
+        const secondTotalAt = last.rows.findIndex(
+            row => row.kind === 'subtotal' && row.section === secondId
+        )
+        const totalAt = last.rows.findIndex(row => row.kind === 'total')
+        expect(secondTotalAt, "the second block's total is on the last page").toBeGreaterThan(-1)
+        expect(totalAt).toBe(last.rows.length - 1)
+        expect(secondTotalAt).toBeLessThan(totalAt)
+        expect(
+            last.rows.slice(secondTotalAt + 1).some(row => row.section === secondId),
+            'no line of the second block after its total'
+        ).toBe(false)
+        const secondTotal = last.rows[secondTotalAt]
+        expect(answerCents(secondTotal?.cells.debit)).toBe(SWEEP_CENTS)
+        expect(answerCents(secondTotal?.cells.credit)).toBe(SWEEP_CENTS)
+        const total = last.rows[totalAt]
+        expect(answerCents(total?.cells.debit)).toBeGreaterThan(0)
+        expect(answerCents(total?.cells.debit)).toBe(answerCents(total?.cells.credit))
+
+        // The list shows a line of the next page and, at its end, the Total row.
+        const laterIds = new Set(laterLines.map(row => row.id))
+        await expect
+            .poll(
+                async () => {
+                    await scrollToEnd(page)
+                    const snap = await glSnapshot(page)
+                    return {
+                        nextPageLine: snap.rows.some(
+                            row => laterIds.has(row.id) && row.cells.description === SWEEP_MEMO
+                        ),
+                        total: snap.rows.some(row => row.kind === 'total'),
+                    }
+                },
+                { message: 'a line of the next page and the Total row in the list' }
+            )
+            .toEqual({ nextPageLine: true, total: true })
+        await page.unrouteAll({ behavior: 'wait' })
+    })
+
+    test('a post made on another page appears as a new block in the open Journal without a reload', async ({
+        page,
+        browser,
+    }) => {
+        await startBooks(page)
+        await openJournal(page)
+        await choosePeriod(page, { from: GL_DAY_2, to: GL_DAY_2 })
+        // The day may hold other specs' entries, or none (core's empty state).
+        await expect
+            .poll(async () => {
+                const header = page.getByTestId('report-document-period')
+                const empty = page.getByTestId('report-empty').getByTestId('report-empty-message')
+                if (await empty.isVisible()) return await empty.innerText()
+                return (await header.isVisible()) ? await header.innerText() : ''
+            })
+            .toMatch(new RegExp(`(^|No rows for )${dayWords(GL_DAY_2)}$`))
+        await page.evaluate(() => {
+            ;(window as unknown as { jrNotReloaded?: boolean }).jrNotReloaded = true
+        })
+
+        // Page B is a second browser context signed in as the same user: its own session
+        // and its own realtime connection, so the post reaches page A through the server.
+        const memo = uniqueName('JR live post')
+        const otherContext = await browser.newContext()
+        const other = await otherContext.newPage()
+        await startBooks(other)
+        await openEntriesFromSidebar(other)
+        await postEntryOn(other, {
+            date: GL_DAY_2,
+            memo,
+            lines: [
+                { account: ACCOUNT_LABELS.equity, debit: '17.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '17.00' },
+            ],
+        })
+        const heading = `${await openEntryNumber(other)} · Journal entry`
+        await otherContext.close()
+
+        const live = await journalWhen(
+            page,
+            s => hasTotal(s) && linesOf(s, heading).length === 2,
+            'the new block in the open report'
+        )
+        expect(linesOf(live, heading).map(row => row.cells.description)).toEqual([memo, memo])
+        expect(figure(blockTotal(live, heading)?.cells.debit)).toBe('17.00')
+        const notReloaded = await page.evaluate(
+            () => (window as unknown as { jrNotReloaded?: boolean }).jrNotReloaded
+        )
+        expect(notReloaded).toBe(true)
+    })
+
+    test('a period with no posted line shows the empty state with its period and Show this fiscal year', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        await openJournal(page)
+        // After the close date books-settings.spec.ts holds; no seed or spec posts on July 2,
+        // and an entry dated today would land on it only when today is July 2.
+        const today = await browserToday(page)
+        const year = today.slice(0, 4)
+        const day = today === `${year}-07-02` ? `${year}-07-03` : `${year}-07-02`
+        await choosePeriod(page, { from: day, to: day })
+        const empty = page.getByTestId('report-empty')
+        await expect(empty).toBeVisible()
+        await expect(empty.getByTestId('report-empty-message')).toHaveText(
+            `No rows for ${dayWords(day)}`
+        )
+        await expect(empty.getByTestId('report-empty-action')).toHaveText('Show this fiscal year')
+        await expect(
+            page.getByTestId('report-table').locator('[data-testid^="report-row-"]')
+        ).toHaveCount(0)
     })
 })

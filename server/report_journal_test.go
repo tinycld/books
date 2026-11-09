@@ -687,3 +687,261 @@ func TestJournalShippedShared(t *testing.T) {
 	}
 	requireViewer(t, app, row, reader, "a Books reader")
 }
+
+// jnPages walks every page of the Journal from opts' first page to its last.
+func jnPages(t *testing.T, b glBook, params map[string]any, opts reports.Options) []*reports.Result {
+	t.Helper()
+	var pages []*reports.Result
+	for range 100 {
+		res := runJournal(t, b.app, b.reader, params, opts)
+		pages = append(pages, res)
+		if res.Page == nil || res.Page.Next == "" {
+			return pages
+		}
+		opts.Cursor = res.Page.Next
+	}
+	t.Fatal("the Journal's pages never ended")
+	return nil
+}
+
+// jnMerged joins pages as core's view does: each page's rows in order, an
+// earlier page's trailing Total dropped (the next page gives it again). A row
+// on two pages fails the test.
+func jnMerged(t *testing.T, pages []*reports.Result) *reports.Result {
+	t.Helper()
+	var rows []reports.Row
+	seen := map[string]int{}
+	for i, p := range pages {
+		page := p.Rows
+		if i < len(pages)-1 && len(page) > 0 && page[len(page)-1].Kind == reports.KindTotal {
+			page = page[:len(page)-1]
+		}
+		for _, r := range page {
+			if at, ok := seen[r.ID]; ok {
+				t.Fatalf("%s row %s (%s) is on page %d and page %d", r.Kind, r.ID, r.Label, at+1, i+1)
+			}
+			seen[r.ID] = i
+			rows = append(rows, r)
+		}
+	}
+	return &reports.Result{Rows: rows}
+}
+
+func jnRowIDs(rows []reports.Row) []string {
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		out[i] = r.ID
+	}
+	return out
+}
+
+// jnDebitCredit is a row's Debit and Credit, in minor units (0 for a blank side).
+func jnDebitCredit(t *testing.T, r reports.Row) [2]int64 {
+	t.Helper()
+	d, _ := moneyCell(t, r, "debit")
+	c, _ := moneyCell(t, r, "credit")
+	return [2]int64{d, c}
+}
+
+// A period with more entries than one page pages across a block boundary
+// (J1): a block longer than a page continues on the next, every page ends in
+// the whole report's Total, and a folded block is one row.
+func TestJournalPaging(t *testing.T) {
+	b := newGLBook(t)
+	operating := b.account(t, "Operating", "1000", "bank", "checking")
+	rent := b.account(t, "Office rent", "6000", "expense", "rent_lease")
+	supplies := b.account(t, "Supplies", "6100", "expense", "office_general")
+	var entries []*core.Record
+	for k := 1; k <= 6; k++ {
+		entries = append(entries, b.post(t, "2026-08-0"+string(rune('0'+k)),
+			ln{rent, 1000 * k, 0}, ln{supplies, 100 * k, 0}, ln{operating, 0, 1100 * k}))
+	}
+	params := map[string]any{"period": jnAugust}
+
+	whole := runJournal(t, b.app, b.reader, params, reports.Options{Today: glToday})
+	wholeBlocks := glSections(t, whole)
+	if got := blockEntries(t, whole); !slices.Equal(got, idsOf(entries...)) {
+		t.Fatalf("one-page blocks = %v, want the six entries in date order", sectionLabels(wholeBlocks))
+	}
+	wholeTotal := jnDebitCredit(t, totalOf(t, whole))
+	if wholeTotal != [2]int64{23100, 23100} {
+		t.Fatalf("one-page Total = %v, want [23100 23100]", wholeTotal)
+	}
+	wantLines := map[string][]string{}
+	for _, s := range wholeBlocks {
+		wantLines[entryOfRow(t, s.head)] = lineIDs(s.lines)
+	}
+
+	requireEveryPageEndsInTheTotal := func(name string, pages []*reports.Result) {
+		t.Helper()
+		for i, p := range pages {
+			if len(p.Rows) == 0 || p.Rows[len(p.Rows)-1].Kind != reports.KindTotal {
+				t.Errorf("%s: page %d does not end in the Total row", name, i+1)
+				continue
+			}
+			if got := jnDebitCredit(t, p.Rows[len(p.Rows)-1]); got != wholeTotal {
+				t.Errorf("%s: page %d Total = %v, want the whole report's %v", name, i+1, got, wholeTotal)
+			}
+		}
+	}
+	requireWholeBlocks := func(name string, merged *reports.Result) {
+		t.Helper()
+		if got := blockEntries(t, merged); !slices.Equal(got, idsOf(entries...)) {
+			t.Errorf("%s: blocks over the pages = %v, want every entry once, in date order", name, sectionLabels(glSections(t, merged)))
+		}
+		for _, s := range glSections(t, merged) {
+			if got, want := lineIDs(s.lines), wantLines[entryOfRow(t, s.head)]; !slices.Equal(got, want) {
+				t.Errorf("%s: %s lines over the pages = %v, want %v", name, s.head.Label, got, want)
+			}
+			if !slices.Equal(s.kinds, []string{reports.KindDetail, reports.KindDetail, reports.KindDetail, reports.KindSubtotal}) {
+				t.Errorf("%s: %s rows = %v, want its three lines, then its block total", name, s.head.Label, s.kinds)
+			}
+		}
+	}
+
+	// Limit 7: the first block is 5 rows (group, 3 lines, block total), so
+	// page 1 ends after the second block's group row and first line.
+	pages := jnPages(t, b, params, reports.Options{Today: glToday, Limit: 7})
+	first := pages[0]
+	if first.Page == nil || first.Page.Next == "" {
+		t.Fatalf("page 1 at limit 7 has no next page; it holds %v", jnRowIDs(first.Rows))
+	}
+	page1 := glSections(t, first)
+	if len(page1) != 2 {
+		t.Fatalf("page 1 blocks = %v, want the first block and the start of the second", sectionLabels(page1))
+	}
+	if entryOfRow(t, page1[0].head) != entries[0].Id || len(page1[0].lines) != 3 || page1[0].total == nil {
+		t.Errorf("page 1's first block = %s with %d lines (total %v), want %s whole: 3 lines and its block total",
+			page1[0].head.Label, len(page1[0].lines), page1[0].total != nil, entries[0].GetString("number"))
+	}
+	if entryOfRow(t, page1[1].head) != entries[1].Id || len(page1[1].lines) >= 3 || page1[1].total != nil {
+		t.Errorf("page 1's second block = %s with %d lines (total %v), want %s cut: fewer than 3 lines and no block total",
+			page1[1].head.Label, len(page1[1].lines), page1[1].total != nil, entries[1].GetString("number"))
+	}
+	requireEveryPageEndsInTheTotal("limit 7", pages)
+	merged := jnMerged(t, pages)
+	requireWholeBlocks("limit 7", merged)
+	if got, want := jnRowIDs(merged.Rows), jnRowIDs(whole.Rows); !slices.Equal(got, want) {
+		t.Errorf("limit 7 rows over the pages = %v\nwant the one-page rows %v", got, want)
+	}
+
+	// Limit 3: every 5-row block spreads over at least two pages; merged, each
+	// group row and each line shows once.
+	pages = jnPages(t, b, params, reports.Options{Today: glToday, Limit: 3})
+	pagesOf := map[string]map[int]bool{}
+	for i, p := range pages {
+		for _, r := range p.Rows {
+			if r.Kind == reports.KindTotal {
+				continue
+			}
+			sec := r.ID
+			if r.Kind != reports.KindGroup {
+				sec = r.Section
+			}
+			if pagesOf[sec] == nil {
+				pagesOf[sec] = map[int]bool{}
+			}
+			pagesOf[sec][i] = true
+		}
+	}
+	for _, s := range wholeBlocks {
+		if n := len(pagesOf[s.head.ID]); n < 2 {
+			t.Errorf("limit 3: %s spreads over %d page(s), want at least 2", s.head.Label, n)
+		}
+	}
+	requireEveryPageEndsInTheTotal("limit 3", pages)
+	merged = jnMerged(t, pages)
+	requireWholeBlocks("limit 3", merged)
+	if got, want := jnRowIDs(merged.Rows), jnRowIDs(whole.Rows); !slices.Equal(got, want) {
+		t.Errorf("limit 3 rows over the pages = %v\nwant the one-page rows %v", got, want)
+	}
+
+	// A fold of the first block: it is one row carrying its Debit and Credit;
+	// every other block stays open, with the same rows in the same order.
+	head := wholeBlocks[0]
+	pages = jnPages(t, b, params, reports.Options{Today: glToday, Limit: 7, Collapse: [][]any{head.head.GroupKey}})
+	requireEveryPageEndsInTheTotal("collapse", pages)
+	merged = jnMerged(t, pages)
+	if len(merged.Rows) == 0 || merged.Rows[0].ID != head.head.ID {
+		t.Fatalf("collapse: rows over the pages start %v, want the first block's group row %s", jnRowIDs(merged.Rows), head.head.ID)
+	}
+	folded := merged.Rows[0]
+	if folded.Expanded {
+		t.Errorf("collapse: %s is expanded, want it folded", folded.Label)
+	}
+	for _, r := range merged.Rows {
+		if r.Section == head.head.ID {
+			t.Errorf("collapse: the folded block still shows its %s row %s", r.Kind, r.ID)
+		}
+	}
+	if got, want := jnDebitCredit(t, folded), jnDebitCredit(t, *head.total); got != want || got[0] == 0 {
+		t.Errorf("collapse: the folded heading's Debit and Credit = %v, want its block total's %v", got, want)
+	}
+	var restWant []string
+	for _, r := range whole.Rows {
+		if r.ID != head.head.ID && r.Section != head.head.ID {
+			restWant = append(restWant, r.ID)
+		}
+	}
+	if got := jnRowIDs(merged.Rows[1:]); !slices.Equal(got, restWant) {
+		t.Errorf("collapse: the other rows over the pages = %v\nwant %v", got, restWant)
+	}
+	if got := jnDebitCredit(t, merged.Rows[len(merged.Rows)-1]); got != wholeTotal {
+		t.Errorf("collapse: Total = %v, want the unfolded run's %v", got, wholeTotal)
+	}
+}
+
+// Every collection the run reads is a topic, so a post, a void, an account
+// edit, a customer or vendor rename or a settings change re-runs the report.
+func TestJournalTopics(t *testing.T) {
+	b := newGLBook(t)
+	operating := b.account(t, "Operating", "1000", "bank", "checking")
+	rent := b.account(t, "Office rent", "6000", "expense", "rent_lease")
+	b.post(t, "2026-08-04", ln{rent, 4000, 0}, ln{operating, 0, 4000})
+
+	res := runJournal(t, b.app, b.reader, map[string]any{"period": jnAugust}, reports.Options{Today: glToday})
+	for _, topic := range []string{
+		"collection/books_journal_lines", "collection/books_journal_entries", "collection/books_accounts",
+		"collection/books_customers", "collection/books_vendors", "collection/books_settings",
+	} {
+		if !slices.Contains(res.Topics, topic) {
+			t.Errorf("topics = %v, want %s", res.Topics, topic)
+		}
+	}
+}
+
+// A Custom period with no posted line: only the Total row, and the period the
+// run resolved, which core's empty text prints.
+func TestJournalEmpty(t *testing.T) {
+	b := newGLBook(t)
+	operating := b.account(t, "Operating", "1000", "bank", "checking")
+	rent := b.account(t, "Office rent", "6000", "expense", "rent_lease")
+	before := b.post(t, "2026-06-30", ln{rent, 4000, 0}, ln{operating, 0, 4000})
+	after := b.post(t, "2026-07-04", ln{rent, 700, 0}, ln{operating, 0, 700})
+
+	all := runJournal(t, b.app, b.reader, map[string]any{"period": glAllDates}, reports.Options{Today: glToday})
+	if got := entriesIn(blockEntries(t, all), before, after); !slices.Equal(got, idsOf(before, after)) {
+		t.Fatalf("All dates blocks = %v, want the entries on either side of the empty period", sectionLabels(glSections(t, all)))
+	}
+
+	res := runJournal(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-07-01", "2026-07-03")}, reports.Options{Today: glToday})
+	if len(res.Rows) != 1 || res.Rows[0].Kind != reports.KindTotal {
+		var kinds []string
+		for _, r := range res.Rows {
+			kinds = append(kinds, r.Kind+" "+r.Label)
+		}
+		t.Errorf("rows = %v, want only the Total row", kinds)
+	}
+	var period *reports.ResolvedParam
+	for i := range res.Params {
+		if res.Params[i].ID == "period" {
+			period = &res.Params[i]
+		}
+	}
+	if period == nil {
+		t.Fatalf("the result has no period param: %+v", res.Params)
+	}
+	if period.Unset || period.From != "2026-07-01" || period.To != "2026-07-03" {
+		t.Errorf("resolved period = %+v, want from 2026-07-01 to 2026-07-03", *period)
+	}
+}
