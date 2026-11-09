@@ -7,6 +7,7 @@ import {
     waitForTableFit,
 } from '@tinycld/core/e2e-helpers'
 import { textWidth } from '@tinycld/core/reports/lib/text-width'
+import { GENERAL_LEDGER_LONG_SECTION } from '../../tinycld/books/lib/general-ledger-fixture'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     browserToday,
@@ -648,8 +649,9 @@ async function cutOnRows(page: Page, rows: FitRows, extra: readonly string[] = [
 }
 
 // The seeded long section (seed.ts seedLongSection, GENERAL_LEDGER_LONG_SECTION): two entries
-// of 131 lines each (130 one-dollar debits and one offset credit), dated <year>-09-15 and
-// <year>-09-16, every line described by the entry memo "Daily sweep".
+// of 131 lines each (130 one-dollar debits and one offset credit), dated 2020-09-15 and
+// 2020-09-16 (GENERAL_LEDGER_LONG_SECTION.dates), every line described by the entry memo
+// "Daily sweep".
 const SWEEP_MEMO = 'Daily sweep'
 const SWEEP_LINES = 131
 const SWEEP_CENTS = 13000
@@ -1192,17 +1194,7 @@ test.describe('journal-report: report', () => {
     }) => {
         await startBooks(page)
         await openJournal(page)
-        const today = await browserToday(page)
-        const year = today.slice(0, 4)
-        const from = `${year}-09-15`
-        const to = `${year}-09-16`
-        // Other specs post entries dated today. On a sweep day those entries share the
-        // period with the seeded sweeps and take page-1 rows, so the first page no longer
-        // ends inside the second sweep block. The seeded days are fixed, so the run skips.
-        test.skip(
-            today === from || today === to,
-            "today is a sweep day: other specs' entries of today take page-1 rows"
-        )
+        const [from, to] = GENERAL_LEDGER_LONG_SECTION.dates
 
         // The answers of the runs over the sweep days, in the order they arrive.
         const answers: Promise<Answer>[] = []
