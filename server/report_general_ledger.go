@@ -1,11 +1,6 @@
 package books
 
-import (
-	"maps"
-	"slices"
-
-	"tinycld.org/core/reports"
-)
+import "tinycld.org/core/reports"
 
 // generalLedgerKey names the shipped General Ledger for good.
 const generalLedgerKey = "books.general_ledger"
@@ -64,7 +59,7 @@ func generalLedgerSpec() *reports.Spec {
 		),
 		Columns: []reports.Column{
 			{ID: "account", Label: "Account / Date", Path: reports.Path{{Link: "account"}}},
-			{ID: "type", Label: "Type", Formula: typeLabelCase()},
+			{ID: "type", Label: "Type", Formula: entryTypeLabel(func(n ...string) *reports.Node { return fld(append([]string{"entry"}, n...)...) })},
 			{ID: "number", Label: "No.", Formula: fld("entry", "number")},
 			{ID: "name", Label: "Name", Formula: op("coalesce", fld("customer", "display_name"), fld("vendor", "display_name"))},
 			{ID: "description", Label: "Description", Formula: op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo"))},
@@ -85,12 +80,8 @@ func generalLedgerSpec() *reports.Spec {
 			Col:       "account",
 			Open:      true,
 			Subtotals: true,
-			Label: op("if",
-				op("isEmpty", rec("byAccount", "number")),
-				rec("byAccount", "full_name"),
-				op("concat", rec("byAccount", "number"), lit(" "), rec("byAccount", "full_name")),
-			),
-			Fill: &reports.Fill{Where: op("in", fld("id"), prm("accounts"))},
+			Label:     accountLabel(func(n ...string) *reports.Node { return rec("byAccount", n...) }),
+			Fill:      &reports.Fill{Where: op("in", fld("id"), prm("accounts"))},
 			Having: op("or",
 				op("gt", op("count", fld("id")), lit(0)),
 				op("ne", opening, lit(0)),
@@ -245,40 +236,6 @@ func byNormal(x *reports.Node) *reports.Node {
 		op("sub", lit(0), x),
 		x,
 	)
-}
-
-// blankZero leaves a zero amount blank.
-func blankZero(x *reports.Node) *reports.Node {
-	return op("if", op("eq", x, lit(0)), lit(nil), x)
-}
-
-// typeLabelCase is the register's entry type label (entryTypeLabel in
-// lib/register.ts) from entry_type_labels.json: "Transfer" for a manual
-// transfer, "<label> of <number>" for a reversal origin whose reversed entry
-// has a number, the origin's label otherwise, and the manual label for an
-// origin the table does not name.
-func typeLabelCase() *reports.Node {
-	origin := fld("entry", "origin")
-	reversed := fld("entry", "reverses", "number")
-	args := []*reports.Node{
-		op("and", op("eq", fld("entry", "doc_type"), lit(docTypeTransfer)), op("eq", origin, lit("manual"))),
-		lit(entryTypeLabels.Transfer),
-	}
-	for _, o := range entryTypeLabels.ReversalOrigins {
-		label := lit(entryTypeLabels.Origins[o])
-		args = append(args,
-			op("eq", origin, lit(o)),
-			op("if", op("isEmpty", reversed), label, op("concat", label, lit(" of "), reversed)),
-		)
-	}
-	// Sorted, so the spec's JSON does not move with map order.
-	for _, o := range slices.Sorted(maps.Keys(entryTypeLabels.Origins)) {
-		if slices.Contains(entryTypeLabels.ReversalOrigins, o) {
-			continue
-		}
-		args = append(args, op("eq", origin, lit(o)), lit(entryTypeLabels.Origins[o]))
-	}
-	return op("case", append(args, lit(entryTypeLabels.Origins["manual"]))...)
 }
 
 // splitCase is the register's Split: the other line's account of a 2-line

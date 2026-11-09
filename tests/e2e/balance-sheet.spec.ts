@@ -13,6 +13,7 @@ import {
     SECTION_TITLES,
     TOTAL_LIABILITIES_AND_EQUITY_LABEL,
 } from '~/tinycld/books/lib/balance-sheet-fixture'
+import { GENERAL_LEDGER_LONG_SECTION } from '~/tinycld/books/lib/general-ledger-fixture'
 import { SEED_ACCOUNTS } from '~/tinycld/books/lib/seed-accounts'
 import { PRIOR_YEAR_SEED } from '~/tinycld/books/lib/trial-balance-fixture'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
@@ -41,7 +42,10 @@ import { uniqueName } from './record-form-helpers'
 // Other workers post today on the shared DB, so an exact figure is asserted only on an
 // account the test owns, as a relation inside one snapshot (Total Assets = Total
 // liabilities and equity; Change = Current − Prior year), or on a day on or before the
-// seed's prior-year entry S (P3): `PRIOR_YEAR_SEED`, the only posted entry on or before S.
+// seed's prior-year entry S (P3): `PRIOR_YEAR_SEED`, the only posted entry on or before S
+// that touches Accounts receivable. The seed's long General Ledger section
+// (`GENERAL_LEDGER_LONG_SECTION`) posts earlier, on fixed days of a past year, so only the
+// day before its first day has no posted line at all.
 //
 // The table is a FlashList: only mounted rows are in the DOM. The tests run 1280 wide and
 // tall, and a snapshot is taken only when both ends of the rows it reads are in it: the
@@ -200,6 +204,14 @@ function shortDay(day: string): string {
 function priorDay(day: string): string {
     const monthDay = day.slice(5) === '02-29' ? '02-28' : day.slice(5)
     return `${Number(day.slice(0, 4)) - 1}-${monthDay}`
+}
+
+// The day before the seed's first posted line, the long General Ledger section on fixed
+// past days: on it, and a year earlier, no line is posted.
+function beforeEverySeededLine(): string {
+    const first = new Date(`${[...GENERAL_LEDGER_LONG_SECTION.dates].sort()[0]}T00:00:00Z`)
+    first.setUTCDate(first.getUTCDate() - 1)
+    return first.toISOString().slice(0, 10)
 }
 
 // S, the seed's prior-year day, and the browser's year (the seed's year).
@@ -637,9 +649,7 @@ test.describe('balance-sheet: report', () => {
         expect(indexOf(active, 'Other assets')).toBeLessThan(indexOf(active, other))
         expect(indexOf(active, other)).toBeLessThan(indexOf(active, 'Total Other assets'))
 
-        const { year } = await seedDay(page)
-        const beforeSeed = `${year - PRIOR_YEAR_SEED.yearsAgo}-08-14`
-        await chooseAsOf(page, { day: beforeSeed })
+        await chooseAsOf(page, { day: beforeEverySeededLine() })
         const sections = Object.values(SECTION_TITLES)
         const empty = await snapshotWhen(
             page,

@@ -30,7 +30,7 @@ import (
 // The labels read no redacted field, because core does not redact the label.
 func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
-		"books_accounts":        {ExtractLabel: accountLabel},
+		"books_accounts":        {ExtractLabel: auditAccountLabel},
 		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"sort_key"}},
 		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id", "sort_key"}},
 		"books_products":        {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
@@ -64,7 +64,7 @@ func registerAudit(app *pocketbase.PocketBase) {
 	}
 }
 
-var accountLabel = audit.LabelFromFields("number", "name")
+var auditAccountLabel = audit.LabelFromFields("number", "name")
 
 func entryLabel(r *core.Record) string {
 	noun, _, draft := entryNouns(r.GetString("doc_type"))
@@ -80,7 +80,7 @@ func entryLabel(r *core.Record) string {
 func lineLabel(app core.App, r *core.Record) string {
 	account := r.GetString("account")
 	if acc, err := app.FindRecordById("books_accounts", account); err == nil {
-		account = accountLabel(acc)
+		account = auditAccountLabel(acc)
 	}
 	if debit := r.GetInt("debit"); debit > 0 {
 		return account + " debit " + formatMinor(debit)

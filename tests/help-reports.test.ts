@@ -178,6 +178,88 @@ describe('help/reports.md', () => {
         })
     })
 
+    describe('the "Read the Journal" section', () => {
+        const journal = section('## Read the Journal')
+        const sentences = journal.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('has the heading, after "Read the General Ledger"', () => {
+            expect(body).toMatch(/^## Read the Journal$/m)
+            expect(body.indexOf('## Read the Journal\n')).toBeGreaterThan(
+                body.indexOf('## Read the General Ledger\n')
+            )
+        })
+
+        it('says each posted entry is a block headed by its number and type', () => {
+            expect(oneSentence(/\bblocks?\b/i, /\bentry\b/i)).toBe(true)
+            expect(oneSentence(/\bnumber\b/i, /\btype\b/i)).toBe(true)
+            expect(journal).toContain('JE-41 · Journal entry')
+            expect(journal).toContain('TR-7 · Transfer')
+        })
+
+        it.each([
+            ['the date', /\bdate\b/i],
+            ['Account', /\bAccount\b/],
+            ['Name', /\bName\b/],
+            ['Description', /\bDescription\b/],
+            ['Debit', /\bDebit\b/],
+            ['Credit', /\bCredit\b/],
+        ])('names the line column %s', (_name, phrase) => {
+            expect(journal).toMatch(phrase)
+        })
+
+        it("says each block's total row and the report's Total have equal Debit and Credit", () => {
+            expect(oneSentence(/\bblock\b/i, /\btotal\b/i, /Debit/, /Credit/, /\bequal/i)).toBe(
+                true
+            )
+            expect(oneSentence(/\bTotal\b/, /\breport\b/i, /\bequal/i)).toBe(true)
+        })
+
+        it('says only posted entries show, never drafts, and a void shows with its void reversal', () => {
+            expect(oneSentence(/\bposted\b/i, /\bshow/i)).toBe(true)
+            expect(oneSentence(/\bdrafts?\b/i, /\b(no|not|never)\b/i)).toBe(true)
+            expect(oneSentence(/\bvoided entry\b/i, /\bvoid reversal\b/i, /\bboth\b/i)).toBe(true)
+        })
+
+        it('names the Period chip with All dates', () => {
+            expect(journal).toMatch(/\bPeriod\b/)
+            expect(journal).toContain('All dates')
+            expect(journal).toContain('Custom')
+        })
+
+        it('says a press on a column heading sorts the lines inside each block', () => {
+            expect(oneSentence(/\bheading\b/i, /\bsort/i, /\bblocks?\b/i)).toBe(true)
+        })
+
+        it('says a press on a block heading folds it, and names Collapse all and Expand all', () => {
+            expect(oneSentence(/\bfold/i, /\bblock/i)).toBe(true)
+            expect(journal).toContain('Collapse all')
+            expect(journal).toContain('Expand all')
+        })
+
+        it('says a long period loads more blocks as you scroll', () => {
+            expect(oneSentence(/\bload/i, /\bscroll/i)).toBe(true)
+        })
+
+        it('says how a line wraps on a phone and on a tablet', () => {
+            expect(oneSentence(/\bphone\b/i, /\bthree lines\b/i)).toBe(true)
+            expect(oneSentence(/\btablet\b/i, /\btwo lines\b/i)).toBe(true)
+        })
+    })
+
+    it('"Who sees Books reports" names the Journal with the Trial Balance and the General Ledger', () => {
+        const sentences = section('## Who sees Books reports').split(/(?<=[.!?])\s+/)
+        expect(
+            sentences.some(
+                sentence =>
+                    sentence.includes('Trial Balance') &&
+                    sentence.includes('General Ledger') &&
+                    /\bJournal\b/.test(sentence)
+            )
+        ).toBe(true)
+    })
+
     it('drops the Books shell: no Accrual or Cash section and no Show rows', () => {
         expect(body).not.toMatch(/^## Choose Accrual or Cash$/m)
         expect(body).not.toContain('Show rows')
