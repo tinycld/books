@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/journal-report-checkpoints.md
 - reference: docs/plans/journal-report-reference/
 - evidence: docs/plans/journal-report-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~
 - capture manifest: docs/plans/journal-report-capture.json
 - review mode: C — none (unattended)
 - core extension: J1 (J1a paged group rows, J1b `options.collapse` fold list; spec §4) — checkpoint 0, core PR on branch books/p5-journal-report in tinycld, merges before checkpoint 1; MAJOR; the lane does NOT take `exclusive` for J1 (released by the human after the design gate: "the others will not conflict"). Core merge: ask the human (not pre-approved).
@@ -158,6 +158,6 @@
 - commit (fix round 2): the commit that holds this line, `fix(books): Journal long-block test runs every day`; not pushed
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved (2026-11-09)
+- human comments and what changed: none; the human accepted the open design decisions (880px one-line floor, corrected-entry label, wrap-line tracks, core R3/R10/R12) as built
 - native: not executed in this run
