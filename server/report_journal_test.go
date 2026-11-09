@@ -242,6 +242,97 @@ func TestJournalSpecLoads(t *testing.T) {
 	}
 }
 
+// The Journal's authored fit (spec §3 Phone and Every width fits, §5 display),
+// written out here rather than read from lib/journal-report-fixture.ts, so a
+// drift on either side fails. Phone: date and account, then name and
+// description, then Debit and Credit on tracks 2 and 3 (Credit ends at the
+// right edge). No desktop layout: the one line draws from 880 px rows (spec
+// §5 oneLine.minWidth, measured in checkpoint 2: below it the Account column
+// was cut at 900), and below 880 px the tablet layout (from 600 px) wraps the
+// line. No Name fit (plan D1 reversed): core shares the spare width by
+// flexGrow, so Description's 2 gives it the most.
+func TestJournalDisplay(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	spec, _, err := reports.Load(journalShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if spec.Display == nil {
+		t.Fatalf("the Journal spec has no display; want the mobile and tablet layouts and the column fit of spec §5")
+	}
+
+	type layout struct {
+		width, minWidth string
+		tracks          int
+		cells           []glCell
+	}
+	want := []layout{
+		{"mobile", "", 3, []glCell{
+			{"entry", 1, 0, 1, 1}, {"account", 1, 0, 2, 1},
+			{"name", 2, 0, 1, 1}, {"description", 2, 0, 2, 1},
+			{"debit", 3, 2, 1, 1}, {"credit", 3, 3, 1, 1},
+		}},
+		{"tablet", "600px", 12, []glCell{
+			{"entry", 1, 0, 2, 1}, {"account", 1, 0, 4, 1}, {"debit", 1, 0, 3, 1}, {"credit", 1, 0, 3, 1},
+			{"name", 2, 0, 4, 1}, {"description", 2, 0, 8, 1},
+		}},
+	}
+
+	got := spec.Display.Layouts
+	for _, l := range got {
+		if l.Width == "desktop" {
+			t.Errorf("the spec authors a desktop layout %+v; want none (core fits the one line, then wraps to the tablet layout)", l)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("display.layouts = %+v, want %d layouts (mobile, tablet)", got, len(want))
+	}
+	for i, w := range want {
+		g := got[i]
+		if g.Width != w.width || g.MinWidth != w.minWidth || g.Tracks != w.tracks {
+			t.Errorf("layout %d = width %q, minWidth %q, %d tracks; want %q, %q, %d tracks",
+				i, g.Width, g.MinWidth, g.Tracks, w.width, w.minWidth, w.tracks)
+		}
+		if len(g.Cells) != len(w.cells) {
+			t.Errorf("%s layout has %d cells %+v, want %d", w.width, len(g.Cells), g.Cells, len(w.cells))
+			continue
+		}
+		for j, wc := range w.cells {
+			if gc := glCellOf(g.Cells[j]); gc != wc {
+				t.Errorf("%s layout cell %d = %+v, want %+v", w.width, j, gc, wc)
+			}
+		}
+	}
+
+	wantOneLine := &reports.DisplayOneLine{MinWidth: "880px"}
+	if !reflect.DeepEqual(spec.Display.OneLine, wantOneLine) {
+		t.Errorf("display.oneLine = %+v, want %+v (the measure cut the Account column at 900; 880px is the narrowest width where all six columns fit)", spec.Display.OneLine, wantOneLine)
+	}
+	grow := 2
+	wantFit := map[string]reports.ColumnFit{
+		"account":     {MinWidth: "20ch"},
+		"description": {FlexGrow: &grow},
+		"debit":       {MinWidth: "max-content"},
+		"credit":      {MinWidth: "max-content"},
+	}
+	if !reflect.DeepEqual(spec.Display.Columns, wantFit) {
+		gotFit := map[string]string{}
+		for k, v := range spec.Display.Columns {
+			b, _ := json.Marshal(v)
+			gotFit[k] = string(b)
+		}
+		t.Errorf("display.columns = %v, want account minWidth 20ch, description flexGrow 2, debit/credit minWidth max-content, and no other column (no name entry)", gotFit)
+	}
+	if _, ok := spec.Display.Columns["name"]; ok {
+		t.Errorf("display.columns has a name entry %+v; want none (plan D1 reversed)", spec.Display.Columns["name"])
+	}
+
+	if err := reports.Validate(app, spec); err != nil {
+		t.Errorf("Validate refuses the display: %v", err)
+	}
+}
+
 // Blocks come by entry date, then posting order, then entry number sequence;
 // lines come by their position in the entry form. Ids are chosen so that the
 // record-id order, the insertion order and the order wanted all differ.
