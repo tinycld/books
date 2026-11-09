@@ -145,7 +145,20 @@ func balanceSheetSpec() *reports.Spec {
 			{Col: "knd"},
 			{Formula: rec("byAccount", "number")},
 			{Formula: rec("byAccount", "full_name")},
+			// Core applies a formula sort key that reads a row's fields to
+			// detail rows only, so these two order the opened lines and leave
+			// the groups alone. The entry's integer sequence, not its text
+			// number, which sorts "10" before "9".
+			{Formula: fld("date")},
+			{Formula: fld("entry", "sequence")},
 		},
+		// An opened account line reads "<date> · <entry number> · <memo>",
+		// with the entry's memo when the line has none (the Trial Balance's).
+		Detail: &reports.Detail{Label: op("concat",
+			fld("date"), lit(" · "),
+			fld("entry", "number"), lit(" · "),
+			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
+		)},
 	}
 }
 
