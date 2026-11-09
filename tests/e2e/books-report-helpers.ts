@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { hubRow, navigateToPackage, rowOf } from '@tinycld/core/e2e-helpers'
+import { isPhone } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
 // Books' reports run in core's report view (/a/reports/<id>). These helpers drive it
@@ -265,6 +266,43 @@ export async function openGeneralLedger(page: Page): Promise<void> {
     await expect(
         page.getByTestId('report-table').or(page.getByTestId('report-empty'))
     ).toBeVisible()
+}
+
+// The shipped Journal from the Books hub, reached as openGeneralLedger reaches the General
+// Ledger. core's hubRow matches any row whose text holds the title (case-blind), so the row
+// is narrowed to the one whose title reads "Journal" exactly.
+export async function openJournal(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, 'Journal')
+        .filter({ has: page.getByText('Journal', { exact: true }) })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(
+        page.getByTestId('report-table').or(page.getByTestId('report-empty'))
+    ).toBeVisible()
+}
+
+// Voids the posted entry open in its read view: Void from its actions (the bar on desktop,
+// the More menu on a phone), confirmed in `void-dialog`. The Void badge shows at once
+// (optimistic); the link to the void reversal comes only with the server's answer, so the
+// helper waits for both.
+export async function voidPostedEntry(page: Page): Promise<void> {
+    await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
+    if (isPhone(page)) {
+        await page.getByTestId('entry-more').click()
+        await page.getByRole('menuitem', { name: 'Void', exact: true }).click()
+    } else {
+        await page
+            .getByTestId('entry-actions')
+            .getByRole('button', { name: 'Void', exact: true })
+            .click()
+    }
+    const dialog = page.getByTestId('void-dialog')
+    await expect(dialog).toBeVisible()
+    await page.getByTestId('void-confirm').click()
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByTestId('entry-badge')).toHaveText('Void')
+    await expect(page.getByTestId('entry-link-reversed-by')).toBeVisible()
 }
 
 // Sets the Period: a preset applies at once and closes the popover; Custom days apply as
