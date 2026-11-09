@@ -1,21 +1,6 @@
 // Synthetic Balance Sheet for the helix reference route and the e2e spec's constants.
 // The run results are typed against core's report contract, so tsc checks every
 // field. Money is integer cents; a percent cell is already a percent (12.5 = 12.5%).
-//
-// Core checkpoint 0 (spec §4) has not landed when this file is written, so four of
-// its parts are drawn as the spec says they will arrive:
-// - G3: `ResultColumn.heading` does not exist yet; `BALANCE_SHEET_HEADINGS` holds the
-//   dated headings and the reference route puts them in the table's column labels
-//   (Customize keeps the plain labels). Checkpoint 0 adds `heading` to the result.
-// - G7: the hidden key columns (side, class rank, kind rank) are left out of
-//   `BALANCE_SHEET_COLUMNS`, as the engine will leave them out of the result.
-// - G1: an account with no class or kind sits directly under its parent (Equity
-//   accounts at depth 1, Fixed assets accounts at depth 2). Core's `endsInSubtotal`
-//   reads `depth + 1` as the level until G1 sends `ResultRow.level`, so the route
-//   reads subtotals from the rows alone (visibleRows without the spec).
-// - G4 / G8: Retained earnings and Net income are computed rows inside Equity, added
-//   to Total Equity; Change and % change on every computed row and total come from
-//   that row's own Current and Prior year.
 import type { DisplayLayout, ParamDef, ReportSpec } from '@tinycld/core/reports/lib/spec'
 import type {
     CellValue,
@@ -35,7 +20,7 @@ export const BALANCE_SHEET_HEADING = 'Harbor Lane Design LLC'
 // the same day twelve months earlier (core addMonths; Feb 29 → Feb 28).
 export const BALANCE_SHEET_AS_OF = '2026-11-08'
 export const BALANCE_SHEET_PRIOR_DAY = '2025-11-08'
-/** G3's dated headings in the reader's short day form. */
+/** The dated column headings as the header prints them (the reader's short day form). */
 export const BALANCE_SHEET_HEADINGS = { current: 'Nov 8, 2026', prior: 'Nov 8, 2025' }
 const CURRENCY = 'USD'
 
@@ -275,7 +260,7 @@ const OPENED_LINES = [
     },
 ]
 
-// The result's columns. G7's hidden key columns are not in a result.
+// The result's columns. The hidden key columns (side, class and kind rank) are not in a result.
 export const BALANCE_SHEET_COLUMNS: ResultColumn[] = [
     {
         id: 'account',
@@ -284,8 +269,20 @@ export const BALANCE_SHEET_COLUMNS: ResultColumn[] = [
         labelCell: 'account@label',
         labelType: 'text',
     },
-    { id: 'current', label: 'Current', type: 'money', currency: CURRENCY },
-    { id: 'prior', label: 'Prior year', type: 'money', currency: CURRENCY },
+    {
+        id: 'current',
+        label: 'Current',
+        type: 'money',
+        currency: CURRENCY,
+        heading: { value: BALANCE_SHEET_AS_OF, type: 'date' },
+    },
+    {
+        id: 'prior',
+        label: 'Prior year',
+        type: 'money',
+        currency: CURRENCY,
+        heading: { value: BALANCE_SHEET_PRIOR_DAY, type: 'date' },
+    },
     { id: 'change', label: 'Change', type: 'money', currency: CURRENCY },
     { id: 'pct', label: '% change', type: 'number', format: 'percent' },
 ]
@@ -297,6 +294,14 @@ export const BALANCE_SHEET_GROUPS = [
     { subtotals: true, open: true },
     { open: false },
 ]
+
+/** What `visibleRows` reads of the spec: the groups, and a layout (its sections). */
+export const BALANCE_SHEET_SUBTOTAL_SPEC = {
+    groups: BALANCE_SHEET_GROUPS,
+    layout: Object.keys(SECTION_TITLES),
+}
+
+const ACCOUNT_LEVEL = BALANCE_SHEET_GROUPS.length
 
 // Spec §5 `display`: the label narrows first; figures keep their full width. A phone
 // row wraps onto the label, then Current · Prior year · Change (% change is not in it);
@@ -360,7 +365,7 @@ const addPair = (a: Pair, b: Pair): Pair => ({
 })
 const sumPairs = (pairs: Pair[]): Pair => pairs.reduce(addPair, ZERO)
 
-// G8: Change and % change come from the row's own Current and Prior year. % change is
+// Change and % change are derived columns: from the row's own Current and Prior year. % change is
 // Change ÷ |Prior year| × 100, blank when Prior year is zero.
 function figures(pair: Pair): Record<string, CellValue> {
     const change = pair.current - pair.prior
@@ -413,6 +418,7 @@ function accountRows(
         id,
         kind: 'group',
         depth,
+        level: ACCOUNT_LEVEL,
         label: accountLabel(acct),
         section,
         groupKey: [...groupKey, CURRENCY],
@@ -428,7 +434,9 @@ interface Built {
     total: Pair
 }
 
-// One level of the outline: a group row, what sits under it, and its total row.
+// One level of the outline: a group row, what sits under it, and its total row. The
+// key holds one value per level the group sits in (section, class, kind), so its
+// length is the group's level; a skipped level (G1) makes no group, so no gap.
 function groupRows(
     label: string,
     key: unknown[],
@@ -438,10 +446,12 @@ function groupRows(
 ): Built {
     const id = keyId('g', key)
     const body = inner(id)
+    const level = key.length
     const head: ResultRow = {
         id,
         kind: 'group',
         depth,
+        level,
         label,
         section,
         groupKey: [...key, CURRENCY],
@@ -453,6 +463,7 @@ function groupRows(
         id: keyId('s', key),
         kind: 'subtotal',
         depth,
+        level,
         label: `Total ${label}`,
         section: id,
         groupKey: [...key, CURRENCY],
@@ -538,8 +549,8 @@ function sectionRows(
     const isOpen = !input.isCollapsed
     const under = accounts.filter(acct => placementOf(acct).side === side)
     const body = levelRows(under, 'cls', key, id, 1, input.openId)
-    // G4: Retained earnings and Net income sit inside Equity, before its total, and
-    // count in it; folded with the section, they do not show.
+    // Retained earnings and Net income sit inside Equity (`within`), before its total,
+    // and count in it; folded with the section, they do not show.
     const extra =
         side === 'equity'
             ? [
@@ -552,6 +563,7 @@ function sectionRows(
         id,
         kind: 'group',
         depth: 0,
+        level: 1,
         label: SECTION_TITLES[side],
         groupKey: [...key, CURRENCY],
         expanded: isOpen,
@@ -563,6 +575,7 @@ function sectionRows(
         id: keyId('s', key),
         kind: 'subtotal',
         depth: 0,
+        level: 1,
         label: `Total ${SECTION_TITLES[side]}`,
         section: id,
         groupKey: [...key, CURRENCY],
