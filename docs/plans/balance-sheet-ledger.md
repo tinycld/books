@@ -130,7 +130,7 @@
 - gate 3 A notes: 1 (Design notes)
 - reviewer-caught deferrals: none
 - out-of-plan: none (`docs/plans/balance-sheet-evidence/cp3/*` is the brief's evidence path)
-- commit: see the ledger commit that follows
+- commit: 9ff62bd (not pushed; the driver pushes)
 - human: none (review mode C)
 
 ## Final review
