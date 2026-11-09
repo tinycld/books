@@ -1031,3 +1031,246 @@ func TestBalanceSheetShippedUnpublished(t *testing.T) {
 	}
 	requireViewer(t, app, row, reader, "a Books reader")
 }
+
+// idLine is a journal line with its own record id (blank for a new one) and
+// memo, in minor units: a test sets the storage (id) order of the lines.
+type idLine struct {
+	id            string
+	account       *core.Record
+	debit, credit int
+	memo          string
+}
+
+// postIDs saves a manual entry with a memo and its lines, posts it, and
+// returns the posted entry (its number and sequence are set by the post).
+func (b bsBook) postIDs(t *testing.T, date, memo string, lines ...idLine) *core.Record {
+	t.Helper()
+	entry := saveRecord(t, b.app, "books_journal_entries", map[string]any{
+		"date": date, "status": "draft", "doc_type": "journal", "origin": "manual", "currency": "USD", "memo": memo,
+	})
+	for i, l := range lines {
+		fields := map[string]any{
+			"entry": entry.Id, "account": l.account.Id, "debit": l.debit, "credit": l.credit,
+			"memo": l.memo, "position": i, "currency": "USD",
+		}
+		if l.id != "" {
+			fields["id"] = l.id
+		}
+		saveRecord(t, b.app, "books_journal_lines", fields)
+	}
+	return mustPost(t, b.app, entry.Id, "")
+}
+
+// bsWireKey is a group row's groupKey as the client posts it back: through
+// JSON, so a rank reads as a JSON number, as core's run endpoint decodes it.
+func bsWireKey(t *testing.T, key []any) []any {
+	t.Helper()
+	raw, err := json.Marshal(key)
+	if err != nil {
+		t.Fatalf("group key %v: %v", key, err)
+	}
+	var out []any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatalf("group key %s: %v", raw, err)
+	}
+	return out
+}
+
+// bsOpened runs the Balance Sheet as of bsToday with the given account rows
+// opened (their group keys from a run with nothing opened), as the view asks
+// after a press. An empty Collapse keeps the levels that are open by default open.
+func (b bsBook) bsOpened(t *testing.T, opts reports.Options, accounts ...*core.Record) *reports.Result {
+	t.Helper()
+	opts.Collapse = [][]any{}
+	closed := b.runAt(t, bsToday, "")
+	for _, a := range accounts {
+		opts.Expand = append(opts.Expand, bsWireKey(t, bsAccount(t, closed, a).GroupKey))
+	}
+	return runBS(t, b.app, b.reader, map[string]any{"asOf": bsToday}, opts)
+}
+
+// bsLines are the detail rows under the account row, in the result's order.
+func bsLines(res *reports.Result, accountRow reports.Row) []reports.Row {
+	var out []reports.Row
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindDetail && r.Section == accountRow.ID {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func bsLineLabel(date string, entry *core.Record, memo string) string {
+	return date + " · " + entry.GetString("number") + " · " + memo
+}
+
+// Pressing an account row opens its posted lines (spec §3): labelled "<date>
+// · <entry number> · <memo>", the entry's memo when the line has none, in
+// date order then entry sequence, whatever order they were stored in; Current
+// by the account's normal side, Prior year only for a line on or before the
+// prior-year day, Change and % change blank. The line ids run against the
+// date and the sequence order, so storage order fails the order check.
+func TestBalanceSheetOpenedLines(t *testing.T) {
+	b := newBSBook(t)
+	checking := b.account(t, "Operating", "1000", "bank", "checking")
+	visa := b.account(t, "Visa", "2100", "credit_card", "credit_card")
+	owner := b.account(t, "Owner's equity", "3000", "equity", "owners_equity")
+	supplies := b.account(t, "Supplies", "6200", "expense", "office_general")
+	mkRetainedEarnings(t, b.app, "3900")
+	// On or before the prior-year day (2025-11-04).
+	e1 := b.postIDs(t, "2025-10-01", "Owner deposit",
+		idLine{id: "bsopenline00003", account: checking, debit: 1000, memo: "Before the prior day"},
+		idLine{account: owner, credit: 1000})
+	// Same day, posted in this order: e2 has the lower sequence, e3 the lower id.
+	e2 := b.postIDs(t, "2026-03-10", "March deposit",
+		idLine{id: "bsopenline00001", account: checking, debit: 2500},
+		idLine{account: owner, credit: 2500})
+	e3 := b.postIDs(t, "2026-03-10", "Card payment entry",
+		idLine{id: "bsopenline00000", account: checking, credit: 400, memo: "Card payment"},
+		idLine{account: owner, debit: 400})
+	e4 := b.postIDs(t, "2026-01-05", "January entry",
+		idLine{id: "bsopenline00002", account: checking, debit: 300, memo: "January"},
+		idLine{account: owner, credit: 300})
+	e5 := b.postIDs(t, "2026-04-01", "Card purchase",
+		idLine{account: supplies, debit: 4500},
+		idLine{account: visa, credit: 4500})
+
+	closed := b.runAt(t, bsToday, "")
+	for _, r := range closed.Rows {
+		if r.Kind == reports.KindDetail {
+			t.Fatalf("with no Expand the result holds detail row %q, want none (accounts open only on a press)", r.Label)
+		}
+	}
+	// Retained earnings, Net income and Total liabilities and equity (row ids
+	// "c:<row>" plus a currency suffix) do not open.
+	var computed []string
+	for _, r := range closed.Rows {
+		if r.Kind != reports.KindComputed {
+			continue
+		}
+		computed = append(computed, r.Label)
+		if r.CanExpand {
+			t.Errorf("computed row %s (%q) has CanExpand true, want false (it does not open)", r.ID, r.Label)
+		}
+	}
+	if want := []string{"Retained earnings", "Net income", "Total liabilities and equity"}; !slices.Equal(computed, want) {
+		t.Errorf("computed rows = %q, want %q", computed, want)
+	}
+
+	open := b.bsOpened(t, reports.Options{Today: bsToday}, checking, visa)
+	lines := bsLines(open, bsAccount(t, open, checking))
+	type want struct {
+		label          string
+		current, prior int64
+	}
+	wants := []want{
+		{bsLineLabel("2025-10-01", e1, "Before the prior day"), 1000, 1000},
+		{bsLineLabel("2026-01-05", e4, "January"), 300, 0},
+		// No line memo: the entry's.
+		{bsLineLabel("2026-03-10", e2, "March deposit"), 2500, 0},
+		// A bank account credited reads negative by its normal side.
+		{bsLineLabel("2026-03-10", e3, "Card payment"), -400, 0},
+	}
+	var got []string
+	for _, l := range lines {
+		got = append(got, l.Label)
+	}
+	var wantLabels []string
+	for _, w := range wants {
+		wantLabels = append(wantLabels, w.label)
+	}
+	if !slices.Equal(got, wantLabels) {
+		t.Fatalf("Operating's opened lines = %q\nwant (date, then entry sequence) %q", got, wantLabels)
+	}
+	for i, w := range wants {
+		requireFigures(t, lines[i], w.current, w.prior)
+	}
+
+	visaLines := bsLines(open, bsAccount(t, open, visa))
+	if len(visaLines) != 1 || visaLines[0].Label != bsLineLabel("2026-04-01", e5, "Card purchase") {
+		t.Fatalf("Visa's opened lines = %q, want one labelled %q", bsLabels(&reports.Result{Rows: visaLines}), bsLineLabel("2026-04-01", e5, "Card purchase"))
+	}
+	// A credit card credited 45.00 reads 45.00 (a liability's normal side).
+	requireFigures(t, visaLines[0], 4500, 0)
+
+	// Change and % change are blank on an opened line (N5): core leaves the
+	// cells out.
+	for _, r := range open.Rows {
+		if r.Kind != reports.KindDetail {
+			continue
+		}
+		for _, col := range []string{"change", "pct"} {
+			if v, has := r.Cells[col]; has {
+				t.Errorf("opened line %q has a %s cell %#v, want none", r.Label, col, v)
+			}
+		}
+	}
+}
+
+// An opened account longer than a page continues on the next page, in order,
+// with no line repeated. The line ids run against the date order.
+func TestBalanceSheetPagesOpenedLines(t *testing.T) {
+	b := newBSBook(t)
+	petty := b.account(t, "Petty cash", "1050", "bank", "cash_on_hand")
+	owner := b.account(t, "Owner's equity", "3000", "equity", "owners_equity")
+	mkRetainedEarnings(t, b.app, "3900")
+	var want []string
+	for k := 1; k <= 8; k++ {
+		date := fmt.Sprintf("2026-08-0%d", k)
+		memo := fmt.Sprintf("Line %d", k)
+		entry := b.postIDs(t, date, "Paging",
+			idLine{id: fmt.Sprintf("bspageline0000%d", 9-k), account: petty, debit: 100 * k, memo: memo},
+			idLine{account: owner, credit: 100 * k})
+		want = append(want, bsLineLabel(date, entry, memo))
+	}
+
+	opts := reports.Options{Today: bsToday, Limit: 5, Collapse: [][]any{}}
+	closed := b.runAt(t, bsToday, "")
+	opts.Expand = [][]any{bsWireKey(t, bsAccount(t, closed, petty).GroupKey)}
+	var got []string
+	pagesWithLines := 0
+	for range 20 {
+		res := runBS(t, b.app, b.reader, map[string]any{"asOf": bsToday}, opts)
+		n := 0
+		for _, r := range res.Rows {
+			if r.Kind == reports.KindDetail {
+				got = append(got, r.Label)
+				n++
+			}
+		}
+		if n > 0 {
+			pagesWithLines++
+		}
+		if res.Page == nil || res.Page.Next == "" {
+			break
+		}
+		opts.Cursor = res.Page.Next
+	}
+	if pagesWithLines < 2 {
+		t.Errorf("the 8 lines came on %d page(s) of 5 rows, want them split across pages", pagesWithLines)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("opened lines across pages = %q\nwant each once, in date order %q", got, want)
+	}
+}
+
+// Every collection the run and its lookups read is a topic, so a post, a
+// void, an account edit or a Books settings change re-runs the open report.
+// The run opens an account, so the detail label's entry read is in it.
+func TestBalanceSheetTopics(t *testing.T) {
+	b := newBSBook(t)
+	checking := b.account(t, "Operating", "1000", "bank", "checking")
+	owner := b.account(t, "Owner's equity", "3000", "equity", "owners_equity")
+	mkRetainedEarnings(t, b.app, "3900")
+	b.post(t, "2026-03-10", ln{checking, 4000, 0}, ln{owner, 0, 4000})
+
+	res := b.bsOpened(t, reports.Options{Today: bsToday}, checking)
+	for _, topic := range []string{
+		"collection/books_journal_lines", "collection/books_journal_entries",
+		"collection/books_accounts", "collection/books_settings",
+	} {
+		if !slices.Contains(res.Topics, topic) {
+			t.Errorf("topics = %v, want %s", res.Topics, topic)
+		}
+	}
+}

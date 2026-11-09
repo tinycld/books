@@ -13,13 +13,16 @@ import { createAccount, DESKTOP, openChart } from './account-register-helpers'
 import {
     type BsSnapshot,
     browserToday,
+    bsLinesUnder,
     bsSnapshot,
     chooseAsOf,
     chooseRows,
     dayWords,
     openBalanceSheet,
+    openBalanceSheetAccount,
     postEntryOn,
 } from './books-report-helpers'
+import { postedEntryNumber } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
 
 // The shipped Balance Sheet in core's report view (/a/reports/<id>), read by the e2e
@@ -216,6 +219,18 @@ async function foldRow(page: Page, label: string): Promise<void> {
     const target = (await copy.isVisible()) ? copy : row
     await target.click()
     await expect(row).toHaveAttribute('aria-expanded', 'false')
+}
+
+// Opens the folded group row labelled `label` and waits for the toggle's new state.
+async function unfoldRow(page: Page, label: string): Promise<void> {
+    const row = page
+        .getByTestId('report-table')
+        .locator('[data-testid^="report-row-"]')
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .first()
+    await expect(row, `the group row ${label} is folded`).toHaveAttribute('aria-expanded', 'false')
+    await row.click()
+    await expect(row).toHaveAttribute('aria-expanded', 'true')
 }
 
 test.describe('balance-sheet: report', () => {
@@ -552,6 +567,154 @@ test.describe('balance-sheet: report', () => {
             TOTAL_LIABILITIES_AND_EQUITY_LABEL,
         ]) {
             expect(figure(empty, label, 'current'), label).toBe(0)
+        }
+    })
+
+    test('pressing an account opens its posted lines, labelled, in posting order', async ({
+        page,
+    }) => {
+        const bank = accountName('BS7 bank')
+        const card = accountName('BS7 card')
+        const lineMemo = uniqueName('BS7 line memo')
+        const entryMemo = uniqueName('BS7 entry memo')
+        await startBooks(page)
+        await createAccounts(page, [
+            { name: bank, kind: BANK },
+            { name: card, kind: CREDIT_CARD },
+        ])
+        await openEntriesFromSidebar(page)
+        const today = await browserToday(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('BS7 entry with a line memo'),
+            lines: [
+                { account: bank, debit: '30.00', memo: lineMemo },
+                { account: card, credit: '30.00' },
+            ],
+        })
+        const first = await postedEntryNumber(page)
+        // B's line has no memo of its own, so its label reads the entry's.
+        await postEntryOn(page, {
+            date: today,
+            memo: entryMemo,
+            lines: [
+                { account: bank, debit: '12.50' },
+                { account: card, credit: '12.50' },
+            ],
+        })
+        const second = await postedEntryNumber(page)
+        await openBalanceSheet(page)
+
+        const closed = await snapshotWhen(
+            page,
+            s => has(s, bank, 'Total Bank accounts'),
+            `${bank} through Total Bank accounts`
+        )
+        expect(bsLinesUnder(closed, bank)).toEqual([])
+
+        await openBalanceSheetAccount(page, bank)
+        const opened = await snapshotWhen(
+            page,
+            s => bsLinesUnder(s, bank).length === 2,
+            `${bank} opened onto its two lines`
+        )
+        const lines = bsLinesUnder(opened, bank).map(row => ({
+            label: row.label,
+            current: cents(row.cells.current),
+            prior: cents(row.cells.prior),
+            change: row.cells.change ?? '',
+            pct: row.cells.pct ?? '',
+        }))
+        expect(lines).toEqual([
+            {
+                label: `${today} · ${first} · ${lineMemo}`,
+                current: 3000,
+                prior: 0,
+                change: '',
+                pct: '',
+            },
+            {
+                label: `${today} · ${second} · ${entryMemo}`,
+                current: 1250,
+                prior: 0,
+                change: '',
+                pct: '',
+            },
+        ])
+
+        // Retained earnings is a computed row: no fold chevron, and a press opens nothing.
+        // The next run (Liabilities opened again) carries whatever the press changed.
+        await foldRow(page, SECTION_TITLES.asset)
+        await foldRow(page, SECTION_TITLES.liability)
+        const retained = page
+            .getByTestId('report-table')
+            .locator('[data-testid^="report-row-c:retainedEarnings"]')
+        await expect(retained).toBeVisible()
+        await expect(retained).not.toHaveAttribute('aria-expanded')
+        await expect(retained).not.toHaveAttribute('role', 'button')
+        await retained.click()
+        await unfoldRow(page, SECTION_TITLES.liability)
+        const after = await snapshotWhen(
+            page,
+            s => has(s, 'Current liabilities', RETAINED_EARNINGS_LABEL, NET_INCOME_LABEL),
+            'Liabilities open again, through Retained earnings and Net income'
+        )
+        expect(bsLinesUnder(after, RETAINED_EARNINGS_LABEL)).toEqual([])
+        const next = after.rows[indexOf(after, RETAINED_EARNINGS_LABEL) + 1]
+        expect(next?.label).toBe(NET_INCOME_LABEL)
+    })
+
+    test('a post made on another page appears in the open report without a reload', async ({
+        page,
+        browser,
+    }) => {
+        const credited = accountName('BS8 credited')
+        const debited = accountName('BS8 debited')
+        await startBooks(page)
+        await openBalanceSheet(page)
+        await snapshotWhen(
+            page,
+            s => has(s, SECTION_TITLES.asset, 'Bank accounts'),
+            'the open report with its Bank accounts'
+        )
+        await page.evaluate(() => {
+            ;(window as unknown as { bsNotReloaded?: boolean }).bsNotReloaded = true
+        })
+
+        // Page B is a second browser context signed in as the same user: its own session
+        // and its own realtime connection, so the post reaches page A through the server.
+        const otherContext = await browser.newContext()
+        try {
+            const other = await otherContext.newPage()
+            await startBooks(other)
+            await createAccounts(other, [
+                { name: credited, kind: BANK },
+                { name: debited, kind: BANK },
+            ])
+            await openEntriesFromSidebar(other)
+            await postEntryOn(other, {
+                date: await browserToday(other),
+                memo: uniqueName('BS8 live post'),
+                lines: [
+                    { account: debited, debit: '60.00' },
+                    { account: credited, credit: '60.00' },
+                ],
+            })
+
+            // Only a run after the post has a row for the new account.
+            const live = await snapshotWhen(
+                page,
+                s => has(s, debited, credited),
+                `${debited} and ${credited} in the open report`
+            )
+            expect(figure(live, debited, 'current')).toBe(6000)
+            expect(figure(live, credited, 'current')).toBe(-6000)
+            const notReloaded = await page.evaluate(
+                () => (window as unknown as { bsNotReloaded?: boolean }).bsNotReloaded
+            )
+            expect(notReloaded).toBe(true)
+        } finally {
+            await otherContext.close()
         }
     })
 })

@@ -30,8 +30,12 @@
 - cp 1 · `server/report_balance_sheet_test.go` `TestBalanceSheetRows`: "its section total adds nothing for it" (Other assets) cannot fail — the hidden group's accounts net to 0, so its subtotal is 0 anyway; under Non-zero only a zero account hides. G5's arithmetic is pinned in core. (reviewer A NOTE 4)
 - cp 1 · `docs/plans/balance-sheet-evidence/cp1/capture.json`: no-lines hard-codes As of 2024-08-14, right only while the seed year is 2026 (evidence, not a test). (reviewer A NOTE 5)
 - cp 0 · customize-1280: table beside the open Customize panel — about 573 px wide, below the tablet layout's 600 px `minWidth`, so core draws the mobile layout and % change leaves the table while the reader is in the panel that toggles it; the "% change" switch then has no visible effect at this width. Same in the reference; decided by spec §5 `display.layouts` (tablet `minWidth` 600px). A Books display decision to revisit, not a core defect. (critic, NOTE)
+- cp 2 · `server/report_balance_sheet.go` sort: lines of one entry (or of a void, its reversal and the correction, which share one number and sequence, `server/reversal.go:236`) tie on `[date]`, `[entry, sequence]` and come in record-id order — the seed's opened 1000 Business Checking reads "JE-10 · Register corrected" before "JE-10 · Register void original" and "JE-10 · Void of JE-10". Spec §5 names only these two keys; a third key (line position, or the entry's created time) would give form/posting order. Decide whether to add one (the Trial Balance's sort is the same). (reviewer A NOTE 3, critic "for gate 3")
+- cp 2 · `tests/e2e/balance-sheet.spec.ts` e2e 7: "a press on [Retained earnings] opens nothing" is read only from the row set after the press; a computed row cannot carry detail rows, so it cannot fail that way. Go `CanExpand` false and the absent `aria-expanded` pin it. (reviewer A NOTE 4)
 
 ## Out-of-plan changes
+- cp 2 · books `tests/e2e/books-report-helpers.ts` — `bsLinesUnder`, `openBalanceSheetAccount`, named by the checkpoint's Interfaces "Produces" and Do step 2, not by its Files block.
+- cp 2 · books `tests/e2e/journal-entries-helpers.ts` (new `postedEntryNumber`) and `tests/e2e/journal-entries-actions.spec.ts` (local `entryNumber` removed, uses the shared helper) — reviewer B 3: one helper for the entry-number read instead of two copies.
 - cp 0 · core `tests/scripts/reports-stub/server/register.go.txt` — the shipped "Stub statement" the new `reports-statements.spec.ts` reads on `salesstub`; named by the core plan (Task 13), not by the checkpoint's Files block.
 - cp 0 · core `tests/e2e/reports-formula-layout.spec.ts` — e2e for the new "This column: …" and remove/add row-formula builder controls (final whole-branch review) and the Save error step (gate 3 A BLOCK 2); the Files block names this file only as a spec to run.
 - cp 0 · books `docs/plans/balance-sheet-capture.json` — biome formatting only (gate 1 `pnpm run checks` lint failed on it).
@@ -87,6 +91,22 @@
 - reviewer-caught deferrals: none
 - out-of-plan: none (`docs/plans/balance-sheet-evidence/cp1/*` is the gate 2 evidence path the brief names)
 - commit: 9954c69 (not pushed; the driver pushes)
+- human: none (review mode C)
+
+## Checkpoint 2
+- test writer (staging cp/cp2-tests.md): `server/report_balance_sheet_test.go` (`TestBalanceSheetOpenedLines`, `TestBalanceSheetPagesOpenedLines`, `TestBalanceSheetTopics`), `tests/e2e/balance-sheet.spec.ts` (e2e 7 open an account, e2e 8 live), `tests/e2e/books-report-helpers.ts` (`bsLinesUnder`, `openBalanceSheetAccount`); red for the right reason: yes (Go: no detail label, no date/sequence sort key — order red proved alone by `go test -overlay` — no `books_journal_entries` topic; e2e 7: account label on lines, lines not in posting order); guards: e2e 8 (core already re-runs on the topics; P5) and the Change/% change blank checks (checkpoint 1 already set `DetailBlank`; an overlay without it made them fail); untestable: none
+- implementer (staging cp/cp2-impl.md): `server/report_balance_sheet.go` detail label (the Trial Balance's), sort keys `[date]`, `[entry, sequence]`; DONE
+- test disputes: none
+- self-declared differences: (1) `change`/`pct` already carried `Detail: reports.DetailBlank` since checkpoint 1 (cp1 difference 3), no change; (2) Do step 2's helpers were written by the test writer, the implementer did not touch the file; (3) spec revision stays 1 (plan rule; a dev DB with checkpoint 1's spec must delete its `reports` row)
+- gate 1: tests unedited: yes · `go test ./...` ok · `tinycld-pkg check` pass (vitest 4296) · e2e `balance-sheet:` 8 passed (logs staging cp/cp2-g1-*.log) → pass
+- gate 2: capture evidence/cp2/capture.json — real route from the Books hub, press "1000 Business Checking", 1280 light/dark (phone is checkpoint 3) · invalid shots: none · blocking: none · notes: 0 · critic's "for gate 3": three lines read "JE-10" — by design: `server/reversal.go:236` "A void's reversal shares the voided entry's number; an edit takes the number of the entry it replaces" (their tie order → Design notes)
+- gate 3 A (correctness): 0 BLOCK · NOTE 1 helpers file out-of-plan (see Out-of-plan) · NOTE 2 evidence capture.json, the brief's evidence path, not out-of-plan · NOTE 3 lines of one entry tie on the sort keys → Design notes · NOTE 4 e2e "a press opens nothing" cannot fail that way → Design notes · NOTE 5 = B 4 → accepted, fixed (fix 2)
+- gate 3 B (conformance): script lines: 0 real, 0 false positive (B's own `window` in `page.evaluate`: false positive, test code in the page) · 1 `books-report-helpers.ts` not in Files → out-of-plan, accepted (Interfaces "Produces" and Do step 2 name it) · 2 evidence capture.json → not out-of-plan · 3 duplicate `postedNumber`/`entryNumber` → accepted, fixed (fix 1) · 4 second context not closed on failure → accepted, fixed (fix 2) · 5 broken test comment → accepted, fixed (fix 3)
+- fix round 1 (staging cp/cp2-fix.md; test writer staging cp/cp2-fix-tests.md): shared `postedEntryNumber(page)` in `tests/e2e/journal-entries-helpers.ts` used by both specs; e2e 8 closes its second context in `finally`; comment reworded. Gate 1 again: `go test ./...` ok · `tinycld-pkg check` pass (vitest 4296) · e2e `balance-sheet:` 8 passed · `journal-entries-actions.spec.ts` 12 passed (logs staging cp/cp2-g1f-*.log)
+- fix review: n/a — round 1 changed test files only (bright line: no non-test source); 1 fix round
+- gate 3 A notes: 2 (Design notes)
+- reviewer-caught deferrals: none
+- out-of-plan: 3 (see Out-of-plan changes)
 - human: none (review mode C)
 
 ## Final review

@@ -441,6 +441,24 @@ export function bsSnapshot(page: Page): Promise<BsSnapshot> {
     })
 }
 
+// The opened lines under the row labelled `label`: the detail rows that follow it until the
+// next row that is not a line. Empty when the row is not mounted or not open.
+export function bsLinesUnder(snapshot: BsSnapshot, label: string): BsSnapshot['rows'] {
+    const start = snapshot.rows.findIndex(row => row.label === label)
+    if (start < 0) return []
+    const after = snapshot.rows.slice(start + 1)
+    const end = after.findIndex(row => row.kind !== 'detail')
+    return end < 0 ? after : after.slice(0, end)
+}
+
+// Presses a Balance Sheet account row and waits until its lines show beneath it.
+export async function openBalanceSheetAccount(page: Page, label: string): Promise<void> {
+    await rowOf(page, label).click()
+    await expect
+        .poll(async () => bsLinesUnder(await bsSnapshot(page), label).length)
+        .toBeGreaterThan(0)
+}
+
 // Posts a journal entry on `date`: Books must be open on a screen openNewEntry reaches. The
 // form starts with two lines; each line past them is added with Add line.
 export async function postEntryOn(
