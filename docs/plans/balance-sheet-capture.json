@@ -40,7 +40,10 @@
             "url": "/a/books/helix-mockup?state=customize",
             "ready": "report-customize",
             "stable": "report-customize-reset",
-            "actions": [{ "click": "report-customize-section-columns" }, { "waitFor": "report-option-column-current" }],
+            "actions": [
+                { "click": "report-customize-section-columns" },
+                { "waitFor": "report-option-column-current" }
+            ],
             "hideLabels": ["New"]
         },
         {
