@@ -1,0 +1,90 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports",
+            "openReport": "Journal",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [{ "waitForHidden": "report-updating" }]
+        },
+        {
+            "name": "folded",
+            "url": "/a/reports",
+            "openReport": "Journal",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "clickText": "JE-6 · Journal entry" },
+                { "waitForHidden": "Register sale" }
+            ]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/reports",
+            "openReport": "Journal",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "click": "report-fold-all" },
+                { "waitFor": "Expand all" },
+                { "waitForHidden": "Register sale" }
+            ]
+        },
+        {
+            "name": "sorted",
+            "url": "/a/reports",
+            "openReport": "Journal",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "click": "report-sort-debit" },
+                { "pause": 800 },
+                { "waitForHidden": "report-updating" },
+                { "click": "report-sort-debit" },
+                { "pause": 800 },
+                { "waitForHidden": "report-updating" }
+            ]
+        },
+        {
+            "name": "all-dates",
+            "url": "/a/reports",
+            "openReport": "Journal",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-allDates" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "All dates" },
+                { "pause": 800 },
+                { "waitForHidden": "report-updating" },
+                { "click": "report-document-title" }
+            ]
+        },
+        {
+            "name": "customize",
+            "url": "/a/reports",
+            "openReport": "Journal",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "click": "report-customize-open" },
+                { "waitFor": "report-customize" }
+            ],
+            "stable": "report-customize-reset"
+        }
+    ]
+}

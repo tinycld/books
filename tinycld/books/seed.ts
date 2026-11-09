@@ -545,12 +545,11 @@ async function seedPartyEntries(
 // A section longer than the General Ledger's first page of 200 lines, so its paging
 // is reached in the seeded book.
 async function seedLongSection(pb: PocketBase, ctx: SeedContext, ids: Map<string, string>) {
-    const { account, offset, days, linesPerEntry, cents, memo } = GENERAL_LEDGER_LONG_SECTION
-    const year = new Date().getFullYear()
+    const { account, offset, dates, linesPerEntry, cents, memo } = GENERAL_LEDGER_LONG_SECTION
     const debits: SeedLine[] = Array.from({ length: linesPerEntry }, () => [account, cents, 0])
     const lines: SeedLine[] = [...debits, [offset, 0, linesPerEntry * cents]]
-    for (const day of days) {
-        await postEntry(pb, ctx, ids, { date: `${year}-${day}`, memo, lines })
+    for (const date of dates) {
+        await postEntry(pb, ctx, ids, { date, memo, lines })
     }
 }
 
