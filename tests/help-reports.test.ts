@@ -109,6 +109,75 @@ describe('help/reports.md', () => {
         })
     })
 
+    describe('the "Read the Balance Sheet" section', () => {
+        const sheet = section('## Read the Balance Sheet')
+        const sentences = sheet.split(/(?<=[.!?])\s+/)
+        const inOneSentence = (...phrases: RegExp[]) =>
+            sentences.some(s => phrases.every(phrase => phrase.test(s)))
+
+        it('has the heading, right after "Read the General Ledger"', () => {
+            expect(body).toMatch(/^## Read the Balance Sheet$/m)
+            const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
+            const ledger = headings.indexOf('## Read the General Ledger')
+            expect(ledger).toBeGreaterThanOrEqual(0)
+            expect(headings[ledger + 1]).toBe('## Read the Balance Sheet')
+        })
+
+        it.each([
+            ['Assets', /\bAssets\b/],
+            ['Liabilities', /\bLiabilities\b/],
+            ['Equity', /\bEquity\b/],
+            ['Prior year', /Prior year/],
+            ['Change', /\bChange\b/],
+            ['% change', /% change/],
+            ['Retained earnings', /Retained earnings/i],
+            ['Net income', /Net income/i],
+            ['the fiscal year', /fiscal year/i],
+            ['Rows', /\bRows\b/],
+            ['Non-zero', /Non-zero/],
+            ['Active', /\bActive\b/],
+        ])('names %s', (_name, phrase) => {
+            expect(sheet).toMatch(phrase)
+        })
+
+        it("says every figure is a balance by the account's normal side, in one sentence", () => {
+            expect(inOneSentence(/\bbalances?\b/i, /normal side/i)).toBe(true)
+        })
+
+        it('says Prior year is the same day a year earlier, in one sentence', () => {
+            expect(inOneSentence(/Prior year/, /same day/i, /\byear (earlier|before)\b/i)).toBe(
+                true
+            )
+        })
+
+        it('says how the fiscal year splits Retained earnings and Net income', () => {
+            expect(inOneSentence(/Retained earnings/i, /fiscal year/i)).toBe(true)
+            expect(inOneSentence(/Net income/i, /fiscal year/i)).toBe(true)
+        })
+
+        it('says pressing an account opens its lines, in one sentence', () => {
+            expect(inOneSentence(/\b(press|tap|click)\b/i, /\baccount\b/i, /\blines?\b/i)).toBe(
+                true
+            )
+        })
+
+        it('says why Total assets equals Total liabilities and equity', () => {
+            expect(sheet).toMatch(/Total assets/i)
+            expect(sheet).toMatch(/Total liabilities and equity/i)
+            expect(
+                inOneSentence(
+                    /Total assets/i,
+                    /Total liabilities and equity/i,
+                    /\b(equals?|same|match(es)?)\b/i
+                )
+            ).toBe(true)
+            // The reason: every posted entry balances (its debits equal its credits).
+            expect(
+                inOneSentence(/\b(because|since)\b/i, /\bentr(y|ies)\b/i, /\b(balances?|debits)\b/i)
+            ).toBe(true)
+        })
+    })
+
     it('drops the Books shell: no Accrual or Cash section and no Show rows', () => {
         expect(body).not.toMatch(/^## Choose Accrual or Cash$/m)
         expect(body).not.toContain('Show rows')

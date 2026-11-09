@@ -159,11 +159,60 @@ func balanceSheetSpec() *reports.Spec {
 			fld("entry", "number"), lit(" · "),
 			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
 		)},
+		Display: balanceSheetDisplay(),
 	}
 }
 
-// percentChange is Change ÷ |Prior year| × 100 at two decimals, empty when
-// Prior year is zero. The engine has no abs operator: |x| is max(x, 0 − x).
+// balanceSheetDisplay keeps every figure whole: the label narrows with an
+// ellipsis first, the four figure columns never shrink below their text. It
+// has no desktop layout and no one-line gate: core fits one line to the view
+// and falls to the tablet layout, then the phone layout, when it does not.
+func balanceSheetDisplay() *reports.Display {
+	figure := reports.ColumnFit{MinWidth: "max-content"}
+	return &reports.Display{
+		Columns: map[string]reports.ColumnFit{
+			"account": {MinWidth: "12ch"},
+			"current": figure,
+			"prior":   figure,
+			"change":  figure,
+			"pct":     figure,
+		},
+		Layouts: balanceSheetLayouts(),
+	}
+}
+
+// balanceSheetLayouts are the wrapped rows: the label on its own line, the
+// figures on the line below. The phone layout leaves out % change, so a
+// phone does not show it.
+func balanceSheetLayouts() []reports.DisplayLayout {
+	return []reports.DisplayLayout{
+		{
+			Width:  "mobile",
+			Tracks: 3,
+			Cells: []reports.DisplayCell{
+				{Col: "account", Line: 1, Span: 3},
+				{Col: "current", Line: 2},
+				{Col: "prior", Line: 2},
+				{Col: "change", Line: 2},
+			},
+		},
+		{
+			Width:    "tablet",
+			MinWidth: "600px",
+			Tracks:   4,
+			Cells: []reports.DisplayCell{
+				{Col: "account", Line: 1, Span: 4},
+				{Col: "current", Line: 2},
+				{Col: "prior", Line: 2},
+				{Col: "change", Line: 2},
+				{Col: "pct", Line: 2},
+			},
+		},
+	}
+}
+
+// percentChange divides Change by |Prior year| at scale 4, then multiplies
+// by 100; it is empty when Prior year is zero. The engine has no abs operator: |x| is max(x, 0 − x).
 func percentChange() *reports.Node {
 	scale := 4
 	prior := col("prior")

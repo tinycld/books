@@ -1,5 +1,11 @@
 import { expect, type Page, test } from '@playwright/test'
-import { authStorageKey, login, navigateToPackage, pressToolbar } from '@tinycld/core/e2e-helpers'
+import {
+    authStorageKey,
+    login,
+    navigateToPackage,
+    pressToolbar,
+    waitForTableFit,
+} from '@tinycld/core/e2e-helpers'
 import {
     BALANCE_SHEET_TITLE,
     NET_INCOME_LABEL,
@@ -9,7 +15,7 @@ import {
 } from '~/tinycld/books/lib/balance-sheet-fixture'
 import { SEED_ACCOUNTS } from '~/tinycld/books/lib/seed-accounts'
 import { PRIOR_YEAR_SEED } from '~/tinycld/books/lib/trial-balance-fixture'
-import { createAccount, DESKTOP, openChart } from './account-register-helpers'
+import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     type BsSnapshot,
     browserToday,
@@ -22,7 +28,7 @@ import {
     openBalanceSheetAccount,
     postEntryOn,
 } from './books-report-helpers'
-import { postedEntryNumber } from './journal-entries-helpers'
+import { ACCOUNT_LABELS, postedEntryNumber } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
 
 // The shipped Balance Sheet in core's report view (/a/reports/<id>), read by the e2e
@@ -232,6 +238,94 @@ async function unfoldRow(page: Page, label: string): Promise<void> {
     await row.click()
     await expect(row).toHaveAttribute('aria-expanded', 'true')
 }
+
+const FIGURES = ['current', 'prior', 'change', 'pct'] as const
+
+// The account row `rowId`'s geometry and the table's fit (spec §3 Phone, "Every width
+// fits"), read in ONE pass: where the label and each figure cell sit, whether the label
+// text runs onto one line or is cut with an ellipsis, which figure cells (of every mounted
+// row) are cut, whether each figure heading and cell ends inside the table, whether the
+// table scrolls sideways, and whether any heading or cell of a hidden key column is drawn.
+function tableGeometry(page: Page, rowId: string) {
+    return page.evaluate(
+        ({ id, figures }) => {
+            const table = document.querySelector<HTMLElement>('[data-testid="report-table"]')
+            if (!table) return null
+            const find = (testId: string) =>
+                table.querySelector<HTMLElement>(`[data-testid="${CSS.escape(testId)}"]`)
+            const visible = (element: Element) => element.getBoundingClientRect().height > 0
+            // An element, or a child, whose text is wider than its box: it shows an ellipsis.
+            const cutPart = (element: Element) =>
+                [element, ...element.querySelectorAll('*')].find(
+                    e => e instanceof HTMLElement && e.scrollWidth > e.clientWidth
+                ) as HTMLElement | undefined
+            const label = find(`report-row-${id}`)
+            const labelRect = label && visible(label) ? label.getBoundingClientRect() : null
+            const labelLines = (() => {
+                if (!label) return 0
+                // The text's own line boxes (not the fold caret's).
+                const tops: number[] = []
+                const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT)
+                for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                    if (!node.textContent?.trim()) continue
+                    const range = document.createRange()
+                    range.selectNodeContents(node)
+                    for (const rect of range.getClientRects()) {
+                        if (rect.width === 0) continue
+                        if (!tops.some(top => Math.abs(top - rect.top) <= 1)) tops.push(rect.top)
+                    }
+                }
+                return tops.length
+            })()
+            const labelCut = label ? cutPart(label) : undefined
+            const tops: Record<string, number | null> = {}
+            for (const col of figures) {
+                const cell = find(`report-cell-${col}-${id}`)
+                tops[col] = cell && visible(cell) ? cell.getBoundingClientRect().top : null
+            }
+            const figureElements = figures.flatMap(col => [
+                ...table.querySelectorAll(
+                    `[data-testid="report-heading-${col}"], [data-testid^="report-cell-${col}-"]`
+                ),
+            ])
+            const shownFigures = figureElements.filter(visible)
+            const tableRight = table.getBoundingClientRect().right
+            const hiddenKeys = ['side', 'cls', 'knd'].flatMap(col => [
+                ...table.ownerDocument.querySelectorAll(
+                    `[data-testid="report-heading-${col}"], [data-testid^="report-cell-${col}-"]`
+                ),
+            ])
+            return {
+                label: labelRect ? { top: labelRect.top, bottom: labelRect.bottom } : null,
+                labelLines,
+                labelCut: labelCut !== undefined,
+                labelEllipsis:
+                    labelCut !== undefined &&
+                    getComputedStyle(labelCut).textOverflow === 'ellipsis',
+                tops,
+                pctCells: table.querySelectorAll('[data-testid^="report-cell-pct-"]').length,
+                figureCount: shownFigures.length,
+                outsideRight: shownFigures
+                    .filter(element => element.getBoundingClientRect().right > tableRight + 1)
+                    .map(element => element.getAttribute('data-testid')),
+                cutFigures: shownFigures
+                    .filter(
+                        element =>
+                            (element.getAttribute('data-testid') ?? '').startsWith(
+                                'report-cell-'
+                            ) && cutPart(element) !== undefined
+                    )
+                    .map(element => element.getAttribute('data-testid')),
+                noSidewaysScroll: table.scrollWidth === table.clientWidth,
+                hiddenKeys: hiddenKeys.map(element => element.getAttribute('data-testid')),
+            }
+        },
+        { id: rowId, figures: [...FIGURES] }
+    )
+}
+
+const near = (a: number | null | undefined, b: number | null | undefined) =>
+    a != null && b != null && Math.abs(a - b) <= 1
 
 test.describe('balance-sheet: report', () => {
     test('opens from the hub with its header, controls and dated columns', async ({ page }) => {
@@ -715,6 +809,148 @@ test.describe('balance-sheet: report', () => {
             expect(notReloaded).toBe(true)
         } finally {
             await otherContext.close()
+        }
+    })
+
+    test('on a phone an account row wraps onto its label, then Current · Prior year · Change, and nothing scrolls sideways', async ({
+        page,
+    }) => {
+        const bank = accountName('BS9 bank')
+        await startBooks(page)
+        await createAccounts(page, [{ name: bank, kind: BANK }])
+        await openEntriesFromSidebar(page)
+        const today = await browserToday(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('BS9 phone'),
+            lines: [
+                { account: bank, debit: '125.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '125.00' },
+            ],
+        })
+
+        // The phone path: Reports from the Books menu drawer (openBooksReports).
+        await page.setViewportSize(PHONE)
+        await openBalanceSheet(page)
+        await expect
+            .poll(async () => {
+                const snapshot = await bsSnapshot(page)
+                const expected = await expectedHeading(page)
+                return { matches: snapshot.business === expected && expected !== '', expected }
+            })
+            .toMatchObject({ matches: true })
+        await expect(page.getByTestId('report-param-asOf')).toBeVisible()
+        await expect(page.getByTestId('report-param-asOf')).toContainText('Today')
+        await expect(page.getByTestId('report-param-rows')).toBeVisible()
+        await expect(page.getByTestId('report-param-rows')).toContainText('Non-zero')
+
+        const snapshot = await snapshotWhen(page, s => has(s, bank), `${bank} on the phone`)
+        expect(snapshot.title).toBe(BALANCE_SHEET_TITLE)
+        expect(snapshot.header).toBe(`As of ${dayWords(today)}`)
+        expect(snapshot.headings.current).toBe(shortDay(today))
+        expect(snapshot.headings.prior).toBe(shortDay(priorDay(today)))
+
+        // The authored mobile layout (spec §5 display.layouts), drawn through core's G9.
+        expect(await waitForTableFit(page)).toBe('mobile')
+        const id = rowOf(snapshot, bank).id
+        await expect
+            .poll(
+                async () => {
+                    const g = await tableGeometry(page, id)
+                    if (!g) return null
+                    const { current, prior, change } = g.tops
+                    return {
+                        measured: g.label !== null && current != null,
+                        labelLines: g.labelLines,
+                        figuresShareALine: near(current, prior) && near(current, change),
+                        figuresBelowLabel: (current ?? 0) >= (g.label?.bottom ?? 0) - 1,
+                        pctCells: g.pctCells,
+                        cutFigures: g.cutFigures,
+                        noSidewaysScroll: g.noSidewaysScroll,
+                    }
+                },
+                { message: 'the phone layout: label, then Current · Prior year · Change' }
+            )
+            .toEqual({
+                measured: true,
+                labelLines: 1,
+                figuresShareALine: true,
+                figuresBelowLabel: true,
+                pctCells: 0,
+                cutFigures: [],
+                noSidewaysScroll: true,
+            })
+    })
+
+    test('at desktop and tablet widths every figure fits inside the table and the label narrows first', async ({
+        page,
+    }) => {
+        // Long enough that its label is wider than its cell on one line at 1280 and 1024.
+        const bank = accountName(
+            'BS10 operating account for the studio lease deposits, equipment purchases, payroll sweeps and the quarterly estimated taxes'
+        )
+        await startBooks(page)
+        await createAccounts(page, [{ name: bank, kind: BANK }])
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: await browserToday(page),
+            memo: uniqueName('BS10 fits'),
+            lines: [
+                { account: bank, debit: '345.67' },
+                { account: ACCOUNT_LABELS.checking, credit: '345.67' },
+            ],
+        })
+        await openBalanceSheet(page)
+        const snapshot = await snapshotWhen(page, s => has(s, bank), `${bank} in the report`)
+        const id = rowOf(snapshot, bank).id
+
+        // 1280 fits the one line. 1024 fits it or wraps to the authored tablet layout,
+        // as the run's measure decides; the test reads the geometry of the layout core
+        // reports.
+        for (const { size, layouts } of [
+            { size: { width: 1280, height: 800 }, layouts: ['one-line'] },
+            { size: { width: 1024, height: 800 }, layouts: ['one-line', 'tablet'] },
+        ]) {
+            await page.setViewportSize(size)
+            const layout = await waitForTableFit(page)
+            expect(layouts, `the layout at ${size.width}`).toContain(layout)
+            const isOneLine = layout === 'one-line'
+            await expect
+                .poll(
+                    async () => {
+                        const g = await tableGeometry(page, id)
+                        if (!g) return null
+                        const tops = FIGURES.map(col => g.tops[col])
+                        const labelTop = g.label?.top
+                        const shape = isOneLine
+                            ? tops.every(top => near(top, labelTop))
+                            : tops.every(top => near(top, tops[0])) &&
+                              (tops[0] ?? 0) >= (g.label?.bottom ?? 0) - 1
+                        return {
+                            measured:
+                                g.label !== null &&
+                                tops.every(top => top != null) &&
+                                g.figureCount >= 2 * FIGURES.length,
+                            shape,
+                            // The label narrows first: on one line it ends in an ellipsis.
+                            labelEllipsis: isOneLine ? g.labelCut && g.labelEllipsis : true,
+                            outsideRight: g.outsideRight,
+                            cutFigures: g.cutFigures,
+                            noSidewaysScroll: g.noSidewaysScroll,
+                            hiddenKeys: g.hiddenKeys,
+                        }
+                    },
+                    { message: `the ${layout} layout at ${size.width}` }
+                )
+                .toEqual({
+                    measured: true,
+                    shape: true,
+                    labelEllipsis: true,
+                    outsideRight: [],
+                    cutFigures: [],
+                    noSidewaysScroll: true,
+                    hiddenKeys: [],
+                })
         }
     })
 })

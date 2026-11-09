@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger]
+tags: [reports, trial balance, general ledger, balance sheet]
 order: 60
 ---
 
@@ -69,9 +69,54 @@ A large book does not load all its lines at once. When you scroll near the end, 
 
 On a phone, each line wraps onto lines in the table: the date, Type and No.; then Name and Description; then Split; then Debit, Credit and Balance. On a tablet, each line keeps the date, Type, No., Debit, Credit and Balance on its first line, and shows Name, Description and Split below them. A narrow desktop window shows the tablet arrangement too. The table does not scroll sideways.
 
+## Read the Balance Sheet
+
+The Balance Sheet shows what the business owns and owes on one day, beside the same day a year earlier. To open it, choose Reports in the Books sidebar, then press Balance Sheet. Its heading shows your business name, Balance Sheet, and the day, for example "As of November 8, 2026".
+
+The report has three sections: Assets, Liabilities and Equity. All levels are open when the report opens. To fold a level, press its heading. To fold or open all levels, press Collapse all or Expand all.
+
+- Assets holds Current assets (with Bank accounts, Accounts receivable and Other current assets), Fixed assets and Other assets.
+- Liabilities holds Current liabilities (with Accounts payable, Credit cards and Other current liabilities) and Long-term liabilities.
+- Equity holds the equity accounts, then Retained earnings, then Net income.
+- Each class and each type ends in its total row, for example "Total Current assets" and "Total Bank accounts". Each section ends in its total row, for example "Total Assets". A class or a type with no account to show does not show. The three sections always show, also when they are empty.
+- The last row is Total liabilities and equity. It adds Total Liabilities and Total Equity.
+- Each account shows its number and its full name, for example "1000 Business Checking". An account with no number shows its full name only. Sub-accounts are not nested. Inside a type, the accounts show in the order of the chart of accounts.
+
+The columns are Account, Current, Prior year, Change and % change.
+
+- Every figure is a balance by the normal side of the account. Assets add debits and subtract credits. Liabilities and equity add credits and subtract debits. Thus a normal balance shows a positive amount, and a contra account, such as accumulated depreciation or owner's draws, shows a negative amount.
+- Current is the balance on the As of day. Its heading shows the day, for example "Nov 8, 2026".
+- Prior year is the balance on the same day one year earlier. Its heading shows that day. When the As of day is February 29, the Prior year day is February 28.
+- Change is Current minus Prior year. % change is Change divided by the Prior year amount (without its sign), times 100. When Prior year is 0.00, % change is blank.
+- An account with no lines on the day shows 0.00.
+- Only posted journal lines count. Drafts do not count. A voided entry and its reversal cancel each other.
+
+Retained earnings and Net income are not accounts that you post to directly. Books calculates them for each column from the income and expense lines, and the fiscal year start month of your books splits them:
+
+- Retained earnings shows the lines of the retained earnings account, plus all income and expense from before the fiscal year that holds the day of the column.
+- Net income shows the income minus the expenses of the fiscal year that holds the day of the column, up to that day. A profit shows a positive amount.
+- Income and expense accounts do not show as rows of their own.
+
+Total assets equals Total liabilities and equity, in Current and in Prior year. This is because every posted entry balances: the debits of each entry equal its credits. Retained earnings and Net income hold the income and expense lines, so each line is counted once.
+
+To change the day, press the As of chip. Pick Today, End of last month, End of last quarter or End of last fiscal year. The default is Today. To use your own day, pick Custom, then type the day or pick it from the calendar.
+
+To change which accounts show, press the Rows chip and pick one:
+
+- Non-zero shows the accounts with a balance that is not zero on the As of day or on the Prior year day. This is the default.
+- Active shows the accounts with a posted line on or before the As of day, also when the balance is zero.
+
+To see the lines of an account, press its account row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo. Current shows the amount of the line. Prior year shows the amount when the line is on or before the Prior year day, and 0.00 when it is not. Change and % change stay blank on the lines. Retained earnings and Net income do not open.
+
+To change how the numbers look, press Customize. You can divide by 1000, show amounts without cents, show negative numbers as -100 or (100) or in red, and hide the Current, Prior year, Change or % change column. The report opens with all four columns shown. Customize never changes the figures.
+
+On a phone, each row wraps onto two lines in the table: the account, then Current, Prior year and Change. A phone does not show % change. The table does not scroll sideways. On a narrow window, the account name gets shorter and ends in "…", and the figures always show in full.
+
+The report stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again.
+
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance and the General Ledger, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger and the Balance Sheet, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 

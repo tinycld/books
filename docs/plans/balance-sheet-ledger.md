@@ -32,6 +32,12 @@
 - cp 0 · customize-1280: table beside the open Customize panel — about 573 px wide, below the tablet layout's 600 px `minWidth`, so core draws the mobile layout and % change leaves the table while the reader is in the panel that toggles it; the "% change" switch then has no visible effect at this width. Same in the reference; decided by spec §5 `display.layouts` (tablet `minWidth` 600px). A Books display decision to revisit, not a core defect. (critic, NOTE)
 - cp 2 · `server/report_balance_sheet.go` sort: lines of one entry (or of a void, its reversal and the correction, which share one number and sequence, `server/reversal.go:236`) tie on `[date]`, `[entry, sequence]` and come in record-id order — the seed's opened 1000 Business Checking reads "JE-10 · Register corrected" before "JE-10 · Register void original" and "JE-10 · Void of JE-10". Spec §5 names only these two keys; a third key (line position, or the entry's created time) would give form/posting order. Decide whether to add one (the Trial Balance's sort is the same). (reviewer A NOTE 3, critic "for gate 3")
 - cp 2 · `tests/e2e/balance-sheet.spec.ts` e2e 7: "a press on [Retained earnings] opens nothing" is read only from the row set after the press; a computed row cannot carry detail rows, so it cannot fail that way. Go `CanExpand` false and the absent `aria-expanded` pin it. (reviewer A NOTE 4)
+- cp 3 · populated-390 (and rows-active-390): toolbar chip row — a third chip "↑↓ Sort" after As of and Rows; spec §3 lists no reader sort, and a sort on a statement outline is odd. Core adds it for any report with a `sort` (the Balance Sheet's sort orders opened lines). Same core view behavior as the cp 1 heading-glyph note. (critic, NOTE)
+- cp 3 · populated-390: bottom tab bar — no tab is active on core's `/a/reports/<id>` route (spec §2's route); the screen reads orphaned. Core shell. (critic, NOTE)
+- cp 3 · populated-1024/1280: column headings — the "↑↓" sort glyph sits after ACCOUNT but before each figure heading, so the header reads unevenly. Core view (see cp 1 note). (critic, NOTE)
+- cp 3 · no-lines-390: As of chip — the focus ring circles the text only, the calendar icon outside it (same as cp 1). Core chip. (critic, NOTE)
+- cp 3 · no-lines-390: toolbar chip row, right edge — the Sort chip is cut mid-word ("↑↓ So") with no fade or gutter, so the row reads truncated, not scrollable. Core toolbar. (critic, NOTE)
+- cp 3 · `tests/e2e/balance-sheet.spec.ts` e2e 10 (Fits): green before the implementation — core's default fit already gives one-line at 1280 and 1024 — so it does not detect a wrong Books `display.columns`; kept as a guard for spec §3 "Every width fits"; `TestBalanceSheetDisplay` pins the display. Its `tablet` branch is not reached at today's measure (plan P2). (test writer, reviewer A NOTE 1)
 
 ## Out-of-plan changes
 - cp 2 · books `tests/e2e/books-report-helpers.ts` — `bsLinesUnder`, `openBalanceSheetAccount`, named by the checkpoint's Interfaces "Produces" and Do step 2, not by its Files block.
@@ -108,6 +114,23 @@
 - reviewer-caught deferrals: none
 - out-of-plan: 3 (see Out-of-plan changes)
 - commit: e96ba0a (not pushed; the driver pushes)
+- human: none (review mode C)
+
+## Checkpoint 3
+- test writer (staging cp/cp3-tests.md): `server/report_balance_sheet_test.go` (`TestBalanceSheetDisplay`), `tests/help-reports.test.ts` ("Read the Balance Sheet", 18 its), `tests/e2e/balance-sheet.spec.ts` (e2e 9 Phone, e2e 10 Fits at 1280 and 1024); red for the right reason: yes (Go: "the shipped spec has no display"; help: no Balance Sheet section; e2e 9: `waitForTableFit` "auto", want "mobile"); e2e 10 green before the implementation (core's default fit already keeps it) — Do step 0 names no red reason for it; kept as a guard (as cp 2's e2e 8); untestable: none
+- implementer (staging cp/cp3-impl.md): `server/report_balance_sheet.go` `balanceSheetLayouts`, `balanceSheetDisplay`, `Display` on the spec (fixture already matched §5, unchanged); `help/reports.md` "## Read the Balance Sheet" after "Read the General Ledger"; `packages:generate` run; DONE
+- test disputes: none
+- self-declared differences: (1) help frontmatter `tags` gains `balance sheet`; (2) "## Who sees Books reports" names the Balance Sheet too (the share sync shares every `books.*` report); (3) help says Customize can hide Current too (spec §3: core's Columns lists Current); (4) help states no % change decimals (core's percent format)
+- gate 1: tests unedited: yes · `go test ./...` ok · `tinycld-pkg check` pass (vitest 4314) · e2e `balance-sheet:` 10 passed (logs staging cp/cp3-g1-*.log) → pass
+- gate 2: capture evidence/cp3/capture.json — real route from the Books hub; populated at 390/1024/1280, rows-active, collapsed, no-lines, customize, opened at 390; light and dark · capture failure (not a shot): customize-390 waited on `report-customize-open`, which core's ResponsiveToolbar folds into "⋯" at 390 → manifest opens `toolbar-more-button` then "Customize" → re-captured · invalid shots: none · blocking: none · notes: 5 (Design notes; all core-owned) · critic "for gate 3": what a reader sort does to a layout statement — core view behavior, recorded with the Sort-chip note
+- gate 3 A (correctness): 0 BLOCK · NOTE 1 e2e 10 green before → Design notes · NOTE 2 help omits "an account with no number shows its full name alone" (spec §3) → accepted, fixed (fix 1, one-line text in a touched file) · NOTE 3 `percentChange` comment "two decimals" against spec "one decimal" → accepted, fixed (fix 2, comment reworded to what the code does; formula unchanged, spec §5 sets `scale 4`)
+- gate 3 B (conformance): script lines: 0 real, 0 false positive · 0 findings
+- fix round 1 (staging cp/cp3-fix.md): help sentence; Go comment. Gate 1 again: tests unedited: yes · `go test ./...` ok · `tinycld-pkg check` pass (vitest 4314) · e2e not re-run (help text and a Go comment only; no rendered or tested behavior changed)
+- fix review: round 1: clean (staging cp/cp3-fix-review.md); 1 fix round
+- gate 3 A notes: 1 (Design notes)
+- reviewer-caught deferrals: none
+- out-of-plan: none (`docs/plans/balance-sheet-evidence/cp3/*` is the brief's evidence path)
+- commit: see the ledger commit that follows
 - human: none (review mode C)
 
 ## Final review
