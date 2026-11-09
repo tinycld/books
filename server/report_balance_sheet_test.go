@@ -957,6 +957,120 @@ func TestBalanceSheetHiddenKeys(t *testing.T) {
 	}
 }
 
+// bsCell is a display cell with core's defaults filled in (Span and Lines 0
+// read as 1), so the test compares placement, not how the struct spells it.
+type bsCell struct {
+	Col     string
+	Line    int
+	Start   int
+	Span    int
+	Lines   int
+	Justify string
+}
+
+func bsCells(cells []reports.DisplayCell) []bsCell {
+	out := make([]bsCell, len(cells))
+	for i, c := range cells {
+		span, lines := c.Span, c.Lines
+		if span == 0 {
+			span = 1
+		}
+		if lines == 0 {
+			lines = 1
+		}
+		out[i] = bsCell{c.Col, c.Line, c.Start, span, lines, c.Justify}
+	}
+	return out
+}
+
+// TestBalanceSheetDisplay pins spec §5 `display`, written out here from the
+// spec (not read from the TS fixture): a phone draws the label, then Current ·
+// Prior year · Change (no % change); a tablet the label, then all four
+// figures; the label narrows first and every figure keeps its full width.
+func TestBalanceSheetDisplay(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	spec, _, err := reports.Load(balanceSheetShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := reports.Validate(app, spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	d := spec.Display
+	if d == nil {
+		t.Fatal("the shipped spec has no display: a phone draws core's automatic lines, % change included")
+	}
+	if d.OneLine != nil {
+		t.Errorf("display.oneLine = %+v, want none (core fits one line to the view)", *d.OneLine)
+	}
+
+	wantColumns := map[string]reports.ColumnFit{
+		"account": {MinWidth: "12ch"},
+		"current": {MinWidth: "max-content"},
+		"prior":   {MinWidth: "max-content"},
+		"change":  {MinWidth: "max-content"},
+		"pct":     {MinWidth: "max-content"},
+	}
+	if !reflect.DeepEqual(d.Columns, wantColumns) {
+		t.Errorf("display.columns = %+v\nwant %+v", d.Columns, wantColumns)
+	}
+
+	type layoutShape struct {
+		Width    string
+		MinWidth string
+		Tracks   int
+		Cells    []bsCell
+	}
+	got := make([]layoutShape, len(d.Layouts))
+	for i, l := range d.Layouts {
+		got[i] = layoutShape{l.Width, l.MinWidth, l.Tracks, bsCells(l.Cells)}
+	}
+	want := []layoutShape{
+		{Width: "mobile", Tracks: 3, Cells: []bsCell{
+			{Col: "account", Line: 1, Span: 3, Lines: 1},
+			{Col: "current", Line: 2, Span: 1, Lines: 1},
+			{Col: "prior", Line: 2, Span: 1, Lines: 1},
+			{Col: "change", Line: 2, Span: 1, Lines: 1},
+		}},
+		{Width: "tablet", MinWidth: "600px", Tracks: 4, Cells: []bsCell{
+			{Col: "account", Line: 1, Span: 4, Lines: 1},
+			{Col: "current", Line: 2, Span: 1, Lines: 1},
+			{Col: "prior", Line: 2, Span: 1, Lines: 1},
+			{Col: "change", Line: 2, Span: 1, Lines: 1},
+			{Col: "pct", Line: 2, Span: 1, Lines: 1},
+		}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("display.layouts = %+v\nwant %+v", got, want)
+	}
+	for _, l := range d.Layouts {
+		if l.Width == "desktop" {
+			t.Errorf("display has a desktop layout: core fits one line, then the tablet layout")
+		}
+	}
+
+	// G7: a hidden key column is never named by display (Validate refuses it).
+	hidden := map[string]bool{}
+	for _, c := range spec.Columns {
+		if c.Hidden {
+			hidden[c.ID] = true
+		}
+	}
+	for id := range d.Columns {
+		if hidden[id] {
+			t.Errorf("display.columns names the hidden column %s", id)
+		}
+	}
+	for _, l := range d.Layouts {
+		for _, c := range l.Cells {
+			if hidden[c.Col] {
+				t.Errorf("layout %s names the hidden column %s", l.Width, c.Col)
+			}
+		}
+	}
+}
+
 // Core does not refuse the run of a user who cannot read Books: the source's
 // rule leaves the run no journal line, so it has no account row and every
 // figure is 0 or empty.
