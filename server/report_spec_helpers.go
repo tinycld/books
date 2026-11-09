@@ -3,12 +3,14 @@ package books
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 
 	"tinycld.org/core/reports"
 )
 
 // The builders the shipped Books report specs (Trial Balance, General Ledger,
-// Balance Sheet) are written with, so a spec reads close to its JSON.
+// Balance Sheet, Journal) are written with, so a spec reads close to its JSON.
 
 // profitAndLossTypes are the account types whose group is income or expense,
 // in account_types.json order.
@@ -46,16 +48,6 @@ func typesInGroup(group string) []string {
 	return out
 }
 
-// accountRowLabel labels a record group of accounts "<number> <full name>",
-// or the full name alone when the account has no number.
-func accountRowLabel(group string) *reports.Node {
-	return op("if",
-		op("isEmpty", rec(group, "number")),
-		rec(group, "full_name"),
-		op("concat", rec(group, "number"), lit(" "), rec(group, "full_name")),
-	)
-}
-
 // typeRankCase ranks an account type by its place in account_types.json, so
 // the chart order follows the file, not the type keys.
 func typeRankCase(n *reports.Node) *reports.Node {
@@ -89,9 +81,55 @@ func prm(id string) *reports.Node { return &reports.Node{Param: id} }
 
 func col(id string) *reports.Node { return &reports.Node{Col: id} }
 
-// rec reads a field of the group's linked record.
-func rec(group, field string) *reports.Node {
-	return &reports.Node{Record: group, Path: reports.Path{{Field: field}}}
+// rec reads a field of the group's linked record: to-one links, then the
+// field (core binds a record path through the record's links).
+func rec(group string, names ...string) *reports.Node {
+	return &reports.Node{Record: group, Path: path(names...)}
+}
+
+// entryTypeLabel is the register's entry type label (entryTypeLabel in
+// lib/register.ts) from entry_type_labels.json: "Transfer" for a manual
+// transfer, "<label> of <number>" for a reversal origin whose reversed entry
+// has a number, the origin's label otherwise, and the manual label for an
+// origin the table does not name. read reads a field of the entry (a line's
+// path, or a group's record).
+func entryTypeLabel(read func(names ...string) *reports.Node) *reports.Node {
+	origin := read("origin")
+	reversed := read("reverses", "number")
+	args := []*reports.Node{
+		op("and", op("eq", read("doc_type"), lit(docTypeTransfer)), op("eq", origin, lit("manual"))),
+		lit(entryTypeLabels.Transfer),
+	}
+	for _, o := range entryTypeLabels.ReversalOrigins {
+		label := lit(entryTypeLabels.Origins[o])
+		args = append(args,
+			op("eq", origin, lit(o)),
+			op("if", op("isEmpty", reversed), label, op("concat", label, lit(" of "), reversed)),
+		)
+	}
+	// Sorted, so the spec's JSON does not move with map order.
+	for _, o := range slices.Sorted(maps.Keys(entryTypeLabels.Origins)) {
+		if slices.Contains(entryTypeLabels.ReversalOrigins, o) {
+			continue
+		}
+		args = append(args, op("eq", origin, lit(o)), lit(entryTypeLabels.Origins[o]))
+	}
+	return op("case", append(args, lit(entryTypeLabels.Origins["manual"]))...)
+}
+
+// accountLabel is "<number> <full name>", the full name alone when the account
+// has no number. read reads a field of the account.
+func accountLabel(read func(names ...string) *reports.Node) *reports.Node {
+	return op("if",
+		op("isEmpty", read("number")),
+		read("full_name"),
+		op("concat", read("number"), lit(" "), read("full_name")),
+	)
+}
+
+// blankZero leaves a zero amount blank.
+func blankZero(x *reports.Node) *reports.Node {
+	return op("if", op("eq", x, lit(0)), lit(nil), x)
 }
 
 // outer reads the report's row from inside a lookup (links, then the field),

@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet]
+tags: [reports, trial balance, general ledger, balance sheet, journal]
 order: 60
 ---
 
@@ -114,9 +114,32 @@ On a phone, each row wraps onto two lines in the table: the account, then Curren
 
 The report stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again.
 
+## Read the Journal
+
+The Journal shows every posted entry of a period with its debit and credit lines. To open it, choose Reports in the Books sidebar, then press Journal. Its heading shows your business name, Journal, and the period, for example "October 1 – 31, 2026".
+
+Each posted entry is one block in the report. The heading of a block shows the entry number and type, for example "JE-41 · Journal entry" or "TR-7 · Transfer". An entry with no number shows its type alone. The blocks show in date order, then in the order the entries were posted. All blocks are open when the report opens.
+
+- Each line of a block shows its date, Account (the account number and full name), Name (the customer or vendor on the line), Description (the line memo, or the entry memo when the line has none), Debit and Credit. A blank Debit or Credit is zero. The lines show in the order of the lines in the entry.
+- Each block ends in its total row, for example "Total JE-41 · Journal entry", and the block total has an equal Debit and Credit.
+- The Total row at the end of the report adds the Debit and Credit of every line that shows, and they are equal.
+- Only posted entries show. Drafts never show. A voided entry and its void reversal both show, each as its own block, for example "JE-12 · Void reversal of JE-12".
+
+To change the dates, press the Period chip. The default is This month to date. Pick a preset, such as This month, Last quarter or This fiscal year, or pick Custom and type the first and last day. To see every entry from the start of your books, pick All dates. When no entry was posted in the period, the report shows "No rows for" and the period. To see the whole fiscal year, press Show this fiscal year.
+
+To fold a block, press its heading. A folded block shows the Debit and Credit totals of the entry on its heading. Press the heading again to open it. To fold or open all blocks, press Collapse all or Expand all.
+
+To sort the lines inside each block, press a column heading, for example Debit. The blocks keep their order. Press the heading again to sort in the opposite direction, and a third time to go back to the order of the report. Copy link keeps the sort.
+
+A long period does not load all its entries at once. When you scroll near the end, the report loads the next blocks. A long entry continues on the next part that loads, and the Total row shows at the end.
+
+The report stays current. When someone posts or voids an entry, changes an account, renames a customer or vendor, or changes the Books settings, the report runs again.
+
+On a phone, each line wraps onto three lines in the table: the date and Account; then Name and Description; then Debit and Credit. On a tablet, each line wraps onto two lines: the date, Account, Debit and Credit; then Name and Description. A narrow desktop window shows the tablet arrangement too. The table does not scroll sideways.
+
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger and the Balance Sheet, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet and the Journal, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 

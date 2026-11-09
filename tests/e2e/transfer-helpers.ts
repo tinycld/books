@@ -68,13 +68,16 @@ export function transferIdFromUrl(page: Page): string {
 }
 
 // Books must already be open. Leaves the page on the posted transfer's read view, once the
-// server's number has arrived (the optimistic view shows no number).
+// server's number has arrived (the optimistic view shows no number). With no `date` the
+// transfer keeps the form's default day (today).
 export async function createPostedTransfer(
     page: Page,
-    input: TransferInput
+    input: TransferInput,
+    date?: string
 ): Promise<{ id: string; number: string }> {
     await openNewTransfer(page)
     await fillTransfer(page, input)
+    if (date) await page.getByTestId('transfer-date').fill(date)
     await page.getByTestId('transfer-post').click()
     await expect(page.getByTestId('transfer-read-only')).toBeVisible()
     const title = page.getByTestId('transfer-title')

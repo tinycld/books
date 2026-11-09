@@ -115,7 +115,7 @@ func balanceSheetSpec() *reports.Spec {
 				Blank: reports.GroupBlankSkip, HideEmpty: true, Open: true, Subtotals: true,
 			},
 			{
-				ID: "byAccount", Col: "account", Label: accountRowLabel("byAccount"),
+				ID: "byAccount", Col: "account", Label: accountLabel(func(n ...string) *reports.Node { return rec("byAccount", n...) }),
 				Having: op("or",
 					op("eq", prm("rows"), lit("active")),
 					op("ne", col("current"), lit(0)),
