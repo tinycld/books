@@ -19,8 +19,8 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, checkpoint 2, finding 2: "`docs/plans/journal-report-evidence/cp2/capture.json` (new): the Files block does not name it. It is gate-2 evidence. The brief's Paths name the evidence folder, but the Files block does not. Fix: the driver accepts it as gate-2 evidence, or the plan's Files block names it. (The PNGs in that folder are untracked. Confirm that the driver means to stage them or leave them out on purpose.)"
+  **rebutted because:** gates.md §Gate 2 input: "In `docs/plans/<feature>-evidence/cp<N>/`, write `capture.json`"; §Commit: "`git add -A` (the scratch files are excluded; the evidence directory is included)"; SKILL.md Artifacts: "Built (gate-2) screenshots and the critique of them go to the checkpoint's evidence directory and are committed with the checkpoint." The file and the PNGs are committed as evidence, not plan code.
 
 ## Design notes
 - cp 0 · core plan R3: spec §4 J1a says a page holds "up to `options.limit` rows"; the plan never splits a group row from its opening row, so at `limit: 1` (the client never sends it) a page holds 2. Human: accept, or ask for the split.
@@ -35,10 +35,16 @@ with the reason, and shown to the human at the end)
 - cp 1 · populated: document period — core's `periodWords` writes "November 1 – November 9, 2026"; spec §3's example writes "October 1 – 31, 2026" (the reference shows the long form too).
 - cp 1 · collapsed: toolbar "Expand all" drawn in its pressed/focus state after the Collapse all press at capture (core button; capture artefact).
 - cp 1 · gate 2 "For gate 3": a corrected entry that replaces a voided one keeps its number, so the Journal shows two "JE-n · Journal entry" blocks beside "JE-n · Void reversal of JE-n" (seed: "Register void original" / "Register corrected"). The heading follows the register's type label (spec §3), which has no "correction" label. Human: accept, or ask for a distinct label for a replacing entry.
+- cp 2 · populated-390: line rows, second wrap line — Description starts at ~113 px, Account above it at ~161 px, though spec §5 puts both at track 2; core's wrap sizes each line's tracks by content (a blank Name collapses). The reference shows the same class of offset. Possible core gap (D5: the wrap is core's view). Human: accept, or ask core for shared track edges across wrap lines.
+- cp 2 · populated-900: tablet line 2 — Name's track collapses to ~97 px and Description starts at ~177 px, left of Account (~264 px); spec §5's 4:8 split of line 2 is not what is drawn. Same cause as the 390 note.
+- cp 2 · whole table: no seeded row in the This-month period has a Name, so the shots cannot show how a 30-character Name shares room with Description (e2e 8 covers it: Description wider than Name at 1024/1280). Evidence gap only.
+- cp 2 · runner ruling (dispute): `display.oneLine.minWidth: "880px"` from spec §5's conditional, after the implementer measured the numbered 20-character Account cut at a 900 window on the shipping route; phase 3 pass 2's "900 → tablet, no gate" measure did not hold after J2. The px gate fits this measure; a much longer account label at ≥ 880 px rows still ends in an ellipsis (spec §3 "about 20 characters"). Human: accept, or ask for a wider Account floor instead.
+- cp 2 · e2e 8 test data: the account number is "9" + the run's start second mod 10,000; two runs on one kept local DB collide only if they start in the same second or exactly 10,000 s apart (CI starts empty).
 
 ## Out-of-plan changes
 - cp 0 (core; the Files block says "the core plan names every file", and the core plan's file table names all but one): `core/lib/query-errors.ts` (+ test, new `QueryRefusal`: a later-page refusal is logged at info, not reported), `core/reports/lib/run-state.ts` (+ test), `core/reports/components/ReportView.tsx`, `core/tests/fake-pb-server.ts` (`FakeAnswer`) — support for the next-page Retry row; `having_test.go` (pageSize 2 → 3, J1a counts the group row), `mixedcondition_test.go` (J1a page count), `run_test.go` `TestTheRowCapNoticeIsGivenOnce` (moved to a pivot: a grouped report has no cap now), `statement_test.go` (page statement; not in the core plan table → added, fix item 13), `tests/e2e/reports-helpers.ts` (helpers moved from ledger-v3), `reports-ledger-v3.spec.ts`, `reports-wrap.spec.ts` (J2 widths); the core plan is an outline + two parts (`-part-1.md`, `-part-2.md`) where the brief named one file.
 - cp 1: `server/audit.go` — its `var accountLabel` (audit label of `books_accounts`) clashed with the plan's helper `accountLabel(read)`; renamed `auditAccountLabel`, no behavior change (runner ruling). `review-diff.mjs` also listed `server/report_journal.go`, which the Files block names on its two-path "Create:" line (script false positive).
+- cp 2: `docs/plans/journal-report-checkpoints.md` — runner amendments to checkpoint 2's text (D1 reversed; the 880px dispute ruling); not code.
 - cp 1 (fix round 1, reviewer B 5): `tests/e2e/transfer-helpers.ts` — `createPostedTransfer` gains an optional date, so the Journal spec posts on GL_DAY_2 without a local copy of the helper.
 
 ## Phase notes
@@ -99,6 +105,27 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 0 to Design notes (NOTEs 1, 2, 5, 6 fixed in round 1; 3, 4 under Out-of-plan changes)
 - reviewer-caught deferrals: none
 - commit: the commit that holds this line, `feat(books): Journal report — blocks for Books readers` (`git log -1 -- server/report_journal.go`); not pushed
+
+## Checkpoint 2
+- core: main ee5ca9f4
+- runner amendment before the test writer (D1 reversed, human 2026-11-08): no Name 16ch min/max in the checkpoint text (Spec quote, Go test, Do 1), spec §3/§5 and the fixture's `JOURNAL_DISPLAY`; e2e 8's "Name ends in an ellipsis" assertion dropped (without the cap a 30-character Name need not be cut); spec and fixture added to the Files block; plan-check 0 errors.
+- test writer: `server/report_journal_test.go` (`TestJournalDisplay`), `tests/e2e/journal-report.spec.ts` (e2e 7 Phone, e2e 8 Tablet and desktop widths, test-only geometry helpers); red for the right reason: yes (Go: no display; e2e 7: `auto` not `mobile`; e2e 8: `one-line` not `tablet` at 900); untestable: none. Reading: "the table's right edge" in e2e 7 taken as the rows' client area (gutter excluded) — see fix item 3.
+- implementer (1st): Do 1 done (`journalDisplay`, `journalLayouts`, `Display` set); BLOCKED at Do 2: at 900 (row 836 px) core's mins fit, so it draws one line and cuts the numbered 20-character account ("<5-digit> <20 chars>", 26 characters, Account 216 px = its 20ch floor); cut at row 856, whole at 876; core's fit is not at fault (it honors the authored floor); vitest on the reference fixture also gives one line at 836. Phase 3 pass 2's "900 → tablet" measure (scratch route, before J2) does not hold.
+- test disputes: 1 — `TestJournalDisplay` "`Display.OneLine` is nil" vs e2e 8 "tablet at 900" + "Account of the 20-character account shows no ellipsis". Resolved by the runner from spec §5: "No `oneLine.minWidth` unless phase 3 pass 2 measures a cut column at 900, 1024 or 1280; then it is set to the narrowest width where all six fit, and the reason is written here." → `oneLine.minWidth: "880px"`; spec §5 records the measure and reason; plan (Spec quote, ledger-widths line, Tests, Do 1) and fixture amended; fresh test writer changed only the `OneLine` assertion (red: `display.oneLine = <nil>, want &{MinWidth:880px}`); fresh implementer continued.
+- implementer (2nd): `OneLine: {MinWidth: "880px"}` with spec §5's reason in the comment; DONE
+- self-declared differences: none beyond the dispute
+- gate 1: tests unedited: yes · `go test ./...` ok · `tinycld-pkg check` pass (vitest 4296) · e2e `journal-report:` 8/8 · logs staging `cp/cp2-g1-*.log`
+- gate 2 capture: `evidence/cp2/capture.json`: populated at 390/900/1024/1280, folded/collapsed/sorted/all-dates/customize at 390. First capture: sorted and customize at 390 timed out (the phone has no `report-sort-debit` heading and folds Customize into More actions) → manifest fixed (Sort menu → `report-sort-choice-debit-desc`; `toolbar-more-button` → menu item Customize), re-captured: every state × 2 schemes.
+- gate 2: invalid shots: none · blocking: none · notes: 3, listed under Design notes · For gate 3: nothing
+- gate 3 A (correctness): 0 BLOCK · NOTE 1 stale Go comment → item 1 · NOTE 2 stale e2e comment → item 2 · NOTE 3 Credit edge vs `rowsRight` → item 3 · NOTE 4 Name cell unchecked → item 5 · NOTE 5 account number repeats every 10 s → item 6 · NOTE 6 plan amendment (out of plan) → Out-of-plan changes · NOTE 7 capture.json → evidence (committed with the checkpoint, gates.md §Commit)
+- gate 3 B (conformance): script lines: 0 real, 0 false positive · B 1 plan file out of plan → recorded (runner amendment) · B 2 capture.json not in Files → rebutted (see Rebuttals) · B 3 = A 1 → item 1 · B 4 = A 2 → item 2 · B 5 spec §7 item 10 "where phase 3 measured it fits" contradicts §5 → fixed by the runner (spec text)
+- reviewer-caught deferrals: reviewer B, 2 (both e2e 7: Credit compared with the rows' area, not the table's edge; heading/total placement accepted `beside` or `below` without the "when they fit" condition) → not genuine blockers, fixed now (items 3, 4); the test writer had declared the first as a reading, not a deferral
+- fix round 1: findings file staging `cp/cp2-fix.md` (6 items, all test code) → fresh test writer: 6/6 (items 3–5 each shown able to fail with a probe value; item 4 measures label + figures with core's `textWidth` and checks the two block totals `below` and the report Total `beside` at 390; block headings draw no figures); Journal Go tests ok, e2e 8/8
+- gate 1 after fixes: no source change · `go test ./...` ok · check pass (vitest 4296) · e2e `journal-report:` 8/8 · logs `cp/cp2-g1b-*.log`
+- gate 2 after fixes: no fix changed rendering; no re-capture
+- fix review: n/a (round 1 touched test code only) · rounds: 0
+- gate 3 A notes: 0 to Design notes (1–5 fixed; 6, 7 recorded)
+- commit: the commit that holds this line, `feat(books): Journal fit at every width` (`git log -1 -- server/report_journal.go`); not pushed
 
 ## Final review
 - eval:

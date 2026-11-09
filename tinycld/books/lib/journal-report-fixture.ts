@@ -468,11 +468,11 @@ export function emptyJournalResult(): RunResult {
 
 export const JOURNAL_FOLDED_ENTRY = 'jrentry0000042'
 
-// The spec's `display` (§5): column floors so an ordinary account name (~20
-// characters) and a customer name (~16, capped there so Name never takes the room
-// Description needs) stay whole, Description takes the most of
-// the spare room, figures are never cut. A phone row wraps onto three lines, a
-// tablet row onto two. No `oneLine.minWidth` unless phase 3 measured a cut column.
+// The spec's `display` (§5): an Account floor so an ordinary account name (~20
+// characters) stays whole, Description takes the most of the spare room (its
+// flexGrow), figures are never cut. A phone row wraps onto three lines, a tablet
+// row onto two. One line only from 880px rows: below that core's mins fit but
+// cut a numbered 20-character account (measured in checkpoint 2, spec §5).
 export const JOURNAL_PHONE_LAYOUT: DisplayLayout = {
     width: 'mobile',
     tracks: 3,
@@ -504,11 +504,11 @@ export const JOURNAL_TABLET_LAYOUT: DisplayLayout = {
 export const JOURNAL_DISPLAY: NonNullable<ReportSpec['display']> = {
     columns: {
         account: { minWidth: '20ch' },
-        name: { minWidth: '16ch', maxWidth: '16ch' },
         description: { flexGrow: 2 },
         debit: { minWidth: 'max-content' },
         credit: { minWidth: 'max-content' },
     },
+    oneLine: { minWidth: '880px' },
     layouts: [JOURNAL_PHONE_LAYOUT, JOURNAL_TABLET_LAYOUT],
 }
 

@@ -1,6 +1,13 @@
 import { expect, type Page, test } from '@playwright/test'
-import { authStorageKey, login, navigateToPackage, pressToolbar } from '@tinycld/core/e2e-helpers'
-import { createAccount, DESKTOP, openChart } from './account-register-helpers'
+import {
+    authStorageKey,
+    login,
+    navigateToPackage,
+    pressToolbar,
+    waitForTableFit,
+} from '@tinycld/core/e2e-helpers'
+import { textWidth } from '@tinycld/core/reports/lib/text-width'
+import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     choosePeriod,
     dayWords,
@@ -369,6 +376,275 @@ async function postSimple(page: Page, date: string, account: string, amount: str
     return `${await openEntryNumber(page)} · Journal entry`
 }
 
+// A box of a row's label or one of its cells. `cut`: the element, or a child, shows an
+// ellipsis (its text is wider than its box).
+type Box = { top: number; bottom: number; left: number; right: number; width: number; cut: boolean }
+
+type RowGeometry = {
+    // The row's label (the Entry / Date column) and every drawn cell, by column id.
+    label: Box | null
+    cells: Record<string, Box>
+    // The left and right edges of the room the rows get: the list scroller's client area
+    // (no gutter).
+    rowsLeft: number
+    rowsRight: number
+    // The label's text, and how far its text starts right of the label box's left edge
+    // (the indent and a group's caret).
+    labelText: string
+    labelTextStart: number
+    // The report table's right edge, and the right edges of the Debit and Credit headings
+    // and of every drawn Debit and Credit cell.
+    tableRight: number
+    figureRights: number[]
+    headingCount: number
+    // Neither the table nor a sideways scroller inside it scrolls sideways.
+    noSidewaysScroll: boolean
+    tableScrollsSideways: boolean
+}
+
+// Brings the row `id` into the middle of the report's list and reads its geometry, in ONE
+// page.evaluate: the list is a FlashList that mounts only the rows near its view, so the
+// row is found by scrolling from the top. Null when the row is not in the list.
+function rowGeometry(page: Page, id: string): Promise<RowGeometry | null> {
+    return page.evaluate(async rowId => {
+        const frames = () =>
+            new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const table = document.querySelector('[data-testid="report-table"]') as HTMLElement | null
+        if (!table) return null
+        const listOf = (): HTMLElement | null => {
+            const any = table.querySelector('[data-testid^="report-row-"]')
+            let list = any?.parentElement ?? null
+            while (list && getComputedStyle(list).overflowY !== 'auto') list = list.parentElement
+            return list
+        }
+        const rowEl = () =>
+            table.querySelector(`[data-testid="${CSS.escape(`report-row-${rowId}`)}"]`)
+        const list = listOf()
+        if (!list) return null
+        if (!rowEl()) {
+            list.scrollTop = 0
+            await frames()
+            for (let step = 0; step < 400 && !rowEl(); step++) {
+                const before = list.scrollTop
+                list.scrollTop = before + list.clientHeight * 0.8
+                await frames()
+                if (list.scrollTop === before) {
+                    // At the end: a next page may be loading; give it a moment.
+                    for (let wait = 0; wait < 30 && !rowEl(); wait++) await frames()
+                    if (list.scrollTop === before && !rowEl()) break
+                }
+            }
+        }
+        const found = rowEl()
+        if (!found) return null
+        found.scrollIntoView({ block: 'center' })
+        await frames()
+        const box = (element: Element | null) => {
+            if (!element) return null
+            const rect = element.getBoundingClientRect()
+            const cut = [element, ...element.querySelectorAll('*')].some(
+                e => e instanceof HTMLElement && e.scrollWidth > e.clientWidth
+            )
+            return rect.height > 0
+                ? {
+                      top: rect.top,
+                      bottom: rect.bottom,
+                      left: rect.left,
+                      right: rect.right,
+                      width: rect.width,
+                      cut,
+                  }
+                : null
+        }
+        const cells: Record<string, Box> = {}
+        for (const cell of table.querySelectorAll('[data-testid^="report-cell-"]')) {
+            const rest = (cell.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
+            const dash = rest.indexOf('-')
+            if (rest.slice(dash + 1) !== rowId) continue
+            const cellBox = box(cell)
+            if (cellBox) cells[rest.slice(0, dash)] = cellBox
+        }
+        const visible = (element: Element) => element.getBoundingClientRect().height > 0
+        const figures = [
+            ...table.querySelectorAll(
+                '[data-testid="report-heading-debit"], [data-testid="report-heading-credit"], [data-testid^="report-cell-debit-"], [data-testid^="report-cell-credit-"]'
+            ),
+        ].filter(visible)
+        const scrollers = [table, ...table.querySelectorAll('*')].filter(element => {
+            const overflowX = getComputedStyle(element).overflowX
+            return element === table || overflowX === 'auto' || overflowX === 'scroll'
+        })
+        const listRect = list.getBoundingClientRect()
+        // The label's Text is its last child (a group's caret comes before it).
+        const labelTextEl = found.lastElementChild ?? found
+        return {
+            label: box(found),
+            cells,
+            rowsLeft: listRect.left + list.clientLeft,
+            rowsRight: listRect.left + list.clientLeft + list.clientWidth,
+            labelText: labelTextEl.textContent ?? '',
+            labelTextStart:
+                labelTextEl.getBoundingClientRect().left - found.getBoundingClientRect().left,
+            tableRight: table.getBoundingClientRect().right,
+            figureRights: figures.map(element => element.getBoundingClientRect().right),
+            headingCount: figures.filter(element =>
+                (element.getAttribute('data-testid') ?? '').startsWith('report-heading-')
+            ).length,
+            noSidewaysScroll: scrollers.every(
+                element => element.scrollWidth === element.clientWidth
+            ),
+            tableScrollsSideways: table.scrollWidth !== table.clientWidth,
+        }
+    }, id)
+}
+
+const near = (a: number | undefined, b: number | undefined, slack = 1) =>
+    a !== undefined && b !== undefined && Math.abs(a - b) <= slack
+
+// The top of a row's column: the label column (Entry / Date) is the row's label box.
+function topOf(row: RowGeometry | null, col: string): number | undefined {
+    if (col === 'entry') return row?.label?.top
+    return row?.cells[col]?.top
+}
+
+// The parts of a row the reader needs whole (spec §3 "Every width fits"): each one that is
+// missing or shows an ellipsis, named `<what>:<column>` ('entry' is the row's label).
+function cutParts(what: string, row: RowGeometry | null, columns: readonly string[]): string[] {
+    return columns
+        .filter(col => {
+            const part = col === 'entry' ? row?.label : row?.cells[col]
+            return part == null || part.cut
+        })
+        .map(col => `${what}:${col}`)
+}
+
+// Spec §3 Phone: date and account; then name and description; then debit and credit.
+const PHONE_LINES = [
+    ['entry', 'account'],
+    ['name', 'description'],
+    ['debit', 'credit'],
+] as const
+
+function phoneLineShape(row: RowGeometry | null) {
+    const tops = PHONE_LINES.map(cols => cols.map(col => topOf(row, col)))
+    const credit = row?.cells.credit
+    return {
+        measured: tops.flat().every(top => top !== undefined),
+        eachLineOneTop: tops.map(line => line.every(top => near(top, line[0]))),
+        linesInOrder: tops
+            .slice(1)
+            .every((line, i) => (line[0] ?? 0) > (tops[i]?.[0] ?? Number.POSITIVE_INFINITY) + 1),
+        // Credit ends at the right edge of the rows' room (within 2 px) and never past the
+        // table's right edge. The rows' room, not the table, is the edge to be near: on CI
+        // Chromium draws a classic scrollbar, so the list's gutter lies between the rows
+        // and the table's right edge (lesson 11).
+        creditAtRightEdge: near(credit?.right, row?.rowsRight, 2),
+        creditInsideTable:
+            credit !== undefined && row !== null && credit.right <= row.tableRight + 0.5,
+    }
+}
+
+// A block heading or total row's text (cellTextStyle: group, subtotal and total rows are
+// bold) and the right padding of its label (pr-3), as core's labelNeed counts them.
+const SUMMARY_TEXT = { size: 'sm', weight: 'semibold' } as const
+const LABEL_END_PADDING = 12
+
+// A block heading or block total row on a phone (spec §3 Phone): label and figures on one
+// line when they fit, else the label, then every figure on the line right below it.
+// `fits` is decided from the row's own measure: the room left of its first figure (from
+// the rows' left edge to the Debit cell) holds the label's start, its text at core's
+// published text width (`textWidth`, the upper estimate core sizes with) and its padding.
+function labelAndFigures(row: RowGeometry | null) {
+    const label = row?.label
+    const cells = Object.values(row?.cells ?? {})
+    const firstFigureLeft = Math.min(...cells.map(cell => cell.left))
+    const room = firstFigureLeft - (row?.rowsLeft ?? 0)
+    const need =
+        (row?.labelTextStart ?? 0) +
+        textWidth(row?.labelText ?? '', SUMMARY_TEXT) +
+        LABEL_END_PADDING
+    const fits = need <= room
+    const distinct: number[] = []
+    for (const top of [label?.top, ...cells.map(cell => cell.top)]) {
+        if (top !== undefined && !distinct.some(seen => near(seen, top))) distinct.push(top)
+    }
+    const figuresWhere = () => {
+        if (cells.every(cell => near(cell.top, label?.top))) return 'beside'
+        if (cells.every(cell => near(cell.top, label?.bottom))) return 'below'
+        return 'mixed'
+    }
+    // A heading whose block total follows draws no figures: only its label, across the row.
+    const figures = cells.length === 0 ? 'none' : figuresWhere()
+    return {
+        measured: label != null,
+        atMostTwoLines: distinct.length <= 2,
+        figuresWhereTheyFit: figures === 'none' || figures === (fits ? 'beside' : 'below'),
+        figures,
+        fits,
+        need,
+        room,
+    }
+}
+
+// A line row at a tablet or desktop width (spec §3 Every width fits, §5 layouts).
+function wideLineShape(row: RowGeometry | null) {
+    const date = row?.label
+    const tops = Object.fromEntries(
+        ['account', 'name', 'description', 'debit', 'credit'].map(col => [
+            col,
+            row?.cells[col]?.top,
+        ])
+    )
+    return {
+        measured: date != null && Object.values(tops).every(top => top !== undefined),
+        figuresInsideTable:
+            (row?.headingCount ?? 0) === 2 &&
+            (row?.figureRights ?? []).every(right => right <= (row?.tableRight ?? 0) + 1),
+        debitOnDateLine: near(tops.debit, date?.top),
+        textOnNextLine: ['name', 'description'].every(col => near(tops[col], date?.bottom)),
+        allOnDateLine: Object.values(tops).every(top => near(top, date?.top)),
+        descriptionWiderThanName:
+            (row?.cells.description?.width ?? 0) > (row?.cells.name?.width ?? 0),
+        noSidewaysScroll: row?.noSidewaysScroll ?? false,
+    }
+}
+
+// The rows a fit test reads: its entry's block (heading, lines, total) and its void
+// reversal's block (heading, total), from one whole-report read.
+type FitRows = {
+    lines: string[]
+    heads: string[]
+    totals: string[]
+}
+
+function fitRows(s: GlSnapshot, heading: string, voidHeading: string): FitRows {
+    return {
+        lines: linesOf(s, heading).map(row => row.id),
+        heads: [heading, voidHeading].map(h => blockHead(s, h)?.id ?? ''),
+        totals: [heading, voidHeading].map(h => blockTotal(s, h)?.id ?? ''),
+    }
+}
+
+// Every part the reader needs whole on the fit test's rows: the lines' date, Debit and
+// Credit, both block headings and both "Total …" labels; `extra` adds line columns.
+async function cutOnRows(page: Page, rows: FitRows, extra: readonly string[] = []) {
+    const cut: string[] = []
+    for (const [i, id] of rows.lines.entries()) {
+        cut.push(
+            ...cutParts(`line${i}`, await rowGeometry(page, id), [
+                'entry',
+                'debit',
+                'credit',
+                ...extra,
+            ])
+        )
+    }
+    for (const [i, id] of [...rows.heads, ...rows.totals].entries()) {
+        cut.push(...cutParts(`block${i}`, await rowGeometry(page, id), ['entry']))
+    }
+    return cut
+}
+
 test.describe('journal-report: report', () => {
     test('the Books hub opens the Journal: business name, title and one Period chip', async ({
         page,
@@ -684,5 +960,174 @@ test.describe('journal-report: report', () => {
         )
         expect(debitsOf(unsorted)).toEqual(['10.00', '30.00', '20.00'])
         expect(blocksInOrder(unsorted)).toBe(true)
+    })
+
+    test('on a phone the Journal opens from the Books menu and each line wraps onto three lines, nothing cut', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const expense = uniqueName('JR phone expense')
+        await openChart(page)
+        await createAccount(page, expense, EXPENSE)
+        await openEntriesFromSidebar(page)
+        const heading = await postSimple(page, GL_DAY_1, expense, '1234.56')
+        const number = heading.replace(/ · Journal entry$/, '')
+        await voidPostedEntry(page)
+        const voidHeading = `${number} · Void reversal of ${number}`
+
+        // The phone path: Reports from the Books menu drawer (openBooksReports).
+        await page.setViewportSize(PHONE)
+        await openJournal(page)
+        await expect(page.getByTestId('report-document-title')).toHaveText('Journal')
+        await expect
+            .poll(async () => {
+                const shown = (await page.getByTestId('report-business-name').allInnerTexts())[0]
+                const expected = await expectedHeading(page)
+                return { matches: shown?.trim() === expected && expected !== '', shown, expected }
+            })
+            .toMatchObject({ matches: true })
+        await expect(page.getByTestId('report-param-period')).toContainText('This month to date')
+
+        await choosePeriod(page, { from: GL_DAY_1, to: GL_DAY_1 })
+        const s = await journalWhen(
+            page,
+            snap =>
+                snap.header === dayWords(GL_DAY_1) &&
+                hasTotal(snap) &&
+                linesOf(snap, heading).length === 2 &&
+                blockTotal(snap, voidHeading) !== undefined,
+            'the entry and its void reversal on the first day'
+        )
+        expect(await waitForTableFit(page)).toBe('mobile')
+        const rows = fitRows(s, heading, voidHeading)
+        const [lineId = ''] = rows.lines
+
+        await expect
+            .poll(async () => phoneLineShape(await rowGeometry(page, lineId)), {
+                message: 'the authored phone lines (spec §3 Phone)',
+            })
+            .toEqual({
+                measured: true,
+                eachLineOneTop: [true, true, true],
+                linesInOrder: true,
+                creditAtRightEdge: true,
+                creditInsideTable: true,
+            })
+        await expect
+            .poll(
+                async () => {
+                    const shapes = []
+                    // The block headings and totals, and the report's short "Total" row.
+                    for (const id of [...rows.heads, ...rows.totals, totalRow(s)?.id ?? '']) {
+                        shapes.push(labelAndFigures(await rowGeometry(page, id)))
+                    }
+                    return shapes
+                },
+                {
+                    message:
+                        'block headings and totals: label and figures on one line when they fit, else the figures right below the label',
+                }
+            )
+            .toMatchObject(
+                Array.from({ length: 5 }, () => ({
+                    measured: true,
+                    atMostTwoLines: true,
+                    figuresWhereTheyFit: true,
+                }))
+            )
+        await expect
+            .poll(() => cutOnRows(page, rows), { message: 'nothing the reader needs is cut' })
+            .toEqual([])
+        expect((await rowGeometry(page, lineId))?.tableScrollsSideways).toBe(false)
+    })
+
+    test('at tablet and desktop widths a line wraps only where its one line does not fit, all inside the table and nothing cut', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        // A 30-character customer, a numbered account with a 20-character name and a
+        // 70-character entry memo: each competes for the line's room.
+        const customer = `JR customer ${uniqueName('C').replace(/ /g, '-').slice(-18)}`
+        const account = `JA ${uniqueName('A').replace(/ /g, '-').slice(-17)}`
+        // Five digits (the label "<5 digits> <20 chars>" is spec §5's 26-character measure),
+        // unique on the shared DB: account numbers are a unique index, only this test makes
+        // 9xxxx numbers, and the four digits are the run's start second, so two runs collide
+        // only when they start in the same second or exactly 10,000 s apart (CI starts each
+        // run on an empty DB).
+        const accountNumber = `9${String(Math.floor(Date.now() / 1000) % 1e4).padStart(4, '0')}`
+        const memo =
+            `${uniqueName('JR wide memo')} for the design team's monthly software plan`.slice(0, 70)
+        expect([customer.length, account.length, memo.length]).toEqual([30, 20, 70])
+        await createCustomer(page, { name: customer })
+        await openChart(page)
+        await createAccount(page, account, EXPENSE, accountNumber)
+        await openEntriesFromSidebar(page)
+        const accountLabel = `${accountNumber} ${account}`
+        await postEntryOn(page, {
+            date: GL_DAY_1,
+            memo,
+            lines: [
+                { account: accountLabel, debit: '1234.56', name: customer },
+                { account: ACCOUNT_LABELS.checking, credit: '1234.56' },
+            ],
+        })
+        const number = await openEntryNumber(page)
+        await voidPostedEntry(page)
+        const heading = `${number} · Journal entry`
+        const voidHeading = `${number} · Void reversal of ${number}`
+
+        await openJournal(page)
+        await choosePeriod(page, { from: GL_DAY_1, to: GL_DAY_1 })
+        const s = await journalWhen(
+            page,
+            snap =>
+                snap.header === dayWords(GL_DAY_1) &&
+                hasTotal(snap) &&
+                linesOf(snap, heading).length === 2 &&
+                blockTotal(snap, voidHeading) !== undefined,
+            'the entry and its void reversal on the first day'
+        )
+        const rows = fitRows(s, heading, voidHeading)
+        const [lineId = ''] = rows.lines
+        expect(linesOf(s, heading)[0]?.cells.account).toBe(accountLabel)
+        expect(linesOf(s, heading)[0]?.cells.name).toBe(customer)
+
+        // The report view has no Books sidebar: its rows are the window less the 64 px rail.
+        // Spec §5 gates the one line at 880 px rows (display.oneLine.minWidth): a 900 window
+        // gives 836 px rows (< 880), so it draws the tablet layout; 1024 and 1280 give rows
+        // of 960 and 1216 px, so they draw the one line.
+        for (const { size, layout } of [
+            { size: { width: 900, height: 800 }, layout: 'tablet' },
+            { size: { width: 1024, height: 800 }, layout: 'one-line' },
+            { size: { width: 1280, height: 800 }, layout: 'one-line' },
+        ]) {
+            const isTablet = layout === 'tablet'
+            await page.setViewportSize(size)
+            expect(await waitForTableFit(page), `the layout at ${size.width}`).toBe(layout)
+            await expect
+                .poll(async () => wideLineShape(await rowGeometry(page, lineId)), {
+                    message: `the ${isTablet ? 'tablet layout' : 'one line'} at ${size.width}`,
+                })
+                .toEqual({
+                    measured: true,
+                    figuresInsideTable: true,
+                    debitOnDateLine: true,
+                    textOnNextLine: isTablet,
+                    allOnDateLine: !isTablet,
+                    // D1 reversed: Description's flexGrow 2 gives it the most of the spare
+                    // room on the one line; the tablet layout gives it 8 tracks to Name's 4.
+                    descriptionWiderThanName: true,
+                    noSidewaysScroll: true,
+                })
+            await expect
+                .poll(
+                    async () => [
+                        ...cutParts('account20', await rowGeometry(page, lineId), ['account']),
+                        ...(await cutOnRows(page, rows)),
+                    ],
+                    { message: `nothing the reader needs is cut at ${size.width}` }
+                )
+                .toEqual([])
+        }
     })
 })

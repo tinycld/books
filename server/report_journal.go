@@ -58,7 +58,65 @@ func journalSpec() *reports.Spec {
 			// leaves the blocks alone.
 			{Formula: fld("position")},
 		},
-		Detail: &reports.Detail{Label: fld("date")},
+		Detail:  &reports.Detail{Label: fld("date")},
+		Display: journalDisplay(),
+	}
+}
+
+// journalDisplay keeps the figures and an ordinary account name of about 20
+// characters whole and gives Description the most of the spare room: core
+// shares a line's spare width by each column's flexGrow, so Name needs no fit
+// of its own. oneLine.minWidth is 880px (spec §5, measured on the shipping
+// route): at a 900px window (836px rows) the columns' mins fit, so core drew
+// one line and cut a numbered account of a 20-character name (cut at 856px
+// rows, whole at 876px). With the gate, 900 draws the tablet layout and 1024
+// and 1280 draw one line.
+func journalDisplay() *reports.Display {
+	descriptionGrow := 2
+	return &reports.Display{
+		OneLine: &reports.DisplayOneLine{MinWidth: "880px"},
+		Columns: map[string]reports.ColumnFit{
+			"account":     {MinWidth: "20ch"},
+			"description": {FlexGrow: &descriptionGrow},
+			"debit":       {MinWidth: "max-content"},
+			"credit":      {MinWidth: "max-content"},
+		},
+		Layouts: journalLayouts(),
+	}
+}
+
+// journalLayouts are the authored narrow layouts (spec §3 Phone, §5). A phone
+// line row wraps onto three lines, its figures on tracks 2 and 3 so Credit
+// ends at the right edge; a tablet row keeps its figures on the date's line
+// and its text on the line below. No desktop layout: core fits the one line
+// to the view, and wraps to the tablet layout when it does not fit.
+func journalLayouts() []reports.DisplayLayout {
+	return []reports.DisplayLayout{
+		{
+			Width:  "mobile",
+			Tracks: 3,
+			Cells: []reports.DisplayCell{
+				{Col: "entry", Line: 1},
+				{Col: "account", Line: 1, Span: 2},
+				{Col: "name", Line: 2},
+				{Col: "description", Line: 2, Span: 2},
+				{Col: "debit", Line: 3, Start: 2},
+				{Col: "credit", Line: 3, Start: 3},
+			},
+		},
+		{
+			Width:    "tablet",
+			MinWidth: "600px",
+			Tracks:   12,
+			Cells: []reports.DisplayCell{
+				{Col: "entry", Line: 1, Span: 2},
+				{Col: "account", Line: 1, Span: 4},
+				{Col: "debit", Line: 1, Span: 3},
+				{Col: "credit", Line: 1, Span: 3},
+				{Col: "name", Line: 2, Span: 4},
+				{Col: "description", Line: 2, Span: 8},
+			},
+		},
 	}
 }
 
