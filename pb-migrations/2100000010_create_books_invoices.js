@@ -303,8 +303,21 @@ migrate(
                 ],
             })
         )
+
+        // Books search over invoices, drafts included (as 2100000006 does for
+        // the other sources): server/search_index.go keeps each row in step
+        // with its invoice. The customer's name is matched through
+        // fts_books_customers (server/search.go), so a renamed customer needs
+        // no reindex of its invoices. On a new database there are no invoices
+        // to backfill.
+        app.db()
+            .newQuery(
+                "CREATE VIRTUAL TABLE fts_books_invoices USING fts5(record_id UNINDEXED, number, memo, message, tokenize='porter unicode61')"
+            )
+            .execute()
     },
     app => {
+        app.db().newQuery('DROP TABLE IF EXISTS fts_books_invoices').execute()
         for (const name of ['books_invoice_tax_lines', 'books_invoice_lines', 'books_invoices']) {
             app.delete(app.findCollectionByNameOrId(name))
         }

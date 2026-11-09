@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	validation "github.com/pocketbase/ozzo-validation/v4"
@@ -53,11 +54,8 @@ const (
 )
 
 // docTypeInvoice is the doc type of an invoice's sequence and of the entry it
-// posts; invoiceDocTypeLabel is how a reader sees it.
-const (
-	docTypeInvoice      = "invoice"
-	invoiceDocTypeLabel = "Invoice"
-)
+// posts; entry_type_labels.json holds how a reader sees it.
+const docTypeInvoice = "invoice"
 
 // maxDocumentLines is the most lines one invoice holds; the client's bound is
 // MAX_DOCUMENT_LINES (lib/document-lines.ts).
@@ -105,13 +103,37 @@ func registerInvoiceGuards(app core.App) {
 			})
 	})
 	// The cascade deletes the lines one by one; none of them is checked or
-	// restates an invoice that is going away.
+	// restates an invoice that is going away. The status is read from the
+	// stored row inside serialized: a post that commits after the caller
+	// loaded the record must not let its delete cascade a posted invoice. The
+	// mark is set only after that re-read passes, so a refused delete never
+	// lets a line write skip its guard while it runs.
 	app.OnRecordDelete("books_invoices").BindFunc(func(e *core.RecordEvent) error {
-		if e.Record.GetString("status") != statusDraft {
-			return refuse(msgInvoiceDeleteNotDraft)
+		done := func() {}
+		defer func() { done() }()
+		return serialized(e, func(tx core.App) error {
+			stored, err := tx.FindRecordById("books_invoices", e.Record.Id)
+			if err != nil {
+				return err
+			}
+			if stored.GetString("status") != statusDraft {
+				return refuse(msgInvoiceDeleteNotDraft)
+			}
+			done = markDeleting(tx, e.Record.Id)
+			return nil
+		})
+	})
+	// Stamp who posted or voided, on the transition only, as entries do: the
+	// update rule refuses these fields in a person's body.
+	app.OnRecordUpdateRequest("books_invoices").BindFunc(func(e *core.RecordRequestEvent) error {
+		from, to := e.Record.Original().GetString("status"), e.Record.GetString("status")
+		switch {
+		case from == to:
+		case to == statusPosted:
+			stampActor(e.Record, "posted_by", e.Auth)
+		case to == statusVoid:
+			stampActor(e.Record, "voided_by", e.Auth)
 		}
-		done := markDeleting(e.App, e.Record.Id)
-		defer done()
 		return e.Next()
 	})
 }
@@ -152,21 +174,96 @@ func refuseNamedField(field, format string, args ...any) error {
 	return err
 }
 
-// validateInvoice runs the header guards of a draft, stamps the currency on
-// create and the sort key, and sets the three totals from the stored lines and
-// the header tax. stored is the record before an update, nil on a create.
+// validateInvoice guards an invoice write. A create is a draft: it stamps the
+// id and the currency and runs the draft guards. An update follows the
+// invoice's lifecycle (transitionInvoice). stored is the record before an
+// update, nil on a create.
 func validateInvoice(tx core.App, stored, r *core.Record) error {
-	if stored == nil {
-		ensureRecordID(r)
+	if stored != nil {
+		return transitionInvoice(tx, stored, r, time.Now())
 	}
-	if err := checkInvoiceStatus(stored, r); err != nil {
+	ensureRecordID(r)
+	switch r.GetString("status") {
+	case statusPosted, statusVoid:
+		return refuse(msgInvoicePostedFromForm)
+	}
+	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
-	if stored == nil {
-		if err := stampCurrency(tx, r); err != nil {
+	return checkDraftInvoice(tx, nil, r)
+}
+
+// invoiceUnlinks are the invoice's links PocketBase clears on its own when the
+// row they name is deleted (a user, a form), by collection. That unlink is the
+// only change a posted or void invoice accepts besides its void.
+var invoiceUnlinks = map[string]string{"posted_by": "users", "voided_by": "users", "form": "forms"}
+
+// voidInvoiceEditable are the only fields a void changes; a correction's post
+// also sets replaced_by on the invoice it replaces.
+var (
+	voidInvoiceEditable    = map[string]bool{"status": true, "voided_by": true, "voided_at": true}
+	replaceInvoiceEditable = map[string]bool{"status": true, "voided_by": true, "voided_at": true, "replaced_by": true}
+)
+
+// transitionInvoice is the invoice's lifecycle: a draft is edited or posted
+// (postInvoice), a posted invoice is voided (voidInvoice) or replaced by its
+// correction's post, and nothing else changes except PocketBase unlinking a
+// deleted user or form.
+func transitionInvoice(tx core.App, stored, r *core.Record, now time.Time) error {
+	from, to := stored.GetString("status"), r.GetString("status")
+	switch {
+	case from == statusDraft && to == statusDraft:
+		return checkDraftInvoice(tx, stored, r)
+	case from == statusDraft && to == statusPosted:
+		if err := checkDraftInvoice(tx, stored, r); err != nil {
 			return err
 		}
+		return postInvoice(tx, r, now)
+	case from == statusPosted && to == statusVoid && isReplacing(tx, r.Id):
+		if len(changedFields(stored, r, replaceInvoiceEditable)) > 0 {
+			return refuse(msgInvoiceNotDraft)
+		}
+		return nil
+	case from == statusPosted && to == statusVoid:
+		if len(changedFields(stored, r, voidInvoiceEditable)) > 0 {
+			return refuse(msgInvoiceNotDraft)
+		}
+		return voidInvoice(tx, r, now)
+	case from == to:
+		unlinks, err := onlyInvoiceUnlinks(tx, stored, r)
+		if err != nil || unlinks {
+			return err
+		}
+		return refuse(msgInvoiceNotDraft)
 	}
+	return refuse(msgInvoiceCannotGo, invoiceName(stored), from, to)
+}
+
+// onlyInvoiceUnlinks reports whether every field r changes is one of
+// invoiceUnlinks that PocketBase cleared because the row it named is gone. A
+// link cleared while its row still exists is a change like any other.
+// PocketBase deletes the row before it unlinks the references, inside the same
+// transaction, so tx no longer finds it.
+func onlyInvoiceUnlinks(tx core.App, stored, r *core.Record) (bool, error) {
+	for _, name := range changedFields(stored, r, nil) {
+		collection, ok := invoiceUnlinks[name]
+		if !ok || r.GetString(name) != "" {
+			return false, nil
+		}
+		_, err := tx.FindRecordById(collection, stored.GetString(name))
+		if err == nil {
+			return false, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// checkDraftInvoice runs the header guards of a draft, sets the sort key, and
+// sets the three totals from the stored lines and the header tax.
+func checkDraftInvoice(tx core.App, stored, r *core.Record) error {
 	if err := checkInvoiceDays(r); err != nil {
 		return err
 	}
@@ -196,21 +293,6 @@ func validateInvoice(tx core.App, stored, r *core.Record) error {
 	return nil
 }
 
-// checkInvoiceStatus allows a draft that stays a draft. Posting (draft →
-// posted) and voiding (posted → void) are the posting path's, not a write of
-// the invoice's fields. A write with no status is the schema's refusal (the
-// field is required).
-func checkInvoiceStatus(stored, r *core.Record) error {
-	if stored != nil && stored.GetString("status") != statusDraft {
-		return refuse(msgInvoiceNotDraft)
-	}
-	switch r.GetString("status") {
-	case statusPosted, statusVoid:
-		return refuse(msgInvoicePostedFromForm)
-	}
-	return nil
-}
-
 func checkInvoiceDays(r *core.Record) error {
 	date, err := parseDay(r.GetString("date"))
 	if err != nil {
@@ -227,8 +309,9 @@ func checkInvoiceDays(r *core.Record) error {
 }
 
 // checkInvoiceCustomer refuses an inactive customer when the write chooses it;
-// a draft keeps a customer that became inactive after it was chosen. A
-// customer that does not exist is the schema's refusal.
+// a draft keeps a customer that became inactive after it was chosen, and a
+// correction keeps its original's. A customer that does not exist is the
+// schema's refusal.
 func checkInvoiceCustomer(tx core.App, stored, r *core.Record) error {
 	id := r.GetString("customer")
 	if id == "" || (stored != nil && stored.GetString("customer") == id) {
@@ -241,10 +324,14 @@ func checkInvoiceCustomer(tx core.App, stored, r *core.Record) error {
 	if err != nil {
 		return fmt.Errorf("books: read the invoice's customer: %w", err)
 	}
-	if customer.GetBool("inactive") {
-		return refuseNamedField("customer", msgCustomerInactive, customer.GetString("display_name"))
+	if !customer.GetBool("inactive") {
+		return nil
 	}
-	return nil
+	keeps, err := keepsCorrectedCustomer(tx, r, id)
+	if err != nil || keeps {
+		return err
+	}
+	return refuseNamedField("customer", msgCustomerInactive, customer.GetString("display_name"))
 }
 
 // checkInvoiceTaxRate refuses an inactive rate or group when the write chooses
@@ -573,16 +660,8 @@ func restateInvoice(tx core.App, invoiceID string) (documentTotalsResult, error)
 	if err := checkInvoiceTotals(totals); err != nil {
 		return documentTotalsResult{}, err
 	}
-	done := markRestating(tx, invoiceID)
-	defer done()
-	for i, line := range lines {
-		if int64(line.GetInt("amount")) == totals.Amounts[i] {
-			continue
-		}
-		line.Set("amount", totals.Amounts[i])
-		if err := tx.Save(line); err != nil {
-			return documentTotalsResult{}, err
-		}
+	if err := restateLineAmounts(tx, invoiceID, lines, totals); err != nil {
+		return documentTotalsResult{}, err
 	}
 	setInvoiceTotals(invoice, totals)
 	if err := tx.Save(invoice); err != nil {
