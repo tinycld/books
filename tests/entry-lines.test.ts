@@ -17,6 +17,8 @@ const line = (over: Partial<EntryFormLine> = {}): EntryFormLine => ({
     debit: '',
     credit: '',
     memo: '',
+    customer: '',
+    vendor: '',
     ...over,
 })
 

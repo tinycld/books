@@ -1,0 +1,506 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "populated",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [900],
+            "height": 800,
+            "name": "populated",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "height": 800,
+            "name": "populated",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1200,
+            "name": "populated",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "more",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-param-period"
+                },
+                {
+                    "click": "report-period-preset-allDates"
+                },
+                {
+                    "waitForHidden": "report-period-popover"
+                },
+                {
+                    "waitFor": "All dates"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "holdNextPages": true
+                },
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-accounts"
+                },
+                {
+                    "waitFor": "report-filter-picker"
+                },
+                {
+                    "fill": "report-filter-search",
+                    "value": "Business Savings"
+                },
+                {
+                    "clickRole": "checkbox",
+                    "name": "Business Savings"
+                },
+                {
+                    "click": "report-filter-apply"
+                },
+                {
+                    "waitFor": "report-param-accounts"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "scrollListToEnd": "[data-testid^=\"report-row-d:\"]"
+                },
+                {
+                    "waitFor": "report-loading-more"
+                },
+                {
+                    "pause": 800
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1200,
+            "name": "more",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-param-period"
+                },
+                {
+                    "click": "report-period-preset-allDates"
+                },
+                {
+                    "waitForHidden": "report-period-popover"
+                },
+                {
+                    "waitFor": "All dates"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "holdNextPages": true
+                },
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-accounts"
+                },
+                {
+                    "waitFor": "report-filter-picker"
+                },
+                {
+                    "fill": "report-filter-search",
+                    "value": "Business Savings"
+                },
+                {
+                    "clickRole": "checkbox",
+                    "name": "Business Savings"
+                },
+                {
+                    "click": "report-filter-apply"
+                },
+                {
+                    "waitFor": "report-param-accounts"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "scrollListToEnd": "[data-testid^=\"report-row-d:\"]"
+                },
+                {
+                    "waitFor": "report-loading-more"
+                },
+                {
+                    "pause": 800
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "collapsed",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-fold-all"
+                },
+                {
+                    "waitFor": "Expand all"
+                },
+                {
+                    "pause": 800
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "rows-all",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-param-rows"
+                },
+                {
+                    "waitFor": "report-filter-picker"
+                },
+                {
+                    "clickText": "All"
+                },
+                {
+                    "waitForHidden": "report-filter-picker"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "filtered",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-accounts"
+                },
+                {
+                    "waitFor": "report-filter-picker"
+                },
+                {
+                    "fill": "report-filter-search",
+                    "value": "Business Checking"
+                },
+                {
+                    "clickRole": "checkbox",
+                    "name": "Business Checking"
+                },
+                {
+                    "fill": "report-filter-search",
+                    "value": "Company Card"
+                },
+                {
+                    "clickRole": "checkbox",
+                    "name": "Company Card"
+                },
+                {
+                    "click": "report-filter-apply"
+                },
+                {
+                    "waitFor": "report-param-accounts"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "sorted",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-sort-menu"
+                },
+                {
+                    "click": "report-sort-choice-debit-desc"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "all-dates",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-param-period"
+                },
+                {
+                    "click": "report-period-preset-allDates"
+                },
+                {
+                    "waitForHidden": "report-period-popover"
+                },
+                {
+                    "waitFor": "All dates"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "customize",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "toolbar-more-button"
+                },
+                {
+                    "clickText": "Customize"
+                },
+                {
+                    "waitFor": "report-customize"
+                }
+            ],
+            "stable": "report-customize-reset"
+        },
+        {
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 844,
+            "name": "empty-filtered",
+            "actions": [
+                {
+                    "clickText": "General Ledger"
+                },
+                {
+                    "waitFor": "report-table"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "report-add-filter"
+                },
+                {
+                    "click": "report-add-filter-accounts"
+                },
+                {
+                    "waitFor": "report-filter-picker"
+                },
+                {
+                    "fill": "report-filter-search",
+                    "value": "Sales tax payable"
+                },
+                {
+                    "clickRole": "checkbox",
+                    "name": "Sales tax payable"
+                },
+                {
+                    "click": "report-filter-apply"
+                },
+                {
+                    "waitFor": "report-param-accounts"
+                },
+                {
+                    "pause": 1500
+                },
+                {
+                    "waitFor": "report-empty"
+                }
+            ]
+        }
+    ]
+}

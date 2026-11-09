@@ -3,6 +3,10 @@ import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { REVIEW_SEED_STATEMENT } from './lib/for-review-fixture'
+import {
+    GENERAL_LEDGER_LONG_SECTION,
+    GENERAL_LEDGER_PARTY_SEED,
+} from './lib/general-ledger-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
@@ -147,6 +151,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedBanking(pb, ctx, accountIds)
     const customerIds = await seedCustomers(pb)
     await seedVendors(pb, accountIds)
+    await seedPartyEntries(pb, ctx, ids, customerIds)
+    await seedLongSection(pb, ctx, ids)
     await seedProducts(pb, accountIds)
     await seed1099(pb, accountIds)
     await seedSalesTax(pb, accountIds, customerIds)
@@ -477,6 +483,65 @@ async function seedJournalEntries(pb: PocketBase, ctx: SeedContext, ids: Map<str
         if (seedEntry.state === 'voided') {
             await pb.collection('books_journal_entries').update(created.id, { status: 'void' })
         }
+    }
+}
+
+// Entries whose lines name a customer or a vendor, so the Name column shows in the
+// seeded book. Created after the customers and vendors they name. A customer fixture id
+// holds `_`, so `customerIds` maps it to the created customer; a vendor keeps its
+// fixture id (seedVendors).
+const PARTY_ENTRY_DAYS = ['10-20', '10-14']
+
+async function seedPartyEntries(
+    pb: PocketBase,
+    ctx: SeedContext,
+    ids: Map<string, string>,
+    customerIds: Map<string, string>
+) {
+    const year = new Date().getFullYear()
+    for (const [index, seedEntry] of GENERAL_LEDGER_PARTY_SEED.entries()) {
+        const created = await pb.collection('books_journal_entries').create({
+            date: `${year}-${PARTY_ENTRY_DAYS[index]}`,
+            memo: seedEntry.memo,
+            status: 'draft',
+            doc_type: 'journal',
+            origin: 'manual',
+            created_by: ctx.user.id,
+        })
+        for (const [position, line] of seedEntry.lines.entries()) {
+            const account = ids.get(line.account)
+            const customer = line.customer ? customerIds.get(line.customer) : ''
+            if (account === undefined || customer === undefined) {
+                throw new Error(
+                    `seed: party entry "${seedEntry.memo}" names account ${line.account} or customer ${line.customer}, which was not created`
+                )
+            }
+            await pb.collection('books_journal_lines').create({
+                entry: created.id,
+                account,
+                debit: line.debit,
+                credit: line.credit,
+                memo: line.memo,
+                customer,
+                vendor: line.vendor,
+                position,
+            })
+        }
+        await pb
+            .collection('books_journal_entries')
+            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+    }
+}
+
+// A section longer than the General Ledger's first page of 200 lines, so its paging
+// is reached in the seeded book.
+async function seedLongSection(pb: PocketBase, ctx: SeedContext, ids: Map<string, string>) {
+    const { account, offset, days, linesPerEntry, cents, memo } = GENERAL_LEDGER_LONG_SECTION
+    const year = new Date().getFullYear()
+    const debits: SeedLine[] = Array.from({ length: linesPerEntry }, () => [account, cents, 0])
+    const lines: SeedLine[] = [...debits, [offset, 0, linesPerEntry * cents]]
+    for (const day of days) {
+        await postEntry(pb, ctx, ids, { date: `${year}-${day}`, memo, lines })
     }
 }
 

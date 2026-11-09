@@ -13,6 +13,8 @@ export type LineInput = {
     debit?: string
     credit?: string
     memo?: string
+    // A customer's or vendor's display name, picked in the line's Name picker.
+    name?: string
 }
 
 export type EntryInput = {
@@ -87,6 +89,23 @@ export async function chooseAccount(page: Page, index: number, label: string) {
     await page.getByRole('menuitem', { name: label, exact: true }).click()
 }
 
+// The Name picker is a Books SearchPicker: its trigger is `entry-line-name-<i>`, its search
+// field takes the focus when it opens, and its options are `entry-line-name-option-<kind>:<id>`.
+// The option is matched by its exact text: a substring would also match a longer name.
+export async function chooseName(page: Page, index: number, name: string) {
+    await page.getByTestId(`entry-line-name-${index}`).click()
+    const search = page.locator('input:focus')
+    await expect(search).toBeVisible()
+    await search.fill(name)
+    await page
+        .locator(
+            '[data-testid^="entry-line-name-option-customer:"], [data-testid^="entry-line-name-option-vendor:"]'
+        )
+        .filter({ has: page.getByText(name, { exact: true }) })
+        .click()
+    await expect(page.getByTestId(`entry-line-name-${index}`)).toContainText(name)
+}
+
 async function typeAmount(field: Locator, value: string) {
     await field.fill(value)
     await field.blur()
@@ -94,6 +113,7 @@ async function typeAmount(field: Locator, value: string) {
 
 export async function fillLine(page: Page, index: number, line: LineInput) {
     if (line.account) await chooseAccount(page, index, line.account)
+    if (line.name) await chooseName(page, index, line.name)
     if (line.debit) await typeAmount(page.getByTestId(`entry-line-debit-${index}`), line.debit)
     if (line.credit) await typeAmount(page.getByTestId(`entry-line-credit-${index}`), line.credit)
     if (line.memo) await page.getByTestId(`entry-line-memo-${index}`).fill(line.memo)

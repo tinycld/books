@@ -27,12 +27,14 @@ import type {
     BooksBankImports,
     BooksBankTransactions,
     BooksCloseOverrides,
+    BooksCustomers,
     BooksDocSequences,
     BooksJournalEntries,
     BooksJournalLines,
     BooksSettings,
     BooksTaxAgencies,
     BooksTaxRates,
+    BooksVendors,
 } from '../tinycld/books/types'
 import { refusedLoad } from './silence-log'
 
@@ -700,6 +702,8 @@ function journalLine(account: string, position: number): BooksJournalLines {
         debit: 100,
         credit: 0,
         memo: '',
+        customer: '',
+        vendor: '',
         position,
         posted: true,
         date: '2026-09-01',
@@ -1067,6 +1071,10 @@ export function seedBooks(
         ),
         books_tax_agencies: taxAgenciesCollectionFor(opts, opts.taxAgencies ?? []),
         books_tax_rates: taxRatesCollectionFor(opts, opts.taxRates ?? []),
+        // Read by the register and entry queries for a line's Name; empty unless a test
+        // replaces them.
+        books_customers: local<BooksCustomers>('books_customers', []),
+        books_vendors: local<BooksVendors>('books_vendors', []),
     })
 }
 

@@ -40,6 +40,8 @@ const line = (over: Partial<EntryFormLine> = {}): EntryFormLine => ({
     debit: '',
     credit: '',
     memo: '',
+    customer: '',
+    vendor: '',
     ...over,
 })
 
@@ -114,6 +116,8 @@ function savedLine(id: string, position: number, over: Partial<BooksJournalLines
         debit: 0,
         credit: 0,
         memo: '',
+        customer: '',
+        vendor: '',
         position,
         posted: false,
         date: '2026-10-12',

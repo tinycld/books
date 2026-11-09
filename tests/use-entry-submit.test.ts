@@ -24,8 +24,24 @@ const initial: EntryFormValues = {
     memo: 'Opening',
     autoReverseOn: '',
     lines: [
-        { id: '', account: 'acct_bank_0001', debit: '10.00', credit: '', memo: '' },
-        { id: '', account: 'acct_equity_0001', debit: '', credit: '10.00', memo: '' },
+        {
+            id: '',
+            account: 'acct_bank_0001',
+            debit: '10.00',
+            credit: '',
+            memo: '',
+            customer: '',
+            vendor: '',
+        },
+        {
+            id: '',
+            account: 'acct_equity_0001',
+            debit: '',
+            credit: '10.00',
+            memo: '',
+            customer: '',
+            vendor: '',
+        },
     ],
 }
 
