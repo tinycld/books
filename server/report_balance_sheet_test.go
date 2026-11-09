@@ -518,6 +518,26 @@ func TestBalanceSheetOutline(t *testing.T) {
 	})
 }
 
+// A book with no posted line has no row to give its figures a currency, so
+// each section, its total and the computed rows take the Books currency from
+// the sources' Currency, and a reader sees "$0.00", not "0.00".
+func TestBalanceSheetEmptyBookCurrency(t *testing.T) {
+	b := newBSBook(t)
+	mkRetainedEarnings(t, b.app, "3900")
+	saveSettings(t, b.app, map[string]any{"currency": "EUR"})
+	res := b.runAt(t, bsToday, "")
+	if len(res.Rows) == 0 {
+		t.Fatal("no rows")
+	}
+	for _, r := range res.Rows {
+		for _, col := range []string{"current", "prior", "change"} {
+			if got := r.Cells[col+"@currency"]; got != "EUR" {
+				t.Errorf("%s (%s) %s currency = %#v, want the Books currency EUR; cells %v", r.Label, r.Kind, col, got, r.Cells)
+			}
+		}
+	}
+}
+
 func TestBalanceSheetSigns(t *testing.T) {
 	b := newBSBook(t)
 	checking := b.account(t, "Checking A", "1000", "bank", "checking")
