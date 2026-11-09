@@ -107,6 +107,10 @@ func TestLedgerRules_EntryCreatePins(t *testing.T) {
 		{"an opening balance draft with a number", `{` + base + `,"status":"draft","origin":"opening_balance","number":"7"}`, http.StatusBadRequest, nil},
 		{"as a void reversal", `{` + base + `,"status":"draft","origin":"void_reversal"}`, http.StatusBadRequest, nil},
 		{"as an auto reversal", `{` + base + `,"status":"draft","origin":"auto_reversal"}`, http.StatusBadRequest, nil},
+		// An invoice's entry comes only from posting the invoice, never from a
+		// client: a manual one would post and take a number from booksseqinvoice.
+		{"a manual invoice entry", `{"date":"2026-05-01","doc_type":"invoice","status":"draft","origin":"manual"}`, http.StatusBadRequest, requireNoInvoiceEntries},
+		{"an opening balance invoice entry", `{"date":"2026-05-01","doc_type":"invoice","status":"draft","origin":"opening_balance"}`, http.StatusBadRequest, requireNoInvoiceEntries},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -132,6 +136,17 @@ func requireStoredOpeningDraft(t testing.TB, app *tests.TestApp) {
 	}
 	if len(rows) != 1 || rows[0].GetString("status") != "draft" {
 		t.Errorf("stored opening entries: %d, want one draft", len(rows))
+	}
+}
+
+func requireNoInvoiceEntries(t testing.TB, app *tests.TestApp) {
+	t.Helper()
+	n, err := app.CountRecords("books_journal_entries", dbx.HashExp{"doc_type": "invoice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("%d invoice entries stored, want 0", n)
 	}
 }
 

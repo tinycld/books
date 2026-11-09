@@ -7,6 +7,7 @@ import {
     GENERAL_LEDGER_LONG_SECTION,
     GENERAL_LEDGER_PARTY_SEED,
 } from './lib/general-ledger-fixture'
+import { CUSTOMER_TERMS_PATCHES, INVOICE_PRODUCTS } from './lib/invoice-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
@@ -195,6 +196,13 @@ export async function seedCustomers(pb: PocketBase): Promise<Map<string, string>
             .create({ ...seedValues(row), parent: parentId })
         ids.set(id, created.id)
     }
+    for (const { id, terms } of CUSTOMER_TERMS_PATCHES) {
+        const customerId = ids.get(id)
+        if (customerId === undefined) {
+            throw new Error(`seed: terms name customer ${id}, which was not created`)
+        }
+        await pb.collection('books_customers').update(customerId, { terms })
+    }
     return ids
 }
 
@@ -234,9 +242,10 @@ function seededAccountId(
 // The fixture ids are valid PocketBase ids, so the seed sends them; `currency`
 // is the server's. Every product is created active, then its bundle rows, and
 // the inactive products are made inactive last: the item guard refuses a row
-// whose product is inactive when the row is created, so rows come first.
+// whose product is inactive when the row is created, so rows come first. The
+// invoice products (the Discount service a percent line names) come after.
 export async function seedProducts(pb: PocketBase, accountIds: Map<string, string>): Promise<void> {
-    for (const product of PRODUCTS) {
+    for (const product of [...PRODUCTS, ...INVOICE_PRODUCTS]) {
         const {
             income_account_number: income,
             expense_account_number: expense,

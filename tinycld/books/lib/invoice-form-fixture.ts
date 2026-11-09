@@ -2,21 +2,14 @@
 // Plain data: it imports other fixtures and types only, because the seed graph runs in
 // plain node (tests/seed-node.test.ts).
 //
-// The invoice collections do not exist yet. The rows below are typed against local
-// interfaces that mirror the spec's Data section (docs/specs/invoice-form-design.md §4.1).
-// The migration checkpoint (2100000010_create_books_invoices.js) must replace
-// `InvoiceRecord`, `InvoiceLineRecord` and `InvoiceTaxLineRecord` with the generated
-// `BooksInvoices`, `BooksInvoiceLines` and `BooksInvoiceTaxLines` (with `satisfies`), and
-// add `terms` to the customers it fills below from the generated `BooksCustomers`.
-//
 // Amounts are integer minor units (cents). Quantities have at most 2 decimals. A percent
 // line's percent is in parts per million of the line above (-10% = -100 000). `amount`,
 // `subtotal`, `tax_total` and `total` are the values the server writes at every save:
 // Qty x Rate and Percent x the amount above are rounded half away from zero to cents, and
 // tax is `taxOn` per component of the header rate on the taxable total (lib/sales-tax.ts).
-// tests must hold these numbers equal to `documentTotals` once lib/document-lines.ts exists.
+// tests/document-lines.test.ts holds these numbers equal to `documentTotals`.
 
-import type { CustomerAddress } from './customer-form-fixture'
+import type { BooksInvoiceLines, BooksInvoices, BooksInvoiceTaxLines } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import type { PaymentTermKey } from './payment-terms'
 import { PRODUCT_IDS, PRODUCTS, type ProductFixtureRecord } from './products-services-fixture'
@@ -28,76 +21,13 @@ export const INVOICE_TODAY = '2026-11-04'
 
 const STAMP = '2026-11-04 09:00:00.000Z'
 
-export type InvoiceStatus = 'draft' | 'posted' | 'void'
-export type InvoiceLineKind = 'item' | 'description' | 'subtotal' | 'percent'
-
-// books_invoices (spec §4.1). `sort_key` is server-only and never sent; the fixture leaves
-// it out, as the customer fixture leaves out `name_key` and `sort_key`.
-export interface InvoiceRecord {
-    id: string
-    customer: string
-    status: InvoiceStatus
-    number: string
-    sequence: number
-    date: string
-    due_date: string
-    terms: PaymentTermKey
-    bill_to: CustomerAddress | null
-    email: string
-    tax_rate: string
-    message: string
-    memo: string
-    subtotal: number
-    tax_total: number
-    total: number
-    currency: string
-    entry: string
-    replaces: string
-    replaced_by: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    form: string
-    fields: Record<string, unknown> | null
-    created: string
-    updated: string
-}
-
-// books_invoice_lines (spec §4.1).
-export interface InvoiceLineRecord {
-    id: string
-    invoice: string
-    kind: InvoiceLineKind
-    product: string
-    description: string
-    quantity: number
-    rate: number
-    percent_ppm: number
-    amount: number
-    taxable: boolean
-    position: number
-    created: string
-    updated: string
-}
-
-// books_invoice_tax_lines (spec §4.1), written by the server at posting.
-export interface InvoiceTaxLineRecord {
-    id: string
-    invoice: string
-    rate: string
-    component: string
-    agency: string
-    rate_ppm: number
-    taxable_amount: number
-    amount: number
-    position: number
-    created: string
-    updated: string
-}
+export type InvoiceRecord = BooksInvoices
+export type InvoiceLineRecord = BooksInvoiceLines
+export type InvoiceTaxLineRecord = BooksInvoiceTaxLines
+export type InvoiceStatus = BooksInvoices['status']
+export type InvoiceLineKind = BooksInvoiceLines['kind']
 
 // The default terms the seed gives customers (spec §4.6: two Net 30, one Due on receipt).
-// The customer migration adds `terms`; until then the seed cannot write it.
 export const CUSTOMER_TERMS_PATCHES = [
     { id: CUSTOMER_IDS.harborview, terms: 'net_30' },
     { id: CUSTOMER_IDS.northwind, terms: 'net_30' },
@@ -158,9 +88,9 @@ const IDS = INVOICE_IDS
 const ASPEN_RIDGE = 'cust_aspen_0001'
 
 function invoice(
-    seed: Pick<InvoiceRecord, 'id' | 'customer' | 'status' | 'date' | 'due_date'> &
-        Partial<InvoiceRecord>
-): InvoiceRecord {
+    seed: Pick<BooksInvoices, 'id' | 'customer' | 'status' | 'date' | 'due_date'> &
+        Partial<BooksInvoices>
+): BooksInvoices {
     const customer = CUSTOMERS.find(row => row.id === seed.customer)
     if (!customer) throw new Error(`invoice fixture: ${seed.id} names an unknown customer`)
     return {
@@ -185,6 +115,7 @@ function invoice(
         voided_at: '',
         form: '',
         fields: null,
+        sort_key: '',
         created: STAMP,
         updated: STAMP,
         ...seed,
@@ -299,11 +230,15 @@ export const INVOICES = [
         posted_by: INVOICE_USER_IDS.ana,
         posted_at: '2026-10-14 18:30:00.000Z',
     }),
-] satisfies InvoiceRecord[]
+] satisfies BooksInvoices[]
 
-type LineSeed = Pick<InvoiceLineRecord, 'kind'> & Partial<InvoiceLineRecord>
+// The invoices the seed posts, in this order, each with Denver combined (spec §4.6).
+// Posting numbers them 1001, 1002, 1003 in the seeded book, not the fixture's numbers.
+export const INVOICE_SEED_IDS = [INVOICE_IDS.noTax, INVOICE_IDS.exempt, INVOICE_IDS.posted] as const
 
-function lines(invoiceId: string, tag: string, seeds: LineSeed[]): InvoiceLineRecord[] {
+type LineSeed = Pick<BooksInvoiceLines, 'kind'> & Partial<BooksInvoiceLines>
+
+function lines(invoiceId: string, tag: string, seeds: LineSeed[]): BooksInvoiceLines[] {
     return seeds.map((seed, position) => ({
         id: `invl${tag}${String(position).padStart(2, '0')}`.padEnd(15, '0'),
         invoice: invoiceId,
@@ -454,7 +389,7 @@ export const INVOICE_LINES = [
             amount: 21_000,
         },
     ]),
-] satisfies InvoiceLineRecord[]
+] satisfies BooksInvoiceLines[]
 
 const DENVER_COMPONENTS = [
     { component: TAX_IDS.state, agency: TAX_IDS.colorado, rate_ppm: 29_000 },
@@ -467,7 +402,7 @@ function denverTaxLines(
     tag: string,
     taxable: number,
     amounts: readonly [number, number, number]
-): InvoiceTaxLineRecord[] {
+): BooksInvoiceTaxLines[] {
     return DENVER_COMPONENTS.map((part, position) => ({
         id: `invt${tag}${position}`.padEnd(15, '0'),
         invoice: invoiceId,
@@ -487,7 +422,7 @@ export const INVOICE_TAX_LINES = [
     ...denverTaxLines(IDS.voided, '1002', 10_200, [296, 102, 491]),
     ...denverTaxLines(IDS.correction, 'fix2', 13_600, [394, 136, 654]),
     ...denverTaxLines(IDS.exempt, '1003', 0, [0, 0, 0]),
-] satisfies InvoiceTaxLineRecord[]
+] satisfies BooksInvoiceTaxLines[]
 
 // A fixture that names a missing product or tax rate is a fixture bug, not data.
 const KNOWN_PRODUCTS = new Set([...PRODUCTS, ...INVOICE_PRODUCTS].map(row => row.id))
@@ -511,4 +446,4 @@ export const INVOICE_REFUSALS = {
     inactiveCustomer: 'Old Mill Bakery is inactive. Choose an active customer.',
 } as const
 
-export const NO_INVOICES: InvoiceRecord[] = []
+export const NO_INVOICES: BooksInvoices[] = []

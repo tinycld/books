@@ -19,6 +19,7 @@ const (
 	originAutoReversal   = "auto_reversal"
 	originVoidReversal   = "void_reversal"
 	originOpeningBalance = "opening_balance"
+	originDocument       = "document"
 )
 
 // draftEditable are the entry fields a person edits on a draft. Everything
@@ -121,10 +122,24 @@ func checkNewEntry(r *core.Record) error {
 	if r.GetString("doc_type") == docTypeTransfer && r.GetString("origin") == originOpeningBalance {
 		return refuse("An opening balance entry cannot be a transfer.")
 	}
+	// An invoice's entry comes from posting the invoice (origin document) or
+	// reverses such an entry; posting checks that a reversal has the doc type
+	// of the entry it reverses. A manual one would take an invoice number.
+	if r.GetString("doc_type") == docTypeInvoice && !isInvoiceEntryOrigin(r.GetString("origin")) {
+		return refuse("An invoice entry comes only from posting its invoice.")
+	}
 	if reverses && r.GetString("replaces") != "" {
 		return refuse("An entry cannot both reverse and replace another entry.")
 	}
 	return nil
+}
+
+func isInvoiceEntryOrigin(origin string) bool {
+	switch origin {
+	case originDocument, originReversal, originAutoReversal, originVoidReversal:
+		return true
+	}
+	return false
 }
 
 // checkLinkedEntries refuses a reversal or a correction of a draft. The entry

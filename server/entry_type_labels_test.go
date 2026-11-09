@@ -47,7 +47,8 @@ func TestEntryTypeLabels_Parse(t *testing.T) {
 }
 
 // Every origin the entries migration allows has a label, and the table names
-// no origin the migration does not have.
+// no origin the migration does not have. Origin document has no label of its
+// own: a document's entry is named by its doc type (spec Q24).
 func TestEntryTypeLabels_CoverEveryOrigin(t *testing.T) {
 	app := newBooksApp(t)
 	col, err := app.FindCollectionByNameOrId("books_journal_entries")
@@ -59,7 +60,7 @@ func TestEntryTypeLabels_CoverEveryOrigin(t *testing.T) {
 		t.Fatal("books_journal_entries.origin is not a select field")
 	}
 	for _, origin := range field.Values {
-		if entryTypeLabels.Origins[origin] == "" {
+		if origin != "document" && entryTypeLabels.Origins[origin] == "" {
 			t.Errorf("origin %q has no label", origin)
 		}
 	}
