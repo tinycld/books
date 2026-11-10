@@ -60,6 +60,7 @@
 - cp 2 · reviewer A NOTE 1 → **driver**: from this checkpoint the seed has three invoice entries (1001–1003) whose Open / Edit / Void, and every `invoice:` search hit, go to `books/invoices/<id>` or `books/invoices/new?replaces=<id>`, which no route serves until checkpoints 3 and 5. Do not merge the unit before checkpoint 5.
 - cp 2 · reviewer A NOTE 6: the search FTS table `fts_books_invoices` was added by editing unreleased migration 2100000010 in place; a dev DB that ran checkpoint 1 has no such table and every Books app search fails there until `pnpm run db:reset`.
 - cp 0b · reviewer A NOTE 4: a row kind may list a toggle or computed column in `required`; the host check accepts it and both runtimes ignore it (docs: "A hidden, toggle, or computed column is never required"), so a host author gets no signal that the entry has no effect.
+- cp 0c · reviewer A NOTE 2 → **checkpoint 3**: a table-level error filed at `errors.lines.root` (a submit with rows mounted) stays on screen when a row-cell edit fixes it (RHF's lookup for `lines.<i>.<col>` stops at `lines.<i>`); adding or removing a row, or the next Save / Post, clears it. Books issues at `lines` that a cell edit can fix (negative total, too large) show until then. Standard RHF behavior for a cross-field refine; re-check at eval if the human wants them to clear on a cell change.
 
 ## Out-of-plan changes
 - cp 0 · core `core/ui/form/TextInput.tsx` (`inputRef`) and `core/ui/form/NumberInput.tsx` (`inputRef`, `onSubmitEditing`): a table cell registers its real input as the focus target, and the `addOnSubmit` Qty column is a NumberInput, which had no submit prop.
@@ -128,6 +129,24 @@
 - reviewer-caught deferrals: none
 - findings files: cp/cp0b-fix.md (round 1, 3 items)
 - commit: core 6bcc2dca on books/p2-invoice (7 files, all in the 0b Files block; out-of-plan: none)
+- human: review mode C — none
+
+## Checkpoint 0c
+- origin: core task approved by the human in chat, closing the checkpoint 3 stop (table-level error never shown once a row has mounted); not in the plan, so the runner wrote the brief (cp/cp0c.md: brief header + a 0c section). Core branch books/p2-invoice now from core main 3e3a35d5. Gate-3 input from `review-diff.mjs … 0 --repo`, out-of-plan list corrected by hand against the 0c Files block
+- test writer: core `ui/forms/__tests__/table-field-root-error.test.tsx` (5); 2 red for the right reason (row mounted then removed; table issue with rows on screen: error at `errors.lines.root.message`, unread by `Cell`), 3 guards that pass on purpose (no row mounted, row error not drawn twice, summary); untestable: none
+- implementer: `fieldErrorText` beside `Cell` in `core/ui/forms/FormRenderer.tsx` reads `errors[key].message`, else `errors[key].root.message` (RHF `FieldErrors`, no cast); step 2 readers checked, none changed (wizard `trigger` result, `submit-summary.ts`, `FormErrorSummary` already flattens nested root, `form-error-handler.ts` / `lib/errors.ts` write only); DONE
+- test disputes: none
+- self-declared differences: none
+- gate 1: tests unedited: yes · pass (core check 453 files / 3919 tests) · Books e2e of the `FormRenderer` callers (`RecordChild`: customer-form-* 5, products-services-* 5, vendor-form-* 5, vendor-1099-form, tax-rates-customer; run on the Books tree with the uncommitted cp 3 work in it): 54 passed
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 0 BLOCK; NOTE 1 helper comment wrong about when the error nests (only a submit resolve) → accepted+fixed (comment); NOTE 2 → Design notes
+- gate 3 B (conformance): script lines: 0 · finding 1 test comments name Books / an invoice in core → accepted+fixed (test writer)
+- fix review: round 1: clean · rounds: 1
+- gate 1 after fixes: tests unedited: yes (finding 1 comment rewording by the test writer) · core check 453 files / 3919 tests; no e2e re-run (comment-only changes)
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
+- findings files: cp/cp0c-fix.md (round 1, 2 items)
+- commit: core d0b58397 on books/p2-invoice (2 files, both in the 0c Files block; out-of-plan: none)
 - human: review mode C — none
 
 ## Checkpoint 1
