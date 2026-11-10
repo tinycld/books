@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/balance-sheet-checkpoints.md
 - reference: docs/plans/balance-sheet-reference/
 - evidence: docs/plans/balance-sheet-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-10)
 - capture manifest: docs/plans/balance-sheet-capture.json
 - review mode: C — none (unattended)
 - core extension: report spec extensions G1, G3, G4, G5, G7, G8 at spec version 4 (no bump; spec §4) — checkpoint 0, core PR on branch books/p5-balance-sheet, merges before checkpoint 1; MAJOR, the lane holds `exclusive` (taken at the design gate 2026-11-08). Core merge: pre-approved at the design gate (2026-11-08) — merge when checks are green. Runs as writing-plans → the human's plan review → subagent-driven development → core PR. Serialized with p5-journal-report's exclusive checkpoint 0 by the claim; the second rebases.
@@ -135,6 +135,6 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved 2026-11-10 by the human ("merge when green"); CI full suite green at 2cee4d5 (PR books#36) on core 3e3a35d.
+- human comments and what changed: empty book read "0.00" without "$" → core #457 (empty report takes source currency) + booksCurrency; report fired ~20 requests, ran 2 s, row open froze → core #459 (one-scan layout lookups, row pending spinner)
 - native: not executed in this run
