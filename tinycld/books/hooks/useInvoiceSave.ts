@@ -1,5 +1,5 @@
 import { extractValidationErrors } from '@tinycld/core/lib/errors'
-import type { TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
+import type { TableRowWrite, TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
 import { log } from '@tinycld/core/lib/logger'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify/dispatcher'
@@ -16,9 +16,11 @@ import {
     type InvoiceColumns,
     invoiceColumnsFrom,
 } from '../lib/invoice-columns'
+import { invoiceLineWriteSteps } from '../lib/invoice-line-order'
 import { INVOICE_LINE_COLUMNS, INVOICE_LINE_MAPPER, INVOICE_ROW_KINDS } from '../lib/invoice-lines'
-import { invoiceRefusalTarget } from '../lib/invoice-messages'
+import { invoiceRefusalTarget, labelledLineRefusal } from '../lib/invoice-messages'
 import { invoiceHref } from '../lib/invoice-routes'
+import { invoiceTaxOf } from '../lib/invoice-tax'
 import { invoiceLinesForSave } from '../lib/invoice-values'
 import { refusalMessage } from '../lib/record-refusals'
 import {
@@ -29,7 +31,7 @@ import {
     startFailed,
 } from '../lib/record-save'
 import { messageOnlyRefusal } from '../lib/refusal'
-import { createTablePlans, tableWriteSteps } from '../lib/table-writes'
+import { createTablePlans } from '../lib/table-writes'
 import type { InvoiceFormState } from './useInvoiceForm'
 
 const LOG_CONTEXT = 'books.invoice'
@@ -67,7 +69,7 @@ function showRefusal(state: InvoiceFormState, onError: (error: unknown) => void,
     const server = (message: string): ErrorOption => ({ type: 'server', message })
     const message = messageOnlyRefusal(refused.error)
     if (message !== null) {
-        const text = refused.rowLabel ? `${refused.rowLabel}: ${message}` : message
+        const text = labelledLineRefusal(refused.rowLabel, message)
         const target = invoiceRefusalTarget(text)
         if (typeof target === 'object')
             form.setError(lineRefusalPath(form, target.line), server(text))
@@ -84,7 +86,7 @@ function showRefusal(state: InvoiceFormState, onError: (error: unknown) => void,
     const unshown: string[] = []
     for (const [key, text] of Object.entries(fields)) {
         if (shown.has(key)) form.setError(key, server(text))
-        else unshown.push(refused.rowLabel ? `${refused.rowLabel}: ${text}` : text)
+        else unshown.push(labelledLineRefusal(refused.rowLabel, text))
     }
     if (unshown.length > 0) root.setError('root', server(unshown.join(' ')))
 }
@@ -100,7 +102,7 @@ function showClosedRefusal(onError: (error: unknown) => void, refused: Refused) 
         onError(refused.error)
         return
     }
-    const body = refused.rowLabel ? `${refused.rowLabel}: ${message}` : message
+    const body = labelledLineRefusal(refused.rowLabel, message)
     notify.emit({
         event: 'mutation.error',
         title: NOT_SAVED_TITLE,
@@ -116,25 +118,32 @@ function usePresence(surfaceRef: RefObject<ViewInstance | null>) {
     return () => surfaceRef.current !== null && navigation.isFocused()
 }
 
-function useLineWrites() {
+// The line writes of a save, in an order the server accepts one write at a time
+// (invoiceLineWriteSteps), against the lines as stored and the header tax being saved.
+function useLineWrites(state: InvoiceFormState) {
     const [linesCollection] = useStore('books_invoice_lines')
-    return (invoiceId: string, plan: TableWritePlan | undefined) =>
-        tableWriteSteps(plan, {
-            insert: write =>
+    return (invoiceId: string, plan: TableWritePlan | undefined) => {
+        const taxRate = state.form.getValues('tax_rate')
+        const { tax } = invoiceTaxOf(state.taxRows, typeof taxRate === 'string' ? taxRate : '')
+        const ops = {
+            insert: (write: TableRowWrite) =>
                 linesCollection.insert({
                     id: write.row.id,
                     invoice: invoiceId,
                     ...INVOICE_LINE_MAPPER.toRecord(write.row, write.position),
                 }),
-            update: write =>
+            update: (write: TableRowWrite) =>
                 linesCollection.update(write.row.id, draft => {
                     Object.assign(draft, INVOICE_LINE_MAPPER.toRecord(write.row, write.position))
                 }),
-            remove: id => linesCollection.delete(id),
-        }).map(step => ({
+            remove: (id: string) => linesCollection.delete(id),
+        }
+        const storedLines = state.isNew ? [] : state.storedLines
+        return invoiceLineWriteSteps({ storedLines, plan, tax, ops }).map(step => ({
             label: step.itemNumber === null ? null : `Line ${step.itemNumber}`,
             run: step.run,
         }))
+    }
 }
 
 // How far a save got: whether the invoice row was inserted, the line being written, and
@@ -177,7 +186,7 @@ export function useInvoiceSave(state: InvoiceFormState) {
     const orgHref = useOrgHref()
     const surfaceRef = useRef<ViewInstance>(null)
     const isPresent = usePresence(surfaceRef)
-    const lineWrites = useLineWrites()
+    const lineWrites = useLineWrites(state)
     const undoInsert = useUndoInsert()
     const lock = useRef(false)
     const onError = state.isNew ? state.create.onError : state.edit.onError

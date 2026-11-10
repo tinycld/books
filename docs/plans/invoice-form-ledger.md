@@ -132,6 +132,7 @@
 - cp 4 · reviewer A NOTE 11: a Product pick moves focus on native too (soft keyboard rises), while a Customer pick moves none (spec §6).
 - cp 4 · reviewer A NOTE 12: the e2e hard-codes `formatHint`'s Move up text (core `hint.ts` imports react-native) and `Alt+m` does not check which row's menu opened.
 - cp 4 · reviewer B 11: SearchPicker's type-to-open, Enter/Space/↓ and focus return apply to every Books picker on web (vendors, bundle items, accounts); only the invoice e2e drives them.
+- cp 4 · fix review r2 NOTE: `forms/hosts.ts` repeats the Item kind's key as a second literal (`insertShortcuts: { below: 'Alt+Enter' }` beside `invoice-lines.ts:118` `shortcut: 'Alt+Enter'`); a change to one leaves the menu hint wrong with no test to catch it (fix: one exported constant used in both places).
 - cp 0f · reviewer A NOTE 1 (core): an insert key hint (and the four existing row-key hints) acts on the focused row; once arrow keys move into an open row menu, the trigger's blur clears the focused row, so ⌥↵ pressed with the menu open appends at the end instead of below that row (existing core behavior; core docs already say the first kind's key "adds a line after the focused line"). Fix, if wanted: keep the open menu's row as the focused row while `menuRowId` is set.
 - cp 4 · critique r1: the round-0 NOTE "Subtotal label far left" is resolved by fix 11 (label beside its figure); the other round-0 NOTEs stay.
 - cp 4 · fix review r1 NOTE 1: Enter in the SearchPicker search field picks `options[0]` even when `loadFailed` and earlier options remain (fix: return from `run` when `loadFailed`). NOTE 2: a Product pick moves focus to Description after the read even if the user moved focus away during a slow read (a store read does not wait). NOTE 3: the bundle load message is cell-local, so a resize across the phone breakpoint (row remounts as a card) drops it.
@@ -364,7 +365,7 @@
 - commit: core d55d05a8 on books/p2-invoice (13 files; out-of-plan: 2, see Out-of-plan changes)
 - human: review mode C — none
 
-## Checkpoint 4 — STOPPED (core change request)
+## Checkpoint 4 (stopped for a core change request, resumed after core cp0f)
 - runner supplement: cp/cp4-supplement.md (carried: `noteFocus` / `noteBlur` in every line host cell; line write order after moves (cp 1 NOTE 1); description text after `replaceRow`)
 - test writer: `tests/invoice-fills.test.ts` (4 `bundleLines` cases), `tests/search-picker-keys.test.ts` (5), `tests/e2e/invoice-form-lines.spec.ts` (3); 11 red for the right reason; e2e test 3 (phone row menu) green before the build (core checkpoint 0 + checkpoint 3 already ship the cards and the row menu sheet; kept unweakened as a guard); untestable: none
 - implementer: `searchPickerKeyAction` + SearchPicker web keydown (type-to-open, Enter/Space/↓, Esc back to the trigger, `onPicked`), `bundleLines` + `useBundleLines` (one `queryOnce` with `innerJoin`), bundle pick → `replaceRow` with focus on the first Qty, `bundleEmpty` / `bundleLoadFailed`, Customer pick → Terms, Product pick → Description, percent target message live in `LinePercentCell`, new `lib/invoice-line-order.ts` (`invoiceLineWriteSteps`, carried item 2); first dispatch BLOCKED on test 2's Tab walk (below), continuation DONE; 7 declared differences (cp4-impl.md)
@@ -386,6 +387,12 @@
 - after the core change: Books passes the ⌥↵ hint (if the core API needs it), gate 1 (`packages:generate`, check, `-g "invoice-form:"` e2e), re-capture the row-menu shots, a fresh critic on them, a fix review if Books source changed, commit.
 - state for the next runner: all checkpoint 4 code is in the tree, uncommitted (fix round 1 done, gate 1 green, fix review clean); tests staged (index = tests as written, the two dispute fixes, the fix-round T1–T3); the fix diff is staged too (review-diff `--fix` stages the tree). Evidence `cp4/`: shots after round 1, capture.json, critique.md (r1), critique-r0.md.
 - commit: none (ledger only)
+- resumed after core cp0f (5f8dcb7f, core branch books/p2-invoice, PR held open): `forms/hosts.ts` `lines` built-in sets `insertShortcuts: { below: 'Alt+Enter' }` (findings file cp/cp4-fix2.md, round 2, one line, applied by the runner)
+- gate 1 after fix round 2: tests unedited: yes · `packages:generate` (form_hosts.json carries the hint); check 223 files / 4515 tests; `go test ./...` ok; e2e `-g "invoice-form:"` 10 passed; re-capture 8/8 (critique-r1.md archived)
+- gate 2 after fix round 2 (critique.md, fresh critic on the six row-menu shots): invalid: none · BLOCKING 1 (no ⌥↵ on "Insert line below") verified fixed on all six · new: none
+- fix review: round 2 (cp4-fix2-review.md): 0 BLOCK · NOTE 1 → Design notes · rounds: 2
+- commit: the checkpoint 4 commit (code, tests, evidence, this ledger)
+- human: review mode C — none
 
 ## Checkpoint 0f
 - origin: core task from the driver, closing "Checkpoint 4 — STOPPED (core change request)" (gate 2 BLOCKING 1: the row menu's "Insert line below" shows no ⌥↵). Not in the plan: the runner wrote the brief (cp/cp0f.md, cp0e header + a 0f section with its own Files block). Core branch books/p2-invoice from core main c1d91cbd. Gate-3 input from `review-diff.mjs … 0 --repo`: the script matched checkpoint 0's Files and listed all 8 files as out-of-plan; the output is unedited, the corrected list (none) is cp/cp0f-out-of-plan-note.md

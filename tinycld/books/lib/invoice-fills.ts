@@ -106,8 +106,9 @@ export function lineTaxableDefaults(
 }
 
 // The cells a product pick fills on a line. The rate is the price as plain text (no
-// currency sign), as the rate cell holds what is typed. Every Books amount has 2
-// decimals, so the currency does not change the text.
+// currency sign, no thousands separator: "1250.00"), as the rate cell holds what is
+// typed; the cell groups it on blur. Every Books amount has 2 decimals, so the currency
+// does not change the text.
 export function lineFromProduct(
     product: Pick<BooksProducts, 'id' | 'sales_description' | 'price' | 'taxable'>,
     isExempt: boolean,
@@ -116,10 +117,56 @@ export function lineFromProduct(
     return {
         product: product.id,
         description: product.sales_description,
-        rate: centsToText(product.price),
+        rate: centsToText(product.price).replace(/,/g, ''),
         quantity: 1,
         taxable: product.taxable && !isExempt,
     }
+}
+
+export type BundleItemFill = {
+    product: Pick<BooksProducts, 'id' | 'sales_description' | 'price' | 'taxable'>
+    quantity: number
+}
+
+// Every cell of the `lines` table (lib/invoice-lines.ts) is present on a row, null when
+// its kind does not draw it: react-hook-form fills an absent cell from the default at
+// the same index.
+const EMPTY_LINE_CELLS = {
+    product: null,
+    description: null,
+    quantity: null,
+    rate: null,
+    percent: null,
+    amount: null,
+    taxable: null,
+} as const
+
+// A bundle item's quantity on the invoice: the item's quantity times the line's, to 2
+// decimals. In hundredths, so no float product (0.1 × 3) rounds the wrong way.
+function bundleQuantity(itemQuantity: number, lineQuantity: number): number {
+    const hundredths = (Math.round(itemQuantity * 100) * Math.round(lineQuantity * 100)) / 100
+    return Math.round(hundredths) / 100
+}
+
+// The rows a bundle picked on an Item line becomes: one Item row per bundle item (its
+// product, sales description, price and taxable flag, qty = item qty × line qty), then a
+// Subtotal row over them. A bundle with no items gives no rows.
+export function bundleLines(input: {
+    items: readonly BundleItemFill[]
+    lineQuantity: number
+    isExempt: boolean
+    currency: string
+    newId: () => string
+}): TableRow[] {
+    if (input.items.length === 0) return []
+    const items: TableRow[] = input.items.map(item => ({
+        id: input.newId(),
+        ...EMPTY_LINE_CELLS,
+        kind: 'item',
+        ...lineFromProduct(item.product, input.isExempt, input.currency),
+        quantity: bundleQuantity(item.quantity, input.lineQuantity),
+    }))
+    return [...items, { id: input.newId(), ...EMPTY_LINE_CELLS, kind: 'subtotal' }]
 }
 
 // The Customer picker's options in the order given: a sub-customer reads "Parent:

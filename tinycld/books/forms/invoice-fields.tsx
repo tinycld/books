@@ -8,9 +8,9 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { DateField } from '@tinycld/core/ui/forms/fields/DateField'
 import { router } from 'expo-router'
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
-import { Platform, Pressable, Text, View } from 'react-native'
+import { Platform, Pressable, type PressableInstance, Text, View } from 'react-native'
 import { AddressField } from '../components/forms/AddressField'
 import { useInvoiceFormScope } from '../components/invoices/invoice-form-context'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
@@ -126,16 +126,45 @@ function CustomerLoadError({ isVisible, onRetry }: { isVisible: boolean; onRetry
     )
 }
 
+// The forms engine names each field's control `form-input-<key>`; Bill to's links are
+// not fields, so a pick passes over them.
+const FIELD_CONTROLS = '[data-testid^="form-input-"]'
+
+// The invoice form's own root: an earlier invoice screen can stay mounted under this one.
+const FORM_ROOT = '[data-testid="invoice-form"]'
+
+// The field control after `from` in this form's order, on web: the header fields are core
+// and Books components side by side, and core's select takes no focus ref, so the DOM
+// order inside the form is the one order they all follow. Nothing moves when `from` is
+// not one of this form's controls. Native moves no focus (spec §6: pickers open by tap).
+function focusNextField(from: PressableInstance | null) {
+    if (Platform.OS !== 'web' || typeof HTMLElement === 'undefined') return
+    if (!(from instanceof HTMLElement)) return
+    const root = from.closest(FORM_ROOT)
+    if (!root) return
+    const fields = Array.from(root.querySelectorAll<HTMLElement>(FIELD_CONTROLS)).filter(
+        node => node.tabIndex >= 0 && node.getClientRects().length > 0
+    )
+    const at = fields.indexOf(from)
+    if (at < 0) return
+    fields[at + 1]?.focus()
+}
+
 /**
  * Customer: a picker over active customers ("Parent: Child" for a sub-customer). A
  * stored customer that is now inactive shows by name. Picking one fills Bill to, Email,
  * Terms, Tax and Due date, and the lines' taxable flags on the first pick or when the
- * exemption changes. Focused once at open, on web only.
+ * exemption changes, and moves focus on to Terms. Focused once at open, on web only.
  */
 export function CustomerField({ fieldKey, label, value, onChange, disabled }: BuiltinFieldProps) {
     const id = textOf(value)
     const scope = useInvoiceFormScope()
     const picker = useSearchPicker()
+    const trigger = useRef<PressableInstance | null>(null)
+    const triggerRef = useCallback((node: PressableInstance | null) => {
+        trigger.current = node
+    }, [])
+    const onPicked = () => focusNextField(trigger.current)
     const options = useInvoiceCustomerOptions(picker.debouncedTerm, picker.isOpen)
     const { pick, pickFailed } = useCustomerPick(id, onChange)
     const triggerLabel = customerTriggerLabel(id, scope)
@@ -166,6 +195,8 @@ export function CustomerField({ fieldKey, label, value, onChange, disabled }: Bu
                 onRetry={options.retry}
                 emptyText="No customers match"
                 autoFocus={Platform.OS === 'web'}
+                triggerRef={triggerRef}
+                onPicked={onPicked}
             />
             <CustomerLoadError isVisible={pickFailed || scope.customerLoadFailed} onRetry={retry} />
         </View>

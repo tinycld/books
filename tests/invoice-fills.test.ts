@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { dueDateFor } from '../tinycld/books/lib/document-dates'
 import {
+    bundleLines,
     type CustomerFill,
     customerFills,
     invoiceCustomerOptions,
@@ -176,6 +177,90 @@ describe('lineFromProduct', () => {
         expect(lineFromProduct(product(PRODUCT_IDS.accessPoint), true, 'USD').taxable).toBe(false)
         const service = { id: 'p', sales_description: '', price: 100, taxable: false }
         expect(lineFromProduct(service, false, 'USD').taxable).toBe(false)
+    })
+})
+
+describe('bundleLines', () => {
+    // A Service (not taxable) ×2 and a Non-inventory item (taxable) ×3.
+    const service = product(PRODUCT_IDS.taxPrep)
+    const nonInventory = product(PRODUCT_IDS.accessPoint)
+    const items = [
+        { product: service, quantity: 2 },
+        { product: nonInventory, quantity: 3 },
+    ]
+
+    function ids() {
+        let n = 0
+        return () => {
+            n += 1
+            return `newrow${n}`
+        }
+    }
+
+    it('makes one Item row per item with qty = item qty × line qty, then a Subtotal row', () => {
+        expect(service.taxable).toBe(false)
+        expect(nonInventory.taxable).toBe(true)
+        const rows = bundleLines({
+            items,
+            lineQuantity: 1.5,
+            isExempt: false,
+            currency: 'USD',
+            newId: ids(),
+        })
+        expect(rows.map(r => r.kind)).toEqual(['item', 'item', 'subtotal'])
+        expect(rows[0]).toMatchObject({
+            kind: 'item',
+            product: PRODUCT_IDS.taxPrep,
+            description: service.sales_description,
+            quantity: 3,
+            rate: '1250.00',
+            taxable: false,
+        })
+        expect(rows[1]).toMatchObject({
+            kind: 'item',
+            product: PRODUCT_IDS.accessPoint,
+            description: nonInventory.sales_description,
+            quantity: 4.5,
+            rate: '189.00',
+            taxable: true,
+        })
+    })
+
+    it('turns every row’s taxable off for an exempt customer', () => {
+        const rows = bundleLines({
+            items,
+            lineQuantity: 1.5,
+            isExempt: true,
+            currency: 'USD',
+            newId: ids(),
+        })
+        const itemRows = rows.filter(r => r.kind === 'item')
+        expect(itemRows).toHaveLength(2)
+        expect(itemRows.map(r => r.taxable)).toEqual([false, false])
+        expect(rows.some(r => r.taxable === true)).toBe(false)
+    })
+
+    it('takes the row ids from newId in order', () => {
+        const rows = bundleLines({
+            items,
+            lineQuantity: 1.5,
+            isExempt: false,
+            currency: 'USD',
+            newId: ids(),
+        })
+        expect(rows.map(r => r.id)).toEqual(['newrow1', 'newrow2', 'newrow3'])
+    })
+
+    it('gives no rows for a bundle with no items', () => {
+        expect(
+            bundleLines({
+                items: [],
+                lineQuantity: 1,
+                isExempt: false,
+                currency: 'USD',
+                newId: ids(),
+            })
+        ).toEqual([])
     })
 })
 

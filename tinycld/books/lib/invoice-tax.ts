@@ -48,10 +48,12 @@ export function rowParses(row: TableRow, currency: string): boolean {
     return true
 }
 
-// What a line's Amount cell shows: nothing (a percent line with no line to apply to,
-// whose percent cell shows the message), an amount, or a Subtotal line's sum.
+// What a line's Amount cell shows: nothing (`no-target`: a percent line with no line to
+// apply to, whose percent cell shows the message while the user edits), an amount, or a
+// Subtotal line's sum.
 export type LineAmountView =
     | { kind: 'none' }
+    | { kind: 'no-target' }
     | { kind: 'amount'; text: string }
     | { kind: 'subtotal'; text: string }
 
@@ -67,7 +69,7 @@ export function lineAmountViews(rows: readonly TableRow[], currency: string): Li
     return rows.map((row, index) => {
         const parses = row.kind === 'subtotal' ? aboveParse : rowParses(row, currency)
         aboveParse = aboveParse && rowParses(row, currency)
-        if (targetErrors.has(index)) return { kind: 'none' }
+        if (targetErrors.has(index)) return { kind: 'no-target' }
         const amount = totals.amounts[index]
         const text =
             parses && typeof amount === 'number' ? formatMoney(amount, currency) : NO_AMOUNT
