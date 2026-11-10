@@ -3,6 +3,7 @@ package books
 import (
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -12,8 +13,10 @@ import (
 
 // reportSources are the Books collections core's report engine reads (spec
 // §5). Books stores days as YYYY-MM-DD text, so its days are TextDay dates.
-// No source sets Currency: each money field names its row's currency column,
-// which posting stamps from the Books currency setting. Json columns, sort and
+// Each money field names its row's currency column, which posting stamps from
+// the Books currency setting. A source with money fields also sets Currency to
+// that setting; core uses it only for the rows a report makes when it reads
+// no rows (an empty book's totals and computed rows). Json columns, sort and
 // name keys, form links, close overrides, user relations and the vendors' terms,
 // account number, expense account, 1099 and tax id fields are left out.
 func reportSources() []reports.Source {
@@ -142,8 +145,15 @@ func reportSources() []reports.Source {
 		sources[i].FiscalStartMonth = booksFiscalStart
 		sources[i].Heading = booksHeading
 		sources[i].Watch = []string{"books_settings"}
+		if hasMoney(sources[i]) {
+			sources[i].Currency = booksCurrency
+		}
 	}
 	return sources
+}
+
+func hasMoney(src reports.Source) bool {
+	return slices.ContainsFunc(src.Fields, func(f reports.Field) bool { return f.Type == reports.Money })
 }
 
 // accountTypeSelectOptions lists the account types in account_types.json
@@ -201,4 +211,22 @@ func booksHeading(app core.App, reader *core.RequestInfo) string {
 		return ""
 	}
 	return strings.TrimSpace(r.GetString("business_name"))
+}
+
+// booksCurrency is the Books currency, the one posting stamps on every money
+// row. Core calls it with the app, not under the reader's rules, so the
+// settings row is read through its view rule: a reader who may not view
+// books_settings, a book with no settings row, or a fault gets "", and an
+// empty report's figures then show no currency sign. Core may call it on any
+// run, but the rows a run reads keep their own currency.
+func booksCurrency(app core.App, reader *core.RequestInfo) string {
+	r, err := reports.FindViewableRecord(app, reader, "books_settings", settingsID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ""
+	}
+	if err != nil {
+		log.Warn("report currency falls back to none", "error", err)
+		return ""
+	}
+	return r.GetString("currency")
 }

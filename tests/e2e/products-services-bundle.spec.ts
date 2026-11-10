@@ -159,7 +159,8 @@ test.describe('products-services: bundles', () => {
         const deletes = itemDeletes(page)
         const ownWrites = productWrites(page, id)
         const [, second] = await bundleRowIds(page)
-        await page.getByTestId(`form-table-items-${second}-up`).click()
+        await page.getByTestId(`form-table-items-menu-${second}`).click()
+        await page.getByTestId('form-table-items-menu-up').click()
         await expect.poll(() => bundleRowNames(page)).toEqual([nameB, nameA])
 
         await page.getByTestId('product-save').click()
