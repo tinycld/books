@@ -2,6 +2,7 @@
 // totals the form shows while it is typed in.
 
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
+import { tableRowsOf } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { newRecordId } from 'pbtsdb/core'
 import type { BooksInvoices } from '../types'
@@ -12,10 +13,12 @@ import {
     documentTotals,
 } from './document-lines'
 import { type CustomerFill, customerFills, type TaxRateFill } from './invoice-fills'
-import { INVOICE_LINE_MAPPER } from './invoice-lines'
+import { INVOICE_LINE_MAPPER, type InvoiceLineRow } from './invoice-lines'
 
-// The `books:invoice` host's built-in values, keyed as the engine keys them.
+// The `books:invoice` host's built-in values, keyed as the engine keys them. `replaces`
+// is no built-in: a correction's save writes it with the new invoice.
 export type InvoiceFormValues = FormValues & {
+    replaces?: string
     customer: string
     bill_to: BooksInvoices['bill_to']
     email: string
@@ -67,6 +70,73 @@ export function newInvoiceValues(input: {
 
 function isBlank(value: unknown): boolean {
     return typeof value !== 'string' || value.trim() === ''
+}
+
+type SourceInvoice = Pick<
+    BooksInvoices,
+    | 'id'
+    | 'customer'
+    | 'bill_to'
+    | 'email'
+    | 'terms'
+    | 'date'
+    | 'due_date'
+    | 'tax_rate'
+    | 'message'
+    | 'memo'
+>
+
+// A stored invoice's lines as form rows in position order, each with a new id: the
+// form inserts them as lines of a new invoice, never as the source's rows.
+function linesWithNewIds(lines: readonly InvoiceLineRow[]): TableRow[] {
+    return tableRowsOf(lines, INVOICE_LINE_MAPPER).map(row => ({ ...row, id: newRecordId() }))
+}
+
+// Read view "Copy" (`?copy=<id>`): a new draft for the same customer with the same
+// lines, tax and message, dated today; no memo, and it replaces nothing. Bill to, Email
+// and Terms come from the customer's current record as a customer pick fills them (the
+// source's are a snapshot taken for that invoice), and the due date from those terms.
+export function copyInvoiceValues(
+    invoice: SourceInvoice,
+    lines: readonly InvoiceLineRow[],
+    today: string,
+    customer: CustomerFill
+): InvoiceFormValues {
+    // The tax stays the source's, so no rate list is needed for the fill.
+    const fills = customerFills(customer, [], today, null)
+    return {
+        customer: invoice.customer,
+        bill_to: fills.bill_to,
+        email: fills.email,
+        terms: fills.terms,
+        date: today,
+        due_date: fills.due_date ?? today,
+        tax_rate: invoice.tax_rate,
+        lines: linesWithNewIds(lines),
+        message: invoice.message,
+        memo: '',
+    }
+}
+
+// Read view "Edit" (`?replaces=<id>`): a correction keeps every value of the posted
+// invoice, with new line ids, and names the invoice it replaces.
+export function correctionValues(
+    invoice: SourceInvoice,
+    lines: readonly InvoiceLineRow[]
+): InvoiceFormValues {
+    return {
+        customer: invoice.customer,
+        bill_to: invoice.bill_to,
+        email: invoice.email,
+        terms: invoice.terms,
+        date: invoice.date,
+        due_date: invoice.due_date,
+        tax_rate: invoice.tax_rate,
+        lines: linesWithNewIds(lines),
+        message: invoice.message,
+        memo: invoice.memo,
+        replaces: invoice.id,
+    }
 }
 
 // The spec drops an empty trailing Item line (no product, no description) at save, so

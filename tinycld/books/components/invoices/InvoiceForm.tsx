@@ -15,7 +15,7 @@ import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { useFocusEffect } from 'expo-router'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { FormProvider, type UseFormReturn, useWatch } from 'react-hook-form'
-import { ScrollView, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { type InvoiceFormState, useInvoiceForm } from '../../hooks/useInvoiceForm'
 import { useInvoiceSave } from '../../hooks/useInvoiceSave'
@@ -223,6 +223,24 @@ function PartRenderer({ state, definition, testID }: RendererProps) {
     )
 }
 
+// "Edit 1004" for a correction, new or saved; "Draft invoice" once the draft is stored;
+// else "New invoice".
+function invoiceFormTitle(replacesNumber: string, isStored: boolean): string {
+    if (replacesNumber) return `Edit ${replacesNumber}`
+    return isStored ? 'Draft invoice' : 'New invoice'
+}
+
+// A correction says what posting it does to the invoice it replaces.
+function ReplaceNote({ number }: { number: string }) {
+    if (!number) return null
+    const text = `Posting this replaces invoice ${number} under the same number. The original is voided. Until you post, ${number} stays as it is.`
+    return (
+        <Text testID="invoice-replace-note" className="text-sm text-muted-foreground">
+            {text}
+        </Text>
+    )
+}
+
 function ErrorSummary({ form }: { form: EngineForm }) {
     const message = form.formState.errors.root?.server?.message
     const errors = rootErrorOnly({ root: { message } })
@@ -239,9 +257,9 @@ function ErrorSummary({ form }: { form: EngineForm }) {
 }
 
 /**
- * The invoice form, new or draft: the header band, the lines table, Message and Memo
- * beside the totals, and the sticky action bar. Keyed on its form key by the screen, so
- * a new route mounts a fresh form.
+ * The invoice form, new, draft, correction or copy: the header band, the lines table,
+ * Message and Memo beside the totals, and the sticky action bar. Keyed on its form key by
+ * the screen, so a new route mounts a fresh form.
  */
 export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
     const state = useInvoiceForm({
@@ -250,6 +268,7 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
         customer: data.customer,
         currency: data.currency,
         taxRows: data.taxOptions.rows,
+        startValues: data.startValues,
     })
     const form = state.form as EngineForm
     const save = useInvoiceSave(state)
@@ -278,19 +297,28 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
         [totals.amounts, linesLayout.isCards]
     )
     const [isDiscardOpen, setDiscardOpen] = useState(false)
-    const deletion = useInvoiceDelete(state.recordId, leave)
-    useScreenHoldRelease(state.recordId)
-    const canDeleteDraft = !state.isNew && data.invoice?.status === 'draft'
+    // The stored draft: the route's own, or the one a new form wrote before its post was
+    // refused.
+    const draftId = state.recordId ?? save.writtenId ?? undefined
+    const deletion = useInvoiceDelete(draftId, leave)
+    useScreenHoldRelease(draftId)
+    const canDeleteDraft =
+        (!state.isNew && data.invoice?.status === 'draft') || save.writtenId !== null
+    const isPhone = useBreakpoint() === 'mobile'
+    const onPostAndNew = () => {
+        void save.post(true)
+    }
     const shortcuts = useInvoiceShortcuts({
         isSaving: save.isSaving || deletion.isPending,
         canDeleteDraft,
         deleteDraft: deletion.open,
+        isPhone,
+        postAndNew: onPostAndNew,
     })
     const parts = useMemo(
         () => (state.definition ? splitDefinition(state.definition) : null),
         [state.definition]
     )
-    const isPhone = useBreakpoint() === 'mobile'
 
     if (!state.isReady || !parts) return <InvoiceLoading />
 
@@ -303,9 +331,13 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
     const onSaveDraft = () => {
         void save.saveDraft()
     }
-    const title = state.isNew ? 'New invoice' : 'Draft invoice'
-    // A new form is a draft until it is posted.
-    const status = data.invoice?.status ?? 'draft'
+    const onPost = () => {
+        void save.post(false)
+    }
+    const title = invoiceFormTitle(data.replacesNumber, draftId !== undefined)
+    // The form shows only drafts: a post's optimistic status shows here only once the
+    // read view replaces the form.
+    const status = 'draft'
     // On the grid's slots (lib/invoice-footer-layout.ts), so the totals end under Amount.
     const footerClass = isPhone ? 'gap-4' : undefined
     const footerRow = isPhone ? undefined : INVOICE_FOOTER_ROW
@@ -335,6 +367,7 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
                                     status={status}
                                     balanceDue={totals.balance}
                                 />
+                                <ReplaceNote number={data.replacesNumber} />
                                 <ErrorSummary form={form} />
                                 <View
                                     testID="invoice-band"
@@ -373,8 +406,11 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
                             <InvoiceActionBar
                                 isSaving={save.isSaving}
                                 canDeleteDraft={canDeleteDraft}
+                                isPhone={isPhone}
                                 onCancel={cancel}
                                 onSaveDraft={onSaveDraft}
+                                onPost={onPost}
+                                onPostAndNew={onPostAndNew}
                                 onDeleteDraft={deletion.open}
                                 scopeOwner={shortcuts.scopeOwner}
                             />

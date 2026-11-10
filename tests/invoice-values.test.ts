@@ -1,9 +1,14 @@
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { describe, expect, it } from 'vitest'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
+import { dueDateFor } from '../tinycld/books/lib/document-dates'
 import { type DocumentTax, documentTotals } from '../tinycld/books/lib/document-lines'
 import { type CustomerFill, customerFills } from '../tinycld/books/lib/invoice-fills'
+import { INVOICE_IDS, INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
+import { INVOICE_LINE_MAPPER } from '../tinycld/books/lib/invoice-lines'
 import {
+    copyInvoiceValues,
+    correctionValues,
     type InvoiceFormValues,
     invoiceLinesForSave,
     invoiceTotalsOf,
@@ -198,5 +203,151 @@ describe('invoiceTotalsOf', () => {
         const totals = invoiceTotalsOf(values, null)
         expect(totals.taxLines).toEqual([])
         expect(totals.total).toBe(37_800)
+    })
+})
+
+// Posted 1004 (every line kind, Net 30, Denver combined) and its lines in position order.
+function posted1004() {
+    const invoice = INVOICES.find(i => i.id === INVOICE_IDS.posted)
+    if (!invoice) throw new Error('no posted 1004 in the invoice fixture')
+    const lines = INVOICE_LINES.filter(l => l.invoice === invoice.id).sort(
+        (a, b) => a.position - b.position
+    )
+    if (lines.length === 0) throw new Error('posted 1004 has no lines in the fixture')
+    return { invoice, lines }
+}
+
+// A row's cells as the save writes them, so a copied row is compared with the stored line
+// by what it would store, whatever display form the cells take.
+function storedCells(record: {
+    kind: string
+    product: string
+    description: string
+    quantity: number
+    rate: number
+    percent_ppm: number
+    taxable: boolean
+}) {
+    const { kind, product, description, quantity, rate, percent_ppm, taxable } = record
+    return { kind, product, description, quantity, rate, percent_ppm, taxable }
+}
+
+function expectSameCellsWithNewIds(
+    rows: TableRow[],
+    lines: ReturnType<typeof posted1004>['lines']
+) {
+    expect(rows).toHaveLength(lines.length)
+    rows.forEach((row, index) => {
+        expect(storedCells(INVOICE_LINE_MAPPER.toRecord(row, index))).toEqual(
+            storedCells(lines[index])
+        )
+    })
+    const ids = rows.map(row => row.id)
+    for (const id of ids) {
+        expect(typeof id).toBe('string')
+        expect(id).not.toBe('')
+    }
+    expect(new Set(ids).size).toBe(ids.length)
+    const storedIds = new Set(lines.map(line => line.id))
+    expect(ids.filter(id => storedIds.has(String(id)))).toEqual([])
+}
+
+// Harborview after 1004 was posted: it moved, changed its billing email and its terms,
+// and has another default tax rate. 1004's snapshot still holds the old values.
+function movedHarborview(): CustomerFill {
+    return {
+        ...harborview(),
+        email: 'ap@harborview.example',
+        billing_address: {
+            line1: '77 Pier Road',
+            line2: '',
+            city: 'Tacoma',
+            region: 'WA',
+            postal_code: '98402',
+            country: 'United States',
+        },
+        terms: 'net_15',
+        default_tax_rate: TAX_IDS.adamsCombined,
+    }
+}
+
+describe('copyInvoiceValues', () => {
+    const COPY_DAY = '2026-11-09'
+
+    it('keeps the customer, tax, message and every line cell, with new line ids', () => {
+        const { invoice, lines } = posted1004()
+        const customer = movedHarborview()
+        // The customer's own default rate differs, so the source's tax is what is kept.
+        expect(customer.default_tax_rate).not.toBe(invoice.tax_rate)
+        const values = copyInvoiceValues(invoice, lines, COPY_DAY, customer)
+        expect(values.customer).toBe(invoice.customer)
+        expect(values.tax_rate).toBe(invoice.tax_rate)
+        expect(values.message).toBe(invoice.message)
+        expect(values.message).not.toBe('')
+        expectSameCellsWithNewIds(values.lines, lines)
+    })
+
+    it("is dated the day given and due by the customer's terms from it", () => {
+        const { invoice, lines } = posted1004()
+        const customer = harborview()
+        expect(customer.terms).toBe('net_30')
+        const values = copyInvoiceValues(invoice, lines, COPY_DAY, customer)
+        expect(values.date).toBe(COPY_DAY)
+        expect(values.due_date).toBe(dueDateFor(COPY_DAY, 'net_30'))
+        expect(values.due_date).toBe('2026-12-09')
+    })
+
+    it('has no memo and replaces nothing', () => {
+        const { invoice, lines } = posted1004()
+        expect(invoice.memo).not.toBe('')
+        const values = copyInvoiceValues(invoice, lines, COPY_DAY, harborview())
+        expect(values.memo).toBe('')
+        expect(values.replaces ?? '').toBe('')
+    })
+
+    it("takes Bill to, Email and Terms from the customer's current record, not the source's snapshot", () => {
+        const { invoice, lines } = posted1004()
+        const customer = movedHarborview()
+        expect(customer.id).toBe(invoice.customer)
+        expect(customer.billing_address).not.toEqual(invoice.bill_to)
+        expect(customer.email).not.toBe(invoice.email)
+        expect(customer.terms).not.toBe(invoice.terms)
+        const values = copyInvoiceValues(invoice, lines, COPY_DAY, customer)
+        const fills = customerFills(customer, RATES, COPY_DAY, null)
+        expect(values.bill_to).toEqual(fills.bill_to)
+        expect(values.bill_to).toEqual(customer.billing_address)
+        expect(values.email).toBe(fills.email)
+        expect(values.email).toBe('ap@harborview.example')
+        expect(values.terms).toBe(fills.terms)
+        expect(values.terms).toBe('net_15')
+    })
+
+    it("is due by the customer's current terms, not the source's", () => {
+        const { invoice, lines } = posted1004()
+        expect(invoice.terms).toBe('net_30')
+        const values = copyInvoiceValues(invoice, lines, COPY_DAY, movedHarborview())
+        expect(values.date).toBe(COPY_DAY)
+        expect(values.due_date).toBe(dueDateFor(COPY_DAY, 'net_15'))
+        expect(values.due_date).toBe('2026-11-24')
+    })
+})
+
+describe('correctionValues', () => {
+    it('replaces the invoice and keeps its date, due date and memo', () => {
+        const { invoice, lines } = posted1004()
+        const values = correctionValues(invoice, lines)
+        expect(values.replaces).toBe(invoice.id)
+        expect(values.date).toBe(invoice.date)
+        expect(values.due_date).toBe(invoice.due_date)
+        expect(values.memo).toBe(invoice.memo)
+    })
+
+    it('keeps the customer, tax, message and every line cell, with new line ids', () => {
+        const { invoice, lines } = posted1004()
+        const values = correctionValues(invoice, lines)
+        expect(values.customer).toBe(invoice.customer)
+        expect(values.tax_rate).toBe(invoice.tax_rate)
+        expect(values.message).toBe(invoice.message)
+        expectSameCellsWithNewIds(values.lines, lines)
     })
 })

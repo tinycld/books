@@ -10,18 +10,27 @@ interface InvoiceShortcutsInput {
     // The form is a saved draft the user may delete.
     canDeleteDraft: boolean
     deleteDraft: () => void
+    // On a phone, Post & new is a row of More, not a bar button.
+    isPhone: boolean
+    postAndNew: () => void
 }
 
-type KeyState = { isSaving: boolean; canDeleteDraft: boolean; writesAvailable: boolean }
+type KeyState = {
+    isSaving: boolean
+    canDeleteDraft: boolean
+    writesAvailable: boolean
+}
 
 /**
  * The invoice form's keys that have no button of their own, in the form's `compose`
  * scope: core dialogs and sheets push a `modal` scope above it, so none fires while one
- * is open, and Escape closes only the top layer. Cancel (Esc) and Save draft (⌘S) are
- * ShortcutButtons on the bar.
+ * is open, and Escape closes only the top layer. Cancel (Esc), Save draft (⌘S), Post (⌘↵)
+ * and, on a wide screen, Post & new (⌘⇧↵) are ShortcutButtons on the bar.
  *
  * - ⌘⌫ Delete draft: the row sits in More on every width, so the key is registered here
  *   and does what the row does.
+ * - ⌘⇧↵ Post & new on a phone, where its row sits in More: registered only there, so the
+ *   wide bar's button and this key never both hold it.
  * - ⌘S while the Save draft button cannot take it (offline, or a save runs): the button's
  *   own key is idle then, and the browser's Save Page would open. This one takes the key
  *   and does nothing. The ⇧? list shows Save draft for both registrations, as it groups
@@ -34,6 +43,8 @@ export function useInvoiceShortcuts({
     isSaving,
     canDeleteDraft,
     deleteDraft,
+    isPhone,
+    postAndNew,
 }: InvoiceShortcutsInput) {
     const scopeOwner = useShortcutScope('compose')
     const instance = useId()
@@ -44,10 +55,10 @@ export function useInvoiceShortcuts({
         writesAvailable: writes.available,
     })
     stateRef.current = { isSaving, canDeleteDraft, writesAvailable: writes.available }
-    const deleteRef = useRef(deleteDraft)
-    deleteRef.current = deleteDraft
-    const shortcuts = useMemo<Shortcut[]>(
-        () => [
+    const runRef = useRef({ deleteDraft, postAndNew })
+    runRef.current = { deleteDraft, postAndNew }
+    const shortcuts = useMemo<Shortcut[]>(() => {
+        const keys: Shortcut[] = [
             {
                 id: `books.invoice.form.${instance}.deleteDraft`,
                 keys: FORM_KEYS.deleteDraft,
@@ -59,7 +70,7 @@ export function useInvoiceShortcuts({
                     const state = stateRef.current
                     return state.canDeleteDraft && state.writesAvailable && !state.isSaving
                 },
-                run: () => deleteRef.current(),
+                run: () => runRef.current.deleteDraft(),
             },
             {
                 id: `books.invoice.form.${instance}.saveDraftIdle`,
@@ -74,9 +85,23 @@ export function useInvoiceShortcuts({
                 },
                 run: () => {},
             },
-        ],
-        [instance]
-    )
+        ]
+        if (!isPhone) return keys
+        const postAndNewKey: Shortcut = {
+            id: `books.invoice.form.${instance}.postAndNew`,
+            keys: FORM_KEYS.postAndNew,
+            scope: 'compose',
+            description: 'Post & new',
+            group: INVOICE_SHORTCUT_GROUP,
+            allowInInputs: true,
+            when: () => {
+                const state = stateRef.current
+                return state.writesAvailable && !state.isSaving
+            },
+            run: () => runRef.current.postAndNew(),
+        }
+        return [...keys, postAndNewKey]
+    }, [instance, isPhone])
     useRegisterShortcuts(shortcuts, scopeOwner)
     return { scopeOwner }
 }

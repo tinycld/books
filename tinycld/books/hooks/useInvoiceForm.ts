@@ -11,7 +11,7 @@ import { INVOICE_HOST_KEY } from '../forms/hosts'
 import { INVOICE_LINE_MAPPER } from '../lib/invoice-lines'
 import { type InvoiceSaveMode, invoiceSchema } from '../lib/invoice-schema'
 import { invoiceTaxOf } from '../lib/invoice-tax'
-import { newInvoiceValues } from '../lib/invoice-values'
+import { type InvoiceFormValues, newInvoiceValues } from '../lib/invoice-values'
 import { todayIso } from '../lib/register-range'
 import type { InvoiceScreenData } from './useInvoiceScreen'
 
@@ -31,6 +31,8 @@ type TaxRows = InvoiceScreenData['taxOptions']['rows']
 
 type FormInput = Pick<InvoiceScreenData, 'invoice' | 'lines' | 'customer' | 'currency'> & {
     taxRows: TaxRows
+    // A new form's values when it corrects (`?replaces`) or copies (`?copy`) an invoice.
+    startValues?: InvoiceFormValues
 }
 
 // `invoiceSchema` with the tax the validated values choose (their `tax_rate` through the
@@ -53,6 +55,15 @@ function invoiceRecordSchema(
                 ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
             }
         })
+}
+
+// The built-ins of a correction's or a copy's values: `replaces` is no field of the form
+// (the save writes it), so the engine never files it among the custom fields.
+function builtinValuesOf(values: InvoiceFormValues | undefined): InvoiceFormValues | undefined {
+    if (!values) return undefined
+    const builtins: InvoiceFormValues = { ...values }
+    delete builtins.replaces
+    return builtins
 }
 
 /**
@@ -85,12 +96,13 @@ export function useInvoiceForm(input: FormInput) {
     const isNew = input.invoice === undefined
     // Read once: the create form seeds from its first values (core keeps them in a ref).
     const createValues = isNew
-        ? newInvoiceValues({
+        ? (builtinValuesOf(input.startValues) ??
+          newInvoiceValues({
               today: context.today as string,
               customer: input.customer ?? null,
               rates: input.taxRows,
               defaultRateId: input.taxRows.find(r => r.is_default && !r.inactive)?.id ?? '',
-          })
+          }))
         : {}
     const { lines } = input
     const tables = useMemo(() => ({ lines: tableRowsOf(lines, INVOICE_LINE_MAPPER) }), [lines])
@@ -121,6 +133,11 @@ export function useInvoiceForm(input: FormInput) {
         definition: chosen.definition,
         form: chosen.form,
         recordId: input.invoice?.id,
+        // The posted invoice a new correction replaces; its insert writes it.
+        replaces: isNew ? (input.startValues?.replaces ?? '') : '',
+        // The `?customer` a new form was opened with: Post & new keeps only that one. A
+        // copy's or a correction's customer comes from its source, not from the route.
+        openedWithCustomer: isNew && !input.startValues ? input.customer?.id : undefined,
         // The lines as stored and the tax rows: the save orders its line writes against
         // them (lib/invoice-line-order.ts).
         storedLines: lines,
