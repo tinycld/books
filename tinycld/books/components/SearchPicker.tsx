@@ -4,9 +4,18 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Menu } from '@tinycld/core/ui/menu'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { ChevronDown } from 'lucide-react-native'
-import { Fragment, forwardRef, useCallback, useRef, useState } from 'react'
-import { Platform, Pressable, type PressableInstance, Text, View } from 'react-native'
+import { Fragment, forwardRef, useCallback, useEffect, useRef, useState } from 'react'
+import {
+    Platform,
+    Pressable,
+    type PressableInstance,
+    Text,
+    type TextInputFocusEvent,
+    type TextInputKeyPressEvent,
+    View,
+} from 'react-native'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
+import { searchPickerKeyAction } from '../lib/search-picker-keys'
 
 // `group` puts the option under a heading of that name; options of one group are
 // consecutive in the list the caller passes.
@@ -28,7 +37,9 @@ function groupRuns(options: readonly SearchPickerOption[]): OptionRun[] {
 }
 
 // Local, synchronous UI state that nothing else reads. Closing the menu clears the
-// search, so the next open starts from the full list.
+// search, so the next open starts from the full list. `openWithText` is type-to-open:
+// it opens the menu with the typed character in the search, and a character typed
+// before the search field takes the focus is added to it.
 export function useSearchPicker() {
     const [isOpen, setIsOpen] = useState(false)
     const [term, setTerm] = useState('')
@@ -37,7 +48,156 @@ export function useSearchPicker() {
         setIsOpen(next)
         if (!next) setTerm('')
     }
-    return { isOpen, onOpenChange, term, setTerm, debouncedTerm }
+    const openWithText = (text: string) => {
+        setTerm(current => (isOpen ? current + text : text))
+        setIsOpen(true)
+    }
+    return { isOpen, onOpenChange, openWithText, term, setTerm, debouncedTerm }
+}
+
+type PickerState = ReturnType<typeof useSearchPicker>
+
+// Type-to-open and the open keys on the focused trigger, on web: React Native's types
+// have no `onKeyDown`, so the listener goes on the trigger's DOM node (as core's popover
+// listens on its surface) and reads the picker through a ref. A key it acts on stops
+// there, so the trigger's own press handling does not toggle the menu shut again.
+function useTriggerKeys(picker: PickerState, disabled: boolean) {
+    const [node, setNode] = useState<HTMLElement | null>(null)
+    const latest = useRef({ picker, disabled })
+    latest.current = { picker, disabled }
+    useEffect(() => {
+        if (Platform.OS !== 'web' || !node) return
+        const handler = (event: KeyboardEvent) => {
+            const { picker: current, disabled: isDisabled } = latest.current
+            if (isDisabled) return
+            const action = searchPickerKeyAction(event, current.isOpen)
+            // The menu opened on an earlier key and the search field has not taken the
+            // focus yet: the character still belongs to the search.
+            const isLateCharacter =
+                current.isOpen && searchPickerKeyAction(event, false) === 'open-with-text'
+            if (action === 'none' && !isLateCharacter) return
+            event.preventDefault()
+            event.stopPropagation()
+            if (action === 'open') current.onOpenChange(true)
+            else current.openWithText(event.key)
+        }
+        node.addEventListener('keydown', handler)
+        return () => node.removeEventListener('keydown', handler)
+    }, [node])
+    const attach = useCallback((instance: PressableInstance | null) => {
+        if (Platform.OS !== 'web') return
+        setNode(isHtmlElement(instance) ? instance : null)
+    }, [])
+    return { attach, node }
+}
+
+function isHtmlElement(value: unknown): value is HTMLElement {
+    return typeof HTMLElement !== 'undefined' && value instanceof HTMLElement
+}
+
+// Whether focus is still the menu's as it closes: in the menu, or dropped to the page.
+// A pick that moved focus on (onPicked) has put it somewhere else.
+function isFocusInMenu(): boolean {
+    const active = document.activeElement
+    if (!active || active === document.body) return true
+    return active.closest('[role="menu"]') !== null
+}
+
+/**
+ * The picker's open change, with the focus given back to the trigger when the menu
+ * closes without a pick moving it on (Escape, a click outside), on web. Core's layer
+ * cannot do it here: the search field takes the focus as the menu mounts, before the
+ * layer notes what had it.
+ */
+function useReturnFocus(picker: PickerState, trigger: HTMLElement | null) {
+    return (next: boolean) => {
+        const returnsFocus = !next && Platform.OS === 'web' && trigger !== null && isFocusInMenu()
+        picker.onOpenChange(next)
+        if (returnsFocus) trigger?.focus()
+    }
+}
+
+const OPTION_SELECTOR = '[role="menuitem"]'
+
+// From the search field: ↓ goes to the first option, ↑ to the last; `pick` picks it
+// instead (Enter, or ↓ then Enter typed before the options showed this search).
+type OptionMove = { field: HTMLElement; toLast: boolean; pick: boolean }
+
+// Focus moves into the menu's rows, whose own handlers then take ↑ / ↓ and Enter.
+function focusOption({ field, toLast }: OptionMove) {
+    const rows = field.closest('[role="menu"]')?.querySelectorAll<HTMLElement>(OPTION_SELECTOR)
+    if (!rows || rows.length === 0) return
+    const row = toLast ? rows[rows.length - 1] : rows[0]
+    row.focus()
+}
+
+// The move a key in the search field asks for, given the one still waiting.
+function searchMoveOf(key: string, field: HTMLElement, waiting: OptionMove | null) {
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+        return { field, toLast: key === 'ArrowUp', pick: false }
+    }
+    if (key === 'Enter') return { field, toLast: waiting?.toLast ?? false, pick: true }
+    return null
+}
+
+interface SearchKeysInput {
+    picker: PickerState
+    isLoading: boolean
+    options: readonly SearchPickerOption[]
+    // Picks an option and closes the menu, as pressing its row does.
+    pickOption: (id: string) => void
+}
+
+/**
+ * ↓ / ↑ in the search field move into the options (the menu's roving focus leaves keys
+ * typed in a field alone); Enter in the field picks the first option (the last after ↑),
+ * through the same pick a press on its row makes. Web only. The options follow the search
+ * after a short delay and a load, so a key pressed while they still show an earlier
+ * search waits until they show this one: typing then ↓ and Enter picks from what was
+ * typed.
+ */
+function useSearchKeys({ picker, isLoading, options, pickOption }: SearchKeysInput) {
+    const waiting = useRef<OptionMove | null>(null)
+    const isCurrent = picker.term === picker.debouncedTerm && !isLoading
+    const run = (move: OptionMove) => {
+        if (!move.pick) {
+            focusOption(move)
+            return
+        }
+        const option = move.toLast ? options[options.length - 1] : options[0]
+        if (option) pickOption(option.id)
+    }
+    const latestRun = useRef(run)
+    latestRun.current = run
+    // The waiting key runs once the options show the current search: a DOM focus move or
+    // a pick, an imperative side effect of that render, not state kept in sync.
+    useEffect(() => {
+        const move = waiting.current
+        if (!move || !isCurrent || !picker.isOpen) return
+        waiting.current = null
+        latestRun.current(move)
+    }, [isCurrent, picker.isOpen])
+    return (event: TextInputKeyPressEvent) => {
+        if (Platform.OS !== 'web') return
+        const field: unknown = event.target
+        if (!isHtmlElement(field)) return
+        const move = searchMoveOf(event.nativeEvent.key, field, waiting.current)
+        if (!move) return
+        // Enter would otherwise blur the field (react-native-web's submit).
+        event.preventDefault()
+        if (isCurrent) run(move)
+        else waiting.current = move
+    }
+}
+
+// Type-to-open put a character in the search before it took the focus: the caret goes
+// after it, so the next character lands at the end. Web only.
+function onSearchFocus(event: TextInputFocusEvent) {
+    if (Platform.OS !== 'web') return
+    const field: unknown = event.target
+    if (!(typeof HTMLInputElement !== 'undefined' && field instanceof HTMLInputElement)) return
+    const end = field.value.length
+    field.setSelectionRange(end, end)
 }
 
 interface TriggerProps {
@@ -55,17 +215,19 @@ interface TriggerProps {
 // Focuses the trigger the first time it attaches, on web only: on iOS and Android a
 // focused field raises the soft keyboard over the form. A callback ref, so a re-render
 // or a re-attach never moves focus again.
-// `outer` is the caller's own ref on the trigger (a table cell's focus ref).
-function useTriggerRef(autoFocus: boolean, outer: TriggerRef | undefined) {
+// `outer` is the caller's own ref on the trigger (a table cell's focus ref); `keys` is the
+// key listener's ref.
+function useTriggerRef(autoFocus: boolean, outer: TriggerRef | undefined, keys: TriggerRef) {
     const pending = useRef(autoFocus && Platform.OS === 'web')
     return useCallback(
         (node: PressableInstance | null) => {
             outer?.(node)
+            keys(node)
             if (!node || !pending.current) return
             pending.current = false
             node.focus()
         },
-        [outer]
+        [outer, keys]
     )
 }
 
@@ -270,6 +432,9 @@ interface SearchPickerProps {
     triggerRef?: TriggerRef
     onTriggerFocus?: () => void
     onTriggerBlur?: () => void
+    // Called after `onChange` when the user picks an option (or the none item): the
+    // caller moves focus on to the next field.
+    onPicked?: () => void
 }
 
 /**
@@ -277,7 +442,12 @@ interface SearchPickerProps {
  * then the options the caller found for `picker.debouncedTerm`. The caller runs the
  * search (today on the client: the pickers were written when pbtsdb could not push
  * `ilike`; pbtsdb 2.1.0 pushes it as PocketBase `~`). Escape closes the menu only (the
- * menu is its own layer).
+ * menu is its own layer); on web the picker then gives the focus back to the trigger
+ * itself (useReturnFocus), because core's layer cannot.
+ *
+ * Keys on web: Enter, Space or ↓ on the focused trigger open the menu with its search
+ * field focused; a printable character opens it with that character in the search; ↓ / ↑
+ * in the search move to the options, and Enter picks one. Native opens by tap.
  */
 export function SearchPicker({
     picker,
@@ -303,8 +473,20 @@ export function SearchPicker({
     triggerRef,
     onTriggerFocus,
     onTriggerBlur,
+    onPicked,
 }: SearchPickerProps) {
-    const triggerRefs = useTriggerRef(autoFocus && !disabled, triggerRef)
+    const triggerKeys = useTriggerKeys(picker, disabled)
+    const triggerRefs = useTriggerRef(autoFocus && !disabled, triggerRef, triggerKeys.attach)
+    const onOpenChange = useReturnFocus(picker, triggerKeys.node)
+    const pick = (id: string) => {
+        onChange(id)
+        onPicked?.()
+    }
+    const pickOption = (id: string) => {
+        pick(id)
+        onOpenChange(false)
+    }
+    const onSearchKeyPress = useSearchKeys({ picker, isLoading, options, pickOption })
     const placeholderColor = useThemeColor('field-placeholder')
     // A core Sheet keeps its content mounted while it slides out, so items render only
     // while the menu is open (helix lesson 8), whatever the caller's query returns.
@@ -330,7 +512,7 @@ export function SearchPicker({
         <Menu
             trigger={trigger}
             isOpen={picker.isOpen}
-            onOpenChange={picker.onOpenChange}
+            onOpenChange={onOpenChange}
             title={title}
             width={320}
         >
@@ -343,12 +525,14 @@ export function SearchPicker({
                     placeholderTextColor={placeholderColor}
                     accessibilityLabel={searchPlaceholder}
                     autoFocus
+                    onFocus={onSearchFocus}
+                    onKeyPress={onSearchKeyPress}
                     autoCapitalize="none"
                     autoCorrect={false}
                     className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground"
                 />
             </Menu.Custom>
-            <NoneItem option={shownNone} value={value} onChange={onChange} />
+            <NoneItem option={shownNone} value={value} onChange={pick} />
             <OptionList
                 state={state}
                 emptyText={emptyText}
@@ -356,7 +540,7 @@ export function SearchPicker({
                 options={shown}
                 optionTestIdPrefix={optionTestIdPrefix}
                 value={value}
-                onChange={onChange}
+                onChange={pick}
             />
         </Menu>
     )

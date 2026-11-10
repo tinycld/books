@@ -352,8 +352,7 @@ test.describe('invoice-form: draft invoice', () => {
     test('a refused line on a new invoice stays under its row and a second save makes no second invoice', async ({
         page,
     }) => {
-        const bundle = PRODUCTS.find(p => p.id === PRODUCT_IDS.homeOffice)
-        if (bundle?.type !== 'bundle') throw new Error('no Home office bundle')
+        const product = seededProduct()
         // Every invoice insert and delete this page makes; the difference is the invoices
         // that exist.
         let created = 0
@@ -372,41 +371,60 @@ test.describe('invoice-form: draft invoice', () => {
                 deleted += 1
             }
         })
-        const lineRefused = () =>
-            page.waitForResponse(
-                r =>
-                    r.url().includes('/api/collections/books_invoice_lines/records') &&
-                    r.request().method() !== 'GET' &&
-                    r.status() === 400
-            )
+        // The server's own refusal of a line (server/invoices.go msgLineProductInactive):
+        // no seeded product is inactive, so the line create answers it here.
+        const refusal = `Line 1: ${product.name} is inactive. Choose an active product or service.`
+        const refusalText = `${product.name} is inactive. Choose an active product or service.`
+        await page.route('**/api/collections/books_invoice_lines/records*', route =>
+            route.request().method() === 'POST'
+                ? route.fulfill({
+                      status: 400,
+                      contentType: 'application/json',
+                      body: JSON.stringify({ status: 400, message: refusal, data: {} }),
+                  })
+                : route.fallback()
+        )
+        const lineRefused = page.waitForResponse(
+            r =>
+                r.url().includes('/api/collections/books_invoice_lines/records') &&
+                r.request().method() === 'POST' &&
+                r.status() === 400
+        )
 
         await openBooks(page)
         await openNewInvoice(page)
         await pickInvoiceCustomer(page, seededCustomer().name)
-        await pickLineProduct(page, 0, bundle.name)
-        await page.getByTestId('form-input-memo').fill(uniqueMemo('Invoice bundle refusal'))
+        await pickLineProduct(page, 0, product.name)
+        await page.getByTestId('form-input-memo').fill(uniqueMemo('Invoice line refusal'))
         await page.getByTestId('invoice-title').click()
 
-        const bundleRefusal = /a bundle is never stored on a line\. Pick it again to add its items/
-        const first = lineRefused()
         await page.keyboard.press('ControlOrMeta+s')
-        await first
+        await lineRefused
         await expect(lineRows(page)).toHaveCount(1)
         const rowId = await lineRowId(page, 0)
         const row = page.getByTestId('invoice-lines').getByTestId(`form-table-lines-row-${rowId}`)
-        await expect(row).toContainText(bundleRefusal)
-        await expect(page.getByTestId(lineCellTestId(rowId, 'product'))).toContainText(bundle.name)
+        // The server's text names its line once: the row shows exactly that text, once,
+        // with no second "Line 1:" label put in front of it.
+        await expect(row.getByText(refusal, { exact: true })).toHaveCount(1)
+        await expect(row).not.toContainText('Line 1: Line 1:')
+        await expect(page.getByTestId(lineCellTestId(rowId, 'product'))).toContainText(product.name)
         await expect(page.getByTestId('invoice-form')).toBeVisible()
+        await expect(page).toHaveURL(NEW_INVOICE_URL)
+        // The refused save took its invoice back.
+        await expect.poll(() => ({ created, deleted })).toEqual({ created: 1, deleted: 1 })
 
-        const second = lineRefused()
+        await page.unrouteAll({ behavior: 'wait' })
         await page.keyboard.press('ControlOrMeta+s')
-        await second
-        const againId = await lineRowId(page, 0)
-        await expect(
-            page.getByTestId('invoice-lines').getByTestId(`form-table-lines-row-${againId}`)
-        ).toContainText(bundleRefusal)
-        expect(created).toBeGreaterThanOrEqual(1)
-        expect(created - deleted).toBeLessThanOrEqual(1)
+        await expect(page).toHaveURL(INVOICE_URL)
+        await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
+        const savedId = await lineRowId(page, 0)
+        await expect(page.getByTestId(lineCellTestId(savedId, 'product'))).toContainText(
+            product.name
+        )
+        await expect(page.getByText(refusalText)).toHaveCount(0)
+        // The second save inserted the invoice once: one invoice exists.
+        await expect.poll(() => created - deleted).toBe(1)
+        expect(created).toBe(2)
     })
 
     test('line cells show their values and the totals sit under Amount at every wide width', async ({

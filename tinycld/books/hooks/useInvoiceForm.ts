@@ -121,6 +121,10 @@ export function useInvoiceForm(input: FormInput) {
         definition: chosen.definition,
         form: chosen.form,
         recordId: input.invoice?.id,
+        // The lines as stored and the tax rows: the save orders its line writes against
+        // them (lib/invoice-line-order.ts).
+        storedLines: lines,
+        taxRows: input.taxRows,
         saveMode,
         isReady: chosen.isReady && ui !== null,
         isDirty: Object.keys(dirtyFields).length > 0,

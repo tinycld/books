@@ -713,6 +713,9 @@ const hosts: FormHostDefInput[] = [
                 columns: [...INVOICE_LINE_COLUMNS],
                 rowKinds: [...INVOICE_ROW_KINDS],
                 rowShortcuts: true,
+                // The Item kind's Alt+Enter adds a line after the focused one, so the
+                // row menu's "Insert line below" names that key.
+                insertShortcuts: { below: 'Alt+Enter' },
             },
             // Core allows maxLength only on a text built-in; invoiceSchema bounds these
             // two at 4000 code points, as the migration does.

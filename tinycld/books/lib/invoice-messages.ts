@@ -31,6 +31,8 @@ export const INVOICE_MESSAGES = {
     cannotEdit: 'This invoice cannot be edited',
     loadFailed: 'Books could not load this invoice.',
     customerLoadFailed: 'Books could not load this customer.',
+    bundleEmpty: 'This bundle has no active items',
+    bundleLoadFailed: "Books could not load this bundle's items.",
     pdfUnsaved: 'Save a draft to see the PDF',
     pdfStale: 'Shows the last saved version',
     voidBody: 'A reversing entry is posted in the original period. The number is kept.',
@@ -58,6 +60,14 @@ export function invoiceRefusalTarget(message: string): InvoiceRefusalTarget {
     if (DUE_DATE_REFUSAL.test(message)) return 'due_date'
     if (TAX_REFUSAL.test(message)) return 'tax_rate'
     return 'root'
+}
+
+// The refusal text of a line write, with the write's "Line n" label in front. The
+// server's line checks already start their text with the stored line's number, which
+// is the one the user sees, so such a text keeps its own label and gets no second one.
+export function labelledLineRefusal(rowLabel: string | null, message: string): string {
+    if (rowLabel === null || LINE_REFUSAL.test(message)) return message
+    return `${rowLabel}: ${message}`
 }
 
 const NO_TOTAL = '—'

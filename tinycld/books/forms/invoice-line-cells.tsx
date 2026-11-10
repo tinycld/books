@@ -1,11 +1,14 @@
 import { eq, queryOnce } from '@tanstack/db'
 import type { BuiltinFieldProps, TableCellContext } from '@tinycld/core/lib/forms/host-ui'
+import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { iosInputCenteringStyle } from '@tinycld/core/ui/form/ios-input-style'
 import { Switch } from '@tinycld/core/ui/switch'
-import { useState } from 'react'
+import { newRecordId } from 'pbtsdb/core'
+import { type ReactNode, useState } from 'react'
+import { useFormContext, useFormState } from 'react-hook-form'
 import {
     Platform,
     TextInput as RNTextInput,
@@ -13,13 +16,22 @@ import {
     type TextInputContentSizeChangeEvent,
     type TextInputFocusEvent,
     View,
+    type ViewStyle,
 } from 'react-native'
 import {
     useInvoiceFormScope,
     useInvoiceLinesView,
 } from '../components/invoices/invoice-form-context'
 import { ProductPicker } from '../components/products/ProductPicker'
-import { lineFromProduct, percentTaxableDefault } from '../lib/invoice-fills'
+import { useBundleLines } from '../hooks/useBundleLines'
+import {
+    type BundleItemFill,
+    bundleLines,
+    lineFromProduct,
+    percentTaxableDefault,
+} from '../lib/invoice-fills'
+import { INVOICE_FOOTER_ROW, INVOICE_FOOTER_SPANS } from '../lib/invoice-footer-layout'
+import { INVOICE_MESSAGES } from '../lib/invoice-messages'
 import type { LineAmountView } from '../lib/invoice-tax'
 import { moneyInputCents, moneyInputText } from '../lib/money-input'
 import type { BooksProducts } from '../types'
@@ -70,16 +82,105 @@ function pickedCells(
     }
 }
 
-function useProductPick(props: BuiltinFieldProps) {
-    const [productsCollection] = useStore('books_products')
+// The line quantity a bundle's item quantities are multiplied by: the line's own when it
+// is a quantity, else 1 (a new line has none yet).
+function lineQuantityOf(row: TableRow): number {
+    const quantity = row.quantity
+    return typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 ? quantity : 1
+}
+
+function isTableRow(value: unknown): value is TableRow {
+    return typeof value === 'object' && value !== null && 'id' in value
+}
+
+// The row `id` as the form holds it now: a pick's reads are awaited, and the row can be
+// moved or removed meanwhile, so its index from the pick's render is not used after them.
+function currentRow(rows: unknown, id: string): TableRow | undefined {
+    if (!Array.isArray(rows)) return undefined
+    const list: unknown[] = rows
+    return list.filter(isTableRow).find(row => row.id === id)
+}
+
+// The message a bundle pick leaves under the product cell (null clears it).
+type NoteBundle = (message: string | null) => void
+
+/**
+ * A bundle picked on an Item line: the line shows the bundle while its items load (no
+ * rate or description of an earlier pick, so its Amount is "—"), then the table replaces
+ * it with one Item line per active item and a Subtotal line, and focus goes to the first
+ * new line's Qty. A bundle with no active items, or a read that fails, leaves the line
+ * with no product and says why under the cell. That message is a load result, not a
+ * validation rule: it is the cell's own state, so a re-validation of the lines does not
+ * replace it. Nothing is written when the row was removed during the read, or has had
+ * another product picked since.
+ */
+function useBundlePick(fieldKey: string, noteBundle: NoteBundle) {
+    const loadBundleLines = useBundleLines()
+    const { getValues } = useFormContext()
     const { customer, currency } = useInvoiceFormScope()
     const isExempt = customer?.tax_exempt ?? false
-    const { table, onChange } = props
+    return async (table: TableCellContext, bundleId: string) => {
+        const rowId = table.row.id
+        table.onRowChange({ product: bundleId, rate: '', description: '' })
+        const rowOfThisPick = () => {
+            const row = currentRow(getValues(fieldKey), rowId)
+            return row?.product === bundleId ? row : undefined
+        }
+        const refuse = (message: string) => {
+            if (!rowOfThisPick()) return
+            table.onRowChange({ product: '' })
+            noteBundle(message)
+        }
+        let items: BundleItemFill[]
+        try {
+            items = await loadBundleLines(bundleId)
+        } catch (error) {
+            log.warn('books.invoice', 'bundle pick could not read the bundle items', {
+                bundle: bundleId,
+                error: String(error),
+            })
+            refuse(INVOICE_MESSAGES.bundleLoadFailed)
+            return
+        }
+        const row = rowOfThisPick()
+        if (!row) return
+        const rows = bundleLines({
+            items,
+            lineQuantity: lineQuantityOf(row),
+            isExempt,
+            currency,
+            newId: newRecordId,
+        })
+        const first = rows[0]
+        if (!first) {
+            refuse(INVOICE_MESSAGES.bundleEmpty)
+            return
+        }
+        table.replaceRow(rows, { rowId: first.id, columnKey: 'quantity' })
+    }
+}
+
+/**
+ * A product picked on a line: the line's cells are filled from the product once it is
+ * read, then focus moves to the line's next cell (Description), so that cell shows the
+ * filled text from its first line. A bundle on an Item line expands (useBundlePick).
+ */
+function useProductPick(props: BuiltinFieldProps, noteBundle: NoteBundle) {
+    const [productsCollection] = useStore('books_products')
+    const { customer, currency } = useInvoiceFormScope()
+    const { getValues } = useFormContext()
+    const { fieldKey, table, onChange } = props
+    const pickBundle = useBundlePick(fieldKey, noteBundle)
+    const isExempt = customer?.tax_exempt ?? false
     return async (id: string) => {
         if (!table) {
             onChange(id)
             return
         }
+        // A new pick replaces the last pick's bundle message.
+        noteBundle(null)
+        const rowId = table.row.id
+        const isRowThere = () => currentRow(getValues(fieldKey), rowId) !== undefined
         try {
             const product = await queryOnce(q =>
                 q
@@ -88,45 +189,58 @@ function useProductPick(props: BuiltinFieldProps) {
                     .findOne()
             )
             if (!product) throw new Error(`product ${id} not found`)
-            // A bundle sets the product only; the server refuses it at save until the
-            // bundle expands into its lines (checkpoint 4).
-            if (product.type === 'bundle') onChange(id)
-            else table.onRowChange(pickedCells(product, table, isExempt, currency))
+            if (product.type === 'bundle' && table.rowKind === 'item') {
+                await pickBundle(table, id)
+                return
+            }
+            if (!isRowThere()) return
+            table.onRowChange(pickedCells(product, table, isExempt, currency))
         } catch (error) {
             // The id is still the pick; the row's other cells stay as they were.
             log.warn('books.invoice', 'line product pick could not read the product', {
                 product: id,
                 error: String(error),
             })
-            onChange(id)
+            if (!isRowThere()) return
+            table.onRowChange({ product: id })
         }
         table.focusNext()
     }
 }
 
+function BundleMessage({ message }: { message: string | null }) {
+    if (!message) return null
+    return <Text className="mt-1 text-xs text-danger">{message}</Text>
+}
+
 /**
  * Product or service: active Service, Non-inventory and Bundle products on an Item line,
- * Service and Non-inventory on a Percent line. A pick fills the line's other cells.
+ * Service and Non-inventory on a Percent line. A pick fills the line's other cells and
+ * moves focus to the line's next cell; a bundle expands into its items (useBundlePick).
  */
 export function LineProductCell(props: BuiltinFieldProps) {
     const { fieldKey, label, value, disabled, table } = props
-    const pick = useProductPick(props)
+    const [bundleMessage, setBundleMessage] = useState<string | null>(null)
+    const pick = useProductPick(props, setBundleMessage)
     const types = table?.rowKind === 'percent' ? PERCENT_TYPES : ITEM_TYPES
     const onPick = (id: string) => {
         void pick(id)
     }
     return (
-        <ProductPicker
-            value={textOf(value)}
-            onChange={onPick}
-            disabled={disabled}
-            label={cellLabel(label, table)}
-            testID={cellTestId(fieldKey, table, 'product')}
-            types={types}
-            triggerRef={table?.focusRef}
-            onFocus={table?.noteFocus}
-            onBlur={table?.noteBlur}
-        />
+        <View>
+            <ProductPicker
+                value={textOf(value)}
+                onChange={onPick}
+                disabled={disabled}
+                label={cellLabel(label, table)}
+                testID={cellTestId(fieldKey, table, 'product')}
+                types={types}
+                triggerRef={table?.focusRef}
+                onFocus={table?.noteFocus}
+                onBlur={table?.noteBlur}
+            />
+            <BundleMessage message={bundleMessage} />
+        </View>
     )
 }
 
@@ -272,8 +386,19 @@ export function LineQuantityCell({
     )
 }
 
-// Rate: the typed money text is the value (cents are computed at write); a rate that
-// parses is reformatted on blur ("450" → "450.00"). Enter on the last line adds a line.
+// A rate that parses, written in the money format ("1250" → "1,250.00"); other text as is.
+function groupedRateText(text: string, currency: string): string {
+    const cents = moneyInputCents(text, currency)
+    if (cents === null || text.trim() === '') return text
+    return moneyInputText(cents) || '0.00'
+}
+
+/**
+ * Rate: the typed money text is the value (cents are computed at write). While the cell
+ * is not focused it shows a rate that parses in the money format, whatever text a pick
+ * or the user left ("1250.00" shows "1,250.00"); a blur also stores that text. Enter on
+ * the last line adds a line.
+ */
 export function LineRateCell({
     fieldKey,
     label,
@@ -283,11 +408,18 @@ export function LineRateCell({
     table,
 }: BuiltinFieldProps) {
     const { currency } = useInvoiceFormScope()
+    const [isFocused, setIsFocused] = useState(false)
     const text = textOf(value)
+    const grouped = groupedRateText(text, currency)
+    const shown = isFocused ? text : grouped
+    const onFocus = () => {
+        setIsFocused(true)
+        table?.noteFocus()
+    }
     const onBlur = () => {
+        setIsFocused(false)
         table?.noteBlur()
-        const cents = moneyInputCents(text, currency)
-        if (cents !== null && text.trim() !== '') onChange(moneyInputText(cents) || '0.00')
+        if (grouped !== text) onChange(grouped)
     }
     const onSubmitEditing = () => table?.submitEditing()
     return (
@@ -295,9 +427,9 @@ export function LineRateCell({
             ref={table?.focusRef}
             testID={cellTestId(fieldKey, table, 'rate')}
             accessibilityLabel={cellLabel(label, table)}
-            value={text}
+            value={shown}
             onChangeText={onChange}
-            onFocus={table?.noteFocus}
+            onFocus={onFocus}
             onBlur={onBlur}
             onSubmitEditing={onSubmitEditing}
             editable={!disabled}
@@ -311,6 +443,28 @@ export function LineRateCell({
     )
 }
 
+function TargetError({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <Text className="mt-1 text-xs text-danger">{INVOICE_MESSAGES.percentTarget}</Text>
+}
+
+/**
+ * Whether the percent cell shows "A percent line applies to the item or subtotal right
+ * above it" itself. The form computes it on every change (`lineAmountViews`), so it shows
+ * as soon as the line above stops being an Item or a Subtotal. Once a save has run the
+ * schema, core draws the same issue as the cell's field error, so the cell then stays
+ * silent and the message shows once.
+ */
+function useShowsTargetError(fieldKey: string, table: TableCellContext | undefined) {
+    const { amounts } = useInvoiceLinesView()
+    const rowIndex = table?.rowIndex ?? -1
+    const path = `${fieldKey}.${rowIndex}.percent`
+    const { getFieldState } = useFormContext()
+    const formState = useFormState({ name: path })
+    const hasFieldError = getFieldState(path, formState).error !== undefined
+    return amounts[rowIndex]?.kind === 'no-target' && !hasFieldError
+}
+
 // Percent: the typed percent text (ppm is computed at write), with a "%" drawn over the
 // input's right edge.
 export function LinePercentCell({
@@ -322,7 +476,38 @@ export function LinePercentCell({
     table,
 }: BuiltinFieldProps) {
     const muted = useThemeColor('muted-foreground')
+    const showsTargetError = useShowsTargetError(fieldKey, table)
     const onSubmitEditing = () => table?.submitEditing()
+    return (
+        <View>
+            <PercentInput
+                fieldKey={fieldKey}
+                label={label}
+                value={value}
+                onChange={onChange}
+                disabled={disabled}
+                table={table}
+                muted={muted}
+                onSubmitEditing={onSubmitEditing}
+            />
+            <TargetError isVisible={showsTargetError} />
+        </View>
+    )
+}
+
+function PercentInput({
+    fieldKey,
+    label,
+    value,
+    onChange,
+    disabled,
+    table,
+    muted,
+    onSubmitEditing,
+}: Pick<BuiltinFieldProps, 'fieldKey' | 'label' | 'value' | 'onChange' | 'disabled' | 'table'> & {
+    muted: string
+    onSubmitEditing: () => void
+}) {
     return (
         <View className="relative justify-center">
             <RNTextInput
@@ -355,14 +540,39 @@ export function LinePercentCell({
 
 const NO_VIEW: LineAmountView = { kind: 'none' }
 
+const SUBTOTAL_LABEL = <Text className="text-base font-semibold text-foreground">Subtotal</Text>
+
+/**
+ * A Subtotal line on the wide grid: its one cell runs across every slot, so it lays the
+ * slots out again (the footer's spans, invoice-footer-layout.ts) and draws the label and
+ * the sum in the span that ends where the Amount slot ends, so the sum lines up under
+ * the line amounts at every width.
+ */
+function GridSubtotal({ testID, amount }: { testID: string; amount: ReactNode }) {
+    const { left, totals, right } = INVOICE_FOOTER_SPANS
+    return (
+        <View testID={testID} style={SUBTOTAL_GRID_ROW}>
+            <View style={left} />
+            <View style={totals} className="flex-row items-center justify-end gap-2">
+                {SUBTOTAL_LABEL}
+                {amount}
+            </View>
+            <View style={right} />
+        </View>
+    )
+}
+
+const SUBTOTAL_GRID_ROW: ViewStyle = { flexDirection: 'row', gap: INVOICE_FOOTER_ROW.gap }
+
 // Amount: read only, this row's entry of the amounts the form computes once per change
 // (`lineAmountViews`); "—" while the line's cells do not parse. A Subtotal line draws its
-// label at the left and the sum at the right.
+// label beside the sum, under the Amount column on the wide grid (GridSubtotal) and
+// across the card on a phone.
 export function LineAmountCell({ fieldKey, table }: BuiltinFieldProps) {
-    const { amounts } = useInvoiceLinesView()
+    const { amounts, isCards } = useInvoiceLinesView()
     const view = amounts[table?.rowIndex ?? -1] ?? NO_VIEW
     const testID = cellTestId(fieldKey, table, 'amount')
-    if (view.kind === 'none') return <View testID={testID} />
+    if (view.kind === 'none' || view.kind === 'no-target') return <View testID={testID} />
     const amount = (
         <Text
             className="py-2.5 text-right text-base text-foreground tabular-nums"
@@ -372,9 +582,10 @@ export function LineAmountCell({ fieldKey, table }: BuiltinFieldProps) {
         </Text>
     )
     if (view.kind === 'amount') return <View testID={testID}>{amount}</View>
+    if (!isCards) return <GridSubtotal testID={testID} amount={amount} />
     return (
         <View testID={testID} className="flex-row items-center justify-between gap-2">
-            <Text className="text-base font-semibold text-foreground">Subtotal</Text>
+            {SUBTOTAL_LABEL}
             {amount}
         </View>
     )

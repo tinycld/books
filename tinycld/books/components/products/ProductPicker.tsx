@@ -29,6 +29,8 @@ interface ProductPickerProps {
     triggerRef?: (node: PressableInstance | null) => void
     onFocus?: () => void
     onBlur?: () => void
+    // After a pick: the caller moves focus on (a line's next cell).
+    onPicked?: () => void
 }
 
 // Active products of the given types. The name and SKU search runs on the client
@@ -97,6 +99,7 @@ export function ProductPicker({
     triggerRef,
     onFocus,
     onBlur,
+    onPicked,
 }: ProductPickerProps) {
     const picker = useSearchPicker()
     const isSearching = picker.debouncedTerm.trim() !== ''
@@ -144,6 +147,7 @@ export function ProductPicker({
             triggerRef={triggerRef}
             onTriggerFocus={onFocus}
             onTriggerBlur={onBlur}
+            onPicked={onPicked}
         />
     )
 }
