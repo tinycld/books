@@ -27,6 +27,7 @@
   **tracked in:** unit p2-invoice, checkpoint 3 (spec §3.3, §7 E1)
   **update (checkpoint 0b, 2026-11-09):** the core dependency is built: core 6bcc2dca on core branch books/p2-invoice adds `HostRowKind.required` (TS schema, per-kind row schema, Go `RowKind.Required` + `(*Builtin).RowError`). The deferral ends when that core commit is merged and checkpoint 3 sets `required: ['description']` on the `description` kind (and may call `RowError` from the Books line hook).
   **update (checkpoint 3, 2026-11-09):** core 47c09b24 (PR #458) on core main. Checkpoint 3's tree sets per-kind `required` (item `['product']`, description `['description']`, percent `['product', 'percent']`) in `lib/invoice-lines.ts`, and Go `checkLineCells` uses core `(*forms.Builtin).RowError` through `forms.HostFor` (test binding `server/forms_host_test.go` loads the generated `form_hosts.json`). The tree is not committed (the run stopped at checkpoint 3), so the deferral stays open until checkpoint 3 commits.
+  **update (checkpoint 3 commit, 2026-11-10):** closed — checkpoint 3 committed with the per-kind `required` and the Go `RowError` check.
   **found by:** reviewer B (the implementer declared the fact as D2, not as a deferral)
   **checkpoint:** 1
 
@@ -104,6 +105,10 @@
 - cp 3 · critique r3 "for gate 3": after a refused Save draft on a new form the grid reads "No rows yet." — the empty trailing Item line is dropped before validation and not put back (as planned: brief Decisions "the empty trailing Item line … is removed before validation"; for the human at eval).
 - cp 3 · fix review r4 NOTE 2: `lib/invoice-footer-layout.ts` reads `INVOICE_ROW_KINDS[0].columns` without core `slotsOf`'s `hidden` filter (no user path; built-in columns cannot be hidden). NOTE 3: on iOS the Tax switch is ~51 pt; an iPad Pro portrait gives the Tax slot ~47 pt. NOTE 4: the footer's `px-0.5`, `GRID_GAP = 8` and `w-10` menu spacer mirror core class values core does not export.
 - cp 3 · fix round 4 implementer observation: core `TableField`'s wide header slots end ~4 px left of the row slots below them (header row and grid rows differ in width; core).
+- cp 3 · critique r5 NOTE: at 1280 the totals tax label "Denver combined (8.71%)" wraps to two lines (its span is the Qty + Rate slots, ≈166 px); the reference has one line.
+- cp 3 · critique (640 px form) NOTE 1: Product is ≈113 px at the 640 px form, so a product name shows about eight characters ("Wireless…"); the numeric floors (315 px) leave ≈233 px for Product and Description.
+- cp 3 · critique (640 px form) NOTE 2: at 640 Due date sits alone beside an empty half while Tax takes a full row; Due date and Tax could share a row.
+- cp 3 · fix round 5: fix review r4 NOTE 4 (footer copies of core sizes) is fixed: the footer reads core `TABLE_GRID_GAP`, `FIELD_CELL_BORDER_WIDTH`, `TABLE_ROW_MENU_WIDTH`.
 - cp 0e · core e2e/stub: a 170 px floor holds a core number-cell stepper with about 4 digits at 911; a 6-character rate clipped in an earlier run (fix-round test writer). A host that uses core's number cell sizes its floor for its longest value.
 - cp 0e · critic NOTEs (stub Order grid): row menu "⋮" ≈ 8 px above the row's control centreline; numeric headers (Qty / Rate / Amount) left-aligned over a right-aligned figure; header label text inset ≈ 3 px from the row content (the label's `px-1` inside a slot box that the e2e measures equal to the row slot).
 - cp 0e · reviewer A NOTE 3: a row kind with a column that has no header slot and no `columnAt` draws a trailing cell that takes width from the slots, so that row's slots leave the header line (not new; no host has such a kind; fix would refuse it in `hostDefSchema`).
@@ -279,6 +284,19 @@
 - after the core change: Books sets `minWidth` on Qty / Rate / Percent / Amount / Tax and weights on Product and Description (Description widest), keeps `invoice-footer-layout.ts` in step, re-measures at 1280 and at the 640 px form (the round-4 e2e test plus a 1280 legibility check of Product and Description widths, asked by fix review r4), re-captures, a fresh critic, a fix review, commit.
 - state for the next runner: all checkpoint 3 code is in the tree, uncommitted; tests staged (rounds 3 and 4 included). Evidence `cp3/`: shots after round 4, critique.md (round 4), critique-r0…r3.md. Items 19 (focus) and 21 (totals) are done and reviewed; only the column widths are open.
 - commit: none (ledger only)
+
+### Checkpoint 3 — resumed a third time (2026-11-10, after core checkpoint 0e merged: core main c1d91cbd, PR #462)
+- driver scope: `minWidth` floors on Qty / Rate / Percent / Amount / Tax and weights on Product / Description; `lib/invoice-footer-layout.ts` imports core's constants; gate 1; measure and capture at 1280, the 640 px form (911 viewport) and 390; fresh critic; fix review; commit.
+- findings file: cp/cp3-fix5.md (round 5: 23 column floors and weights, footer exact at every wide width by one floor-to-weight ratio; 24 footer sizes from core `TABLE_GRID_GAP` / `FIELD_CELL_BORDER_WIDTH` / `TABLE_ROW_MENU_WIDTH`)
+- fix round 5: test writer (cp3-fix5-tests.md) e2e width test extended (1280 Product ≥ 200, Description ≥ 260 and widest; 911 Rate unclipped, Tax switch in its slot) and new `tests/invoice-footer-layout.test.ts` (floors, one ratio, Percent = Rate, span basis / minWidth from core gap); red for the right reason, guards stated; item 24 has no behavior test (checked by the fix reviewer by reading). Implementer (cp3-fix5-impl.md) FIXED 2 of 2; measured slots at 1280: Product 254, Description 263, Qty 68, Rate 90, Amount 112, Tax 45; at 911: Product 114.5, Description 118.5, numeric at their floors · declared: margins at 640 narrow by construction (floors 315 of 548 px free), floors are measured minimums
+- gate 1 after round 5: tests unedited: yes · check 221 files / 4499 tests; e2e `-g "invoice-form:"` 7 passed; no Go change
+- capture: first run failed (`filled`): the manifest's `-quantity` / `-product` suffix selectors also matched core 0e's row-slot ids → selectors exclude `-slot-`; a 911 width added to `filled` was taken after a resize from 1280 while the shell still had the desktop sidebar (critic: INVALID) → separate shot `filled-tablet` loaded at 911; 13/13 shots
+- gate 2: critique-r5.md (all widths): INVALID 1 (filled-911, above), 0 BLOCKING (round-4 BLOCKING resolved: Product ≈254, Description ≈261 and widest, totals on the Amount edge), 1 NOTE · critique.md (filled-tablet-911): 0 INVALID, 0 BLOCKING, 2 NOTEs · 3 NOTEs → Design notes
+- fix review round 5 (cp3-fix5-review.md): 0 BLOCK; NOTE 1 stale round-4 `critique.md` → done (archived as critique-r4.md; critique.md is this round's)
+- rounds: 5 (rounds 3–5 inside the driver's resume scopes)
+- deferrals: the cp 1 deferral (per-kind required Description) closes with this commit; reviewer-caught deferrals this round: none
+- commit: `feat(books): invoice form — draft create and edit` (sha in git log)
+- human: review mode C — none
 
 ## Checkpoint 0d
 - origin: core task approved by the human in chat, closing the checkpoint 3 resumed stop (phone DateField button) and two core change requests (table column weights; ⇧? lists Save draft twice), plus the human's audit of every core form field and input. Not in the plan: the runner wrote the brief (cp/cp0d.md: brief header + a 0d section). Core branch books/p2-invoice from core main 0e4529e5. Gate-3 input from `review-diff.mjs … 0 --repo`: the script matched checkpoint 0's Files and listed all 25 files as out-of-plan; the output is unedited, the corrected list is cp/cp0d-out-of-plan-note.md

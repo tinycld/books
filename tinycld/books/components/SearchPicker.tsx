@@ -4,8 +4,8 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Menu } from '@tinycld/core/ui/menu'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { ChevronDown } from 'lucide-react-native'
-import { Fragment, forwardRef, useState } from 'react'
-import { Pressable, type PressableInstance, Text, View } from 'react-native'
+import { Fragment, forwardRef, useCallback, useRef, useState } from 'react'
+import { Platform, Pressable, type PressableInstance, Text, View } from 'react-native'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 
 // `group` puts the option under a heading of that name; options of one group are
@@ -48,11 +48,42 @@ interface TriggerProps {
     suffix?: string
     disabled: boolean
     onPress?: () => void
+    onFocus?: () => void
+    onBlur?: () => void
 }
+
+// Focuses the trigger the first time it attaches, on web only: on iOS and Android a
+// focused field raises the soft keyboard over the form. A callback ref, so a re-render
+// or a re-attach never moves focus again.
+// `outer` is the caller's own ref on the trigger (a table cell's focus ref).
+function useTriggerRef(autoFocus: boolean, outer: TriggerRef | undefined) {
+    const pending = useRef(autoFocus && Platform.OS === 'web')
+    return useCallback(
+        (node: PressableInstance | null) => {
+            outer?.(node)
+            if (!node || !pending.current) return
+            pending.current = false
+            node.focus()
+        },
+        [outer]
+    )
+}
+
+type TriggerRef = (node: PressableInstance | null) => void
 
 // A forwardRef around the Pressable: the menu measures its trigger through the ref.
 const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function PickerTrigger(
-    { label, accessibilityLabel, testID, isPlaceholder, suffix, disabled, onPress },
+    {
+        label,
+        accessibilityLabel,
+        testID,
+        isPlaceholder,
+        suffix,
+        disabled,
+        onPress,
+        onFocus,
+        onBlur,
+    },
     ref
 ) {
     const chevron = useThemeColor('muted-foreground')
@@ -62,6 +93,8 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
         <Pressable
             ref={ref}
             onPress={onPress}
+            onFocus={onFocus}
+            onBlur={onBlur}
             testID={testID}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
@@ -230,6 +263,13 @@ interface SearchPickerProps {
     onRetry?: () => void
     // Shown when the options loaded and none matches.
     emptyText?: string
+    // Focuses the trigger once when it mounts, on web only.
+    autoFocus?: boolean
+    // The caller's ref on the trigger, and its focus events (a table cell's focus ref and
+    // row focus notes).
+    triggerRef?: TriggerRef
+    onTriggerFocus?: () => void
+    onTriggerBlur?: () => void
 }
 
 /**
@@ -259,7 +299,12 @@ export function SearchPicker({
     loadFailed = false,
     onRetry,
     emptyText,
+    autoFocus = false,
+    triggerRef,
+    onTriggerFocus,
+    onTriggerBlur,
 }: SearchPickerProps) {
+    const triggerRefs = useTriggerRef(autoFocus && !disabled, triggerRef)
     const placeholderColor = useThemeColor('field-placeholder')
     // A core Sheet keeps its content mounted while it slides out, so items render only
     // while the menu is open (helix lesson 8), whatever the caller's query returns.
@@ -270,6 +315,9 @@ export function SearchPicker({
         : 'options'
     const trigger = (
         <PickerTrigger
+            ref={triggerRefs}
+            onFocus={onTriggerFocus}
+            onBlur={onTriggerBlur}
             label={triggerLabel}
             accessibilityLabel={triggerAccessibilityLabel}
             testID={triggerTestId}

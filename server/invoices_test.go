@@ -65,6 +65,7 @@ func newInvoiceEnv(t *testing.T) *invoiceEnv {
 func invoiceEnvOn(t *testing.T, env *ledgerEnv) *invoiceEnv {
 	t.Helper()
 	app := env.app
+	bindInvoiceHost(t, app)
 	product := func(fields map[string]any) *core.Record {
 		t.Helper()
 		if fields["type"] != "bundle" {
@@ -579,6 +580,7 @@ func TestInvoiceLine_RefusesTheLine251st(t *testing.T) {
 		})
 	}
 	registerInvoiceGuards(env.app)
+	bindInvoiceHost(t, env.app)
 
 	mkInvoiceLine(t, env.app, inv, 249, descriptionLine("Note 250"))
 	_, err := newInvoiceLine(env.app, inv, 250, descriptionLine("Note 251"))
@@ -827,9 +829,19 @@ func TestInvoice_PostedKeepsUnlinksOfDeletedRows(t *testing.T) {
 	ie := newInvoiceEnv(t)
 	poster := mkUser(t, ie.app, "member")
 	voider := mkUser(t, ie.app, "member")
-	form := saveRecord(t, ie.app, "forms", map[string]any{
-		"host": "books:invoice", "name": "Invoice", "slug": "invoice", "definition": map[string]any{"pages": []any{}},
-	})
+	// The unlink is proved only for a form of an unbound host, because only that
+	// form can be deleted while a posted invoice names it. Core's forms hooks
+	// refuse to delete a form of a bound host (books:invoice) while a record
+	// names it ("This form is in use"), so for a bound host the delete never
+	// happens and there is no unlink to keep. The form is therefore one of a host
+	// no package provides any more (written past the hooks).
+	const formID = "formretired0001"
+	if _, err := ie.app.DB().Insert("forms", dbx.Params{
+		"id": formID, "host": "retired:invoice", "name": "Invoice", "slug": "invoice", "definition": `{"pages":[]}`,
+	}).Execute(); err != nil {
+		t.Fatalf("write the retired host's form: %v", err)
+	}
+	form := reload(t, ie.app, "forms", formID)
 	posted := ie.mkInvoice(t, nil)
 	mkInvoiceLine(t, ie.app, posted, 0, item(ie.service, 1, 45000, false))
 	void := ie.mkInvoice(t, nil)

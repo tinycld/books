@@ -3,6 +3,24 @@ import { MONEY_VALUE_SCHEMA } from '../lib/money-input'
 import { ExpenseAccountField, IncomeAccountField } from './account-fields'
 import { EmailField, PhoneField, PlainAddressField, WebsiteField } from './contact-fields'
 import { ParentCustomerField, ShippingAddressField } from './customer-fields'
+import {
+    BandEmailField,
+    BillToField,
+    CustomerField,
+    DocumentDateField,
+    DocumentTaxField,
+    DocumentTermsField,
+    DueDateField,
+} from './invoice-fields'
+import {
+    LineAmountCell,
+    LineDescriptionCell,
+    LinePercentCell,
+    LineProductCell,
+    LineQuantityCell,
+    LineRateCell,
+    LineTaxableCell,
+} from './invoice-line-cells'
 import { MoneyField } from './money-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
 import { ExemptionReasonField, TaxRateField } from './tax-fields'
@@ -32,6 +50,20 @@ const ui: FormHostUi = {
         TaxIdField,
         ExemptionReasonField,
         TaxRateField,
+        CustomerField,
+        BillToField,
+        BandEmailField,
+        DocumentTermsField,
+        DocumentDateField,
+        DueDateField,
+        DocumentTaxField,
+        LineProductCell,
+        LineDescriptionCell,
+        LineQuantityCell,
+        LineRateCell,
+        LinePercentCell,
+        LineAmountCell,
+        LineTaxableCell,
     },
     // The money input's rules run through the forms engine, at save and between saves,
     // so a refused amount blocks the save and its message is the cell's inline text.

@@ -1,4 +1,4 @@
-import { Dialog } from '@tinycld/core/ui/dialog'
+import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
 import { Text } from 'react-native'
 
 interface DeleteDraftDialogProps {
@@ -40,6 +40,7 @@ export function DeleteDraftDialog({
                     onPress={isPending ? ignore : onConfirm}
                     isDisabled={isPending}
                     isDestructive
+                    shortcut={DIALOG_SUBMIT_SHORTCUT}
                     testID="delete-draft-confirm"
                 />
             </Dialog.Footer>

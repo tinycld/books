@@ -13,6 +13,14 @@ import (
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/forms"
+)
+
+// The invoice's forms host (tinycld/books/forms/hosts.ts) and its lines
+// built-in, whose row kinds say which cells each kind of line needs.
+const (
+	invoiceHostKey  = "books:invoice"
+	invoiceLinesKey = "lines"
 )
 
 // Refusal texts of the invoice guards. The first group is shown by the client
@@ -45,8 +53,7 @@ const (
 	msgLineBundle             = "Line %d: a bundle is never stored on a line. Pick it again to add its items."
 	msgLineTooLarge           = "Line %d: the amount is too large."
 	msgLineNoAmountKind       = "Line %d: A %s line has no product or amount."
-	msgLineNeedsProduct       = "Line %d: Product or service is required."
-	msgLineNeedsDescription   = "Line %d: Description is required."
+	msgLineCell               = "Line %d: %s."
 	msgLineQuantity           = "Line %d: Enter a quantity more than 0."
 	msgLineItemPercent        = "Line %d: An item line has no percent."
 	msgLinePercentCells       = "Line %d: A percent line has no quantity or rate."
@@ -506,7 +513,7 @@ func validateInvoiceLine(tx core.App, stored, r *core.Record) error {
 	}
 	lines := withLine(others, r)
 	index := slices.IndexFunc(lines, func(l *core.Record) bool { return l.Id == r.Id })
-	if err := checkLineCells(r, index+1); err != nil {
+	if err := checkLineCells(tx, r, index+1); err != nil {
 		return err
 	}
 	if err := checkLineProduct(tx, stored, r, index+1); err != nil {
@@ -559,20 +566,26 @@ func compareLines(a, b *core.Record) int {
 	return strings.Compare(a.Id, b.Id)
 }
 
-// checkLineCells holds a line to its kind: an item and a percent line name a
-// product; an item's quantity is more than 0 (PocketBase skips the schema's
-// min for a 0 or missing number) and it has no percent; a percent line has no
-// quantity or rate; a description line has a description; a description or
+// checkLineCells holds a line to its kind. The cells each kind requires (an
+// item's and a percent line's product, a description line's description) are
+// core's check of the books:invoice host's row kinds, the same rule the form
+// runs; a host that is not bound refuses every line rather than let one through
+// unchecked. The rest are Books rules core does not make: an item's quantity is
+// more than 0 (PocketBase skips the schema's min for a 0 or missing number) and
+// it has no percent; a percent line has no quantity or rate; a description or
 // subtotal line has no product, rate or percent. A 0% percent line is stored:
-// refusing it is the client's rule. Core's forms mirror checks only the host
-// declaration, so the kinds' cells are checked here. n is the line number.
-func checkLineCells(r *core.Record, n int) error {
+// refusing it is the client's rule. n is the line number.
+func checkLineCells(tx core.App, r *core.Record, n int) error {
+	msg, err := lineRowError(tx, r)
+	if err != nil {
+		return err
+	}
+	if msg != "" {
+		return refuse(msgLineCell, n, msg)
+	}
 	kind := r.GetString("kind")
 	switch kind {
 	case lineKindItem, lineKindPercent:
-		if r.GetString("product") == "" {
-			return refuse(msgLineNeedsProduct, n)
-		}
 		if kind == lineKindItem && r.GetFloat("quantity") <= 0 {
 			return refuse(msgLineQuantity, n)
 		}
@@ -586,11 +599,27 @@ func checkLineCells(r *core.Record, n int) error {
 		if r.GetString("product") != "" || r.GetInt("rate") != 0 || r.GetInt("percent_ppm") != 0 {
 			return refuse(msgLineNoAmountKind, n, kind)
 		}
-		if kind == lineKindDescription && strings.TrimSpace(r.GetString("description")) == "" {
-			return refuse(msgLineNeedsDescription, n)
-		}
 	}
 	return nil
+}
+
+// lineRowError is core's per-kind required check of the lines built-in over
+// the line's cells, keyed as the form keys them: "" when the line has every
+// cell its kind needs. A stored line holds its percent in ppm.
+func lineRowError(tx core.App, r *core.Record) (string, error) {
+	host := forms.HostFor(tx, invoiceHostKey)
+	if host == nil {
+		return "", fmt.Errorf("books: the %s forms host is not bound", invoiceHostKey)
+	}
+	lines := host.Builtin(invoiceLinesKey)
+	if lines == nil {
+		return "", fmt.Errorf("books: the %s host has no %s built-in", invoiceHostKey, invoiceLinesKey)
+	}
+	row := map[string]any{"percent": r.Get("percent_ppm")}
+	for _, key := range []string{"kind", "product", "description", "quantity", "rate", "taxable"} {
+		row[key] = r.Get(key)
+	}
+	return lines.RowError(row), nil
 }
 
 // checkLineProduct refuses a bundle (the form adds a bundle's items, never the

@@ -201,7 +201,7 @@ func checkStoredLines(tx core.App, lines []*core.Record) error {
 		default:
 			return refuse(msgLineUnknownKind, n)
 		}
-		if err := checkLineCells(line, n); err != nil {
+		if err := checkLineCells(tx, line, n); err != nil {
 			return err
 		}
 	}
