@@ -33,3 +33,5 @@
 - Shared e2e seed data goes on fixed past dates or its own accounts/regions, never on days other specs post on; before adding rows, grep the specs that read the same accounts, regions or owner, and check the balances the rows change. Never skip a test on a condition to dodge shared data. — journal-report, retro, p5-journal-report
 - FlashList mounts rows progressively and re-anchors the scroll while it measures; an e2e that reads "all rows" scrolls until the row count is stable and keys rows by id, not by first-seen order. — journal-report, retro, p5-journal-report
 - Scratch routes import Books source by relative path, not the ~/tinycld/books alias (Metro cannot resolve it in an export). — invoice-form, retro, p2-invoice
+- Capture manifests select by full test id, never by suffix; a new id family with the same suffix breaks the shot. — invoice-form, retro, p2-invoice
+- Capture each width with a page loaded at that width; never resize across a breakpoint before a shot. — invoice-form, retro, p2-invoice
