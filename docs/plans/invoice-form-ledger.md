@@ -501,6 +501,7 @@
 - human: review mode C — none
 
 ## Final review
-- eval: 
+- eval: revise 1 (2026-11-10) — notes in /Users/nas/tmp/tinycld/auto-helix-books/staging/p2-invoice/revise-1.md
 - human comments and what changed
+  - revise 1: (1) Tax takes half the header width though it fits beside Due date; (2) New Invoice opens with no focused field, it must focus the Customer picker; (3) Qty and Rate must select their whole value on focus (after a product pick jumps to Qty, and on Tab), so typing replaces it; (4) asked how Message on invoice and Memo differ (answered in chat: Message prints for the customer, Memo is the internal journal entry memo).
 - native: not executed in this run

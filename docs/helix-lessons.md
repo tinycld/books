@@ -37,3 +37,6 @@
 - Scratch routes import Books source by relative path, not the ~/tinycld/books alias (Metro cannot resolve it in an export). — invoice-form, retro, p2-invoice
 - Capture manifests select by full test id, never by suffix; a new id family with the same suffix breaks the shot. — invoice-form, retro, p2-invoice
 - Capture each width with a page loaded at that width; never resize across a breakpoint before a shot. — invoice-form, retro, p2-invoice
+- A new document screen opens with focus on its first field (Customer); verify it in e2e after in-app navigation, since a later mount can take the focus. — invoice-form, human, eval
+- A numeric line cell (Qty, Rate, Percent) selects its whole value on focus, by Tab or by a jump after a pick, so typing replaces it. — invoice-form, human, eval
+- Give a short header field (Tax) a width that fits its content beside its row neighbours; never half the row. — invoice-form, human, eval
