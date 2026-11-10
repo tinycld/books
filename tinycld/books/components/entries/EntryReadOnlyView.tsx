@@ -7,6 +7,7 @@ import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
 import { useReadOnlyActions } from '../../hooks/useReadOnlyActions'
 import { entryNumberText, entryTypeText, reversalSummary, stampText } from '../../lib/entry-display'
 import { sumLines } from '../../lib/entry-lines'
+import { entryHref } from '../../lib/entry-route'
 import { formatDay } from '../../lib/register-range'
 import { EntryHeader } from './EntryHeader'
 import { EntryLineCard } from './EntryLineCard'
@@ -60,19 +61,25 @@ function Stamp({
     )
 }
 
+const LINK_STYLE = { minHeight: 44, justifyContent: 'center' } as const
+
 // Replace, not push: a stacked screen stays mounted under the new one, so two entries would share one page.
-function EntryLink({ id, text, entryId }: { id: string; text: string; entryId: string }) {
+function EntryLink({ id, text, href }: { id: string; text: string; href: string }) {
     const orgHref = useOrgHref()
+    const open = () => router.replace(orgHref(href))
     return (
-        <Pressable
-            testID={id}
-            accessibilityRole="link"
-            onPress={() => router.replace(orgHref(`books/entries/${entryId}`))}
-            style={{ minHeight: 44, justifyContent: 'center' }}
-        >
+        <Pressable testID={id} accessibilityRole="link" onPress={open} style={LINK_STYLE}>
             <Text className="text-sm text-primary">{text}</Text>
         </Pressable>
     )
+}
+
+type LinkedEntry = Parameters<typeof entryHref>[0]
+
+// A linked entry opens where its own row would (an invoice's entry opens the invoice);
+// until its row loads, it opens as an entry.
+function linkedHref(id: string, record: LinkedEntry | undefined): string {
+    return record ? entryHref(record) : `books/entries/${id}`
 }
 
 function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
@@ -84,7 +91,7 @@ function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
             <EntryLink
                 key="reverses"
                 id="entry-link-reverses"
-                entryId={entry.reverses}
+                href={linkedHref(entry.reverses, reversesEntry)}
                 text={`Reverses ${reversesEntry?.number ?? '…'}`}
             />
         )
@@ -94,7 +101,7 @@ function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
             <EntryLink
                 key="reversed-by"
                 id="entry-link-reversed-by"
-                entryId={reversedBy.id}
+                href={entryHref(reversedBy)}
                 text={linkText}
             />
         )
@@ -104,7 +111,7 @@ function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
             <EntryLink
                 key="replaces"
                 id="entry-link-replaces"
-                entryId={entry.replaces}
+                href={linkedHref(entry.replaces, replacesEntry)}
                 text={`Replaces ${replacesEntry?.number ?? '…'}`}
             />
         )

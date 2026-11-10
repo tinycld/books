@@ -3,7 +3,8 @@
 const NEW_INVOICE = 'books/invoices/new'
 
 // The new-invoice route with only the params given. `fresh` is a nonce: a replace
-// from one new form to another (Post & new) keys a fresh form on it.
+// from one new form to another (Post & new) keys a fresh form on it; it comes before
+// `customer`, which Post & new keeps only when the form was opened with it.
 export function invoiceNewHref(input: {
     customer?: string
     fresh?: string
@@ -11,7 +12,7 @@ export function invoiceNewHref(input: {
     copy?: string
 }): string {
     const params = new URLSearchParams()
-    for (const key of ['replaces', 'copy', 'customer', 'fresh'] as const) {
+    for (const key of ['replaces', 'copy', 'fresh', 'customer'] as const) {
         const value = input[key]
         if (value) params.set(key, value)
     }

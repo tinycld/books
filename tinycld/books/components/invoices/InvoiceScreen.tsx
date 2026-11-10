@@ -1,9 +1,20 @@
-import { type InvoiceScreenInput, useInvoiceScreen } from '../../hooks/useInvoiceScreen'
+import {
+    type InvoiceScreenData,
+    type InvoiceScreenInput,
+    useInvoiceScreen,
+} from '../../hooks/useInvoiceScreen'
 import { INVOICE_MESSAGES } from '../../lib/invoice-messages'
 import { InvoiceForm } from './InvoiceForm'
 import { InvoiceLoadError } from './InvoiceLoadError'
 import { InvoiceLoading } from './InvoiceLoading'
 import { InvoiceNotice } from './InvoiceNotice'
+import { InvoiceReadView } from './InvoiceReadView'
+
+// `read` comes with the invoice loaded; the check keeps the type honest.
+function ReadState({ data }: { data: InvoiceScreenData }) {
+    if (!data.invoice) return <InvoiceLoading />
+    return <InvoiceReadView data={data} invoice={data.invoice} />
+}
 
 /**
  * The invoice routes' one screen: it loads the invoice (or nothing, on a new form) and
@@ -21,13 +32,12 @@ export function InvoiceScreen(input: InvoiceScreenInput) {
             return <InvoiceNotice testID="invoice-not-found" message={INVOICE_MESSAGES.notFound} />
         case 'no-access':
             return <InvoiceNotice testID="invoice-no-access" message={INVOICE_MESSAGES.noAccess} />
-        // The read view of a posted or void invoice comes with checkpoint 5; until then
-        // it is not editable here.
         case 'cannot-edit':
-        case 'read':
             return (
                 <InvoiceNotice testID="invoice-cannot-edit" message={INVOICE_MESSAGES.cannotEdit} />
             )
+        case 'read':
+            return <ReadState data={data} />
         case 'form':
             return <InvoiceForm key={data.formKey} data={data} />
     }
