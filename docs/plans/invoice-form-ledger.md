@@ -132,6 +132,7 @@
 - cp 4 · reviewer A NOTE 11: a Product pick moves focus on native too (soft keyboard rises), while a Customer pick moves none (spec §6).
 - cp 4 · reviewer A NOTE 12: the e2e hard-codes `formatHint`'s Move up text (core `hint.ts` imports react-native) and `Alt+m` does not check which row's menu opened.
 - cp 4 · reviewer B 11: SearchPicker's type-to-open, Enter/Space/↓ and focus return apply to every Books picker on web (vendors, bundle items, accounts); only the invoice e2e drives them.
+- cp 0f · reviewer A NOTE 1 (core): an insert key hint (and the four existing row-key hints) acts on the focused row; once arrow keys move into an open row menu, the trigger's blur clears the focused row, so ⌥↵ pressed with the menu open appends at the end instead of below that row (existing core behavior; core docs already say the first kind's key "adds a line after the focused line"). Fix, if wanted: keep the open menu's row as the focused row while `menuRowId` is set.
 - cp 4 · critique r1: the round-0 NOTE "Subtotal label far left" is resolved by fix 11 (label beside its figure); the other round-0 NOTEs stay.
 - cp 4 · fix review r1 NOTE 1: Enter in the SearchPicker search field picks `options[0]` even when `loadFailed` and earlier options remain (fix: return from `run` when `loadFailed`). NOTE 2: a Product pick moves focus to Description after the read even if the user moved focus away during a slow read (a store read does not wait). NOTE 3: the bundle load message is cell-local, so a resize across the phone breakpoint (row remounts as a card) drops it.
 
@@ -385,6 +386,24 @@
 - after the core change: Books passes the ⌥↵ hint (if the core API needs it), gate 1 (`packages:generate`, check, `-g "invoice-form:"` e2e), re-capture the row-menu shots, a fresh critic on them, a fix review if Books source changed, commit.
 - state for the next runner: all checkpoint 4 code is in the tree, uncommitted (fix round 1 done, gate 1 green, fix review clean); tests staged (index = tests as written, the two dispute fixes, the fix-round T1–T3); the fix diff is staged too (review-diff `--fix` stages the tree). Evidence `cp4/`: shots after round 1, capture.json, critique.md (r1), critique-r0.md.
 - commit: none (ledger only)
+
+## Checkpoint 0f
+- origin: core task from the driver, closing "Checkpoint 4 — STOPPED (core change request)" (gate 2 BLOCKING 1: the row menu's "Insert line below" shows no ⌥↵). Not in the plan: the runner wrote the brief (cp/cp0f.md, cp0e header + a 0f section with its own Files block). Core branch books/p2-invoice from core main c1d91cbd. Gate-3 input from `review-diff.mjs … 0 --repo`: the script matched checkpoint 0's Files and listed all 8 files as out-of-plan; the output is unedited, the corrected list (none) is cp/cp0f-out-of-plan-note.md
+- design (runner): optional table built-in `insertShortcuts: { above?, below? }` (key combos the host binds itself; strict object; refused off a `table` built-in); the row menu's insert rows draw them through `formatHint`; core registers no key and changes no action; absent → no key, as before
+- test writer: core `lib/forms/__tests__/row-kinds.test.ts` (accept / refuse / non-table), `ui/forms/__tests__/table-field-kinds.test.tsx` (insert-below hint, both hints, phone sheet, no extra registration), `server/forms/defs_test.go` (decode, nil when absent); 7 tests, all red for the right reason; untestable: none. The "same ids" check compares sorted `keys · description` pairs (ShortcutButton ids hold `useId`, new per mount) — accepted (reviewer A NOTE 2 agrees it still catches an extra key)
+- implementer: schema + `HostInsertShortcuts` type (host.ts), Go `Builtin.InsertShortcuts` (presentation only), FieldInput pass-through, `TableBase.insertShortcuts` + `insertKeyHints` beside `ROW_KEY_HINTS`, docs `core/docs/keyboard-shortcuts.md` §Table rows; DONE
+- test disputes: none
+- self-declared differences: 2 (cp0f-impl.md): insert hints do not depend on `rowShortcuts` (agrees with Delivers 1); exported inferred type `HostInsertShortcuts` (Do 4)
+- gate 1: tests unedited: yes · pass (core check 454 files / 3952 tests; gofmt, go vet, `go test ./forms/...` ok) · e2e Books (cp 4 work in the tree, untouched) products-services-bundle, products-services-actions, invoice-form-draft, invoice-form-lines: 15 passed. Core forms-table / forms-builder not run (they need the forms-host stub, not scaffolded; the change is menu text the vitest tests cover)
+- gate 2: n/a (logic; checkpoint 4 re-captures the row-menu shots)
+- gate 3 A (correctness): 0 BLOCK · NOTE 1 → Design notes · NOTE 2 → accepted as recorded (test writer line above)
+- gate 3 B (conformance): script lines: 0 · 0 findings
+- fix review: n/a (no fix round) · rounds: 0
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
+- for checkpoint 4: Books sets `insertShortcuts: { below: 'Alt+Enter' }` on the `lines` built-in (`tinycld/books/forms/hosts.ts`), then `packages:generate`, gate 1, re-capture the row-menu shots, a fresh critic, fix review, commit
+- commit: core 5f8dcb7f on books/p2-invoice (8 files; out-of-plan: none)
+- human: review mode C — none
 
 ## Final review
 - eval: 
