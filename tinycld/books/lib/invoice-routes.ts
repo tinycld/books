@@ -20,6 +20,15 @@ export function invoiceNewHref(input: {
     return query === '' ? NEW_INVOICE : `${NEW_INVOICE}?${query}`
 }
 
-export function invoiceHref(id: string): string {
-    return `books/invoices/${id}`
+// The tabs under an invoice's title: the form or its details (`edit`), and the PDF view.
+// The `tab` search param holds it; the first tab has none.
+export type DocumentTab = 'edit' | 'pdf'
+
+export function documentTabOf(param: string | undefined): DocumentTab {
+    return param === 'pdf' ? 'pdf' : 'edit'
+}
+
+export function invoiceHref(id: string, tab: DocumentTab = 'edit'): string {
+    const path = `books/invoices/${id}`
+    return tab === 'pdf' ? `${path}?tab=pdf` : path
 }

@@ -51,6 +51,8 @@ A bundle is a list of items that you sell together. To add an item to a bundle, 
 
 A bundle holds Services and Non-inventory items only, so a bundle cannot contain another bundle. A bundle has no price, cost or accounts of its own.
 
+When you pick a bundle on an invoice line, Books adds one line for each item in the bundle and a subtotal line under them. See [Invoices](help://books:invoices).
+
 ## Find a product or service
 
 To find a product or service, type in the search field above the list. Search finds products by name, SKU or sales description. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. The list loads more items as you scroll down.

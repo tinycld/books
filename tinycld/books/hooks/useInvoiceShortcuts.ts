@@ -2,6 +2,7 @@ import { type Shortcut, useRegisterShortcuts, useShortcutScope } from '@tinycld/
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useId, useMemo, useRef } from 'react'
 import { FORM_KEYS } from '../lib/entry-shortcuts'
+import { INVOICE_PDF_KEY } from '../lib/invoice-actions'
 
 export const INVOICE_SHORTCUT_GROUP = 'Invoice'
 
@@ -13,11 +14,15 @@ interface InvoiceShortcutsInput {
     // On a phone, Post & new is a row of More, not a bar button.
     isPhone: boolean
     postAndNew: () => void
+    // A saved draft and no download running: the Download PDF row takes a press.
+    canDownloadPdf: boolean
+    downloadPdf: () => void
 }
 
 type KeyState = {
     isSaving: boolean
     canDeleteDraft: boolean
+    canDownloadPdf: boolean
     writesAvailable: boolean
 }
 
@@ -35,6 +40,8 @@ type KeyState = {
  *   own key is idle then, and the browser's Save Page would open. This one takes the key
  *   and does nothing. The ⇧? list shows Save draft for both registrations, as it groups
  *   by keys and does not read `when`.
+ * - ⌘P Download PDF: the row sits in More. The key is always taken, so the browser's
+ *   Print never opens; it downloads only when the row would take a press.
  *
  * The state is read at press time through a ref, so a render never re-registers; the id
  * is per instance, so a form replacing another cannot unregister the new one's keys.
@@ -45,6 +52,8 @@ export function useInvoiceShortcuts({
     deleteDraft,
     isPhone,
     postAndNew,
+    canDownloadPdf,
+    downloadPdf,
 }: InvoiceShortcutsInput) {
     const scopeOwner = useShortcutScope('compose')
     const instance = useId()
@@ -52,11 +61,17 @@ export function useInvoiceShortcuts({
     const stateRef = useRef<KeyState>({
         isSaving,
         canDeleteDraft,
+        canDownloadPdf,
         writesAvailable: writes.available,
     })
-    stateRef.current = { isSaving, canDeleteDraft, writesAvailable: writes.available }
-    const runRef = useRef({ deleteDraft, postAndNew })
-    runRef.current = { deleteDraft, postAndNew }
+    stateRef.current = {
+        isSaving,
+        canDeleteDraft,
+        canDownloadPdf,
+        writesAvailable: writes.available,
+    }
+    const runRef = useRef({ deleteDraft, postAndNew, downloadPdf })
+    runRef.current = { deleteDraft, postAndNew, downloadPdf }
     const shortcuts = useMemo<Shortcut[]>(() => {
         const keys: Shortcut[] = [
             {
@@ -84,6 +99,17 @@ export function useInvoiceShortcuts({
                     return state.isSaving || !state.writesAvailable
                 },
                 run: () => {},
+            },
+            {
+                id: `books.invoice.form.${instance}.downloadPdf`,
+                keys: INVOICE_PDF_KEY,
+                scope: 'compose',
+                description: 'Download PDF',
+                group: INVOICE_SHORTCUT_GROUP,
+                allowInInputs: true,
+                run: () => {
+                    if (stateRef.current.canDownloadPdf) runRef.current.downloadPdf()
+                },
             },
         ]
         if (!isPhone) return keys

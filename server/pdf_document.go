@@ -21,8 +21,9 @@ type pdfLineKind int
 
 const (
 	lineItem        pdfLineKind = iota // a product or service with quantity, rate and amount
-	lineSubtotal                       // the sum of the item rows since the last subtotal
+	lineSubtotal                       // the sum of the item and percent rows since the last subtotal
 	lineDescription                    // text only, no amounts
+	linePercent                        // a percent of the line above: its percent in Quantity, no rate
 )
 
 // maxPDFLines bounds one document's rows so a runaway caller cannot pin a
@@ -216,6 +217,14 @@ func rowOf(l pdfLine, money func(int64) string) pdfRow {
 		}
 	case lineDescription:
 		return pdfRow{Kind: "description", Description: lines(l.Description)}
+	case linePercent:
+		return pdfRow{
+			Kind:        "item",
+			Item:        l.Item,
+			Description: lines(l.Description),
+			Quantity:    l.Quantity,
+			Amount:      money(l.AmountCents),
+		}
 	default:
 		return pdfRow{
 			Kind:        "item",
