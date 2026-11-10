@@ -1,0 +1,78 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [390, 1024, 1280],
+            "height": 1700,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "opened",
+            "url": "/a/books/helix-mockup?state=opened",
+            "ready": "report-table",
+            "height": 1700,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "rows-active",
+            "url": "/a/books/helix-mockup?state=rows-active",
+            "ready": "report-table",
+            "height": 1700,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/books/helix-mockup?state=collapsed",
+            "ready": "report-table",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-lines",
+            "url": "/a/books/helix-mockup?state=no-lines",
+            "ready": "report-table",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "customize",
+            "url": "/a/books/helix-mockup?state=customize",
+            "ready": "report-customize",
+            "stable": "report-customize-reset",
+            "actions": [
+                {
+                    "click": "report-customize-section-columns"
+                },
+                {
+                    "waitFor": "report-option-column-current"
+                }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "report-loading",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "report-error",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "timeout",
+            "url": "/a/books/helix-mockup?state=timeout",
+            "ready": "report-timeout",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "report-no-access",
+            "hideLabels": ["New"]
+        }
+    ]
+}

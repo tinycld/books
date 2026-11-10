@@ -140,6 +140,12 @@ export async function postOpenEntry(page: Page) {
     await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
 }
 
+// The open entry's number, from its title ("Journal entry JE-12" or "Edit JE-12").
+export async function postedEntryNumber(page: Page): Promise<string> {
+    const title = (await page.getByTestId('entry-title').innerText()).trim()
+    return title.replace(/^(Journal entry|Edit) /, '')
+}
+
 // Books must already be open. Leaves the page on the saved draft's view.
 export async function createDraftEntry(page: Page, entry: EntryInput): Promise<void> {
     await openNewEntry(page)

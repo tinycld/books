@@ -10,7 +10,7 @@ import (
 )
 
 // The builders the shipped Books report specs (Trial Balance, General Ledger,
-// Journal) are written with, so a spec reads close to its JSON.
+// Balance Sheet, Journal) are written with, so a spec reads close to its JSON.
 
 // profitAndLossTypes are the account types whose group is income or expense,
 // in account_types.json order.
@@ -30,6 +30,18 @@ func creditNormalTypes() []string {
 	var out []string
 	for _, t := range accountTypes {
 		if t.Normal == "credit" {
+			out = append(out, t.Key)
+		}
+	}
+	return out
+}
+
+// typesInGroup are the account types whose group is group ("asset",
+// "liability", "equity", "income", "expense"), in account_types.json order.
+func typesInGroup(group string) []string {
+	var out []string
+	for _, t := range accountTypes {
+		if t.Group == group {
 			out = append(out, t.Key)
 		}
 	}

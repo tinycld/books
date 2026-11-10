@@ -88,7 +88,7 @@ Core tests: Go unit tests per extension; the shared formula table gains `lookup`
 
 ### Sources (`books/server/report_sources.go`)
 
-Every Books source: key `books.<name>`; `FiscalStartMonth` = `books_settings.fiscal_year_start_month` (1 when no row); `Heading` = `books_settings.business_name` (E9). No `Source.Currency`: each money field names its row's `currency` column, which posting stamps from the Books currency setting.
+Every Books source: key `books.<name>`; `FiscalStartMonth` = `books_settings.fiscal_year_start_month` (1 when no row); `Heading` = `books_settings.business_name` (E9). Each money field names its row's `currency` column, which posting stamps from the Books currency setting. A source with money fields also sets `Source.Currency` to that setting (balance-sheet unit, core #457); core uses it only for the rows of a run that reads no rows, so such a run's totals read "$0.00", not "0.00".
 
 | Source | Collection | Fields | Links |
 |---|---|---|---|
