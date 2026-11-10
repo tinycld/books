@@ -9,6 +9,8 @@ To see how your documents print, open Settings, choose Company and press Preview
 
 The preview uses the saved company details. If you change a detail, press Save before you preview. Any person with access to Books can preview; only an admin can change the details.
 
+To see or download the PDF of an invoice, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices).
+
 ## What a document shows
 
 - Your logo and brand color. An organization owner or admin sets them in the app settings, under Branding. See [Organization branding](help://core:organization-branding).

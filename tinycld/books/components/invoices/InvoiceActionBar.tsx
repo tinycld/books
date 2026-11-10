@@ -29,7 +29,7 @@ export interface InvoiceActionBarProps {
     onPost: () => void
     onPostAndNew: () => void
     onDeleteDraft: () => void
-    // More rows after Delete draft (the PDF tab's Download PDF).
+    // More rows after Delete draft (Download PDF).
     moreItems?: InvoiceMoreItem[]
     scopeOwner: ScopeOwner
 }
@@ -161,7 +161,7 @@ function PostAndNewButton({ isVisible, isSaving, onPress, scopeOwner }: PostAndN
 /**
  * The form's sticky bar, in Tab order: Cancel (Esc), Save draft (⌘S), Post (⌘↵), Post &
  * new (⌘⇧↵; a More row on a phone) and More (Delete draft when the invoice is a saved
- * draft). Each button with a key is a core ShortcutButton in the screen's scope; Save
+ * draft; Download PDF, ⌘P). Each button with a key is a core ShortcutButton in the screen's scope; Save
  * draft, Post and Post & new are server actions, so they and their keys are idle
  * offline.
  */

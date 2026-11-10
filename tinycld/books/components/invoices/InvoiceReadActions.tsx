@@ -4,7 +4,7 @@ import { useId, useMemo, useRef } from 'react'
 import { View } from 'react-native'
 import type { InvoiceReadItem } from '../../hooks/useInvoiceReadActions'
 import { INVOICE_SHORTCUT_GROUP } from '../../hooks/useInvoiceShortcuts'
-import { INVOICE_READ_KEYS } from '../../lib/invoice-actions'
+import { INVOICE_PDF_KEY, INVOICE_READ_ACTION_KEYS } from '../../lib/invoice-actions'
 import { InvoiceMoreMenu } from './InvoiceActionBar'
 
 interface InvoiceReadActionsProps {
@@ -19,7 +19,7 @@ const BAR =
     'flex-row flex-wrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2'
 
 function keyOf(item: InvoiceReadItem): string {
-    return INVOICE_READ_KEYS[item.action]
+    return INVOICE_READ_ACTION_KEYS[item.action]
 }
 
 function shortcutOf(item: InvoiceReadItem) {
@@ -77,11 +77,35 @@ function useMoreKeys(items: InvoiceReadItem[], scopeOwner: ScopeOwner) {
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 
+// ⌘P is always taken while the read view holds the keys, so the browser's Print never
+// opens: while Download PDF is busy its own key is idle, and this one takes it and does
+// nothing.
+function usePdfKeyWhileBusy(items: InvoiceReadItem[], scopeOwner: ScopeOwner) {
+    const instance = useId()
+    const isBusyRef = useRef(false)
+    isBusyRef.current = items.some(item => item.action === 'pdf' && item.isDisabled)
+    const shortcuts = useMemo<Shortcut[]>(
+        () => [
+            {
+                id: `books.invoice.read.${instance}.pdfBusy`,
+                keys: INVOICE_PDF_KEY,
+                scope: 'compose',
+                description: 'Download PDF',
+                group: INVOICE_SHORTCUT_GROUP,
+                when: () => isBusyRef.current,
+                run: () => {},
+            },
+        ],
+        [instance]
+    )
+    useRegisterShortcuts(shortcuts, scopeOwner)
+}
+
 /**
  * The read view's bar. Wide: a ShortcutButton per action (Edit E, Void V, Copy C, View
- * journal entry J), the first one primary. Phone: Edit as a button and the rest in a More
- * menu whose rows show their keys. A reader gets only View journal entry; a hidden
- * action's key is not registered.
+ * journal entry J, Download PDF ⌘P), the first one primary. Phone: Edit as a button and
+ * the rest in a More menu whose rows show their keys. A reader gets View journal entry
+ * and Download PDF; a hidden action's key is not registered.
  */
 export function InvoiceReadActions({
     actions,
@@ -93,6 +117,7 @@ export function InvoiceReadActions({
     const inBar = isPhone ? (edit ? [edit] : []) : actions
     const inMore = isPhone ? actions.filter(item => item !== edit) : []
     useMoreKeys(inMore, scopeOwner)
+    usePdfKeyWhileBusy(actions, scopeOwner)
     if (actions.length === 0) return null
     const buttons = inBar.map((item, index) => (
         <ReadButton key={item.id} item={item} isPrimary={index === 0} scopeOwner={scopeOwner} />

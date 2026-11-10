@@ -35,7 +35,7 @@ Groups show on the Tax groups card, with their rates listed under each name. You
 
 ## Set the default for new sales
 
-The Default for new sales card shows when you have at least one active rate. Choose a rate or a group in it, or choose None for no default. Books saves your choice immediately, and the row shows a Default badge. Invoices and sales receipts start with this tax unless the customer has its own default.
+The Default for new sales card shows when you have at least one active rate. Choose a rate or a group in it, or choose None for no default. Books saves your choice immediately, and the row shows a Default badge. Invoices and sales receipts start with this tax unless the customer has its own default. To see how an invoice shows and prints its tax, see [Invoices](help://books:invoices).
 
 You can also open the menu on a rate or group row and choose Make default or Remove default. Only an active rate or group can be the default.
 

@@ -1,0 +1,78 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "pdf-unsaved",
+            "url": "/a/books/invoices/new?tab=pdf",
+            "ready": "invoice-pdf-unsaved",
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "pdf-stale",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "invoice-tab-pdf"
+                },
+                {
+                    "waitFor": "invoice-pdf-unsaved"
+                },
+                {
+                    "clickCss": "[data-testid=\"invoice-pdf-unsaved\"] [role=\"button\"]"
+                },
+                {
+                    "waitFor": "invoice-pdf"
+                },
+                {
+                    "click": "invoice-tab-edit"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Lobby install, phase two"
+                },
+                {
+                    "click": "invoice-tab-pdf"
+                },
+                {
+                    "waitFor": "invoice-pdf-stale"
+                },
+                {
+                    "waitFor": "invoice-pdf"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        }
+    ]
+}

@@ -158,6 +158,9 @@
 - cp 5 · reviewer A NOTE 11: the Void mutation has no `onError` log; a refusal after the user left the read view is lost (the dialog shows it while open).
 - cp 5 · fix review r1 NOTE 1: `useInvoiceSave` `onSettled` clears `lock.current` in the same tick as `setWritten` (fix 8 moved the written id to state); a save pressed before React commits that render reads `written === null` and inserts a second draft (no ordinary sequence reaches the gap; fix: a ref mirroring the state for `startSave`, or clear the lock after the commit).
 - cp 5 · fix review r1 NOTE 2: a `?copy` whose source customer row cannot be read (ready, no row) shows not-found (implementer difference 2; Books refuses deleting a customer on invoices, so only a hidden row reaches it).
+- cp 6 · pdf-stale-1280: the PDF page sits inside a second rounded frame; in light mode the frame is the same white as the page (a white ring around a white page); one frame, or a `bg-surface-secondary` fill, would separate them.
+- cp 6 · reviewer A NOTE 3: a draft's PDF prints the tax percent from today's rate components beside the stored `tax_total` of the last save; after an admin changes a rate, the two disagree until the draft is saved again (drafts only).
+- cp 6 · reviewer A NOTE 4: `cp6/capture.json` selects the first line's Product cell and search by test-id prefix + suffix (lesson 36); the row id is generated, so no full id exists to select; the same selector as cp4 / cp5 manifests.
 
 ## Out-of-plan changes
 - cp 0 · core `core/ui/form/TextInput.tsx` (`inputRef`) and `core/ui/form/NumberInput.tsx` (`inputRef`, `onSubmitEditing`): a table cell registers its real input as the focus target, and the `addOnSubmit` Qty column is a NumberInput, which had no submit prop.
@@ -173,6 +176,7 @@
 - cp 0 · `review-diff.mjs --repo` listed all 33 core files as out-of-plan: the Files block says "(all under `core/`)" without the prefix; the corrected list is the entries above (cp/cp0-out-of-plan-note.md).
 - cp 4 · `tinycld/books/components/products/ProductPicker.tsx` (`onPicked` pass-through; Do 4 needs it, plan omission); `tinycld/books/lib/invoice-line-order.ts`, `tests/invoice-line-order.test.ts`, `tinycld/books/hooks/useInvoiceSave.ts`, `tinycld/books/hooks/useInvoiceForm.ts` (supplement item 2, the line write order; `useInvoiceSave` also drops the doubled "Line n:" label, a checkpoint 3 defect the refused-line test found); `tinycld/books/lib/invoice-tax.ts` (`no-target` view kind for the live percent message); `tests/e2e/invoice-form-draft.spec.ts` (test dispute 1 and the whole-text assertion).
 - cp 5 · `tinycld/books/lib/invoice-routes.ts` (`fresh` before `customer` in the query string, as `tests/invoice-routes.test.ts` asserts); `tinycld/books/lib/invoice-screen-state.ts` (`copyStatus` for a missing copy source; the hold checked before the new-form branch, so a correction's post that voids its source does not swap to cannot-edit). The script also listed `InvoiceForm.tsx`, `InvoiceScreen.tsx`, `InvoiceReadActions.tsx`, `InvoiceReadLines.tsx`, `useInvoiceForm.ts`, `useInvoiceScreen.ts`, `useInvoiceShortcuts.ts` (named in shorthand in the Files block) and `EntryReadOnlyView.tsx` (the Files grep step): false positives.
+- cp 6 · `server/pdf_document.go` (`linePercent` row kind: a percent line prints its percent in Qty and no Rate, spec §3.7); `tinycld/books/hooks/usePdfDownload.ts` (`fetchPdf` shared by the view and the download); `tinycld/books/hooks/useInvoiceReadActions.ts` (the read view's Download PDF action, Do 4); `tinycld/books/hooks/useInvoiceSave.ts` (`{ tab, onRefused }`: difference 1 and 3); `tinycld/books/lib/invoice-actions.ts` (`INVOICE_PDF_KEY`, `INVOICE_READ_ACTION_KEYS`, `INVOICE_TAB_KEYS`, `invoicePdfStem`); `tinycld/books/lib/invoice-routes.ts` (`DocumentTab`, `documentTabOf`, `invoiceHref(id, tab)`); `tinycld/books/components/invoices/InvoiceScreen.tsx`, `tinycld/books/screens/invoices/[id].tsx`, `new.tsx` (pass the `tab` search param, Decisions "Tabs"). The script also listed `InvoiceActionBar.tsx`, `InvoicePdfView.tsx`, `InvoiceReadActions.tsx`, `InvoiceReadView.tsx` (in the Files block in shorthand): false positives.
 
 ## Phase notes
 - phase 1: intake regenerated 2026-11-08 against books 66846ed / core b021c3af (the 2026-11-06 intake was discarded so the unit could wait for p5-general-ledger). Feature inventory unchanged; three sparks, all expressible; needs extension E1–E3 re-checked (still missing in core), E2 reshaped around core `ShortcutButton` and `Menu` `shortcut` text.
@@ -457,6 +461,25 @@
 - gate 2 after fix round 2 (critique.md, fresh critic): invalid: none · round-1 BLOCKING verified fixed; wide band and round-0 fixes hold · new: none · notes: 2, carried (Design notes)
 - gate 3 A notes: 9 (NOTEs 3–11), listed under Design notes
 - commit: the checkpoint 5 commit (code, tests, evidence, this ledger)
+- human: review mode C — none
+
+## Checkpoint 6
+- test writer: `server/pdf_invoice_test.go` (3), `server/pdf_routes_test.go` (invoice route test, 3 subtests), `tests/pdf-download.test.ts` (invoice cases), `tests/help-invoices.test.ts`, `tests/e2e/invoice-form-pdf.spec.ts` (1); red for the right reason: yes, except the `pdfPath` / `pdfFileName` cases and the route test's 403 / hidden-404 subtests, which p2-pdf already satisfies (kept as guards); untestable: none (cp/cp6-tests.md)
+- implementer: Go `buildInvoiceDocument` + `documentKinds["invoice"]`, `DocumentTabs` (⌥1 / ⌥2), `InvoicePdfView` + `useInvoicePdf`, Download PDF (form More row, read-view action, ⌘P always taken), `help/invoices.md` + four cross-links; DONE (cp/cp6-impl.md)
+- test disputes: none
+- self-declared differences: 5 (cp6-impl.md): (1) Save draft from the PDF tab builds `books/invoices/<id>?tab=pdf` in `useInvoiceSave` instead of `setParams` after the save (the save replaces the route in `onSuccess`, so a `setParams` would land on `new`); (2) `useInvoicePdf(invoiceId, version = '')` optional second parameter so a save refetches; (3) the PDF tab unmounts the form body, a field refusal from the PDF tab switches to Edit; (4) `linePercent` in Go `pdfDocument`; (5) Download PDF shown disabled (not hidden) on an unsaved form. Triaged with the reviewers: none does less than the brief (A and B agree)
+- gate 1: tests unedited: yes · `packages:generate`; check 227 files / 4583 tests; `go test ./...` ok; e2e `-g "invoice-form:"` 15 passed
+- gate 2 capture: `cp6/capture.json` (pdf-unsaved at `/a/books/invoices/new?tab=pdf`; pdf-stale drives a new form: customer, product, PDF tab, the notice's Save draft, Edit tab, memo, PDF tab), 1280 and 390, light and dark (8/8)
+- gate 2 (critique.md): invalid: none · blocking: none · notes: 1 (Design notes)
+- gate 3 A (correctness): BLOCK 1 (a refused post on `new` leaves the PDF on old bytes with no stale notice) → accepted (fix 1); NOTE 1 (⌘P while saving) → accepted, one-line guard (fix 4); NOTE 2 (comment) → accepted (fix 5); NOTEs 3, 4 → Design notes; NOTE 5 (spec file run twice by the implementer) → no action: the brief's budget counts tests (1 test), not runs
+- gate 3 B (conformance): script lines: 0 · 1–9 out of plan → accepted, Out-of-plan changes (the script's other 4 files are in the Files block in shorthand: false positives) · 10 `formState.errors` read outside render (lesson 17) → accepted (fix 2) · 11 `lineSubtotal` comment → accepted (fix 3) · deferrals: none
+- reviewer-caught deferrals: none
+- findings file: cp/cp6-fix.md (round 1, 5 items)
+- fix round 1: implementer (cp6-fix-impl.md) FIXED 5 of 5 · declared: 2 (fix 2 reads `getFieldState` at call time, not `handleSubmit`'s `onInvalid`, which core's `submit` / `patch` do not expose; `onRefused` renamed `onFieldErrors`, since it also runs on a client-side refusal); also `biome format` of `cp6/capture.json` (whitespace; runner's file)
+- gate 1 after fix round 1: tests unedited: yes · check 227 files / 4583 tests; `go test ./...` ok; e2e `-g "invoice-form:"` 15 passed; no re-capture (no fix changes what a screen looks like)
+- fix review: round 1 (cp6-fix-review.md): clean · rounds: 1
+- gate 3 A notes: 2 (NOTEs 3, 4), listed under Design notes
+- commit: the checkpoint 6 commit (code, tests, evidence, this ledger)
 - human: review mode C — none
 
 ## Final review

@@ -8,7 +8,8 @@ import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { ScopeProvider } from '@tinycld/core/lib/shortcuts'
+import { formatHint, ScopeProvider } from '@tinycld/core/lib/shortcuts'
+import { useRecord } from '@tinycld/core/lib/use-record'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { FormRenderer, NARROW_BELOW } from '@tinycld/core/ui/forms'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
@@ -21,13 +22,16 @@ import { type InvoiceFormState, useInvoiceForm } from '../../hooks/useInvoiceFor
 import { useInvoiceSave } from '../../hooks/useInvoiceSave'
 import type { InvoiceScreenData } from '../../hooks/useInvoiceScreen'
 import { useInvoiceShortcuts } from '../../hooks/useInvoiceShortcuts'
+import { usePdfDownload } from '../../hooks/usePdfDownload'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
+import { INVOICE_PDF_KEY, invoicePdfStem } from '../../lib/invoice-actions'
 import {
     INVOICE_FOOTER_MENU_SPACER,
     INVOICE_FOOTER_ROW,
     INVOICE_FOOTER_SPANS,
 } from '../../lib/invoice-footer-layout'
 import { balanceDueText } from '../../lib/invoice-messages'
+import type { DocumentTab } from '../../lib/invoice-routes'
 import { invoiceTaxOf, lineAmountViews, shownInvoiceTotals } from '../../lib/invoice-tax'
 import type { InvoiceFormValues } from '../../lib/invoice-values'
 import { formatMoney } from '../../lib/money'
@@ -37,9 +41,11 @@ import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
-import { InvoiceActionBar } from './InvoiceActionBar'
+import { DocumentTabs, openDocumentTab, TabPanel } from './DocumentTabs'
+import { InvoiceActionBar, type InvoiceMoreItem } from './InvoiceActionBar'
 import { InvoiceHeader } from './InvoiceHeader'
 import { InvoiceLoading } from './InvoiceLoading'
+import { InvoicePdfView } from './InvoicePdfView'
 import { InvoiceTotals, type InvoiceTotalsView } from './InvoiceTotals'
 import {
     InvoiceFormContext,
@@ -256,12 +262,48 @@ function ErrorSummary({ form }: { form: EngineForm }) {
     )
 }
 
+const PDF_HINT = formatHint(INVOICE_PDF_KEY).text
+
+// Download PDF of the saved draft, from the More row and ⌘P. A new form has nothing
+// printed yet; while a save runs the More menu is disabled, and so is the key.
+function useDraftPdf(draftId: string | undefined, isSaving: boolean) {
+    const download = usePdfDownload()
+    const canDownload = draftId !== undefined && !isSaving && !download.isPending
+    const run = () => {
+        if (draftId === undefined) return
+        download.mutate({ kind: 'invoice', id: draftId, fallbackName: invoicePdfStem('') })
+    }
+    const item: InvoiceMoreItem = {
+        id: 'download-pdf',
+        label: 'Download PDF',
+        keys: PDF_HINT,
+        isDisabled: !canDownload,
+        onSelect: run,
+    }
+    return { canDownload, run, item }
+}
+
+// The stored draft's `updated`, read from its own row: every write of the draft (from its
+// route, or from `new` after a refused post) moves it, and the PDF view fetches again.
+// The row is the one the screen or the save already holds, so this sends no request.
+function useDraftVersion(draftId: string | undefined): string {
+    const [invoicesCollection] = useStore('books_invoices')
+    const { record } = useRecord(invoicesCollection, draftId)
+    return record?.updated ?? ''
+}
+
+interface InvoiceFormProps {
+    data: InvoiceScreenData
+    tab: DocumentTab
+}
+
 /**
  * The invoice form, new, draft, correction or copy: the header band, the lines table,
- * Message and Memo beside the totals, and the sticky action bar. Keyed on its form key by
- * the screen, so a new route mounts a fresh form.
+ * Message and Memo beside the totals, and the sticky action bar; or, on the PDF view tab,
+ * the saved draft's PDF above the same bar. Keyed on its form key by the screen, so a new
+ * route mounts a fresh form; a tab change keeps it.
  */
-export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
+export function InvoiceForm({ data, tab }: InvoiceFormProps) {
     const state = useInvoiceForm({
         invoice: data.invoice,
         lines: data.lines,
@@ -271,7 +313,12 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
         startValues: data.startValues,
     })
     const form = state.form as EngineForm
-    const save = useInvoiceSave(state)
+    // A save from the PDF tab that ends with a field error shows the form, where the
+    // error is.
+    const revealErrors = () => {
+        if (tab === 'pdf') openDocumentTab('edit')
+    }
+    const save = useInvoiceSave(state, { tab, onFieldErrors: revealErrors })
     const { onBack: leave } = useBackToEntries()
     const formCustomer = useFormCustomer(form)
     // Per mounted form: the band's address inputs belong to this form only, so a form
@@ -308,12 +355,17 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
     const onPostAndNew = () => {
         void save.post(true)
     }
+    const isBusy = save.isSaving || deletion.isPending
+    const pdf = useDraftPdf(draftId, isBusy)
+    const pdfVersion = useDraftVersion(draftId)
     const shortcuts = useInvoiceShortcuts({
-        isSaving: save.isSaving || deletion.isPending,
+        isSaving: isBusy,
         canDeleteDraft,
         deleteDraft: deletion.open,
         isPhone,
         postAndNew: onPostAndNew,
+        canDownloadPdf: pdf.canDownload,
+        downloadPdf: pdf.run,
     })
     const parts = useMemo(
         () => (state.definition ? splitDefinition(state.definition) : null),
@@ -334,10 +386,14 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
     const onPost = () => {
         void save.post(false)
     }
+    const moreItems = [pdf.item]
+    const pdfInvoiceId = draftId ?? null
     const title = invoiceFormTitle(data.replacesNumber, draftId !== undefined)
     // The form shows only drafts: a post's optimistic status shows here only once the
     // read view replaces the form.
     const status = 'draft'
+    const isEditTab = tab === 'edit'
+    const isPdfTab = tab === 'pdf'
     // On the grid's slots (lib/invoice-footer-layout.ts), so the totals end under Amount.
     const footerClass = isPhone ? 'gap-4' : undefined
     const footerRow = isPhone ? undefined : INVOICE_FOOTER_ROW
@@ -368,40 +424,56 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
                                     balanceDue={totals.balance}
                                 />
                                 <ReplaceNote number={data.replacesNumber} />
+                                <DocumentTabs
+                                    selected={tab}
+                                    firstLabel="Edit"
+                                    scopeOwner={shortcuts.scopeOwner}
+                                />
                                 <ErrorSummary form={form} />
-                                <View
-                                    testID="invoice-band"
-                                    className="rounded-xl border border-border bg-surface-secondary p-4"
-                                >
-                                    <PartRenderer
-                                        state={state}
-                                        definition={parts.band}
-                                        testID="invoice-band-form"
+                                <TabPanel isVisible={isEditTab}>
+                                    <View
+                                        testID="invoice-band"
+                                        className="rounded-xl border border-border bg-surface-secondary p-4"
+                                    >
+                                        <PartRenderer
+                                            state={state}
+                                            definition={parts.band}
+                                            testID="invoice-band-form"
+                                        />
+                                    </View>
+                                    <View testID="invoice-lines" onLayout={linesLayout.onLayout}>
+                                        <InvoiceLinesContext.Provider value={linesView}>
+                                            <PartRenderer
+                                                state={state}
+                                                definition={parts.lines}
+                                                testID="invoice-lines-form"
+                                            />
+                                        </InvoiceLinesContext.Provider>
+                                    </View>
+                                    <View className={footerClass} style={footerRow}>
+                                        <View style={footerLeft}>
+                                            <PartRenderer
+                                                state={state}
+                                                definition={parts.footer}
+                                                testID="invoice-footer-form"
+                                            />
+                                        </View>
+                                        <View style={footerTotals}>
+                                            <InvoiceTotals totals={totals.view} />
+                                        </View>
+                                        <View style={footerRight} />
+                                        <View style={menuSpacer} />
+                                    </View>
+                                </TabPanel>
+                                <TabPanel isVisible={isPdfTab}>
+                                    <InvoicePdfView
+                                        invoiceId={pdfInvoiceId}
+                                        version={pdfVersion}
+                                        isDirty={state.isDirty}
+                                        isSaving={save.isSaving}
+                                        onSaveDraft={onSaveDraft}
                                     />
-                                </View>
-                                <View testID="invoice-lines" onLayout={linesLayout.onLayout}>
-                                    <InvoiceLinesContext.Provider value={linesView}>
-                                        <PartRenderer
-                                            state={state}
-                                            definition={parts.lines}
-                                            testID="invoice-lines-form"
-                                        />
-                                    </InvoiceLinesContext.Provider>
-                                </View>
-                                <View className={footerClass} style={footerRow}>
-                                    <View style={footerLeft}>
-                                        <PartRenderer
-                                            state={state}
-                                            definition={parts.footer}
-                                            testID="invoice-footer-form"
-                                        />
-                                    </View>
-                                    <View style={footerTotals}>
-                                        <InvoiceTotals totals={totals.view} />
-                                    </View>
-                                    <View style={footerRight} />
-                                    <View style={menuSpacer} />
-                                </View>
+                                </TabPanel>
                             </ScrollView>
                             <InvoiceActionBar
                                 isSaving={save.isSaving}
@@ -412,6 +484,7 @@ export function InvoiceForm({ data }: { data: InvoiceScreenData }) {
                                 onPost={onPost}
                                 onPostAndNew={onPostAndNew}
                                 onDeleteDraft={deletion.open}
+                                moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
                             />
                             <DiscardDialog

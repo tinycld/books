@@ -151,6 +151,53 @@ func TestPDFRoute_RecordKindsFollowTheViewRule(t *testing.T) {
 	}
 }
 
+// The invoice kind prints a books_invoices record under its view rule: a
+// reader with Books read access downloads it, named by its number; a user with
+// no Books access is refused as for every kind.
+func TestPDFRoute_InvoiceFollowsTheInvoiceViewRule(t *testing.T) {
+	postedInvoice := func(t *testing.T) (*postingEnv, string) {
+		t.Helper()
+		pe := newPostingEnv(t)
+		inv := pe.everyKindInvoice(t, map[string]any{"tax_rate": pe.denver.Id})
+		mustPostInvoice(t, pe.app, inv.Id, pe.users.bookkeeper.Id)
+		return pe, inv.Id
+	}
+	t.Run("a reader downloads invoice-1001.pdf", func(t *testing.T) {
+		pe, id := postedInvoice(t)
+		apiReq{
+			method:  http.MethodGet,
+			url:     "/api/books/pdf/invoice/" + id,
+			token:   tokenFor(t, pe.users.readOnly),
+			want:    http.StatusOK,
+			content: []string{"%PDF-"},
+			before:  bindPDFRoutes,
+			response: func(t testing.TB, res *http.Response) {
+				want := `attachment; filename="invoice-1001.pdf"`
+				if got := res.Header.Get("Content-Disposition"); got != want {
+					t.Errorf("Content-Disposition = %q, want %q", got, want)
+				}
+			},
+		}.run(t, pe.app)
+	})
+	t.Run("no Books access is refused", func(t *testing.T) {
+		pe, id := postedInvoice(t)
+		pdfReq(t, pe.app, "/api/books/pdf/invoice/"+id, tokenFor(t, pe.users.none), http.StatusForbidden)
+	})
+	t.Run("an invoice the view rule hides is not found", func(t *testing.T) {
+		pe, id := postedInvoice(t)
+		col, err := pe.app.FindCollectionByNameOrId("books_invoices")
+		if err != nil {
+			t.Fatalf("find: %v", err)
+		}
+		rule := `id = "never"`
+		col.ViewRule = &rule
+		if err := pe.app.Save(col); err != nil {
+			t.Fatalf("save rule: %v", err)
+		}
+		pdfReq(t, pe.app, "/api/books/pdf/invoice/"+id, tokenFor(t, pe.users.readOnly), http.StatusNotFound)
+	})
+}
+
 func TestSampleDocument_UsesTheCompanySettingsAndAddsUp(t *testing.T) {
 	app := newBooksApp(t)
 	settings, err := app.FindRecordById("books_settings", settingsID)

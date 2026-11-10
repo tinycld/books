@@ -24,7 +24,7 @@ import {
 import { invoiceLineWriteSteps } from '../lib/invoice-line-order'
 import { INVOICE_LINE_COLUMNS, INVOICE_LINE_MAPPER, INVOICE_ROW_KINDS } from '../lib/invoice-lines'
 import { invoiceRefusalTarget, labelledLineRefusal } from '../lib/invoice-messages'
-import { invoiceHref, invoiceNewHref } from '../lib/invoice-routes'
+import { type DocumentTab, invoiceHref, invoiceNewHref } from '../lib/invoice-routes'
 import { invoiceTaxOf } from '../lib/invoice-tax'
 import { invoiceLinesForSave } from '../lib/invoice-values'
 import { refusalMessage } from '../lib/record-refusals'
@@ -212,12 +212,30 @@ function useUndoInsert() {
 // the refusal, and its next save updates this invoice instead of inserting another.
 type Written = { id: string; rows: TableRow[] }
 
+type InvoiceSaveOptions = {
+    // The tab a draft saved from `new` opens on (default the form): a save from the PDF
+    // tab shows the PDF.
+    tab?: DocumentTab
+    // A save ended with an error under a field: the form's own check refused it, or the
+    // server's refusal names a field or a line.
+    onFieldErrors?: () => void
+}
+
+// Whether a field the form shows holds an error now. Read through `getFieldState`, which
+// reads the form's current errors, not the last render's (lesson 17): this runs right
+// after `setError` or a validation, before any render.
+function hasFieldErrors(state: InvoiceFormState): boolean {
+    const keys = state.definition?.fields.map(f => f.key) ?? []
+    return keys.some(key => state.form.getFieldState(key).invalid)
+}
+
 /**
  * Save draft, Post and Post & new on the invoice form.
  *
  * - A new invoice inserts its row, then its lines one at a time; a refused line deletes
  *   the new invoice again and the form stays new, with the refusal under that line.
- *   Save draft then replaces the route with the draft's own.
+ *   Save draft then replaces the route with the draft's own, on the tab it was saved
+ *   from.
  * - A saved draft writes its dirty columns and its line plan and stays.
  * - Post writes the draft as above, then sets `status: 'posted'`. The save store holds
  *   the invoice from before the first write until the post settles, so the optimistic
@@ -229,7 +247,7 @@ type Written = { id: string; rows: TableRow[] }
  * The empty trailing Item line is dropped before the form validates (spec: dropped at
  * save); Post validates with the `post` mode of the record schema, which adds its rule.
  */
-export function useInvoiceSave(state: InvoiceFormState) {
+export function useInvoiceSave(state: InvoiceFormState, options: InvoiceSaveOptions = {}) {
     const [invoicesCollection] = useStore('books_invoices')
     const orgHref = useOrgHref()
     const surfaceRef = useRef<ViewInstance>(null)
@@ -243,10 +261,25 @@ export function useInvoiceSave(state: InvoiceFormState) {
     const [written, setWritten] = useState<Written | null>(null)
     const onError = state.isNew ? state.create.onError : state.edit.onError
 
-    const refuse = (refused: Refused) => {
-        if (isPresent()) showRefusal(state, onError, refused)
-        else showClosedRefusal(onError, refused)
+    // The one place that tells the screen a save left an error under a field.
+    const reportFieldErrors = () => {
+        if (hasFieldErrors(state)) options.onFieldErrors?.()
     }
+
+    const refuse = (refused: Refused) => {
+        if (!isPresent()) {
+            showClosedRefusal(onError, refused)
+            return
+        }
+        showRefusal(state, onError, refused)
+        reportFieldErrors()
+    }
+
+    // A post from `new` opens the read view on its first tab; a draft keeps the tab it was
+    // saved from. (A saved draft posted in place keeps its URL, so its read view opens on
+    // the tab the post was made from.)
+    const savedHref = (id: string, mode: SaveMode) =>
+        orgHref(invoiceHref(id, mode.post ? 'edit' : options.tab))
 
     const release = (id: string) => useInvoiceSaveStore.getState().release(id)
 
@@ -263,7 +296,7 @@ export function useInvoiceSave(state: InvoiceFormState) {
     const navigateAfter = (id: string, mode: SaveMode) => {
         if (!isPresent()) return
         if (mode.andNew) router.replace(orgHref(postAndNewHref(state.openedWithCustomer)))
-        else if (state.isNew) router.replace(orgHref(invoiceHref(id)))
+        else if (state.isNew) router.replace(savedHref(id, mode))
     }
 
     // The new form's values are now stored: they become its baseline, and its next save
@@ -317,7 +350,7 @@ export function useInvoiceSave(state: InvoiceFormState) {
             state.create.form.reset(state.create.form.getValues())
             navigateAfter(id, mode)
         },
-        onError: (error, { id, rows, progress }) => {
+        onError: (error, { id, rows, mode, progress }) => {
             // The draft is written and its post was refused: it stays, and the refusal
             // shows on this form, whose next save updates it.
             if (progress.drafted) {
@@ -330,7 +363,7 @@ export function useInvoiceSave(state: InvoiceFormState) {
             // Save on this new form would insert the invoice again.
             if (progress.inserted && !progress.undone) {
                 showClosedRefusal(onError, { error, rowLabel: progress.rowLabel })
-                if (isPresent()) router.replace(orgHref(invoiceHref(id)))
+                if (isPresent()) router.replace(savedHref(id, mode))
                 return
             }
             // Nothing is stored: the new form stays with the refusal where it belongs,
@@ -470,7 +503,10 @@ export function useInvoiceSave(state: InvoiceFormState) {
             // record schema reads the mode when it runs.
             if (mode.post) state.saveMode.current = 'post'
             try {
-                return await startSave(mode)
+                const started = await startSave(mode)
+                // Not started: the form's own check refused it (or nothing changed).
+                if (!started) reportFieldErrors()
+                return started
             } finally {
                 state.saveMode.current = 'draft'
             }

@@ -20,6 +20,30 @@ export interface PdfDownloadInput {
 }
 
 /**
+ * Fetch a printed Books document's bytes with the bearer token, as the route needs it.
+ * A refusal throws a PdfRefusalError with the server's message. The body is read as
+ * bytes; text would corrupt a PDF.
+ */
+export async function fetchPdf(kind: string, id?: string) {
+    const headers: Record<string, string> = {}
+    if (pb.authStore.token) {
+        headers.Authorization = `Bearer ${pb.authStore.token}`
+    }
+    const response = await serverFetch(pb.buildURL(pdfPath(kind, id)), {
+        method: 'GET',
+        headers,
+    })
+    if (!response.ok) {
+        const body: unknown = await response.json().catch(() => null)
+        throw new PdfRefusalError(response.status, body)
+    }
+    return {
+        bytes: new Uint8Array(await response.arrayBuffer()),
+        disposition: response.headers.get('Content-Disposition'),
+    }
+}
+
+/**
  * Download a printed Books document.
  *
  * The route needs the bearer token, so the bytes are fetched here (a browser
@@ -34,20 +58,7 @@ export function usePdfDownload() {
         // Offline is a failure to show now, not a request to hold.
         networkMode: 'always',
         mutationFn: async ({ kind, id, fallbackName }: PdfDownloadInput) => {
-            const headers: Record<string, string> = {}
-            if (pb.authStore.token) {
-                headers.Authorization = `Bearer ${pb.authStore.token}`
-            }
-            const response = await serverFetch(pb.buildURL(pdfPath(kind, id)), {
-                method: 'GET',
-                headers,
-            })
-            if (!response.ok) {
-                const body: unknown = await response.json().catch(() => null)
-                throw new PdfRefusalError(response.status, body)
-            }
-            const bytes = new Uint8Array(await response.arrayBuffer())
-            const disposition = response.headers.get('Content-Disposition')
+            const { bytes, disposition } = await fetchPdf(kind, id)
             await savePdf(bytes, pdfDownloadName(disposition, fallbackName))
         },
         onError: (error: unknown) => {

@@ -23,7 +23,7 @@ To save the customer and go back to the list, choose Save. To save it and start 
 
 The shipping address is the same as the billing address until you clear Same as billing address.
 
-To set when the customer must pay, choose Payment terms, such as Net 30. When you choose the customer on an invoice, the invoice takes its Terms from the Payment terms, and its Due date from the terms and the invoice date. If the customer has no payment terms, the invoice keeps the Due date it has.
+To set when the customer must pay, choose Payment terms, such as Net 30. When you choose the customer on an invoice, the invoice takes its Terms from the Payment terms, and its Due date from the terms and the invoice date. If the customer has no payment terms, the invoice keeps the Due date it has. To bill a customer, see [Invoices](help://books:invoices).
 
 ## Edit a customer
 

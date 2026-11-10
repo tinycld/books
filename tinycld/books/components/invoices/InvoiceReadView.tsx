@@ -7,14 +7,16 @@ import { useInvoiceReadActions } from '../../hooks/useInvoiceReadActions'
 import type { InvoiceScreenData } from '../../hooks/useInvoiceScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { stampText } from '../../lib/entry-display'
-import { invoiceHref } from '../../lib/invoice-routes'
+import { type DocumentTab, invoiceHref } from '../../lib/invoice-routes'
 import { formatMoney } from '../../lib/money'
 import { paymentTermLabel } from '../../lib/payment-terms'
 import { formatDay } from '../../lib/register-range'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
+import { DocumentTabs, TabPanel } from './DocumentTabs'
 import { InvoiceHeader } from './InvoiceHeader'
+import { InvoicePdfView } from './InvoicePdfView'
 import { InvoiceReadActions } from './InvoiceReadActions'
 import { INVOICE_READ_TRAILING_WIDTH, InvoiceReadLines } from './InvoiceReadLines'
 import { InvoiceTotals, type InvoiceTotalsView } from './InvoiceTotals'
@@ -173,19 +175,24 @@ function ReplacedByLink({ invoice }: { invoice: ReadInvoice }) {
     )
 }
 
+// The read view has no unsaved state: its PDF view never offers Save draft.
+const NO_SAVE = () => {}
+
 interface InvoiceReadViewProps {
     data: InvoiceScreenData
     invoice: ReadInvoice
+    tab: DocumentTab
 }
 
 /**
  * A posted or void invoice, read only: the header, Bill to, Email, Terms, the dates and
  * Tax, the lines with their stored amounts, the stored totals with the tax snapshot,
  * Message and Memo, the Posted by / Voided by stamps and, for a replaced original, the
- * link to its replacement. The bar's actions follow `invoiceReadActions` for the user's
- * access; their keys are in this screen's `compose` scope.
+ * link to its replacement; or, on the PDF view tab, its PDF. The bar's actions follow
+ * `invoiceReadActions` for the user's access; their keys are in this screen's `compose`
+ * scope.
  */
-export function InvoiceReadView({ data, invoice }: InvoiceReadViewProps) {
+export function InvoiceReadView({ data, invoice, tab }: InvoiceReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useInvoiceReadActions(invoice, data.canWrite)
@@ -201,6 +208,8 @@ export function InvoiceReadView({ data, invoice }: InvoiceReadViewProps) {
     const voided = stampText(invoice.voidedBy?.name, invoice.voided_at)
     const voidedText = voided ? `Voided by ${voided}` : ''
     const title = `Invoice ${invoice.number}`
+    const isDetailsTab = tab === 'edit'
+    const isPdfTab = tab === 'pdf'
     return (
         <ScopeProvider owner={scopeOwner}>
             <View testID="invoice-read-only" className="flex-1 bg-background">
@@ -211,32 +220,44 @@ export function InvoiceReadView({ data, invoice }: InvoiceReadViewProps) {
                         status={invoice.status}
                         balanceDue={totals.balance}
                     />
-                    <ReadBand
-                        isPhone={isPhone}
-                        customer={customerName}
-                        billTo={billTo}
-                        email={invoice.email}
-                        terms={terms}
-                        date={date}
-                        due={due}
-                        tax={tax}
-                    />
-                    <InvoiceReadLines
-                        lines={data.lines}
-                        currency={data.currency}
-                        isPhone={isPhone}
-                    />
-                    <ReadFooter
-                        isPhone={isPhone}
-                        totals={totals}
-                        message={invoice.message}
-                        memo={invoice.memo}
-                    />
-                    <View className="gap-1">
-                        <Stamp testID="invoice-posted-by" text={postedText} />
-                        <Stamp testID="invoice-voided-by" text={voidedText} />
-                        <ReplacedByLink invoice={invoice} />
-                    </View>
+                    <DocumentTabs selected={tab} firstLabel="Details" scopeOwner={scopeOwner} />
+                    <TabPanel isVisible={isDetailsTab}>
+                        <ReadBand
+                            isPhone={isPhone}
+                            customer={customerName}
+                            billTo={billTo}
+                            email={invoice.email}
+                            terms={terms}
+                            date={date}
+                            due={due}
+                            tax={tax}
+                        />
+                        <InvoiceReadLines
+                            lines={data.lines}
+                            currency={data.currency}
+                            isPhone={isPhone}
+                        />
+                        <ReadFooter
+                            isPhone={isPhone}
+                            totals={totals}
+                            message={invoice.message}
+                            memo={invoice.memo}
+                        />
+                        <View className="gap-1">
+                            <Stamp testID="invoice-posted-by" text={postedText} />
+                            <Stamp testID="invoice-voided-by" text={voidedText} />
+                            <ReplacedByLink invoice={invoice} />
+                        </View>
+                    </TabPanel>
+                    <TabPanel isVisible={isPdfTab}>
+                        <InvoicePdfView
+                            invoiceId={invoice.id}
+                            version={invoice.updated}
+                            isDirty={false}
+                            isSaving={false}
+                            onSaveDraft={NO_SAVE}
+                        />
+                    </TabPanel>
                 </ScrollView>
                 <InvoiceReadActions
                     actions={read.actions}
