@@ -1,0 +1,20 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "opened",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "actions": [
+                { "clickText": "Balance Sheet" },
+                { "waitFor": "report-table" },
+                { "waitForHidden": "Updating…" },
+                { "clickText": "1000 Business Checking" },
+                { "waitForHidden": "Updating…" },
+                { "pause": 1500 }
+            ],
+            "height": 1700
+        }
+    ]
+}
