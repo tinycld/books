@@ -9,18 +9,42 @@ import type { TableRowMapper } from '@tinycld/core/lib/forms/table-rows'
 import type { BooksInvoiceLines } from '../types'
 import { centsToText, parseMoney } from './money-text'
 
-// A column is required only when every kind that draws it requires it (core checks a
-// column's flag for each kind that draws it). So `description` is not required here: an
-// item may leave it blank, and a description line's own need is the server's
-// "Description is required" and the invoice form's check.
+// No column is required table-wide: each row kind lists the cells it needs in its own
+// `required` (INVOICE_ROW_KINDS), which core checks on the client and the server. No
+// column carries a bound either: `invoiceSchema` owns the quantity and description
+// bounds, so a cell shows one message, and counts text in code points as the server does.
+//
+// Each wide-grid slot takes its `flex` weight's share of the grid's free width (core:
+// row − row menu − gaps) and never less than its `minWidth` floor. The numeric columns
+// have floors so their cells show a whole value at the narrowest grid, a 640 px lines
+// container (548 px free): Qty "1000", Rate "1890.00", Amount its 112 px figure
+// (AMOUNT_COLUMN_WIDTH) and Tax its 44 px switch. Product and Description have no
+// floor: below the width where the floors hold, they share what the floors leave, so
+// a wide grid gives them most of its width (at 1280, Product ≥ 200 px and Description
+// ≥ 260 px) and Description stays the widest with Product next.
+//
+// Every floored column has the same floor-to-weight ratio (FLOOR_PER_WEIGHT), so all
+// floors hold, or all release, at one grid width. A footer span over a group of slots
+// (invoice-footer-layout.ts) then resolves to its slots' summed width at every width.
+const FLOOR_PER_WEIGHT = 45
+
+// A floored column's size: the floor and the weight that keeps the shared ratio.
+function floored(minWidth: number) {
+    return { minWidth, flex: minWidth / FLOOR_PER_WEIGHT }
+}
+
+// A Percent line draws its cell in the Rate slot (`columnAt`), so both share one size.
+const RATE_SIZE = floored(90)
+
 export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
     {
         key: 'product',
         label: 'Product or service',
         kind: 'text',
-        required: true,
+        required: false,
         hidden: false,
         component: 'LineProductCell',
+        flex: 5.7,
     },
     {
         key: 'description',
@@ -28,8 +52,8 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         kind: 'text',
         required: false,
         hidden: false,
-        maxLength: 4000,
         component: 'LineDescriptionCell',
+        flex: 5.9,
     },
     {
         key: 'quantity',
@@ -37,8 +61,8 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         kind: 'number',
         required: false,
         hidden: false,
-        min: 0.01,
-        max: 1000000,
+        component: 'LineQuantityCell',
+        ...floored(68),
     },
     {
         key: 'rate',
@@ -48,15 +72,17 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         hidden: false,
         component: 'LineRateCell',
         addOnSubmit: true,
+        ...RATE_SIZE,
     },
     {
         key: 'percent',
         label: 'Percent',
         kind: 'text',
-        required: true,
+        required: false,
         hidden: false,
         component: 'LinePercentCell',
         addOnSubmit: true,
+        ...RATE_SIZE,
     },
     {
         // Display only: the server writes the amount at every line write.
@@ -66,6 +92,7 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         required: false,
         hidden: false,
         component: 'LineAmountCell',
+        ...floored(112),
     },
     {
         key: 'taxable',
@@ -73,6 +100,9 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         kind: 'toggle',
         required: false,
         hidden: false,
+        // Its own cell, so a phone card shows the "Tax" label core omits for a switch.
+        component: 'LineTaxableCell',
+        ...floored(45),
     },
 ]
 
@@ -83,6 +113,7 @@ export const INVOICE_ROW_KINDS: readonly HostRowKind[] = [
         label: 'Item',
         addLabel: 'Add line',
         columns: ['product', 'description', 'quantity', 'rate', 'amount', 'taxable'],
+        required: ['product'],
         span: false,
         shortcut: 'Alt+Enter',
     },
@@ -91,6 +122,7 @@ export const INVOICE_ROW_KINDS: readonly HostRowKind[] = [
         label: 'Description',
         addLabel: 'Description line',
         columns: ['description'],
+        required: ['description'],
         span: true,
         shortcut: 'Alt+t',
     },
@@ -107,6 +139,7 @@ export const INVOICE_ROW_KINDS: readonly HostRowKind[] = [
         label: 'Percent',
         addLabel: 'Percent line',
         columns: ['product', 'description', 'percent', 'amount', 'taxable'],
+        required: ['product', 'percent'],
         span: false,
         columnAt: { percent: 'rate' },
         shortcut: 'Alt+5',
