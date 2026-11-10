@@ -37,6 +37,7 @@
   **impact:** none a user sees; a test or capture cannot locate the Post check by `invoice-line-error` (no current test does; the e2e and captures find it by its text).
   **unblock:** core gives the field error a test id (e.g. `form-field-<key>-error` on `CellError`), then Books drops `invoice-line-error` from the plan's list or maps it; the driver raises it as a small core change request (the core PR is still open on books/p2-invoice).
   **tracked in:** unit p2-invoice, checkpoint 5 (brief Decisions "Test ids")
+  **update (checkpoint 0g, 2026-11-10):** closed — core 3170c2e8 (core branch books/p2-invoice) gives a field cell's error the id `form-field-<key>-error`; the plan's `invoice-line-error` maps to core's `form-field-lines-error` (no Books element gets `invoice-line-error`; the plan file and the git-excluded scratch route still name it). `tests/e2e/invoice-form-draft.spec.ts` asserts the Post check "Add at least one product or service line" by `form-field-lines-error` with its exact text, and the form stays a new draft.
   **found by:** reviewer A and reviewer B (the implementer declared it as difference 1, not as a deferral)
   **checkpoint:** 5
 
@@ -161,6 +162,8 @@
 - cp 6 · pdf-stale-1280: the PDF page sits inside a second rounded frame; in light mode the frame is the same white as the page (a white ring around a white page); one frame, or a `bg-surface-secondary` fill, would separate them.
 - cp 6 · reviewer A NOTE 3: a draft's PDF prints the tax percent from today's rate components beside the stored `tax_total` of the last save; after an admin changes a rate, the two disagree until the draft is saved again (drafts only).
 - cp 6 · reviewer A NOTE 4: `cp6/capture.json` selects the first line's Product cell and search by test-id prefix + suffix (lesson 36); the row id is generated, so no full id exists to select; the same selector as cp4 / cp5 manifests.
+- cp 0g · Books reviewer A NOTE 1: the "stays a draft" checks after Post (URL, title, badge) are point-in-time; sound because they run after the `form-field-lines-error` assertion and the refused create returns before any navigation (`useInvoiceSave.startCreate`).
+- cp 0g · Books reviewer A NOTE 2: the red run stopped at `form-field-customer-error`, so the Post-check segment was not seen red on its own; the behavior pre-exists and the segment fails if Post mode stops adding the item-line check.
 
 ## Out-of-plan changes
 - cp 0 · core `core/ui/form/TextInput.tsx` (`inputRef`) and `core/ui/form/NumberInput.tsx` (`inputRef`, `onSubmitEditing`): a table cell registers its real input as the focus target, and the `addOnSubmit` Qty column is a NumberInput, which had no submit prop.
@@ -480,6 +483,21 @@
 - fix review: round 1 (cp6-fix-review.md): clean · rounds: 1
 - gate 3 A notes: 2 (NOTEs 3, 4), listed under Design notes
 - commit: the checkpoint 6 commit (code, tests, evidence, this ledger)
+- human: review mode C — none
+
+## Checkpoint 0g
+- origin: core task from the driver (approved by the human), closing the checkpoint 5 deferral `invoice-line-error`. Not in the plan: the runner wrote the brief (cp/cp0g.md, the cp0f header + a 0g section with its own Files block). Core branch books/p2-invoice at 5f8dcb7f (PR #463 open). Gate-3 inputs from `review-diff.mjs … 0 --repo` (core) and `… 5` (Books); both list every file as out-of-plan by Files-block mismatch; the output is unedited, the corrected list (none) is cp/cp0g-out-of-plan-note.md
+- test writer: core `core/ui/forms/__tests__/form-layout.test.tsx` (4: id `form-field-severity-error` with exact text, custom `testID` → `custom-error`, no error → no element, bare cell → no element); Books `tests/e2e/invoice-form-draft.spec.ts` (field errors of customer, due_date, lines read by `form-field-<key>-error` with `toHaveText`; the Post check on a customer + Description-line form by `form-field-lines-error`, the form stays a new draft; no new `test(...)`); red for the right reason: yes (the two guards green by design); untestable: none
+- implementer: `CellError` takes `testID`, `FieldCell` passes `${cellTestID}-error` (same derivation as `-box`); DONE; differences: none
+- test disputes: none
+- gate 1: tests unedited: yes · pass (core check 454 files / 3956 tests) · e2e Books field-error callers (invoice-form-draft, invoice-form-lines, customer-form-panel, customer-form-save, vendor-form-panel, vendor-form-save, products-services-form): 38 passed. Core specs: no core e2e asserts a field cell's error (forms-builder's `data-testid^="form-field-"` filter matches whole ids only; its `alert` assertions are not field cells), so none run
+- gate 2: n/a (logic)
+- gate 3 A (correctness, core): 0 BLOCK, 0 NOTE · Books reviewer A (e2e diff): 0 BLOCK · NOTEs 1–2 → Design notes · NOTE 3 (plan and scratch route still name `invoice-line-error`) → the mapping is recorded in the closed deferral
+- gate 3 B (conformance, core): script lines: 0 · 0 findings
+- fix review: n/a (no fix round) · rounds: 0
+- reviewer-caught deferrals: none
+- deferral closed: `invoice-line-error` (see Deferrals)
+- commit: core 3170c2e8 on books/p2-invoice; Books: the e2e spec and this ledger
 - human: review mode C — none
 
 ## Final review

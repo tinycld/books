@@ -245,14 +245,34 @@ test.describe('invoice-form: draft invoice', () => {
         await page.getByTestId('form-input-due_date').fill(yesterday.toISOString().slice(0, 10))
 
         await page.keyboard.press('ControlOrMeta+s')
-        await expect(page.getByTestId('form-field-customer')).toContainText('Customer is required')
-        await expect(page.getByTestId('form-field-due_date')).toContainText(
+        await expect(page.getByTestId('form-field-customer-error')).toHaveText(
+            'Customer is required'
+        )
+        await expect(page.getByTestId('form-field-due_date-error')).toHaveText(
             'The due date cannot be before the invoice date'
         )
         // The empty trailing Item line was dropped before validation.
-        await expect(page.getByTestId('form-field-lines')).toContainText('Lines is required')
+        await expect(page.getByTestId('form-field-lines-error')).toHaveText('Lines is required')
         await expect(page.getByText('Product or service is required')).toHaveCount(0)
         await expect(page).toHaveURL(NEW_INVOICE_URL)
+
+        // Post needs an Item line: a customer and a Description line alone are refused.
+        await pickInvoiceCustomer(page, seededCustomer().name)
+        await page.getByTestId('form-table-lines-add-more').click()
+        await page.getByTestId('form-table-lines-add-description').click()
+        await expect(lineRows(page)).toHaveCount(1)
+        const descriptionRow = await lineRowId(page, 0)
+        await page
+            .getByTestId(lineCellTestId(descriptionRow, 'description'))
+            .fill('Site survey notes')
+        await page.getByTestId('invoice-post').click()
+        await expect(page.getByTestId('form-field-lines-error')).toHaveText(
+            'Add at least one product or service line'
+        )
+        await expect(page.getByTestId('form-field-customer-error')).toHaveCount(0)
+        await expect(page).toHaveURL(NEW_INVOICE_URL)
+        await expect(page.getByTestId('invoice-title')).toHaveText('New invoice')
+        await expect(page.getByTestId('invoice-badge')).toHaveText('Draft')
 
         const dialog = page.getByTestId('discard-dialog')
         await page.getByTestId('invoice-cancel').click()
