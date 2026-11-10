@@ -1,9 +1,9 @@
 import { ButtonText, ServerActionButton } from '@tinycld/core/ui/button'
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { FormErrorSummary, SelectInput, TextInput, useController } from '@tinycld/core/ui/form'
-import { Text, View } from 'react-native'
+import { useRef } from 'react'
+import { Text, type TextInputInstance, View } from 'react-native'
 import { useAgencyDialog } from '../../hooks/useAgencyDialog'
-import { useFocusOnOpen } from '../../hooks/useFocusOnOpen'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { NO_LIABILITY_ACCOUNT } from '../../lib/tax-messages'
 import { DialogLoadError } from './DialogLoadError'
@@ -64,7 +64,7 @@ function NoAccountNote({ isVisible, dialog }: AccountPartProps) {
 
 export function AgencyDialog({ id }: { id: string | null }) {
     const dialog = useAgencyDialog(id)
-    const nameFocus = useFocusOnOpen()
+    const nameRef = useRef<TextInputInstance>(null)
     const { errors } = dialog.form.formState
     // A close while the save runs would drop its refusal with the form.
     const close = () => {
@@ -75,14 +75,21 @@ export function AgencyDialog({ id }: { id: string | null }) {
     const showsSelect = dialog.hasLiabilityAccount && !dialog.loadFailed
     const showsNoAccountNote = !dialog.hasLiabilityAccount && !dialog.loadFailed
     return (
-        <Dialog isOpen onClose={close} title={dialog.title} size="md" testID="tax-agency-dialog">
+        <Dialog
+            isOpen
+            onClose={close}
+            title={dialog.title}
+            size="md"
+            initialFocusRef={nameRef}
+            testID="tax-agency-dialog"
+        >
             <Dialog.Body>
                 <TextInput
                     control={dialog.form.control}
                     name="name"
                     label="Name"
                     testID="tax-agency-form-name"
-                    inputRef={nameFocus.ref}
+                    inputRef={nameRef}
                 />
                 <AccountSelect isVisible={showsSelect} dialog={dialog} />
                 <NoAccountNote isVisible={showsNoAccountNote} dialog={dialog} />

@@ -1,15 +1,11 @@
 import { type RefObject, useEffect, useRef } from 'react'
 import type { TextInputInstance } from 'react-native'
 
-// An element focused when it opens: the first input of a dialog, or the select-all box of
-// the bank import's Choose step. An `autoFocus` prop fires while a dialog's layer is still
-// mounting and loses the focus to it, so the focus waits one frame, as core PromptDialog's
-// does. With `isEnabled` false (a phone layout) nothing is focused. On native a view's
-// `focus` does nothing.
-//
-// For a text input pass the ref as core TextInput's `inputRef`
-// (`inputRef={nameFocus.ref}`): TextInput sets its input's `ref` from `inputRef` after
-// the props spread, so a spread `ref` never reaches the input.
+// An element outside a dialog focused when it opens: the select-all box of the bank
+// import's Choose step. The focus waits one frame, so the step has mounted. With
+// `isEnabled` false (a phone layout) nothing is focused. On native a view's `focus` does
+// nothing. A dialog's first input uses core Dialog's `initialFocusRef` instead: core
+// focuses the dialog's first focusable when it opens, unless that ref names another.
 export function useFocusOnOpen<T extends { focus(): void } = TextInputInstance>(
     isEnabled = true
 ): { ref: RefObject<T | null> } {
