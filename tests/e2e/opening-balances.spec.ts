@@ -240,6 +240,46 @@ function amount(page: Page, id: string) {
     return page.getByTestId(`opening-amount-${id}`)
 }
 
+function mountedAmounts(page: Page) {
+    return page.locator(
+        '[data-testid^="opening-amount-"]:not([data-testid^="opening-amount-error-"])'
+    )
+}
+
+// The grid mounts only the accounts near its scroll position (useRowWindow), and
+// other specs add accounts to the shared database (the banking specs add "Bank e2e"
+// accounts), so a seeded account can sit below the mounted rows. Scroll the last
+// mounted account to the top until the account's amount input mounts, starting
+// from the top of the grid so an account above the mounted rows is reached too. A
+// grid that ends without it fails on the poll's message.
+async function reach(page: Page, id: string) {
+    const target = amount(page, id)
+    if ((await target.count()) > 0) return
+    await mountedAmounts(page)
+        .first()
+        .evaluate(element => {
+            let node = element.parentElement
+            while (node && !['auto', 'scroll'].includes(getComputedStyle(node).overflowY)) {
+                node = node.parentElement
+            }
+            node?.scrollTo({ top: 0 })
+        })
+    await expect(page.getByTestId('opening-band-asset')).toBeAttached()
+    while ((await target.count()) === 0) {
+        // Scroll the element whose id was read: a re-render between the two calls
+        // would otherwise let `.last()` resolve to another row.
+        const lastId = await mountedAmounts(page).last().getAttribute('data-testid')
+        await page
+            .getByTestId(lastId ?? '')
+            .evaluate(element => element.scrollIntoView({ block: 'start' }))
+        await expect
+            .poll(() => mountedAmounts(page).last().getAttribute('data-testid'), {
+                message: `the grid mounted no further account on the way to ${id}`,
+            })
+            .not.toBe(lastId)
+    }
+}
+
 test.describe('opening-balances: account grid and amounts', () => {
     test('the grid lists only balance-sheet accounts', async ({ page }) => {
         await start(page, DESKTOP)
@@ -344,6 +384,7 @@ test.describe('opening-balances: account grid and amounts', () => {
         await amount(page, ids['Office Equipment']).blur()
         await expect(page.getByTestId('opening-band-subtotal-asset')).toHaveText('$5,000.00')
 
+        await reach(page, ids["Owner's Equity"])
         await amount(page, ids["Owner's Equity"]).fill('-500')
         await amount(page, ids["Owner's Equity"]).blur()
         await expect(page.getByTestId('opening-band-subtotal-equity')).toHaveText('-$500.00')
@@ -368,6 +409,7 @@ async function openPreview(page: Page) {
 }
 
 async function type(page: Page, id: string, text: string) {
+    await reach(page, id)
     await amount(page, id).fill(text)
     await amount(page, id).blur()
 }
@@ -542,6 +584,7 @@ async function reopen(page: Page) {
 }
 
 async function expectAmount(page: Page, id: string, text: string) {
+    await reach(page, id)
     await expect(amount(page, id)).toBeVisible()
     await expect(amount(page, id)).toHaveValue(text)
 }
@@ -598,6 +641,7 @@ test.describe('opening-balances: save draft and discard', () => {
 
         await saveAndSettle(page, writes)
         // A refusal of a typed account's line belongs under that account's amount.
+        await reach(page, ids['Office Equipment'])
         const lineError = page.getByTestId(`opening-amount-error-${ids['Office Equipment']}`)
         await expect(lineError).toBeVisible()
         await expect(lineError).toContainText('Lines refused')
@@ -675,9 +719,12 @@ test.describe('opening-balances: save draft and discard', () => {
         const summary = page.getByTestId('opening-error-summary')
         await expect(summary).toBeVisible()
         await expect(summary).toContainText('Line refused')
+        // Each row is mounted first, so the absence of its error is not vacuous.
+        await reach(page, ids['Office Equipment'])
         await expect(
             page.getByTestId(`opening-amount-error-${ids['Office Equipment']}`)
         ).toHaveCount(0)
+        await reach(page, ids['Company Card'])
         await expect(page.getByTestId(`opening-amount-error-${ids['Company Card']}`)).toHaveCount(0)
         await expectAmount(page, ids['Office Equipment'], '5,000.00')
         await expectAmount(page, ids['Company Card'], '1,200.00')

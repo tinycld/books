@@ -44,8 +44,16 @@ describe('searchTarget', () => {
         })
     })
 
+    it('routes an invoice hit to the invoice screen', () => {
+        expect(searchTarget('invoice:abc')).toEqual({
+            path: 'books/invoices/[id]',
+            id: 'abc',
+        })
+    })
+
     it('ignores an id it does not know', () => {
-        expect(searchTarget('invoice:1')).toBeNull()
+        expect(searchTarget('quote:1')).toBeNull()
+        expect(searchTarget('invoice:')).toBeNull()
         expect(searchTarget('account:')).toBeNull()
         expect(searchTarget('entry:')).toBeNull()
         expect(searchTarget('customer:')).toBeNull()

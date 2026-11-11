@@ -3,6 +3,7 @@ package books
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -38,8 +39,20 @@ func TestEntryTypeLabels_Parse(t *testing.T) {
 	if !reflect.DeepEqual(entryTypeLabels.Origins, wantOriginLabels) {
 		t.Errorf("origin labels = %v, want %v", entryTypeLabels.Origins, wantOriginLabels)
 	}
-	if entryTypeLabels.Transfer != "Transfer" {
-		t.Errorf("transfer label = %q, want \"Transfer\"", entryTypeLabels.Transfer)
+	if want := map[string]string{"transfer": "Transfer", "invoice": "Invoice"}; !reflect.DeepEqual(entryTypeLabels.DocTypes, want) {
+		t.Errorf("docTypes = %v, want %v", entryTypeLabels.DocTypes, want)
+	}
+	// The single "transfer" key is gone: docTypes replaces it, in the file and
+	// in the parsed set.
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &keys); err != nil {
+		t.Fatalf("parse entry_type_labels.json keys: %v", err)
+	}
+	if got := slices.Sorted(maps.Keys(keys)); !slices.Equal(got, []string{"docTypes", "origins", "reversalOrigins"}) {
+		t.Errorf("entry_type_labels.json keys = %v, want docTypes, origins, reversalOrigins", got)
+	}
+	if _, ok := reflect.TypeOf(entryTypeLabels).FieldByName("Transfer"); ok {
+		t.Error("entryTypeLabelSet still has the Transfer field")
 	}
 	if want := []string{"reversal", "void_reversal", "auto_reversal"}; !slices.Equal(entryTypeLabels.ReversalOrigins, want) {
 		t.Errorf("reversalOrigins = %v, want %v", entryTypeLabels.ReversalOrigins, want)
@@ -47,7 +60,8 @@ func TestEntryTypeLabels_Parse(t *testing.T) {
 }
 
 // Every origin the entries migration allows has a label, and the table names
-// no origin the migration does not have.
+// no origin the migration does not have. Origin document has no label of its
+// own: a document's entry is named by its doc type (spec Q24).
 func TestEntryTypeLabels_CoverEveryOrigin(t *testing.T) {
 	app := newBooksApp(t)
 	col, err := app.FindCollectionByNameOrId("books_journal_entries")
@@ -59,7 +73,7 @@ func TestEntryTypeLabels_CoverEveryOrigin(t *testing.T) {
 		t.Fatal("books_journal_entries.origin is not a select field")
 	}
 	for _, origin := range field.Values {
-		if entryTypeLabels.Origins[origin] == "" {
+		if origin != "document" && entryTypeLabels.Origins[origin] == "" {
 			t.Errorf("origin %q has no label", origin)
 		}
 	}
@@ -75,5 +89,23 @@ func TestEntryTypeLabels_CoverEveryOrigin(t *testing.T) {
 	}
 	if len(field.Values) == 0 {
 		t.Fatal("the migration lists no origins")
+	}
+}
+
+// The report sources' doc_type options take their labels from docTypes, not
+// from a copy: a changed label in the table changes the option.
+func TestEntryDocTypeOptions_ReadDocTypes(t *testing.T) {
+	saved := entryTypeLabels.DocTypes
+	defer func() { entryTypeLabels.DocTypes = saved }()
+	entryTypeLabels.DocTypes = map[string]string{"transfer": "Transfer (table)", "invoice": "Invoice (table)"}
+
+	got := map[string]string{}
+	for _, o := range entryDocTypeOptions() {
+		got[o.Value] = o.Label
+	}
+	for docType, want := range entryTypeLabels.DocTypes {
+		if got[docType] != want {
+			t.Errorf("doc_type option %q label = %q, want the table's %q", docType, got[docType], want)
+		}
 	}
 }

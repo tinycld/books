@@ -5,12 +5,14 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { materialize } from 'pbtsdb'
 import type { TaxOptionAgency, TaxOptionRate } from '../lib/tax-rate-options'
+import type { BooksTaxRates } from '../types'
 
 // The rows a record form's sales tax picker offers: every rate and group, inactive ones
 // too, so a stored inactive choice can still be shown, each rate with its agency for the
-// headings. Tens of rows: the whole collection loads.
+// headings. Tens of rows: the whole collection loads. Each row keeps `is_default`, which
+// a new invoice's Tax starts from.
 export function useTaxRateOptions(): {
-    rows: TaxOptionRate[]
+    rows: (TaxOptionRate & Pick<BooksTaxRates, 'is_default'>)[]
     agencies: TaxOptionAgency[]
     isReady: boolean
     isError: boolean

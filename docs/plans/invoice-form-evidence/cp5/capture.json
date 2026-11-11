@@ -1,0 +1,327 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "errors-post",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-table-lines-add-more" },
+                { "clickText": "Description line" },
+                { "clickCss": "[data-testid^=\"form-table-lines-menu-\"] >> nth=0" },
+                { "clickText": "Remove" },
+                { "pause": 300 },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-description\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "Site survey notes for the lobby and the east wing."
+                },
+                { "click": "invoice-post" },
+                { "waitFor": "Add at least one product or service line" }
+            ]
+        },
+        {
+            "name": "errors-post-phone",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-table-lines-add-more" },
+                { "clickText": "Description line" },
+                { "clickCss": "[data-testid^=\"form-table-lines-menu-\"] >> nth=0" },
+                { "clickText": "Remove" },
+                { "pause": 300 },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-description\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "Site survey notes for the lobby and the east wing."
+                },
+                { "click": "invoice-post" },
+                { "waitFor": "Add at least one product or service line" }
+            ]
+        },
+        {
+            "name": "refusal",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1500,
+            "hideLabels": ["New"],
+            "writes": {
+                "collection": "books_invoices",
+                "answers": [400],
+                "message": "The books are closed through 2026-06-30. Ask a Books admin for a close-date override to post on 2026-06-12."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-error-summary" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "refusal-phone",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 1600,
+            "hideLabels": ["New"],
+            "writes": {
+                "collection": "books_invoices",
+                "answers": [400],
+                "message": "The books are closed through 2026-06-30. Ask a Books admin for a close-date override to post on 2026-06-12."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-error-summary" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280],
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [390],
+            "height": 2800,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280, 390],
+            "height": 1300,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "pushPath": "/a/books/invoices/new?replaces=$urlId" },
+                { "waitFor": "invoice-replace-note" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "void-dialog",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280],
+            "opaque": "void-dialog",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "click": "invoice-read-void" },
+                { "waitFor": "void-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "void-dialog-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [390],
+            "opaque": "void-dialog",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "click": "invoice-read-more" },
+                { "click": "invoice-read-void" },
+                { "waitFor": "void-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "void",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1300,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "click": "invoice-read-void" },
+                { "click": "void-confirm" },
+                { "waitFor": "invoice-voided-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "void-phone",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 2200,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "click": "invoice-read-more" },
+                { "click": "invoice-read-void" },
+                { "click": "void-confirm" },
+                { "waitFor": "invoice-voided-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "widths": [1280, 390],
+            "height": 1100,
+            "hideLabels": ["New", "Reconnecting…"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280, 390],
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "invoice-save-draft" },
+                { "waitFor": "Draft invoice" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/invoices/new?replaces=$urlId" },
+                { "waitFor": "invoice-cannot-edit" }
+            ]
+        }
+    ]
+}

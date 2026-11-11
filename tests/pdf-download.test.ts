@@ -15,6 +15,10 @@ describe('pdfPath', () => {
         expect(pdfPath('invoice', 'abc123')).toBe('/api/books/pdf/invoice/abc123')
     })
 
+    it('builds the invoice route', () => {
+        expect(pdfPath('invoice', 'abc')).toBe('/api/books/pdf/invoice/abc')
+    })
+
     it('encodes each segment', () => {
         expect(pdfPath('a/b', 'c d')).toBe('/api/books/pdf/a%2Fb/c%20d')
     })
@@ -23,6 +27,8 @@ describe('pdfPath', () => {
 describe('pdfFileName', () => {
     it.each([
         ['sample-invoice', 'sample-invoice.pdf'],
+        ['invoice-1001', 'invoice-1001.pdf'],
+        ['draft-invoice', 'draft-invoice.pdf'],
         ['Invoice 1042/"x"', 'invoice-1042-x.pdf'],
         ['../..', 'document.pdf'],
         ['Café Ltd', 'café-ltd.pdf'],

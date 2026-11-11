@@ -59,7 +59,21 @@ type taxRateReference struct {
 // document cannot be deleted either. Without a refusal PocketBase's own delete
 // cleanup would drop the rate from each row, and for a group that either
 // shrinks it silently or fails its two-rate minimum with an unrelated message.
-var taxRateReferences = []taxRateReference{groupComponents}
+var taxRateReferences = []taxRateReference{
+	groupComponents,
+	{collection: "books_invoices", field: "tax_rate", message: rateOnInvoicesMessage},
+	// A posted invoice's tax lines name each component of its group, so a
+	// component cannot go while the snapshot names it.
+	{collection: "books_invoice_tax_lines", field: "component", message: rateOnInvoicesMessage},
+}
+
+const msgRateOnInvoices = "This tax rate is on invoices. Make it inactive instead."
+
+// rateOnInvoicesMessage is the delete refusal of a rate on any invoice, draft or
+// posted, as its header rate or one of its tax lines' components.
+func rateOnInvoicesMessage(core.App, []string) (string, error) {
+	return msgRateOnInvoices, nil
+}
 
 // groupComponents is the groups' rates. checkTaxRateInactive reads it too, so
 // it does not depend on where it sits in taxRateReferences.

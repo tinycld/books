@@ -15,6 +15,7 @@ import type {
     RunResult,
 } from '@tinycld/core/reports/lib/types'
 import type { BooksJournalEntries } from '../types'
+import { entryTypeLabel } from './register'
 import { SEED_ACCOUNTS } from './seed-accounts'
 
 export const JOURNAL_TITLE = 'Journal'
@@ -33,16 +34,6 @@ export const JOURNAL_PARAMS: ParamDef[] = [
         default: { preset: 'thisMonthToDate' },
     },
 ]
-
-// The register's type labels (server/entry_type_labels.json); a reversal names the
-// entry it reverses.
-const ORIGIN_LABELS: Record<BooksJournalEntries['origin'], string> = {
-    manual: 'Journal entry',
-    reversal: 'Reversal',
-    void_reversal: 'Void reversal',
-    auto_reversal: 'Auto reversal',
-    opening_balance: 'Opening balances',
-}
 
 // Not a seeded account: the one account with no number, so the Account column shows
 // the full name alone (§3 Account).
@@ -94,9 +85,10 @@ export interface JournalBlock {
     lines: JournalLine[]
 }
 
+// The register's type label (lib/register.ts, a copy of server/entry_type_labels.json);
+// a reversal names the entry it reverses.
 export function entryHeading(entry: EntryInput): string {
-    const base = entry.doc_type === 'transfer' ? 'Transfer' : ORIGIN_LABELS[entry.origin]
-    const type = entry.reversesNumber ? `${base} of ${entry.reversesNumber}` : base
+    const type = entryTypeLabel(entry.origin, entry.reversesNumber ?? '', entry.doc_type)
     return entry.number ? `${entry.number} · ${type}` : type
 }
 

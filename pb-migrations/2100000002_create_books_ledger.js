@@ -13,6 +13,13 @@
 // and replaces are fixed once the entry exists; a transfer is an entry with
 // doc_type 'transfer' and two lines (server/transfers.go).
 //
+// DOCUMENT ENTRIES. An entry with origin 'document' is the posting of a sales
+// or purchase document (doc_type 'invoice'); document is that document's id.
+// Only the document's Go hooks create, post and void such an entry, so
+// document is server-owned and origin 'document' is not among the origins a
+// client may create. A client creates no entry with doc_type 'invoice' either:
+// a manual one would post and take a number from the invoice sequence.
+//
 // A client creates only drafts, with origin manual, reversal or
 // opening_balance. It edits only drafts, or moves a posted entry to void. It
 // deletes only drafts.
@@ -80,6 +87,7 @@ const ENTRY_SERVER_FIELDS = [
     'created_by',
     'close_override',
     'currency',
+    'document',
 ]
 const LINE_SERVER_FIELDS = ['posted', 'date', 'currency']
 
@@ -158,15 +166,25 @@ migrate(
                         type: 'select',
                         required: true,
                         maxSelect: 1,
-                        values: ['journal', 'transfer'],
+                        values: ['journal', 'transfer', 'invoice'],
                     },
                     {
                         name: 'origin',
                         type: 'select',
                         required: true,
                         maxSelect: 1,
-                        values: ['manual', 'reversal', 'auto_reversal', 'void_reversal', 'opening_balance'],
+                        values: [
+                            'manual',
+                            'reversal',
+                            'auto_reversal',
+                            'void_reversal',
+                            'opening_balance',
+                            'document',
+                        ],
                     },
+                    // The source document's id (a books_invoices row) of an
+                    // entry with origin 'document'; server-written.
+                    { name: 'document', type: 'text', max: 15 },
                     { name: 'number', type: 'text', max: 40 },
                     { name: 'sequence', type: 'number', onlyInt: true, min: 0 },
                     { name: 'memo', type: 'text', max: 4000 },
@@ -305,7 +323,7 @@ migrate(
             books_journal_entries: {
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && @request.body.status = "draft" && (@request.body.origin = "manual" || @request.body.origin = "reversal" || @request.body.origin = "opening_balance") && ${unset(...ENTRY_SERVER_FIELDS)}`,
+                createRule: `${WRITE} && @request.body.status = "draft" && (@request.body.origin = "manual" || @request.body.origin = "reversal" || @request.body.origin = "opening_balance") && @request.body.doc_type != "invoice" && ${unset(...ENTRY_SERVER_FIELDS)}`,
                 updateRule: `${WRITE} && ${unset(...ENTRY_SERVER_FIELDS, 'origin', 'doc_type', 'reverses', 'replaces')} && (status = "draft" || (status = "posted" && @request.body.status = "void"))`,
                 deleteRule: `${WRITE} && status = "draft"`,
             },

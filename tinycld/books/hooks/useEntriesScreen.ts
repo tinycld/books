@@ -2,7 +2,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { entriesFilterActive, entriesViewState } from '../lib/entries-query'
-import { type EntryActionId, entryActions } from '../lib/entry-actions'
+import { type EntryActionId, entryActions, voidsFromDocument } from '../lib/entry-actions'
 import { entryEditHref, entryHref } from '../lib/entry-route'
 import { newEntryVisible } from '../lib/register-state'
 import { isNewActionAvailable } from '../lib/shell-nav'
@@ -39,6 +39,7 @@ export function useEntriesScreen() {
                         id: entryId,
                         doc_type: 'journal',
                         origin: 'manual',
+                        document: '',
                     }
                 )
             )
@@ -51,9 +52,18 @@ export function useEntriesScreen() {
         else onOpenEntry(entryId)
     }
 
+    // A document's entry is voided from its document (the server refuses it here), so
+    // its Void opens the document, whose own Void posts the reversal.
+    const onVoidEntry = (entryId: string) => {
+        const entry = entriesById.get(entryId)
+        if (entry && voidsFromDocument(entry)) onOpenEntry(entryId)
+        else openDialog('void', entryId)
+    }
+
     const onMenuAction = (action: EntryActionId, entryId: string) => {
         if (action === 'open') onOpenEntry(entryId)
         else if (action === 'edit') onEditEntry(entryId)
+        else if (action === 'void') onVoidEntry(entryId)
         else openDialog(action, entryId)
     }
     const menuActions = (entryId: string) => {

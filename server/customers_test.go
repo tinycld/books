@@ -739,3 +739,63 @@ func TestCustomer_TaxChecks(t *testing.T) {
 		}
 	})
 }
+
+// Q22: a customer on any invoice, draft or posted, cannot be deleted; the
+// invoice check comes before the journal-lines one.
+func TestCustomer_DeleteRefusedWhileOnInvoices(t *testing.T) {
+	wantOnInvoices := func(name string) string { return name + " is on invoices. Make it inactive instead." }
+
+	t.Run("on a draft invoice", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		cust := mkCustomer(t, env.app, "Harborview Dental", "")
+		mkInvoiceRow(t, env.app, cust, nil)
+		requireMessageOnlyRefusal(t, env.app.Delete(reload(t, env.app, "books_customers", cust.Id)),
+			wantOnInvoices("Harborview Dental"))
+		reload(t, env.app, "books_customers", cust.Id)
+	})
+
+	t.Run("on a posted invoice", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		cust := mkCustomer(t, env.app, "Northwind Traders", "")
+		mkInvoiceRow(t, env.app, cust, map[string]any{"status": "posted"})
+		requireMessageOnlyRefusal(t, env.app.Delete(reload(t, env.app, "books_customers", cust.Id)),
+			wantOnInvoices("Northwind Traders"))
+		reload(t, env.app, "books_customers", cust.Id)
+	})
+
+	t.Run("on an invoice and on journal lines gets the invoice text", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		cust := mkCustomer(t, env.app, "Alvarez Family", "")
+		mustPartyLine(t, env.app, draftEntry(t, env.app, "2026-08-04"), env.checking, 0, map[string]any{"customer": cust.Id})
+		mkInvoiceRow(t, env.app, cust, nil)
+		requireMessageOnlyRefusal(t, env.app.Delete(reload(t, env.app, "books_customers", cust.Id)),
+			wantOnInvoices("Alvarez Family"))
+		reload(t, env.app, "books_customers", cust.Id)
+	})
+
+	t.Run("on another customer's invoice only deletes", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		mkInvoiceRow(t, env.app, mkCustomer(t, env.app, "Billed Customer", ""), nil)
+		cust := mkCustomer(t, env.app, "Unused Customer", "")
+		if err := env.app.Delete(reload(t, env.app, "books_customers", cust.Id)); err != nil {
+			t.Fatalf("delete a customer on no invoice: %v", err)
+		}
+	})
+}
+
+// Q8: a customer has default payment terms, PAYMENT_TERMS keys or none.
+func TestCustomer_TermsAreStored(t *testing.T) {
+	app := newGuardedApp(t)
+	r, err := newCustomer(app, map[string]any{"display_name": "Harborview Dental", "terms": "net_30"})
+	if err != nil {
+		t.Fatalf("save a customer with Net 30: %v", err)
+	}
+	if got := reload(t, app, "books_customers", r.Id).GetString("terms"); got != "net_30" {
+		t.Errorf("terms = %q, want net_30", got)
+	}
+	if err := setCustomer(t, app, r.Id, map[string]any{"terms": ""}); err != nil {
+		t.Fatalf("clear the terms: %v", err)
+	}
+	_, err = newCustomer(app, map[string]any{"display_name": "Northwind Traders", "terms": "net_90"})
+	requireSchemaRefusal(t, err, "terms")
+}

@@ -21,7 +21,12 @@ export const LINE_BOTH_PARTIES = 'A line can name a customer or a vendor, not bo
 export const LINE_PARTY_INACTIVE = '%s is inactive. Choose an active customer or vendor.'
 export const PARTY_ON_LINES = '%s is on journal lines. Make it inactive instead.'
 
-export const ENTRY_TYPE_LABELS: Record<BooksJournalEntries['origin'], string> = {
+// Origin `document` has no label of its own: a document's entry is named by its doc
+// type (entry-display.ts).
+export const ENTRY_TYPE_LABELS: Record<
+    Exclude<BooksJournalEntries['origin'], 'document'>,
+    string
+> = {
     manual: 'Journal entry',
     reversal: 'Reversal',
     void_reversal: 'Void reversal',

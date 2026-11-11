@@ -241,6 +241,43 @@ func TestTransfer_NamesAndAuditLabels(t *testing.T) {
 	}
 }
 
+// An invoice's entry speaks of an invoice in refusals (entryName), the audit
+// log (entryLabel) and search: "Invoice 1001", "This invoice", "Draft invoice".
+func TestInvoiceEntry_NamesAndAuditLabels(t *testing.T) {
+	app := newBooksApp(t)
+	col, err := app.FindCollectionByNameOrId("books_journal_entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := func(number string) *core.Record {
+		r := core.NewRecord(col)
+		r.Set("doc_type", "invoice")
+		r.Set("origin", "document")
+		r.Set("date", "2026-11-04")
+		r.Set("number", number)
+		return r
+	}
+	if noun, this, draft := entryNouns("invoice"); [3]string{noun, this, draft} != [3]string{"Invoice", "This invoice", "Draft invoice"} {
+		t.Errorf("entryNouns(invoice) = %q, %q, %q; want Invoice, This invoice, Draft invoice", noun, this, draft)
+	}
+	cases := []struct {
+		name            string
+		entry           *core.Record
+		wantName, label string
+	}{
+		{"posted invoice entry", entry("1001"), "Invoice 1001", "Invoice 1001"},
+		{"invoice entry with no number", entry(""), "This invoice", "Draft invoice 2026-11-04"},
+	}
+	for _, tc := range cases {
+		if got := entryName(tc.entry); got != tc.wantName {
+			t.Errorf("%s: entryName = %q, want %q", tc.name, got, tc.wantName)
+		}
+		if got := entryLabel(tc.entry); got != tc.label {
+			t.Errorf("%s: entryLabel = %q, want %q", tc.name, got, tc.label)
+		}
+	}
+}
+
 func TestTransferAccountTypes_AreAccountTypes(t *testing.T) {
 	want := []string{
 		"bank", "other_current_asset", "fixed_asset", "other_asset",

@@ -22,6 +22,7 @@ import (
 // provides through its registries and never names Books.
 func Register(app *pocketbase.PocketBase) {
 	registerLedger(app)
+	registerInvoiceGuards(app)
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}

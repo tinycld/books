@@ -1,6 +1,7 @@
 import type { BooksJournalEntries } from '../types'
 import { ENTRY_TYPE_LABELS } from './entry-messages'
 import { formatMoney } from './money'
+import { DOC_TYPE_LABELS, reversalOrigins } from './register'
 import { formatDay } from './register-range'
 
 type EntryStatus = BooksJournalEntries['status']
@@ -29,12 +30,18 @@ export function entryStatusText(status: EntryStatus): string {
     return STATUS_LABELS[status]
 }
 
-// A transfer's reversal keeps doc_type 'transfer' but is labelled by its origin.
+// An entry whose doc type DOC_TYPE_LABELS names (a transfer, an invoice's entry) is
+// labelled by its doc type; a reversal keeps its doc type but is labelled by its origin.
 export function entryTypeText(
     origin: EntryOrigin,
     docType: BooksJournalEntries['doc_type'] = 'journal'
 ): string {
-    if (docType === 'transfer' && origin === 'manual') return 'Transfer'
+    const docTypeLabel = Object.hasOwn(DOC_TYPE_LABELS, docType)
+        ? DOC_TYPE_LABELS[docType]
+        : undefined
+    if (docTypeLabel && !reversalOrigins.has(origin)) return docTypeLabel
+    // Every document entry has a doc type the table names; this is only a fallback.
+    if (origin === 'document') return ENTRY_TYPE_LABELS.manual
     return ENTRY_TYPE_LABELS[origin]
 }
 

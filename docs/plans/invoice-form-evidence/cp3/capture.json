@@ -1,0 +1,476 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "height": 1100
+        },
+        {
+            "name": "filled",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for your business."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "helix capture cp3"
+                },
+                {
+                    "click": "invoice-save-draft"
+                },
+                {
+                    "waitFor": "Draft invoice"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "filled-tablet",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [911],
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for your business."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "helix capture cp3"
+                },
+                {
+                    "click": "invoice-save-draft"
+                },
+                {
+                    "waitFor": "Draft invoice"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "filled-phone",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 3600,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for your business."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "helix capture cp3"
+                },
+                {
+                    "click": "invoice-save-draft"
+                },
+                {
+                    "waitFor": "Draft invoice"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "edit-address",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280, 390],
+            "height": 1700,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "click": "invoice-edit-address"
+                },
+                {
+                    "waitFor": "form-input-email"
+                }
+            ]
+        },
+        {
+            "name": "exempt",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1200,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Northwind Traders"
+                },
+                {
+                    "clickMenuItem": "Northwind Traders"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "no-tax",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1200,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-input-tax_rate"
+                },
+                {
+                    "clickMenuItem": "None"
+                },
+                {
+                    "waitForHidden": "invoice-total-tax"
+                }
+            ]
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                {
+                    "fill": "form-input-due_date",
+                    "value": "2020-01-01"
+                },
+                {
+                    "click": "invoice-save-draft"
+                },
+                {
+                    "waitFor": "The due date cannot be before the invoice date"
+                }
+            ]
+        },
+        {
+            "name": "errors-phone",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 3200,
+            "actions": [
+                {
+                    "fill": "form-input-due_date",
+                    "value": "2020-01-01"
+                },
+                {
+                    "click": "invoice-save-draft"
+                },
+                {
+                    "waitFor": "The due date cannot be before the invoice date"
+                }
+            ]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-no-access",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/invoices/doesnotexist000",
+            "ready": "invoice-not-found"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/invoices/doesnotexist000",
+            "ready": "invoice-loading",
+            "fakeRecords": {
+                "collection": "books_invoices",
+                "hold": true
+            }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/invoices/doesnotexist000",
+            "ready": "invoice-error",
+            "fakeRecords": {
+                "collection": "books_invoices",
+                "status": 400
+            }
+        }
+    ]
+}

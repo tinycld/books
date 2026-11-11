@@ -168,11 +168,13 @@ func accountTypeSelectOptions() []reports.Option {
 
 // entryDocTypeOptions are the entry document types, in the migration's select
 // order (report_sources_test.go compares the two), labelled as a reader sees
-// them in the register.
+// them in the register (entry_type_labels.json; a journal entry has no doc type
+// label of its own, so it reads the manual origin's).
 func entryDocTypeOptions() []reports.Option {
 	return []reports.Option{
 		{Value: docTypeJournal, Label: entryTypeLabels.Origins["manual"]},
-		{Value: docTypeTransfer, Label: entryTypeLabels.Transfer},
+		{Value: docTypeTransfer, Label: entryTypeLabels.DocTypes[docTypeTransfer]},
+		{Value: docTypeInvoice, Label: entryTypeLabels.DocTypes[docTypeInvoice]},
 	}
 }
 

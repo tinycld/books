@@ -1,4 +1,4 @@
-import { Dialog } from '@tinycld/core/ui/dialog'
+import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
 import { Text } from 'react-native'
 
 interface DiscardDialogProps {
@@ -34,6 +34,7 @@ export function DiscardDialog({
                     onPress={onDiscard}
                     isDestructive
                     requiresServer={false}
+                    shortcut={DIALOG_SUBMIT_SHORTCUT}
                     testID="discard-confirm"
                 />
             </Dialog.Footer>
