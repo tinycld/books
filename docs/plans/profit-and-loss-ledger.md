@@ -151,6 +151,7 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 0 to Design notes (NOTE 1 fixed, NOTE 2 settled by D13)
 - reviewer-caught deferrals: 1 (B: three topics) — not a deferral; the test writer had declared it as a dispute; resolved by plan D13 and fix item 1
 - plan amended: D13 and checkpoint 3's Topics bullet (`docs/plans/profit-and-loss-checkpoints.md`); plan-check 0 errors
+- commit: be20660
 
 ## Final review
 - eval:
