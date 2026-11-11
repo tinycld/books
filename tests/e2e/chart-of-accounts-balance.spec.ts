@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     accountItem,
@@ -7,6 +7,7 @@ import {
     DESKTOP,
     openChart,
 } from './account-register-helpers'
+import { openEntriesFromSidebar } from './books-report-helpers'
 import { ACCOUNT_LABELS, createPostedEntry } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
 
@@ -17,15 +18,6 @@ import { uniqueName } from './record-form-helpers'
 // account is left in place: an account with posted lines is part of the ledger.
 
 const MONEY = /-?\$[\d,]+\.\d{2}/
-
-async function openEntriesFromSidebar(page: Page) {
-    const item = page.getByTestId('books-nav-entries')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await expect(toggle).toBeVisible()
-    if (!(await item.isVisible())) await toggle.click()
-    await item.click()
-    await expect(page.getByTestId('entries-screen')).toBeVisible()
-}
 
 test.describe('chart-of-accounts: balance matches the register', () => {
     test("an account's chart balance equals its register ending balance", async ({ page }) => {

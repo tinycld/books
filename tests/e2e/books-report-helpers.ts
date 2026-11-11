@@ -1,5 +1,12 @@
 import { expect, type Page } from '@playwright/test'
-import { hubRow, navigateToPackage, rowOf } from '@tinycld/core/e2e-helpers'
+import {
+    authStorageKey,
+    chooseParamOption,
+    hubRow,
+    navigateToPackage,
+    rowOf,
+} from '@tinycld/core/e2e-helpers'
+import { PROFIT_AND_LOSS_TITLE } from '~/tinycld/books/lib/profit-and-loss-fixture'
 import { isPhone } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
@@ -47,6 +54,60 @@ export function browserToday(page: Page): Promise<string> {
         const pad = (value: number) => String(value).padStart(2, '0')
         return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
     })
+}
+
+// The entries list from the Books sidebar: the chart has no way to it, and postEntryOn /
+// openNewEntry expect the list, an entry or the Lists hub on screen.
+export async function openEntriesFromSidebar(page: Page): Promise<void> {
+    const item = page.getByTestId('books-nav-entries')
+    const toggle = page.getByTestId('books-nav-accounting-toggle')
+    await expect(toggle).toBeVisible()
+    if (!(await item.isVisible())) await toggle.click()
+    await item.click()
+    await expect(page.getByTestId('entries-screen')).toBeVisible()
+}
+
+// Polls `take` (one report snapshot, e.g. glSnapshot) until `isReady` holds and returns
+// that snapshot, so every later assertion reads the same single snapshot.
+export async function snapshotWhen<T>(
+    page: Page,
+    take: (page: Page) => Promise<T>,
+    isReady: (snapshot: T) => boolean,
+    message: string
+): Promise<T> {
+    const last: { snapshot: T | undefined } = { snapshot: undefined }
+    await expect
+        .poll(
+            async () => {
+                last.snapshot = await take(page)
+                return isReady(last.snapshot)
+            },
+            { message }
+        )
+        .toBe(true)
+    if (last.snapshot === undefined) throw new Error(message)
+    return last.snapshot
+}
+
+// The heading core's document header prints (useReportView headingOf): the Books business
+// name, else the organization's name. Read-only: books-settings.spec.ts types over the
+// business name and restores it on the shared DB, so it is read when compared.
+export async function expectedHeading(page: Page): Promise<string> {
+    const key = await authStorageKey(page)
+    const token = await page.evaluate(
+        k => (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? '',
+        key
+    )
+    const settings = await page.request.get(
+        '/api/collections/books_settings/records/bookssettings01',
+        { headers: { Authorization: token } }
+    )
+    expect(settings.ok()).toBe(true)
+    const businessName = ((await settings.json()) as { business_name?: string }).business_name
+    if (businessName?.trim()) return businessName.trim()
+    const org = await page.request.get('/api/org-info')
+    expect(org.ok()).toBe(true)
+    return (((await org.json()) as { name?: string }).name ?? '').trim()
 }
 
 // Below core's mobile breakpoint (useBreakpoint) the Books sidebar lives in the drawer.
@@ -384,4 +445,109 @@ export async function postEntryOn(
         await fillLine(page, index, line)
     }
     await postOpenEntry(page)
+}
+
+// The shipped Profit and Loss from the Books hub, reached as openJournal reaches the
+// Journal. "Profit and Loss by Month" holds "Profit and Loss", so the row is narrowed to
+// the one whose title reads "Profit and Loss" exactly.
+export async function openProfitAndLoss(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, PROFIT_AND_LOSS_TITLE)
+        .filter({ has: page.getByText(PROFIT_AND_LOSS_TITLE, { exact: true }) })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(page.getByTestId('report-table')).toBeVisible()
+}
+
+const ROWS_LABELS = { nonzero: 'Non-zero', active: 'Active' } as const
+
+// Sets Rows through its chip and waits until the URL holds the new value and the run
+// for it has landed. The run is awaited by its request body, so the choice must be one
+// the page has not run with these params before (React Query answers a body it has
+// cached with no request).
+export async function chooseRows(page: Page, choice: 'nonzero' | 'active'): Promise<void> {
+    const landed = page.waitForResponse(response => {
+        if (!response.url().includes('/api/reports/run') || !response.ok()) return false
+        const body = response.request().postDataJSON() as { params?: { rows?: string } } | null
+        return (body?.params?.rows ?? 'nonzero') === choice
+    })
+    await chooseParamOption(page, 'rows', { from: 'chip', labels: [ROWS_LABELS[choice]] })
+    await expect
+        .poll(() => new URL(page.url()).searchParams.get('p-rows') ?? 'nonzero')
+        .toBe(choice)
+    await landed
+    await expect(page.getByTestId('report-param-rows')).toContainText(ROWS_LABELS[choice])
+}
+
+export type PlSnapshot = {
+    // The first text line of the document header: the Books business name.
+    business: string
+    title: string
+    // The period the document header prints (report-document-period).
+    header: string
+    // Each column heading's text by column id (report-heading-<col>).
+    headings: Record<string, string>
+    rows: {
+        id: string
+        kind: 'group' | 'detail' | 'subtotal' | 'computed'
+        label: string
+        // Each cell's text by column id.
+        cells: Record<string, string>
+    }[]
+}
+
+// The document header, the column headings and every mounted row of the report table, top
+// to bottom, with every cell, read in ONE pass so no re-render lands between two reads.
+// The row kind comes from core's row id: g: a section or an account, d: a line, s: a
+// section's total, c: a computed row.
+export function plSnapshot(page: Page): Promise<PlSnapshot> {
+    return page.evaluate(() => {
+        const text = (testId: string) =>
+            (
+                document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null
+            )?.innerText.trim() ?? ''
+        const table = document.querySelector('[data-testid="report-table"]')
+        const headings: Record<string, string> = {}
+        for (const heading of document.querySelectorAll('[data-testid^="report-heading-"]')) {
+            const id = (heading.getAttribute('data-testid') ?? '').slice('report-heading-'.length)
+            if (id === 'row') continue
+            headings[id] = (heading as HTMLElement).innerText.trim()
+        }
+        const cells = new Map<string, Record<string, string>>()
+        for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {
+            const rest = (cell.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
+            const dash = rest.indexOf('-')
+            const column = rest.slice(0, dash)
+            const id = rest.slice(dash + 1)
+            const row = cells.get(id) ?? {}
+            row[column] = (cell as HTMLElement).innerText.trim()
+            cells.set(id, row)
+        }
+        const kindOf = (id: string): PlSnapshot['rows'][number]['kind'] | null => {
+            if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('d:')) return 'detail'
+            if (id.startsWith('s:')) return 'subtotal'
+            if (id.startsWith('c:')) return 'computed'
+            return null
+        }
+        const rows: PlSnapshot['rows'] = []
+        const labels = [...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? [])]
+            .map(element => ({
+                id: (element.getAttribute('data-testid') ?? '').slice('report-row-'.length),
+                label: (element as HTMLElement).innerText.trim(),
+                top: element.getBoundingClientRect().top,
+            }))
+            .sort((a, b) => a.top - b.top)
+        for (const { id, label } of labels) {
+            const kind = kindOf(id)
+            if (kind) rows.push({ id, kind, label, cells: cells.get(id) ?? {} })
+        }
+        return {
+            business: text('report-document-header').split('\n')[0]?.trim() ?? '',
+            title: text('report-document-title'),
+            header: text('report-document-period'),
+            headings,
+            rows,
+        }
+    })
 }

@@ -1,0 +1,27 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "month-populated",
+            "url": "/a/books/helix-mockup?state=month-populated",
+            "ready": "report-table",
+            "widths": [390, 1024, 1280],
+            "height": 2400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "month-no-lines",
+            "url": "/a/books/helix-mockup?state=month-no-lines",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "month-capped",
+            "url": "/a/books/helix-mockup?state=month-capped",
+            "ready": "report-table",
+            "height": 2400,
+            "hideLabels": ["New"]
+        }
+    ]
+}
