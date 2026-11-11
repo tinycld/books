@@ -28,24 +28,18 @@ func profitAndLossSpec() *reports.Spec {
 		Version: reports.CurrentVersion,
 		Source:  "books.journal_lines",
 		Params:  plParams(),
-		Filter: op("and",
-			op("eq", fld("posted"), lit(true)),
-			op("between", fld("date"), prm("period")),
-			op("in", fld("account", "type"), lit(profitAndLossTypes())),
-		),
+		Filter:  plFilter(),
 		Columns: plColumns(),
 		Groups:  plGroups(),
 		Layout:  plLayout(),
-		Sort: []reports.SortKey{
-			{Formula: rec("byAccount", "number")},
-			{Formula: rec("byAccount", "full_name")},
+		Sort: append(plRecordSort(),
 			// Core applies a formula sort key that reads a row's fields to
 			// detail rows only, so these two order an opened account's lines
 			// and leave the groups alone. The entry's integer sequence, not its
 			// text number, which sorts "10" before "9".
-			{Formula: fld("date")},
-			{Formula: fld("entry", "sequence")},
-		},
+			reports.SortKey{Formula: fld("date")},
+			reports.SortKey{Formula: fld("entry", "sequence")},
+		),
 		// An opened line reads "<date> · <entry number> · <memo>", with the
 		// entry's memo when the line has none.
 		Detail: &reports.Detail{Label: op("concat",
@@ -53,6 +47,89 @@ func profitAndLossSpec() *reports.Spec {
 			fld("entry", "number"), lit(" · "),
 			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
 		)},
+	}
+}
+
+// profitAndLossByMonthKey names the shipped Profit and Loss by Month for good.
+const profitAndLossByMonthKey = "books.profit_and_loss_by_month"
+
+// profitAndLossByMonthShipped is the Profit and Loss by Month Books ships,
+// unpublished and shared with every Books reader as the Profit and Loss is.
+func profitAndLossByMonthShipped() reports.Shipped {
+	return reports.Shipped{
+		Key:         profitAndLossByMonthKey,
+		Title:       "Profit and Loss by Month",
+		Description: "Income and expenses month by month for a period, on the accrual basis.",
+		Spec:        mustJSON(profitAndLossByMonthSpec()),
+		Revision:    1,
+		Unpublished: true,
+	}
+}
+
+// profitAndLossByMonthSpec is the Profit and Loss with one column per month
+// of the period, then Total and % of income over the whole period. A pivot's
+// innermost level never opens, so it has no detail label, no line sort keys
+// and no column detail.
+func profitAndLossByMonthSpec() *reports.Spec {
+	columns := plColumns()
+	for i := range columns {
+		columns[i].Detail = ""
+		if columns[i].ID == "amount" {
+			// Core refuses a pivot cell column with no aggregate. A summed
+			// cell reads 0 in a month with no line, as coalesce does for the
+			// Profit and Loss.
+			columns[i].Formula = plSigned()
+			columns[i].Aggregate = reports.Sum
+		}
+	}
+	return &reports.Spec{
+		Version: reports.CurrentVersion,
+		Source:  "books.journal_lines",
+		Params:  plParams(),
+		Filter:  plFilter(),
+		Columns: columns,
+		Groups:  plGroups(),
+		Layout:  plLayout(),
+		Sort:    plRecordSort(),
+		// Every month the period touches is a column, lines or not; Total
+		// follows the months.
+		Pivot: &reports.Pivot{
+			Path:       path("date"),
+			Bucket:     "month",
+			Cell:       "amount",
+			Range:      "period",
+			Order:      reports.PivotOrderSpec,
+			MaxColumns: 36,
+		},
+		Display: profitAndLossByMonthDisplay(),
+	}
+}
+
+// profitAndLossByMonthDisplay has no layouts: below the one-line width core's
+// automatic lines wrap the month figures.
+func profitAndLossByMonthDisplay() *reports.Display {
+	return &reports.Display{Columns: map[string]reports.ColumnFit{
+		"account": {MinWidth: "12ch"},
+		"amount":  {MinWidth: "max-content"},
+		"pct":     {MinWidth: "max-content"},
+	}}
+}
+
+// plFilter keeps the posted lines of the income and expense accounts dated
+// in the period.
+func plFilter() *reports.Node {
+	return op("and",
+		op("eq", fld("posted"), lit(true)),
+		op("between", fld("date"), prm("period")),
+		op("in", fld("account", "type"), lit(profitAndLossTypes())),
+	)
+}
+
+// plRecordSort orders the accounts inside a section in chart order.
+func plRecordSort() []reports.SortKey {
+	return []reports.SortKey{
+		{Formula: rec("byAccount", "number")},
+		{Formula: rec("byAccount", "full_name")},
 	}
 }
 

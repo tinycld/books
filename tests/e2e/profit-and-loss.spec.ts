@@ -8,12 +8,15 @@ import {
 import { createAccount, DESKTOP, openChart } from './account-register-helpers'
 import {
     browserToday,
+    choosePeriod,
     chooseRows,
     dayWords,
     expectedHeading,
+    expectPressOpensNothing,
     openEntriesFromSidebar,
     openProfitAndLoss,
     openProfitAndLossAccount,
+    openProfitAndLossByMonth,
     type PlSnapshot,
     plLinesUnder,
     plSnapshot,
@@ -426,4 +429,91 @@ test.describe('profit-and-loss: report', () => {
             await otherContext.close()
         }
     })
+
+    test('by month: one column per month headed in words, then Total and % of income', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        // Unnumbered accounts sort first in a section, and "AA" before the other specs'
+        // names, so the account mounts at the top of the opened Income.
+        const income = uniqueName('AA PL month')
+        await createAccounts(page, [{ name: income, kind: INCOME }])
+        const today = await browserToday(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('PL month sale'),
+            lines: [
+                { account: ACCOUNT_LABELS.checking, debit: '90.00' },
+                { account: income, credit: '90.00' },
+            ],
+        })
+
+        await openProfitAndLossByMonth(page)
+        const from = firstOfLastMonth(today)
+        const lastMonth = monthWords(from)
+        const thisMonth = monthWords(today)
+        await choosePeriod(page, { from, to: today })
+        // The default period's run stays on screen until this one lands: only this run
+        // heads exactly the two months.
+        await snapshotWhen(
+            page,
+            plSnapshot,
+            s => monthHeadings(s).join('|') === [lastMonth, thisMonth].join('|'),
+            'the two month columns of the chosen period'
+        )
+        await collapseAll(page)
+        const open = await openSectionTo(page, T.income, income, 'the income account')
+
+        expect(Object.values(open.headings)).toEqual([
+            'Account',
+            lastMonth,
+            thisMonth,
+            'Total',
+            '% of income',
+        ])
+        const columnOf = (heading: string) => {
+            const id = Object.keys(open.headings).find(key => open.headings[key] === heading)
+            if (!id) throw new Error(`no column headed "${heading}"`)
+            return id
+        }
+        const row = rowNamed(open, 'group', income)
+        expect(cents(row?.cells[columnOf(lastMonth)])).toBe(0)
+        expect(cents(row?.cells[columnOf(thisMonth)])).toBe(9000)
+        expect(cents(row?.cells[columnOf('Total')])).toBe(9000)
+
+        // A pivot's innermost level never opens: no chevron, and a press opens no line.
+        const account = rowOf(page, income)
+        await expect(account).not.toHaveAttribute('aria-expanded')
+        await expect(account).not.toHaveAttribute('role', 'button')
+        const pressed = await expectPressOpensNothing(page, income)
+        expect(indexOf(pressed, 'group', income)).toBeGreaterThanOrEqual(0)
+        expect(plLinesUnder(pressed, income)).toEqual([])
+        expect(pressed.rows.filter(r => r.kind === 'detail')).toEqual([])
+    })
 })
+
+// The first day of the month before `day` (YYYY-MM-DD).
+function firstOfLastMonth(day: string): string {
+    const year = Number(day.slice(0, 4))
+    const month = Number(day.slice(5, 7))
+    const last = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 }
+    return `${last.year}-${String(last.month).padStart(2, '0')}-01`
+}
+
+// A day's month in the words core heads a month column with ("Oct 2026").
+function monthWords(day: string): string {
+    const date = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, 1))
+    return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+    }).format(date)
+}
+
+// The headings of the month columns, in column order: every heading but the label's,
+// Total's and % of income's.
+function monthHeadings(snapshot: PlSnapshot): string[] {
+    return Object.entries(snapshot.headings)
+        .filter(([id]) => id !== 'account' && id !== 'amount' && id !== 'pct')
+        .map(([, text]) => text)
+}
