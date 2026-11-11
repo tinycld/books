@@ -7,6 +7,7 @@ import { useInvoiceReadActions } from '../../hooks/useInvoiceReadActions'
 import type { InvoiceScreenData } from '../../hooks/useInvoiceScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { stampText } from '../../lib/entry-display'
+import { INVOICE_NOTE_LABELS } from '../../lib/invoice-notes'
 import { type DocumentTab, invoiceHref } from '../../lib/invoice-routes'
 import { formatMoney } from '../../lib/money'
 import { paymentTermLabel } from '../../lib/payment-terms'
@@ -110,8 +111,9 @@ function ReadBand({ isPhone, customer, billTo, email, terms, date, due, tax }: B
 }
 
 // Wide: the totals end under the lines' Amount column (the Tax column's width and the
-// grid gap to its right), with Message on invoice and Memo in the left column beside
-// them, as the form's footer. A phone stacks the totals over Message and Memo.
+// grid gap to its right), with the message to the customer and the internal memo in
+// the left column beside them, as the form's footer. A phone stacks the totals over
+// the two notes.
 const WIDE_TOTALS = { paddingRight: INVOICE_READ_TRAILING_WIDTH }
 
 interface FooterProps {
@@ -125,8 +127,8 @@ function ReadFooter({ isPhone, totals, message, memo }: FooterProps) {
     const notesClass = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const notes = (
         <View className={notesClass}>
-            <Detail field="message" label="Message on invoice" value={message} />
-            <Detail field="memo" label="Memo" value={memo} />
+            <Detail field="message" label={INVOICE_NOTE_LABELS.message} value={message} />
+            <Detail field="memo" label={INVOICE_NOTE_LABELS.memo} value={memo} />
         </View>
     )
     if (isPhone) {

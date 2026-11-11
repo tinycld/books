@@ -24,6 +24,7 @@ import {
 } from '../components/invoices/invoice-form-context'
 import { ProductPicker } from '../components/products/ProductPicker'
 import { useBundleLines } from '../hooks/useBundleLines'
+import { useSelectAllOnFocus } from '../hooks/useSelectAllOnFocus'
 import {
     type BundleItemFill,
     bundleLines,
@@ -342,6 +343,8 @@ function quantityText(value: number | null): string {
  * (blank is null), so the schema and the totals read it as a number. While the user
  * types, the cell keeps the typed text ("1." on the way to "1.5"); once the value moves
  * from elsewhere (a product pick sets 1) or the cell loses focus, it shows the number.
+ * Each focus (Tab, or a pick that moves the focus here) selects the whole value, so
+ * typing replaces it; Rate and Percent do the same.
  */
 export function LineQuantityCell({
     fieldKey,
@@ -356,11 +359,18 @@ export function LineQuantityCell({
     const current = typeof value === 'number' && Number.isFinite(value) ? value : null
     const isDraftShown = draft !== null && quantityOf(draft) === current
     const text = isDraftShown ? draft : quantityText(current)
+    const selectAll = useSelectAllOnFocus(text)
+    const onFocus = (event: TextInputFocusEvent) => {
+        selectAll.onFocus(event)
+        table?.noteFocus()
+    }
     const onChangeText = (next: string) => {
+        selectAll.onTyped()
         setDraft(next)
         onChange(quantityOf(next))
     }
     const onBlur = () => {
+        selectAll.onBlur()
         setDraft(null)
         table?.noteBlur()
     }
@@ -372,10 +382,12 @@ export function LineQuantityCell({
             accessibilityLabel={cellLabel(label, table)}
             value={text}
             onChangeText={onChangeText}
-            onFocus={table?.noteFocus}
+            onFocus={onFocus}
             onBlur={onBlur}
+            onKeyPress={selectAll.onKeyPress}
             onSubmitEditing={onSubmitEditing}
             editable={!disabled}
+            selectTextOnFocus={selectAll.selectTextOnFocus}
             inputMode="decimal"
             keyboardType={NUMBER_KEYBOARD}
             autoCapitalize="none"
@@ -393,11 +405,25 @@ function groupedRateText(text: string, currency: string): string {
     return moneyInputText(cents) || '0.00'
 }
 
+// Whether the Rate cell has the focus, and whether the user has typed since it took it.
+type RateFocus = 'blurred' | 'selected' | 'typing'
+
+// The selection the Rate cell holds on native between a focus and the first key.
+function rateSelection(focus: RateFocus, shown: string) {
+    if (Platform.OS === 'web' || focus !== 'selected') return undefined
+    return { start: 0, end: shown.length }
+}
+
 /**
  * Rate: the typed money text is the value (cents are computed at write). While the cell
  * is not focused it shows a rate that parses in the money format, whatever text a pick
  * or the user left ("1250.00" shows "1,250.00"); a blur also stores that text. Enter on
  * the last line adds a line.
+ *
+ * A focus selects the whole value, so typing replaces it. A focus swaps the drawn text
+ * ("1,250.00" → "1250.00"): on web the cell selects again after that render
+ * (useSelectAllOnFocus); on native setting the text can drop the selection the focus
+ * made, so the cell holds the whole text selected until the user types or leaves.
  */
 export function LineRateCell({
     fieldKey,
@@ -408,18 +434,27 @@ export function LineRateCell({
     table,
 }: BuiltinFieldProps) {
     const { currency } = useInvoiceFormScope()
-    const [isFocused, setIsFocused] = useState(false)
+    const [focus, setFocus] = useState<RateFocus>('blurred')
     const text = textOf(value)
     const grouped = groupedRateText(text, currency)
-    const shown = isFocused ? text : grouped
-    const onFocus = () => {
-        setIsFocused(true)
+    const shown = focus === 'blurred' ? grouped : text
+    const selection = rateSelection(focus, shown)
+    const selectAll = useSelectAllOnFocus(shown)
+    const onFocus = (event: TextInputFocusEvent) => {
+        selectAll.onFocus(event)
+        setFocus('selected')
         table?.noteFocus()
     }
     const onBlur = () => {
-        setIsFocused(false)
+        selectAll.onBlur()
+        setFocus('blurred')
         table?.noteBlur()
         if (grouped !== text) onChange(grouped)
+    }
+    const onChangeText = (next: string) => {
+        selectAll.onTyped()
+        setFocus('typing')
+        onChange(next)
     }
     const onSubmitEditing = () => table?.submitEditing()
     return (
@@ -428,11 +463,14 @@ export function LineRateCell({
             testID={cellTestId(fieldKey, table, 'rate')}
             accessibilityLabel={cellLabel(label, table)}
             value={shown}
-            onChangeText={onChange}
+            selection={selection}
+            onChangeText={onChangeText}
             onFocus={onFocus}
             onBlur={onBlur}
+            onKeyPress={selectAll.onKeyPress}
             onSubmitEditing={onSubmitEditing}
             editable={!disabled}
+            selectTextOnFocus={selectAll.selectTextOnFocus}
             inputMode="decimal"
             keyboardType={NUMBER_KEYBOARD}
             autoCapitalize="none"
@@ -508,18 +546,34 @@ function PercentInput({
     muted: string
     onSubmitEditing: () => void
 }) {
+    const text = textOf(value)
+    const selectAll = useSelectAllOnFocus(text)
+    const onFocus = (event: TextInputFocusEvent) => {
+        selectAll.onFocus(event)
+        table?.noteFocus()
+    }
+    const onBlur = () => {
+        selectAll.onBlur()
+        table?.noteBlur()
+    }
+    const onChangeText = (next: string) => {
+        selectAll.onTyped()
+        onChange(next)
+    }
     return (
         <View className="relative justify-center">
             <RNTextInput
                 ref={table?.focusRef}
                 testID={cellTestId(fieldKey, table, 'percent')}
                 accessibilityLabel={cellLabel(label, table)}
-                value={textOf(value)}
-                onChangeText={onChange}
-                onFocus={table?.noteFocus}
-                onBlur={table?.noteBlur}
+                value={text}
+                onChangeText={onChangeText}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                onKeyPress={selectAll.onKeyPress}
                 onSubmitEditing={onSubmitEditing}
                 editable={!disabled}
+                selectTextOnFocus={selectAll.selectTextOnFocus}
                 inputMode="decimal"
                 keyboardType={NUMBER_KEYBOARD}
                 autoCapitalize="none"

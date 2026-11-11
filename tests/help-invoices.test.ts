@@ -62,6 +62,15 @@ describe('help/invoices.md', () => {
         expect(body).toContain('the Customer field has focus when the form opens')
     })
 
+    // Revise 1 item 4: the topic names the two notes by the labels the form shows.
+    it.each([
+        'Message to customer (prints on invoice)',
+        'Internal memo (not printed)',
+    ])('names the field %s', label => {
+        expect(topicExists).toBe(true)
+        expect(body).toContain(label)
+    })
+
     it('has no Ctrl or Alt keyboard text', () => {
         expect(topicExists).toBe(true)
         expect(body).not.toMatch(/\bCtrl\b/i)

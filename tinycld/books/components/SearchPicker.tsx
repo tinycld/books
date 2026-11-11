@@ -250,6 +250,10 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
 ) {
     const chevron = useThemeColor('muted-foreground')
     const look = disabled ? 'opacity-60' : ''
+    // A ring on every focus, not only a focus-visible one: the trigger takes the focus
+    // by script when a form opens (autoFocus), often right after a pointer press, and
+    // the browser then draws no ring of its own.
+    const focusRing = 'web:outline-none web:focus:ring-2 web:focus:ring-ring'
     const labelTone = isPlaceholder ? 'text-muted-foreground' : 'text-foreground'
     return (
         <Pressable
@@ -261,7 +265,7 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
             disabled={disabled}
-            className={`min-h-11 flex-row items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5 ${look}`}
+            className={`min-h-11 flex-row items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5 ${focusRing} ${look}`}
         >
             <View className="min-w-0 flex-1 flex-row items-center gap-1">
                 <Text numberOfLines={1} className={`shrink text-sm ${labelTone}`}>

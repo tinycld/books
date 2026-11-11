@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { dueDateFor } from '../../tinycld/books/lib/document-dates'
@@ -115,6 +115,31 @@ function rowSlotWidths(page: Page, rowId: string): Promise<Record<string, number
         )
 }
 
+// What the element draws around itself: its outline, shadow and border. Read two frames
+// late, so a ring a focus handler draws through a re-render has landed.
+function focusLook(target: Locator): Promise<string> {
+    return target.evaluate(
+        el =>
+            new Promise<string>(resolve => {
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(() => {
+                        const s = getComputedStyle(el)
+                        resolve(
+                            [
+                                s.outlineStyle,
+                                s.outlineWidth,
+                                s.outlineColor,
+                                s.boxShadow,
+                                s.borderColor,
+                                s.borderWidth,
+                            ].join(' | ')
+                        )
+                    })
+                )
+            })
+    )
+}
+
 async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
@@ -134,7 +159,14 @@ test.describe('invoice-form: draft invoice', () => {
         const product = seededProduct()
         await openBooks(page)
         await openNewInvoice(page)
-        await expect(page.getByTestId('form-input-customer')).toBeFocused()
+        const customerPicker = page.getByTestId('form-input-customer')
+        await expect(customerPicker).toBeFocused()
+        // The focus shows: New Invoice is chosen with the pointer, and the browser draws no
+        // focus ring for a focus set by script after a pointer press.
+        const focusedLook = await focusLook(customerPicker)
+        await page.getByTestId('form-input-memo').focus()
+        await expect(customerPicker).not.toBeFocused()
+        expect(focusedLook).not.toBe(await focusLook(customerPicker))
         // Spec §3.2: the status badge shows on a new invoice too.
         await expect(page.getByTestId('invoice-badge')).toHaveText('Draft')
 

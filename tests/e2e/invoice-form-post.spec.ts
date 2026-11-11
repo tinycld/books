@@ -84,7 +84,9 @@ test.describe('invoice-form: post and read', () => {
         const customer = seededCustomer()
         const memo = uniqueMemo('Invoice post read')
         await openBooks(page)
+        const message = `Thank you ${memo}`
         await fillNewInvoice(page, memo)
+        await page.getByTestId('form-input-message').fill(message)
 
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(INVOICE_URL)
@@ -94,6 +96,17 @@ test.describe('invoice-form: post and read', () => {
         await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
         await expect(page.getByTestId('invoice-posted-by')).toHaveText(/^Posted by /)
         await expect(page.getByTestId('invoice-total-tax')).toContainText('Denver combined (8.71%)')
+        // Revise 1 item 4: the read view names the two notes as the form does.
+        const messageDetail = page.getByTestId('invoice-detail-message')
+        await expect(
+            messageDetail.getByText('Message to customer (prints on invoice)', { exact: true })
+        ).toBeVisible()
+        await expect(messageDetail.getByText(message, { exact: true })).toBeVisible()
+        const memoDetail = page.getByTestId('invoice-detail-memo')
+        await expect(
+            memoDetail.getByText('Internal memo (not printed)', { exact: true })
+        ).toBeVisible()
+        await expect(memoDetail.getByText(memo, { exact: true })).toBeVisible()
 
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)

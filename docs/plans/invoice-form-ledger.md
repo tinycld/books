@@ -170,7 +170,20 @@
 - revise 1 · new-1280, filled-1280: the totals tax label "Denver combined (8.71%)" wraps to two lines (one line in the read view and the reference).
 - revise 1 · filled-*: the "Save draft ⌘S" tooltip is in the shots (pointer rests on Save draft): capture artifact.
 - revise 1 · edit-address-1280/390: after Edit address no field shows a focus ring; the spec does not say where focus goes.
-- revise 1 · critic "for gate 3": a new form with no customer opens with Tax "Denver combined 8.71%"; spec §3.2 fills Tax when a customer is picked, and reference new-1280 / new-390 show "None". Which default is intended is for the human.
+- ~~revise 1 · critic "for gate 3": a new form with no customer opens with Tax "Denver combined 8.71%"; spec §3.2 fills Tax when a customer is picked, and reference new-1280 / new-390 show "None". Which default is intended is for the human.~~ closed — human ruling (2026-11-10): works as specified; Tax pre-fills from the active default tax rate, which the seed sets.
+- cp 0h · reviewer A 2: builder `DropBar` reads `effective === 'full'` while `use-canvas-drag` treats a cell as full by measured width; a Fit cell whose content fills the row shows side bars while the drop lands above/below
+- cp 0h · reviewer A 3: reconcile appends a missing built-in at `full` but copies the layout's `narrowWidth`; a layout `{ quarter, narrowWidth: half }` gives a field narrower on a phone than on desktop for forms that gain it later
+- cp 0h · reviewer A 4: Fit is offered for every kind; tables, rich text, textarea and native plain text inputs have no clear content width
+- cp 0h · fix review 1: segmented controls no longer fill the row at 1280 (content-sized buttons)
+- cp 0h · fix review 2: `RadioInput` subscribes `useWatch` even without `clearValue` (one extra subscription, no visible effect)
+- revise 1 (resumed) · new-1280 / filled-1280 / edit-address-1280: the totals tax label "Denver combined (8.71%)" still wraps to two lines (carried)
+- revise 1 (resumed) · header Tax trigger reads "Denver combined 8.71%" while the totals, the read view and the reference write "Denver combined (8.71%)"
+- revise 1 (resumed) · new-1280: the bold "Email" label with nothing under it on a form with no customer (carried)
+- revise 1 (resumed) · new-390 / filled-phone-390 / edit-address-390: Due date sits half width alone, Tax at content width on the row below (a stair of three widths); a full-width Due date, or Tax beside it, would read cleaner
+- revise 1 (resumed) · filled-*: the "Save draft ⌘S" tooltip is in the shots (capture artifact, carried)
+- revise 1 (resumed) · edit-address-*: no field shows focus after Edit address (carried; spec silent)
+- revise 1 (resumed) · filled-911 / filled-640: the frame ends at "Add line", so no 911 / 640 shot shows Memo under Message; the order is shown at 390 and new-911/640 show totals → Message (same code path)
+- revise 1 (resumed) · fix review r2 NOTE 1: the stacked and wide footers put `PartRenderer` at different tree positions, so a resize across the cards breakpoint remounts Message / Memo and a focused textarea loses focus (values kept)
 
 ## Out-of-plan changes
 - cp 0 · core `core/ui/form/TextInput.tsx` (`inputRef`) and `core/ui/form/NumberInput.tsx` (`inputRef`, `onSubmitEditing`): a table cell registers its real input as the focus target, and the `addOnSubmit` Qty column is a NumberInput, which had no submit prop.
@@ -187,6 +200,9 @@
 - cp 4 · `tinycld/books/components/products/ProductPicker.tsx` (`onPicked` pass-through; Do 4 needs it, plan omission); `tinycld/books/lib/invoice-line-order.ts`, `tests/invoice-line-order.test.ts`, `tinycld/books/hooks/useInvoiceSave.ts`, `tinycld/books/hooks/useInvoiceForm.ts` (supplement item 2, the line write order; `useInvoiceSave` also drops the doubled "Line n:" label, a checkpoint 3 defect the refused-line test found); `tinycld/books/lib/invoice-tax.ts` (`no-target` view kind for the live percent message); `tests/e2e/invoice-form-draft.spec.ts` (test dispute 1 and the whole-text assertion).
 - cp 5 · `tinycld/books/lib/invoice-routes.ts` (`fresh` before `customer` in the query string, as `tests/invoice-routes.test.ts` asserts); `tinycld/books/lib/invoice-screen-state.ts` (`copyStatus` for a missing copy source; the hold checked before the new-form branch, so a correction's post that voids its source does not swap to cannot-edit). The script also listed `InvoiceForm.tsx`, `InvoiceScreen.tsx`, `InvoiceReadActions.tsx`, `InvoiceReadLines.tsx`, `useInvoiceForm.ts`, `useInvoiceScreen.ts`, `useInvoiceShortcuts.ts` (named in shorthand in the Files block) and `EntryReadOnlyView.tsx` (the Files grep step): false positives.
 - cp 6 · `server/pdf_document.go` (`linePercent` row kind: a percent line prints its percent in Qty and no Rate, spec §3.7); `tinycld/books/hooks/usePdfDownload.ts` (`fetchPdf` shared by the view and the download); `tinycld/books/hooks/useInvoiceReadActions.ts` (the read view's Download PDF action, Do 4); `tinycld/books/hooks/useInvoiceSave.ts` (`{ tab, onRefused }`: difference 1 and 3); `tinycld/books/lib/invoice-actions.ts` (`INVOICE_PDF_KEY`, `INVOICE_READ_ACTION_KEYS`, `INVOICE_TAB_KEYS`, `invoicePdfStem`); `tinycld/books/lib/invoice-routes.ts` (`DocumentTab`, `documentTabOf`, `invoiceHref(id, tab)`); `tinycld/books/components/invoices/InvoiceScreen.tsx`, `tinycld/books/screens/invoices/[id].tsx`, `new.tsx` (pass the `tab` search param, Decisions "Tabs"). The script also listed `InvoiceActionBar.tsx`, `InvoicePdfView.tsx`, `InvoiceReadActions.tsx`, `InvoiceReadView.tsx` (in the Files block in shorthand): false positives.
+- cp 0h · core `cli/form_help/definition.txt`: `TestCLIDefinitionHelpNamesEveryKey` requires every `Field` JSON key in the CLI help; `narrowWidth` and the `auto` width added
+- cp 0h · core `core/ui/form/RadioInput.tsx`: fix 1 (reviewer B 2) shares the segmented control with the builder (`clearValue`); fix 2 wraps segmented rows
+- revise 1 · `tinycld/books/hooks/useSelectAllOnFocus.ts` (new): the gate-1 fix of the select-on-focus race, shared by the Qty, Rate and Percent line cells
 
 ## Phase notes
 - phase 1: intake regenerated 2026-11-08 against books 66846ed / core b021c3af (the 2026-11-06 intake was discarded so the unit could wait for p5-general-ledger). Feature inventory unchanged; three sparks, all expressible; needs extension E1–E3 re-checked (still missing in core), E2 reshaped around core `ShortcutButton` and `Menu` `shortcut` text.
@@ -507,6 +523,26 @@
 - commit: core 3170c2e8 on books/p2-invoice; Books: the e2e spec and this ledger
 - human: review mode C — none
 
+## Checkpoint 0h
+- origin: core task from the driver (approved by the human), closing the "revise 1 round — STOPPED (core change request)" of Final review and critique `evidence/revise1/critique.md` B1, B2. Not in the plan: the runner wrote the brief (cp/cp0h.md, cp0g header + a 0h section with its own Files block). Core branch books/p2-invoice at 3170c2e8 (PR #463 open). The Books tree (uncommitted revise-1 round) was not touched; these rows are kept in the work dir for the driver to append to the ledger. Gate-3 input from `review-diff.mjs … 0 --repo` lists all 23 files as out-of-plan by Files-block mismatch; unedited; corrected list cp/cp0h-out-of-plan-note.md (1 file)
+- API: `FIELD_WIDTHS` gains `'auto'` (content width: `basis-auto grow-0 shrink-0 max-w-full`, no `min-w-0`; stays `auto` below 640 unless `narrowWidth`); optional `narrowWidth` (any `FieldWidth`) on every form field and on host layout `fields.<key>`, used exactly when the measured container is < `NARROW_BELOW`; `effectiveWidth(width, containerWidth, narrowWidth?)`; Go `Field.NarrowWidth` / `LayoutField.NarrowWidth` (presentation only), seeds and reconcile copy it; builder Width "Fit" + "On narrow screens" (Default clears the key; core `RadioInput` `clearValue`)
+- test writer: core `widths.test.ts`, `form-layout.test.tsx` (row level + FormRenderer), `definition.test.ts`, `host-layout.test.ts`, layout parity fixtures, Go `defs_test.go`, `seed_test.go`, e2e `web-forms-widths.spec.ts` (new) + `web-forms-helpers.ts`; 32 tests red for the right reason; untestable: none (cp/cp0h-tests.md)
+- implementer: DONE (cp/cp0h-impl.md); declared: 3 (CLI help `cli/form_help/definition.txt` required by `TestCLIDefinitionHelpNamesEveryKey`; local segmented control → replaced in fix 1; `builtinRef` takes a `LayoutField`)
+- test disputes: none
+- gate 1: tests unedited: yes · core check 454 files / 3984 tests; gofmt, go vet, `go test ./forms/...` ok · e2e core web-forms-widths + web-forms-phone-layout 2 passed (form container widths at viewports 1280/911/640/390: 1248/879/608/358) · Books width callers (invoice-form-draft, customer-form-page, customer-form-panel, vendor-form-page, vendor-form-panel) 15 passed on the uncommitted revise-1 tree. forms-builder / forms-table not run (forms-host stub not scaffolded)
+- gate 2 (cp/cp0h-critique.md): shots cp/cp0h-shots/form-{1280,911,640,390}-light.png (public web form: two quarter dates, quarter select with narrowWidth full, select at Fit) · invalid: none · blocking: none · notes: 0
+- gate 3 A: 0 BLOCK · NOTE 1 = out-of-plan CLI help (accepted) · NOTEs 2–4 → Design notes
+- gate 3 B: script lines: 0 · 1 out-of-plan CLI help → accepted, Out-of-plan changes · 2 builder copied RadioInput's segmented branch → accepted (fix 1) · 3 parity fixture `narrowWidth` equal to `width` → accepted (T1) · 4 builder panel at 390 unchecked → accepted (fix 2)
+- findings file: cp/cp0h-fix.md (T1 + 2 items)
+- fix round 1: test writer T1 (`first.narrowWidth` "full" in both fixtures and the Go test; proved red with a width→narrowWidth seed mutation); implementer FIXED 2 of 2: `RadioInput` `clearValue` (writes undefined, read by `useWatch`), segmented rows wrap with content-sized segments (`min-w-16`, one-line labels); declared: segmented segments no longer stretch (only caller is the builder Width control)
+- gate 1 after fixes: tests unedited: yes · core check 3984 tests; `go test -count=1 ./forms/...` ok · e2e core web-forms-widths, web-forms-phone-layout, web-forms 10 passed · Books set 15 passed
+- gate 2 after fixes (cp/cp0h-critique-r1.md, builder panel 390 sheet and 1280): 0 BLOCKING, 0 NOTE
+- fix review: round 1 (cp/cp0h-fix-review.md): 0 BLOCK · NOTEs 2 → Design notes · rounds: 1
+- reviewer-caught deferrals: none
+- commit: core a7f4137b on books/p2-invoice (24 files; out-of-plan: 2, see below)
+- for the revise-1 round: Books sets Tax `width: 'auto'` (and `narrowWidth` as the layout needs) in `forms/hosts.ts` layout; stored forms keep their old widths until `db:reset` (memory p3-vendor-1099)
+- human: review mode C — none
+
 ## Final review
 - eval: revise 1 (2026-11-10) — notes in /Users/nas/tmp/tinycld/auto-helix-books/staging/p2-invoice/revise-1.md
 - human comments and what changed
@@ -522,4 +558,13 @@
   - fix review round 1 (cp/revise1-fix-review.md): 0 BLOCK · NOTEs 1–2 → Design notes
   - core change request (why the run stops): core `effectiveWidth` (`core/ui/forms/widths.ts`) maps every field below a 640 px container to half (quarter) or full (half, third), and `FieldWidth` has no content-sized width. Books cannot express "Tax beside the dates at its content width, full width on the phone" with full / half / third / quarter: quarter gives half rows below 640 px (B1, B2), half gives Tax alone at half width at 1280 (the human's item 1). Asked: (a) a content-sized field width (e.g. `auto`: the cell takes its content's width with a minimum, on the same row as its neighbours when it fits) and (b) a per-field width below `NARROW_BELOW` (e.g. layout `narrowWidth: 'full'`), or another core shape the human prefers, on core branch books/p2-invoice (PR #463). After it: Books sets Tax to it, fixes B3 and B4, gate 1, re-capture revise1, fresh critic, fix review, commit `fix(books): …`.
   - left in the tree, not committed: the round's tests (staged) and source (items 1–4), `evidence/revise1/` shots and critique
+- revise 1 round — resumed (2026-11-10, after core checkpoint 0h: core a7f4137b on books/p2-invoice, PR #463 open) (findings: cp/revise1-fix2.md T4 + B1/B2, B3, B4; cp/revise1-fix3.md item 5)
+  - human ruling: the design note "a new form with no customer pre-fills Tax Denver combined 8.71%, reference shows None" — works as specified (Tax pre-fills from the active default tax rate, which the seed sets); note closed
+  - test writer (cp/revise1-fix2-tests.md): T4 `tests/invoice-host.test.ts` Tax `width: 'auto'`, no `narrowWidth` half / quarter; red for the right reason (`'quarter'` to be `'auto'`)
+  - implementer (cp/revise1-fix2-impl.md): FIXED 3 of 3 — B1/B2 `forms/hosts.ts` `tax_rate: { width: 'auto' }`, no `narrowWidth` (core maps quarter → half below 640 px, auto stays auto: 1280 one row, Tax ≈202 px; 911 / 640 Due date half + Tax content width; 390 Tax on its own row, one line); B3/B4 `InvoiceForm.tsx` `InvoiceFooter` stacks full width when the lines draw as cards (or on the phone) in the order totals → Message → Memo; wide footer unchanged. Declared: no `narrowWidth`; at 390 Due date sits half width alone; the footer remounts when the lines container crosses 640 px
+  - gate 1: tests unedited: yes · check 227 files / 4606 tests · e2e `-g "invoice-form:"` 1 failed: `invoice-form-lines.spec.ts:350` Rate typed `50.00` held `00` → root cause: round 1's select-on-focus used react-native-web `selectTextOnFocus`, which calls `select()` in a `setTimeout`; Chrome runs queued key events before that timer when the main thread is busy, so the late select took the first keys → fix item 5 (cp/revise1-fix3-impl.md): new `hooks/useSelectAllOnFocus.ts` used by Qty, Rate, Percent selects synchronously on focus and after Rate's focus text swap (layout effect), plus one deferred select for a mouse focus that the first keydown cancels; native keeps `selectTextOnFocus` → check 4606 tests · e2e `-g "invoice-form:"` 15 passed
+  - gate 2 capture: `evidence/revise1/capture.json` re-captured (24 shots) · critic (evidence/revise1/critique-r1.md): invalid: none · blocking: none (B1–B4 resolved) · notes: 7 → Design notes
+  - fix review: round 2 (cp/revise1-fix2-review.md): 0 BLOCK · conformance line `useSelectAllOnFocus.ts:35` `document.activeElement` false positive (native returns before any DOM read) · NOTE 1 → Design notes · rounds: 2
+  - deferrals: none · rebuttals: none
+  - out-of-plan: `tinycld/books/hooks/useSelectAllOnFocus.ts` (new; gate-1 fix item 5)
 - native: not executed in this run
