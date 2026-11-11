@@ -3,11 +3,9 @@
 // so tsc checks every field. Money is integer cents; a percent cell is already a
 // percent (12.5 = 12.5%).
 //
-// The by-month result has the shape core checkpoint 0 gives it (spec §4): every month
-// of the period is a column (P2), the months come before Total (P3), and each month
-// is headed in words (P4). Until checkpoint 0 lands, the words are the column's plain
-// label; checkpoint 0 types them (the pivot column's typed label), and checkpoint 1
-// moves this fixture to that shape.
+// The by-month result has the shape core gives it (spec §4): every month of the period
+// is a column (P2), the months come before Total (P3), and each month column carries
+// core's typed month label (P4), which the view writes in words.
 import type { DisplayLayout, ParamDef, ReportSpec } from '@tinycld/core/reports/lib/spec'
 import type {
     CellValue,
@@ -234,24 +232,8 @@ export const OPENED_LINES = [
     },
 ]
 
-const MONTH_WORDS = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-]
-
 interface Month {
     key: string
-    words: string
 }
 
 // Every month the period touches, in order (P2), keyed as the engine's month bucket.
@@ -263,10 +245,7 @@ function monthsOf(from: string, to: string): Month[] {
         const index = fromMonth - 1 + i
         const year = fromYear + Math.floor(index / 12)
         const month = index % 12
-        return {
-            key: `${year}-${String(month + 1).padStart(2, '0')}`,
-            words: `${MONTH_WORDS[month]} ${year}`,
-        }
+        return { key: `${year}-${String(month + 1).padStart(2, '0')}` }
     })
 }
 
@@ -408,17 +387,19 @@ const PCT_COLUMN: ResultColumn = {
 }
 
 // The section key column (`sec`) is hidden (G7), so it is not in a result. In the
-// by-month report the month columns sit before Total, their cell column (P3).
+// by-month report the month columns sit before Total, their cell column (P3). A month
+// column is core's P4 result: the raw key is its label text, and its typed label
+// (`month`, the key) is what the view writes in words.
 function columnsOf(report: Report, months: Month[], pivotCount: number): ResultColumn[] {
     if (report === 'total') return [ACCOUNT_COLUMN, TOTAL_COLUMN, PCT_COLUMN]
     const monthColumns = months.slice(0, pivotCount).map(
         (month, m): ResultColumn => ({
             id: `amount.p${m}`,
-            label: month.words,
+            label: month.key,
             type: 'money',
             aggregate: 'sum',
             currency: CURRENCY,
-            pivot: { cell: 'amount', key: month.key },
+            pivot: { cell: 'amount', key: month.key, labelType: 'month', labelValue: month.key },
         })
     )
     return [ACCOUNT_COLUMN, ...monthColumns, TOTAL_COLUMN, PCT_COLUMN]
