@@ -131,6 +131,7 @@ with the reason, and shown to the human at the end)
 - fix review: n/a (the fix changed test files only); rounds: 1
 - gate 3 A notes: 1, under Design notes
 - reviewer-caught deferrals: none
+- commit: 0525f6a
 
 ## Final review
 - eval:
