@@ -257,13 +257,18 @@ const LINE_HEIGHT = 20
 const VERTICAL_PADDING = 20
 const MAX_LINES = 3
 
-// react-native-web reports the textarea's scrollHeight, which includes its padding, so
-// without this one line of text measures as two on web. Native keeps its measure.
-const MEASURED_PADDING = Platform.OS === 'web' ? VERTICAL_PADDING : 0
+// react-native-web reports the textarea's scrollHeight: its padding included, and never
+// less than the box's inner height (the box less its 2 px of border). So on web the text
+// takes whole lines of what is left, rounded down: the border's 2 px keep a box one line
+// taller than its text from measuring as that taller box. Native reports the text alone,
+// in fractional px, so it rounds up.
+const IS_WEB = Platform.OS === 'web'
 
 function clampHeight(contentHeight: number) {
-    const textHeight = contentHeight - MEASURED_PADDING
-    const lines = Math.min(MAX_LINES, Math.max(1, Math.ceil(textHeight / LINE_HEIGHT)))
+    const textLines = IS_WEB
+        ? Math.floor((contentHeight - VERTICAL_PADDING) / LINE_HEIGHT)
+        : Math.ceil(contentHeight / LINE_HEIGHT)
+    const lines = Math.min(MAX_LINES, Math.max(1, textLines))
     return lines * LINE_HEIGHT + VERTICAL_PADDING
 }
 
