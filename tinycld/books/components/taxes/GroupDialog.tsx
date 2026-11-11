@@ -1,7 +1,7 @@
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { FormErrorSummary, MultiSelectInput, TextInput } from '@tinycld/core/ui/form'
-import { Text } from 'react-native'
-import { useFocusOnOpen } from '../../hooks/useFocusOnOpen'
+import { useRef } from 'react'
+import { Text, type TextInputInstance } from 'react-native'
 import { useGroupDialog } from '../../hooks/useGroupDialog'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { DialogLoadError } from './DialogLoadError'
@@ -31,21 +31,28 @@ function RateChecklist({ isVisible, dialog }: RateChecklistProps) {
 
 export function GroupDialog({ id }: GroupDialogProps) {
     const dialog = useGroupDialog(id)
-    const nameFocus = useFocusOnOpen()
+    const nameRef = useRef<TextInputInstance>(null)
     const { control, formState } = dialog.form
     // A close while the save runs would drop its refusal with the form.
     const close = () => {
         if (!dialog.isSaving) dialog.close()
     }
     return (
-        <Dialog isOpen onClose={close} title={dialog.title} size="lg" testID="tax-group-dialog">
+        <Dialog
+            isOpen
+            onClose={close}
+            title={dialog.title}
+            size="lg"
+            initialFocusRef={nameRef}
+            testID="tax-group-dialog"
+        >
             <Dialog.Body>
                 <TextInput
                     control={control}
                     name="name"
                     label="Name"
                     testID="tax-group-form-name"
-                    {...nameFocus}
+                    inputRef={nameRef}
                 />
                 <RateChecklist isVisible={!dialog.loadFailed} dialog={dialog} />
                 <DialogLoadError

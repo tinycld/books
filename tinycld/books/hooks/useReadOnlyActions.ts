@@ -1,9 +1,9 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { useState } from 'react'
-import { entryActions } from '../lib/entry-actions'
+import { entryActions, voidsFromDocument } from '../lib/entry-actions'
 import { entryNumberText } from '../lib/entry-display'
-import { entryEditHref } from '../lib/entry-route'
+import { entryEditHref, entryHref } from '../lib/entry-route'
 import { defaultReverseDate } from '../lib/entry-schema'
 import { todayIso } from '../lib/register-range'
 import type { ReadyEntryDetail } from './useEntryDetail'
@@ -43,6 +43,10 @@ export function useReadOnlyActions(detail: ReadyEntryDetail) {
         onEdit: () => router.replace(orgHref(entryEditHref(entry))),
         onReverse: () => setOpen('reverse'),
         onVoid: () => {
+            if (voidsFromDocument(entry)) {
+                router.replace(orgHref(entryHref(entry)))
+                return
+            }
             dialogs.clearErrors()
             setOpen('void')
         },

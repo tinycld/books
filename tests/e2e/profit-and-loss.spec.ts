@@ -21,12 +21,12 @@ import {
     expectPressOpensNothing,
     openEntriesFromSidebar,
     openProfitAndLoss,
-    openProfitAndLossAccount,
     openProfitAndLossByMonth,
-    type PlSnapshot,
-    plLinesUnder,
-    plSnapshot,
+    openReportAccount,
     postEntryOn,
+    type ReportSnapshot,
+    reportLinesUnder,
+    reportSnapshot,
     snapshotWhen,
 } from './books-report-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
@@ -36,7 +36,7 @@ import { uniqueName } from './record-form-helpers'
 // user through the viewer share Books keeps (server/report_shares.go). Every test makes
 // its own accounts and entries through the UI (account panel, journal entry form), dated
 // today (inside every fiscal-year-to-date period), names them with `uniqueName`, and reads
-// rows in ONE snapshot (`plSnapshot`). No test depends on the fiscal start month or on a
+// rows in ONE snapshot (`reportSnapshot`). No test depends on the fiscal start month or on a
 // shared total between two snapshots: other workers post today on the shared DB (D2).
 //
 // The table is a FlashList and the shared DB holds every other spec's accounts, so a test
@@ -69,7 +69,7 @@ const FOLDED_STATEMENT = [
     C.netIncome,
 ]
 
-type Row = PlSnapshot['rows'][number]
+type Row = ReportSnapshot['rows'][number]
 
 async function startBooks(page: Page) {
     await login(page)
@@ -91,15 +91,15 @@ async function createAccounts(page: Page, accounts: { name: string; kind: typeof
     await openEntriesFromSidebar(page)
 }
 
-function indexOf(snapshot: PlSnapshot, kind: Row['kind'], label: string) {
+function indexOf(snapshot: ReportSnapshot, kind: Row['kind'], label: string) {
     return snapshot.rows.findIndex(row => row.kind === kind && row.label === label)
 }
 
-function rowNamed(snapshot: PlSnapshot, kind: Row['kind'], label: string): Row | undefined {
+function rowNamed(snapshot: ReportSnapshot, kind: Row['kind'], label: string): Row | undefined {
     return snapshot.rows.find(row => row.kind === kind && row.label === label)
 }
 
-function labels(snapshot: PlSnapshot) {
+function labels(snapshot: ReportSnapshot) {
     return snapshot.rows.map(row => row.label)
 }
 
@@ -114,18 +114,18 @@ function cents(text: string | undefined): number {
     return negative ? -amount : amount
 }
 
-function amountOf(snapshot: PlSnapshot, kind: Row['kind'], label: string): number {
+function amountOf(snapshot: ReportSnapshot, kind: Row['kind'], label: string): number {
     const row = rowNamed(snapshot, kind, label)
     if (!row) throw new Error(`no ${kind} row "${label}" in ${labels(snapshot).join(' | ')}`)
     return cents(row.cells.amount)
 }
 
 // Folds every section, and waits until the view shows the folded statement alone.
-async function collapseAll(page: Page): Promise<PlSnapshot> {
+async function collapseAll(page: Page): Promise<ReportSnapshot> {
     await pressToolbar(page, 'report-fold-all', 'Collapse all')
     return snapshotWhen(
         page,
-        plSnapshot,
+        reportSnapshot,
         s => labels(s).join('|') === FOLDED_STATEMENT.join('|'),
         'the statement folded to its sections and computed rows'
     )
@@ -138,11 +138,11 @@ async function openSectionTo(
     section: string,
     label: string,
     message: string
-): Promise<PlSnapshot> {
+): Promise<ReportSnapshot> {
     await rowOf(page, section).click()
     return snapshotWhen(
         page,
-        plSnapshot,
+        reportSnapshot,
         s => indexOf(s, 'group', label) >= 0 && indexOf(s, 'subtotal', `Total ${section}`) >= 0,
         message
     )
@@ -157,7 +157,7 @@ test.describe('profit-and-loss: report', () => {
         const today = await browserToday(page)
         await expect
             .poll(async () => {
-                const snapshot = await plSnapshot(page)
+                const snapshot = await reportSnapshot(page)
                 const expected = await expectedHeading(page)
                 return {
                     matches: snapshot.business === expected && expected !== '',
@@ -166,7 +166,7 @@ test.describe('profit-and-loss: report', () => {
                 }
             })
             .toMatchObject({ matches: true })
-        const snapshot = await plSnapshot(page)
+        const snapshot = await reportSnapshot(page)
         expect(snapshot.title).toBe(PROFIT_AND_LOSS_TITLE)
         expect(snapshot.header.endsWith(dayWords(today))).toBe(true)
 
@@ -368,22 +368,22 @@ test.describe('profit-and-loss: report', () => {
         await expect(netIncome).not.toHaveAttribute('role', 'button')
         await netIncome.click()
         // The folded statement mounts every row, so this snapshot sees all of it.
-        const folded = await plSnapshot(page)
+        const folded = await reportSnapshot(page)
         expect(indexOf(folded, 'computed', C.netIncome)).toBeGreaterThanOrEqual(0)
         expect(folded.rows.filter(row => row.kind === 'detail')).toEqual([])
 
         const before = await openSectionTo(page, T.income, income, 'the income account')
-        expect(plLinesUnder(before, income)).toEqual([])
+        expect(reportLinesUnder(before, income)).toEqual([])
         expect(before.rows.filter(row => row.kind === 'detail')).toEqual([])
 
-        await openProfitAndLossAccount(page, income)
+        await openReportAccount(page, income)
         const open = await snapshotWhen(
             page,
-            plSnapshot,
-            s => plLinesUnder(s, income).length === 2,
+            reportSnapshot,
+            s => reportLinesUnder(s, income).length === 2,
             'the two lines beneath the account'
         )
-        const lines = plLinesUnder(open, income)
+        const lines = reportLinesUnder(open, income)
         expect(lines.map(line => line.label)).toEqual([
             `${today} · ${first} · ${m1}`,
             `${today} · ${second} · ${m2}`,
@@ -422,7 +422,7 @@ test.describe('profit-and-loss: report', () => {
 
             const live = await snapshotWhen(
                 page,
-                plSnapshot,
+                reportSnapshot,
                 s => indexOf(s, 'group', income) >= 0,
                 'the new account in the open report'
             )
@@ -463,7 +463,7 @@ test.describe('profit-and-loss: report', () => {
         // heads exactly the two months.
         await snapshotWhen(
             page,
-            plSnapshot,
+            reportSnapshot,
             s => monthHeadings(s).join('|') === [lastMonth, thisMonth].join('|'),
             'the two month columns of the chosen period'
         )
@@ -493,7 +493,7 @@ test.describe('profit-and-loss: report', () => {
         await expect(account).not.toHaveAttribute('role', 'button')
         const pressed = await expectPressOpensNothing(page, income)
         expect(indexOf(pressed, 'group', income)).toBeGreaterThanOrEqual(0)
-        expect(plLinesUnder(pressed, income)).toEqual([])
+        expect(reportLinesUnder(pressed, income)).toEqual([])
         expect(pressed.rows.filter(r => r.kind === 'detail')).toEqual([])
     })
 
@@ -520,7 +520,7 @@ test.describe('profit-and-loss: report', () => {
         await openProfitAndLoss(page)
         await expect
             .poll(async () => {
-                const snapshot = await plSnapshot(page)
+                const snapshot = await reportSnapshot(page)
                 const expected = await expectedHeading(page)
                 return {
                     matches: snapshot.business === expected && expected !== '',
@@ -529,7 +529,7 @@ test.describe('profit-and-loss: report', () => {
                 }
             })
             .toMatchObject({ matches: true })
-        const header = await plSnapshot(page)
+        const header = await reportSnapshot(page)
         expect(header.title).toBe(PROFIT_AND_LOSS_TITLE)
         expect(header.header.endsWith(dayWords(today))).toBe(true)
         await expect(page.getByTestId('report-param-period')).toBeVisible()
@@ -541,7 +541,7 @@ test.describe('profit-and-loss: report', () => {
 
         const s = await snapshotWhen(
             page,
-            plSnapshot,
+            reportSnapshot,
             snap => indexOf(snap, 'group', income) >= 0,
             'the phone account in the open Income'
         )
@@ -563,7 +563,7 @@ test.describe('profit-and-loss: report', () => {
         await openProfitAndLossByMonth(page)
         const month = await snapshotWhen(
             page,
-            plSnapshot,
+            reportSnapshot,
             snap => indexOf(snap, 'group', income) >= 0 && monthHeadings(snap).length > 0,
             'the phone account in the by-month report'
         )
@@ -618,7 +618,7 @@ test.describe('profit-and-loss: report', () => {
             await openProfitAndLoss(page)
             const s = await snapshotWhen(
                 page,
-                plSnapshot,
+                reportSnapshot,
                 snap => indexOf(snap, 'group', income) >= 0,
                 'the long account in the open Income'
             )
@@ -642,7 +642,7 @@ test.describe('profit-and-loss: report', () => {
             await openProfitAndLossByMonth(page)
             const month = await snapshotWhen(
                 page,
-                plSnapshot,
+                reportSnapshot,
                 snap => indexOf(snap, 'group', income) >= 0 && monthHeadings(snap).length > 0,
                 'the long account in the by-month report'
             )
@@ -926,7 +926,7 @@ function monthWords(day: string): string {
 
 // The headings of the month columns, in column order: every heading but the label's,
 // Total's and % of income's.
-function monthHeadings(snapshot: PlSnapshot): string[] {
+function monthHeadings(snapshot: ReportSnapshot): string[] {
     return Object.entries(snapshot.headings)
         .filter(([id]) => id !== 'account' && id !== 'amount' && id !== 'pct')
         .map(([, text]) => text)

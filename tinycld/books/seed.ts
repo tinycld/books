@@ -7,10 +7,18 @@ import {
     GENERAL_LEDGER_LONG_SECTION,
     GENERAL_LEDGER_PARTY_SEED,
 } from './lib/general-ledger-fixture'
+import {
+    CUSTOMER_TERMS_PATCHES,
+    INVOICE_IDS,
+    INVOICE_LINES,
+    INVOICE_PRODUCTS,
+    INVOICE_SEED_IDS,
+    INVOICES,
+} from './lib/invoice-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
-import { CUSTOMER_TAX_PATCHES, TAX_AGENCIES, TAX_RATE_ROWS } from './lib/tax-rates-fixture'
+import { CUSTOMER_TAX_PATCHES, TAX_AGENCIES, TAX_IDS, TAX_RATE_ROWS } from './lib/tax-rates-fixture'
 import { TRANSFER_SEED } from './lib/transfer-fixture'
 import { PRIOR_YEAR_SEED } from './lib/trial-balance-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
@@ -156,6 +164,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedProducts(pb, accountIds)
     await seed1099(pb, accountIds)
     await seedSalesTax(pb, accountIds, customerIds)
+    await seedInvoices(pb, ctx, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -194,6 +203,13 @@ export async function seedCustomers(pb: PocketBase): Promise<Map<string, string>
             .collection('books_customers')
             .create({ ...seedValues(row), parent: parentId })
         ids.set(id, created.id)
+    }
+    for (const { id, terms } of CUSTOMER_TERMS_PATCHES) {
+        const customerId = ids.get(id)
+        if (customerId === undefined) {
+            throw new Error(`seed: terms name customer ${id}, which was not created`)
+        }
+        await pb.collection('books_customers').update(customerId, { terms })
     }
     return ids
 }
@@ -234,9 +250,10 @@ function seededAccountId(
 // The fixture ids are valid PocketBase ids, so the seed sends them; `currency`
 // is the server's. Every product is created active, then its bundle rows, and
 // the inactive products are made inactive last: the item guard refuses a row
-// whose product is inactive when the row is created, so rows come first.
+// whose product is inactive when the row is created, so rows come first. The
+// invoice products (the Discount service a percent line names) come after.
 export async function seedProducts(pb: PocketBase, accountIds: Map<string, string>): Promise<void> {
-    for (const product of PRODUCTS) {
+    for (const product of [...PRODUCTS, ...INVOICE_PRODUCTS]) {
         const {
             income_account_number: income,
             expense_account_number: expense,
@@ -324,6 +341,67 @@ export async function seedSalesTax(
             throw new Error(`seed: tax columns name customer ${id}, which was not created`)
         }
         await pb.collection('books_customers').update(customerId, columns)
+    }
+}
+
+// The memo of a seeded invoice names its INVOICE_IDS key, so a spec finds it.
+function seedInvoiceMemo(id: string): string {
+    const key = Object.entries(INVOICE_IDS).find(([, value]) => value === id)?.[0]
+    if (key === undefined) throw new Error(`seed: invoice ${id} is not in INVOICE_IDS`)
+    return `Seed invoice ${key}`
+}
+
+// Posts the INVOICE_SEED_IDS fixture invoices, in order, through the same
+// writes the invoice form makes: create the draft, create its lines, then post
+// it, so the server numbers each (1001, 1002, 1003 here, not the fixture's
+// numbers), computes every amount and writes the journal entry. Each takes the
+// Denver combined group (spec §4.6); its fixture date keeps it out of the
+// General Ledger's fixed seed days. The product fixture ids are valid
+// PocketBase ids and are sent as-is; `customerIds` maps a customer-form
+// fixture id to the created customer's id. The amounts and totals are the
+// server's, so none is sent.
+export async function seedInvoices(
+    pb: PocketBase,
+    ctx: SeedContext,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const id of INVOICE_SEED_IDS) {
+        const fixture = INVOICES.find(row => row.id === id)
+        if (fixture === undefined) throw new Error(`seed: invoice ${id} is not in INVOICES`)
+        const customer = customerIds.get(fixture.customer)
+        if (customer === undefined) {
+            throw new Error(
+                `seed: invoice ${id} names customer ${fixture.customer}, which was not created`
+            )
+        }
+        const created = await pb.collection('books_invoices').create({
+            customer,
+            status: 'draft',
+            date: fixture.date,
+            due_date: fixture.due_date,
+            terms: fixture.terms,
+            tax_rate: TAX_IDS.denverCombined,
+            message: fixture.message,
+            memo: seedInvoiceMemo(id),
+            bill_to: fixture.bill_to,
+            email: fixture.email,
+        })
+        for (const line of INVOICE_LINES.filter(row => row.invoice === id)) {
+            await pb.collection('books_invoice_lines').create({
+                invoice: created.id,
+                position: line.position,
+                kind: line.kind,
+                product: line.product,
+                description: line.description,
+                quantity: line.quantity,
+                rate: line.rate,
+                percent_ppm: line.percent_ppm,
+                taxable: line.taxable,
+            })
+        }
+        await pb
+            .collection('books_invoices')
+            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
     }
 }
 

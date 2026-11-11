@@ -1,7 +1,7 @@
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { FormErrorSummary, SelectInput, TextInput } from '@tinycld/core/ui/form'
-import { Text } from 'react-native'
-import { useFocusOnOpen } from '../../hooks/useFocusOnOpen'
+import { useRef } from 'react'
+import { Text, type TextInputInstance } from 'react-native'
 import { useRateDialog } from '../../hooks/useRateDialog'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { DialogLoadError } from './DialogLoadError'
@@ -33,21 +33,28 @@ function AgencySelect({ isVisible, dialog }: AgencySelectProps) {
 
 export function RateDialog({ id, agencyId }: RateDialogProps) {
     const dialog = useRateDialog(id, agencyId)
-    const nameFocus = useFocusOnOpen()
+    const nameRef = useRef<TextInputInstance>(null)
     const { control, formState } = dialog.form
     // A close while the save runs would drop its refusal with the form.
     const close = () => {
         if (!dialog.isSaving) dialog.close()
     }
     return (
-        <Dialog isOpen onClose={close} title={dialog.title} size="md" testID="tax-rate-dialog">
+        <Dialog
+            isOpen
+            onClose={close}
+            title={dialog.title}
+            size="md"
+            initialFocusRef={nameRef}
+            testID="tax-rate-dialog"
+        >
             <Dialog.Body>
                 <TextInput
                     control={control}
                     name="name"
                     label="Name"
                     testID="tax-rate-form-name"
-                    {...nameFocus}
+                    inputRef={nameRef}
                 />
                 <PercentInput
                     control={control}

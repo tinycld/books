@@ -104,6 +104,7 @@ const savedEntry: BooksJournalEntries = {
     close_override: '',
     reverses: '',
     replaces: '',
+    document: '',
     created: NOW,
     updated: NOW,
 }

@@ -64,13 +64,15 @@ const BANK = { type: 'Bank', detailType: 'Checking' }
 
 const SEEDED_EQUITY_AND_INCOME = ['Retained earnings', "Owner's Equity", 'Consulting Income']
 
-// The seeded accounts the Trial Balance shows as of the end of last month.
+// The seeded accounts the Trial Balance shows as of the end of last month. Sales tax
+// payable holds the tax of the seeded invoices (seed.ts seedInvoices, dated October 2026).
 const SEEDED_DEFAULT_ROWS = [
     'Business Checking',
     'Business Savings',
     'Accounts receivable',
     'Office Equipment',
     'Company Card',
+    'Sales tax payable',
     "Owner's Equity",
     'Retained earnings',
     'Consulting Income',

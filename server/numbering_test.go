@@ -128,9 +128,58 @@ func TestAllocateNumber_TransferSequenceStartsAtTR1(t *testing.T) {
 	}
 }
 
+func TestAllocateNumber_InvoiceSequenceStartsAt1001(t *testing.T) {
+	app := newBooksApp(t)
+	row := reload(t, app, "books_doc_sequences", "booksseqinvoice")
+	if got := row.GetString("doc_type"); got != "invoice" {
+		t.Fatalf("doc_type = %q, want invoice", got)
+	}
+	if got := row.GetString("prefix"); got != "" {
+		t.Fatalf("prefix = %q, want none", got)
+	}
+	if got := row.GetInt("next_number"); got != 1001 {
+		t.Fatalf("next_number = %d, want 1001", got)
+	}
+
+	var seq int
+	var number string
+	err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		seq, number, err = allocateNumber(tx, "invoice")
+		return err
+	})
+	if err != nil {
+		t.Fatalf("allocate an invoice number: %v", err)
+	}
+	if seq != 1001 || number != "1001" {
+		t.Fatalf("got %d %q, want 1001 \"1001\"", seq, number)
+	}
+	if next := reload(t, app, "books_doc_sequences", "booksseqinvoice").GetInt("next_number"); next != 1002 {
+		t.Fatalf("invoice next_number = %d, want 1002", next)
+	}
+	if next := reload(t, app, "books_doc_sequences", "booksseqjournal").GetInt("next_number"); next != 1 {
+		t.Fatalf("journal next_number = %d, want 1 (an invoice must not take a journal number)", next)
+	}
+}
+
+func TestJournalEntryOrigin_HasDocument(t *testing.T) {
+	app := newBooksApp(t)
+	col, err := app.FindCollectionByNameOrId("books_journal_entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	field, ok := col.Fields.GetByName("origin").(*core.SelectField)
+	if !ok {
+		t.Fatal("books_journal_entries.origin is not a select field")
+	}
+	if !slices.Contains(field.Values, "document") {
+		t.Fatalf("origin values = %v, want document among them", field.Values)
+	}
+}
+
 func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	app := newBooksApp(t)
-	want := []string{"journal", "transfer"}
+	want := []string{"journal", "transfer", "invoice"}
 	for _, name := range []string{"books_journal_entries", "books_doc_sequences"} {
 		col, err := app.FindCollectionByNameOrId(name)
 		if err != nil {
@@ -149,7 +198,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 func TestAllocateNumber_UnknownTypeFails(t *testing.T) {
 	app := newBooksApp(t)
 	err := app.RunInTransaction(func(tx core.App) error {
-		_, _, err := allocateNumber(tx, "invoice")
+		_, _, err := allocateNumber(tx, "bill")
 		return err
 	})
 	if err == nil {

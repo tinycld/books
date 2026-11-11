@@ -5,7 +5,7 @@
 // server/sales_tax_math.go; server/testdata/sales_tax_vectors.json is run by
 // both sides so the two stay equal.
 
-import { maxStoredAmount } from './money'
+import { maxStoredAmount } from './money-text'
 
 export const PPM_PER_PERCENT = 10_000
 export const MAX_RATE_PPM = 1_000_000

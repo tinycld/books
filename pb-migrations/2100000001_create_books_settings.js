@@ -23,6 +23,7 @@
 // document type here while this migration is unreleased. Transfers number on
 // their own (TR-1, TR-2) so a transfer never shares a number with a journal
 // entry; a record id is exactly 15 characters, hence booksseqtransfr.
+// Invoices number from 1001 with no prefix (booksseqinvoice).
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -112,7 +113,7 @@ migrate(
                     type: 'select',
                     required: true,
                     maxSelect: 1,
-                    values: ['journal', 'transfer'],
+                    values: ['journal', 'transfer', 'invoice'],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
                 {
@@ -140,6 +141,12 @@ migrate(
         transfer.set('prefix', 'TR-')
         transfer.set('next_number', 1)
         app.save(transfer)
+        const invoice = new Record(sequences)
+        invoice.set('id', 'booksseqinvoice')
+        invoice.set('doc_type', 'invoice')
+        invoice.set('prefix', '')
+        invoice.set('next_number', 1001)
+        app.save(invoice)
 
         app.save(
             new Collection({

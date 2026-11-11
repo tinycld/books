@@ -54,7 +54,7 @@ table.summary tr.final td { font-weight: bold; font-size: 12pt; border-top: 2px 
 {{range .Parties}}<div class="party"><div class="label">{{.Label}}</div>{{range .Lines}}<div>{{.}}</div>{{end}}</div>{{end}}
 </div>
 <table class="lines">
-<thead><tr><th>Item</th><th>Description</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead>
+<thead><tr><th>Item</th><th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead>
 <tbody>
 {{range .Rows}}<tr class="{{.Kind}}"><td>{{.Item}}</td><td>{{range .Description}}<div>{{.}}</div>{{end}}</td><td class="n">{{.Quantity}}</td><td class="n">{{.Rate}}</td><td class="n">{{.Amount}}</td></tr>
 {{end}}</tbody>

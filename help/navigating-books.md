@@ -5,7 +5,7 @@ summary: Use the sidebar, the New menu and the Lists hub.
 
 To open a list, choose Lists in the sidebar and pick a card. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Chart of Accounts, Customers, Vendors or Products and services list. You can also swipe in from the left edge of the screen to open the sidebar, then choose Lists. To start a transaction, choose New (the round + button on a phone) and pick an action. If you have read-only access, the menu is hidden. The Accounting group in the sidebar folds with its arrow. To change company details, the close date, numbering or access, choose Settings in the sidebar; see [Settings](help://books:settings). To work with accounts, see [Chart of Accounts](help://books:chart-of-accounts).
 
-To find an account, a journal entry, a customer, a vendor, or a product or service from anywhere in the app, use the app search. It matches words that start with what you type, and it ignores case and accents.
+To find an account, a journal entry, a customer, a vendor, a product or service, or an invoice (drafts included) from anywhere in the app, use the app search. An invoice is found by its number, its customer's name, its memo or its message, and you can mix them, for example the customer's name and the invoice number. It matches words that start with what you type, and it ignores case and accents.
 
 To enter the balances your accounts held on your starting date, see [Opening balances](help://books:opening-balances).
 

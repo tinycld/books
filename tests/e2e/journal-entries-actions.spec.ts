@@ -12,6 +12,7 @@ import {
     isPhone,
     openEntriesList,
     PHONE,
+    postedEntryNumber,
     searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
@@ -74,11 +75,6 @@ async function makePosted(page: Page, memo: string) {
 
 function entryIdOf(page: Page) {
     return new URL(page.url()).pathname.split('/').pop() ?? ''
-}
-
-async function entryNumber(page: Page) {
-    const title = (await page.getByTestId('entry-title').innerText()).trim()
-    return title.replace(/^(Journal entry|Edit) /, '')
 }
 
 // The read-only view prints the date as "Oct 25, 2026"; the rule works on ISO days.
@@ -195,7 +191,7 @@ for (const [sizeName, size] of SIZES) {
             const memo = uniqueName(`Reverse me ${sizeName}`)
             await makePosted(page, memo)
             const originalId = entryIdOf(page)
-            const number = await entryNumber(page)
+            const number = await postedEntryNumber(page)
             expect(number).toMatch(NUMBER)
             const day = await entryDay(page)
             const today = await localToday(page)
@@ -220,7 +216,7 @@ for (const [sizeName, size] of SIZES) {
             await page.getByTestId('reverse-confirm').click()
             await waitForOtherEntry(page, originalId)
 
-            const reversalNumber = await entryNumber(page)
+            const reversalNumber = await postedEntryNumber(page)
             expect(reversalNumber).toMatch(NUMBER)
             expect(reversalNumber).not.toBe(number)
             await expect(page.getByTestId('entry-title')).toHaveText(
@@ -285,7 +281,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         const memo = uniqueName(`Void me ${sizeName}`)
         await makePosted(page, memo)
         const id = entryIdOf(page)
-        const number = await entryNumber(page)
+        const number = await postedEntryNumber(page)
 
         await chooseAction(page, 'Void')
         const dialog = page.getByTestId('void-dialog')
@@ -334,7 +330,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         const memo = uniqueName(`Edit me ${sizeName}`)
         await makePosted(page, memo)
         const originalId = entryIdOf(page)
-        const number = await entryNumber(page)
+        const number = await postedEntryNumber(page)
 
         // E is the read view's Edit key.
         await expect(page.getByTestId('entry-edit')).toBeVisible()
@@ -418,7 +414,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await start(page, size)
         await makePosted(page, uniqueName(`Unreverse ${sizeName}`))
         const originalId = entryIdOf(page)
-        const number = await entryNumber(page)
+        const number = await postedEntryNumber(page)
 
         // R is the read view's Reverse key.
         await expect(page.getByTestId('entry-edit')).toBeVisible()
@@ -472,7 +468,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
     }) => {
         await start(page, size)
         await makePosted(page, uniqueName(`Reverse left ${sizeName}`))
-        const number = await entryNumber(page)
+        const number = await postedEntryNumber(page)
         const entryPath = new URL(page.url()).pathname
 
         const today = await localToday(page)
@@ -503,7 +499,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         const memo = uniqueName(`Reverse refused ${sizeName}`)
         await makePosted(page, memo)
         const originalId = entryIdOf(page)
-        const number = await entryNumber(page)
+        const number = await postedEntryNumber(page)
         // No input makes the real server refuse a reverse here, so the posting PATCH is
         // answered with a 400. This covers the dialog and the cleanup, not the server rule.
         await page.route(ENTRY_RECORDS, route =>
@@ -572,7 +568,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
             creditAccount: ACCOUNT_LABELS.equity,
         })
         await makePosted(page, postedMemo)
-        const number = await entryNumber(page)
+        const number = await postedEntryNumber(page)
 
         // A second page opens Books fresh, so the register is reached from the landing
         // and stays open while the first page voids the entry.

@@ -464,6 +464,41 @@ func TestJournalHeadings(t *testing.T) {
 	}
 }
 
+// The Journal reads the same type label helper as the General Ledger: an
+// invoice's entry heads its block "<number> · Invoice", and its void reversal
+// "<number> · Void reversal of <number>" (spec Q24, Q25).
+func TestJournalInvoiceHeadings(t *testing.T) {
+	b := newGLBook(t)
+	registerInvoiceGuards(b.app)
+	ie := invoiceEnvOn(t, b.env)
+	b.account(t, "Receivables", "1200", "accounts_receivable", "accounts_receivable")
+	posted := ie.mkInvoice(t, nil)
+	mkInvoiceLine(t, b.app, posted, 0, item(ie.service, 1, 45000, false))
+	postedEntry := reload(t, b.app, "books_journal_entries",
+		mustPostInvoice(t, b.app, posted.Id, b.env.users.bookkeeper.Id).GetString("entry"))
+	voided := ie.mkInvoice(t, nil)
+	mkInvoiceLine(t, b.app, voided, 0, item(ie.service, 2, 45000, false))
+	voidedEntry := mustPostInvoice(t, b.app, voided.Id, b.env.users.bookkeeper.Id).GetString("entry")
+	if err := voidInvoiceAs(b.app, voided.Id, b.env.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void invoice 1002: %v", err)
+	}
+	voidReversal := findReversal(t, b.app, voidedEntry)
+
+	res := runJournal(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-11-01", "2026-11-30")}, reports.Options{Today: glToday})
+	for _, w := range []struct {
+		what  string
+		entry *core.Record
+		want  string
+	}{
+		{"a posted invoice's entry", postedEntry, "1001 · Invoice"},
+		{"a void invoice's reversal", voidReversal, "1002 · Void reversal of 1002"},
+	} {
+		if got := blockFor(t, res, w.entry).head.Label; got != w.want {
+			t.Errorf("heading of %s = %q, want %q", w.what, got, w.want)
+		}
+	}
+}
+
 // A line row: its date as the label, Account "<number> <full name>" (the full
 // name alone with no number), Name from its customer or vendor, Description
 // the line memo else the entry memo, and a blank zero side.

@@ -29,6 +29,7 @@ const BUILTIN_COLUMNS = [
     'exemption_reason',
     'exemption_number',
     'default_tax_rate',
+    'terms',
     'notes',
 ]
 
@@ -191,6 +192,7 @@ describe('EMPTY_CUSTOMER_COLUMNS', () => {
             exemption_reason: '',
             exemption_number: '',
             default_tax_rate: '',
+            terms: '',
             notes: '',
             inactive: false,
         })

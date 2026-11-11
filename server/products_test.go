@@ -887,3 +887,29 @@ func TestProduct_BundleIsNeverTaxable(t *testing.T) {
 		}
 	}
 }
+
+// A product on an invoice line cannot be deleted; the count is of invoices,
+// not of lines.
+func TestProduct_DeleteRefusedWhileOnInvoiceLines(t *testing.T) {
+	app := newGuardedApp(t)
+	cable := mkService(t, app, "Patch cable", mkIncomeAccount(t, app))
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+	line := func(invoice *core.Record, position int) {
+		t.Helper()
+		saveRecord(t, app, "books_invoice_lines", map[string]any{
+			"invoice": invoice.Id, "kind": "item", "product": cable.Id, "quantity": 1, "rate": 875, "position": position,
+		})
+	}
+	first := mkInvoiceRow(t, app, customer, nil)
+	line(first, 0)
+	line(first, 1)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 1 invoice. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+
+	second := mkInvoiceRow(t, app, customer, map[string]any{"status": "posted"})
+	line(second, 0)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 2 invoices. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+}

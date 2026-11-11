@@ -172,6 +172,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 				}},
 				{key: "doc_type", typ: reports.Select, options: []reports.Option{
 					{Value: "journal", Label: "Journal entry"}, {Value: "transfer", Label: "Transfer"},
+					{Value: "invoice", Label: "Invoice"},
 				}},
 				textMinMax("number"),
 				// The posting order behind number, so opened lines sort 9 before 10.
@@ -285,8 +286,16 @@ func TestReportSourcesCatalog(t *testing.T) {
 			if src.Collection != want.collection || src.Label != want.label {
 				t.Errorf("collection, label = %q, %q; want %q, %q", src.Collection, src.Label, want.collection, want.label)
 			}
+			wantCurrency := ""
+			if slices.Contains([]string{"books.journal_entries", "books.journal_lines", "books.account_balances"}, want.key) {
+				wantCurrency = "USD"
+			}
+			gotCurrency := ""
 			if src.Currency != nil {
-				t.Errorf("Source.Currency is set; each money field names its row's currency column")
+				gotCurrency = src.Currency(app, info)
+			}
+			if gotCurrency != wantCurrency {
+				t.Errorf("Currency = %q, want %q (the Books currency on a source with money fields, none otherwise)", gotCurrency, wantCurrency)
 			}
 			if !reflect.DeepEqual(src.Watch, []string{"books_settings"}) {
 				t.Errorf("Watch = %v, want [books_settings]", src.Watch)
@@ -470,6 +479,12 @@ func TestReportSourcesHeadingAndFiscalStart(t *testing.T) {
 	if got := booksFiscalStart(app, outsider); got != 1 {
 		t.Errorf("fiscal start for a user with Books access none = %d, want 1 (they may not view books_settings)", got)
 	}
+	if got := booksCurrency(app, reader); got != "USD" {
+		t.Errorf("currency = %q, want the Books currency USD", got)
+	}
+	if got := booksCurrency(app, outsider); got != "" {
+		t.Errorf("currency for a user with Books access none = %q, want \"\" (they may not view books_settings)", got)
+	}
 
 	if err := setFields(t, app, "books_settings", settingsID, map[string]any{"business_name": ""}); err != nil {
 		t.Fatalf("clear business name: %v", err)
@@ -486,6 +501,9 @@ func TestReportSourcesHeadingAndFiscalStart(t *testing.T) {
 	}
 	if got := booksHeading(app, reader); got != "" {
 		t.Errorf("heading with no settings row = %q, want \"\"", got)
+	}
+	if got := booksCurrency(app, reader); got != "" {
+		t.Errorf("currency with no settings row = %q, want \"\"", got)
 	}
 }
 

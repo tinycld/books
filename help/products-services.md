@@ -47,9 +47,11 @@ Turn on Taxable to charge sales tax on the item when you sell it. A new Non-inve
 
 ## Bundles
 
-A bundle is a list of items that you sell together. To add an item to a bundle, choose Add row, pick a product or service and set its Qty. To change the order of the items, move a row up or down with its arrows. To take an item out, remove its row.
+A bundle is a list of items that you sell together. To add an item to a bundle, choose Add row, pick a product or service and set its Qty. To change the order of the items, open the row's menu (⋮) and choose Move up or Move down. To take an item out, open the row's menu and choose Remove.
 
 A bundle holds Services and Non-inventory items only, so a bundle cannot contain another bundle. A bundle has no price, cost or accounts of its own.
+
+When you pick a bundle on an invoice line, Books adds one line for each item in the bundle and a subtotal line under them. See [Invoices](help://books:invoices).
 
 ## Find a product or service
 

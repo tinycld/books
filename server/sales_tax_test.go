@@ -690,11 +690,22 @@ func TestTaxRate_InactiveRefusals(t *testing.T) {
 	})
 }
 
-// Later units append their document tax columns; this unit starts the list
-// with the groups' rates.
+// Later units append their document tax columns; the list starts with the
+// groups' rates, then the invoice's header rate and its tax lines' components.
 func TestTaxRateReferences_StartWithGroupComponents(t *testing.T) {
-	if len(taxRateReferences) != 1 {
-		t.Fatalf("taxRateReferences has %d entries, want 1", len(taxRateReferences))
+	if len(taxRateReferences) != 3 {
+		t.Fatalf("taxRateReferences has %d entries, want 3", len(taxRateReferences))
+	}
+	for _, want := range [][2]string{{"books_invoices", "tax_rate"}, {"books_invoice_tax_lines", "component"}} {
+		found := false
+		for _, ref := range taxRateReferences[1:] {
+			if ref.collection == want[0] && ref.field == want[1] && !ref.multiple && ref.message != nil {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("taxRateReferences has no single-rate reference %s.%s with a message", want[0], want[1])
+		}
 	}
 	ref := taxRateReferences[0]
 	if ref.collection != "books_tax_rates" || ref.field != "components" || !ref.multiple {
@@ -704,4 +715,47 @@ func TestTaxRateReferences_StartWithGroupComponents(t *testing.T) {
 	if ref.message == nil || reflect.ValueOf(ref.message).Pointer() != reflect.ValueOf(rateInGroupsMessage).Pointer() {
 		t.Error("taxRateReferences[0].message is not rateInGroupsMessage")
 	}
+}
+
+// A rate or group on an invoice, or a component rate named only by a posted
+// invoice's tax line, cannot be deleted.
+func TestTaxRate_DeleteRefusedWhileOnInvoices(t *testing.T) {
+	const wantOnInvoices = "This tax rate is on invoices. Make it inactive instead."
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+
+	t.Run("a rate on an invoice", func(t *testing.T) {
+		boulder := mkTaxRate(t, app, "Boulder city", 38600, agency)
+		mkInvoiceRow(t, app, customer, map[string]any{"tax_rate": boulder.Id})
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, boulder), wantOnInvoices)
+		requireStillThere(t, app, "books_tax_rates", boulder)
+	})
+
+	t.Run("a group on an invoice", func(t *testing.T) {
+		metro := mkTaxGroup(t, app, "Metro",
+			mkTaxRate(t, app, "Metro state", 29000, agency), mkTaxRate(t, app, "Metro city", 48100, agency))
+		mkInvoiceRow(t, app, customer, map[string]any{"tax_rate": metro.Id})
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, metro), wantOnInvoices)
+		requireStillThere(t, app, "books_tax_rates", metro)
+	})
+
+	t.Run("a component named only by an invoice tax line", func(t *testing.T) {
+		header := mkTaxRate(t, app, "Aurora city", 37500, agency)
+		component := mkTaxRate(t, app, "Old county", 5000, agency)
+		inv := mkInvoiceRow(t, app, customer, map[string]any{"status": "posted", "tax_rate": header.Id})
+		saveRecord(t, app, "books_invoice_tax_lines", map[string]any{
+			"invoice": inv.Id, "rate": header.Id, "component": component.Id, "agency": agency.Id,
+			"rate_ppm": 5000, "taxable_amount": 10000, "amount": 50, "position": 0,
+		})
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, component), wantOnInvoices)
+		requireStillThere(t, app, "books_tax_rates", component)
+	})
+
+	t.Run("a rate on no invoice deletes", func(t *testing.T) {
+		unused := mkTaxRate(t, app, "Unused rate", 1000, agency)
+		if err := deleteTaxRate(t, app, unused); err != nil {
+			t.Fatalf("delete a rate on no invoice: %v", err)
+		}
+	})
 }
