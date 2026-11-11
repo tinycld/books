@@ -169,6 +169,12 @@ with the reason, and shown to the human at the end)
 - gate 2: invalid shots: none (`evidence/cp4/`, 26 shots) · layouts on `/a/reports/<id>`: P&L 390 mobile (label, then Total · % below), 1024 and 1280 one line; by month 390/1024/1280 core automatic lines (1280: label + Jan–Oct on line 1; Nov, Total, % on line 2) · blocking: none · notes: 3, under Design notes
 - gate 3 A (correctness): 0 BLOCK, 5 NOTE: 1 (out-of-plan plan file, D14) → Out-of-plan changes; 2 (column order read from drawn headings only), 3 (presets not pinned), 4 ("every month" loose) → fix items 1–3 (weak tests of agreed bullets); 5 (help says "Books sidebar", wrong on a phone) → fix item 4 (one-line text in a touched file)
 - gate 3 B (conformance): script lines: 0 · 1 finding (out-of-plan plan file, D14) → accepted, Out-of-plan changes · DEFERRALS: none
+- fix round 1 (staging `cp/cp4-fix.md`, 4 items): items 1–3 weak-test → fresh test writer (`cp/cp4-fix-tests.md`): `fitGeometry` reads the column order from every heading, drawn or not, and `automaticLines` fails on an empty order (proved red with an overlay that hides the headings and swaps a month with Total); help test pins the presets (This month, Last quarter) and a month with no line at 0.00 (proved red on a scratch copy of the help). Item 4 help-text → implementer (`cp/cp4-fix-impl.md`): `help/reports.md` "Read the Profit and Loss" opens Reports from Books (the sidebar, or the Books menu on a phone)
+- gate 1 (after fixes): tests unedited by the implementer: yes · `go test ./...` ok · `tinycld-pkg check` pass (4323) · e2e 11/11 on 7210 (no other Playwright process, ports free) · no shot changed (help text and tests only), no re-capture
+- fix review: round 1: clean, 0 BLOCK, 0 NOTE (staging `cp/cp4-fix-review.md`); the fix-review input left out the test fixes (staged first; retro log), the reviewer read them from the tree; rounds: 1
+- gate 3 A notes: 0 to Design notes (NOTE 1 → Out-of-plan changes; 2–5 fixed)
+- reviewer-caught deferrals: none
+- commit: b63d133
 
 ## Final review
 - eval:
