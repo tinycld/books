@@ -87,7 +87,7 @@ function GridHeader() {
             <HeadCell label="Product or service" style={PRODUCT_FLEX} />
             <HeadCell label="Description" style={DESCRIPTION_FLEX} />
             <HeadCell label="Qty" style={QTY_CELL} alignRight />
-            <HeadCell label="Price"style={RATE_CELL} alignRight />
+            <HeadCell label="Price" style={RATE_CELL} alignRight />
             <HeadCell label="Amount" style={AMOUNT_CELL} alignRight />
             <HeadCell label="Tax" style={TAX_CELL} />
         </View>
