@@ -1,0 +1,133 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280, 911, 640, 390],
+            "height": 1500
+        },
+        {
+            "name": "filled",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280, 911, 640],
+            "height": 1900,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0",
+                    "value": "2"
+                },
+                { "click": "form-table-lines-add" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                { "clickMenuItem": "Initial consultation" },
+                { "pause": 300 },
+                { "fill": "form-input-message", "value": "Thank you for your business." },
+                { "fill": "form-input-memo", "value": "helix capture revise1" },
+                { "click": "invoice-save-draft" },
+                { "waitFor": "Draft invoice" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "filled-phone",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 3200,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]) >> nth=0",
+                    "value": "2"
+                },
+                { "fill": "form-input-message", "value": "Thank you for your business." },
+                { "fill": "form-input-memo", "value": "helix capture revise1" },
+                { "click": "invoice-save-draft" },
+                { "waitFor": "Draft invoice" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280],
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [390],
+            "height": 2800,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickCss": "[data-testid^=\"entries-row-menu-\"] >> nth=0" },
+                { "click": "entries-menu-open" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "edit-address",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [1280, 390],
+            "height": 1700,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "invoice-edit-address" },
+                { "waitFor": "form-input-email" }
+            ]
+        }
+    ]
+}

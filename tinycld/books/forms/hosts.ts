@@ -1,5 +1,7 @@
 import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
+import { INVOICE_LINE_COLUMNS, INVOICE_ROW_KINDS } from '../lib/invoice-lines'
+import { INVOICE_NOTE_HINTS, INVOICE_NOTE_LABELS } from '../lib/invoice-notes'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
@@ -20,6 +22,7 @@ const LAYOUT = {
         website: { width: 'half' },
         exemption_reason: { width: 'half' },
         exemption_number: { width: 'half' },
+        terms: { width: 'quarter' },
     },
     rules: [
         {
@@ -103,6 +106,30 @@ const PRODUCT_LAYOUT = {
     ],
 } satisfies FormHostDefInput['layout']
 
+export const INVOICE_HOST_KEY = 'books:invoice'
+
+// The default Invoice form: one page. Customer, Bill to and Email span the header
+// band; Terms, Invoice date, Due date and Tax share a row. Tax takes its content's
+// width, never a share of the row. Below 640 px core draws each date as a half, so
+// Terms and Invoice date fill one row and Tax sits beside Due date on the next, or on
+// its own row when the form is too narrow for both. The lines, the message to the
+// customer and the internal memo follow, each with a hint that says who reads it.
+const INVOICE_LAYOUT = {
+    pages: [{ key: 'main', title: 'Invoice' }],
+    fields: {
+        customer: { width: 'full' },
+        bill_to: { width: 'full' },
+        email: { width: 'full' },
+        terms: { width: 'quarter' },
+        date: { width: 'quarter' },
+        due_date: { width: 'quarter' },
+        tax_rate: { width: 'quarter', narrowWidth: 'full' },
+        message: { description: INVOICE_NOTE_HINTS.message },
+        memo: { description: INVOICE_NOTE_HINTS.memo },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
 // Pure data: the generator imports this in Node (server/form_hosts.json). Keys of
 // column built-ins ARE the column names; their order is the default form's field
 // order. Later Books units append their hosts here.
@@ -134,6 +161,7 @@ const hosts: FormHostDefInput[] = [
             'exemption_number',
             'default_tax_rate',
             'inactive',
+            'terms',
             'form',
             'fields',
             'name_key',
@@ -266,6 +294,16 @@ const hosts: FormHostDefInput[] = [
                 storage: 'column',
                 required: false,
                 component: 'TaxRateField',
+                chrome: 'cell',
+            },
+            // An invoice fills its own Terms from this one.
+            {
+                key: 'terms',
+                label: 'Payment terms',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'PaymentTermsField',
                 chrome: 'cell',
             },
             { key: 'notes', label: 'Notes', kind: 'textarea', storage: 'column', required: false },
@@ -564,6 +602,146 @@ const hosts: FormHostDefInput[] = [
             },
         ],
         layout: PRODUCT_LAYOUT,
+    },
+    {
+        key: INVOICE_HOST_KEY,
+        label: 'Invoice',
+        collection: 'books_invoices',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column.
+        columns: [
+            'id',
+            'customer',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'due_date',
+            'terms',
+            'bill_to',
+            'email',
+            'tax_rate',
+            'message',
+            'memo',
+            'subtotal',
+            'tax_total',
+            'total',
+            'currency',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'customer',
+                label: 'Customer',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'CustomerField',
+                chrome: 'cell',
+            },
+            {
+                key: 'bill_to',
+                label: 'Bill to',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BillToField',
+                chrome: 'cell',
+            },
+            {
+                key: 'email',
+                label: 'Email',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BandEmailField',
+                chrome: 'cell',
+            },
+            {
+                key: 'terms',
+                label: 'Terms',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DocumentTermsField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Invoice date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'due_date',
+                label: 'Due date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                component: 'DueDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_rate',
+                label: 'Tax',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DocumentTaxField',
+                chrome: 'cell',
+            },
+            {
+                key: 'lines',
+                label: 'Lines',
+                kind: 'table',
+                storage: 'rows',
+                required: true,
+                columns: [...INVOICE_LINE_COLUMNS],
+                rowKinds: [...INVOICE_ROW_KINDS],
+                rowShortcuts: true,
+                // The Item kind's Alt+Enter adds a line after the focused one, so the
+                // row menu's "Insert line below" names that key.
+                insertShortcuts: { below: 'Alt+Enter' },
+            },
+            // Core allows maxLength only on a text built-in; invoiceSchema bounds these
+            // two at 4000 code points, as the migration does.
+            {
+                key: 'message',
+                label: INVOICE_NOTE_LABELS.message,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'memo',
+                label: INVOICE_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'lines',
+        layout: INVOICE_LAYOUT,
     },
 ]
 

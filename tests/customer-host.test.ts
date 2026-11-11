@@ -29,6 +29,7 @@ const ALL_COLUMNS = {
     exemption_number: true,
     default_tax_rate: true,
     inactive: true,
+    terms: true,
     form: true,
     fields: true,
     name_key: true,
@@ -56,6 +57,12 @@ const BUILTINS = [
     ['notes', 'Notes', 'textarea'],
 ] as const
 
+// The Terms built-in (spec §3.9, Q8) sits right after Default sales tax. Its label is
+// not pinned here: the invoice reads only the column.
+const BUILTIN_KEYS = BUILTINS.flatMap(([key]) =>
+    key === 'default_tax_rate' ? [key, 'terms'] : [key]
+)
+
 const CUSTOM_COMPONENTS = {
     email: 'EmailField',
     phone: 'PhoneField',
@@ -66,6 +73,7 @@ const CUSTOM_COMPONENTS = {
     shipping_address: 'ShippingAddressField',
     exemption_reason: 'ExemptionReasonField',
     default_tax_rate: 'TaxRateField',
+    terms: 'PaymentTermsField',
 }
 
 const HALF_WIDTH = [
@@ -129,7 +137,10 @@ describe('books:customer forms host', () => {
 
     it('declares the built-ins in order, with labels and kinds, only Display name required', () => {
         const host = parsedHost()
-        expect(host.builtin.map(b => [b.key, b.label, b.kind])).toEqual(BUILTINS)
+        expect(host.builtin.map(b => b.key)).toEqual(BUILTIN_KEYS)
+        expect(
+            host.builtin.filter(b => b.key !== 'terms').map(b => [b.key, b.label, b.kind])
+        ).toEqual(BUILTINS)
         expect(host.builtin.filter(b => b.required).map(b => b.key)).toEqual(['display_name'])
         expect(host.builtin.every(b => b.storage === 'column')).toBe(true)
     })
@@ -141,18 +152,30 @@ describe('books:customer forms host', () => {
         expect(custom.map(b => b.chrome)).toEqual(custom.map(() => 'cell'))
     })
 
-    it('seeds one page with half-width pairs and every other field full width', () => {
+    it('seeds one page with half-width pairs, Terms a quarter, and every other field full width', () => {
         const definition = defaultDefinitionFor(parsedHost())
         expect(definition.pages).toHaveLength(1)
         const page = definition.pages[0].key
-        expect(definition.fields.map(f => f.key)).toEqual(BUILTINS.map(([key]) => key))
+        expect(definition.fields.map(f => f.key)).toEqual(BUILTIN_KEYS)
         expect(definition.fields.every(f => f.page === page)).toBe(true)
         const widths = Object.fromEntries(definition.fields.map(f => [f.key, f.width]))
-        expect(widths).toEqual(
-            Object.fromEntries(
-                BUILTINS.map(([key]) => [key, HALF_WIDTH.includes(key) ? 'half' : 'full'])
-            )
-        )
+        const widthOf = (key: string) => {
+            if (key === 'terms') return 'quarter'
+            return HALF_WIDTH.includes(key) ? 'half' : 'full'
+        }
+        expect(widths).toEqual(Object.fromEntries(BUILTIN_KEYS.map(key => [key, widthOf(key)])))
+    })
+
+    it('has a Terms built-in, a payment terms select in the terms column, right after Default sales tax', () => {
+        const host = parsedHost()
+        const keys = host.builtin.map(b => b.key)
+        expect(keys.indexOf('terms')).toBe(keys.indexOf('default_tax_rate') + 1)
+        const terms = builtin('terms')
+        expect(terms.kind).toBe('custom')
+        expect(terms.component).toBe('PaymentTermsField')
+        expect(terms.storage).toBe('column')
+        expect(terms.required).toBe(false)
+        expect(host.columns).toContain('terms')
     })
 
     it('limits the exemption certificate number to 100 characters', () => {

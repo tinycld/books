@@ -434,6 +434,141 @@ export function glSnapshot(page: Page): Promise<GlSnapshot> {
     })
 }
 
+// A read of a layout report (the Balance Sheet, the Profit and Loss and its by-month form).
+export type ReportSnapshot = {
+    // The document header's first line: the Books business name.
+    business: string
+    title: string
+    // The period the document header prints (report-document-period).
+    header: string
+    // Each column heading's text by column id (report-heading-<col>).
+    headings: Record<string, string>
+    rows: {
+        id: string
+        kind: 'group' | 'detail' | 'subtotal' | 'computed' | 'total'
+        // The outline level core indents the label to: 16 + depth × 16 px (ReportRow labelStyle).
+        depth: number
+        label: string
+        // Each cell's text by column id.
+        cells: Record<string, string>
+    }[]
+}
+
+// The shipped Balance Sheet from the Books hub, reached as openTrialBalance reaches the
+// Trial Balance: through the viewer share Books keeps. A layout report has no empty state,
+// so the table always shows.
+export async function openBalanceSheet(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, 'Balance Sheet').click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(page.getByTestId('report-table')).toBeVisible()
+}
+
+const ROWS_LABELS = { nonzero: 'Non-zero', active: 'Active' } as const
+
+// Sets Rows through its chip and waits until the URL holds the new value and the run
+// for it has landed: core keeps the previous run's rows on screen until the new run
+// lands. The run is awaited by its request body, so the choice must be one the page has
+// not run with these params before (React Query answers a body it has cached with no
+// request).
+export async function chooseRows(page: Page, choice: 'nonzero' | 'active'): Promise<void> {
+    const landed = page.waitForResponse(response => {
+        if (!response.url().includes('/api/reports/run') || !response.ok()) return false
+        const body = response.request().postDataJSON() as { params?: { rows?: string } } | null
+        return (body?.params?.rows ?? 'nonzero') === choice
+    })
+    await chooseParamOption(page, 'rows', { from: 'chip', labels: [ROWS_LABELS[choice]] })
+    await expect
+        .poll(() => new URL(page.url()).searchParams.get('p-rows') ?? 'nonzero')
+        .toBe(choice)
+    await landed
+    await expect(page.getByTestId('report-param-rows')).toContainText(ROWS_LABELS[choice])
+}
+
+// The document header, every column heading and every mounted row of the report table, top
+// to bottom, with every cell, read in ONE pass so no re-render lands between two reads. The
+// row kind comes from core's row id: g: a group or an account, d: a line, s: a group's
+// total, c: a computed row, total: the Total.
+export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
+    return page.evaluate(() => {
+        const textOf = (element: Element | null | undefined) =>
+            (element as HTMLElement | null | undefined)?.innerText.trim() ?? ''
+        // Core draws headings with CSS `uppercase`, and innerText applies it; the
+        // heading's value is the words before that transform.
+        const untransformedText = (element: Element) =>
+            (element.textContent ?? '').replace(/\s+/g, ' ').trim()
+        const header = document.querySelector('[data-testid="report-document-header"]')
+        const business =
+            textOf(header)
+                .split('\n')
+                .map(line => line.trim())
+                .find(line => line !== '') ?? ''
+        const headings: Record<string, string> = {}
+        for (const heading of document.querySelectorAll('[data-testid^="report-heading-"]')) {
+            const id = (heading.getAttribute('data-testid') ?? '').slice('report-heading-'.length)
+            if (id === 'row') continue
+            headings[id] = untransformedText(heading)
+        }
+        const table = document.querySelector('[data-testid="report-table"]')
+        const cells = new Map<string, Record<string, string>>()
+        for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {
+            const rest = (cell.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
+            const dash = rest.indexOf('-')
+            const row = cells.get(rest.slice(dash + 1)) ?? {}
+            row[rest.slice(0, dash)] = textOf(cell)
+            cells.set(rest.slice(dash + 1), row)
+        }
+        const kindOf = (id: string): ReportSnapshot['rows'][number]['kind'] | null => {
+            if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('d:')) return 'detail'
+            if (id.startsWith('s:')) return 'subtotal'
+            if (id.startsWith('c:')) return 'computed'
+            if (id.startsWith('total')) return 'total'
+            return null
+        }
+        const rows: ReportSnapshot['rows'] = []
+        const labels = [...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? [])]
+            .map(element => ({
+                id: (element.getAttribute('data-testid') ?? '').slice('report-row-'.length),
+                label: textOf(element),
+                padding: Number.parseFloat(getComputedStyle(element).paddingLeft),
+                top: element.getBoundingClientRect().top,
+            }))
+            .sort((a, b) => a.top - b.top)
+        for (const { id, label, padding } of labels) {
+            const kind = kindOf(id)
+            if (!kind) continue
+            const depth = Math.round((padding - 16) / 16)
+            rows.push({ id, kind, depth, label, cells: cells.get(id) ?? {} })
+        }
+        return {
+            business,
+            title: textOf(document.querySelector('[data-testid="report-document-title"]')),
+            header: textOf(document.querySelector('[data-testid="report-document-period"]')),
+            headings,
+            rows,
+        }
+    })
+}
+
+// The opened lines under the row labelled `label`: the detail rows that follow it until the
+// next row that is not a line. Empty when the row is not mounted or not open.
+export function reportLinesUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
+    const start = snapshot.rows.findIndex(row => row.kind !== 'detail' && row.label === label)
+    if (start < 0) return []
+    const after = snapshot.rows.slice(start + 1)
+    const end = after.findIndex(row => row.kind !== 'detail')
+    return end < 0 ? after : after.slice(0, end)
+}
+
+// Presses an account row of a layout report and waits until its lines show beneath it.
+export async function openReportAccount(page: Page, label: string): Promise<void> {
+    await rowOf(page, label).click()
+    await expect
+        .poll(async () => reportLinesUnder(await reportSnapshot(page), label).length)
+        .toBeGreaterThan(0)
+}
+
 // Posts a journal entry on `date`: Books must be open on a screen openNewEntry reaches. The
 // form starts with two lines; each line past them is added with Add line.
 export async function postEntryOn(
@@ -473,61 +608,6 @@ export async function openProfitAndLossByMonth(page: Page): Promise<void> {
     await expect(page.getByTestId('report-table')).toBeVisible()
 }
 
-const ROWS_LABELS = { nonzero: 'Non-zero', active: 'Active' } as const
-
-// Sets Rows through its chip and waits until the URL holds the new value and the run
-// for it has landed. The run is awaited by its request body, so the choice must be one
-// the page has not run with these params before (React Query answers a body it has
-// cached with no request).
-export async function chooseRows(page: Page, choice: 'nonzero' | 'active'): Promise<void> {
-    const landed = page.waitForResponse(response => {
-        if (!response.url().includes('/api/reports/run') || !response.ok()) return false
-        const body = response.request().postDataJSON() as { params?: { rows?: string } } | null
-        return (body?.params?.rows ?? 'nonzero') === choice
-    })
-    await chooseParamOption(page, 'rows', { from: 'chip', labels: [ROWS_LABELS[choice]] })
-    await expect
-        .poll(() => new URL(page.url()).searchParams.get('p-rows') ?? 'nonzero')
-        .toBe(choice)
-    await landed
-    await expect(page.getByTestId('report-param-rows')).toContainText(ROWS_LABELS[choice])
-}
-
-export type PlSnapshot = {
-    // The first text line of the document header: the Books business name.
-    business: string
-    title: string
-    // The period the document header prints (report-document-period).
-    header: string
-    // Each column heading's text by column id (report-heading-<col>).
-    headings: Record<string, string>
-    rows: {
-        id: string
-        kind: 'group' | 'detail' | 'subtotal' | 'computed'
-        label: string
-        // Each cell's text by column id.
-        cells: Record<string, string>
-    }[]
-}
-
-// The opened lines beneath the row labelled `label`: the detail rows after it until the
-// next row that is not a line. Empty when the row is not mounted or not open.
-export function plLinesUnder(snapshot: PlSnapshot, label: string): PlSnapshot['rows'] {
-    const start = snapshot.rows.findIndex(row => row.kind !== 'detail' && row.label === label)
-    if (start < 0) return []
-    const after = snapshot.rows.slice(start + 1)
-    const end = after.findIndex(row => row.kind !== 'detail')
-    return end < 0 ? after : after.slice(0, end)
-}
-
-// Opens a Profit and Loss account row by a press and waits until its lines show beneath it.
-export async function openProfitAndLossAccount(page: Page, label: string): Promise<void> {
-    await rowOf(page, label).click()
-    await expect
-        .poll(async () => plLinesUnder(await plSnapshot(page), label).length)
-        .toBeGreaterThan(0)
-}
-
 // How long a press is watched for a run it starts. An opened row's lines come from a new
 // run (/api/reports/run with the row's path in `expand`), which the press sends at once
 // and which lands well inside this window.
@@ -541,7 +621,7 @@ const SECTION_PATH_LENGTH = 2
 // run asks to open a row under a section (an `expand` path longer than a section's), and
 // no snapshot taken in it shows a line beneath the row. Other workers post on the shared
 // DB, so a live re-run may come in the window; only one that opens a row fails.
-export async function expectPressOpensNothing(page: Page, label: string): Promise<PlSnapshot> {
+export async function expectPressOpensNothing(page: Page, label: string): Promise<ReportSnapshot> {
     const opening: unknown[][][] = []
     const watch = (request: Request) => {
         if (!request.url().includes('/api/reports/run') || request.method() !== 'POST') return
@@ -553,73 +633,17 @@ export async function expectPressOpensNothing(page: Page, label: string): Promis
     try {
         await rowOf(page, label).click()
         const until = Date.now() + PRESS_WATCH_MS
-        let last = await plSnapshot(page)
+        let last = await reportSnapshot(page)
         while (Date.now() < until) {
-            expect(plLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual([])
-            last = await plSnapshot(page)
+            expect(reportLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual(
+                []
+            )
+            last = await reportSnapshot(page)
         }
-        expect(plLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual([])
+        expect(reportLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual([])
         expect(opening, `runs that open a row after the press on ${label}`).toEqual([])
         return last
     } finally {
         page.off('request', watch)
     }
-}
-
-// The document header, the column headings and every mounted row of the report table, top
-// to bottom, with every cell, read in ONE pass so no re-render lands between two reads.
-// The row kind comes from core's row id: g: a section or an account, d: a line, s: a
-// section's total, c: a computed row.
-export function plSnapshot(page: Page): Promise<PlSnapshot> {
-    return page.evaluate(() => {
-        const text = (testId: string) =>
-            (
-                document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null
-            )?.innerText.trim() ?? ''
-        const table = document.querySelector('[data-testid="report-table"]')
-        const headings: Record<string, string> = {}
-        for (const heading of document.querySelectorAll('[data-testid^="report-heading-"]')) {
-            const id = (heading.getAttribute('data-testid') ?? '').slice('report-heading-'.length)
-            if (id === 'row') continue
-            // The words, not the drawn case: core draws headings with `uppercase`, and
-            // innerText applies text-transform.
-            headings[id] = (heading.textContent ?? '').replace(/\s+/g, ' ').trim()
-        }
-        const cells = new Map<string, Record<string, string>>()
-        for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {
-            const rest = (cell.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
-            const dash = rest.indexOf('-')
-            const column = rest.slice(0, dash)
-            const id = rest.slice(dash + 1)
-            const row = cells.get(id) ?? {}
-            row[column] = (cell as HTMLElement).innerText.trim()
-            cells.set(id, row)
-        }
-        const kindOf = (id: string): PlSnapshot['rows'][number]['kind'] | null => {
-            if (id.startsWith('g:')) return 'group'
-            if (id.startsWith('d:')) return 'detail'
-            if (id.startsWith('s:')) return 'subtotal'
-            if (id.startsWith('c:')) return 'computed'
-            return null
-        }
-        const rows: PlSnapshot['rows'] = []
-        const labels = [...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? [])]
-            .map(element => ({
-                id: (element.getAttribute('data-testid') ?? '').slice('report-row-'.length),
-                label: (element as HTMLElement).innerText.trim(),
-                top: element.getBoundingClientRect().top,
-            }))
-            .sort((a, b) => a.top - b.top)
-        for (const { id, label } of labels) {
-            const kind = kindOf(id)
-            if (kind) rows.push({ id, kind, label, cells: cells.get(id) ?? {} })
-        }
-        return {
-            business: text('report-document-header').split('\n')[0]?.trim() ?? '',
-            title: text('report-document-title'),
-            header: text('report-document-period'),
-            headings,
-            rows,
-        }
-    })
 }

@@ -23,10 +23,12 @@ import (
 // serverOnly are the collections only Go writes. The balance rows are derived
 // from the ledger; a bank file's parsed rows are written by the upload hook, and
 // the import row that made the transactions is audited. A writer changes a
-// transaction's status, so the transactions are audited, not server-only.
+// transaction's status, so the transactions are audited, not server-only. An
+// invoice's tax lines are its posting snapshot, written with the audited invoice.
 var serverOnly = map[string]bool{
 	"books_account_balances":   true,
 	"books_bank_file_contents": true,
+	"books_invoice_tax_lines":  true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
@@ -752,6 +754,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 
 	parts := newBooksApp(t)
 	registerLedger(parts)
+	registerInvoiceGuards(parts)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)

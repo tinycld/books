@@ -4,9 +4,20 @@ import { type LinePartyRow, linePartyName } from './line-party-options'
 import { maxStoredAmount } from './money'
 import type { RegisterRange } from './register-range'
 
+// `document` lets the drawer's Open of a document's entry open the document
+// (entryHref). It is required so that a projection that drops it fails to compile.
 export type RegisterEntry = Pick<
     BooksJournalEntries,
-    'id' | 'number' | 'memo' | 'status' | 'origin' | 'doc_type' | 'posted_at' | 'reverses' | 'date'
+    | 'id'
+    | 'number'
+    | 'memo'
+    | 'status'
+    | 'origin'
+    | 'doc_type'
+    | 'posted_at'
+    | 'reverses'
+    | 'date'
+    | 'document'
 >
 
 // The line's customer and vendor rows come through materialize (registerLinesQuery):
@@ -68,6 +79,8 @@ export type EntryDetail = {
     // The drawer's Open picks the screen by these (entryHref).
     docType: BooksJournalEntries['doc_type']
     origin: BooksJournalEntries['origin']
+    // The document a document's entry was posted from (an invoice's id); '' for others.
+    document: BooksJournalEntries['document']
     lines: {
         id: string
         accountId: string
@@ -90,17 +103,26 @@ export const originLabels: Record<string, string> = {
     opening_balance: 'Opening balances',
 }
 
-export const TRANSFER_LABEL = 'Transfer'
+// The label of an entry whose doc type the table names (a transfer, an invoice's
+// entry), unless the entry is a reversal.
+export const DOC_TYPE_LABELS: Record<string, string> = {
+    transfer: 'Transfer',
+    invoice: 'Invoice',
+}
 
 export const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])
 
-// A transfer's reversal keeps doc_type 'transfer' and its "Void reversal of TR-3" label.
+// A reversal keeps its doc type ('transfer', 'invoice') and is labelled by its origin:
+// "Void reversal of TR-3".
 export function entryTypeLabel(
     origin: string,
     reversesNumber: string,
     docType: string = 'journal'
 ): string {
-    if (docType === 'transfer' && origin === 'manual') return TRANSFER_LABEL
+    const docTypeLabel = Object.hasOwn(DOC_TYPE_LABELS, docType)
+        ? DOC_TYPE_LABELS[docType]
+        : undefined
+    if (docTypeLabel && !reversalOrigins.has(origin)) return docTypeLabel
     const label = originLabels[origin] ?? originLabels.manual
     if (!reversalOrigins.has(origin) || !reversesNumber) return label
     return `${label} of ${reversesNumber}`
@@ -209,6 +231,7 @@ export function entryDetail(line: RegisterSourceLine, accountId: string): EntryD
         memo: entry.memo,
         docType: entry.doc_type,
         origin: entry.origin,
+        document: entry.document,
         lines: [...line.entryLines]
             .sort((a, b) => a.position - b.position)
             .map(l => ({

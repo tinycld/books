@@ -1,0 +1,237 @@
+{
+    "comment": "Line amounts and totals of a sales document (invoice). Read by server/document_totals_test.go and tests/document-lines.test.ts, so the Go and TS functions cannot drift. Money is integer cents; quantity has at most 2 decimals; percent_ppm is parts per million of the line above (-10% = -100000). components are the ppm of each tax component of the header rate ([] = no tax). amounts holds null for a line that has no amount (a description line, or a percent line with no item or subtotal right above it). tax is one amount per component.",
+    "cases": [
+        {
+            "name": "the fixture's every-kind lines with Denver combined",
+            "lines": [
+                { "kind": "item", "quantity": 3, "rate": 45000, "percent_ppm": 0, "taxable": false },
+                { "kind": "item", "quantity": 2, "rate": 18900, "percent_ppm": 0, "taxable": true },
+                { "kind": "item", "quantity": 12, "rate": 875, "percent_ppm": 0, "taxable": true },
+                { "kind": "subtotal", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": -100000, "taxable": false },
+                { "kind": "description", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false },
+                { "kind": "item", "quantity": 1.5, "rate": 28000, "percent_ppm": 0, "taxable": false }
+            ],
+            "components": [29000, 10000, 48100],
+            "amounts": [135000, 37800, 10500, 183300, -18330, null, 42000],
+            "percentTargetErrors": [],
+            "subtotal": 206970,
+            "taxable_total": 48300,
+            "tax": [1401, 483, 2323],
+            "total": 211177,
+            "too_large": false
+        },
+        {
+            "name": "qty x rate rounds a positive half cent away from zero",
+            "lines": [{ "kind": "item", "quantity": 0.5, "rate": 1, "percent_ppm": 0, "taxable": false }],
+            "components": [],
+            "amounts": [1],
+            "percentTargetErrors": [],
+            "subtotal": 1,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 1,
+            "too_large": false
+        },
+        {
+            "name": "qty x rate rounds a negative half cent away from zero",
+            "lines": [{ "kind": "item", "quantity": 0.5, "rate": -1, "percent_ppm": 0, "taxable": false }],
+            "components": [],
+            "amounts": [-1],
+            "percentTargetErrors": [],
+            "subtotal": -1,
+            "taxable_total": 0,
+            "tax": [],
+            "total": -1,
+            "too_large": false
+        },
+        {
+            "name": "-50% of 1 cent rounds away from zero to -1",
+            "lines": [
+                { "kind": "item", "quantity": 1, "rate": 1, "percent_ppm": 0, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": -500000, "taxable": false }
+            ],
+            "components": [],
+            "amounts": [1, -1],
+            "percentTargetErrors": [],
+            "subtotal": 0,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 0,
+            "too_large": false
+        },
+        {
+            "name": "+50% of 1 cent rounds away from zero to 1",
+            "lines": [
+                { "kind": "item", "quantity": 1, "rate": 1, "percent_ppm": 0, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": 500000, "taxable": false }
+            ],
+            "components": [],
+            "amounts": [1, 1],
+            "percentTargetErrors": [],
+            "subtotal": 2,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 2,
+            "too_large": false
+        },
+        {
+            "name": "qty 0.07 x 875 is 61.25, rounded to 61",
+            "lines": [{ "kind": "item", "quantity": 0.07, "rate": 875, "percent_ppm": 0, "taxable": false }],
+            "components": [],
+            "amounts": [61],
+            "percentTargetErrors": [],
+            "subtotal": 61,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 61,
+            "too_large": false
+        },
+        {
+            "name": "qty 1000000 x rate 10^9 is exactly 10^15 (the product passes 2^53 and int64 before the division)",
+            "lines": [{ "kind": "item", "quantity": 1000000, "rate": 1000000000, "percent_ppm": 0, "taxable": false }],
+            "components": [],
+            "amounts": [1000000000000000],
+            "percentTargetErrors": [],
+            "subtotal": 1000000000000000,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 1000000000000000,
+            "too_large": false
+        },
+        {
+            "name": "a percent line under a description line has no amount and is a target error",
+            "lines": [
+                { "kind": "item", "quantity": 1, "rate": 1000, "percent_ppm": 0, "taxable": false },
+                { "kind": "description", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": -100000, "taxable": false }
+            ],
+            "components": [],
+            "amounts": [1000, null, null],
+            "percentTargetErrors": [2],
+            "subtotal": 1000,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 1000,
+            "too_large": false
+        },
+        {
+            "name": "a percent line as the first line is a target error",
+            "lines": [{ "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": -100000, "taxable": false }],
+            "components": [],
+            "amounts": [null],
+            "percentTargetErrors": [0],
+            "subtotal": 0,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 0,
+            "too_large": false
+        },
+        {
+            "name": "a percent line under a percent line is a target error",
+            "lines": [
+                { "kind": "item", "quantity": 1, "rate": 1000, "percent_ppm": 0, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": -100000, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": -100000, "taxable": false }
+            ],
+            "components": [],
+            "amounts": [1000, -100, null],
+            "percentTargetErrors": [2],
+            "subtotal": 900,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 900,
+            "too_large": false
+        },
+        {
+            "name": "a subtotal right after a subtotal is 0",
+            "lines": [
+                { "kind": "item", "quantity": 1, "rate": 1000, "percent_ppm": 0, "taxable": false },
+                { "kind": "subtotal", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false },
+                { "kind": "subtotal", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false }
+            ],
+            "components": [],
+            "amounts": [1000, 1000, 0],
+            "percentTargetErrors": [],
+            "subtotal": 1000,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 1000,
+            "too_large": false
+        },
+        {
+            "name": "a subtotal sums the item and percent lines since the previous subtotal",
+            "lines": [
+                { "kind": "item", "quantity": 1, "rate": 1000, "percent_ppm": 0, "taxable": false },
+                { "kind": "subtotal", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false },
+                { "kind": "item", "quantity": 2, "rate": 250, "percent_ppm": 0, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": 100000, "taxable": false },
+                { "kind": "subtotal", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false }
+            ],
+            "components": [],
+            "amounts": [1000, 1000, 500, 50, 550],
+            "percentTargetErrors": [],
+            "subtotal": 1550,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 1550,
+            "too_large": false
+        },
+        {
+            "name": "an item line amount over 10^15 is too large",
+            "lines": [{ "kind": "item", "quantity": 1000000, "rate": 1000000001, "percent_ppm": 0, "taxable": false }],
+            "components": [],
+            "amounts": [1000000001000000],
+            "percentTargetErrors": [],
+            "subtotal": 1000000001000000,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 1000000001000000,
+            "too_large": true
+        },
+        {
+            "name": "a percent line amount over 10^15 is too large (1000% of 10^15; the product passes int64)",
+            "lines": [
+                { "kind": "item", "quantity": 1000000, "rate": 1000000000, "percent_ppm": 0, "taxable": false },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": 10000000, "taxable": false }
+            ],
+            "components": [],
+            "amounts": [1000000000000000, 10000000000000000],
+            "percentTargetErrors": [],
+            "subtotal": 11000000000000000,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 11000000000000000,
+            "too_large": true
+        },
+        {
+            "name": "no tax: no tax lines and the total is the subtotal",
+            "lines": [{ "kind": "item", "quantity": 2, "rate": 1500, "percent_ppm": 0, "taxable": true }],
+            "components": [],
+            "amounts": [3000],
+            "percentTargetErrors": [],
+            "subtotal": 3000,
+            "taxable_total": 3000,
+            "tax": [],
+            "total": 3000,
+            "too_large": false
+        },
+        {
+            "name": "the taxable total leaves out non-taxable lines and subtotal lines and takes in a taxable negative percent line",
+            "lines": [
+                { "kind": "item", "quantity": 1, "rate": 10000, "percent_ppm": 0, "taxable": true },
+                { "kind": "percent", "quantity": 0, "rate": 0, "percent_ppm": -100000, "taxable": true },
+                { "kind": "item", "quantity": 1, "rate": 5000, "percent_ppm": 0, "taxable": false },
+                { "kind": "subtotal", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": true }
+            ],
+            "components": [50000],
+            "amounts": [10000, -1000, 5000, 14000],
+            "percentTargetErrors": [],
+            "subtotal": 14000,
+            "taxable_total": 9000,
+            "tax": [450],
+            "total": 14450,
+            "too_large": false
+        }
+    ]
+}

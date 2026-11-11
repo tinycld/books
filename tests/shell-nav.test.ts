@@ -111,9 +111,21 @@ describe('registries', () => {
     it('the New menu starts with the Customers column holding Customer', () => {
         const columns = newMenuColumns(NEW_ACTIONS)
         expect(columns[0]?.heading).toBe('Customers')
-        expect(columns[0]?.actions.map(a => a.id)).toEqual(['customer'])
+        expect(columns[0]?.actions.map(a => a.id)).toEqual(['customer', 'invoice'])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual(['vendor'])
+    })
+
+    it('the New menu puts an available Invoice right after Customer in the Customers column', () => {
+        const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
+        expect(customers?.actions.map(a => a.label)).toEqual(['Customer', 'Invoice'])
+        const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
+        expect(invoice).toMatchObject({
+            label: 'Invoice',
+            href: 'books/invoices/new',
+            column: 'customers',
+            available: true,
+        })
     })
 
     it('LIST_ENTRIES has an available Accounts entry', () => {
@@ -414,6 +426,9 @@ describe('hidesNewFab', () => {
         '/a/acme/books/transfers/new',
         '/a/acme/books/transfers/abc123',
         '/a/acme/books/transfers/abc123/',
+        '/a/books/invoices/new',
+        '/a/books/invoices/abc',
+        '/a/acme/books/invoices/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

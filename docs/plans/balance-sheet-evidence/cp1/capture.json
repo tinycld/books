@@ -1,0 +1,72 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "actions": [{ "clickText": "Balance Sheet" }, { "waitFor": "report-table" }],
+            "height": 1700
+        },
+        {
+            "name": "rows-active",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "actions": [
+                { "clickText": "Balance Sheet" },
+                { "waitFor": "report-table" },
+                { "waitForHidden": "Updating…" },
+                { "click": "report-param-rows" },
+                { "waitFor": "report-filter-picker" },
+                { "clickRadioRun": "Active", "param": "rows", "value": "active" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitForHidden": "Updating…" }
+            ],
+            "height": 1700
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "actions": [
+                { "clickText": "Balance Sheet" },
+                { "waitFor": "report-table" },
+                { "waitForHidden": "Updating…" },
+                { "click": "report-fold-all" },
+                { "waitFor": "Expand all" },
+                { "waitForHidden": "Updating…" }
+            ]
+        },
+        {
+            "name": "no-lines",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "actions": [
+                { "clickText": "Balance Sheet" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-asOf" },
+                { "waitFor": "report-period-popover" },
+                { "fill": "report-period-as-of", "value": "2024-08-14" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "As of August 14, 2024" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "customize",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "stable": "report-customize-reset",
+            "actions": [
+                { "clickText": "Balance Sheet" },
+                { "waitFor": "report-table" },
+                { "click": "report-customize-open" },
+                { "waitFor": "report-customize" },
+                { "click": "report-customize-section-columns" },
+                { "waitFor": "report-option-column-current" }
+            ]
+        }
+    ]
+}

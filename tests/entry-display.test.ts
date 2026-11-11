@@ -9,6 +9,7 @@ import {
     reversesText,
     stampText,
 } from '../tinycld/books/lib/entry-display'
+import { DOC_TYPE_LABELS } from '../tinycld/books/lib/register'
 
 describe('entryNumberText', () => {
     it('shows "Draft" for a draft with no number', () => {
@@ -51,6 +52,21 @@ describe('entryTypeText', () => {
     it('keeps "Journal entry" for a manual entry with no document type', () => {
         expect(entryTypeText('manual')).toBe('Journal entry')
         expect(entryTypeText('manual', 'journal')).toBe('Journal entry')
+    })
+
+    // One table of doc type labels (register DOC_TYPE_LABELS, a copy of
+    // server/entry_type_labels.json): a label changed there changes this text.
+    it('reads the doc type labels from DOC_TYPE_LABELS', () => {
+        expect(DOC_TYPE_LABELS).toBeDefined()
+        const saved = { ...DOC_TYPE_LABELS }
+        try {
+            DOC_TYPE_LABELS.invoice = 'Invoice (table)'
+            DOC_TYPE_LABELS.transfer = 'Transfer (table)'
+            expect(entryTypeText('document', 'invoice')).toBe('Invoice (table)')
+            expect(entryTypeText('manual', 'transfer')).toBe('Transfer (table)')
+        } finally {
+            Object.assign(DOC_TYPE_LABELS, saved)
+        }
     })
 })
 

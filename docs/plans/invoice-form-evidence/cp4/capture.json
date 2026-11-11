@@ -1,0 +1,669 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "add-menu",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "waitFor": "Percent line"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "add-menu-tablet",
+            "widths": [911],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "waitFor": "Percent line"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "row-menu",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-menu-\"] >> nth=1"
+                },
+                {
+                    "waitFor": "Duplicate"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "row-menu-tablet",
+            "widths": [911],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-menu-\"] >> nth=1"
+                },
+                {
+                    "waitFor": "Duplicate"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "row-menu-phone",
+            "widths": [390],
+            "height": 900,
+            "settleMs": 400,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Wireless access point"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "2"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=1"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Initial consultation"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-quantity\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=2",
+                    "value": "12"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-menu-\"] >> nth=0"
+                },
+                {
+                    "waitFor": "Duplicate"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "kinds",
+            "widths": [1280],
+            "height": 1700,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Home office setup kit"
+                },
+                {
+                    "clickMenuItem": "Home office setup kit"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "pause": 600
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-percent"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=5"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Discount"
+                },
+                {
+                    "clickMenuItem": "Discount"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-percent\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "-10"
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-description"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-description\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=6",
+                    "value": "Installed on site at the main office; cabling routed through the existing conduit."
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-percent"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "kinds-tablet",
+            "widths": [911],
+            "height": 1700,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Home office setup kit"
+                },
+                {
+                    "clickMenuItem": "Home office setup kit"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "pause": 600
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-percent"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=5"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Discount"
+                },
+                {
+                    "clickMenuItem": "Discount"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-percent\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "-10"
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-description"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-description\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=6",
+                    "value": "Installed on site at the main office; cabling routed through the existing conduit."
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-percent"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "name": "kinds-phone",
+            "widths": [390],
+            "height": 4200,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Home office setup kit"
+                },
+                {
+                    "clickMenuItem": "Home office setup kit"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "pause": 600
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-percent"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "clickCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-product\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=5"
+                },
+                {
+                    "fillCss": "[data-testid$=\"-product-search\"]",
+                    "value": "Discount"
+                },
+                {
+                    "clickMenuItem": "Discount"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-percent\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=0",
+                    "value": "-10"
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-description"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fillCss": "[data-testid^=\"form-table-lines-\"][data-testid$=\"-description\"]:not([data-testid*=\"-head-\"]):not([data-testid*=\"-slot-\"]):not([data-testid*=\"-span-\"]) >> nth=6",
+                    "value": "Installed on site at the main office; cabling routed through the existing conduit."
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-percent"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        }
+    ]
+}

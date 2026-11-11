@@ -1,0 +1,224 @@
+{
+    "outDir": "invoice-form-reference",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "invoice-form",
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filled",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filled-phone",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 3600,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "add-menu",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [{ "click": "invoice-add-more" }, { "waitFor": "Percent line" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [{ "click": "invoice-line-menu-1" }, { "waitFor": "Duplicate" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "row-menu-phone",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 900,
+            "settleMs": 400,
+            "actions": [{ "click": "invoice-line-menu-0" }, { "waitFor": "Duplicate" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "edit-address",
+            "url": "/a/books/helix-mockup?state=edit-address",
+            "ready": "invoice-form",
+            "widths": [1280, 390],
+            "height": 1700,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "exempt",
+            "url": "/a/books/helix-mockup?state=exempt",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-tax",
+            "url": "/a/books/helix-mockup?state=no-tax",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "invoice-form",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [{ "waitFor": "The due date cannot be before the invoice date" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "errors-phone",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "invoice-form",
+            "widths": [390],
+            "height": 3200,
+            "actions": [{ "waitFor": "The due date cannot be before the invoice date" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "errors-post",
+            "url": "/a/books/helix-mockup?state=errors-post",
+            "ready": "invoice-form",
+            "widths": [1280, 390],
+            "height": 1500,
+            "actions": [{ "waitFor": "Add at least one product or service line" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "refusal",
+            "url": "/a/books/helix-mockup?state=refusal",
+            "ready": "invoice-error-summary",
+            "widths": [1280],
+            "height": 1500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "refusal-phone",
+            "url": "/a/books/helix-mockup?state=refusal",
+            "ready": "invoice-error-summary",
+            "widths": [390],
+            "height": 1600,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "invoice-replace-note",
+            "widths": [1280, 390],
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "pdf-unsaved",
+            "url": "/a/books/helix-mockup?state=pdf-unsaved",
+            "ready": "invoice-pdf-unsaved",
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "pdf-stale",
+            "url": "/a/books/helix-mockup?state=pdf-stale",
+            "ready": "invoice-pdf-stale",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "invoice-read-only",
+            "widths": [1280],
+            "height": 1500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "posted-phone",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "invoice-read-only",
+            "widths": [390],
+            "height": 2800,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "void",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "invoice-read-only",
+            "widths": [1280],
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "void-phone",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "invoice-read-only",
+            "widths": [390],
+            "height": 2200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "invoice-read-only",
+            "widths": [1280, 390],
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "void-dialog",
+            "url": "/a/books/helix-mockup?state=void-dialog",
+            "ready": "void-dialog",
+            "widths": [1280, 390],
+            "opaque": "void-dialog",
+            "actions": [{ "pause": 500 }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "invoice-no-access",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/helix-mockup?state=cannot-edit",
+            "ready": "invoice-cannot-edit",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "invoice-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "invoice-loading",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "invoice-error",
+            "hideLabels": ["New"]
+        }
+    ]
+}

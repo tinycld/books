@@ -12,8 +12,8 @@ import (
 	"tinycld.org/core/search"
 )
 
-// searchSource contributes accounts, journal entries, customers, vendors and
-// products to core's federated /api/search. Each kind is read from its FTS5
+// searchSource contributes accounts, journal entries, customers, vendors,
+// products and invoices to core's federated /api/search. Each kind is read from its FTS5
 // index (server/search_index.go). Rows are shaped here so the palette and the
 // CLI show the same thing; the client adapter
 // (tinycld/books/search-adapter.ts) only navigates.
@@ -74,8 +74,12 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products)
-	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal
+	invoices, invoiceTotal, err := searchInvoices(ctx, app, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors, products, invoices)
+	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -179,9 +183,10 @@ type entryHit struct {
 }
 
 // A void's reversal repeats the voided entry's number, and the voided entry
-// is the one a person looks for, so reversals are left out.
+// is the one a person looks for, so reversals are left out. A document's entry
+// is left out too: its document's own row (an invoice hit) stands for it.
 var entriesQuery = indexQuery{
-	index: entriesIndex, table: "books_journal_entries", where: "c.origin != 'void_reversal'",
+	index: entriesIndex, table: "books_journal_entries", where: "c.origin NOT IN ('void_reversal', 'document')",
 	columns: "c.id, c.number, c.memo, c.date, c.status, c.doc_type", order: "c.date DESC, c.id",
 }
 
@@ -315,6 +320,91 @@ func searchProducts(ctx context.Context, app core.App, match string, window int)
 			Subtitle: subtitle,
 			Meta:     "Product or service",
 			Fields:   map[string]any{"kind": "product", "inactive": h.Inactive},
+		})
+	}
+	return rows, total, nil
+}
+
+type invoiceHit struct {
+	ID           string `db:"id"`
+	Number       string `db:"number"`
+	Memo         string `db:"memo"`
+	Date         string `db:"date"`
+	Status       string `db:"status"`
+	CustomerName string `db:"customer_name"`
+}
+
+// invoiceTermMatch is true when one query word matches an invoice's own index
+// row (number, memo, message) or its customer's (display name, company,
+// email). Reading the customer's row at query time lets a renamed customer
+// find its invoices with no reindex.
+const invoiceTermMatch = `(c.id IN (SELECT record_id FROM ` + invoicesIndex + ` WHERE ` + invoicesIndex + ` MATCH {:%[1]s})
+	OR c.customer IN (SELECT record_id FROM ` + customersIndex + ` WHERE ` + customersIndex + ` MATCH {:%[1]s}))`
+
+// invoicesFrom builds the FROM and WHERE of an invoice search. The words are
+// matched one by one and ANDed, so "Harborview 1003" finds invoice 1003 of
+// Harborview although its number and the customer's name are in two index
+// rows; each word is a prefix term, as in every other source. An excluded
+// word drops an invoice when it matches either row. Drafts are included:
+// search is how a person reopens a draft (spec Q13). A void invoice stays
+// findable, as a void entry does. Only the bound words vary; every
+// identifier is a constant of this file.
+func invoicesFrom(include, exclude []string) (string, dbx.Params) {
+	params := dbx.Params{}
+	var conds []string
+	add := func(prefix string, words []string, negate bool) {
+		for _, word := range words {
+			term := fts.SanitizeQuery(word)
+			if term == "" {
+				continue
+			}
+			name := fmt.Sprintf("%s%d", prefix, len(params))
+			params[name] = term
+			cond := fmt.Sprintf(invoiceTermMatch, name)
+			if negate {
+				cond = "NOT " + cond
+			}
+			conds = append(conds, cond)
+		}
+	}
+	add("t", queryWords(include), false)
+	add("x", queryWords(exclude), true)
+	from := ` FROM books_invoices c JOIN books_customers cu ON cu.id = c.customer WHERE ` + strings.Join(conds, " AND ")
+	return from, params
+}
+
+// queryWords splits the query's parts into words, as the FTS match of the
+// other sources does.
+func queryWords(parts []string) []string {
+	return strings.Fields(strings.Join(parts, " "))
+}
+
+// searchInvoices counts every invoice hit and returns the first window of
+// them, newest first, as entries are ordered. The caller has checked that the
+// include words leave FTS5 a term, so the WHERE is never empty.
+func searchInvoices(ctx context.Context, app core.App, include, exclude []string, window int) ([]search.Row, int, error) {
+	from, params := invoicesFrom(include, exclude)
+	var total int
+	if err := app.DB().NewQuery("SELECT COUNT(*)" + from).WithContext(ctx).
+		Bind(params).Row(&total); err != nil {
+		return nil, 0, fmt.Errorf("books: count books_invoices hits: %w", err)
+	}
+	params["window"] = window
+	var hits []invoiceHit
+	if err := app.DB().NewQuery("SELECT c.id, c.number, c.memo, c.date, c.status, cu.display_name AS customer_name" +
+		from + " ORDER BY c.date DESC, c.id LIMIT {:window}").
+		WithContext(ctx).Bind(params).All(&hits); err != nil {
+		return nil, 0, fmt.Errorf("books: search books_invoices: %w", err)
+	}
+	rows := make([]search.Row, 0, len(hits))
+	for _, h := range hits {
+		title := entryHitTitle(entryHit{Number: h.Number, Status: h.Status, DocType: docTypeInvoice})
+		rows = append(rows, search.Row{
+			ID:       "invoice:" + h.ID,
+			Title:    title + " · " + h.CustomerName,
+			Subtitle: h.Memo,
+			Meta:     h.Date,
+			Fields:   map[string]any{"kind": "invoice", "status": h.Status},
 		})
 	}
 	return rows, total, nil

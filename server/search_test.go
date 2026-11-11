@@ -750,6 +750,85 @@ func TestSearch_OrdersPartiesAndProductsAsTheirListsDo(t *testing.T) {
 	}
 }
 
+func invoiceRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "invoice:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Search finds invoices, drafts included (spec Q13): by memo, by the
+// customer's name and by number. A row opens the invoice (id invoice:<id>,
+// kind invoice) and is titled "Invoice 1001 · <Customer>" or "Draft invoice ·
+// <Customer>".
+func TestSearch_FindsInvoices(t *testing.T) {
+	env := newSearchEnv(t)
+	registerInvoiceGuards(env.app)
+	ie := invoiceEnvOn(t, env)
+	posted := ie.mkInvoice(t, map[string]any{"memo": "sweep of the annex"})
+	mkInvoiceLine(t, env.app, posted, 0, item(ie.service, 1, 45000, false))
+	mustPostInvoice(t, env.app, posted.Id, env.users.bookkeeper.Id)
+	draft := ie.mkInvoice(t, map[string]any{"memo": "second sweep"})
+	mkInvoiceLine(t, env.app, draft, 0, item(ie.service, 1, 1000, false))
+
+	find := func(term string) map[string]search.Row {
+		t.Helper()
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: []string{term}, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return invoiceRows(res.Rows)
+	}
+	want := map[string]string{
+		"invoice:" + posted.Id: "Invoice 1001 · Harborview Dental",
+		"invoice:" + draft.Id:  "Draft invoice · Harborview Dental",
+	}
+	for _, term := range []string{"sweep", "harborview"} {
+		rows := find(term)
+		if len(rows) != len(want) {
+			t.Errorf("%q found invoice rows %v, want %d", term, rows, len(want))
+		}
+		for id, title := range want {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", term, id)
+				continue
+			}
+			if r.Title != title || r.Fields["kind"] != "invoice" {
+				t.Errorf("%q row %s title %q kind %v, want %q, invoice", term, id, r.Title, r.Fields["kind"], title)
+			}
+		}
+	}
+	if rows := find("1001"); len(rows) != 1 || rows["invoice:"+posted.Id].Title != want["invoice:"+posted.Id] {
+		t.Errorf("1001 found invoice rows %v, want only invoice 1001", rows)
+	}
+
+	// The words of one query may fall in different places: each word must match
+	// the invoice's own row (number, memo, message) or its customer's name.
+	findAll := func(terms ...string) map[string]search.Row {
+		t.Helper()
+		res, err := searchBooks(env.app, env.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return invoiceRows(res.Rows)
+	}
+	for _, terms := range [][]string{{"harborview", "1001"}, {"harborview", "annex"}} {
+		if rows := findAll(terms...); len(rows) != 1 || rows["invoice:"+posted.Id].Title != want["invoice:"+posted.Id] {
+			t.Errorf("%q found invoice rows %v, want only invoice 1001", terms, rows)
+		}
+	}
+	if rows := findAll("dental", "sweep"); len(rows) != len(want) {
+		t.Errorf(`["dental" "sweep"] found invoice rows %v, want both invoices`, rows)
+	}
+	if rows := findAll("harborview", "zeppelin"); len(rows) != 0 {
+		t.Errorf(`["harborview" "zeppelin"] found invoice rows %v, want none: no row holds "zeppelin"`, rows)
+	}
+}
+
 func TestSearch_FindsInactiveCustomers(t *testing.T) {
 	env := newSearchEnv(t)
 	dormant := mkSearchCustomer(t, env, map[string]any{"display_name": "Juniper Hollow", "inactive": true})

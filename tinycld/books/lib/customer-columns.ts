@@ -1,6 +1,7 @@
 import { z } from '@tinycld/core/ui/form'
 import { storedAddressSchema } from './address'
 import { EXEMPTION_REASON_KEYS } from './exemption-reasons'
+import { PAYMENT_TERM_KEYS } from './payment-terms'
 import { type ColumnsParse, optionalText, parseColumns } from './record-columns'
 
 /**
@@ -25,6 +26,7 @@ export const customerColumnsSchema = z.strictObject({
     exemption_number: optionalText,
     default_tax_rate: optionalText,
     notes: optionalText,
+    terms: z.enum(PAYMENT_TERM_KEYS).or(z.literal('')).optional(),
 })
 
 export type CustomerColumns = z.infer<typeof customerColumnsSchema>
@@ -56,6 +58,7 @@ export const EMPTY_CUSTOMER_FIELDS: Required<CustomerColumns> = {
     exemption_number: '',
     default_tax_rate: '',
     notes: '',
+    terms: '',
 }
 
 // The base of an insert, so a column the form left out is stored empty.

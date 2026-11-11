@@ -8,6 +8,7 @@ import {
     type PaymentTermKey,
     paymentTermLabel,
 } from '../tinycld/books/lib/payment-terms'
+import { fieldValues, migrationField } from './migration-field'
 
 const FIVE = [
     { key: 'due_on_receipt', label: 'Due on receipt', days: 0 },
@@ -69,5 +70,10 @@ describe('PAYMENT_TERM_OPTIONS', () => {
 describe('migration drift', () => {
     it("the migration's terms values are PAYMENT_TERM_KEYS", () => {
         expect(migrationTermsValues()).toEqual([...PAYMENT_TERM_KEYS])
+    })
+
+    it("the customers migration's terms values are PAYMENT_TERM_KEYS", () => {
+        const field = migrationField('2100000003_create_books_customers.js', 'terms')
+        expect(fieldValues(field)).toEqual([...PAYMENT_TERM_KEYS])
     })
 })
