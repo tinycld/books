@@ -12,6 +12,7 @@ import { maxStoredAmount } from '../tinycld/books/lib/money'
 import {
     balanceTone,
     buildRegister,
+    DOC_TYPE_LABELS,
     defaultOrder,
     entryDetail,
     entryNumberLabel,
@@ -20,7 +21,6 @@ import {
     type RegisterEntry,
     type RegisterSourceLine,
     reversalOrigins,
-    TRANSFER_LABEL,
     toggleOrder,
 } from '../tinycld/books/lib/register'
 import { rangeForPreset } from '../tinycld/books/lib/register-range'
@@ -70,6 +70,7 @@ function entryOf(id: string, posted_at: string): RegisterEntry {
         posted_at,
         reverses: '',
         date: '2026-10-05',
+        document: '',
     }
 }
 
@@ -434,6 +435,7 @@ describe('entryDetail fields', () => {
             memo: 'Entry memo',
             docType: 'journal',
             origin: 'reversal',
+            document: '',
             lines: [
                 {
                     id: 'x1',
@@ -550,15 +552,27 @@ describe('entryTypeLabel for transfers', () => {
 describe('entry type labels match server/entry_type_labels.json', () => {
     const server = JSON.parse(
         readFileSync(join(__dirname, '..', 'server', 'entry_type_labels.json'), 'utf8')
-    ) as { origins: Record<string, string>; transfer: string; reversalOrigins: string[] }
+    ) as {
+        origins: Record<string, string>
+        docTypes: Record<string, string>
+        reversalOrigins: string[]
+    }
 
-    it('holds the same origin labels, transfer label and reversal origins', () => {
+    it('holds the same origin labels, doc type labels and reversal origins', () => {
         expect({
             origins: originLabels,
-            transfer: TRANSFER_LABEL,
+            docTypes: DOC_TYPE_LABELS,
             reversalOrigins: Array.from(reversalOrigins ?? []),
         }).toEqual(server)
-        expect(TRANSFER_LABEL).toBe('Transfer')
+        expect(DOC_TYPE_LABELS).toEqual({ transfer: 'Transfer', invoice: 'Invoice' })
+    })
+
+    it('labels a non-reversal entry by its doc type from the table', () => {
+        const docTypes = Object.entries(server.docTypes ?? {})
+        expect(docTypes.map(([docType]) => docType).sort()).toEqual(['invoice', 'transfer'])
+        for (const [docType, label] of docTypes) {
+            expect(entryTypeLabel('manual', '', docType), docType).toBe(label)
+        }
     })
 
     it('labels every origin of the table as before', () => {
@@ -569,8 +583,40 @@ describe('entry type labels match server/entry_type_labels.json', () => {
         for (const [origin, label] of origins) {
             expect(entryTypeLabel(origin, ''), origin).toBe(label)
         }
-        expect(entryTypeLabel('manual', '', 'transfer')).toBe(server.transfer)
+        expect(entryTypeLabel('manual', '', 'transfer')).toBe(server.docTypes?.transfer)
         expect(entryTypeLabel('void_reversal', 'TR-3', 'transfer')).toBe('Void reversal of TR-3')
+    })
+})
+
+describe('entryTypeLabel for invoices', () => {
+    it('labels an invoice entry "Invoice"', () => {
+        expect(entryTypeLabel('document', '', 'invoice')).toBe('Invoice')
+    })
+
+    it("keeps the reversal suffix on an invoice's void reversal", () => {
+        expect(entryTypeLabel('void_reversal', '1001', 'invoice')).toBe('Void reversal of 1001')
+    })
+
+    it('leaves a transfer and a journal entry as they were', () => {
+        expect(entryTypeLabel('manual', '', 'transfer')).toBe('Transfer')
+        expect(entryTypeLabel('manual', '', 'journal')).toBe('Journal entry')
+    })
+
+    it("gives the drawer detail of an invoice entry the invoice's id", () => {
+        const base = synthetic('i', { debit: 45_000 })
+        const line = {
+            ...base,
+            entryRecord: {
+                ...entryOf('e_i', '2026-10-05 09:00:00.000Z'),
+                number: '1001',
+                doc_type: 'invoice',
+                origin: 'document',
+                document: 'invc1',
+            },
+        } satisfies RegisterSourceLine
+        const detail = entryDetail(line, ME)
+        expect(detail?.typeLabel).toBe('Invoice')
+        expect(detail?.document).toBe('invc1')
     })
 })
 

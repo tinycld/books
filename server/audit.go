@@ -1,6 +1,7 @@
 package books
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -39,6 +40,8 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_tax_rates":       {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_journal_entries": {ExtractLabel: entryLabel},
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},
+		"books_invoices":        {ExtractLabel: invoiceLabel, Redact: []string{"sort_key"}},
+		"books_invoice_lines":   {ExtractLabel: func(r *core.Record) string { return invoiceLineLabel(app, r) }},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -86,6 +89,26 @@ func lineLabel(app core.App, r *core.Record) string {
 		return account + " debit " + formatMinor(debit)
 	}
 	return account + " credit " + formatMinor(r.GetInt("credit"))
+}
+
+// invoiceLabel names an invoice by its number: "Invoice 1001". A draft has no
+// number: "Draft invoice".
+func invoiceLabel(r *core.Record) string {
+	if n := r.GetString("number"); n != "" {
+		return "Invoice " + n
+	}
+	return "Draft invoice"
+}
+
+// invoiceLineLabel names a line by its invoice and its place on it: "Invoice
+// 1001: line 2". An invoice that cannot be read (deleted with its lines)
+// falls back to its id, so the audit row is still written.
+func invoiceLineLabel(app core.App, r *core.Record) string {
+	invoice := r.GetString("invoice")
+	if inv, err := app.FindRecordById("books_invoices", invoice); err == nil {
+		invoice = invoiceLabel(inv)
+	}
+	return fmt.Sprintf("%s: line %d", invoice, r.GetInt("position")+1)
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office

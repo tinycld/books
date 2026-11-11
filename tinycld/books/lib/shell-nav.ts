@@ -95,6 +95,13 @@ export const NEW_ACTIONS: NewAction[] = [
         available: true,
     },
     {
+        id: 'invoice',
+        label: 'Invoice',
+        href: 'books/invoices/new',
+        column: 'customers',
+        available: true,
+    },
+    {
         id: 'vendor',
         label: 'Vendor',
         href: 'books/vendors/new',
@@ -203,10 +210,12 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
 }
 
-// The entry, customer, vendor, product and transfer forms and the entry and transfer
-// views own the bottom of the phone screen, so the New button stays off them.
-// `/entries`, `/customers`, `/vendors` and `/products` alone are the lists, which keep
-// them; transfers have no list.
+// The entry, customer, vendor, product, transfer and invoice forms and the entry,
+// transfer and invoice views own the bottom of the phone screen, so the New button
+// stays off them. `/entries`, `/customers`, `/vendors` and `/products` alone are the
+// lists, which keep them; transfers and invoices have no list.
 export function hidesNewFab(pathname: string): boolean {
-    return /\/books\/(entries|customers|vendors|products|transfers)\/[^/]+\/?$/.test(pathname)
+    return /\/books\/(entries|customers|vendors|products|transfers|invoices)\/[^/]+\/?$/.test(
+        pathname
+    )
 }

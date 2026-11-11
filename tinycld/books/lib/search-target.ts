@@ -1,7 +1,7 @@
 // Where a federated search hit opens. The server (server/search.go) prefixes
 // each row id with its kind; the screens below are the account register, the
 // journal entry screen, the transfer screen, the customer screen, the vendor
-// screen and the product screen.
+// screen, the product screen and the invoice screen (drafts included).
 export interface SearchTarget {
     path: string
     id: string
@@ -16,6 +16,7 @@ const PATHS = new Map([
     ['customer', 'books/customers/[id]'],
     ['vendor', 'books/vendors/[id]'],
     ['product', 'books/products/[id]'],
+    ['invoice', 'books/invoices/[id]'],
 ])
 
 export function searchTarget(rowId: string): SearchTarget | null {

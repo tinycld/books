@@ -22,6 +22,9 @@ const NAMES = [
     'books_bank_transactions',
     'books_tax_agencies',
     'books_tax_rates',
+    'books_invoices',
+    'books_invoice_lines',
+    'books_invoice_tax_lines',
 ]
 
 function register() {

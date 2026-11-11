@@ -53,6 +53,7 @@ function entryRow(id: string): BooksJournalEntries {
         close_override: '',
         reverses: '',
         replaces: '',
+        document: '',
         created: NOW,
         updated: NOW,
     }

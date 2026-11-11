@@ -22,4 +22,9 @@ var documentKinds = map[string]documentKind{
 		Build:    buildSampleDocument,
 		FileName: func(pdfDocument) string { return "sample-invoice" },
 	},
+	"invoice": {
+		Collection: "books_invoices",
+		Build:      buildInvoiceDocument,
+		FileName:   invoiceFileName,
+	},
 }

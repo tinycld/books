@@ -48,6 +48,7 @@ function customer(seed: CustomerSeed): CustomerFixtureRecord {
         exemption_number: '',
         default_tax_rate: '',
         inactive: false,
+        terms: '',
         form: '',
         fields: null,
         created: '2026-01-01 00:00:00.000Z',
