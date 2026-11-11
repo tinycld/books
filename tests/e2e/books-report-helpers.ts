@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Page, type Request } from '@playwright/test'
 import {
     authStorageKey,
     chooseParamOption,
@@ -6,7 +6,10 @@ import {
     navigateToPackage,
     rowOf,
 } from '@tinycld/core/e2e-helpers'
-import { PROFIT_AND_LOSS_TITLE } from '~/tinycld/books/lib/profit-and-loss-fixture'
+import {
+    PROFIT_AND_LOSS_BY_MONTH_TITLE,
+    PROFIT_AND_LOSS_TITLE,
+} from '~/tinycld/books/lib/profit-and-loss-fixture'
 import { isPhone } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
@@ -459,6 +462,17 @@ export async function openProfitAndLoss(page: Page): Promise<void> {
     await expect(page.getByTestId('report-table')).toBeVisible()
 }
 
+// The shipped Profit and Loss by Month from the Books hub, the row whose title reads
+// "Profit and Loss by Month" exactly.
+export async function openProfitAndLossByMonth(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, PROFIT_AND_LOSS_BY_MONTH_TITLE)
+        .filter({ has: page.getByText(PROFIT_AND_LOSS_BY_MONTH_TITLE, { exact: true }) })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(page.getByTestId('report-table')).toBeVisible()
+}
+
 const ROWS_LABELS = { nonzero: 'Non-zero', active: 'Active' } as const
 
 // Sets Rows through its chip and waits until the URL holds the new value and the run
@@ -514,6 +528,44 @@ export async function openProfitAndLossAccount(page: Page, label: string): Promi
         .toBeGreaterThan(0)
 }
 
+// How long a press is watched for a run it starts. An opened row's lines come from a new
+// run (/api/reports/run with the row's path in `expand`), which the press sends at once
+// and which lands well inside this window.
+const PRESS_WATCH_MS = 1500
+
+// The length of a P&L section's `expand` path: its type and its currency (["income",
+// "USD"]). An account's path adds the account between them.
+const SECTION_PATH_LENGTH = 2
+
+// Presses the row labelled `label` and proves it opens nothing: over the watch window no
+// run asks to open a row under a section (an `expand` path longer than a section's), and
+// no snapshot taken in it shows a line beneath the row. Other workers post on the shared
+// DB, so a live re-run may come in the window; only one that opens a row fails.
+export async function expectPressOpensNothing(page: Page, label: string): Promise<PlSnapshot> {
+    const opening: unknown[][][] = []
+    const watch = (request: Request) => {
+        if (!request.url().includes('/api/reports/run') || request.method() !== 'POST') return
+        const body = request.postDataJSON() as { options?: { expand?: unknown[][] } } | null
+        const deep = (body?.options?.expand ?? []).filter(path => path.length > SECTION_PATH_LENGTH)
+        if (deep.length > 0) opening.push(deep)
+    }
+    page.on('request', watch)
+    try {
+        await rowOf(page, label).click()
+        const until = Date.now() + PRESS_WATCH_MS
+        let last = await plSnapshot(page)
+        while (Date.now() < until) {
+            expect(plLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual([])
+            last = await plSnapshot(page)
+        }
+        expect(plLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual([])
+        expect(opening, `runs that open a row after the press on ${label}`).toEqual([])
+        return last
+    } finally {
+        page.off('request', watch)
+    }
+}
+
 // The document header, the column headings and every mounted row of the report table, top
 // to bottom, with every cell, read in ONE pass so no re-render lands between two reads.
 // The row kind comes from core's row id: g: a section or an account, d: a line, s: a
@@ -529,7 +581,9 @@ export function plSnapshot(page: Page): Promise<PlSnapshot> {
         for (const heading of document.querySelectorAll('[data-testid^="report-heading-"]')) {
             const id = (heading.getAttribute('data-testid') ?? '').slice('report-heading-'.length)
             if (id === 'row') continue
-            headings[id] = (heading as HTMLElement).innerText.trim()
+            // The words, not the drawn case: core draws headings with `uppercase`, and
+            // innerText applies text-transform.
+            headings[id] = (heading.textContent ?? '').replace(/\s+/g, ' ').trim()
         }
         const cells = new Map<string, Record<string, string>>()
         for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {

@@ -3,6 +3,7 @@ package books
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"slices"
@@ -1098,19 +1099,604 @@ func TestProfitAndLossPagesOpenedLines(t *testing.T) {
 // books_journal_entries field until the detail label and the [entry, sequence]
 // sort key added the read.
 func TestProfitAndLossTopics(t *testing.T) {
-	b := newPLBook(t)
-	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
-	b.post(t, "2026-03-10", ln{rent, 4000, 0}, ln{b.checking, 0, 4000})
-	closed := b.run(t, map[string]any{"period": plMarch})
-	opts := plOpening(plRowFor(t, closed, rent))
-
-	res := runPL(t, b.app, profitAndLossShipped(), b.reader, map[string]any{"period": plMarch}, opts)
-	for _, topic := range []string{
+	wantTopics := []string{
 		"collection/books_journal_lines", "collection/books_journal_entries",
 		"collection/books_accounts", "collection/books_settings",
-	} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
+	}
+	t.Run("profit and loss", func(t *testing.T) {
+		b := newPLBook(t)
+		rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+		b.post(t, "2026-03-10", ln{rent, 4000, 0}, ln{b.checking, 0, 4000})
+		closed := b.run(t, map[string]any{"period": plMarch})
+		opts := plOpening(plRowFor(t, closed, rent))
+
+		res := runPL(t, b.app, profitAndLossShipped(), b.reader, map[string]any{"period": plMarch}, opts)
+		for _, topic := range wantTopics {
+			if !slices.Contains(res.Topics, topic) {
+				t.Errorf("topics = %v, want %s", res.Topics, topic)
+			}
+		}
+	})
+	t.Run("by month", func(t *testing.T) {
+		b := newPLBook(t)
+		rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+		b.post(t, "2026-03-10", ln{rent, 4000, 0}, ln{b.checking, 0, 4000})
+
+		res := b.runByMonth(t, map[string]any{"period": plMarch})
+		if !plHasRow(t, res, rent) {
+			t.Fatalf("the by-month run has no Rent or lease row; rows %v", plRowTexts(res.Rows))
+		}
+		// The by-month report has no opened lines, so it reads no entry field:
+		// a post or a void reaches it through the lines it stamps (posting sets
+		// a line's posted and date; a void posts reversal lines).
+		for _, topic := range []string{
+			"collection/books_journal_lines", "collection/books_accounts", "collection/books_settings",
+		} {
+			if !slices.Contains(res.Topics, topic) {
+				t.Errorf("topics = %v, want %s", res.Topics, topic)
+			}
+		}
+		// Plan D13: three topics. A books_journal_entries topic would re-run
+		// the report on every entry write (a draft save, a memo edit) that
+		// changes no figure it shows.
+		if slices.Contains(res.Topics, "collection/books_journal_entries") {
+			t.Errorf("topics = %v, want no collection/books_journal_entries (D13)", res.Topics)
+		}
+	})
+}
+
+// --- Profit and Loss by Month ---
+
+// plQ1 is the by-month tests' period: January to March 2026.
+var plQ1 = map[string]any{"from": "2026-01-01", "to": "2026-03-31"}
+
+func (b plBook) runByMonth(t *testing.T, params map[string]any) *reports.Result {
+	t.Helper()
+	return runPL(t, b.app, profitAndLossByMonthShipped(), b.reader, params, reports.Options{Today: plToday})
+}
+
+// plMonths are the result's month columns (pivot columns), in result order.
+func plMonths(res *reports.Result) []reports.ResultColumn {
+	var out []reports.ResultColumn
+	for _, c := range res.Columns {
+		if c.Pivot != nil {
+			out = append(out, c)
 		}
 	}
+	return out
+}
+
+// plMonthKeys are the raw keys ("2026-01") of the month columns, in order.
+func plMonthKeys(t *testing.T, res *reports.Result) []string {
+	t.Helper()
+	var out []string
+	for _, c := range plMonths(res) {
+		key, ok := c.Pivot.Key.(string)
+		if !ok {
+			t.Fatalf("month column %s key = %#v, a %T; want a string month key", c.ID, c.Pivot.Key, c.Pivot.Key)
+		}
+		out = append(out, key)
+	}
+	return out
+}
+
+// plMonthCell is a row's amount in the month column with the key: it must
+// hold an amount (a month with no line reads 0, not blank).
+func plMonthCell(t *testing.T, res *reports.Result, r reports.Row, key string) int64 {
+	t.Helper()
+	for _, c := range plMonths(res) {
+		if c.Pivot.Key == key {
+			v, ok := moneyCell(t, r, c.ID)
+			if !ok {
+				t.Fatalf("%s (%s) is blank in month %s, want an amount", r.Label, r.Kind, key)
+			}
+			return v
+		}
+	}
+	t.Fatalf("no month column %s; months %v", key, plMonthKeys(t, res))
+	return 0
+}
+
+// plMonthSum adds a row's month cells.
+func plMonthSum(t *testing.T, res *reports.Result, r reports.Row) int64 {
+	t.Helper()
+	var sum int64
+	for _, key := range plMonthKeys(t, res) {
+		sum += plMonthCell(t, res, r, key)
+	}
+	return sum
+}
+
+// plColumnShape names each result column: its id, or "month:<key>" for a
+// month column.
+func plColumnShape(res *reports.Result) []string {
+	out := make([]string, len(res.Columns))
+	for i, c := range res.Columns {
+		if c.Pivot != nil {
+			out[i] = "month:" + fmt.Sprint(c.Pivot.Key)
+			continue
+		}
+		out[i] = c.ID
+	}
+	return out
+}
+
+func plJSON(t *testing.T, v any) string {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(raw)
+}
+
+func TestProfitAndLossByMonthSpecLoads(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	if err := reports.CheckSources(app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+	shipped := profitAndLossByMonthShipped()
+	if profitAndLossByMonthKey != "books.profit_and_loss_by_month" || shipped.Key != profitAndLossByMonthKey {
+		t.Errorf("key = %q (const %q), want books.profit_and_loss_by_month", shipped.Key, profitAndLossByMonthKey)
+	}
+	if shipped.Title != "Profit and Loss by Month" {
+		t.Errorf("title = %q, want Profit and Loss by Month", shipped.Title)
+	}
+	if shipped.Description != "Income and expenses month by month for a period, on the accrual basis." {
+		t.Errorf("description = %q", shipped.Description)
+	}
+	if shipped.Revision != 1 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	}
+	if !jsonEqual(t, shipped.Spec, string(mustJSON(profitAndLossByMonthSpec()))) {
+		t.Errorf("the shipped spec is not profitAndLossByMonthSpec()")
+	}
+
+	// The spec's parts, read before Load so each missing part is named.
+	var spec reports.Spec
+	if err := json.Unmarshal(shipped.Spec, &spec); err != nil {
+		t.Fatalf("decode the shipped spec: %v", err)
+	}
+	pl := profitAndLossSpec()
+	if got, want := plJSON(t, spec.Params), plJSON(t, pl.Params); got != want {
+		t.Errorf("params = %s, want the Profit and Loss's %s", got, want)
+	}
+	if got, want := plJSON(t, spec.Filter), plJSON(t, pl.Filter); got != want {
+		t.Errorf("filter = %s, want the Profit and Loss's %s", got, want)
+	}
+	if got, want := plJSON(t, spec.Groups), plJSON(t, pl.Groups); got != want {
+		t.Errorf("groups = %s, want the Profit and Loss's %s", got, want)
+	}
+	if got, want := plJSON(t, spec.Layout), plJSON(t, pl.Layout); got != want {
+		t.Errorf("layout = %s, want the Profit and Loss's %s", got, want)
+	}
+	// The two record sort keys only: no [date] / [entry, sequence] (no detail rows).
+	if got, want := plJSON(t, spec.Sort), plJSON(t, pl.Sort[:2]); got != want {
+		t.Errorf("sort = %s, want the two record keys %s", got, want)
+	}
+
+	ids := make([]string, len(spec.Columns))
+	for i, c := range spec.Columns {
+		ids[i] = c.ID
+	}
+	if !slices.Equal(ids, []string{"account", "amount", "pct", "sec"}) {
+		t.Fatalf("columns = %v, want account, amount, pct, sec", ids)
+	}
+	plCols := map[string]reports.Column{}
+	for _, c := range pl.Columns {
+		plCols[c.ID] = c
+	}
+	for _, c := range spec.Columns {
+		if c.Detail != "" {
+			t.Errorf("column %s has detail %q, want none (a pivot report has no detail rows)", c.ID, c.Detail)
+		}
+		switch c.ID {
+		case "amount":
+			if c.Label != "Total" {
+				t.Errorf("amount label = %q, want Total", c.Label)
+			}
+			if c.Aggregate != reports.Sum {
+				t.Errorf("amount aggregate = %q, want sum (D11)", c.Aggregate)
+			}
+			if got, want := plJSON(t, c.Formula), plJSON(t, plSigned()); got != want {
+				t.Errorf("amount formula = %s, want the signed line amount %s", got, want)
+			}
+		default:
+			want := plCols[c.ID]
+			want.Detail = ""
+			if got, w := plJSON(t, c), plJSON(t, want); got != w {
+				t.Errorf("column %s = %s, want the Profit and Loss's (no detail) %s", c.ID, got, w)
+			}
+		}
+	}
+
+	wantPivot := &reports.Pivot{Path: path("date"), Bucket: "month", Cell: "amount", Range: "period", Order: "spec", MaxColumns: 36}
+	if !reflect.DeepEqual(spec.Pivot, wantPivot) {
+		t.Errorf("pivot = %+v, want %+v", spec.Pivot, wantPivot)
+	}
+	if spec.Detail != nil {
+		t.Errorf("detail = %+v, want none", spec.Detail)
+	}
+	wantDisplay := &reports.Display{Columns: map[string]reports.ColumnFit{
+		"account": {MinWidth: "12ch"},
+		"amount":  {MinWidth: "max-content"},
+		"pct":     {MinWidth: "max-content"},
+	}}
+	if !reflect.DeepEqual(spec.Display, wantDisplay) {
+		t.Errorf("display = %s, want %s (no layouts, no oneLine)", plJSON(t, spec.Display), plJSON(t, wantDisplay))
+	}
+
+	loaded, _, err := reports.Load(shipped.Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.Version != reports.CurrentVersion {
+		t.Errorf("version %d, want %d", loaded.Version, reports.CurrentVersion)
+	}
+	if err := reports.Validate(app, loaded); err != nil {
+		t.Errorf("Validate: %v", err)
+	}
+}
+
+func TestProfitAndLossByMonthColumns(t *testing.T) {
+	b := newPLBook(t)
+	service := plAccount(t, b.app, "Service", "4000", "income", "service_income", "")
+	b.post(t, "2026-01-12", ln{b.checking, 10000, 0}, ln{service, 0, 10000})
+	b.post(t, "2026-03-20", ln{b.checking, 5000, 0}, ln{service, 0, 5000})
+
+	res := b.runByMonth(t, map[string]any{"period": plQ1})
+	want := []string{"account", "month:2026-01", "month:2026-02", "month:2026-03", "amount", "pct"}
+	if got := plColumnShape(res); !slices.Equal(got, want) {
+		t.Fatalf("columns = %v, want %v (no sec column)", got, want)
+	}
+	for _, c := range plMonths(res) {
+		if c.Pivot.LabelType != reports.Month {
+			t.Errorf("month column %v label type = %q, want %q (D7)", c.Pivot.Key, c.Pivot.LabelType, reports.Month)
+		}
+	}
+	row := plRowFor(t, res, service)
+	for key, want := range map[string]int64{"2026-01": 10000, "2026-02": 0, "2026-03": 5000} {
+		if got := plMonthCell(t, res, row, key); got != want {
+			t.Errorf("Service in %s = %d, want %d", key, got, want)
+		}
+	}
+	if got := plAmount(t, row); got != 15000 {
+		t.Errorf("Service Total = %d, want 15000", got)
+	}
+	if got := plMonthCell(t, res, plTotal(t, res, "Income"), "2026-02"); got != 0 {
+		t.Errorf("Total Income in February = %d, want 0", got)
+	}
+	if got := plMonthCell(t, res, plComputedRow(t, res, "Net income"), "2026-02"); got != 0 {
+		t.Errorf("Net income in February = %d, want 0", got)
+	}
+	for _, r := range plAccountRows(res) {
+		if r.CanExpand {
+			t.Errorf("account row %s can open, want not (a pivot's innermost level never opens)", r.Label)
+		}
+	}
+
+	t.Run("no lines", func(t *testing.T) {
+		o := newPLBook(t)
+		res := o.runByMonth(t, map[string]any{"period": plQ1})
+		want := []string{"account", "month:2026-01", "month:2026-02", "month:2026-03", "amount", "pct"}
+		if got := plColumnShape(res); !slices.Equal(got, want) {
+			t.Fatalf("columns with no lines = %v, want %v", got, want)
+		}
+		if got := plRowTexts(res.Rows); !slices.Equal(got, plSkeleton()) {
+			t.Fatalf("rows with no lines =\n%q\nwant\n%q", got, plSkeleton())
+		}
+		var zeroRows []reports.Row
+		for _, sec := range plSections {
+			zeroRows = append(zeroRows, plTotal(t, res, sec.title))
+		}
+		for _, label := range plComputed {
+			zeroRows = append(zeroRows, plComputedRow(t, res, label))
+		}
+		for _, r := range zeroRows {
+			for _, key := range []string{"2026-01", "2026-02", "2026-03"} {
+				if v := plMonthCell(t, res, r, key); v != 0 {
+					t.Errorf("%s in %s = %d with no lines, want 0", r.Label, key, v)
+				}
+			}
+			if v := plAmount(t, r); v != 0 {
+				t.Errorf("%s Total = %d with no lines, want 0", r.Label, v)
+			}
+		}
+		requireNoPct(t, res)
+	})
+}
+
+// Non-zero reads the period's total, not a month: an account whose months
+// cancel is hidden, and Active shows it with each month and a 0.00 Total.
+func TestProfitAndLossByMonthRows(t *testing.T) {
+	b := newPLBook(t)
+	swing := plAccount(t, b.app, "Swing", "6100", "expense", "office_general", "")
+	b.post(t, "2026-01-10", ln{swing, 4000, 0}, ln{b.checking, 0, 4000})
+	b.post(t, "2026-02-10", ln{b.checking, 4000, 0}, ln{swing, 0, 4000})
+	period := map[string]any{"from": "2026-01-01", "to": "2026-02-28"}
+
+	nonzero := b.runByMonth(t, map[string]any{"period": period, "rows": "nonzero"})
+	if got := plMonthKeys(t, nonzero); !slices.Equal(got, []string{"2026-01", "2026-02"}) {
+		t.Fatalf("months = %v, want 2026-01, 2026-02", got)
+	}
+	if plHasRow(t, nonzero, swing) {
+		t.Errorf("Swing shows under Non-zero, want hidden (its period total is 0)")
+	}
+	active := b.runByMonth(t, map[string]any{"period": period, "rows": "active"})
+	row := plRowFor(t, active, swing)
+	if got := plMonthCell(t, active, row, "2026-01"); got != 4000 {
+		t.Errorf("Swing in January = %d, want 4000", got)
+	}
+	if got := plMonthCell(t, active, row, "2026-02"); got != -4000 {
+		t.Errorf("Swing in February = %d, want -4000", got)
+	}
+	if got := plAmount(t, row); got != 0 {
+		t.Errorf("Swing Total = %d, want 0", got)
+	}
+}
+
+// Over lines of every P&L type in three months (and a draft, a line outside
+// the period and a void pair, none of which counts), each row's months add to
+// its Total, each month's Net income follows from that month's section
+// totals, and % of income is the Total over Total Income.
+func TestProfitAndLossByMonthAddsUp(t *testing.T) {
+	b := newPLBook(t)
+	c := b.checking
+	service := plAccount(t, b.app, "Service", "4000", "income", "service_income", "")
+	discounts := plAccount(t, b.app, "Discounts and refunds given", "4200", "income", "discounts_refunds", "")
+	materials := plAccount(t, b.app, "Materials", "5000", "cost_of_goods_sold", "supplies_materials", "")
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	interest := plAccount(t, b.app, "Interest earned", "7000", "other_income", "interest_earned", "")
+	penalties := plAccount(t, b.app, "Penalties", "8000", "other_expense", "penalties_settlements", "")
+
+	b.post(t, "2026-01-05", ln{c, 100000, 0}, ln{service, 0, 100000})
+	b.post(t, "2026-01-06", ln{materials, 20000, 0}, ln{c, 0, 20000})
+	b.post(t, "2026-01-07", ln{rent, 30000, 0}, ln{c, 0, 30000})
+	b.post(t, "2026-01-08", ln{c, 1000, 0}, ln{interest, 0, 1000})
+	b.post(t, "2026-01-09", ln{penalties, 500, 0}, ln{c, 0, 500})
+
+	b.post(t, "2026-02-05", ln{c, 50000, 0}, ln{service, 0, 50000})
+	b.post(t, "2026-02-06", ln{discounts, 4000, 0}, ln{c, 0, 4000})
+	b.post(t, "2026-02-07", ln{rent, 30000, 0}, ln{c, 0, 30000})
+	b.post(t, "2026-02-08", ln{penalties, 200, 0}, ln{c, 0, 200})
+
+	b.post(t, "2026-03-05", ln{c, 70000, 0}, ln{service, 0, 70000})
+	b.post(t, "2026-03-06", ln{materials, 5000, 0}, ln{c, 0, 5000})
+	b.post(t, "2026-03-07", ln{c, 1000, 0}, ln{materials, 0, 1000})
+	b.post(t, "2026-03-08", ln{rent, 30000, 0}, ln{c, 0, 30000})
+	b.post(t, "2026-03-09", ln{c, 2000, 0}, ln{interest, 0, 2000})
+
+	// None of these counts: a draft, lines outside the period, and a void pair.
+	mkDraft(t, b.app, "2026-02-11", ln{c, 777, 0}, ln{service, 0, 777})
+	b.post(t, "2025-12-31", ln{c, 888, 0}, ln{service, 0, 888})
+	b.post(t, "2026-04-02", ln{rent, 999, 0}, ln{c, 0, 999})
+	voided := b.post(t, "2026-02-15", ln{c, 3000, 0}, ln{service, 0, 3000})
+	if err := setStatus(b.app, voided.Id, statusVoid, ""); err != nil {
+		t.Fatalf("void: %v", err)
+	}
+
+	months := []string{"2026-01", "2026-02", "2026-03"}
+	res := b.runByMonth(t, map[string]any{"period": plQ1})
+	if got := plMonthKeys(t, res); !slices.Equal(got, months) {
+		t.Fatalf("months = %v, want %v", got, months)
+	}
+
+	// Hand sums by normal side, per month, then the period.
+	type want struct {
+		months [3]int64
+		total  int64
+	}
+	accounts := []struct {
+		account *core.Record
+		want    want
+	}{
+		{service, want{[3]int64{100000, 50000, 70000}, 220000}},
+		{discounts, want{[3]int64{0, -4000, 0}, -4000}},
+		{materials, want{[3]int64{20000, 0, 4000}, 24000}},
+		{rent, want{[3]int64{30000, 30000, 30000}, 90000}},
+		{interest, want{[3]int64{1000, 0, 2000}, 3000}},
+		{penalties, want{[3]int64{500, 200, 0}, 700}},
+	}
+	for _, a := range accounts {
+		row := plRowFor(t, res, a.account)
+		for i, key := range months {
+			if got := plMonthCell(t, res, row, key); got != a.want.months[i] {
+				t.Errorf("%s in %s = %d, want %d", row.Label, key, got, a.want.months[i])
+			}
+		}
+		if got := plAmount(t, row); got != a.want.total {
+			t.Errorf("%s Total = %d, want %d", row.Label, got, a.want.total)
+		}
+	}
+	netIncome := plComputedRow(t, res, "Net income")
+	for i, wantNI := range [3]int64{50500, 15800, 38000} {
+		if got := plMonthCell(t, res, netIncome, months[i]); got != wantNI {
+			t.Errorf("Net income in %s = %d, want %d", months[i], got, wantNI)
+		}
+	}
+	if got := plAmount(t, netIncome); got != 104300 {
+		t.Errorf("Net income Total = %d, want 104300", got)
+	}
+
+	// Every account, section total and computed row: the months add to Total.
+	for _, r := range res.Rows {
+		if plIsAccount(r) || r.Kind == reports.KindSubtotal || r.Kind == reports.KindComputed {
+			if sum, total := plMonthSum(t, res, r), plAmount(t, r); sum != total {
+				t.Errorf("%s (%s): months add to %d, Total = %d", r.Label, r.Kind, sum, total)
+			}
+		}
+	}
+	// Each month's Net income is that month's (Income − COGS − Expenses) +
+	// (Other income − Other expenses).
+	for _, key := range months {
+		cell := func(r reports.Row) int64 { return plMonthCell(t, res, r, key) }
+		ti, tc, te := cell(plTotal(t, res, "Income")), cell(plTotal(t, res, "Cost of goods sold")), cell(plTotal(t, res, "Expenses"))
+		toi, toe := cell(plTotal(t, res, "Other income")), cell(plTotal(t, res, "Other expenses"))
+		if got, want := cell(netIncome), (ti-tc-te)+(toi-toe); got != want {
+			t.Errorf("Net income in %s = %d, want (%d − %d − %d) + (%d − %d) = %d", key, got, ti, tc, te, toi, toe, want)
+		}
+	}
+	// % of income is the row's Total over Total Income's Total.
+	ti := plAmount(t, plTotal(t, res, "Income"))
+	if ti != 216000 {
+		t.Fatalf("Total Income = %d, want 216000", ti)
+	}
+	for _, r := range res.Rows {
+		if plIsAccount(r) || r.Kind == reports.KindSubtotal || r.Kind == reports.KindComputed {
+			requirePct(t, r, plWantPct(plAmount(t, r), ti))
+		}
+	}
+}
+
+// A period of 47 months shows its first 36 and core's pivotCap notice; Total
+// and % of income still cover all 47.
+func TestProfitAndLossByMonthCap(t *testing.T) {
+	b := newPLBook(t)
+	c := b.checking
+	service := plAccount(t, b.app, "Service", "4000", "income", "service_income", "")
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	b.post(t, "2023-01-15", ln{c, 10000, 0}, ln{service, 0, 10000})
+	b.post(t, "2024-05-15", ln{rent, 6000, 0}, ln{c, 0, 6000})
+	// After the 36 shown months: counted in Total, not in any column.
+	b.post(t, "2026-06-15", ln{c, 20000, 0}, ln{service, 0, 20000})
+
+	res := b.runByMonth(t, map[string]any{"period": map[string]any{"from": "2023-01-01", "to": "2026-11-30"}})
+	var want []string
+	for y := 2023; y <= 2025; y++ {
+		for m := 1; m <= 12; m++ {
+			want = append(want, fmt.Sprintf("%d-%02d", y, m))
+		}
+	}
+	if got := plMonthKeys(t, res); !slices.Equal(got, want) {
+		t.Fatalf("months = %v, want the first 36: %v", got, want)
+	}
+	var capNotice *reports.Notice
+	for i := range res.Notices {
+		if res.Notices[i].Code == "pivotCap" {
+			capNotice = &res.Notices[i]
+		}
+	}
+	if capNotice == nil {
+		t.Fatalf("notices = %+v, want a pivotCap notice", res.Notices)
+	}
+	if capNotice.LeftOut != 11 || capNotice.Message != "The pivot shows its first 36 columns; 11 more are left out." {
+		t.Errorf("pivotCap notice = %+v, want 11 left out", *capNotice)
+	}
+
+	serviceRow := plRowFor(t, res, service)
+	if got := plMonthCell(t, res, serviceRow, "2023-01"); got != 10000 {
+		t.Errorf("Service in 2023-01 = %d, want 10000", got)
+	}
+	if got := plAmount(t, serviceRow); got != 30000 {
+		t.Errorf("Service Total = %d, want 30000 (the 2026-06 line counts)", got)
+	}
+	netIncome := plComputedRow(t, res, "Net income")
+	if got := plAmount(t, netIncome); got != 24000 {
+		t.Errorf("Net income Total = %d, want 24000 over all 47 months", got)
+	}
+	ti := plAmount(t, plTotal(t, res, "Income"))
+	if ti != 30000 {
+		t.Fatalf("Total Income = %d, want 30000 over all 47 months", ti)
+	}
+	requirePct(t, serviceRow, 100.0)
+	requirePct(t, plRowFor(t, res, rent), plWantPct(6000, 30000))
+	requirePct(t, netIncome, plWantPct(24000, 30000))
+}
+
+// All dates has no bounds to fill between: the months are exactly those with
+// a posted P&L line.
+func TestProfitAndLossByMonthAllDates(t *testing.T) {
+	b := newPLBook(t)
+	c := b.checking
+	service := plAccount(t, b.app, "Service", "4000", "income", "service_income", "")
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	reserve := plAccount(t, b.app, "Reserve", "1010", "bank", "savings", "")
+	b.post(t, "2025-11-20", ln{rent, 1500, 0}, ln{c, 0, 1500})
+	b.post(t, "2026-01-10", ln{c, 4000, 0}, ln{service, 0, 4000})
+	b.post(t, "2026-03-05", ln{c, 2500, 0}, ln{service, 0, 2500})
+	// Not a P&L line or not posted: neither makes a month.
+	b.post(t, "2025-12-10", ln{reserve, 9000, 0}, ln{c, 0, 9000})
+	mkDraft(t, b.app, "2026-02-10", ln{c, 777, 0}, ln{service, 0, 777})
+
+	res := b.runByMonth(t, map[string]any{"period": map[string]any{"preset": "allDates"}})
+	if got, want := plMonthKeys(t, res), []string{"2025-11", "2026-01", "2026-03"}; !slices.Equal(got, want) {
+		t.Errorf("months = %v, want %v", got, want)
+	}
+	if got := plAmount(t, plRowFor(t, res, service)); got != 6500 {
+		t.Errorf("Service Total = %d, want 6500", got)
+	}
+}
+
+// A user with Books level none runs the report without error and gets no
+// account rows: every section total and computed row reads 0 in every month
+// and in Total (D8).
+func TestProfitAndLossByMonthNoAccess(t *testing.T) {
+	b := newPLBook(t)
+	outsider := mkUser(t, b.app, "member")
+	setPkgAccess(t, b.app, outsider, "none")
+	service := plAccount(t, b.app, "Service", "4000", "income", "service_income", "")
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	b.post(t, "2026-01-12", ln{b.checking, 40000, 0}, ln{service, 0, 40000})
+	b.post(t, "2026-02-03", ln{rent, 12000, 0}, ln{b.checking, 0, 12000})
+
+	if got := plAccountIDs(t, b.runByMonth(t, map[string]any{"period": plQ1})); !sameAccounts(got, idsOf(service, rent)) {
+		t.Fatalf("a Books reader sees accounts %v, want Service and Rent or lease", got)
+	}
+	res := runPL(t, b.app, profitAndLossByMonthShipped(), outsider, map[string]any{"period": plQ1, "rows": "active"}, reports.Options{Today: plToday})
+	if rows := plAccountRows(res); len(rows) != 0 {
+		t.Errorf("a user with Books level none sees %v", plRowTexts(rows))
+	}
+	if got := plRowTexts(res.Rows); !slices.Equal(got, plSkeleton()) {
+		t.Fatalf("rows = %q, want the statement with no account rows %q", got, plSkeleton())
+	}
+	months := []string{"2026-01", "2026-02", "2026-03"}
+	if got := plMonthKeys(t, res); !slices.Equal(got, months) {
+		t.Fatalf("months = %v, want %v", got, months)
+	}
+	var zeroRows []reports.Row
+	for _, sec := range plSections {
+		zeroRows = append(zeroRows, plTotal(t, res, sec.title))
+	}
+	for _, label := range plComputed {
+		zeroRows = append(zeroRows, plComputedRow(t, res, label))
+	}
+	for _, r := range zeroRows {
+		for _, key := range months {
+			if v := plMonthCell(t, res, r, key); v != 0 {
+				t.Errorf("%s in %s = %d for a user with no access, want 0", r.Label, key, v)
+			}
+		}
+		if v := plAmount(t, r); v != 0 {
+			t.Errorf("%s Total = %d for a user with no access, want 0", r.Label, v)
+		}
+	}
+}
+
+// Register ships the Profit and Loss by Month; core creates it unpublished,
+// and Books shares it with every Books reader.
+func TestProfitAndLossByMonthShippedShared(t *testing.T) {
+	reports.ResetForTesting()
+	t.Cleanup(reports.ResetForTesting)
+	app, _ := newRegisteredApp(t)
+	mkUser(t, app, "owner")
+	reader := mkUser(t, app, "member")
+	setPkgAccess(t, app, reader, "readonly")
+	if err := reports.ReconcileShipped(app); err != nil {
+		t.Fatalf("ReconcileShipped: %v", err)
+	}
+	row, err := app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": "books.profit_and_loss_by_month"})
+	if err != nil {
+		t.Fatalf("no reports row with shipped_key books.profit_and_loss_by_month: %v", err)
+	}
+	if row.GetBool("published") || row.GetString("published_by") != "" {
+		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
+	}
+	if row.GetString("title") != "Profit and Loss by Month" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+		t.Errorf("row = %v", row.PublicExport())
+	}
+	if err := reconcileBooksReportShares(app); err != nil {
+		t.Fatalf("reconcileBooksReportShares: %v", err)
+	}
+	requireViewer(t, app, row, reader, "a Books reader")
 }

@@ -54,6 +54,8 @@ with the reason, and shown to the human at the end)
 - cp 2 · opened (both schemes): table header — "ACCOUNT ↑↓" / "↑↓ TOTAL" sort glyphs still show (core draws them for the spec's sortable columns), and the Total glyph sits left of its label while Account's sits right (critic NOTE; core-owned, D4; same as cp 1's NOTE).
 - cp 2 · reviewer A NOTE 3: an opened line whose line and entry both have no memo is labelled "<date> · <number> · " with a trailing separator (`server/report_profit_and_loss.go:76-80`, the Trial Balance's label; spec §3 does not cover the case). Fix asked: accept, or drop the last " · " when both memos are empty.
 - cp 2 · reviewer B 1 (the part outside this checkpoint's files): `general-ledger.spec.ts:805-830` and `journal-report.spec.ts:1326-1339` close their second browser context only on a pass (no `try/finally`); fixed in `profit-and-loss.spec.ts` only.
+- cp 3 · month-populated, month-capped (both schemes): chip row shows a third chip "⇅ Sort" after Period and Rows (spec §3 lists Period, Rows); core draws it for the spec's two record sort keys and only when the run has record rows (absent in month-no-lines). Core-owned; the human decides whether a shipped layout report should offer Sort (critic NOTE).
+- cp 3 · month-populated, month-capped (both schemes): with 10 month figures on line 1 at 1280 on the shipping route, the label column sits at its 12ch minimum and cuts statement labels ("Total Cost of goods ...", "6200 Software S..."); spec §3 lets the label narrow first, and the fit is core's automatic lines (D5); checkpoint 4 judges the widths (critic NOTE).
 
 ## Out-of-plan changes
 - cp 0 (core) `core/reports/components/builder/ColumnsSection.tsx`: not in the core plan's file table (reviewers A 1, B 1); `offeredAggregates` offers no total for a `percentOfSection` column, matching the engine refusal and draft issue `PERCENT_NO_TOTAL`, driven by the period-pivot e2e. Inside the brief's Files block ("the builder's column formula editor … under `core/reports/components/`"); the runner added it to the core plan's file table (Task 11).
@@ -132,6 +134,23 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 1, under Design notes
 - reviewer-caught deferrals: none
 - commit: 0525f6a
+
+## Checkpoint 3 (Profit and Loss by Month report)
+- brief: staging `cp/cp3.md`; core: af4813a6 (branch books/p5-profit-and-loss, PR open), not edited
+- test writer: `server/report_profit_and_loss_test.go` (SpecLoads, Columns + "no lines", Rows, AddsUp incl. draft/outside/void, Cap, AllDates, NoAccess, ShippedShared; `TestProfitAndLossTopics` split into "profit and loss" and "by month"), `tests/e2e/profit-and-loss.spec.ts` (e2e 8 By month), `tests/e2e/books-report-helpers.ts` (`openProfitAndLossByMonth`); stubs per Do 0; red for the right reason: yes (Go: "a report has 1 to 100 columns" / no shipped row; e2e: hub row missing); untestable: none (staging `cp/cp3-tests.md`)
+- implementer: `server/report_profit_and_loss.go` (`plFilter()`, `plRecordSort()` shared; by-month spec, shipped, display per §5 and D11; `profitAndLossSpec()` JSON unchanged), `server/register.go` (after `profitAndLossShipped()`); DONE (staging `cp/cp3-impl.md`)
+- test disputes: 2. (1) test writer: the brief's "same four topics" for the by-month Topics subtest cannot hold — the fourth (`books_journal_entries`) comes from the detail label and `[entry, sequence]` sort, which spec §5 removes ("No `sort` keys on `[date]` / `[entry, sequence]`, no `detail`") → test right with three topics; plan amended D13 (runner), absence pinned in the fix round. (2) implementer: `plSnapshot` read headings with `innerText`, which applies core's heading `uppercase` class (`core/reports/components/ReportTable.tsx:80`), so "Oct 2026" read "OCT 2026"; the brief pins the words ("e.g. "Oct 2026"") → test wrong; fresh test writer reads `textContent` (whitespace normalized), assertion unchanged (staging `cp/cp3-dispute-tests.md`)
+- self-declared differences: none
+- gate 1: tests unedited: yes (only the resolved dispute) · `go test ./...` ok · `tinycld-pkg check` pass (4313) · e2e `-g "profit-and-loss:"` 8/8 on 7210 (no other Playwright process, ports free)
+- gate 2: invalid shots: none (`evidence/cp3/`, 6 shots; the git-excluded capture spec gained `openReport: 'profit-and-loss-by-month'`) · layout recorded at 1280 on `/a/reports/<id>` (D5): month-populated core automatic lines, 2 lines per row (Account + 10 months on line 1; Nov, Total, % on line 2); month-no-lines one line; month-capped 4 lines per row, 36 of 59 months, notice "23 more" · blocking: none · notes: 2, under Design notes
+- gate 3 A (correctness): 0 BLOCK, 2 NOTE: 1 (e2e 8 "press opens no line" snapshots right after the press) → fix item 2 (weak test of an agreed bullet); 2 (three topics) → settled, D13
+- gate 3 B (conformance): script lines: 0 · 0 findings · DEFERRAL 1 (three topics instead of four, unpinned) → not a deferral: D13 records the plan decision; fix item 1 pins the absence
+- fix round 1 (staging `cp/cp3-fix.md`, tests only, fresh test writer, `cp/cp3-fix-tests.md`): item 1 — the by-month Topics subtest asserts `books_journal_entries` absent (proved red with an overlay that reads an entry field); item 2 — new helper `expectPressOpensNothing` (`books-report-helpers.ts`): for 1.5 s after the press it fails on any run request with an account-level `expand` path and on any line under the row (proved red on the P&L, where a press opens lines); no-chevron assertions kept
+- gate 1 (after fixes): tests unedited by the implementer: yes · `go test ./...` ok · `tinycld-pkg check` pass (4313) · e2e 8/8 on 7210
+- fix review: n/a (the fix changed test files only); rounds: 1
+- gate 3 A notes: 0 to Design notes (NOTE 1 fixed, NOTE 2 settled by D13)
+- reviewer-caught deferrals: 1 (B: three topics) — not a deferral; the test writer had declared it as a dispute; resolved by plan D13 and fix item 1
+- plan amended: D13 and checkpoint 3's Topics bullet (`docs/plans/profit-and-loss-checkpoints.md`); plan-check 0 errors
 
 ## Final review
 - eval:
