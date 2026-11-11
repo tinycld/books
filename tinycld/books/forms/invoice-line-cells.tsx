@@ -5,6 +5,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { iosInputCenteringStyle } from '@tinycld/core/ui/form/ios-input-style'
+import { TABLE_INPUT_TEXT_INSET } from '@tinycld/core/ui/forms/fields/table-layout'
 import { Switch } from '@tinycld/core/ui/switch'
 import { newRecordId } from 'pbtsdb/core'
 import { type ReactNode, useState } from 'react'
@@ -43,6 +44,13 @@ import type { BooksProducts } from '../types'
 // The amount text's width, shared by the line Amount cells and the totals under them, so
 // the figures line up.
 export const AMOUNT_COLUMN_WIDTH = 112
+
+// Inset like an input's text, so the amount lines up with the prices above it, the
+// column's header, and the totals under it (InvoiceTotals).
+export const AMOUNT_TEXT_STYLE = {
+    minWidth: AMOUNT_COLUMN_WIDTH,
+    paddingRight: TABLE_INPUT_TEXT_INSET,
+}
 
 const ITEM_TYPES: readonly BooksProducts['type'][] = ['service', 'non_inventory', 'bundle']
 const PERCENT_TYPES: readonly BooksProducts['type'][] = ['service', 'non_inventory']
@@ -630,7 +638,7 @@ export function LineAmountCell({ fieldKey, table }: BuiltinFieldProps) {
     const amount = (
         <Text
             className="py-2.5 text-right text-base text-foreground tabular-nums"
-            style={{ minWidth: AMOUNT_COLUMN_WIDTH }}
+            style={AMOUNT_TEXT_STYLE}
         >
             {view.text}
         </Text>

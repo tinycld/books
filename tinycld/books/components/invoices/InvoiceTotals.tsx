@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native'
-import { AMOUNT_COLUMN_WIDTH } from '../../forms/invoice-line-cells'
+import { AMOUNT_TEXT_STYLE } from '../../forms/invoice-line-cells'
 
 export type InvoiceTotalsView = {
     subtotal: string
@@ -23,7 +23,7 @@ function TotalRow({ label, amount, testID, isStrong = false }: TotalRowProps) {
             <Text className={`text-sm text-muted-foreground ${weight}`}>{label}</Text>
             <Text
                 className={`text-right text-base text-foreground tabular-nums ${weight}`}
-                style={{ minWidth: AMOUNT_COLUMN_WIDTH }}
+                style={AMOUNT_TEXT_STYLE}
             >
                 {amount}
             </Text>
