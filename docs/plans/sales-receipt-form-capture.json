@@ -1,0 +1,290 @@
+{
+    "outDir": "sales-receipt-form-reference",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1300
+        },
+        {
+            "name": "filled",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                1280
+            ],
+            "height": 1900
+        },
+        {
+            "name": "filled-phone",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                390
+            ],
+            "height": 4200
+        },
+        {
+            "name": "set-account",
+            "url": "/a/books/helix-mockup?state=set-account",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                1280
+            ],
+            "height": 1900
+        },
+        {
+            "name": "set-account-phone",
+            "url": "/a/books/helix-mockup?state=set-account",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                390
+            ],
+            "height": 4000
+        },
+        {
+            "name": "no-customer",
+            "url": "/a/books/helix-mockup?state=no-customer",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1500
+        },
+        {
+            "name": "exempt",
+            "url": "/a/books/helix-mockup?state=exempt",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                1280
+            ],
+            "height": 1400
+        },
+        {
+            "name": "no-deposit",
+            "url": "/a/books/helix-mockup?state=no-deposit",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                1280
+            ],
+            "height": 1900
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                1280
+            ],
+            "height": 1900
+        },
+        {
+            "name": "errors-phone",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                390
+            ],
+            "height": 4300
+        },
+        {
+            "name": "errors-hidden",
+            "url": "/a/books/helix-mockup?state=errors-hidden",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                1280
+            ],
+            "height": 1100
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1500
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                1280
+            ],
+            "height": 1400
+        },
+        {
+            "name": "pdf-unsaved",
+            "url": "/a/books/helix-mockup?state=pdf-unsaved",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 900
+        },
+        {
+            "name": "pdf-stale",
+            "url": "/a/books/helix-mockup?state=pdf-stale",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1300
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "sales-receipt-read-only",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1700
+        },
+        {
+            "name": "walk-in",
+            "url": "/a/books/helix-mockup?state=walk-in",
+            "ready": "sales-receipt-read-only",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1200
+        },
+        {
+            "name": "void",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "sales-receipt-read-only",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1300
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "sales-receipt-read-only",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1700
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "sales-receipt-no-access",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 700
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/helix-mockup?state=cannot-edit",
+            "ready": "sales-receipt-cannot-edit",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 700
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "sales-receipt-not-found",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 700
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "helix-mockup",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 700
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "helix-mockup",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 700
+        },
+        {
+            "name": "settings-ask",
+            "url": "/a/books/helix-mockup?state=settings-ask",
+            "ready": "books-settings",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 900
+        },
+        {
+            "name": "settings-set",
+            "url": "/a/books/helix-mockup?state=settings-set",
+            "ready": "books-settings",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 900
+        },
+        {
+            "name": "settings-reader",
+            "url": "/a/books/helix-mockup?state=settings-reader",
+            "ready": "books-settings",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 800
+        },
+        {
+            "name": "settings-list",
+            "url": "/a/books/helix-mockup?state=settings-list",
+            "ready": "books-settings",
+            "hideLabels": [
+                "New"
+            ],
+            "widths": [
+                390
+            ],
+            "height": 844
+        }
+    ]
+}
