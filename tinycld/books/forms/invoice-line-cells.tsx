@@ -668,7 +668,8 @@ export function LineTaxableCell({
 }: BuiltinFieldProps) {
     const { isCards } = useInvoiceLinesView()
     const onValueChange = (next: boolean) => onChange(next)
-    const layout = isCards ? 'justify-between gap-2' : ''
+    // A grid cell centers the switch under core's centered toggle header.
+    const layout = isCards ? 'justify-between gap-2' : 'justify-center'
     return (
         <View
             testID={cellTestId(fieldKey, table, 'taxable')}
