@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/profit-and-loss-checkpoints.md
 - reference: docs/plans/profit-and-loss-reference/
 - evidence: docs/plans/profit-and-loss-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~
 - capture manifest: docs/plans/profit-and-loss-capture.json
 - review mode: C — none (unattended)
 - core extension: P1 `percentOfSection`, P2 `pivot.range`, P3 `pivot.order: "spec"`, P4 bucket labels in words, at spec version 4 (spec §4) — checkpoint 0, core PR on branch books/p5-profit-and-loss in tinycld, merges before checkpoint 1; MAJOR; lane purchases holds `exclusive` (taken 2026-11-09); core merge: pre-approved by the human 2026-11-09 ("merge core after ci green")
@@ -177,4 +177,4 @@ with the reason, and shown to the human at the end)
 - commit: b63d133
 
 ## Final review
-- eval:
+- eval: approved (2026-11-11; CI green on PR #38 at 22ad9a5)
