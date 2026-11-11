@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/invoice-form-checkpoints.md
 - reference: docs/plans/invoice-form-reference/
 - evidence: docs/plans/invoice-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs, 2026-11-11)
 - capture manifest: docs/plans/invoice-form-capture.json
 - review mode: C — none (unattended)
 - core extension: E1 table row kinds, E2 table keyboard + one-stop row menu with `ShortcutButton` add actions (reshaped 2026-11-08), E3 locked optional built-ins (spec §7) — checkpoint 0, core PR on branch books/p2-invoice, merges before checkpoint 1; `exclusive`. Core merge: pre-approved by the human (2026-11-06, re-confirmed 2026-11-08) — merge when checks are green, unless the checkpoint 0 runner reports an out-of-plan file, a deferral, a rebuttal, or STOPPED.
@@ -574,7 +574,7 @@
 - human: review mode C — none
 
 ## Final review
-- eval: revise 1 (2026-11-10) — notes in /Users/nas/tmp/tinycld/auto-helix-books/staging/p2-invoice/revise-1.md
+- eval: revise 1 (2026-11-10) — notes in /Users/nas/tmp/tinycld/auto-helix-books/staging/p2-invoice/revise-1.md; approved (2026-11-11) after the human's direct fixes (Tax quarter width, date field size, Tax toggle centered, Rate → Price, right-aligned number headers inset to the input text, one-line description) and the CI fixes (core cp0i menu focus, passkey spec race, opening-balances windowed grid); full suite green on CI at books 9fb3a83 with core cc9fb921
 - human comments and what changed
   - revise 1: (1) Tax takes half the header width though it fits beside Due date; (2) New Invoice opens with no focused field, it must focus the Customer picker; (3) Qty and Rate must select their whole value on focus (after a product pick jumps to Qty, and on Tab), so typing replaces it; (4) asked how Message on invoice and Memo differ (answered in chat: Message prints for the customer, Memo is the internal journal entry memo).
   - revise 1, item 4 added by the human during the round: Message / Memo labels "Message to customer (prints on invoice)" / "Internal memo (not printed)" with hints, read view and help too.
