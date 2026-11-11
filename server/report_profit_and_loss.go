@@ -47,6 +47,47 @@ func profitAndLossSpec() *reports.Spec {
 			fld("entry", "number"), lit(" · "),
 			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
 		)},
+		Display: profitAndLossDisplay(),
+	}
+}
+
+// profitAndLossDisplay keeps the label first to narrow and the figures whole,
+// and wraps a row onto the phone layout below the one-line width. The oneLine
+// gate is measured (spec §5, phase 3 pass 2): without it core's fit puts the
+// three columns on one line at 390 with the label cut to "4000 Service ...",
+// so the phone layout never shows; 600px keeps one line to tablet widths and
+// up.
+func profitAndLossDisplay() *reports.Display {
+	return &reports.Display{
+		OneLine: &reports.DisplayOneLine{MinWidth: "600px"},
+		Columns: plColumnFit(),
+		Layouts: profitAndLossLayouts(),
+	}
+}
+
+// profitAndLossLayouts is the phone layout: the label on its own line, then
+// Total and % of income side by side below it.
+func profitAndLossLayouts() []reports.DisplayLayout {
+	return []reports.DisplayLayout{
+		{
+			Width:  "mobile",
+			Tracks: 2,
+			Cells: []reports.DisplayCell{
+				{Col: "account", Line: 1, Span: 2},
+				{Col: "amount", Line: 2},
+				{Col: "pct", Line: 2},
+			},
+		},
+	}
+}
+
+// plColumnFit narrows the label first (never below 12 characters) and keeps
+// every figure at its full width.
+func plColumnFit() map[string]reports.ColumnFit {
+	return map[string]reports.ColumnFit{
+		"account": {MinWidth: "12ch"},
+		"amount":  {MinWidth: "max-content"},
+		"pct":     {MinWidth: "max-content"},
 	}
 }
 
@@ -108,11 +149,7 @@ func profitAndLossByMonthSpec() *reports.Spec {
 // profitAndLossByMonthDisplay has no layouts: below the one-line width core's
 // automatic lines wrap the month figures.
 func profitAndLossByMonthDisplay() *reports.Display {
-	return &reports.Display{Columns: map[string]reports.ColumnFit{
-		"account": {MinWidth: "12ch"},
-		"amount":  {MinWidth: "max-content"},
-		"pct":     {MinWidth: "max-content"},
-	}}
+	return &reports.Display{Columns: plColumnFit()}
 }
 
 // plFilter keeps the posted lines of the income and expense accounts dated
