@@ -496,6 +496,24 @@ export type PlSnapshot = {
     }[]
 }
 
+// The opened lines beneath the row labelled `label`: the detail rows after it until the
+// next row that is not a line. Empty when the row is not mounted or not open.
+export function plLinesUnder(snapshot: PlSnapshot, label: string): PlSnapshot['rows'] {
+    const start = snapshot.rows.findIndex(row => row.kind !== 'detail' && row.label === label)
+    if (start < 0) return []
+    const after = snapshot.rows.slice(start + 1)
+    const end = after.findIndex(row => row.kind !== 'detail')
+    return end < 0 ? after : after.slice(0, end)
+}
+
+// Opens a Profit and Loss account row by a press and waits until its lines show beneath it.
+export async function openProfitAndLossAccount(page: Page, label: string): Promise<void> {
+    await rowOf(page, label).click()
+    await expect
+        .poll(async () => plLinesUnder(await plSnapshot(page), label).length)
+        .toBeGreaterThan(0)
+}
+
 // The document header, the column headings and every mounted row of the report table, top
 // to bottom, with every cell, read in ONE pass so no re-render lands between two reads.
 // The row kind comes from core's row id: g: a section or an account, d: a line, s: a

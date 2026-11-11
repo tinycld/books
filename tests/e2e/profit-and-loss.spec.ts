@@ -13,7 +13,9 @@ import {
     expectedHeading,
     openEntriesFromSidebar,
     openProfitAndLoss,
+    openProfitAndLossAccount,
     type PlSnapshot,
+    plLinesUnder,
     plSnapshot,
     postEntryOn,
     snapshotWhen,
@@ -64,6 +66,14 @@ async function startBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(DESKTOP)
+}
+
+// The number of the posted entry open in its read view ("Journal entry JE-12" → "JE-12").
+async function postedNumber(page: Page): Promise<string> {
+    const title = (await page.getByTestId('entry-title').innerText()).trim()
+    const number = title.replace(/^Journal entry /, '')
+    expect(number).toMatch(/^JE-\d+$/)
+    return number
 }
 
 async function createAccounts(page: Page, accounts: { name: string; kind: typeof INCOME }[]) {
@@ -309,5 +319,111 @@ test.describe('profit-and-loss: report', () => {
         expect(at).toBeLessThan(indexOf(active, 'subtotal', `Total ${T.expense}`))
         expect(rowNamed(active, 'group', zeroed)?.cells.amount).toMatch(/0\.00$/)
         expect(amountOf(active, 'group', zeroed)).toBe(0)
+    })
+
+    test('pressing an account opens its lines, labelled and in posting order', async ({ page }) => {
+        await startBooks(page)
+        // Unnumbered accounts sort first in a section, and "AA" before the other specs'
+        // names, so the account and its lines mount at the top of the opened Income.
+        const income = uniqueName('AA PL open')
+        await createAccounts(page, [{ name: income, kind: INCOME }])
+        const today = await browserToday(page)
+        const m1 = uniqueName('PL open line memo')
+        const m2 = uniqueName('PL open entry memo')
+        // The first entry's memo differs from its line's, so the label proves the line's
+        // memo comes first; the second line has no memo, so the entry's shows.
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('PL open first entry'),
+            lines: [
+                { account: ACCOUNT_LABELS.checking, debit: '45.00' },
+                { account: income, credit: '45.00', memo: m1 },
+            ],
+        })
+        const first = await postedNumber(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: m2,
+            lines: [
+                { account: ACCOUNT_LABELS.checking, debit: '30.00' },
+                { account: income, credit: '30.00' },
+            ],
+        })
+        const second = await postedNumber(page)
+
+        await openProfitAndLoss(page)
+        await collapseAll(page)
+        // A computed row has no fold chevron, and a press on it opens nothing.
+        const netIncome = rowOf(page, C.netIncome)
+        await expect(netIncome).not.toHaveAttribute('aria-expanded')
+        await expect(netIncome).not.toHaveAttribute('role', 'button')
+        await netIncome.click()
+        // The folded statement mounts every row, so this snapshot sees all of it.
+        const folded = await plSnapshot(page)
+        expect(indexOf(folded, 'computed', C.netIncome)).toBeGreaterThanOrEqual(0)
+        expect(folded.rows.filter(row => row.kind === 'detail')).toEqual([])
+
+        const before = await openSectionTo(page, T.income, income, 'the income account')
+        expect(plLinesUnder(before, income)).toEqual([])
+        expect(before.rows.filter(row => row.kind === 'detail')).toEqual([])
+
+        await openProfitAndLossAccount(page, income)
+        const open = await snapshotWhen(
+            page,
+            plSnapshot,
+            s => plLinesUnder(s, income).length === 2,
+            'the two lines beneath the account'
+        )
+        const lines = plLinesUnder(open, income)
+        expect(lines.map(line => line.label)).toEqual([
+            `${today} · ${first} · ${m1}`,
+            `${today} · ${second} · ${m2}`,
+        ])
+        expect(lines.map(line => cents(line.cells.amount))).toEqual([4500, 3000])
+        expect(lines.map(line => line.cells.pct ?? '')).toEqual(['', ''])
+    })
+
+    test('the open report re-runs on a post from another page', async ({ page, browser }) => {
+        await startBooks(page)
+        await openProfitAndLoss(page)
+        await collapseAll(page)
+        await rowOf(page, T.income).click()
+        await expect(rowOf(page, T.income)).toHaveAttribute('aria-expanded', 'true')
+        await page.evaluate(() => {
+            ;(window as unknown as { plNotReloaded?: boolean }).plNotReloaded = true
+        })
+
+        // Page B is a second browser context signed in as the same user: its own session
+        // and its own realtime connection, so the post reaches page A through the server.
+        // The name sorts first among the unnumbered Income accounts, so its row mounts.
+        const income = uniqueName('AA PL live')
+        const otherContext = await browser.newContext()
+        try {
+            const other = await otherContext.newPage()
+            await startBooks(other)
+            await createAccounts(other, [{ name: income, kind: INCOME }])
+            await postEntryOn(other, {
+                date: await browserToday(other),
+                memo: uniqueName('PL live post'),
+                lines: [
+                    { account: ACCOUNT_LABELS.checking, debit: '60.00' },
+                    { account: income, credit: '60.00' },
+                ],
+            })
+
+            const live = await snapshotWhen(
+                page,
+                plSnapshot,
+                s => indexOf(s, 'group', income) >= 0,
+                'the new account in the open report'
+            )
+            expect(amountOf(live, 'group', income)).toBe(6000)
+            const notReloaded = await page.evaluate(
+                () => (window as unknown as { plNotReloaded?: boolean }).plNotReloaded
+            )
+            expect(notReloaded).toBe(true)
+        } finally {
+            await otherContext.close()
+        }
     })
 })
