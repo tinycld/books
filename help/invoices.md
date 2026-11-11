@@ -22,12 +22,12 @@ Only an active customer can be on an invoice that you post. Inactive customers a
 
 An invoice has up to 250 lines of four kinds:
 
-- Item: a product or service with a description, a Qty, a Rate and Tax (taxable or not). Books calculates the Amount as Qty × Rate, rounded to the cent. The description and rate come from the product; you can change them. A Rate can be 0 or negative.
+- Item: a product or service with a description, a Qty, a Price and Tax (taxable or not). Books calculates the Amount as Qty × Price, rounded to the cent. The description and price come from the product; you can change them. A Price can be 0 or negative.
 - Description: text only, for example a note about the work. It has no amount.
 - Subtotal: the sum of the item and percent lines above it, since the previous subtotal.
 - Percent: a percent of the line right above it, which must be an item or a subtotal. Use it for a discount: pick a product such as Discount and type −10 for 10% off. The percent can be from −100 to 1000.
 
-To add an item line, choose Add line. To add another kind, choose Add… and pick Description line, Subtotal or Percent line. When you press Enter in the Rate of the last line, Books adds an item line.
+To add an item line, choose Add line. To add another kind, choose Add… and pick Description line, Subtotal or Percent line. When you press Enter in the Price of the last line, Books adds an item line.
 
 Each line has a menu (⋮) with Insert line above, Insert line below, Move up, Move down, Duplicate and Remove. An empty item line at the end of the invoice is dropped when you save.
 

@@ -62,16 +62,18 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         required: false,
         hidden: false,
         component: 'LineQuantityCell',
+        align: 'end',
         ...floored(68),
     },
     {
         key: 'rate',
-        label: 'Rate',
+        label: 'Price',
         kind: 'text',
         required: false,
         hidden: false,
         component: 'LineRateCell',
         addOnSubmit: true,
+        align: 'end',
         ...RATE_SIZE,
     },
     {
@@ -82,6 +84,7 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         hidden: false,
         component: 'LinePercentCell',
         addOnSubmit: true,
+        align: 'end',
         ...RATE_SIZE,
     },
     {
@@ -92,6 +95,7 @@ export const INVOICE_LINE_COLUMNS: readonly HostTableColumn[] = [
         required: false,
         hidden: false,
         component: 'LineAmountCell',
+        align: 'end',
         ...floored(112),
     },
     {
