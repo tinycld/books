@@ -833,3 +833,284 @@ func TestProfitAndLossShippedShared(t *testing.T) {
 	}
 	requireViewer(t, app, row, reader, "a Books reader")
 }
+
+// plLine is one posted entry of two lines: account takes debit (or credit,
+// when debit is 0), other takes the opposite side. The line on account has
+// the record id lineID ("" for a server one) and its own memo ("" for none),
+// so a test sets the storage order of an opened account's lines.
+type plLine struct {
+	date, entryMemo, lineID, lineMemo string
+	account, other                    *core.Record
+	debit, credit                     int
+}
+
+func (b plBook) postLine(t *testing.T, l plLine) *core.Record {
+	t.Helper()
+	entry := saveRecord(t, b.app, "books_journal_entries", map[string]any{
+		"date": l.date, "status": "draft", "doc_type": "journal", "origin": "manual", "currency": "USD", "memo": l.entryMemo,
+	})
+	line := map[string]any{
+		"entry": entry.Id, "account": l.account.Id, "debit": l.debit, "credit": l.credit,
+		"memo": l.lineMemo, "position": 0, "currency": "USD",
+	}
+	if l.lineID != "" {
+		line["id"] = l.lineID
+	}
+	saveRecord(t, b.app, "books_journal_lines", line)
+	saveRecord(t, b.app, "books_journal_lines", map[string]any{
+		"entry": entry.Id, "account": l.other.Id, "debit": l.credit, "credit": l.debit, "position": 1, "currency": "USD",
+	})
+	return mustPost(t, b.app, entry.Id, "")
+}
+
+// plOpening is the run options that open one account row, as core's view
+// sends them: Expand names the row, and Collapse is sent (empty), so the
+// sections, open by default, stay open beside it (core run.go: an Expand with
+// no Collapse opens only the groups it lists).
+func plOpening(account reports.Row) reports.Options {
+	return reports.Options{Today: plToday, Expand: [][]any{account.GroupKey}, Collapse: [][]any{}}
+}
+
+// plLineLabel is an opened line's label: "<date> · <entry number> · <memo>".
+func plLineLabel(entry *core.Record, memo string) string {
+	return entry.GetString("date") + " · " + entry.GetString("number") + " · " + memo
+}
+
+// plLinesOf are the detail rows of the opened account row, in result order.
+func plLinesOf(res *reports.Result, account reports.Row) []reports.Row {
+	var out []reports.Row
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindDetail && r.Section == account.ID {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func plDetailRows(res *reports.Result) []reports.Row {
+	var out []reports.Row
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindDetail {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// An opened account shows its posted lines in the period beneath it, in date
+// order then entry sequence, labelled "<date> · <entry number> · <memo>" (the
+// entry's memo when the line has none), each by the account's normal side, %
+// of income blank. The line ids run against both orders, and the entries post
+// out of date order, so neither storage nor posting order passes.
+func TestProfitAndLossOpenedLines(t *testing.T) {
+	b := newPLBook(t)
+	c := b.checking
+	service := plAccount(t, b.app, "Service", "4000", "income", "service_income", "")
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	late := b.postLine(t, plLine{date: "2026-03-20", entryMemo: "Late rent", lineID: "plopenedline001", account: rent, other: c, debit: 4000})
+	early := b.postLine(t, plLine{date: "2026-03-05", entryMemo: "Rent entry", lineID: "plopenedline003", lineMemo: "Early rent", account: rent, other: c, debit: 1000})
+	// Two lines on one day: first posts first (the lower sequence), but its
+	// line id sorts after second's.
+	first := b.postLine(t, plLine{date: "2026-03-12", entryMemo: "Mid rent one", lineID: "plopenedline005", account: rent, other: c, debit: 2000})
+	second := b.postLine(t, plLine{date: "2026-03-12", entryMemo: "Mid rent two", lineID: "plopenedline004", account: rent, other: c, debit: 3000})
+	if first.GetInt("sequence") >= second.GetInt("sequence") {
+		t.Fatalf("sequences %d, %d: want the first post lower", first.GetInt("sequence"), second.GetInt("sequence"))
+	}
+	// Not among the opened lines: a draft and a line outside the period.
+	mkDraft(t, b.app, "2026-03-15", ln{rent, 777, 0}, ln{c, 0, 777})
+	b.postLine(t, plLine{date: "2026-04-02", entryMemo: "April rent", account: rent, other: c, debit: 999})
+	sale := b.postLine(t, plLine{date: "2026-03-08", entryMemo: "Sale", lineMemo: "Design work", account: service, other: c, credit: 7500})
+
+	closed := b.run(t, map[string]any{"period": plMarch})
+	if got := plDetailRows(closed); len(got) != 0 {
+		t.Fatalf("with no Expand the run has detail rows %v, want none", plRowTexts(got))
+	}
+	for _, label := range plComputed {
+		if r := plComputedRow(t, closed, label); r.CanExpand {
+			t.Errorf("the computed row %s can open, want not", label)
+		}
+	}
+
+	opts := plOpening(plRowFor(t, closed, rent))
+	open := runPL(t, b.app, profitAndLossShipped(), b.reader, map[string]any{"period": plMarch}, opts)
+	rentRow := plRowFor(t, open, rent)
+	lines := plLinesOf(open, rentRow)
+	gotLabels := make([]string, len(lines))
+	for i, r := range lines {
+		gotLabels[i] = r.Label
+	}
+	wantLabels := []string{
+		plLineLabel(early, "Early rent"),
+		plLineLabel(first, "Mid rent one"),
+		plLineLabel(second, "Mid rent two"),
+		plLineLabel(late, "Late rent"),
+	}
+	if !slices.Equal(gotLabels, wantLabels) {
+		t.Fatalf("opened lines =\n%q\nwant (date, then entry sequence; the entry memo when the line has none)\n%q", gotLabels, wantLabels)
+	}
+	for i, want := range []int64{1000, 2000, 3000, 4000} {
+		if got := plAmount(t, lines[i]); got != want {
+			t.Errorf("%s Total = %d, want %d", lines[i].Label, got, want)
+		}
+	}
+	for _, r := range plDetailRows(open) {
+		if v, has := r.Cells["pct"]; has {
+			t.Errorf("opened line %q has a pct cell %#v, want none (%% of income is blank on an opened line)", r.Label, v)
+		}
+	}
+	if got := len(plDetailRows(open)); got != len(lines) {
+		t.Errorf("%d detail rows, want only the opened account's %d", got, len(lines))
+	}
+
+	// An income line credited 75.00 reads 75.00 by its normal side.
+	opts = plOpening(plRowFor(t, closed, service))
+	income := runPL(t, b.app, profitAndLossShipped(), b.reader, map[string]any{"period": plMarch}, opts)
+	saleLines := plLinesOf(income, plRowFor(t, income, service))
+	if len(saleLines) != 1 {
+		t.Fatalf("Service's opened lines = %v, want one", plRowTexts(saleLines))
+	}
+	if want := plLineLabel(sale, "Design work"); saleLines[0].Label != want {
+		t.Errorf("Service's line = %q, want %q", saleLines[0].Label, want)
+	}
+	if got := plAmount(t, saleLines[0]); got != 7500 {
+		t.Errorf("Service's line Total = %d, want 7500 (credits less debits)", got)
+	}
+	for _, label := range plComputed {
+		if r := plComputedRow(t, income, label); r.CanExpand {
+			t.Errorf("the computed row %s can open with an account open, want not", label)
+		}
+	}
+}
+
+// plMergedPages joins a run's pages as core's view does (core reports/lib/rows.ts
+// mergePages): each earlier page's trailing whole-report rows (the layout's
+// top-level computed rows after the page's slice) go, as the next page gives
+// them again. Any other row on two pages fails the test.
+func plMergedPages(t *testing.T, pages []*reports.Result) []reports.Row {
+	t.Helper()
+	var rows []reports.Row
+	seen := map[string]int{}
+	for i, p := range pages {
+		page := p.Rows
+		if i < len(pages)-1 {
+			end := len(page)
+			for end > 0 && (page[end-1].Kind == reports.KindTotal || (page[end-1].Kind == reports.KindComputed && page[end-1].Section == "")) {
+				end--
+			}
+			page = page[:end]
+		}
+		for _, r := range page {
+			if at, ok := seen[r.ID]; ok {
+				t.Fatalf("%s row %s (%s) is on page %d and page %d", r.Kind, r.ID, r.Label, at+1, i+1)
+			}
+			seen[r.ID] = i
+			rows = append(rows, r)
+		}
+	}
+	return rows
+}
+
+// An opened account longer than a page continues on the next. A layout
+// report does not page its group rows (core run.go pagedGroups is false with a
+// layout): one statement reads every section, account and computed row, and
+// only the detail pass pages, by options.limit. Each page is pageWindow's
+// slice (core assemble.go): from after the previous page's last line's group
+// row (from the start on page 1) to this page's last line (to the end on the
+// last page), then the top-level computed rows that fall after the slice,
+// appended to every page. So page 1 holds the statement down to the fifth
+// line and ends in Net operating income, Net other income and Net income;
+// page 2 holds the last three lines and the rest of the statement.
+func TestProfitAndLossPagesOpenedLines(t *testing.T) {
+	b := newPLBook(t)
+	c := b.checking
+	service := plAccount(t, b.app, "Service", "4000", "income", "service_income", "")
+	advertising := plAccount(t, b.app, "Advertising", "6100", "expense", "advertising_marketing", "")
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	utilities := plAccount(t, b.app, "Utilities", "6800", "expense", "utilities", "")
+	interest := plAccount(t, b.app, "Interest earned", "7000", "other_income", "interest_earned", "")
+	b.post(t, "2026-03-01", ln{c, 90000, 0}, ln{service, 0, 90000})
+	b.post(t, "2026-03-01", ln{advertising, 500, 0}, ln{c, 0, 500})
+	b.post(t, "2026-03-01", ln{utilities, 600, 0}, ln{c, 0, 600})
+	b.post(t, "2026-03-01", ln{c, 700, 0}, ln{interest, 0, 700})
+	var want []string
+	for k := 1; k <= 8; k++ {
+		day := "2026-03-1" + string(rune('0'+k))
+		memo := "Rent part " + string(rune('0'+k))
+		e := b.postLine(t, plLine{date: day, entryMemo: memo, account: rent, other: c, debit: 100 * k})
+		want = append(want, plLineLabel(e, memo))
+	}
+	params := map[string]any{"period": plMarch}
+	closed := b.run(t, params)
+	opts := plOpening(plRowFor(t, closed, rent))
+	opts.Limit = 5
+
+	var pages []*reports.Result
+	for range 10 {
+		res := runPL(t, b.app, profitAndLossShipped(), b.reader, params, opts)
+		pages = append(pages, res)
+		if res.Page == nil || res.Page.Next == "" {
+			break
+		}
+		opts.Cursor = res.Page.Next
+	}
+	if len(pages) < 2 {
+		t.Fatalf("%d page(s), want the 8 opened lines over at least two pages of 5", len(pages))
+	}
+	if n := len(plDetailRows(pages[0])); n == 0 || n >= 8 {
+		t.Fatalf("page 1 holds %d lines, want page 1 to end inside the 8 lines", n)
+	}
+	merged := plMergedPages(t, pages)
+	all := &reports.Result{Rows: merged}
+
+	var got []string
+	for _, r := range plDetailRows(all) {
+		got = append(got, r.Label)
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("lines over the pages =\n%q\nwant each once, in date order\n%q", got, want)
+	}
+	rentRow := plRowFor(t, all, rent)
+	for _, r := range plDetailRows(all) {
+		if r.Section != rentRow.ID {
+			t.Errorf("line %q is under %s, want under %s", r.Label, r.Section, rentRow.ID)
+		}
+	}
+	var skeleton []string
+	for _, r := range merged {
+		if r.Kind != reports.KindDetail && !plIsAccount(r) {
+			skeleton = append(skeleton, plRowText(r))
+		}
+	}
+	if !slices.Equal(skeleton, plSkeleton()) {
+		t.Fatalf("sections, totals and computed rows over the pages =\n%q\nwant each once, in statement order\n%q", skeleton, plSkeleton())
+	}
+	g := reports.KindGroup + ":"
+	wantAccounts := []string{g + "4000 Service", g + "6100 Advertising", g + "6600 Rent or lease", g + "6800 Utilities", g + "7000 Interest earned"}
+	if got := plRowTexts(plAccountRows(all)); !slices.Equal(got, wantAccounts) {
+		t.Errorf("account rows over the pages = %q, want each once %q", got, wantAccounts)
+	}
+}
+
+// Every collection the run reads is a topic, so a post, a void, an account
+// edit or a Books settings change re-runs the open report. The opened
+// account's lines read their entries (the detail label), so the run opens one.
+// Not a guard: it was red on checkpoint 1's spec, which read no
+// books_journal_entries field until the detail label and the [entry, sequence]
+// sort key added the read.
+func TestProfitAndLossTopics(t *testing.T) {
+	b := newPLBook(t)
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	b.post(t, "2026-03-10", ln{rent, 4000, 0}, ln{b.checking, 0, 4000})
+	closed := b.run(t, map[string]any{"period": plMarch})
+	opts := plOpening(plRowFor(t, closed, rent))
+
+	res := runPL(t, b.app, profitAndLossShipped(), b.reader, map[string]any{"period": plMarch}, opts)
+	for _, topic := range []string{
+		"collection/books_journal_lines", "collection/books_journal_entries",
+		"collection/books_accounts", "collection/books_settings",
+	} {
+		if !slices.Contains(res.Topics, topic) {
+			t.Errorf("topics = %v, want %s", res.Topics, topic)
+		}
+	}
+}

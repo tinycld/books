@@ -39,7 +39,20 @@ func profitAndLossSpec() *reports.Spec {
 		Sort: []reports.SortKey{
 			{Formula: rec("byAccount", "number")},
 			{Formula: rec("byAccount", "full_name")},
+			// Core applies a formula sort key that reads a row's fields to
+			// detail rows only, so these two order an opened account's lines
+			// and leave the groups alone. The entry's integer sequence, not its
+			// text number, which sorts "10" before "9".
+			{Formula: fld("date")},
+			{Formula: fld("entry", "sequence")},
 		},
+		// An opened line reads "<date> · <entry number> · <memo>", with the
+		// entry's memo when the line has none.
+		Detail: &reports.Detail{Label: op("concat",
+			fld("date"), lit(" · "),
+			fld("entry", "number"), lit(" · "),
+			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
+		)},
 	}
 }
 
@@ -77,6 +90,8 @@ func plColumns() []reports.Column {
 		{ID: "amount", Label: "Total", Formula: op("coalesce", op("sum", plSigned()), lit(0))},
 		{
 			ID: "pct", Label: "% of income", Format: "percent",
+			// An opened line shows no percent; only rows of the statement do.
+			Detail: reports.DetailBlank,
 			// Total Income alone is the denominator, not Other income.
 			Formula: &reports.Node{Op: "percentOfSection", Args: []*reports.Node{col("amount")}, Subtotal: "income", Scale: &scale},
 		},
