@@ -177,15 +177,15 @@ describe('books:invoice forms host', () => {
         })
     })
 
-    // Revise 1 item 1: Tax takes its content width, never half the row; a narrow
-    // width of half or quarter would bring back half-row Tax below 640 px.
-    it('gives Tax its content width at every form width', () => {
+    // Tax fills the last quarter of the dates row, so its edges line up with the
+    // fields above; below 640 px it takes the full row, since half would wrap its text.
+    it('gives Tax a quarter of the row, and the full row below 640 px', () => {
         const tax = defaultDefinitionFor(parsedHost()).fields.find(f => f.key === 'tax_rate')
-        expect(tax?.width).toBe('auto')
-        expect(['half', 'quarter']).not.toContain(tax?.narrowWidth)
+        expect(tax?.width).toBe('quarter')
+        expect(tax?.narrowWidth).toBe('full')
         const placed = parsedHost().layout?.fields.tax_rate
-        expect(placed?.width).toBe('auto')
-        expect(['half', 'quarter']).not.toContain(placed?.narrowWidth)
+        expect(placed?.width).toBe('quarter')
+        expect(placed?.narrowWidth).toBe('full')
     })
 
     // Revise 1 item 4: the label alone tells the customer's message from the team's memo,
