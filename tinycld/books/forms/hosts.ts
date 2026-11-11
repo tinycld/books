@@ -123,7 +123,7 @@ const INVOICE_LAYOUT = {
         terms: { width: 'quarter' },
         date: { width: 'quarter' },
         due_date: { width: 'quarter' },
-        tax_rate: { width: 'auto' },
+        tax_rate: { width: 'quarter', narrowWidth: 'full' },
         message: { description: INVOICE_NOTE_HINTS.message },
         memo: { description: INVOICE_NOTE_HINTS.memo },
     },
