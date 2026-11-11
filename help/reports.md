@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, journal]
+tags: [reports, trial balance, general ledger, journal, profit and loss]
 order: 60
 ---
 
@@ -92,9 +92,51 @@ The report stays current. When someone posts or voids an entry, changes an accou
 
 On a phone, each line wraps onto three lines in the table: the date and Account; then Name and Description; then Debit and Credit. On a tablet, each line wraps onto two lines: the date, Account, Debit and Credit; then Name and Description. A narrow desktop window shows the tablet arrangement too. The table does not scroll sideways.
 
+## Read the Profit and Loss
+
+The Profit and Loss shows the income and expenses of a period, and what is left. To open it, choose Reports in Books (the sidebar, or the Books menu on a phone), then press Profit and Loss. To see each month of the period in its own column, press Profit and Loss by Month. The heading shows your business name, the report title, and the period, for example "January 1 – November 9, 2026".
+
+The report shows its parts in this order:
+
+1. Income: the income accounts, then Total Income.
+2. Cost of goods sold: the cost of goods sold accounts, then Total Cost of goods sold.
+3. Gross profit: Total Income minus Total Cost of goods sold.
+4. Expenses: the expense accounts, then Total Expenses.
+5. Net operating income: Gross profit minus Total Expenses.
+6. Other income: the other income accounts, then Total Other income.
+7. Other expenses: the other expense accounts, then Total Other expenses.
+8. Net other income: Total Other income minus Total Other expenses.
+9. Net income: Net operating income plus Net other income.
+
+The five sections always show, also when they have no lines. An empty section shows 0.00 in its total. All sections are open when the report opens. To fold a section, press its heading. To fold or open all sections, press Collapse all or Expand all.
+
+- Each account row shows the account number and full name, for example "6600 Rent or lease". Inside a section, the accounts show in the order of the chart of accounts.
+- Amounts read by the normal side of the account. An income account shows credits minus debits, and an expense account shows debits minus credits. Thus the usual amounts are positive. A discount account, such as "Discounts and refunds given" among the income accounts, reads negative, because it takes away from income.
+- % of income shows each row as a share of Total Income for the same period. Other income is not counted in Total Income, so Total Income reads 100.0%. When Total Income is 0.00, % of income is blank.
+- Only posted journal lines count. Drafts do not count. A voided entry and its reversal cancel each other.
+
+Books reports the P&L on the accrual basis: income counts on the day it is entered, not the day it is paid.
+
+To change the dates, press the Period chip. The default is This fiscal year to date. Pick a preset, such as This month, Last quarter or This fiscal year, or pick Custom and type the first and last day. To see every line from the start of your books, pick All dates.
+
+To change which accounts show, press the Rows chip and pick one:
+
+- Non-zero shows the accounts with an amount for the period that is not zero. This is the default.
+- Active shows the accounts with a posted line in the period, also when the amount is zero.
+
+To see the lines of an account, press the account row. Its posted lines in the period open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Total. % of income stays blank on the lines. The computed rows, such as Gross profit, do not open.
+
+To change how the numbers look, press Customize. You can divide by 1000, show amounts without cents, show negative numbers as -100 or (100) or in red, and hide the % of income column. Customize never changes the figures.
+
+The report stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again.
+
+On a phone, each row of the Profit and Loss wraps onto two lines in the table: the account; then Total and % of income. The table does not scroll sideways.
+
+The Profit and Loss by Month shows every month of the period in its own column, headed by the month, for example "Jan 2026". A month with no line reads 0.00. After the months come Total, for the whole period, and % of income, which is the share of Total in Total Income. A period can show at most 36 months. When the period is longer, the first 36 months show, and a notice tells how many months are left out. Total and % of income still count the whole period. With All dates, only the months that have a posted line show. The rows of the Profit and Loss by Month do not open. When the window is too narrow for all the columns on one line, each row shows the account and the first months on its first line, then the other figures on the lines below, in column order. The table does not scroll sideways.
+
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger and the Journal, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Journal, the Profit and Loss and the Profit and Loss by Month, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 

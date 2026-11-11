@@ -1,11 +1,17 @@
 import { expect, type Page, test } from '@playwright/test'
-import { login, navigateToPackage, pressToolbar, rowOf } from '@tinycld/core/e2e-helpers'
+import {
+    login,
+    navigateToPackage,
+    pressToolbar,
+    rowOf,
+    waitForTableFit,
+} from '@tinycld/core/e2e-helpers'
 import {
     PL_COMPUTED_LABELS,
     PL_SECTION_TITLES,
     PROFIT_AND_LOSS_TITLE,
 } from '~/tinycld/books/lib/profit-and-loss-fixture'
-import { createAccount, DESKTOP, openChart } from './account-register-helpers'
+import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     browserToday,
     choosePeriod,
@@ -490,7 +496,415 @@ test.describe('profit-and-loss: report', () => {
         expect(plLinesUnder(pressed, income)).toEqual([])
         expect(pressed.rows.filter(r => r.kind === 'detail')).toEqual([])
     })
+
+    test('on a phone the Profit and Loss wraps each row under its label, the by-month report wraps its figures, and nothing scrolls sideways', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        // Unnumbered accounts sort first in a section, and "AA" before the other specs'
+        // names, so the account mounts at the top of Income, the first section.
+        const income = uniqueName('AA PL phone')
+        await createAccounts(page, [{ name: income, kind: INCOME }])
+        const today = await browserToday(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('PL phone sale'),
+            lines: [
+                { account: ACCOUNT_LABELS.checking, debit: '75.00' },
+                { account: income, credit: '75.00' },
+            ],
+        })
+
+        // The phone path: Reports from the Books menu drawer (openBooksReports).
+        await page.setViewportSize(PHONE)
+        await openProfitAndLoss(page)
+        await expect
+            .poll(async () => {
+                const snapshot = await plSnapshot(page)
+                const expected = await expectedHeading(page)
+                return {
+                    matches: snapshot.business === expected && expected !== '',
+                    shown: snapshot.business,
+                    expected,
+                }
+            })
+            .toMatchObject({ matches: true })
+        const header = await plSnapshot(page)
+        expect(header.title).toBe(PROFIT_AND_LOSS_TITLE)
+        expect(header.header.endsWith(dayWords(today))).toBe(true)
+        await expect(page.getByTestId('report-param-period')).toBeVisible()
+        await expect(page.getByTestId('report-param-period')).toContainText(
+            'This fiscal year to date'
+        )
+        await expect(page.getByTestId('report-param-rows')).toBeVisible()
+        await expect(page.getByTestId('report-param-rows')).toContainText('Non-zero')
+
+        const s = await snapshotWhen(
+            page,
+            plSnapshot,
+            snap => indexOf(snap, 'group', income) >= 0,
+            'the phone account in the open Income'
+        )
+        const rowId = rowNamed(s, 'group', income)?.id ?? ''
+        expect(await waitForTableFit(page)).toBe('mobile')
+        await expect
+            .poll(async () => phoneRowShape(await fitGeometry(page, rowId)), {
+                message: 'the label, then Total · % of income on the line below (spec §3 Phone)',
+            })
+            .toEqual({
+                measured: true,
+                labelOneLine: true,
+                figuresShareALine: true,
+                figuresBelowLabel: true,
+                noSidewaysScroll: true,
+                cutFigures: [],
+            })
+
+        await openProfitAndLossByMonth(page)
+        const month = await snapshotWhen(
+            page,
+            plSnapshot,
+            snap => indexOf(snap, 'group', income) >= 0 && monthHeadings(snap).length > 0,
+            'the phone account in the by-month report'
+        )
+        const monthRowId = rowNamed(month, 'group', income)?.id ?? ''
+        // Guard (green on checkpoint 3): the by-month report has no layouts, so core's
+        // automatic lines wrap its figures: the label and the first months, then the
+        // other figures in column order on the lines below.
+        expect(await waitForTableFit(page)).toBe('auto')
+        await expect
+            .poll(async () => byMonthWrapShape(await fitGeometry(page, monthRowId)), {
+                message: "core's automatic lines, each figure whole inside the table",
+            })
+            .toEqual({
+                measured: true,
+                hasMonths: true,
+                automaticLines: true,
+                figuresInsideTable: true,
+                noSidewaysScroll: true,
+                cutFigures: [],
+            })
+    })
+
+    // Guards (green on checkpoint 3: the one line already holds at 1024 and 1280 without a
+    // display, and the by-month display shipped there). The report view has no Books
+    // sidebar, so the rows get the window less the rail: at both widths the one line
+    // holds (D5), and the by-month report draws the layout core chose.
+    for (const size of [
+        { width: 1280, height: 800 },
+        { width: 1024, height: 800 },
+    ]) {
+        test(`at ${size.width} both reports fit: a long label narrows with an ellipsis, every figure stays whole inside the table`, async ({
+            page,
+        }) => {
+            await startBooks(page)
+            // 90 characters (under the 200 the name field allows), wider than the label
+            // cell at both widths: padded with "W", the widest letter, since 90 plain
+            // characters take about 600 px and the label cell is about 950 px at 1280.
+            // "AA" mounts it at the top of Income.
+            const income = `${uniqueName('AA PL fit')} `.padEnd(90, 'W').slice(0, 90)
+            expect(income.length).toBe(90)
+            await createAccounts(page, [{ name: income, kind: INCOME }])
+            await postEntryOn(page, {
+                date: await browserToday(page),
+                memo: uniqueName('PL fit sale'),
+                lines: [
+                    { account: ACCOUNT_LABELS.checking, debit: '1234.56' },
+                    { account: income, credit: '1234.56' },
+                ],
+            })
+
+            await page.setViewportSize(size)
+            await openProfitAndLoss(page)
+            const s = await snapshotWhen(
+                page,
+                plSnapshot,
+                snap => indexOf(snap, 'group', income) >= 0,
+                'the long account in the open Income'
+            )
+            const rowId = rowNamed(s, 'group', income)?.id ?? ''
+            expect(await waitForTableFit(page), `the layout at ${size.width}`).toBe('one-line')
+            await expect
+                .poll(async () => oneLineShape(await fitGeometry(page, rowId)), {
+                    message: `the one line at ${size.width}: label cut with an ellipsis, figures whole`,
+                })
+                .toEqual({
+                    measured: true,
+                    oneTop: true,
+                    labelCutWithEllipsis: true,
+                    headingsShown: true,
+                    figuresInsideTable: true,
+                    noSidewaysScroll: true,
+                    cutFigures: [],
+                    sectionKeyParts: 0,
+                })
+
+            await openProfitAndLossByMonth(page)
+            const month = await snapshotWhen(
+                page,
+                plSnapshot,
+                snap => indexOf(snap, 'group', income) >= 0 && monthHeadings(snap).length > 0,
+                'the long account in the by-month report'
+            )
+            const monthRowId = rowNamed(month, 'group', income)?.id ?? ''
+            const layout = await waitForTableFit(page)
+            expect(['one-line', 'auto'], `the by-month layout at ${size.width}`).toContain(layout)
+            await expect
+                .poll(async () => byMonthWideShape(await fitGeometry(page, monthRowId), layout), {
+                    message: `the by-month ${layout} layout at ${size.width}`,
+                })
+                .toEqual({
+                    measured: true,
+                    hasMonths: true,
+                    layoutGeometry: true,
+                    headingsShown: true,
+                    figuresInsideTable: true,
+                    noSidewaysScroll: true,
+                    cutFigures: [],
+                    sectionKeyParts: 0,
+                })
+        })
+    }
 })
+
+// A box of a row's label or one of its cells. `cut`: the element, or a child, is wider
+// than its box; `ellipsis`: the part that is cut draws an ellipsis (text-overflow).
+type FitBox = {
+    col: string
+    top: number
+    bottom: number
+    left: number
+    right: number
+    cut: boolean
+    ellipsis: boolean
+}
+
+type FitGeometry = {
+    // The row's label (report-row-<id>) and the number of text lines it draws.
+    label: FitBox
+    labelLines: number
+    // The report's columns but the label's, in order: every heading, drawn or not.
+    columnOrder: string[]
+    // The row's cells, in column order (the order of the headings).
+    cells: FitBox[]
+    // The column headings but the label's, in order, with their right edges.
+    headings: { col: string; right: number }[]
+    // Every drawn figure cell of the table (any row), by column.
+    figures: FitBox[]
+    tableRight: number
+    tableScrollWidth: number
+    tableClientWidth: number
+    // Headings and cells of the hidden section key column.
+    sectionKeyParts: number
+}
+
+// The geometry of row `id` and of the table around it, read in ONE page.evaluate. Null
+// when the row is not mounted.
+function fitGeometry(page: Page, id: string): Promise<FitGeometry | null> {
+    return page.evaluate(rowId => {
+        const table = document.querySelector('[data-testid="report-table"]') as HTMLElement | null
+        const row = table?.querySelector(`[data-testid="${CSS.escape(`report-row-${rowId}`)}"]`)
+        if (!table || !row) return null
+        const box = (col: string, element: Element) => {
+            const rect = element.getBoundingClientRect()
+            const over = [element, ...element.querySelectorAll('*')].filter(
+                e => e instanceof HTMLElement && e.scrollWidth > e.clientWidth
+            )
+            return {
+                col,
+                top: rect.top,
+                bottom: rect.bottom,
+                left: rect.left,
+                right: rect.right,
+                cut: over.length > 0,
+                ellipsis: over.some(e => getComputedStyle(e).textOverflow === 'ellipsis'),
+            }
+        }
+        const drawn = (element: Element) => element.getBoundingClientRect().height > 0
+        const headings = [...table.querySelectorAll('[data-testid^="report-heading-"]')]
+            .filter(drawn)
+            .map(element => ({
+                col: (element.getAttribute('data-testid') ?? '').slice('report-heading-'.length),
+                right: element.getBoundingClientRect().right,
+            }))
+            .filter(heading => heading.col !== 'row' && heading.col !== 'account')
+        // The column order is the order of every heading, drawn or not: a layout that hides
+        // the headings must not leave the cells without an order to be checked against.
+        const order = [...table.querySelectorAll('[data-testid^="report-heading-"]')]
+            .map(element =>
+                (element.getAttribute('data-testid') ?? '').slice('report-heading-'.length)
+            )
+            .filter(col => col !== 'row' && col !== 'account')
+        const cellOf = (element: Element) => {
+            const rest = (element.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
+            const dash = rest.indexOf('-')
+            return { col: rest.slice(0, dash), id: rest.slice(dash + 1) }
+        }
+        const allCells = [...table.querySelectorAll('[data-testid^="report-cell-"]')].filter(drawn)
+        const cells = allCells
+            .filter(element => cellOf(element).id === rowId)
+            .map(element => box(cellOf(element).col, element))
+            .sort((a, b) => order.indexOf(a.col) - order.indexOf(b.col))
+        const figures = allCells
+            .filter(element => cellOf(element).col !== 'account')
+            .map(element => box(cellOf(element).col, element))
+        // The label's text is its last child (a group's caret comes before it); a Range
+        // over it gives one rect per drawn line.
+        const text = row.lastElementChild ?? row
+        const range = document.createRange()
+        range.selectNodeContents(text)
+        const tops: number[] = []
+        for (const rect of range.getClientRects()) {
+            if (rect.height > 0 && !tops.some(top => Math.abs(top - rect.top) < 2)) {
+                tops.push(rect.top)
+            }
+        }
+        return {
+            label: box('label', row),
+            labelLines: tops.length,
+            columnOrder: order,
+            cells,
+            headings,
+            figures,
+            tableRight: table.getBoundingClientRect().right,
+            tableScrollWidth: table.scrollWidth,
+            tableClientWidth: table.clientWidth,
+            sectionKeyParts: table.querySelectorAll(
+                '[data-testid="report-heading-sec"], [data-testid^="report-cell-sec-"]'
+            ).length,
+        }
+    }, id)
+}
+
+const near = (a: number | undefined, b: number | undefined, slack = 1) =>
+    a !== undefined && b !== undefined && Math.abs(a - b) <= slack
+
+const FIGURE_COLUMNS = ['amount', 'pct']
+
+const isMonthColumn = (col: string) => !FIGURE_COLUMNS.includes(col) && col !== 'sec'
+
+// Every figure cell that shows an ellipsis or is cut, named `<column>`.
+function cutFigures(g: FitGeometry | null, columns?: readonly string[]): string[] {
+    return (g?.figures ?? [])
+        .filter(cell => (columns ? columns.includes(cell.col) : true))
+        .filter(cell => cell.cut || cell.ellipsis)
+        .map(cell => cell.col)
+}
+
+function insideTable(g: FitGeometry | null, rights: number[]): boolean {
+    return g !== null && rights.every(right => right <= g.tableRight + 0.5)
+}
+
+// Spec §3 Phone: the label on one line; Total and % of income share the line below it.
+function phoneRowShape(g: FitGeometry | null) {
+    const amount = g?.cells.find(cell => cell.col === 'amount')
+    const pct = g?.cells.find(cell => cell.col === 'pct')
+    return {
+        measured: g !== null && amount !== undefined && pct !== undefined,
+        labelOneLine: g?.labelLines === 1,
+        figuresShareALine: near(amount?.top, pct?.top),
+        figuresBelowLabel:
+            amount !== undefined &&
+            g !== null &&
+            amount.top > g.label.top + 1 &&
+            amount.top >= g.label.bottom - 1,
+        noSidewaysScroll: g !== null && g.tableScrollWidth === g.tableClientWidth,
+        cutFigures: cutFigures(g, FIGURE_COLUMNS),
+    }
+}
+
+// Core's automatic lines (spec §3 by month, Every width fits): the label and the first
+// figures on the first line, then the remaining figures in column order, wrapping. So the
+// row draws more than one line, the label's line holds the first figure, no figure sits
+// above it, and the figures read line by line, left to right, in column order.
+function automaticLines(g: FitGeometry | null): boolean {
+    const cells = (g?.cells ?? []).filter(cell => cell.col !== 'account')
+    if (g === null || cells.length === 0) return false
+    // The column order comes from the report's headings, never from the cells' own DOM
+    // order, so cells drawn out of column order fail.
+    const shown = new Set(cells.map(cell => cell.col))
+    const columnOrder = g.columnOrder.filter(col => shown.has(col))
+    if (columnOrder.length !== shown.size) return false
+    const inReadingOrder = [...cells].sort((a, b) =>
+        near(a.top, b.top) ? a.left - b.left : a.top - b.top
+    )
+    const first = inReadingOrder[0]
+    return (
+        first?.col === columnOrder[0] &&
+        near(first?.top, g.label.top) &&
+        cells.every(cell => cell.top >= g.label.top - 1) &&
+        cells.some(cell => cell.top >= g.label.bottom - 1) &&
+        inReadingOrder.map(cell => cell.col).join('|') === columnOrder.join('|')
+    )
+}
+
+// The by-month report on a phone (core automatic lines), each figure whole and inside the
+// table.
+function byMonthWrapShape(g: FitGeometry | null) {
+    const cells = g?.cells ?? []
+    return {
+        measured: g !== null,
+        hasMonths:
+            cells.some(cell => isMonthColumn(cell.col)) &&
+            FIGURE_COLUMNS.every(col => cells.some(cell => cell.col === col)),
+        automaticLines: automaticLines(g),
+        figuresInsideTable: insideTable(
+            g,
+            cells.map(cell => cell.right)
+        ),
+        noSidewaysScroll: g !== null && g.tableScrollWidth === g.tableClientWidth,
+        cutFigures: cutFigures(g),
+    }
+}
+
+// The headings of Total and % of income are drawn, and every heading and drawn figure
+// cell ends inside the table's right edge.
+function headingsAndFigures(g: FitGeometry | null) {
+    const shown = new Set(g?.headings.map(heading => heading.col) ?? [])
+    return {
+        headingsShown: FIGURE_COLUMNS.every(col => shown.has(col)),
+        figuresInsideTable: insideTable(g, [
+            ...(g?.headings ?? []).map(heading => heading.right),
+            ...(g?.figures ?? []).map(cell => cell.right),
+        ]),
+    }
+}
+
+// The Profit and Loss on one line (spec §3 Every width fits): every cell of the row
+// shares the label's top; the long label is cut with an ellipsis, no figure is.
+function oneLineShape(g: FitGeometry | null) {
+    const cells = g?.cells ?? []
+    return {
+        measured: g !== null && FIGURE_COLUMNS.every(col => cells.some(cell => cell.col === col)),
+        oneTop: g !== null && cells.every(cell => near(cell.top, g.label.top)),
+        labelCutWithEllipsis: (g?.label.cut ?? false) && (g?.label.ellipsis ?? false),
+        ...headingsAndFigures(g),
+        noSidewaysScroll: g !== null && g.tableScrollWidth === g.tableClientWidth,
+        cutFigures: cutFigures(g),
+        sectionKeyParts: g?.sectionKeyParts ?? -1,
+    }
+}
+
+// The by-month report at a desktop width, in the layout core reported (D5): one line
+// (every cell on the label's top), or core's automatic lines (automaticLines).
+function byMonthWideShape(g: FitGeometry | null, layout: string) {
+    const cells = g?.cells ?? []
+    const geometry =
+        layout === 'one-line'
+            ? g !== null && cells.every(cell => near(cell.top, g.label.top))
+            : automaticLines(g)
+    return {
+        measured: g !== null,
+        hasMonths:
+            cells.some(cell => isMonthColumn(cell.col)) &&
+            FIGURE_COLUMNS.every(col => cells.some(cell => cell.col === col)),
+        layoutGeometry: geometry,
+        ...headingsAndFigures(g),
+        noSidewaysScroll: g !== null && g.tableScrollWidth === g.tableClientWidth,
+        cutFigures: cutFigures(g),
+        sectionKeyParts: g?.sectionKeyParts ?? -1,
+    }
+}
 
 // The first day of the month before `day` (YYYY-MM-DD).
 function firstOfLastMonth(day: string): string {

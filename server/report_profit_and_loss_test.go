@@ -1700,3 +1700,96 @@ func TestProfitAndLossByMonthShippedShared(t *testing.T) {
 	}
 	requireViewer(t, app, row, reader, "a Books reader")
 }
+
+// The Profit and Loss's display (spec §3 Phone and Every width fits, §5
+// display), written out here from the spec rather than read from
+// lib/profit-and-loss-fixture.ts, so a drift on either side fails. One mobile
+// layout (the label, then Total · % of income), the column fit, and the
+// one-line gate of 600px (D1: without it core's fit puts the three columns on
+// one line at 390 and the label is cut). The by-month report keeps its display
+// of checkpoint 3: no layouts, no gate.
+func TestProfitAndLossDisplay(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	if !jsonEqual(t, profitAndLossShipped().Spec, string(mustJSON(profitAndLossSpec()))) {
+		t.Errorf("the shipped spec is not profitAndLossSpec()")
+	}
+	spec := profitAndLossSpec()
+	if spec.Display == nil {
+		t.Fatalf("the Profit and Loss spec has no display; want the mobile layout, the column fit and oneLine 600px of spec §5")
+	}
+
+	got := spec.Display.Layouts
+	for _, l := range got {
+		if l.Width == "desktop" || l.Width == "tablet" {
+			t.Errorf("the spec authors a %s layout %+v; want only mobile", l.Width, l)
+		}
+	}
+	if len(got) != 1 {
+		t.Fatalf("display.layouts = %+v, want one layout (mobile)", got)
+	}
+	mobile := got[0]
+	if mobile.Width != "mobile" || mobile.MinWidth != "" || mobile.Tracks != 2 {
+		t.Errorf("layout = width %q, minWidth %q, %d tracks; want mobile, no minWidth, 2 tracks",
+			mobile.Width, mobile.MinWidth, mobile.Tracks)
+	}
+	wantCells := []glCell{
+		{"account", 1, 0, 2, 1},
+		{"amount", 2, 0, 1, 1},
+		{"pct", 2, 0, 1, 1},
+	}
+	if len(mobile.Cells) != len(wantCells) {
+		t.Fatalf("mobile layout has %d cells %+v, want %d (account, amount, pct)", len(mobile.Cells), mobile.Cells, len(wantCells))
+	}
+	for i, w := range wantCells {
+		if g := glCellOf(mobile.Cells[i]); g != w {
+			t.Errorf("mobile layout cell %d = %+v, want %+v", i, g, w)
+		}
+		if j := mobile.Cells[i].Justify; j != "" {
+			t.Errorf("mobile layout cell %d justify = %q, want none", i, j)
+		}
+	}
+
+	wantFit := map[string]reports.ColumnFit{
+		"account": {MinWidth: "12ch"},
+		"amount":  {MinWidth: "max-content"},
+		"pct":     {MinWidth: "max-content"},
+	}
+	if !reflect.DeepEqual(spec.Display.Columns, wantFit) {
+		t.Errorf("display.columns = %s, want account minWidth 12ch, amount and pct minWidth max-content, and no other column",
+			plJSON(t, spec.Display.Columns))
+	}
+	wantOneLine := &reports.DisplayOneLine{MinWidth: "600px"}
+	if !reflect.DeepEqual(spec.Display.OneLine, wantOneLine) {
+		t.Errorf("display.oneLine = %+v, want %+v (spec §5, D1)", spec.Display.OneLine, wantOneLine)
+	}
+
+	// The hidden section key is never placed or fitted.
+	if _, ok := spec.Display.Columns["sec"]; ok {
+		t.Errorf("display.columns names sec; want no entry for the hidden section key")
+	}
+	for _, l := range got {
+		for _, c := range l.Cells {
+			if c.Col == "sec" {
+				t.Errorf("%s layout places sec %+v; want the hidden section key nowhere", l.Width, c)
+			}
+		}
+	}
+
+	loaded, _, err := reports.Load(profitAndLossShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !reflect.DeepEqual(loaded.Display, spec.Display) {
+		t.Errorf("the loaded display = %s, want %s", plJSON(t, loaded.Display), plJSON(t, spec.Display))
+	}
+	if err := reports.Validate(app, loaded); err != nil {
+		t.Errorf("Validate refuses the display: %v", err)
+	}
+
+	byMonth := profitAndLossByMonthSpec().Display
+	wantByMonth := &reports.Display{Columns: wantFit}
+	if !reflect.DeepEqual(byMonth, wantByMonth) {
+		t.Errorf("by-month display = %s, want %s (no layouts, no oneLine)", plJSON(t, byMonth), plJSON(t, wantByMonth))
+	}
+}
