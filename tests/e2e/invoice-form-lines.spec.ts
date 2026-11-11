@@ -149,6 +149,9 @@ test.describe('invoice-form: lines', () => {
             money(2 * accessPoint.price + 3 * patchCable.price)
         )
         await expect(cell(page, itemA, 'quantity')).toBeFocused()
+        // Focus moved there by the pick selects the value: typing replaces it.
+        await page.keyboard.type('2')
+        await expect(cell(page, itemA, 'quantity')).toHaveValue('2')
 
         // Totals aligned under Amount: the Subtotal's figure ends where the Items' do.
         await expect
@@ -167,7 +170,12 @@ test.describe('invoice-form: lines', () => {
         const percentRow = (await rowIds(page))[3]
         await expect(cell(page, percentRow, 'percent')).toHaveCount(1)
         await pickLineProduct(page, 3, 'Discount')
-        await cell(page, percentRow, 'percent').fill('-10')
+        await cell(page, percentRow, 'percent').fill('-5')
+        // A Percent cell that takes the focus again selects its value: typing replaces it.
+        await cell(page, percentRow, 'description').focus()
+        await cell(page, percentRow, 'percent').focus()
+        await page.keyboard.type('-10')
+        await expect(cell(page, percentRow, 'percent')).toHaveValue('-10')
 
         const totals = documentTotals(
             [
@@ -328,17 +336,23 @@ test.describe('invoice-form: lines', () => {
         await expect(cell(page, line1, 'product')).toContainText(product.name)
         await expect(cell(page, line1, 'description')).toBeFocused()
 
+        // Tab into Qty and Rate selects each value: typing replaces it (the pick set 1 and
+        // the product's rate).
         await page.keyboard.press('Tab')
         await expect(cell(page, line1, 'quantity')).toBeFocused()
+        await expect(cell(page, line1, 'quantity')).toHaveValue('1')
+        await page.keyboard.type('2')
+        await expect(cell(page, line1, 'quantity')).toHaveValue('2')
         await page.keyboard.press('Tab')
         await expect(cell(page, line1, 'rate')).toBeFocused()
+        await expect(cell(page, line1, 'rate')).not.toHaveValue('')
+        await page.keyboard.type('50.00')
+        await expect(cell(page, line1, 'rate')).toHaveValue('50.00')
         await page.keyboard.press('Tab')
         await expect(cell(page, line1, 'taxable').getByRole('switch')).toBeFocused()
         await page.keyboard.press('Tab')
         await expect(page.getByTestId(`form-table-lines-menu-${line1}`)).toBeFocused()
 
-        await cell(page, line1, 'quantity').fill('2')
-        await cell(page, line1, 'rate').fill('50.00')
         // Enter on Rate of the last line adds line 2 and focuses its product.
         await cell(page, line1, 'rate').press('Enter')
         await expect(lineRows(page)).toHaveCount(2)

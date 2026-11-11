@@ -17,6 +17,7 @@ import type { ZodTypeAny } from 'zod'
 import { type DocumentTax, documentTotals, MAX_DOCUMENT_LINES } from './document-lines'
 import { percentTextToPpm } from './invoice-lines'
 import { INVOICE_MESSAGES } from './invoice-messages'
+import { INVOICE_NOTE_TOO_LONG } from './invoice-notes'
 import { documentLinesOf } from './invoice-values'
 import { moneyInputCents } from './money-input'
 import { isWellFormedMoney, maxLineAmount, maxStoredAmount } from './money-text'
@@ -142,9 +143,11 @@ function invoiceIssues(
     }
     issues.push(...totalIssues(lines, cells.length === 0, tax))
     if (isTooLong(values.message)) {
-        issues.push({ path: ['message'], message: 'Message on invoice is too long' })
+        issues.push({ path: ['message'], message: INVOICE_NOTE_TOO_LONG.message })
     }
-    if (isTooLong(values.memo)) issues.push({ path: ['memo'], message: 'Memo is too long' })
+    if (isTooLong(values.memo)) {
+        issues.push({ path: ['memo'], message: INVOICE_NOTE_TOO_LONG.memo })
+    }
     if (mode === 'post' && !hasItemLine(lines)) {
         issues.push({ path: ['lines'], message: INVOICE_MESSAGES.needItemLine })
     }

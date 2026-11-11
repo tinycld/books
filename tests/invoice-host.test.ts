@@ -174,8 +174,34 @@ describe('books:invoice forms host', () => {
             terms: 'quarter',
             date: 'quarter',
             due_date: 'quarter',
-            tax_rate: 'half',
         })
+    })
+
+    // Revise 1 item 1: Tax takes its content width, never half the row; a narrow
+    // width of half or quarter would bring back half-row Tax below 640 px.
+    it('gives Tax its content width at every form width', () => {
+        const tax = defaultDefinitionFor(parsedHost()).fields.find(f => f.key === 'tax_rate')
+        expect(tax?.width).toBe('auto')
+        expect(['half', 'quarter']).not.toContain(tax?.narrowWidth)
+        const placed = parsedHost().layout?.fields.tax_rate
+        expect(placed?.width).toBe('auto')
+        expect(['half', 'quarter']).not.toContain(placed?.narrowWidth)
+    })
+
+    // Revise 1 item 4: the label alone tells the customer's message from the team's memo,
+    // and the seeded field's hint says where each one goes.
+    it('labels Message as printed for the customer and Memo as internal, each with a hint', () => {
+        expect(builtin('message').label).toBe('Message to customer (prints on invoice)')
+        expect(builtin('memo').label).toBe('Internal memo (not printed)')
+        const fields = Object.fromEntries(
+            defaultDefinitionFor(parsedHost()).fields.map(f => [f.key, f])
+        )
+        expect(fields.message?.label).toBe('Message to customer (prints on invoice)')
+        expect(fields.message?.description).toBe('Shown on the invoice and PDF.')
+        expect(fields.memo?.label).toBe('Internal memo (not printed)')
+        expect(fields.memo?.description).toBe(
+            'Only your team sees this. Saved as the journal entry memo.'
+        )
     })
 
     it('seeds a default form that passes the host checks', () => {

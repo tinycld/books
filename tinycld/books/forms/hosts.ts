@@ -1,6 +1,7 @@
 import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 import { INVOICE_LINE_COLUMNS, INVOICE_ROW_KINDS } from '../lib/invoice-lines'
+import { INVOICE_NOTE_HINTS, INVOICE_NOTE_LABELS } from '../lib/invoice-notes'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
@@ -108,8 +109,11 @@ const PRODUCT_LAYOUT = {
 export const INVOICE_HOST_KEY = 'books:invoice'
 
 // The default Invoice form: one page. Customer, Bill to and Email span the header
-// band; Terms, Invoice date and Due date share a row, then Tax. The lines, the message
-// and the memo follow.
+// band; Terms, Invoice date, Due date and Tax share a row. Tax takes its content's
+// width, never a share of the row. Below 640 px core draws each date as a half, so
+// Terms and Invoice date fill one row and Tax sits beside Due date on the next, or on
+// its own row when the form is too narrow for both. The lines, the message to the
+// customer and the internal memo follow, each with a hint that says who reads it.
 const INVOICE_LAYOUT = {
     pages: [{ key: 'main', title: 'Invoice' }],
     fields: {
@@ -119,7 +123,9 @@ const INVOICE_LAYOUT = {
         terms: { width: 'quarter' },
         date: { width: 'quarter' },
         due_date: { width: 'quarter' },
-        tax_rate: { width: 'half' },
+        tax_rate: { width: 'auto' },
+        message: { description: INVOICE_NOTE_HINTS.message },
+        memo: { description: INVOICE_NOTE_HINTS.memo },
     },
     rules: [],
 } satisfies FormHostDefInput['layout']
@@ -721,12 +727,18 @@ const hosts: FormHostDefInput[] = [
             // two at 4000 code points, as the migration does.
             {
                 key: 'message',
-                label: 'Message on invoice',
+                label: INVOICE_NOTE_LABELS.message,
                 kind: 'textarea',
                 storage: 'column',
                 required: false,
             },
-            { key: 'memo', label: 'Memo', kind: 'textarea', storage: 'column', required: false },
+            {
+                key: 'memo',
+                label: INVOICE_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
         ],
         insertCustomBefore: 'lines',
         layout: INVOICE_LAYOUT,

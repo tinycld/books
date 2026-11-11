@@ -56,11 +56,9 @@ import {
 
 type EngineForm = UseFormReturn<Record<string, unknown>>
 
-const HIDDEN = { display: 'none' } as const
-
 // The definition in three parts around the lines table: the header band (every field
 // before `lines`, an admin's custom fields included), the table, and the footer
-// (Message and Memo beside the totals). Each renderer validates nothing itself: the core
+// (Message and Memo, with the totals: InvoiceFooter). Each renderer validates nothing itself: the core
 // hooks build the whole definition's schema at save.
 function splitDefinition(definition: FormDefinition) {
     const at = definition.fields.findIndex(field => field.key === 'lines')
@@ -229,6 +227,44 @@ function PartRenderer({ state, definition, testID }: RendererProps) {
     )
 }
 
+interface FooterProps {
+    state: InvoiceFormState
+    definition: FormDefinition
+    totals: InvoiceTotalsView
+    /** The lines draw as cards (or the screen is a phone): no Amount column to sit under. */
+    isStacked: boolean
+}
+
+/**
+ * Message and Memo beside the totals. On the wide grid the totals sit on the grid's
+ * slots (lib/invoice-footer-layout.ts), so they end under Amount. When the lines draw
+ * as cards there is no Amount column, so the footer stacks full width: the totals right
+ * under the lines, then Message, then Memo.
+ */
+function InvoiceFooter({ state, definition, totals, isStacked }: FooterProps) {
+    const renderer = (
+        <PartRenderer state={state} definition={definition} testID="invoice-footer-form" />
+    )
+    if (isStacked) {
+        return (
+            <View testID="invoice-footer" className="gap-4">
+                <InvoiceTotals totals={totals} />
+                {renderer}
+            </View>
+        )
+    }
+    return (
+        <View testID="invoice-footer" style={INVOICE_FOOTER_ROW}>
+            <View style={INVOICE_FOOTER_SPANS.left}>{renderer}</View>
+            <View style={INVOICE_FOOTER_SPANS.totals}>
+                <InvoiceTotals totals={totals} />
+            </View>
+            <View style={INVOICE_FOOTER_SPANS.right} />
+            <View style={INVOICE_FOOTER_MENU_SPACER} />
+        </View>
+    )
+}
+
 // "Edit 1004" for a correction, new or saved; "Draft invoice" once the draft is stored;
 // else "New invoice".
 function invoiceFormTitle(replacesNumber: string, isStored: boolean): string {
@@ -299,7 +335,7 @@ interface InvoiceFormProps {
 
 /**
  * The invoice form, new, draft, correction or copy: the header band, the lines table,
- * Message and Memo beside the totals, and the sticky action bar; or, on the PDF view tab,
+ * the footer (InvoiceFooter: Message, Memo and the totals), and the sticky action bar; or, on the PDF view tab,
  * the saved draft's PDF above the same bar. Keyed on its form key by the screen, so a new
  * route mounts a fresh form; a tab change keeps it.
  */
@@ -394,13 +430,7 @@ export function InvoiceForm({ data, tab }: InvoiceFormProps) {
     const status = 'draft'
     const isEditTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
-    // On the grid's slots (lib/invoice-footer-layout.ts), so the totals end under Amount.
-    const footerClass = isPhone ? 'gap-4' : undefined
-    const footerRow = isPhone ? undefined : INVOICE_FOOTER_ROW
-    const footerLeft = isPhone ? undefined : INVOICE_FOOTER_SPANS.left
-    const footerTotals = isPhone ? undefined : INVOICE_FOOTER_SPANS.totals
-    const footerRight = isPhone ? HIDDEN : INVOICE_FOOTER_SPANS.right
-    const menuSpacer = isPhone ? HIDDEN : INVOICE_FOOTER_MENU_SPACER
+    const isFooterStacked = isPhone || linesLayout.isCards
 
     return (
         <InvoiceFormContext.Provider value={scope}>
@@ -450,20 +480,12 @@ export function InvoiceForm({ data, tab }: InvoiceFormProps) {
                                             />
                                         </InvoiceLinesContext.Provider>
                                     </View>
-                                    <View className={footerClass} style={footerRow}>
-                                        <View style={footerLeft}>
-                                            <PartRenderer
-                                                state={state}
-                                                definition={parts.footer}
-                                                testID="invoice-footer-form"
-                                            />
-                                        </View>
-                                        <View style={footerTotals}>
-                                            <InvoiceTotals totals={totals.view} />
-                                        </View>
-                                        <View style={footerRight} />
-                                        <View style={menuSpacer} />
-                                    </View>
+                                    <InvoiceFooter
+                                        state={state}
+                                        definition={parts.footer}
+                                        totals={totals.view}
+                                        isStacked={isFooterStacked}
+                                    />
                                 </TabPanel>
                                 <TabPanel isVisible={isPdfTab}>
                                     <InvoicePdfView
