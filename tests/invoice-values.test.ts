@@ -2,16 +2,15 @@ import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { describe, expect, it } from 'vitest'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { dueDateFor } from '../tinycld/books/lib/document-dates'
+import { type CustomerFill, customerFills } from '../tinycld/books/lib/document-fills'
+import { DOCUMENT_LINE_MAPPER } from '../tinycld/books/lib/document-line-columns'
 import { type DocumentTax, documentTotals } from '../tinycld/books/lib/document-lines'
-import { type CustomerFill, customerFills } from '../tinycld/books/lib/invoice-fills'
+import { documentLinesForSave, documentTotalsOf } from '../tinycld/books/lib/document-values'
 import { INVOICE_IDS, INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
-import { INVOICE_LINE_MAPPER } from '../tinycld/books/lib/invoice-lines'
 import {
     copyInvoiceValues,
-    correctionValues,
     type InvoiceFormValues,
-    invoiceLinesForSave,
-    invoiceTotalsOf,
+    invoiceCorrectionValues,
     newInvoiceValues,
 } from '../tinycld/books/lib/invoice-values'
 import { TAX_IDS, TAX_RATE_ROWS, TAX_RATES } from '../tinycld/books/lib/tax-rates-fixture'
@@ -96,8 +95,8 @@ describe('invoiceLinesForSave', () => {
     )
 
     it('drops a trailing Item line with no product and no description', () => {
-        expect(invoiceLinesForSave([filled, empty])).toEqual([filled])
-        expect(invoiceLinesForSave([filled, emptyNulls])).toEqual([filled])
+        expect(documentLinesForSave([filled, empty])).toEqual([filled])
+        expect(documentLinesForSave([filled, emptyNulls])).toEqual([filled])
     })
 
     it('keeps a trailing Item line that has a description', () => {
@@ -105,16 +104,16 @@ describe('invoiceLinesForSave', () => {
             { kind: 'item', product: '', description: 'Travel', quantity: 1, rate: '' },
             'rowdescribed01'
         )
-        expect(invoiceLinesForSave([filled, described])).toEqual([filled, described])
+        expect(documentLinesForSave([filled, described])).toEqual([filled, described])
     })
 
     it('keeps an empty Item line that is not last', () => {
-        expect(invoiceLinesForSave([empty, filled])).toEqual([empty, filled])
+        expect(documentLinesForSave([empty, filled])).toEqual([empty, filled])
     })
 
     it('keeps a trailing line of another kind', () => {
         const subtotal = row({ kind: 'subtotal', amount: null }, 'rowsubtotal001')
-        expect(invoiceLinesForSave([filled, subtotal])).toEqual([filled, subtotal])
+        expect(documentLinesForSave([filled, subtotal])).toEqual([filled, subtotal])
     })
 })
 
@@ -176,7 +175,7 @@ describe('invoiceTotalsOf', () => {
             ],
             denver
         )
-        const totals = invoiceTotalsOf(values, denver)
+        const totals = documentTotalsOf(values, denver)
         expect(totals).toEqual(expected)
         // 37 800 + 185 175 = 222 975; -12.5% of it is -27 872 (half away from zero).
         expect(totals.amounts).toEqual([37_800, 185_175, 222_975, -27_872, null])
@@ -200,7 +199,7 @@ describe('invoiceTotalsOf', () => {
                 ),
             ],
         } as InvoiceFormValues
-        const totals = invoiceTotalsOf(values, null)
+        const totals = documentTotalsOf(values, null)
         expect(totals.taxLines).toEqual([])
         expect(totals.total).toBe(37_800)
     })
@@ -238,7 +237,7 @@ function expectSameCellsWithNewIds(
 ) {
     expect(rows).toHaveLength(lines.length)
     rows.forEach((row, index) => {
-        expect(storedCells(INVOICE_LINE_MAPPER.toRecord(row, index))).toEqual(
+        expect(storedCells(DOCUMENT_LINE_MAPPER.toRecord(row, index))).toEqual(
             storedCells(lines[index])
         )
     })
@@ -335,7 +334,7 @@ describe('copyInvoiceValues', () => {
 describe('correctionValues', () => {
     it('replaces the invoice and keeps its date, due date and memo', () => {
         const { invoice, lines } = posted1004()
-        const values = correctionValues(invoice, lines)
+        const values = invoiceCorrectionValues(invoice, lines)
         expect(values.replaces).toBe(invoice.id)
         expect(values.date).toBe(invoice.date)
         expect(values.due_date).toBe(invoice.due_date)
@@ -344,7 +343,7 @@ describe('correctionValues', () => {
 
     it('keeps the customer, tax, message and every line cell, with new line ids', () => {
         const { invoice, lines } = posted1004()
-        const values = correctionValues(invoice, lines)
+        const values = invoiceCorrectionValues(invoice, lines)
         expect(values.customer).toBe(invoice.customer)
         expect(values.tax_rate).toBe(invoice.tax_rate)
         expect(values.message).toBe(invoice.message)

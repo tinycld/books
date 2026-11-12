@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest'
 import type { ZodTypeAny } from 'zod'
 import hosts, { INVOICE_HOST_KEY } from '../tinycld/books/forms/hosts'
 import ui from '../tinycld/books/forms/ui'
+import { DOCUMENT_LINE_MAPPER } from '../tinycld/books/lib/document-line-columns'
 import type { DocumentTax } from '../tinycld/books/lib/document-lines'
+import { INVOICE_MESSAGES } from '../tinycld/books/lib/document-messages'
+import { documentSchema } from '../tinycld/books/lib/document-schema'
 import {
     INVOICE_CURRENCY,
     INVOICE_IDS,
@@ -15,10 +18,8 @@ import {
     INVOICE_TODAY,
     INVOICES,
 } from '../tinycld/books/lib/invoice-form-fixture'
-import { INVOICE_LINE_MAPPER } from '../tinycld/books/lib/invoice-lines'
-import { INVOICE_MESSAGES } from '../tinycld/books/lib/invoice-messages'
-import { invoiceSchema } from '../tinycld/books/lib/invoice-schema'
 import { type InvoiceFormValues, newInvoiceValues } from '../tinycld/books/lib/invoice-values'
+import { INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
 import { TAX_IDS, TAX_RATE_ROWS } from '../tinycld/books/lib/tax-rates-fixture'
 
 const RATES = TAX_RATE_ROWS.map(rate => ({
@@ -93,11 +94,11 @@ function messagesAt(issues: Issue[], path: (string | number)[]): string[] {
 }
 
 function draftIssues(values: unknown) {
-    return issuesOf(invoiceSchema(INVOICE_CURRENCY, 'draft'), values)
+    return issuesOf(documentSchema(INVOICE_KIND, INVOICE_CURRENCY, 'draft'), values)
 }
 
 function postIssues(values: unknown) {
-    return issuesOf(invoiceSchema(INVOICE_CURRENCY, 'post'), values)
+    return issuesOf(documentSchema(INVOICE_KIND, INVOICE_CURRENCY, 'post'), values)
 }
 
 function fixtureDraftValues(): InvoiceFormValues {
@@ -105,7 +106,7 @@ function fixtureDraftValues(): InvoiceFormValues {
     if (!draft) throw new Error('no draft invoice in the fixture')
     const lines = tableRowsOf(
         INVOICE_LINES.filter(line => line.invoice === draft.id),
-        INVOICE_LINE_MAPPER
+        DOCUMENT_LINE_MAPPER
     )
     return valuesWith(lines, {
         customer: draft.customer,
@@ -258,7 +259,7 @@ describe('the books:invoice form schema', () => {
             host,
             state,
             ui.schemas,
-            invoiceSchema(INVOICE_CURRENCY, 'draft')
+            documentSchema(INVOICE_KIND, INVOICE_CURRENCY, 'draft')
         )
         return issuesOf(schema, values)
     }
@@ -331,7 +332,7 @@ describe('invoiceSchema with the header tax', () => {
 
     it('refuses at lines a total that only the tax pushes over maxStoredAmount', () => {
         const issues = issuesOf(
-            invoiceSchema(INVOICE_CURRENCY, 'draft', DENVER),
+            documentSchema(INVOICE_KIND, INVOICE_CURRENCY, 'draft', DENVER),
             valuesWith(taxedLines())
         )
         expect(messagesAt(issues, ['lines'])).toEqual([MESSAGES.totalTooLarge])
@@ -340,7 +341,7 @@ describe('invoiceSchema with the header tax', () => {
     it('without a tax, the same lines pass', () => {
         expect(draftIssues(valuesWith(taxedLines()))).toEqual([])
         const issues = issuesOf(
-            invoiceSchema(INVOICE_CURRENCY, 'draft', null),
+            documentSchema(INVOICE_KIND, INVOICE_CURRENCY, 'draft', null),
             valuesWith(taxedLines())
         )
         expect(issues).toEqual([])

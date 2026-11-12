@@ -14,7 +14,7 @@ To create an invoice, choose New in the sidebar (the round + button on a phone) 
 1. Pick the customer. Books fills Bill to, Email, Terms and Tax from the customer, and the Due date from the terms and the invoice date. To change the address for this invoice only, choose Edit address. Later changes to the customer do not change an invoice that you already made. To open the customer, choose Edit customer.
 2. Check the Invoice date (today unless you change it) and the Due date. When you pick Terms or change the Invoice date, Books sets the Due date again. The Due date cannot be before the Invoice date.
 3. Add the lines (see below).
-4. To tell the customer something, type it in **Message to customer (prints on invoice)**. It shows on the invoice and its PDF. For a note to your team, use **Internal memo (not printed)**: only your team sees it, it is saved as the memo of the journal entry, and it does not print.
+4. To tell the customer something, type it in **Message to customer (printed)**. It shows on the invoice and its PDF. For a note to your team, use **Internal memo (not printed)**: only your team sees it, it is saved as the memo of the journal entry, and it does not print.
 
 Only an active customer can be on an invoice that you post. Inactive customers are not in the Customer list.
 

@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { CUSTOMER_IDS } from '../tinycld/books/lib/customer-form-fixture'
+import { DOCUMENT_LINE_MAPPER } from '../tinycld/books/lib/document-line-columns'
 import {
     INVOICE_LINES,
     INVOICE_SEED_IDS,
@@ -10,7 +11,6 @@ import {
     type InvoiceStatus,
     type InvoiceTaxLineRecord,
 } from '../tinycld/books/lib/invoice-form-fixture'
-import { INVOICE_LINE_MAPPER } from '../tinycld/books/lib/invoice-lines'
 import type { BooksInvoiceLines, BooksInvoices, BooksInvoiceTaxLines } from '../tinycld/books/types'
 
 describe('generated invoice types', () => {
@@ -72,8 +72,8 @@ describe('INVOICE_SEED_IDS', () => {
 describe('INVOICE_LINE_MAPPER', () => {
     it('round-trips rate, percent and quantity of every fixture line', () => {
         for (const line of INVOICE_LINES) {
-            const row = { ...INVOICE_LINE_MAPPER.toRow(line), id: line.id }
-            const written = INVOICE_LINE_MAPPER.toRecord(row, line.position)
+            const row = { ...DOCUMENT_LINE_MAPPER.toRow(line), id: line.id }
+            const written = DOCUMENT_LINE_MAPPER.toRecord(row, line.position)
             expect(
                 {
                     rate: written.rate,
@@ -87,7 +87,7 @@ describe('INVOICE_LINE_MAPPER', () => {
 
     it('reads the position of a line', () => {
         for (const line of INVOICE_LINES) {
-            expect(INVOICE_LINE_MAPPER.positionOf(line)).toBe(line.position)
+            expect(DOCUMENT_LINE_MAPPER.positionOf(line)).toBe(line.position)
         }
     })
 })

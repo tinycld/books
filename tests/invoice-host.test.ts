@@ -191,13 +191,13 @@ describe('books:invoice forms host', () => {
     // Revise 1 item 4: the label alone tells the customer's message from the team's memo,
     // and the seeded field's hint says where each one goes.
     it('labels Message as printed for the customer and Memo as internal, each with a hint', () => {
-        expect(builtin('message').label).toBe('Message to customer (prints on invoice)')
+        expect(builtin('message').label).toBe('Message to customer (printed)')
         expect(builtin('memo').label).toBe('Internal memo (not printed)')
         const fields = Object.fromEntries(
             defaultDefinitionFor(parsedHost()).fields.map(f => [f.key, f])
         )
-        expect(fields.message?.label).toBe('Message to customer (prints on invoice)')
-        expect(fields.message?.description).toBe('Shown on the invoice and PDF.')
+        expect(fields.message?.label).toBe('Message to customer (printed)')
+        expect(fields.message?.description).toBe('Shown on the invoice and its PDF.')
         expect(fields.memo?.label).toBe('Internal memo (not printed)')
         expect(fields.memo?.description).toBe(
             'Only your team sees this. Saved as the journal entry memo.'

@@ -11,7 +11,7 @@ import {
     DocumentTaxField,
     DocumentTermsField,
     DueDateField,
-} from './invoice-fields'
+} from './document-fields'
 import {
     LineAmountCell,
     LineDescriptionCell,
@@ -20,7 +20,7 @@ import {
     LineQuantityCell,
     LineRateCell,
     LineTaxableCell,
-} from './invoice-line-cells'
+} from './document-line-cells'
 import { MoneyField } from './money-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
 import { ExemptionReasonField, TaxRateField } from './tax-fields'

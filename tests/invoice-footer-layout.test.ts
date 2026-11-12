@@ -1,7 +1,10 @@
 import { TABLE_GRID_GAP } from '@tinycld/core/ui/forms/fields/table-layout'
 import { describe, expect, it } from 'vitest'
-import { INVOICE_FOOTER_SPANS } from '../tinycld/books/lib/invoice-footer-layout'
-import { INVOICE_LINE_COLUMNS, INVOICE_ROW_KINDS } from '../tinycld/books/lib/invoice-lines'
+import { DOCUMENT_FOOTER_SPANS } from '../tinycld/books/lib/document-footer-layout'
+import {
+    DOCUMENT_LINE_COLUMNS,
+    DOCUMENT_ROW_KINDS,
+} from '../tinycld/books/lib/document-line-columns'
 
 // The columns with a floor: a cell that must show its whole value at the narrowest grid.
 const FLOORED = ['quantity', 'rate', 'percent', 'amount', 'taxable'] as const
@@ -14,7 +17,7 @@ const SPAN_SLOTS = {
 } as const
 
 function column(key: string) {
-    const found = INVOICE_LINE_COLUMNS.find(c => c.key === key)
+    const found = DOCUMENT_LINE_COLUMNS.find(c => c.key === key)
     if (!found) throw new Error(`no lines column ${key}`)
     return found
 }
@@ -39,7 +42,7 @@ describe('invoice line column floors and footer spans', () => {
 
     it('lays the footer spans on the item row slots it covers', () => {
         // Guards the span groups below against a change of the item row's slots.
-        expect(INVOICE_ROW_KINDS[0]?.columns).toEqual([
+        expect(DOCUMENT_ROW_KINDS[0]?.columns).toEqual([
             ...SPAN_SLOTS.left,
             ...SPAN_SLOTS.totals,
             ...SPAN_SLOTS.right,
@@ -48,7 +51,7 @@ describe('invoice line column floors and footer spans', () => {
 
     for (const [name, keys] of Object.entries(SPAN_SLOTS)) {
         it(`gives the ${name} span its slots' weight, gap basis and summed floors`, () => {
-            const span = INVOICE_FOOTER_SPANS[name as keyof typeof SPAN_SLOTS]
+            const span = DOCUMENT_FOOTER_SPANS[name as keyof typeof SPAN_SLOTS]
             const gaps = (keys.length - 1) * TABLE_GRID_GAP
             const weight = keys.reduce((sum, key) => sum + weightOf(key), 0)
             const floors = keys.reduce((sum, key) => sum + floorOf(key), 0)

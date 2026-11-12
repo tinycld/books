@@ -1,7 +1,8 @@
 import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
-import { INVOICE_LINE_COLUMNS, INVOICE_ROW_KINDS } from '../lib/invoice-lines'
-import { INVOICE_NOTE_HINTS, INVOICE_NOTE_LABELS } from '../lib/invoice-notes'
+import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
+import { DOCUMENT_NOTE_LABELS } from '../lib/document-notes'
+import { INVOICE_KIND } from '../lib/sales-document-kinds'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
@@ -124,8 +125,8 @@ const INVOICE_LAYOUT = {
         date: { width: 'quarter' },
         due_date: { width: 'quarter' },
         tax_rate: { width: 'quarter', narrowWidth: 'full' },
-        message: { description: INVOICE_NOTE_HINTS.message },
-        memo: { description: INVOICE_NOTE_HINTS.memo },
+        message: { description: INVOICE_KIND.noteHints.message },
+        memo: { description: INVOICE_KIND.noteHints.memo },
     },
     rules: [],
 } satisfies FormHostDefInput['layout']
@@ -148,7 +149,7 @@ const SALES_RECEIPT_LAYOUT = {
         reference_no: { width: 'third' },
         deposit_to: { width: 'third' },
         message: { description: 'Shown on the sales receipt and its PDF.' },
-        memo: { description: INVOICE_NOTE_HINTS.memo },
+        memo: { description: INVOICE_KIND.noteHints.memo },
     },
     rules: [],
 } satisfies FormHostDefInput['layout']
@@ -161,8 +162,8 @@ const DOCUMENT_LINES_BUILTIN = {
     kind: 'table',
     storage: 'rows',
     required: true,
-    columns: [...INVOICE_LINE_COLUMNS],
-    rowKinds: [...INVOICE_ROW_KINDS],
+    columns: [...DOCUMENT_LINE_COLUMNS],
+    rowKinds: [...DOCUMENT_ROW_KINDS],
     rowShortcuts: true,
     // The Item kind's Alt+Enter adds a line after the focused one, so the
     // row menu's "Insert line below" names that key.
@@ -750,18 +751,18 @@ const hosts: FormHostDefInput[] = [
                 chrome: 'cell',
             },
             DOCUMENT_LINES_BUILTIN,
-            // Core allows maxLength only on a text built-in; invoiceSchema bounds these
+            // Core allows maxLength only on a text built-in; documentSchema bounds these
             // two at 4000 code points, as the migration does.
             {
                 key: 'message',
-                label: INVOICE_NOTE_LABELS.message,
+                label: DOCUMENT_NOTE_LABELS.message,
                 kind: 'textarea',
                 storage: 'column',
                 required: false,
             },
             {
                 key: 'memo',
-                label: INVOICE_NOTE_LABELS.memo,
+                label: DOCUMENT_NOTE_LABELS.memo,
                 kind: 'textarea',
                 storage: 'column',
                 required: false,
@@ -893,14 +894,14 @@ const hosts: FormHostDefInput[] = [
             DOCUMENT_LINES_BUILTIN,
             {
                 key: 'message',
-                label: 'Message to customer (printed)',
+                label: DOCUMENT_NOTE_LABELS.message,
                 kind: 'textarea',
                 storage: 'column',
                 required: false,
             },
             {
                 key: 'memo',
-                label: INVOICE_NOTE_LABELS.memo,
+                label: DOCUMENT_NOTE_LABELS.memo,
                 kind: 'textarea',
                 storage: 'column',
                 required: false,

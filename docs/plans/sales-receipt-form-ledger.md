@@ -20,8 +20,8 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, checkpoint 3, F8: "Thirteen planned renames show as delete + add, not as renames. … Fix: the driver commits the pure `git mv` as its own commit before the edits, so `git log --follow` and the PR diff keep the history." (reviewer A N8, the same observation as a NOTE)
+  **rebutted because:** the implementer did `git mv` first, as the brief asks ("`git mv`, then edit, so the diff shows renames"); git stores no rename, it infers one from content similarity, and these files' required edits (threading the kind, the Produces renames) put them under git's threshold. A split commit contradicts gates.md §Commit ("`git add -A` … and commit", one commit per checkpoint). Both reviewers compared the moved tests by hand and found only renamed names, kind arguments, line wraps and added cases.
 
 ## Design notes
 - cp 1 · reviewer A: `pb-migrations/2100000011_create_books_sales_receipts.js` comment says `server/search_index.go` keeps `fts_books_sales_receipts` in step; the source is added in cp2 (its Files block names `search_index.go`), so the index is empty until then.
@@ -35,6 +35,12 @@ with the reason, and shown to the human at the end)
 - cp 2 · reviewer A: the PDF prints the label "Payment" before "Check · 43567" (spec §3.8 names no label; the read view uses "Payment"); the receipt PDF's big amount is "Amount received".
 - cp 2 · reviewer A: `lib/payment-methods.ts` `LABELS` Map repeats `PAYMENT_METHOD_LABELS`; `paymentMethodLabel` could read the record through an own-key guard.
 - cp 2 · reviewers A and B: the scratch route `helix-mockup.tsx` (git-excluded) lost a `.filter(([key]) => key !== '')` in cp2 (the re-exported `PAYMENT_METHOD_LABELS` has no `''` key; "None" comes from `paymentMethodOptions()`); cp3's import edits start from that state.
+- cp 3 · reviewer A: query keys `books.invoice.customer|form-customer|customers` became `books.document.*` and the customer-picker Sentry log context moved to `books.document.customers` (no collision; per-record keys unchanged). Optional: `books.${kind.key}.customers` as the log context to keep per-kind grouping.
+- cp 3 · reviewer A: the cleanup log after a refused new document now says "a new document whose line was refused could not be deleted" with key `document` (was `invoice`); diagnostics only.
+- cp 3 · fix reviewer: `hooks/invoice-data.ts` `insertRecord` casts `input.columns` to the invoice insert columns; only the shared save's merge over `emptyColumns` makes them complete. Optional: name the precondition in `DocumentWrites.insertRecord`'s type, or a dev check.
+- cp 3 · fix reviewer: import cycle document-kind-context → document-kinds → InvoiceReadDetails → DocumentDetail → document-kind-context (the `INVOICE_DOCUMENT` fallback); safe while every binding is read at render time; cp4 must not add a module-level use.
+- cp 3 · loop: the read view's date label falls back to "Date" when the kind's forms host is not registered (the generator did not run).
+- cp 3 · loop: `CustomerField`'s pick still sets `terms` / `due_date` for every kind; the kind-specific customer fill (Q10, minus Terms) is cp4's.
 
 ## Out-of-plan changes
 - cp 1 · `tinycld/books/forms/hosts.ts` — `books:sales_receipt` host; the generic Go line guard (`lineRowError`) reads the host by `kind.HostKey`, so receipt lines are refused without it.
@@ -47,6 +53,11 @@ with the reason, and shown to the human at the end)
 - cp 2 · `server/pdf_template.html` — one `{{if .Payment}}` line under the dates; `pdfDocument.Payment` cannot print without it (invoice PDFs unchanged: Payment empty).
 - cp 2 · `server/search_index_test.go` — index count 6 → 7 (resolved test dispute: Do 5 registers `fts_books_sales_receipts`).
 - cp 2 · `tinycld/books/screens/helix-mockup.tsx` (git-excluded scratch route) — one filter removed so tsc compiles after the fixture re-export.
+- cp 3 · `tinycld/books/components/documents/DocumentDetail.tsx` (new) — the read view's label-and-value detail cell, shared by `DocumentReadView` and `InvoiceReadDetails`.
+- cp 3 · `tinycld/books/hooks/useBundleLines.ts` — import of the renamed `document-fills` and a comment.
+- cp 3 · `tinycld/books/lib/money-text.ts` — one comment ("document").
+- cp 3 · `tinycld/books/lib/document-texts.ts` (new, fix 1) — the pure `DocumentMessages` / `INVOICE_MESSAGES`, so `lib/sales-document-kinds.ts` and `forms/hosts.ts` load in the Node generator.
+- cp 3 · `docs/plans/sales-receipt-form-checkpoints.md` — the `DocumentKind.ReadDetails` type gains `children` (the shared date cell) so checkpoint 4's brief carries it (fix 7).
 
 ## Phase notes
 - phase 1: no corrections to the extractions (intake at staging/p2-sales-receipt/intake.md). Design gate 2026-11-11 (revise 1, then approval):
@@ -130,6 +141,22 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 5 listed under Design notes (4 from A, 1 shared with B)
 - reviewer-caught deferrals: none
 - commit: 2d565b2
+- human: none (review mode C)
+
+## Checkpoint 3
+- test writer: tests/document-routes.test.ts (from invoice-routes, + `OTHER_KIND` routeBase cases), tests/sales-document-kinds.test.ts (new), tests/invoice-host.test.ts (label, hint), tests/help-invoices.test.ts (label), tests/e2e/invoice-form-post.spec.ts (label locator); `git mv` + imports only: document-messages, document-fills, document-screen-state, document-actions tests; a second test writer (the loop's own slip: the first prompt left the other tests' imports to the implementer) changed imports and call names only in invoice-schema, invoice-values, invoice-tax, invoice-footer-layout, invoice-line-order, invoice-form-fixture, use-invoice-save tests; 10 new/changed assertions red for the right reason (missing renamed modules); untestable: none.
+- implementer: client invoice layer renamed (`git mv`) into components/documents, forms/document-*, hooks/useDocument*, stores/document-*, lib/document-*; `INVOICE_KIND`, `INVOICE_DATA` (all invoice `useStore`s and queries, keys unchanged), `INVOICE_DOCUMENT`, `DocumentKindContext`; invoice screens render `DocumentScreen`; shared message/memo labels; DONE (0 disputes, 22 declared differences).
+- test disputes: none
+- self-declared differences: hints read from a parallel `INVOICE_NOTE_HINTS` (kinds module not pure) · `documentRefusalTarget` routes `due_date` for the invoice only · `documentSchema`'s `deposit` unused · no `DocumentKind.emptyColumns` · `documentOf(kind)` lookup · `useScreenReads(isHeld)` · `DocumentDataSource.useVersion` · `ReadDetails` takes the date as `children` · new `DocumentDetail.tsx` · query keys `books.document.customers|form-customer|customer` (per-record keys unchanged) · native PDF file `draft-invoice.pdf` · `DocumentTotalsView.balance` → `last`, header prop `balanceDue` → `figure` · read date label `${noun} date` · customer pick still sets terms/due_date for every kind (cp4) · `EMPTY_SCOPE.kind = INVOICE_KIND` · `useDocumentKind` throws without a provider (scratch route throws at runtime) · scratch imports aliased · log text "a new document…" · `customerInactiveText` one argument · routes and hooks take `Pick`s of the kind.
+- gate 1: tests unedited: yes · `packages:generate` 0, `tinycld-pkg check` pass (230 files, 4624 tests) · e2e one file per command: invoice-form-draft 7 passed, invoice-form-lines 3, invoice-form-post 4, invoice-form-pdf 1.
+- gate 2: n/a (logic checkpoint; the invoice's look changes only by one label)
+- gate 3 A (correctness): 0 BLOCK, 10 NOTE, 3 DEFERRAL · D1 kinds module not pure → accepted+fixed (fix 1) · D2 `kindFields` receipt variant missing → accepted+fixed (fix 3) · D3 `emptyColumns` missing → accepted+fixed (fix 2) · N1 native PDF file name → accepted (fix 10, invoice behavior kept) · N3 date label from noun → accepted (fix 4) · N5 `useDocumentKind` throws → accepted (fix 5) · N6 `documentOf` → accepted (fix 6) · N9 comment wrap → accepted (fix 11) · N2, N7 → Design notes · N8 renames shown as D+A → rebutted (with B F8) · N10 out-of-plan → recorded.
+- gate 3 B (conformance): script lines: 0 real, 14 false positive (a local named `document`, query-key and log strings; the 5 live queries in invoice-data.ts are five independent reads, Do 3) · F1/D1 → fix 1 · F2/D2 → fix 2 · F3 → fix 4 · F4 → fix 5 · F5 → fix 6 · F6 `ReadDetails` children not in the plan's interface → accepted (fix 7: required prop, plan line updated) · F7 out-of-plan files → recorded · F8 renames → rebutted · F9 JSX template literals → fix 8 · F10 locals named `document` → fix 9 (the `DocumentScreen` prop keeps `document`, as Produces names it). Script out-of-plan list misparsed (77 of 81; retro log).
+- fix round (cp3-fix.md, 11 items): a fresh test writer changed only the `useDocumentForm(INVOICE_DOCUMENT, …)` call in use-invoice-save.test.ts (item 6), staged · 1 pure texts in new `lib/document-texts.ts` (re-exported by `document-messages.ts`), `INVOICE_NOTE_HINTS` gone, hosts.ts reads `INVOICE_KIND.noteHints` · 2 `DocumentKind.emptyColumns`, merged by the shared save, second parse gone (insert types the merged columns by cast) · 3 `kindFields` union with the receipt variant, narrowed in `InvoiceReadDetails` · 4 read date label from the host's `date` built-in (`useBuiltinLabel`; "Date" when the host is missing) · 5 `useDocumentKind` falls back to `INVOICE_DOCUMENT` · 6 `documentOf` / `DOCUMENTS` deleted, `DocumentFormState.document` · 7 `ReadDetails` `children` required; plan Decisions line updated · 8 JSX template literals moved above the returns (also in `DocumentTotalsPanel`, `DocumentActionBar`, `DocumentReadLines` cells) · 9 locals renamed `documentKind` · 10 native PDF file `${kind.key}.pdf` (`invoice.pdf` again) · 11 comment rewrapped · gate 1 again: tests unedited, `packages:generate` 0, `tinycld-pkg check` pass (230 files, 4624 tests), invoice-form-draft 7, -lines 3, -post 4, -pdf 1 passed.
+- fix review: round 1: 0 BLOCK, 0 not fixed · 2 NOTEs to Design notes.
+- gate 3 A notes: 2 listed under Design notes (N2, N7)
+- reviewer-caught deferrals: 3 (A D1–D3, B D1–D2, overlapping: kinds module not pure / hints, `emptyColumns`, `kindFields` receipt variant) — the implementer declared the hints and `emptyColumns` gaps as differences, not deferrals, and did not declare `kindFields`; all fixed in the fix round.
+- commit: (this commit; sha in the next ledger commit)
 - human: none (review mode C)
 
 ## Final review
