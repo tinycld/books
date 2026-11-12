@@ -201,7 +201,7 @@
 - fix review: round 1: 0 BLOCK · 2 NOTEs to Design notes · item 17 open as a dependency deferral · fresh critic on the 8 recaptured shots (`critique-fix.md`): 0 INVALID, 0 BLOCKING, 0 NOTE.
 - gate 3 A notes: 2 listed under Design notes (N1, N2)
 - reviewer-caught deferrals: A D1 / B D1 hidden-field refusal path (the implementer declared it as a difference, not a deferral) · B D2 / A N6 fixture type (declared as a difference) · A D2–D4 weak tests (not declared) — all fixed in the fix round · critic BLOCKING "Tax" header → dependency deferral (core `TableField`), see Deferrals.
-- commit: (this commit)
+- commit: 1d370fa
 - human: none (review mode C)
 
 ## Final review
