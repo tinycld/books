@@ -5,6 +5,7 @@ import { AccountingSection } from './AccountingSection'
 import { CompanySection } from './CompanySection'
 import { Form1099Section } from './Form1099Section'
 import { NumberingSection } from './NumberingSection'
+import { SalesSection } from './SalesSection'
 
 interface SectionBodyProps {
     section: SectionId
@@ -14,6 +15,7 @@ interface SectionBodyProps {
 const BODIES: Partial<Record<SectionId, ComponentType<{ isAdmin: boolean }>>> = {
     company: CompanySection,
     accounting: AccountingSection,
+    sales: SalesSection,
     numbering: NumberingSection,
     'form-1099': Form1099Section,
     access: AccessSection,

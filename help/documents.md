@@ -1,7 +1,7 @@
 ---
 title: Printed documents
-summary: How Books prints invoices and other documents as PDF files, and how to preview them.
-tags: [pdf, print, invoice, logo, "brand color"]
+summary: How Books prints invoices, sales receipts and other documents as PDF files, and how to preview them.
+tags: [pdf, print, invoice, "sales receipt", logo, "brand color"]
 order: 25
 ---
 
@@ -9,7 +9,7 @@ To see how your documents print, open Settings, choose Company and press Preview
 
 The preview uses the saved company details. If you change a detail, press Save before you preview. Any person with access to Books can preview; only an admin can change the details.
 
-To see or download the PDF of an invoice, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices).
+To see or download the PDF of an invoice or a sales receipt, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices) and [Sales receipts](help://books:sales-receipts).
 
 ## What a document shows
 

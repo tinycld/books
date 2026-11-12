@@ -2,7 +2,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { router } from 'expo-router'
+import { router, useNavigation } from 'expo-router'
 import { mergeRecoveries } from '../lib/live-recovery'
 import {
     SETTINGS_SECTIONS,
@@ -13,6 +13,7 @@ import {
 import type { BooksSettings } from '../types'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
+import { useDepositAccounts } from './useDepositAccounts'
 import { useDocSequences } from './useDocSequences'
 import { useExpenseGroupAccounts } from './useForm1099Section'
 
@@ -22,11 +23,22 @@ export function sectionFromParam(value: string | undefined): SectionId | undefin
     return SETTINGS_SECTIONS.find(s => s.id === value)?.id
 }
 
+// The Books stack's route for the section list (the `settings/index` route file).
+const LIST_ROUTE = 'settings/index'
+
 export function useSettingsShell(section: SectionId | undefined) {
+    const navigation = useNavigation()
+    // Whether the screen right below this one in its stack is the section list (as
+    // useBackToChart). A screen outside a stack has no state.
+    const isListBelow = (state: ReturnType<typeof navigation.getState>) => {
+        if (!state) return false
+        return state.routes[state.index - 1]?.name === LIST_ROUTE
+    }
     const access = useBooksAccess()
     const booksSettings = useBooksSettings()
     const docSequences = useDocSequences()
     const accounts = useExpenseGroupAccounts()
+    const deposit = useDepositAccounts()
     const orgHref = useOrgHref()
     const isWide = useBreakpoint() !== 'mobile'
     const { isAdmin } = access
@@ -39,6 +51,9 @@ export function useSettingsShell(section: SectionId | undefined) {
     // Only the 1099s summary needs the accounts; like the sequences, their failure or a slow
     // load never blocks the shell, and the summary then shows the threshold alone.
     const accounts1099 = accounts.isReady && !accounts.isError ? accounts.rows : undefined
+    // The Sales summary names the set account only once these are read; until then (or
+    // after a failure) it says "an account", and the shell does not wait for them.
+    const depositAccounts = deposit.isReady && !deposit.isError ? deposit.rows : undefined
     const sections = allowed.map(s => ({
         id: s.id,
         label: s.label,
@@ -46,6 +61,7 @@ export function useSettingsShell(section: SectionId | undefined) {
             settings: booksSettings.settings,
             sequenceCount: sequences?.length,
             accounts1099,
+            depositAccounts,
         }),
         isActive: s.id === open,
     }))
@@ -74,7 +90,13 @@ export function useSettingsShell(section: SectionId | undefined) {
             if (isWide) router.replace(href)
             else router.push(href)
         },
-        back: () => router.replace(orgHref('books/settings')),
+        // A phone row pushed the section over the list: pop back to it, so the stack (and the
+        // browser history) holds the list once. A section with no list below it (the wide
+        // rail replaced it in, or a link opened it) is replaced with the list.
+        back: () => {
+            if (isListBelow(navigation.getState?.())) router.back()
+            else router.replace(orgHref('books/settings'))
+        },
         // One call over every failed query, so a retry rebuilds them together.
         retry: () => {
             void recoverLiveQueries({
@@ -82,6 +104,7 @@ export function useSettingsShell(section: SectionId | undefined) {
                     booksSettings.recovery,
                     docSequences.recovery,
                     accounts.recovery,
+                    deposit.recovery,
                 ]),
                 onError: error => log.error('books.settings', error),
             })
@@ -95,11 +118,12 @@ function summaryFor(
         settings: BooksSettings | undefined
         sequenceCount: number | undefined
         accounts1099: Parameters<typeof sectionSummary>[1]['accounts1099']
+        depositAccounts: Parameters<typeof sectionSummary>[1]['depositAccounts']
     }
 ): string {
-    const { settings, sequenceCount, accounts1099 } = data
+    const { sequenceCount, ...rest } = data
     if (id === 'numbering' && sequenceCount === undefined) return 'Document numbering'
-    return sectionSummary(id, { settings, sequenceCount: sequenceCount ?? 0, accounts1099 })
+    return sectionSummary(id, { ...rest, sequenceCount: sequenceCount ?? 0 })
 }
 
 function shellPart(state: { isReady: boolean; hasError: boolean; hasOpen: boolean }): ShellPart {

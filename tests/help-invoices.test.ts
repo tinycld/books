@@ -71,6 +71,17 @@ describe('help/invoices.md', () => {
         expect(body).toContain(label)
     })
 
+    // Checkpoint 5: a new invoice starts with the Books setting's default message.
+    it('names the default message setting', () => {
+        expect(topicExists).toBe(true)
+        expect(body).toContain('Default message to customer')
+    })
+
+    it('links the sales receipts topic', () => {
+        expect(topicExists).toBe(true)
+        expect(source).toContain('help://books:sales-receipts')
+    })
+
     // Spec §3.5: the invoice takes the shared message label, so the old one is gone.
     it('no longer names the old message label', () => {
         expect(topicExists).toBe(true)

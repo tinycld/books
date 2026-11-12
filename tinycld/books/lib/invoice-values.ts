@@ -13,15 +13,17 @@ export type InvoiceFormValues = DocumentFormValuesBase & {
     due_date: string
 }
 
-// A new form: dated and due today with one empty Item line. With a customer (the
-// `?customer` route param) the header is filled as a pick fills it.
+// A new form: dated and due today with one empty Item line and the default message
+// (`defaultMessageFor`; none when not given). With a customer (the `?customer` route
+// param) the header is filled as a pick fills it.
 export function newInvoiceValues(input: {
     today: string
     customer?: CustomerFill | null
     rates: TaxRateFill[]
     defaultRateId: string
+    message?: string
 }): InvoiceFormValues {
-    const { today, customer, rates, defaultRateId } = input
+    const { today, customer, rates, defaultRateId, message = '' } = input
     const fills = customer ? customerFills(customer, rates, today, null) : null
     return {
         customer: customer?.id ?? '',
@@ -32,7 +34,7 @@ export function newInvoiceValues(input: {
         due_date: fills?.due_date ?? today,
         tax_rate: fills ? fills.tax_rate : defaultRateId,
         lines: [emptyItemLine()],
-        message: '',
+        message,
         memo: '',
     }
 }

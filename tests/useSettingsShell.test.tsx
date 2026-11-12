@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useWindowSizeStore } from '@tinycld/core/lib/stores/window-size-store'
-import { router } from 'expo-router'
+import * as expoRouter from 'expo-router'
+import { createElement, type Provider, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSettingsShell } from '../tinycld/books/hooks/useSettingsShell'
 import type { BooksSettings } from '../tinycld/books/types'
@@ -15,6 +16,19 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
+
+// Vitest serves expo-router from the app shell's test stub, which adds ScreenStub: the
+// screen whose navigation `useNavigation` answers inside it.
+type ScreenStubValue = {
+    pathname: string
+    navigation: {
+        isFocused: () => boolean
+        dispatch: (action: unknown) => void
+        getState: () => { index: number; routes: readonly StackRoute[] }
+    }
+}
+const { ScreenStub } = expoRouter as unknown as { ScreenStub: Provider<ScreenStubValue | null> }
+const { router } = expoRouter
 
 const row: BooksSettings = {
     id: 'bookssettings01',
@@ -51,8 +65,29 @@ function setWidth(width: number) {
     act(() => useWindowSizeStore.getState().setSize(width, 800))
 }
 
-async function renderShell(section: Parameters<typeof useSettingsShell>[0]) {
-    const view = renderHook(() => useSettingsShell(section))
+type StackRoute = { name: string }
+
+// The Books stack the screen sits in, as `useNavigation().getState()` answers it: the
+// routes from the bottom, this screen last. With none, the hook runs outside a stack.
+function stackScreen(routes: readonly StackRoute[]) {
+    const navigation = {
+        isFocused: () => true,
+        dispatch: () => {},
+        getState: () => ({ index: routes.length - 1, routes }),
+    }
+    return ({ children }: { children: ReactNode }) =>
+        createElement(ScreenStub, {
+            value: { pathname: '/a/books/settings/company', navigation },
+            children,
+        })
+}
+
+async function renderShell(
+    section: Parameters<typeof useSettingsShell>[0],
+    stack?: readonly StackRoute[]
+) {
+    const wrapper = stack ? stackScreen(stack) : undefined
+    const view = renderHook(() => useSettingsShell(section), { wrapper })
     await waitFor(() => expect(view.result.current.part).not.toBe('loading'))
     return view
 }
@@ -119,14 +154,37 @@ describe('useSettingsShell navigation', () => {
         expect(router.replace).not.toHaveBeenCalled()
     })
 
-    it('back returns to the section list', async () => {
+    it('back with no list below (a link or the wide rail opened it) replaces with the list', async () => {
         setWidth(390)
-        const { result } = await renderShell('company')
+        const { result } = await renderShell('company', [{ name: 'settings/[section]' }])
         act(() => result.current.back())
-        const targets = [
-            ...vi.mocked(router.push).mock.calls,
-            ...vi.mocked(router.replace).mock.calls,
-        ].map(call => call[0])
-        expect(targets).toEqual(['/a/books/settings'])
+        expect(router.replace).toHaveBeenCalledWith('/a/books/settings')
+        expect(router.back).not.toHaveBeenCalled()
+        expect(router.push).not.toHaveBeenCalled()
+    })
+
+    it('back with the section list right below pops to it', async () => {
+        setWidth(390)
+        const { result } = await renderShell('company', [
+            { name: 'index' },
+            { name: 'settings/index' },
+            { name: 'settings/[section]' },
+        ])
+        act(() => result.current.back())
+        expect(router.back).toHaveBeenCalledTimes(1)
+        expect(router.replace).not.toHaveBeenCalled()
+        expect(router.push).not.toHaveBeenCalled()
+    })
+
+    it('back with the list lower in the stack, not right below, replaces with the list', async () => {
+        setWidth(390)
+        const { result } = await renderShell('company', [
+            { name: 'settings/index' },
+            { name: 'entries/index' },
+            { name: 'settings/[section]' },
+        ])
+        act(() => result.current.back())
+        expect(router.replace).toHaveBeenCalledWith('/a/books/settings')
+        expect(router.back).not.toHaveBeenCalled()
     })
 })

@@ -6,6 +6,7 @@ import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useMemo } from 'react'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { documentScreenState } from '../lib/document-screen-state'
+import { defaultMessageFor } from '../lib/document-values'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { todayIso } from '../lib/register-range'
 import { useDocumentSaveStore } from '../stores/document-save-store'
@@ -174,6 +175,9 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         retry,
         canWrite: access.canWrite,
         currency: settings.settings?.currency ?? 'USD',
+        // A new blank form's message (new, Post & new, `?customer`). The form reads it once
+        // at mount, so a changed setting never touches an open form.
+        defaultMessage: defaultMessageFor(settings.settings),
         formKey: id || `new:${input.fresh ?? ''}:${input.replaces ?? ''}:${input.copy ?? ''}`,
         taxOptions,
     }

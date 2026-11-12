@@ -51,6 +51,8 @@ To delete a customer, open the menu on its row and choose Delete, then choose De
 
 A customer with sub-customers cannot be deleted. If all of its sub-customers are inactive, the dialog lets you make the customer inactive. If one or more sub-customers are active, make them inactive first. If you delete the customer that is open with changes that are not saved, the dialog tells you that those changes will be lost.
 
+A customer that is on an invoice or a [sales receipt](help://books:sales-receipts), draft or posted, cannot be deleted. Make it inactive instead.
+
 ## Sales tax
 
 To mark a customer that does not pay sales tax, turn on This customer is tax exempt. Then choose an Exemption reason, such as Resale, and type the Exemption certificate number, up to 100 characters. An exempt customer must have a reason: until you choose one, Books refuses the save with "Choose an exemption reason."

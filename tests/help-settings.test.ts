@@ -38,6 +38,19 @@ describe('help/settings.md', () => {
         expect(body).toContain('(help://books:1099-tracking)')
     })
 
+    // Checkpoint 5: Settings → Sales and its two cards (spec §3.11).
+    it('covers the Sales section and both of its cards', () => {
+        expect(body).toMatch(/Settings → Sales|the Sales section|#+ Sales\s*$/m)
+        expect(body).toContain('Sales receipts')
+        expect(body).toContain('Sales deposited to')
+        expect(body).toContain('Invoices and sales receipts')
+        expect(body).toContain('Default message to customer')
+    })
+
+    it('links the sales receipts topic', () => {
+        expect(body).toContain('(help://books:sales-receipts)')
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)

@@ -145,9 +145,9 @@ function dueDateIssues(kind: SalesDocumentKind, values: Record<string, unknown>)
 // counts it.
 const MAX_REFERENCE = 40
 
-// Only a sales receipt has a payment row. Deposit to is required while it is drawn: a
-// hidden field ("Sales deposited to" names an account) is filled by the save. With no
-// deposit account in the chart the text says to add one.
+// Only a sales receipt has a payment row. Deposit to is required while it is drawn ("Ask");
+// while "Sales deposited to" names an account it is hidden and the server stamps that
+// account on the receipt. With no deposit account in the chart the text says to add one.
 function paymentIssues(
     kind: SalesDocumentKind,
     values: Record<string, unknown>,

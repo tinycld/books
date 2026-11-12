@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { COMPANY_SETTINGS, EMPTY_SETTINGS } from '../tinycld/books/lib/books-settings-fixture'
 import {
+    DEPOSIT_ACCOUNT_IDS,
+    DEPOSIT_ACCOUNTS,
+} from '../tinycld/books/lib/sales-receipt-form-fixture'
+import {
     form1099Summary,
     SETTINGS_SECTIONS,
+    salesSummary,
     sectionSummary,
     visibleSections,
 } from '../tinycld/books/lib/settings-sections'
@@ -18,10 +23,16 @@ describe('visibleSections', () => {
         expect(visibleSections(true)).toEqual(SETTINGS_SECTIONS)
     })
 
+    // Spec §3.11: the Sales section is shown to every Books user.
+    it('shows the Sales section to a non-admin', () => {
+        expect(visibleSections(false).map(s => s.id)).toContain('sales')
+    })
+
     it('shows the 1099s section to a non-admin, after Numbering', () => {
         expect(visibleSections(false).map(s => s.id)).toEqual([
             'company',
             'accounting',
+            'sales',
             'numbering',
             'form-1099',
         ])
@@ -29,10 +40,11 @@ describe('visibleSections', () => {
 })
 
 describe('SETTINGS_SECTIONS', () => {
-    it('puts 1099s between Numbering and Access', () => {
+    it('puts Sales between Accounting and Numbering, and 1099s between Numbering and Access', () => {
         expect(SETTINGS_SECTIONS.map(s => s.id)).toEqual([
             'company',
             'accounting',
+            'sales',
             'numbering',
             'form-1099',
             'access',
@@ -82,6 +94,48 @@ describe('sectionSummary', () => {
         })
         expect(summary.endsWith('· 1 account mapped')).toBe(true)
         expect(summary).toBe('Threshold $2,000.00 · 1 account mapped')
+    })
+})
+
+describe('salesSummary', () => {
+    const ask = { sales_deposit_account: '', default_customer_message: '' }
+    const set1200 = {
+        sales_deposit_account: DEPOSIT_ACCOUNT_IDS.undeposited,
+        default_customer_message: '',
+    }
+
+    it('says Ask with "Ask" and no default message', () => {
+        expect(salesSummary(ask, DEPOSIT_ACCOUNTS)).toBe('Sales deposited to: Ask')
+    })
+
+    it('names the set account by number and name', () => {
+        expect(salesSummary(set1200, DEPOSIT_ACCOUNTS)).toBe(
+            'Sales deposited to 1200 Undeposited funds'
+        )
+    })
+
+    it('adds " · Default message set" when the default message is not empty', () => {
+        expect(salesSummary({ ...ask, default_customer_message: 'Thanks' }, DEPOSIT_ACCOUNTS)).toBe(
+            'Sales deposited to: Ask · Default message set'
+        )
+        expect(
+            salesSummary({ ...set1200, default_customer_message: 'Thanks' }, DEPOSIT_ACCOUNTS)
+        ).toBe('Sales deposited to 1200 Undeposited funds · Default message set')
+    })
+
+    // Plan decision: the summary never claims a name it has not read.
+    it('says "an account" while the accounts are not loaded and an account is set', () => {
+        expect(salesSummary(set1200, undefined)).toBe('Sales deposited to an account')
+    })
+
+    it('is what sectionSummary shows for the sales section', () => {
+        expect(
+            sectionSummary('sales', {
+                settings: { ...COMPANY_SETTINGS, ...set1200 },
+                sequenceCount: 1,
+                depositAccounts: DEPOSIT_ACCOUNTS,
+            })
+        ).toBe('Sales deposited to 1200 Undeposited funds')
     })
 })
 

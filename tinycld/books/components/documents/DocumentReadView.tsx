@@ -133,8 +133,18 @@ function ReadFooter({ isPhone, totals, message, memo }: FooterProps) {
     const notesClass = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const notes = (
         <View className={notesClass}>
-            <DocumentDetail field="message" label={DOCUMENT_NOTE_LABELS.message} value={message} />
-            <DocumentDetail field="memo" label={DOCUMENT_NOTE_LABELS.memo} value={memo} />
+            <DocumentDetail
+                field="message"
+                label={DOCUMENT_NOTE_LABELS.message}
+                value={message}
+                valueSuffix="message"
+            />
+            <DocumentDetail
+                field="memo"
+                label={DOCUMENT_NOTE_LABELS.memo}
+                value={memo}
+                valueSuffix="memo"
+            />
         </View>
     )
     if (isPhone) {

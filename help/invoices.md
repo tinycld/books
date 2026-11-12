@@ -16,7 +16,11 @@ To create an invoice, choose New in the sidebar (the round + button on a phone) 
 3. Add the lines (see below).
 4. To tell the customer something, type it in **Message to customer (printed)**. It shows on the invoice and its PDF. For a note to your team, use **Internal memo (not printed)**: only your team sees it, it is saved as the memo of the journal entry, and it does not print.
 
+A new invoice starts with the **Default message to customer** that an admin sets in Settings → Sales, if there is one. You can change or clear it on each invoice. A copy keeps the message of the invoice it copies, an edit keeps its original's, and a saved draft keeps its own: a later change to the setting does not change them. See [Settings](help://books:settings).
+
 Only an active customer can be on an invoice that you post. Inactive customers are not in the Customer list.
+
+When the customer pays at the time of the sale, record a [sales receipt](help://books:sales-receipts) instead.
 
 ## Lines and their kinds
 

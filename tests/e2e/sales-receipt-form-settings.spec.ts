@@ -2,17 +2,24 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
-import { lineCellTestId, uniqueMemo } from './invoice-helpers'
+import { accountItem, DESKTOP, openChart, PHONE } from './account-register-helpers'
+import { lineCellTestId, NEW_INVOICE_URL, openNewInvoice, uniqueMemo } from './invoice-helpers'
 import {
     chooseReceiptSelect,
+    leaveSettings,
     NEW_SALES_RECEIPT_URL,
     openNewSalesReceipt,
+    openSalesReceiptBySearch,
     pickReceiptCustomer,
     pickReceiptLineProduct,
     receiptLineRowId,
+    restoreSalesSettings,
     SALES_RECEIPT_URL,
     salesReceiptIdFromUrl,
     salesReceiptUrlOf,
+    setDefaultMessage,
+    setSalesDepositedTo,
+    visibleTestId,
 } from './sales-receipt-helpers'
 
 // The sales receipt's keyboard-only create and edit (spec §3.11), and the home of every
@@ -27,6 +34,24 @@ import {
 // search palette (core binds the palette to `/`, not ⌘K). Each receipt carries a unique
 // memo and reference; no seeded row is changed. Desktop only: the keyboard path runs the
 // same code at phone size.
+//
+// The settings tests (checkpoint 5) change "Sales deposited to" and the default message
+// through Settings → Sales; `afterEach` puts both back through the Settings UI (and 1200
+// Undeposited funds active), so every later test starts from the seeded state. The set
+// account is 1200, the "Ask" default, so a receipt another spec posts with the default
+// lands on the same account in either mode. The hidden-mode test also runs at 390 wide:
+// the phone band stacks the payment cells under the first row (other layout code), and
+// the phone Settings list and select are other code than the rail.
+
+const UNDEPOSITED = '1200 Undeposited funds'
+const DEPOSIT_NOTE =
+    'Ask shows Deposit to on every sales receipt. Choose an account to hide Deposit to and deposit every sale there.'
+const MESSAGE_NOTE =
+    'New invoices and sales receipts start with this message. You can change it on each one.'
+// server/accounts.go msgAccountIsSalesDeposit. PocketBase ends every message with a
+// period and adds none to a text that has one, so this is the text the chart shows.
+const SET_ACCOUNT_REFUSAL =
+    'This account is where sales are deposited (Settings → Sales). Choose another account or Ask there first.'
 
 function customerName(id: string) {
     const row = CUSTOMERS.find(c => c.id === id)
@@ -84,6 +109,9 @@ async function pickByLetters(page: Page, key: string, letter: string, label: str
     await page.keyboard.press('Enter')
     await expect(item).toHaveCount(0)
     await expect(trigger).toContainText(label)
+    // Core's layer focus gives focus back to the trigger one animation frame after the
+    // menu closes (ui/overlay/focus.ts); a Tab before that frame starts from the body.
+    await expect(trigger).toBeFocused()
 }
 
 // Core's search palette from the keyboard: `/`, the memo, arrow keys to the option whose
@@ -126,6 +154,10 @@ async function moneyIn(locator: Locator): Promise<string> {
 }
 
 test.describe('sales-receipt-form: settings and keyboard', () => {
+    test.afterEach(async ({ page }) => {
+        await restoreSalesSettings(page)
+    })
+
     test('a sales receipt is created and posted from the keyboard only', async ({ page }) => {
         const memo = uniqueMemo('Receipt keyboard create')
         const reference = uniqueReference()
@@ -262,5 +294,135 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await expect(page.getByTestId('sales-receipt-replaced-by')).toHaveText(
             `Replaced by ${number} (edited)`
         )
+    })
+
+    for (const viewport of [DESKTOP, PHONE]) {
+        const size = viewport === PHONE ? '390 wide' : 'desktop'
+        test(`with an account set, a new sales receipt has no Deposit to and posts there (${size})`, async ({
+            page,
+        }) => {
+            const memo = uniqueMemo(`Receipt hidden deposit ${viewport.width}`)
+            await openBooks(page)
+            if (viewport === PHONE) await page.setViewportSize(PHONE)
+
+            await setSalesDepositedTo(page, UNDEPOSITED)
+            await expect(page.getByText(DEPOSIT_NOTE, { exact: true })).toBeVisible()
+
+            // The section list (the phone rows) names the set account.
+            if (viewport !== PHONE) await page.setViewportSize(PHONE)
+            await visibleTestId(page, 'books-settings-back').click()
+            await expect(visibleTestId(page, 'books-settings-section-sales')).toContainText(
+                `Sales deposited to ${UNDEPOSITED}`
+            )
+            if (viewport !== PHONE) await page.setViewportSize(DESKTOP)
+            await leaveSettings(page)
+
+            // Deposit to is not drawn: the payment row holds Payment method and Reference
+            // no., and nothing on the form names the account.
+            await openNewSalesReceipt(page)
+            await expect(page.getByTestId('form-input-customer')).toBeVisible()
+            await expect(page.getByTestId('sales-receipt-deposit-to')).toHaveCount(0)
+            await expect(page.getByTestId('form-input-deposit_to')).toHaveCount(0)
+            const payment = page.getByTestId('sales-receipt-payment')
+            await expect(payment.getByTestId('form-input-payment_method')).toBeVisible()
+            await expect(payment.getByTestId('form-input-reference_no')).toBeVisible()
+            await expect(page.getByTestId('sales-receipt-form')).not.toContainText(
+                'Undeposited funds'
+            )
+
+            // It posts; the server writes the set account.
+            await pickReceiptLineProduct(page, 0, ACCESS_POINT)
+            await page.getByTestId('form-input-memo').fill(memo)
+            await page.getByTestId('sales-receipt-post').click()
+            await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
+            await expect(page).toHaveURL(SALES_RECEIPT_URL)
+            await expect(page.getByTestId('sales-receipt-badge')).toHaveText('Posted')
+            await expect(page.getByTestId('sales-receipt-detail-payment')).toHaveText(
+                new RegExp(`deposited to ${UNDEPOSITED}$`)
+            )
+        })
+    }
+
+    test('the account set in Sales deposited to cannot be made inactive', async ({ page }) => {
+        await openBooks(page)
+        await setSalesDepositedTo(page, UNDEPOSITED)
+
+        await openChart(page)
+        const item = accountItem(page, 'Undeposited funds')
+        await expect(item).toHaveCount(1)
+        const answered = page.waitForResponse(
+            response =>
+                response.request().method() === 'PATCH' &&
+                new URL(response.url()).pathname.includes(
+                    '/api/collections/books_accounts/records/'
+                )
+        )
+        await item.locator('[data-testid^="account-menu-"]').click()
+        await page.getByRole('menuitem', { name: 'Make inactive', exact: true }).click()
+        expect((await answered).status()).toBe(400)
+        await expect(visibleTestId(page, 'accounts-action-error')).toHaveText(SET_ACCOUNT_REFUSAL)
+        await expect(item).toHaveCount(1)
+        await expect(item.getByText('Inactive', { exact: true })).toHaveCount(0)
+    })
+
+    test('the default message fills new invoices and sales receipts, never a saved one', async ({
+        page,
+    }) => {
+        const memo = uniqueMemo('Receipt default message')
+        // Each default has its own token, never the memo: while set, a default fills the
+        // new receipts other workers make, and their messages are search-indexed, so a
+        // memo inside it would let the memo search match those receipts too.
+        const first = uniqueMemo('Default message A')
+        const second = uniqueMemo('Default message B')
+        await openBooks(page)
+        await setDefaultMessage(page, first)
+        await expect(page.getByText(MESSAGE_NOTE, { exact: true })).toBeVisible()
+        await leaveSettings(page)
+
+        // A new invoice starts with it; it is a start value, so Cancel leaves at once.
+        const message = page.getByTestId('form-input-message')
+        await openNewInvoice(page)
+        await expect(message).toHaveValue(first)
+        await page.getByTestId('invoice-cancel').click()
+        await expect(page).not.toHaveURL(NEW_INVOICE_URL)
+
+        // So does a new sales receipt, which is saved as a draft with it.
+        await openNewSalesReceipt(page)
+        await expect(message).toHaveValue(first)
+        await pickReceiptLineProduct(page, 0, ACCESS_POINT)
+        await page.getByTestId('form-input-memo').fill(memo)
+        await page.getByTestId('sales-receipt-save-draft').click()
+        await expect(page).toHaveURL(SALES_RECEIPT_URL)
+        await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
+        const id = salesReceiptIdFromUrl(page)
+        await page.getByTestId('sales-receipt-cancel').click()
+        await expect(page).not.toHaveURL(salesReceiptUrlOf(id))
+
+        // A changed default changes no saved document: the reopened draft keeps the first.
+        await setDefaultMessage(page, second)
+        await leaveSettings(page)
+        await openSalesReceiptBySearch(page, memo)
+        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
+        await expect(message).toHaveValue(first)
+
+        // Posted, its PDF view loads, and the stored message is what it prints
+        // (server/pdf_sales_receipt_test.go pins the Notes block; the canvas has no text).
+        await page.getByTestId('sales-receipt-post').click()
+        await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
+        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        const pdf = page.waitForResponse(r =>
+            r.url().includes(`/api/books/pdf/sales_receipt/${id}`)
+        )
+        await page.keyboard.press('Alt+2')
+        expect((await pdf).status()).toBe(200)
+        await page.keyboard.press('Alt+1')
+        await expect(page.getByTestId('sales-receipt-message')).toContainText(first)
+
+        // Copy starts with the source's message, not the current default.
+        await page.getByTestId('sales-receipt-read-copy').click()
+        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/new\\?copy=${id}$`))
+        await expect(page.getByTestId('sales-receipt-title')).toHaveText('New sales receipt')
+        await expect(message).toHaveValue(first)
     })
 })

@@ -1,15 +1,18 @@
 import type { BooksAccounts, BooksSettings } from '../types'
+import type { DepositAccountRow } from './deposit-accounts'
 import { formatMoney } from './money'
 import { formatDay } from './register-range'
+import { setAccountLabel } from './sales-settings'
 import { FISCAL_MONTHS } from './setup-schema'
 
-export type SectionId = 'company' | 'accounting' | 'numbering' | 'form-1099' | 'access'
+export type SectionId = 'company' | 'accounting' | 'sales' | 'numbering' | 'form-1099' | 'access'
 
 export type SettingsSection = { id: SectionId; label: string; adminOnly: boolean }
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
     { id: 'company', label: 'Company', adminOnly: false },
     { id: 'accounting', label: 'Accounting', adminOnly: false },
+    { id: 'sales', label: 'Sales', adminOnly: false },
     { id: 'numbering', label: 'Numbering', adminOnly: false },
     { id: 'form-1099', label: '1099s', adminOnly: false },
     { id: 'access', label: 'Access', adminOnly: true },
@@ -44,16 +47,33 @@ export function form1099Summary(
     return `${threshold} · ${mappedText(mapped)}`
 }
 
+// The Sales line. Without the deposit accounts (still loading or failed), a set account
+// is "an account": the summary never claims a name it has not read.
+export function salesSummary(
+    settings: Pick<BooksSettings, 'sales_deposit_account' | 'default_customer_message'> | undefined,
+    accounts: readonly DepositAccountRow[] | undefined
+): string {
+    if (!settings) return 'Sales deposits and default message'
+    const setId = settings.sales_deposit_account
+    const deposit =
+        setId === ''
+            ? 'Sales deposited to: Ask'
+            : `Sales deposited to ${setAccountLabel(setId, accounts ?? [], 'an account')}`
+    return settings.default_customer_message === '' ? deposit : `${deposit} · Default message set`
+}
+
 export function sectionSummary(
     id: SectionId,
     data: {
         settings: BooksSettings | undefined
         sequenceCount: number
         accounts1099?: readonly Pick<BooksAccounts, 'form_1099_box'>[]
+        depositAccounts?: readonly DepositAccountRow[]
     }
 ): string {
     if (id === 'company') return data.settings?.business_name || 'Name your business'
     if (id === 'accounting') return accountingSummary(data.settings)
+    if (id === 'sales') return salesSummary(data.settings, data.depositAccounts)
     if (id === 'numbering') {
         return data.sequenceCount === 1 ? '1 document type' : `${data.sequenceCount} document types`
     }

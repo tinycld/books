@@ -4,7 +4,7 @@ import { useFormState } from 'react-hook-form'
 import { Text, View } from 'react-native'
 import { useDocumentFormScope } from '../components/documents/document-form-context'
 import { useDepositAccounts } from '../hooks/useDepositAccounts'
-import { depositAccountOptions } from '../lib/deposit-accounts'
+import { defaultDepositAccount, depositAccountOptions } from '../lib/deposit-accounts'
 import { paymentMethodOptions } from '../lib/payment-methods'
 import { HostSelect } from './account-fields'
 
@@ -81,12 +81,15 @@ export function DepositAccountField({
     const { errors } = useFormState({ name: fieldKey })
     const hasFieldError = errors[fieldKey] !== undefined
     const isChartEmpty = options.length === 0 && !hasFieldError
+    // A form opened with no account (none in the chart then) shows the default rule's
+    // account once there is one; the save writes the same account (useDocumentSave).
+    const shown = idOf(value) || defaultDepositAccount(rows)
     return (
         <View testID={`${kind.testId}-deposit-to`}>
             <HostSelect
                 fieldKey={fieldKey}
                 label={label}
-                value={value}
+                value={shown}
                 onChange={onChange}
                 disabled={disabled}
                 options={options}
