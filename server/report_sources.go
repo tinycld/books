@@ -175,6 +175,7 @@ func entryDocTypeOptions() []reports.Option {
 		{Value: docTypeJournal, Label: entryTypeLabels.Origins["manual"]},
 		{Value: docTypeTransfer, Label: entryTypeLabels.DocTypes[docTypeTransfer]},
 		{Value: docTypeInvoice, Label: entryTypeLabels.DocTypes[docTypeInvoice]},
+		{Value: docTypeSalesReceipt, Label: entryTypeLabels.DocTypes[docTypeSalesReceipt]},
 	}
 }
 

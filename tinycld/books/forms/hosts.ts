@@ -130,6 +130,45 @@ const INVOICE_LAYOUT = {
     rules: [],
 } satisfies FormHostDefInput['layout']
 
+export const SALES_RECEIPT_HOST_KEY = 'books:sales_receipt'
+
+// The default Sales receipt form (spec §4.4): one page. The header band's first row
+// holds Customer, Bill to, Email, Sale date and Tax as the invoice's does; its second
+// row holds the payment: Payment method, Reference no. and Deposit to, a third each.
+// The lines, the message to the customer and the internal memo follow.
+const SALES_RECEIPT_LAYOUT = {
+    pages: [{ key: 'main', title: 'Sales receipt' }],
+    fields: {
+        customer: { width: 'full' },
+        bill_to: { width: 'full' },
+        email: { width: 'full' },
+        date: { width: 'quarter' },
+        tax_rate: { width: 'quarter', narrowWidth: 'full' },
+        payment_method: { width: 'third' },
+        reference_no: { width: 'third' },
+        deposit_to: { width: 'third' },
+        message: { description: 'Shown on the sales receipt and its PDF.' },
+        memo: { description: INVOICE_NOTE_HINTS.memo },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
+// The lines built-in both sales documents share: the same columns, row kinds and keys,
+// so the server's line guard checks an invoice line and a receipt line alike.
+const DOCUMENT_LINES_BUILTIN = {
+    key: 'lines',
+    label: 'Lines',
+    kind: 'table',
+    storage: 'rows',
+    required: true,
+    columns: [...INVOICE_LINE_COLUMNS],
+    rowKinds: [...INVOICE_ROW_KINDS],
+    rowShortcuts: true,
+    // The Item kind's Alt+Enter adds a line after the focused one, so the
+    // row menu's "Insert line below" names that key.
+    insertShortcuts: { below: 'Alt+Enter' },
+} satisfies FormHostDefInput['builtin'][number]
+
 // Pure data: the generator imports this in Node (server/form_hosts.json). Keys of
 // column built-ins ARE the column names; their order is the default form's field
 // order. Later Books units append their hosts here.
@@ -710,19 +749,7 @@ const hosts: FormHostDefInput[] = [
                 component: 'DocumentTaxField',
                 chrome: 'cell',
             },
-            {
-                key: 'lines',
-                label: 'Lines',
-                kind: 'table',
-                storage: 'rows',
-                required: true,
-                columns: [...INVOICE_LINE_COLUMNS],
-                rowKinds: [...INVOICE_ROW_KINDS],
-                rowShortcuts: true,
-                // The Item kind's Alt+Enter adds a line after the focused one, so the
-                // row menu's "Insert line below" names that key.
-                insertShortcuts: { below: 'Alt+Enter' },
-            },
+            DOCUMENT_LINES_BUILTIN,
             // Core allows maxLength only on a text built-in; invoiceSchema bounds these
             // two at 4000 code points, as the migration does.
             {
@@ -742,6 +769,145 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'lines',
         layout: INVOICE_LAYOUT,
+    },
+    {
+        key: SALES_RECEIPT_HOST_KEY,
+        label: 'Sales receipt',
+        collection: 'books_sales_receipts',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column.
+        columns: [
+            'id',
+            'customer',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'bill_to',
+            'email',
+            'tax_rate',
+            'payment_method',
+            'reference_no',
+            'deposit_to',
+            'message',
+            'memo',
+            'subtotal',
+            'tax_total',
+            'total',
+            'currency',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            // Optional: a walk-in sale names no customer.
+            {
+                key: 'customer',
+                label: 'Customer',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'CustomerField',
+                chrome: 'cell',
+            },
+            {
+                key: 'bill_to',
+                label: 'Bill to',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BillToField',
+                chrome: 'cell',
+            },
+            {
+                key: 'email',
+                label: 'Email',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BandEmailField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Sale date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_rate',
+                label: 'Tax',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DocumentTaxField',
+                chrome: 'cell',
+            },
+            {
+                key: 'payment_method',
+                label: 'Payment method',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'PaymentMethodField',
+                chrome: 'cell',
+            },
+            {
+                key: 'reference_no',
+                label: 'Reference no.',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+                maxLength: 40,
+            },
+            // Not host-required: the form hides it when "Sales deposited to" names an
+            // account, and a hidden built-in cannot be required. The form's schema
+            // requires it while it is shown, and the server always does.
+            {
+                key: 'deposit_to',
+                label: 'Deposit to',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DepositAccountField',
+                chrome: 'cell',
+            },
+            DOCUMENT_LINES_BUILTIN,
+            {
+                key: 'message',
+                label: 'Message to customer (printed)',
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'memo',
+                label: INVOICE_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'lines',
+        layout: SALES_RECEIPT_LAYOUT,
     },
 ]
 

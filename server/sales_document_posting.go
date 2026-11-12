@@ -10,101 +10,109 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// Go-only refusal texts of posting, voiding and correcting an invoice.
+// Go-only refusal texts of posting, voiding and correcting a sales document.
+// %s is the document's name (salesDocName).
 const (
-	msgInvoiceCannotGo      = "%s cannot go from %s to %s."
-	msgInvoiceEditMissing   = "The invoice being edited does not exist."
-	msgInvoiceEditNotPosted = "%s is %s and cannot be edited."
-	msgInvoiceNoEntry       = "%s has no journal entry."
-	msgLineUnknownKind      = "Line %d: an invoice line is an item, description, subtotal or percent line."
-	msgLineNoIncomeAccount  = "Line %d: %s has no income account. Choose one on the product or service."
-	msgTaxAgencyNoAccount   = "%s has no liability account. Choose one on the tax agency."
-	msgTaxComponentNoAgency = "%s has no tax agency. Choose one on the tax rate."
+	msgSalesDocCannotGo      = "%s cannot go from %s to %s."
+	msgSalesDocEditNotPosted = "%s is %s and cannot be edited."
+	msgSalesDocNoEntry       = "%s has no journal entry."
+	msgLineNoIncomeAccount   = "Line %d: %s has no income account. Choose one on the product or service."
+	msgTaxAgencyNoAccount    = "%s has no liability account. Choose one on the tax agency."
+	msgTaxComponentNoAgency  = "%s has no tax agency. Choose one on the tax rate."
 )
 
-// replacingInvoiceKeyStart marks, in the app store, a posted invoice whose
-// correction is posting.
-const replacingInvoiceKeyStart = "books.invoice.replacing."
+// replacingKey marks, in the app store, a posted document whose correction is
+// posting ("books.invoice.replacing.<id>").
+func replacingKey(kind salesDocKind, docID string) string {
+	return "books." + kind.DocType + ".replacing." + docID
+}
 
-// markReplacing marks the posted invoice a correction is replacing, so its
+// markReplacing marks the posted document a correction is replacing, so its
 // own update hook lets Books set it void with replaced_by while its entry is
 // already voided by the correction's post (voidReplaced). The returned func
 // clears the mark; the app store is shared by an app and its transactions.
-func markReplacing(app core.App, invoiceID string) func() {
-	app.Store().Set(replacingInvoiceKeyStart+invoiceID, true)
-	return func() { app.Store().Remove(replacingInvoiceKeyStart + invoiceID) }
+func markReplacing(app core.App, kind salesDocKind, docID string) func() {
+	app.Store().Set(replacingKey(kind, docID), true)
+	return func() { app.Store().Remove(replacingKey(kind, docID)) }
 }
 
-func isReplacing(app core.App, invoiceID string) bool {
-	return app.Store().Has(replacingInvoiceKeyStart + invoiceID)
+func isReplacing(app core.App, kind salesDocKind, docID string) bool {
+	return app.Store().Has(replacingKey(kind, docID))
 }
 
-// invoiceName is how a refusal names an invoice: "Invoice 1001", or "This
-// invoice" while it has no number.
-func invoiceName(r *core.Record) string {
-	noun, this, _ := entryNouns(docTypeInvoice)
+// salesDocName is how a refusal names a document: "Invoice 1001", "Sales
+// receipt 1001", or "This invoice" while it has no number.
+func salesDocName(kind salesDocKind, r *core.Record) string {
+	noun, this, _ := entryNouns(kind.DocType)
 	if n := r.GetString("number"); n != "" {
 		return noun + " " + n
 	}
 	return this
 }
 
-// postInvoice posts a draft invoice while its update moves it from draft to
+// postSalesDoc posts a draft document while its update moves it from draft to
 // posted, inside the update's transaction: any refusal rolls back every row
-// it wrote (the A/R account, the tax lines, the entry, the number). The
-// header guards have already run on invoice. It refuses an inactive customer
-// (a correction keeps its original's), a stored line its kind does not allow
-// and a zero total, writes the tax snapshot, posts the journal entry through
-// postDocument, and copies the entry's number. A correction voids its original.
-func postInvoice(tx core.App, invoice *core.Record, now time.Time) error {
-	original, err := correctedInvoice(tx, invoice)
+// it wrote (an account the kind's debit creates, the tax lines, the entry, the
+// number). The header guards have already run on doc. It refuses an inactive
+// customer (a correction keeps its original's), runs the kind's BeforePost, a
+// stored line its kind does not allow and a zero total, writes the tax
+// snapshot, posts the journal entry through postDocument (the kind's debit
+// account for the total), and copies the entry's number. A correction voids
+// its original.
+func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
+	original, err := correctedSalesDoc(tx, kind, doc)
 	if err != nil {
 		return err
 	}
-	if err := checkPostCustomer(tx, invoice); err != nil {
+	if err := checkPostCustomer(tx, kind, doc); err != nil {
 		return err
 	}
-	lines, err := invoiceLines(tx, invoice.Id)
+	if kind.BeforePost != nil {
+		if err := kind.BeforePost(tx, doc); err != nil {
+			return err
+		}
+	}
+	lines, err := salesDocLines(tx, kind, doc.Id)
 	if err != nil {
 		return err
 	}
-	if err := checkStoredLines(tx, lines); err != nil {
+	if err := checkStoredLines(tx, kind, lines); err != nil {
 		return err
 	}
-	totals, err := invoiceTotals(tx, invoice, lineInputs(lines))
+	totals, err := salesDocTotals(tx, doc, lineInputs(lines))
 	if err != nil {
 		return err
 	}
-	if err := checkInvoiceTotals(totals); err != nil {
+	if err := checkSalesDocTotals(kind, totals); err != nil {
 		return err
 	}
 	if totals.Total == 0 {
-		return refuse(msgZeroTotal)
+		return refuse("%s", kind.Msgs.ZeroTotal)
 	}
-	if err := restateLineAmounts(tx, invoice.Id, lines, totals); err != nil {
+	if err := restateLineAmounts(tx, kind, doc.Id, lines, totals); err != nil {
 		return err
 	}
-	setInvoiceTotals(invoice, totals)
+	setSalesDocTotals(doc, totals)
 
 	taxes, err := componentTaxes(tx, totals)
 	if err != nil {
 		return err
 	}
-	postingLines, err := invoicePostingLines(tx, lines, totals, taxes)
+	postingLines, err := salesDocPostingLines(tx, kind, doc, lines, totals, taxes)
 	if err != nil {
 		return err
 	}
-	if err := writeTaxSnapshot(tx, invoice, totals, taxes); err != nil {
+	if err := writeTaxSnapshot(tx, kind, doc, totals, taxes); err != nil {
 		return err
 	}
-	actor := invoice.GetString("posted_by")
+	actor := doc.GetString("posted_by")
 	post := documentPost{
-		DocType:    docTypeInvoice,
-		DocumentID: invoice.Id,
-		Date:       invoice.GetString("date"),
-		Memo:       invoice.GetString("memo"),
+		DocType:    kind.DocType,
+		DocumentID: doc.Id,
+		Date:       doc.GetString("date"),
+		Memo:       doc.GetString("memo"),
 		Actor:      actor,
-		Customer:   invoice.GetString("customer"),
+		Customer:   doc.GetString("customer"),
 		Lines:      postingLines,
 	}
 	if original != nil {
@@ -114,78 +122,82 @@ func postInvoice(tx core.App, invoice *core.Record, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	invoice.Set("number", entry.GetString("number"))
-	invoice.Set("sequence", entry.GetInt("sequence"))
-	invoice.Set("entry", entry.Id)
-	invoice.Set("posted_at", now)
-	invoice.Set("sort_key", invoiceSortKey(invoice))
+	doc.Set("number", entry.GetString("number"))
+	doc.Set("sequence", entry.GetInt("sequence"))
+	doc.Set("entry", entry.Id)
+	doc.Set("posted_at", now)
+	doc.Set("sort_key", salesDocSortKey(doc))
 	if original == nil {
 		return nil
 	}
-	return voidReplacedInvoice(tx, original, invoice.Id, actor, now)
+	return voidReplacedSalesDoc(tx, kind, original, doc.Id, actor, now)
 }
 
-// correctedInvoice is the posted invoice a correction replaces, nil for an
-// invoice that replaces none. Only a posted invoice with its entry can be
+// correctedSalesDoc is the posted document a correction replaces, nil for a
+// document that replaces none. Only a posted document with its entry can be
 // corrected: a void one is already replaced or voided.
-func correctedInvoice(tx core.App, invoice *core.Record) (*core.Record, error) {
-	id := invoice.GetString("replaces")
+func correctedSalesDoc(tx core.App, kind salesDocKind, doc *core.Record) (*core.Record, error) {
+	id := doc.GetString("replaces")
 	if id == "" {
 		return nil, nil
 	}
-	original, err := tx.FindRecordById("books_invoices", id)
+	original, err := tx.FindRecordById(kind.Collection, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, refuse(msgInvoiceEditMissing)
+		return nil, refuse("%s", kind.Msgs.EditMissing)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("books: read the invoice being edited: %w", err)
+		return nil, fmt.Errorf("books: read the document being edited: %w", err)
 	}
 	if original.GetString("status") != statusPosted {
-		return nil, refuse(msgInvoiceEditNotPosted, invoiceName(original), original.GetString("status"))
+		return nil, refuse(msgSalesDocEditNotPosted, salesDocName(kind, original), original.GetString("status"))
 	}
 	if original.GetString("entry") == "" {
-		return nil, refuse(msgInvoiceNoEntry, invoiceName(original))
+		return nil, refuse(msgSalesDocNoEntry, salesDocName(kind, original))
 	}
 	return original, nil
 }
 
 // checkPostCustomer refuses to post for an inactive customer, under the
 // Customer field, before the journal line guard would refuse the entry's lines
-// with no field (Q23). A correction keeps its original's customer.
-func checkPostCustomer(tx core.App, invoice *core.Record) error {
-	id := invoice.GetString("customer")
+// with no field (Q23). A correction keeps its original's customer. A document
+// with no customer (a sales receipt may have none) has nothing to check.
+func checkPostCustomer(tx core.App, kind salesDocKind, doc *core.Record) error {
+	id := doc.GetString("customer")
+	if id == "" {
+		return nil
+	}
 	customer, err := tx.FindRecordById("books_customers", id)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The schema refuses a customer that does not exist.
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("books: read the invoice's customer: %w", err)
+		return fmt.Errorf("books: read the document's customer: %w", err)
 	}
 	if !customer.GetBool("inactive") {
 		return nil
 	}
-	keeps, err := keepsCorrectedCustomer(tx, invoice, id)
+	keeps, err := keepsCorrectedCustomer(tx, kind, doc, id)
 	if err != nil || keeps {
 		return err
 	}
 	return refuseNamedField("customer", msgCustomerInactive, customer.GetString("display_name"))
 }
 
-// keepsCorrectedCustomer reports whether invoice corrects an invoice of the
+// keepsCorrectedCustomer reports whether doc corrects a document of the
 // customer id: the user did not choose that customer again, so it may be
 // inactive.
-func keepsCorrectedCustomer(tx core.App, invoice *core.Record, id string) (bool, error) {
-	replaces := invoice.GetString("replaces")
+func keepsCorrectedCustomer(tx core.App, kind salesDocKind, doc *core.Record, id string) (bool, error) {
+	replaces := doc.GetString("replaces")
 	if replaces == "" {
 		return false, nil
 	}
-	original, err := tx.FindRecordById("books_invoices", replaces)
+	original, err := tx.FindRecordById(kind.Collection, replaces)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("books: read the invoice being edited: %w", err)
+		return false, fmt.Errorf("books: read the document being edited: %w", err)
 	}
 	return original.GetString("customer") == id, nil
 }
@@ -193,15 +205,15 @@ func keepsCorrectedCustomer(tx core.App, invoice *core.Record, id string) (bool,
 // checkStoredLines holds every stored line to its kind with the line guard's
 // rules, so the entry is never built from a line the guard would refuse (one
 // written past it). A bundle on a line is refused too.
-func checkStoredLines(tx core.App, lines []*core.Record) error {
+func checkStoredLines(tx core.App, kind salesDocKind, lines []*core.Record) error {
 	for i, line := range lines {
 		n := i + 1
 		switch line.GetString("kind") {
 		case lineKindItem, lineKindDescription, lineKindSubtotal, lineKindPercent:
 		default:
-			return refuse(msgLineUnknownKind, n)
+			return refuse(kind.Msgs.LineUnknownKind, n)
 		}
-		if err := checkLineCells(tx, line, n); err != nil {
+		if err := checkLineCells(tx, kind, line, n); err != nil {
 			return err
 		}
 	}
@@ -210,9 +222,9 @@ func checkStoredLines(tx core.App, lines []*core.Record) error {
 
 // restateLineAmounts writes each line's computed amount where the stored one
 // differs, so the stored lines match the entry they post. The line guard lets
-// an amount through while the invoice is marked restating.
-func restateLineAmounts(tx core.App, invoiceID string, lines []*core.Record, totals documentTotalsResult) error {
-	done := markRestating(tx, invoiceID)
+// an amount through while the document is marked restating.
+func restateLineAmounts(tx core.App, kind salesDocKind, docID string, lines []*core.Record, totals documentTotalsResult) error {
+	done := markRestating(tx, kind, docID)
 	defer done()
 	for i, line := range lines {
 		if int64(line.GetInt("amount")) == totals.Amounts[i] {
@@ -238,7 +250,7 @@ func componentTaxes(tx core.App, totals documentTotalsResult) ([]componentTax, e
 	for i, tl := range totals.TaxLines {
 		rate, err := tx.FindRecordById("books_tax_rates", tl.ComponentID)
 		if err != nil {
-			return nil, fmt.Errorf("books: read the tax rate of the invoice: %w", err)
+			return nil, fmt.Errorf("books: read the tax rate of the document: %w", err)
 		}
 		if rate.GetString("agency") == "" {
 			return nil, refuseNamed(msgTaxComponentNoAgency, rate.GetString("name"))
@@ -255,17 +267,18 @@ func componentTaxes(tx core.App, totals documentTotalsResult) ([]componentTax, e
 	return out, nil
 }
 
-// invoicePostingLines are the entry's lines: Accounts receivable debited for
-// the total; each income account credited with the sum of the item and
-// percent amounts of the products that name it (a sum below zero is a debit,
-// a zero sum no line), in account number order; each tax component credited
-// to its agency's liability account, in the rate's order (a zero tax no line).
-func invoicePostingLines(tx core.App, lines []*core.Record, totals documentTotalsResult, taxes []componentTax) ([]postingLine, error) {
-	receivable, err := ensureReceivables(tx)
+// salesDocPostingLines are the entry's lines: the kind's debit account (an
+// invoice's Accounts receivable, a sales receipt's Deposit to) debited for the
+// total; each income account credited with the sum of the item and percent
+// amounts of the products that name it (a sum below zero is a debit, a zero
+// sum no line), in account number order; each tax component credited to its
+// agency's liability account, in the rate's order (a zero tax no line).
+func salesDocPostingLines(tx core.App, kind salesDocKind, doc *core.Record, lines []*core.Record, totals documentTotalsResult, taxes []componentTax) ([]postingLine, error) {
+	debit, err := kind.DebitAccount(tx, doc)
 	if err != nil {
 		return nil, err
 	}
-	out := []postingLine{{Account: receivable.Id, Debit: totals.Total}}
+	out := []postingLine{{Account: debit, Debit: totals.Total}}
 
 	income, err := incomeByAccount(tx, lines, totals)
 	if err != nil {
@@ -322,7 +335,7 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 		}
 		account, err := tx.FindRecordById("books_accounts", id)
 		if err != nil {
-			return nil, fmt.Errorf("books: read an income account of the invoice: %w", err)
+			return nil, fmt.Errorf("books: read an income account of the document: %w", err)
 		}
 		accounts = append(accounts, incomeAccount{id: id, number: account.GetString("number"), amount: amount})
 	}
@@ -338,16 +351,16 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 
 // writeTaxSnapshot stores the posted tax of each component of the header rate
 // (the tax-rates contract): a later change to a rate never changes what a
-// posted invoice charged.
-func writeTaxSnapshot(tx core.App, invoice *core.Record, totals documentTotalsResult, taxes []componentTax) error {
-	col, err := tx.FindCachedCollectionByNameOrId("books_invoice_tax_lines")
+// posted document charged.
+func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult, taxes []componentTax) error {
+	col, err := tx.FindCachedCollectionByNameOrId(kind.TaxLinesCollection)
 	if err != nil {
 		return err
 	}
 	for i, t := range taxes {
 		r := core.NewRecord(col)
-		r.Set("invoice", invoice.Id)
-		r.Set("rate", invoice.GetString("tax_rate"))
+		r.Set(kind.ParentField, doc.Id)
+		r.Set("rate", doc.GetString("tax_rate"))
 		r.Set("component", t.ComponentID)
 		r.Set("agency", t.agency)
 		r.Set("rate_ppm", t.Ppm)
@@ -355,18 +368,18 @@ func writeTaxSnapshot(tx core.App, invoice *core.Record, totals documentTotalsRe
 		r.Set("amount", t.Amount)
 		r.Set("position", i)
 		if err := tx.Save(r); err != nil {
-			return fmt.Errorf("books: write the invoice's tax line: %w", err)
+			return fmt.Errorf("books: write the document's tax line: %w", err)
 		}
 	}
 	return nil
 }
 
-// voidReplacedInvoice sets the original of a posted correction void with
+// voidReplacedSalesDoc sets the original of a posted correction void with
 // replaced_by. Its entry is already void: the correction's entry replaced it.
-func voidReplacedInvoice(tx core.App, original *core.Record, correctionID, actor string, now time.Time) error {
-	done := markReplacing(tx, original.Id)
+func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original *core.Record, correctionID, actor string, now time.Time) error {
+	done := markReplacing(tx, kind, original.Id)
 	defer done()
-	fresh, err := tx.FindRecordById("books_invoices", original.Id)
+	fresh, err := tx.FindRecordById(kind.Collection, original.Id)
 	if err != nil {
 		return err
 	}
@@ -377,24 +390,24 @@ func voidReplacedInvoice(tx core.App, original *core.Record, correctionID, actor
 	return tx.Save(fresh)
 }
 
-// voidInvoice voids a posted invoice's entry while the invoice moves from
+// voidSalesDoc voids a posted document's entry while the document moves from
 // posted to void, inside the update's transaction: the entry's own hook posts
 // the void reversal in the original period under the same number (voidEntry),
 // and the close date applies to it as to any post.
-func voidInvoice(tx core.App, invoice *core.Record, now time.Time) error {
-	entryID := invoice.GetString("entry")
+func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
+	entryID := doc.GetString("entry")
 	if entryID == "" {
-		return refuse(msgInvoiceNoEntry, invoiceName(invoice))
+		return refuse(msgSalesDocNoEntry, salesDocName(kind, doc))
 	}
 	entry, err := tx.FindRecordById("books_journal_entries", entryID)
 	if err != nil {
-		return fmt.Errorf("books: read the invoice's journal entry: %w", err)
+		return fmt.Errorf("books: read the document's journal entry: %w", err)
 	}
 	entry.Set("status", statusVoid)
-	entry.Set("voided_by", invoice.GetString("voided_by"))
+	entry.Set("voided_by", doc.GetString("voided_by"))
 	if err := tx.Save(entry); err != nil {
 		return err
 	}
-	invoice.Set("voided_at", now)
+	doc.Set("voided_at", now)
 	return nil
 }

@@ -16,7 +16,8 @@ const (
 // files and the imports of those files are read-write; a file's parsed rows and
 // the bank transactions, which only the server writes, are read-only. Everything that
 // decides who may do what (the settings with the close date, numbering,
-// overrides, admin grants) is read-only for tokens: "record transactions" on a
+// overrides, admin grants) is read-only for tokens, as is a sales document's tax
+// snapshot, which only posting writes: "record transactions" on a
 // consent screen does not read as "reopen a closed year". The balance rebuild
 // route is left out, so core's grant middleware default-denies it to every
 // token: it is session-only.
@@ -30,29 +31,32 @@ func oauthPackage() oauth.Package {
 			{ID: scopeWrite, Label: "Record and change transactions in your company's books"},
 		},
 		Collections: map[string]oauth.Access{
-			"books_accounts":           rw,
-			"books_journal_entries":    rw,
-			"books_journal_lines":      rw,
-			"books_customers":          rw,
-			"books_vendors":            rw,
-			"books_products":           rw,
-			"books_bundle_items":       rw,
-			"books_bank_connections":   rw,
-			"books_bank_files":         rw,
-			"books_bank_imports":       rw,
-			"books_bank_file_contents": ro,
-			"books_bank_transactions":  ro,
-			"books_tax_agencies":       rw,
-			"books_tax_rates":          rw,
-			"books_invoices":           rw,
-			"books_invoice_lines":      rw,
-			"books_invoice_tax_lines":  ro,
-			"books_account_balances":   ro,
-			"books_settings":           ro,
-			"books_doc_sequences":      ro,
-			"books_close_overrides":    ro,
-			"books_admins":             ro,
-			"books_access":             ro,
+			"books_accounts":                rw,
+			"books_journal_entries":         rw,
+			"books_journal_lines":           rw,
+			"books_customers":               rw,
+			"books_vendors":                 rw,
+			"books_products":                rw,
+			"books_bundle_items":            rw,
+			"books_bank_connections":        rw,
+			"books_bank_files":              rw,
+			"books_bank_imports":            rw,
+			"books_bank_file_contents":      ro,
+			"books_bank_transactions":       ro,
+			"books_tax_agencies":            rw,
+			"books_tax_rates":               rw,
+			"books_invoices":                rw,
+			"books_invoice_lines":           rw,
+			"books_invoice_tax_lines":       ro,
+			"books_sales_receipts":          rw,
+			"books_sales_receipt_lines":     rw,
+			"books_sales_receipt_tax_lines": ro,
+			"books_account_balances":        ro,
+			"books_settings":                ro,
+			"books_doc_sequences":           ro,
+			"books_close_overrides":         ro,
+			"books_admins":                  ro,
+			"books_access":                  ro,
 		},
 	}
 }

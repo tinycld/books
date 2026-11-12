@@ -1,6 +1,6 @@
 // The order a draft's line writes go to the server. The server checks each line write
-// against the whole invoice as it stands after that one write (server/invoices.go
-// validateInvoiceLine and checkInvoiceLineDelete): every percent line has an Item or a
+// against the whole invoice as it stands after that one write (server/sales_documents.go
+// validateSalesDocLine and checkSalesDocLineDelete): every percent line has an Item or a
 // Subtotal right above it, the amounts and totals stay inside what Books can store, the
 // total is not below zero, and the invoice holds at most 250 lines. A rearranged invoice
 // that is valid at the end can pass through a state that breaks one of these (a Percent
@@ -76,7 +76,7 @@ function byStoredOrder(a: StoredLine, b: StoredLine) {
     return a.id < b.id ? -1 : 1
 }
 
-// The server's whole-invoice checks of one line write (checkInvoiceTotals and the line
+// The server's whole-invoice checks of one line write (checkSalesDocTotals and the line
 // count), over the lines as they would be stored, in server order.
 function isStorable(lines: readonly StoredLine[], tax: DocumentTax): boolean {
     if (lines.length > MAX_DOCUMENT_LINES) return false

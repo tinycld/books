@@ -11,7 +11,11 @@
 // only currency is pinned against admin edits. It marks a batch begun so a half-finished batch is detected without relying on
 // business_name, which the Settings Company form also saves. threshold_1099 is
 // the 1099 reporting threshold in integer cents (the row starts it at
-// $2,000.00), edited by admins in Settings → 1099s. v0 keeps one currency;
+// $2,000.00), edited by admins in Settings → 1099s. default_customer_message
+// is the text a new invoice or sales receipt starts its message with (empty by
+// default, edited in Settings → Sales). The other Sales setting,
+// sales_deposit_account, is added by 2100000011: it relates to books_accounts,
+// which is created after this migration. v0 keeps one currency;
 // the column exists so multi-currency needs no migration, and it is pinned
 // against edits because changing it under existing entries would misstate every
 // amount.
@@ -23,7 +27,8 @@
 // document type here while this migration is unreleased. Transfers number on
 // their own (TR-1, TR-2) so a transfer never shares a number with a journal
 // entry; a record id is exactly 15 characters, hence booksseqtransfr.
-// Invoices number from 1001 with no prefix (booksseqinvoice).
+// Invoices number from 1001 with no prefix (booksseqinvoice); sales receipts
+// number on their own from 1001 with no prefix too (booksseqsalesrc).
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -81,6 +86,7 @@ migrate(
                     min: 0,
                     max: 9007199254740991,
                 },
+                { name: 'default_customer_message', type: 'text', max: 4000 },
                 ...AUTODATES,
             ],
         })
@@ -96,6 +102,7 @@ migrate(
         row.set('setup_started', false)
         row.set('setup_completed', false)
         row.set('threshold_1099', 200000)
+        row.set('default_customer_message', '')
         app.save(row)
 
         const sequences = new Collection({
@@ -113,7 +120,7 @@ migrate(
                     type: 'select',
                     required: true,
                     maxSelect: 1,
-                    values: ['journal', 'transfer', 'invoice'],
+                    values: ['journal', 'transfer', 'invoice', 'sales_receipt'],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
                 {
@@ -147,6 +154,12 @@ migrate(
         invoice.set('prefix', '')
         invoice.set('next_number', 1001)
         app.save(invoice)
+        const salesReceipt = new Record(sequences)
+        salesReceipt.set('id', 'booksseqsalesrc')
+        salesReceipt.set('doc_type', 'sales_receipt')
+        salesReceipt.set('prefix', '')
+        salesReceipt.set('next_number', 1001)
+        app.save(salesReceipt)
 
         app.save(
             new Collection({

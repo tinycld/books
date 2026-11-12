@@ -766,7 +766,7 @@ func invoiceRows(rows []search.Row) map[string]search.Row {
 // <Customer>".
 func TestSearch_FindsInvoices(t *testing.T) {
 	env := newSearchEnv(t)
-	registerInvoiceGuards(env.app)
+	registerSalesDocGuards(env.app, invoiceKind)
 	ie := invoiceEnvOn(t, env)
 	posted := ie.mkInvoice(t, map[string]any{"memo": "sweep of the annex"})
 	mkInvoiceLine(t, env.app, posted, 0, item(ie.service, 1, 45000, false))

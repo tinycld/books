@@ -58,7 +58,7 @@ type invoiceEnv struct {
 func newInvoiceEnv(t *testing.T) *invoiceEnv {
 	t.Helper()
 	env := newLedgerEnv(t)
-	registerInvoiceGuards(env.app)
+	registerSalesDocGuards(env.app, invoiceKind)
 	return invoiceEnvOn(t, env)
 }
 
@@ -579,7 +579,7 @@ func TestInvoiceLine_RefusesTheLine251st(t *testing.T) {
 			"invoice": inv.Id, "kind": "description", "description": fmt.Sprintf("Note %d", i+1), "position": i,
 		})
 	}
-	registerInvoiceGuards(env.app)
+	registerSalesDocGuards(env.app, invoiceKind)
 	bindInvoiceHost(t, env.app)
 
 	mkInvoiceLine(t, env.app, inv, 249, descriptionLine("Note 250"))
@@ -750,7 +750,7 @@ func TestInvoiceLine_RestatingAllowsOnlyTheAmount(t *testing.T) {
 	ie := newInvoiceEnv(t)
 	inv := ie.mkInvoice(t, nil)
 	line := mkInvoiceLine(t, ie.app, inv, 0, item(ie.service, 1, 45000, false))
-	done := markRestating(ie.app, inv.Id)
+	done := markRestating(ie.app, invoiceKind, inv.Id)
 	defer done()
 
 	changes := map[string]map[string]any{

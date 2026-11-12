@@ -43,7 +43,7 @@ export type DocumentTotals = {
     isTooLarge: boolean
 }
 
-// The server's bound (server/invoices.go); the form checks it before it saves.
+// The server's bound (server/sales_documents.go); the form checks it before it saves.
 export const MAX_DOCUMENT_LINES = 250
 
 const HUNDREDTHS = 100n

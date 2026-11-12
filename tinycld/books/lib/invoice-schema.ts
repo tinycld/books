@@ -27,7 +27,7 @@ export type InvoiceSaveMode = 'draft' | 'post'
 
 // The server counts text in code points (PocketBase text max), not UTF-16 units.
 const MAX_TEXT = 4000
-// The books_invoice_lines schema's `quantity` max; server/invoices.go refuses 0 or less.
+// The books_invoice_lines schema's `quantity` max; server/sales_documents.go refuses 0 or less.
 const MAX_QUANTITY = 1_000_000
 const MIN_PERCENT_PPM = -1_000_000
 const MAX_PERCENT_PPM = 10_000_000

@@ -73,8 +73,8 @@ function storedOf(row: TableRow, position: number): Stored {
     }
 }
 
-// What the server refuses about a whole stored invoice (server/invoices.go
-// checkInvoiceTotals and the line count), read through documentTotals. Lines are in
+// What the server refuses about a whole stored invoice (server/sales_documents.go
+// checkSalesDocTotals and the line count), read through documentTotals. Lines are in
 // the server's order: position, then id.
 function refusalOf(store: ReadonlyMap<string, Stored>): string | null {
     if (store.size > MAX_DOCUMENT_LINES) return 'more than 250 lines'

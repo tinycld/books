@@ -8,7 +8,8 @@
     },
     "docTypes": {
         "transfer": "Transfer",
-        "invoice": "Invoice"
+        "invoice": "Invoice",
+        "sales_receipt": "Sales receipt"
     },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

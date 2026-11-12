@@ -469,7 +469,7 @@ func TestJournalHeadings(t *testing.T) {
 // "<number> · Void reversal of <number>" (spec Q24, Q25).
 func TestJournalInvoiceHeadings(t *testing.T) {
 	b := newGLBook(t)
-	registerInvoiceGuards(b.app)
+	registerSalesDocGuards(b.app, invoiceKind)
 	ie := invoiceEnvOn(t, b.env)
 	b.account(t, "Receivables", "1200", "accounts_receivable", "accounts_receivable")
 	posted := ie.mkInvoice(t, nil)

@@ -14,11 +14,13 @@
 // doc_type 'transfer' and two lines (server/transfers.go).
 //
 // DOCUMENT ENTRIES. An entry with origin 'document' is the posting of a sales
-// or purchase document (doc_type 'invoice'); document is that document's id.
-// Only the document's Go hooks create, post and void such an entry, so
-// document is server-owned and origin 'document' is not among the origins a
-// client may create. A client creates no entry with doc_type 'invoice' either:
-// a manual one would post and take a number from the invoice sequence.
+// or purchase document (doc_type 'invoice' or 'sales_receipt'); document is
+// that document's id. Only the document's Go hooks create, post and void such
+// an entry, so document is server-owned and origin 'document' is not among the
+// origins a client may create. A client creates no entry with a document's
+// doc_type either: a manual one would post and take a number from the
+// document's sequence. The create rule refuses doc_type 'invoice'; the Go hook
+// (server/entries.go) refuses every document doc_type with its own text.
 //
 // A client creates only drafts, with origin manual, reversal or
 // opening_balance. It edits only drafts, or moves a posted entry to void. It
@@ -166,7 +168,7 @@ migrate(
                         type: 'select',
                         required: true,
                         maxSelect: 1,
-                        values: ['journal', 'transfer', 'invoice'],
+                        values: ['journal', 'transfer', 'invoice', 'sales_receipt'],
                     },
                     {
                         name: 'origin',
@@ -182,7 +184,8 @@ migrate(
                             'document',
                         ],
                     },
-                    // The source document's id (a books_invoices row) of an
+                    // The source document's id (a books_invoices or
+                    // books_sales_receipts row) of an
                     // entry with origin 'document'; server-written.
                     { name: 'document', type: 'text', max: 15 },
                     { name: 'number', type: 'text', max: 40 },
