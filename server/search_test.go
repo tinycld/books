@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
 	"tinycld.org/core/search"
@@ -843,4 +844,82 @@ func TestSearch_FindsInactiveCustomers(t *testing.T) {
 	if rows[0].Fields["kind"] != "customer" || rows[0].Fields["inactive"] != true {
 		t.Fatalf("inactive customer row fields %v", rows[0].Fields)
 	}
+}
+
+func salesReceiptRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "sales_receipt:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Spec §3.10: search finds sales receipts, drafts included, by number, the
+// customer's name, reference no., memo and message. A row opens the receipt
+// (id sales_receipt:<id>, kind sales_receipt) and is titled "Sales receipt
+// <n> · <Customer>", "Draft sales receipt · <Customer>", or "Sales receipt
+// <n>" with no customer.
+func TestSearch_FindsSalesReceipts(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerSalesDocGuards(app, salesReceiptKind)
+	bindSalesDocHosts(t, app)
+	re := receiptEnvOn(t, app)
+	actor := re.users.bookkeeper.Id
+
+	postedDraft := re.mkReceipt(t, map[string]any{"reference_no": "zx41837", "memo": "lobby espresso machine"})
+	mkReceiptLine(t, app, postedDraft, 0, item(re.service, 1, 45000, false))
+	posted := mustPostReceipt(t, app, postedDraft.Id, actor)
+	walkInDraft := re.mkReceipt(t, map[string]any{"customer": "", "memo": "counter sale of cables"})
+	mkReceiptLine(t, app, walkInDraft, 0, item(re.service, 1, 1500, false))
+	walkIn := mustPostReceipt(t, app, walkInDraft.Id, actor)
+	draft := re.mkReceipt(t, map[string]any{"message": "Thank you for the quick visit"})
+	mkReceiptLine(t, app, draft, 0, item(re.service, 1, 1000, false))
+
+	postedNumber, walkInNumber := posted.GetString("number"), walkIn.GetString("number")
+	if postedNumber == "" || walkInNumber == "" {
+		t.Fatalf("posted numbers %q and %q, want both numbered", postedNumber, walkInNumber)
+	}
+	titles := map[string]string{
+		"sales_receipt:" + posted.Id: "Sales receipt " + postedNumber + " · Harborview Dental",
+		"sales_receipt:" + walkIn.Id: "Sales receipt " + walkInNumber,
+		"sales_receipt:" + draft.Id:  "Draft sales receipt · Harborview Dental",
+	}
+
+	find := func(terms ...string) map[string]search.Row {
+		t.Helper()
+		res, err := searchBooks(app, re.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return salesReceiptRows(res.Rows)
+	}
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		rows := find(terms...)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found sales receipt rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "sales_receipt" {
+				t.Errorf("%q row %s title %q kind %v, want %q, sales_receipt", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"harborview", postedNumber}, "sales_receipt:"+posted.Id)
+	requireOnly([]string{"harborview"}, "sales_receipt:"+posted.Id, "sales_receipt:"+draft.Id)
+	requireOnly([]string{walkInNumber}, "sales_receipt:"+walkIn.Id)
+	requireOnly([]string{"zx41837"}, "sales_receipt:"+posted.Id)
+	requireOnly([]string{"espresso"}, "sales_receipt:"+posted.Id)
+	requireOnly([]string{"cables"}, "sales_receipt:"+walkIn.Id)
+	requireOnly([]string{"quick", "visit"}, "sales_receipt:"+draft.Id)
 }

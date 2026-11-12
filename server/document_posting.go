@@ -147,3 +147,52 @@ func ensureReceivables(tx core.App) (*core.Record, error) {
 	}
 	return r, nil
 }
+
+// ensureUndepositedFunds returns the active Undeposited funds account (detail
+// type undeposited_funds) money waits in before a bank deposit: the first in
+// chart order, as ensureReceivables picks. A chart with none gets
+// "Undeposited funds" (or "Undeposited funds 2" when an inactive one holds the
+// name), an other current asset numbered 1200 when no account holds that
+// number. It runs inside the caller's transaction, so a refused write rolls it
+// back. Receive payment and bank deposit (later units) call it; no sales
+// receipt path does: a sales receipt posts to its Deposit to account and never
+// creates one.
+func ensureUndepositedFunds(tx core.App) (*core.Record, error) {
+	found := &core.Record{}
+	err := tx.RecordQuery("books_accounts").
+		AndWhere(dbx.HashExp{"detail_type": "undeposited_funds", "inactive": false}).
+		OrderBy("[[number]] = '' ASC", "[[number]] ASC", "[[id]] ASC").
+		Limit(1).
+		One(found)
+	if err == nil {
+		return found, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("books: read the undeposited funds account: %w", err)
+	}
+	number := "1200"
+	taken, err := tx.CountRecords("books_accounts", dbx.HashExp{"number": number})
+	if err != nil {
+		return nil, fmt.Errorf("books: read account numbers: %w", err)
+	}
+	if taken > 0 {
+		number = ""
+	}
+	name, err := freeTopLevelName(tx, "Undeposited funds")
+	if err != nil {
+		return nil, err
+	}
+	col, err := tx.FindCachedCollectionByNameOrId("books_accounts")
+	if err != nil {
+		return nil, err
+	}
+	r := core.NewRecord(col)
+	r.Set("name", name)
+	r.Set("type", "other_current_asset")
+	r.Set("detail_type", "undeposited_funds")
+	r.Set("number", number)
+	if err := tx.Save(r); err != nil {
+		return nil, fmt.Errorf("books: create the undeposited funds account: %w", err)
+	}
+	return r, nil
+}

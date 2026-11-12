@@ -47,6 +47,7 @@ table.summary tr.final td { font-weight: bold; font-size: 12pt; border-top: 2px 
     <h1>{{.Title}}</h1>
     {{if .Number}}<div>No. {{.Number}}</div>{{end}}
     {{range .Dates}}<div><span class="label">{{.Label}}</span> {{.Text}}</div>{{end}}
+    {{if .Payment}}<div><span class="label">Payment</span> {{.Payment}}</div>{{end}}
     {{if .BigAmount.Label}}<div class="big"><div class="label">{{.BigAmount.Label}}</div><div class="value">{{.BigAmount.Text}}</div></div>{{end}}
   </div>
 </div>

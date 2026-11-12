@@ -27,18 +27,8 @@ export const SALES_RECEIPT_TODAY = '2026-11-11'
 
 const STAMP = '2026-11-11 09:00:00.000Z'
 
-// Spec §3.3: "None" is the empty value; the rest are the payment_method select's values.
-export type PaymentMethodKey = BooksSalesReceipts['payment_method']
-
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethodKey, string> = {
-    '': 'None',
-    cash: 'Cash',
-    check: 'Check',
-    credit_card: 'Credit card',
-    debit_card: 'Debit card',
-    bank_transfer: 'Bank transfer',
-    other: 'Other',
-}
+// Spec §3.3: the payment_method select's values; "None" (empty) is no method.
+export { PAYMENT_METHOD_LABELS, type PaymentMethodKey } from './payment-methods'
 
 export type SalesReceiptRecord = BooksSalesReceipts
 export type SalesReceiptLineRecord = BooksSalesReceiptLines

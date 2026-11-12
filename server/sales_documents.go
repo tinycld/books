@@ -380,7 +380,13 @@ func salesDocSortKey(r *core.Record) string {
 
 // salesDocLines reads a document's stored lines in their order.
 func salesDocLines(tx core.App, kind salesDocKind, docID string) ([]*core.Record, error) {
-	lines, err := tx.FindRecordsByFilter(kind.LinesCollection, kind.ParentField+" = {:id}", "position,id", 0, 0,
+	return docLineRecords(tx, kind.LinesCollection, kind.ParentField, docID)
+}
+
+// docLineRecords is salesDocLines by collection and parent field, for a
+// caller (the PDF builders) that names the lines collection itself.
+func docLineRecords(tx core.App, linesCollection, parentField, docID string) ([]*core.Record, error) {
+	lines, err := tx.FindRecordsByFilter(linesCollection, parentField+" = {:id}", "position,id", 0, 0,
 		dbx.Params{"id": docID})
 	if err != nil {
 		return nil, fmt.Errorf("books: read the document's lines: %w", err)

@@ -799,3 +799,44 @@ func TestCustomer_TermsAreStored(t *testing.T) {
 	_, err = newCustomer(app, map[string]any{"display_name": "Northwind Traders", "terms": "net_90"})
 	requireSchemaRefusal(t, err, "terms")
 }
+
+// Spec §3.10: a customer on any sales receipt, draft or posted, cannot be
+// deleted. The receipt check comes after the invoice one and before the
+// journal-lines one.
+func TestCustomer_DeleteRefusedWhileOnSalesReceipts(t *testing.T) {
+	wantOnReceipts := func(name string) string { return name + " is on sales receipts. Make it inactive instead." }
+	wantOnInvoices := func(name string) string { return name + " is on invoices. Make it inactive instead." }
+
+	t.Run("on a draft sales receipt", func(t *testing.T) {
+		re := newReceiptEnv(t)
+		cust := mkCustomer(t, re.app, "Old Mill Bakery", "")
+		re.mkReceipt(t, map[string]any{"customer": cust.Id})
+		requireMessageOnlyRefusal(t, re.app.Delete(reload(t, re.app, "books_customers", cust.Id)),
+			wantOnReceipts("Old Mill Bakery"))
+		reload(t, re.app, "books_customers", cust.Id)
+	})
+
+	t.Run("on a posted sales receipt, so also on journal lines, gets the receipt text", func(t *testing.T) {
+		re := newReceiptEnv(t)
+		cust := mkCustomer(t, re.app, "Northwind Traders", "")
+		r := re.mkReceipt(t, map[string]any{"customer": cust.Id})
+		mkReceiptLine(t, re.app, r, 0, item(re.service, 1, 45000, false))
+		posted := mustPostReceipt(t, re.app, r.Id, re.users.bookkeeper.Id)
+		if n, err := re.app.CountRecords("books_journal_lines", dbx.HashExp{"entry": posted.GetString("entry"), "customer": cust.Id}); err != nil || n == 0 {
+			t.Fatalf("%d journal lines of the posted receipt name the customer (err %v), want some", n, err)
+		}
+		requireMessageOnlyRefusal(t, re.app.Delete(reload(t, re.app, "books_customers", cust.Id)),
+			wantOnReceipts("Northwind Traders"))
+		reload(t, re.app, "books_customers", cust.Id)
+	})
+
+	t.Run("on an invoice and a sales receipt gets the invoice text", func(t *testing.T) {
+		re := newReceiptEnv(t)
+		cust := mkCustomer(t, re.app, "Alvarez Family", "")
+		re.mkReceipt(t, map[string]any{"customer": cust.Id})
+		mkInvoiceRow(t, re.app, cust, nil)
+		requireMessageOnlyRefusal(t, re.app.Delete(reload(t, re.app, "books_customers", cust.Id)),
+			wantOnInvoices("Alvarez Family"))
+		reload(t, re.app, "books_customers", cust.Id)
+	})
+}

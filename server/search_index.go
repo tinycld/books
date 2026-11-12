@@ -7,15 +7,17 @@ import (
 )
 
 // The FTS5 tables Books search reads, created by
-// pb-migrations/2100000006_create_books_search_index.js, and the invoices'
-// by 2100000010_create_books_invoices.js.
+// pb-migrations/2100000006_create_books_search_index.js, the invoices' by
+// 2100000010_create_books_invoices.js, and the sales receipts' by
+// 2100000011_create_books_sales_receipts.js.
 const (
-	accountsIndex  = "fts_books_accounts"
-	entriesIndex   = "fts_books_journal_entries"
-	customersIndex = "fts_books_customers"
-	vendorsIndex   = "fts_books_vendors"
-	productsIndex  = "fts_books_products"
-	invoicesIndex  = "fts_books_invoices"
+	accountsIndex      = "fts_books_accounts"
+	entriesIndex       = "fts_books_journal_entries"
+	customersIndex     = "fts_books_customers"
+	vendorsIndex       = "fts_books_vendors"
+	productsIndex      = "fts_books_products"
+	invoicesIndex      = "fts_books_invoices"
+	salesReceiptsIndex = "fts_books_sales_receipts"
 )
 
 // searchIndexes keep each FTS row in step with its record. The columns repeat
@@ -29,6 +31,7 @@ var searchIndexes = []fts.Config{
 	{Slug: "books", Collection: "books_vendors", Table: vendorsIndex, Columns: ftsColumns("display_name", "company", "email", "legal_name")},
 	{Slug: "books", Collection: "books_products", Table: productsIndex, Columns: ftsColumns("name", "sku", "sales_description")},
 	{Slug: "books", Collection: "books_invoices", Table: invoicesIndex, Columns: ftsColumns("number", "memo", "message")},
+	{Slug: "books", Collection: "books_sales_receipts", Table: salesReceiptsIndex, Columns: ftsColumns("number", "reference_no", "memo", "message")},
 }
 
 // ftsColumns indexes each field under its own name.

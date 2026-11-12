@@ -33,6 +33,15 @@ const (
 
 const detailRetainedEarnings = "retained_earnings"
 
+// Account refusals while sales are deposited to the account: the account
+// "Sales deposited to" names (Settings → Sales), and the deposit_to of sales
+// receipts, draft or posted.
+const (
+	msgAccountIsSalesDeposit      = "This account is where sales are deposited (Settings → Sales). Choose another account or Ask there first."
+	msgAccountDepositOfOneReceipt = "This account is the deposit account of 1 sales receipt and cannot be deleted. Make it inactive instead."
+	msgAccountDepositOfReceipts   = "This account is the deposit account of %d sales receipts and cannot be deleted. Make it inactive instead."
+)
+
 // Account refusals while tax agencies name the account.
 // tinycld/books/lib/tax-messages.ts copies them;
 // tests/tax-messages.test.ts fails when this wording drifts.
@@ -387,6 +396,30 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 			return refuse(msgAccountActiveAgency)
 		}
 	}
+	return checkSetDepositAccountChange(app, stored, next)
+}
+
+// checkSetDepositAccountChange keeps the account "Sales deposited to" names a
+// usable deposit account: it cannot be made inactive or moved off bank /
+// Undeposited funds. A rename or any other change saves. Making an account
+// inactive that only receipts name is allowed: Post refuses it then.
+func checkSetDepositAccountChange(app core.App, stored, next *core.Record) error {
+	deactivated := !stored.GetBool("inactive") && next.GetBool("inactive")
+	retyped := stored.GetString("type") != next.GetString("type") ||
+		stored.GetString("detail_type") != next.GetString("detail_type")
+	if !deactivated && !retyped {
+		return nil
+	}
+	set, err := salesDepositAccount(app)
+	if err != nil {
+		return err
+	}
+	if set != next.Id {
+		return nil
+	}
+	if deactivated || !isDepositAccount(next) {
+		return refuse(msgAccountIsSalesDeposit)
+	}
 	return nil
 }
 
@@ -404,6 +437,15 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if connected != nil {
 		return refuseNamed(msgConnectedDelete, accountDisplayName(r))
+	}
+	// Before the journal lines check: the set account usually has postings,
+	// and that text says to make it inactive, which is also refused while set.
+	set, err := salesDepositAccount(app)
+	if err != nil {
+		return err
+	}
+	if set == r.Id {
+		return refuse(msgAccountIsSalesDeposit)
 	}
 	lines, err := app.CountRecords("books_journal_lines", dbx.HashExp{"account": r.Id})
 	if err != nil {
@@ -437,6 +479,19 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if agencies > 1 {
 		return refuse(msgAccountUsedByAgencies, agencies)
+	}
+	// A receipt's deposit_to is a required relation, so PocketBase refuses the
+	// delete with a generic message; this one says what to do instead. Drafts
+	// count too.
+	receipts, err := app.CountRecords(salesReceiptKind.Collection, dbx.HashExp{"deposit_to": r.Id})
+	if err != nil {
+		return err
+	}
+	if receipts == 1 {
+		return refuse(msgAccountDepositOfOneReceipt)
+	}
+	if receipts > 1 {
+		return refuse(msgAccountDepositOfReceipts, receipts)
 	}
 	children, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": r.Id})
 	if err != nil {

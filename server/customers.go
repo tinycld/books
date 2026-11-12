@@ -76,14 +76,17 @@ func registerCustomerGuard(app core.App) {
 			if subs > 0 {
 				return refuse(msgDeleteHasSubs)
 			}
-			// Any invoice, draft or posted, keeps its customer; checked before the
-			// journal lines, so a customer on both gets the invoice text.
-			invoices, err := tx.CountRecords("books_invoices", dbx.HashExp{"customer": e.Record.Id})
-			if err != nil {
-				return err
-			}
-			if invoices > 0 {
-				return refuseNamed(msgCustomerOnInvoices, e.Record.GetString("display_name"))
+			// Any sales document, draft or posted, keeps its customer: invoices
+			// first, then sales receipts, both before the journal lines, so a
+			// customer on a posted document gets that document's text.
+			for _, kind := range []salesDocKind{invoiceKind, salesReceiptKind} {
+				docs, err := tx.CountRecords(kind.Collection, dbx.HashExp{"customer": e.Record.Id})
+				if err != nil {
+					return err
+				}
+				if docs > 0 {
+					return refuseNamed(kind.Msgs.CustomerOnDocs, e.Record.GetString("display_name"))
+				}
 			}
 			return refusePartyOnLines(tx, "customer", e.Record)
 		})

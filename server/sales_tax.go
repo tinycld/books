@@ -65,14 +65,24 @@ var taxRateReferences = []taxRateReference{
 	// A posted invoice's tax lines name each component of its group, so a
 	// component cannot go while the snapshot names it.
 	{collection: "books_invoice_tax_lines", field: "component", message: rateOnInvoicesMessage},
+	{collection: "books_sales_receipts", field: "tax_rate", message: rateOnSalesReceiptsMessage},
+	{collection: "books_sales_receipt_tax_lines", field: "component", message: rateOnSalesReceiptsMessage},
 }
 
-const msgRateOnInvoices = "This tax rate is on invoices. Make it inactive instead."
+const (
+	msgRateOnInvoices      = "This tax rate is on invoices. Make it inactive instead."
+	msgRateOnSalesReceipts = "This tax rate is on sales receipts. Make it inactive instead."
+)
 
 // rateOnInvoicesMessage is the delete refusal of a rate on any invoice, draft or
 // posted, as its header rate or one of its tax lines' components.
 func rateOnInvoicesMessage(core.App, []string) (string, error) {
 	return msgRateOnInvoices, nil
+}
+
+// rateOnSalesReceiptsMessage is rateOnInvoicesMessage for sales receipts.
+func rateOnSalesReceiptsMessage(core.App, []string) (string, error) {
+	return msgRateOnSalesReceipts, nil
 }
 
 // groupComponents is the groups' rates. checkTaxRateInactive reads it too, so
