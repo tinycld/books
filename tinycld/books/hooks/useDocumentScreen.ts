@@ -60,7 +60,14 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         },
         queryKey: ['books.document.customer', customerId],
     })
-    const kindReads = [reads.record, reads.lines, reads.source, reads.sourceLines, reads.taxLines]
+    const kindReads = [
+        reads.record,
+        reads.lines,
+        reads.source,
+        reads.sourceLines,
+        reads.taxLines,
+        reads.formStart,
+    ]
     const isReady =
         access.isReady &&
         settings.isReady &&
@@ -76,8 +83,10 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     const status = record?.status ?? null
     const sourceStatus = source?.status ?? null
     const copyCustomer = customerQuery.data
-    // A copy whose customer cannot be read has no values to start from: not found.
-    const copyStatus = copyCustomer ? sourceStatus : null
+    // A copy whose customer cannot be read has no values to start from: not found. A
+    // source saved without a customer (a walk-in sales receipt) is copied without one.
+    const hasCopyCustomer = !source?.customer || copyCustomer !== undefined
+    const copyStatus = hasCopyCustomer ? sourceStatus : null
     const state = documentScreenState({
         isReady,
         isError,
@@ -90,13 +99,16 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     })
     const sourceLines = reads.sourceLines.data
     const { values } = documentKind
+    // What a new form or a copy starts from besides the document, and the kind's schema
+    // rule for its Deposit to (none for an invoice).
+    const { start, deposit } = reads.formStart.data
     // A new form's values when it corrects or copies a document. Memoised on the reads,
     // so the line ids stay the same between renders (the form seeds from them once).
     const startValues = useMemo(() => {
         if (!isNew || !source || !reads.sourceLines.isReady) return undefined
         if (input.replaces) return values.correction(source, sourceLines)
-        if (input.copy && copyCustomer) {
-            return values.copy(source, sourceLines, todayIso(), copyCustomer)
+        if (input.copy && hasCopyCustomer) {
+            return values.copy(source, sourceLines, todayIso(), copyCustomer ?? null, start)
         }
         return undefined
     }, [
@@ -106,9 +118,23 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         reads.sourceLines.isReady,
         input.replaces,
         input.copy,
+        hasCopyCustomer,
         copyCustomer,
         values,
+        start,
     ])
+    // The text of the error state: the form start's own when only it failed.
+    const otherReadFailed =
+        access.isError ||
+        settings.hasLoadError ||
+        taxOptions.isError ||
+        customerQuery.isError ||
+        kindReads.some(read => read !== reads.formStart && read.isError)
+    const { loadFailed } = documentKind.doc.messages
+    const errorText =
+        reads.formStart.isError && !otherReadFailed
+            ? (reads.formStart.errorText ?? loadFailed)
+            : loadFailed
     const isCorrection = Boolean(isNew ? input.replaces : record?.replaces)
     const replacesNumber = isCorrection ? (source?.number ?? '') : ''
 
@@ -140,6 +166,9 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         lines: reads.lines.data,
         customer: customerQuery.data,
         startValues,
+        start,
+        deposit,
+        errorText,
         replacesNumber,
         taxLines: reads.taxLines.data,
         retry,

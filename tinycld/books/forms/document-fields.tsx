@@ -17,7 +17,13 @@ import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { useDocumentCustomerOptions } from '../hooks/useDocumentCustomerOptions'
 import { type CustomerAddress, formatAddressLines } from '../lib/address'
 import { dueDateFor } from '../lib/document-dates'
-import { customerFills, lineTaxableDefaults } from '../lib/document-fills'
+import {
+    clearedCustomerFills,
+    customerFills,
+    defaultTaxRateId,
+    lineTaxableDefaults,
+} from '../lib/document-fills'
+import { NO_CUSTOMER_TEXT } from '../lib/document-texts'
 import type { PaymentTermKey } from '../lib/payment-terms'
 import { useDocumentBandStore } from '../stores/document-band-store'
 import { EmailField } from './contact-fields'
@@ -60,9 +66,22 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
     const scope = useDocumentFormScope()
     // The last pick's read failed: local UI state that only this field shows.
     const [pickFailed, setPickFailed] = useState(false)
+    // "No customer" (a kind whose customer is optional): Bill to and Email clear and Tax
+    // goes to the book's default rate; the lines' taxable flags stay.
+    const clear = () => {
+        const fills = clearedCustomerFills(defaultTaxRateId(scope.taxRows))
+        onChange('')
+        setValue('bill_to', fills.bill_to, DIRTY)
+        setValue('email', fills.email, DIRTY)
+        setValue('tax_rate', fills.tax_rate, DIRTY)
+    }
     const pick = async (id: string) => {
         if (id === value) return
         setPickFailed(false)
+        if (id === '') {
+            clear()
+            return
+        }
         try {
             const customer = await queryOnce(q =>
                 q
@@ -76,16 +95,18 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
                 customer,
                 scope.taxRows,
                 textOf(getValues('date')),
-                previousExempt
+                previousExempt,
+                scope.kind
             )
             const rows = (getValues('lines') ?? []) as TableRow[]
             const taxable = fills.resetTaxable ? await productTaxableOf(rows) : null
             onChange(id)
             setValue('bill_to', fills.bill_to, DIRTY)
             setValue('email', fills.email, DIRTY)
-            setValue('terms', fills.terms, DIRTY)
             setValue('tax_rate', fills.tax_rate, DIRTY)
-            if (fills.due_date !== null) setValue('due_date', fills.due_date, DIRTY)
+            // Only a kind with Terms and a Due date (an invoice) gets them filled.
+            if (fills.terms !== undefined) setValue('terms', fills.terms, DIRTY)
+            if (typeof fills.due_date === 'string') setValue('due_date', fills.due_date, DIRTY)
             if (taxable)
                 setValue('lines', lineTaxableDefaults(rows, taxable, fills.isExempt), DIRTY)
         } catch (error) {
@@ -100,7 +121,7 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
 }
 
 function customerTriggerLabel(value: string, scope: ReturnType<typeof useDocumentFormScope>) {
-    if (!value) return 'Choose a customer'
+    if (!value) return scope.kind.customerRequired ? 'Choose a customer' : NO_CUSTOMER_TEXT
     if (scope.customer) return scope.customer.display_name
     return scope.isCustomerLoading ? '…' : 'Unknown customer'
 }
@@ -153,11 +174,24 @@ function focusNextField(from: PressableInstance | null, formTestId: string) {
     fields[at + 1]?.focus()
 }
 
+// The muted hint under the picker for a customer marked tax exempt.
+function CustomerExemptHint({ isVisible, testID }: { isVisible: boolean; testID: string }) {
+    if (!isVisible) return null
+    return (
+        <Text testID={testID} className="mt-1 text-xs text-muted-foreground">
+            Tax exempt
+        </Text>
+    )
+}
+
 /**
  * Customer: a picker over active customers ("Parent: Child" for a sub-customer). A
  * stored customer that is now inactive shows by name. Picking one fills Bill to, Email,
- * Terms, Tax and Due date, and the lines' taxable flags on the first pick or when the
- * exemption changes, and moves focus on to Terms. Focused once at open, on web only.
+ * Tax, an invoice's Terms and Due date, and the lines' taxable flags on the first pick
+ * or when the exemption changes, and moves focus on to the next field. A kind whose
+ * customer is optional (a sales receipt) offers "No customer" first, which clears Bill
+ * to and Email and sets the default rate. An exempt customer shows "Tax exempt" under
+ * the picker. Focused once at open, on web only.
  */
 export function CustomerField({ fieldKey, label, value, onChange, disabled }: BuiltinFieldProps) {
     const id = textOf(value)
@@ -176,6 +210,10 @@ export function CustomerField({ fieldKey, label, value, onChange, disabled }: Bu
         void pick(next)
     }
     const retry = scope.customerLoadFailed ? scope.retryCustomer : undefined
+    const noneOption = scope.kind.customerRequired
+        ? undefined
+        : { label: NO_CUSTOMER_TEXT, testID: `form-input-${fieldKey}-none` }
+    const isExempt = id !== '' && scope.customer?.tax_exempt === true
     return (
         <View>
             <SearchPicker
@@ -193,6 +231,7 @@ export function CustomerField({ fieldKey, label, value, onChange, disabled }: Bu
                 optionTestIdPrefix={`form-input-${fieldKey}-option`}
                 value={id}
                 onChange={onPick}
+                noneOption={noneOption}
                 isLoading={options.isLoading}
                 loadFailed={options.loadFailed}
                 onRetry={options.retry}
@@ -200,6 +239,10 @@ export function CustomerField({ fieldKey, label, value, onChange, disabled }: Bu
                 autoFocus={Platform.OS === 'web'}
                 triggerRef={triggerRef}
                 onPicked={onPicked}
+            />
+            <CustomerExemptHint
+                isVisible={isExempt}
+                testID={`${scope.kind.testId}-customer-exempt`}
             />
             <CustomerLoadError isVisible={pickFailed || scope.customerLoadFailed} onRetry={retry} />
         </View>
@@ -222,8 +265,16 @@ function LinkButton({
     isVisible: boolean
 }) {
     if (!isVisible) return null
+    // Not a Tab stop (spec Tab order: Customer goes straight on to the next field); a
+    // pointer or a screen reader still presses it.
     return (
-        <Pressable accessibilityRole="link" onPress={onPress} testID={testID} className="py-1">
+        <Pressable
+            accessibilityRole="link"
+            onPress={onPress}
+            testID={testID}
+            tabIndex={-1}
+            className="py-1"
+        >
             <Text className="text-sm text-primary">{label}</Text>
         </Pressable>
     )
@@ -242,8 +293,8 @@ function addressOf(value: unknown): CustomerAddress | null {
     return value && typeof value === 'object' ? (value as CustomerAddress) : null
 }
 
-function BillToBody(props: BuiltinFieldProps & { isEditing: boolean }) {
-    const { isEditing, fieldKey, value, onChange, disabled } = props
+function BillToBody(props: BuiltinFieldProps & { isEditing: boolean; showsNoCustomer: boolean }) {
+    const { isEditing, showsNoCustomer, fieldKey, value, onChange, disabled } = props
     if (isEditing) {
         return (
             <AddressField
@@ -255,13 +306,19 @@ function BillToBody(props: BuiltinFieldProps & { isEditing: boolean }) {
             />
         )
     }
-    return <AddressLines lines={formatAddressLines(addressOf(value))} />
+    const lines = formatAddressLines(addressOf(value))
+    if (lines.length === 0 && showsNoCustomer) {
+        return <Text className="text-sm text-muted-foreground">{NO_CUSTOMER_TEXT}</Text>
+    }
+    return <AddressLines lines={lines} />
 }
 
 /**
  * Bill to: the snapshot of the customer's billing address as text, with "Edit address"
  * (reveals the address inputs and the Email input in the band) and "Edit customer"
- * (pushes the customer's own form, so Back returns to the unsaved document).
+ * (pushes the customer's own form, so Back returns to the unsaved document). With no
+ * customer on a kind where it is optional, a muted "No customer" until an address is
+ * typed; "Edit address" still works.
  */
 export function BillToField(props: BuiltinFieldProps) {
     const { bandKey, kind } = useDocumentFormScope()
@@ -270,6 +327,8 @@ export function BillToField(props: BuiltinFieldProps) {
     const orgHref = useOrgHref()
     const customerId = textOf(useWatch<FormValues>({ name: 'customer' }))
     const isEditing = isEditingBand(bandKey, editingFor)
+    // A kind whose customer is optional says so while the form names none.
+    const showsNoCustomer = !kind.customerRequired && customerId === ''
     const onEditAddress = () => edit(bandKey)
     const onEditCustomer = () => router.push(orgHref(`books/customers/${customerId}`))
     const ids = {
@@ -279,7 +338,7 @@ export function BillToField(props: BuiltinFieldProps) {
     }
     return (
         <View testID={ids.billTo} className="gap-1">
-            <BillToBody {...props} isEditing={isEditing} />
+            <BillToBody {...props} isEditing={isEditing} showsNoCustomer={showsNoCustomer} />
             <View className="flex-row flex-wrap gap-x-4">
                 <LinkButton
                     label="Edit address"

@@ -6,6 +6,7 @@ import type { SearchPickerOption } from '../components/SearchPicker'
 import type { BooksCustomers, BooksProducts, BooksTaxRates } from '../types'
 import { dueDateFor } from './document-dates'
 import { centsToText } from './money-text'
+import { INVOICE_KIND, type SalesDocumentKind } from './sales-document-kinds'
 
 export type CustomerFill = Pick<
     BooksCustomers,
@@ -23,42 +24,64 @@ export type TaxRateFill = Pick<BooksTaxRates, 'id' | 'inactive' | 'is_default'>
 export type CustomerFills = {
     bill_to: CustomerFill['billing_address']
     email: string
-    terms: CustomerFill['terms']
+    // Absent for a kind with no Terms and no Due date (a sales receipt).
+    terms?: CustomerFill['terms']
     tax_rate: string
     // null leaves the due date as it is (a customer with no terms).
-    due_date: string | null
+    due_date?: string | null
     // The line taxable flags follow the customer only on the first pick and when the
     // exemption changes.
     resetTaxable: boolean
     isExempt: boolean
 }
 
+// The book's default rate while it is active, else '' (no tax): a new form's Tax, and
+// Tax after "No customer" or for a customer with no rate of its own.
+export function defaultTaxRateId(rates: readonly TaxRateFill[]): string {
+    return rates.find(rate => rate.is_default && !rate.inactive)?.id ?? ''
+}
+
 // The customer's own default rate unless it is exempt or the rate is inactive; else
 // the book's default rate; else no tax.
 function taxRateFor(customer: CustomerFill, rates: readonly TaxRateFill[]): string {
-    const active = rates.filter(rate => !rate.inactive)
     const own = customer.tax_exempt
         ? undefined
-        : active.find(rate => rate.id === customer.default_tax_rate)
+        : rates.find(rate => !rate.inactive && rate.id === customer.default_tax_rate)
     if (own) return own.id
-    return active.find(rate => rate.is_default)?.id ?? ''
+    return defaultTaxRateId(rates)
 }
 
+// Only an invoice has Terms and a Due date, so only its fills carry them.
 export function customerFills(
     customer: CustomerFill,
     rates: readonly TaxRateFill[],
     date: string,
-    previousExempt: boolean | null
+    previousExempt: boolean | null,
+    kind: Pick<SalesDocumentKind, 'key'> = INVOICE_KIND
 ): CustomerFills {
-    return {
+    const fills: CustomerFills = {
         bill_to: customer.billing_address,
         email: customer.email,
-        terms: customer.terms,
         tax_rate: taxRateFor(customer, rates),
-        due_date: customer.terms === '' ? null : dueDateFor(date, customer.terms),
         resetTaxable: previousExempt === null || previousExempt !== customer.tax_exempt,
         isExempt: customer.tax_exempt,
     }
+    if (kind.key !== 'invoice') return fills
+    return {
+        ...fills,
+        terms: customer.terms,
+        due_date: customer.terms === '' ? null : dueDateFor(date, customer.terms),
+    }
+}
+
+// Choosing "No customer" (a kind whose customer is optional): Bill to and Email clear and
+// Tax goes to the book's default rate. The line taxable flags stay as they are.
+export function clearedCustomerFills(defaultRateId: string): {
+    bill_to: null
+    email: string
+    tax_rate: string
+} {
+    return { bill_to: null, email: '', tax_rate: defaultRateId }
 }
 
 function coveredBySubtotal(rowsAbove: readonly TableRow[]): TableRow[] {

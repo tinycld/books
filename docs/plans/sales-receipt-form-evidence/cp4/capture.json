@@ -1,0 +1,1035 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "./new",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "filled",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "click": "sales-receipt-read-copy"
+                },
+                {
+                    "waitFor": "sales-receipt-form"
+                },
+                {
+                    "waitFor": "New sales receipt"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "43567"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "filled-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 4200,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "click": "sales-receipt-read-more"
+                },
+                {
+                    "click": "sales-receipt-read-copy"
+                },
+                {
+                    "waitFor": "sales-receipt-form"
+                },
+                {
+                    "waitFor": "New sales receipt"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "43567"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "no-customer",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt walkIn"
+                },
+                {
+                    "clickText": "Seed sales receipt walkIn"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "click": "sales-receipt-read-more"
+                },
+                {
+                    "click": "sales-receipt-read-copy"
+                },
+                {
+                    "waitFor": "sales-receipt-form"
+                },
+                {
+                    "waitFor": "New sales receipt"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Counter sale"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "./no-customer",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt walkIn"
+                },
+                {
+                    "clickText": "Seed sales receipt walkIn"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "click": "sales-receipt-read-copy"
+                },
+                {
+                    "waitFor": "sales-receipt-form"
+                },
+                {
+                    "waitFor": "New sales receipt"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Counter sale"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "exempt",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Northwind Traders"
+                },
+                {
+                    "clickMenuItem": "Northwind Traders"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "waitFor": "sales-receipt-customer-exempt"
+                },
+                {
+                    "click": "form-input-payment_method"
+                },
+                {
+                    "clickMenuItem": "Debit card"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "click": "form-input-payment_method"
+                },
+                {
+                    "clickMenuItem": "Check"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "Check 43567 drawn on First Harbor Bank account 0091"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "sales-receipt-post"
+                },
+                {
+                    "waitFor": "Reference no. can be at most 40 characters"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "errors-phone",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 4300,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "click": "form-input-payment_method"
+                },
+                {
+                    "clickMenuItem": "Check"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "Check 43567 drawn on First Harbor Bank account 0091"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "sales-receipt-post"
+                },
+                {
+                    "waitFor": "Reference no. can be at most 40 characters"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "correction",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "click": "sales-receipt-read-edit"
+                },
+                {
+                    "waitFor": "sales-receipt-replace-note"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "posted",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1700,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "./posted",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1700,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "walk-in",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt walkIn"
+                },
+                {
+                    "clickText": "Seed sales receipt walkIn"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "./walk-in",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt walkIn"
+                },
+                {
+                    "clickText": "Seed sales receipt walkIn"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "reader",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "./reader",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "pdf-unsaved",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new?tab=pdf",
+            "ready": "sales-receipt-pdf-unsaved",
+            "hideLabels": ["New"],
+            "height": 900
+        },
+        {
+            "name": "./pdf-unsaved",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new?tab=pdf",
+            "ready": "sales-receipt-pdf-unsaved",
+            "hideLabels": ["New"],
+            "height": 900
+        },
+        {
+            "name": "no-access",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "./no-access",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "cannot-edit",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new?replaces=srcpdraftstjud1",
+            "ready": "sales-receipt-cannot-edit",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_sales_receipts",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_sales_receipts",
+                        "collectionName": "books_sales_receipts",
+                        "id": "srcpdraftstjud1",
+                        "status": "draft",
+                        "number": "",
+                        "sequence": 0,
+                        "customer": "",
+                        "date": "2026-11-11",
+                        "bill_to": null,
+                        "email": "",
+                        "tax_rate": "taxgpdenvercmb1",
+                        "payment_method": "credit_card",
+                        "reference_no": "VISA 4417 auth 731042 terminal 2 lane 03",
+                        "deposit_to": "",
+                        "message": "",
+                        "memo": "Seed sales receipt draft",
+                        "subtotal": 0,
+                        "tax_total": 0,
+                        "total": 0,
+                        "currency": "USD",
+                        "entry": "",
+                        "replaces": "",
+                        "replaced_by": "",
+                        "posted_by": "",
+                        "posted_at": "",
+                        "voided_by": "",
+                        "voided_at": "",
+                        "form": "",
+                        "fields": null,
+                        "sort_key": "",
+                        "created": "2026-11-11 10:00:00.000Z",
+                        "updated": "2026-11-11 10:00:00.000Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "./cannot-edit",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new?replaces=srcpdraftstjud1",
+            "ready": "sales-receipt-cannot-edit",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_sales_receipts",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_sales_receipts",
+                        "collectionName": "books_sales_receipts",
+                        "id": "srcpdraftstjud1",
+                        "status": "draft",
+                        "number": "",
+                        "sequence": 0,
+                        "customer": "",
+                        "date": "2026-11-11",
+                        "bill_to": null,
+                        "email": "",
+                        "tax_rate": "taxgpdenvercmb1",
+                        "payment_method": "credit_card",
+                        "reference_no": "VISA 4417 auth 731042 terminal 2 lane 03",
+                        "deposit_to": "",
+                        "message": "",
+                        "memo": "Seed sales receipt draft",
+                        "subtotal": 0,
+                        "tax_total": 0,
+                        "total": 0,
+                        "currency": "USD",
+                        "entry": "",
+                        "replaces": "",
+                        "replaced_by": "",
+                        "posted_by": "",
+                        "posted_at": "",
+                        "voided_by": "",
+                        "voided_at": "",
+                        "form": "",
+                        "fields": null,
+                        "sort_key": "",
+                        "created": "2026-11-11 10:00:00.000Z",
+                        "updated": "2026-11-11 10:00:00.000Z"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "not-found",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/doesnotexist000",
+            "ready": "sales-receipt-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "./not-found",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/doesnotexist000",
+            "ready": "sales-receipt-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "loading",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/doesnotexist000",
+            "ready": "sales-receipt-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_sales_receipts",
+                "hold": true
+            }
+        },
+        {
+            "name": "./loading",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/doesnotexist000",
+            "ready": "sales-receipt-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_sales_receipts",
+                "hold": true
+            }
+        },
+        {
+            "name": "error",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/doesnotexist000",
+            "ready": "sales-receipt-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_sales_receipts",
+                "status": 400
+            }
+        },
+        {
+            "name": "./error",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/doesnotexist000",
+            "ready": "sales-receipt-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_sales_receipts",
+                "status": 400
+            }
+        },
+        {
+            "name": "draft",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Credit card" },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "VISA 4417 auth 731042 terminal 2 lane 03"
+                },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Year-end tax preparation" },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for your business! Keep this receipt: returns are accepted within 30 days."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Gala setup, paid by the foundation card at pickup"
+                },
+                { "pause": 300 },
+                { "click": "sales-receipt-save-draft" },
+                { "waitFor": "Draft sales receipt" },
+                { "click": "sales-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./draft",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Credit card" },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "VISA 4417 auth 731042 terminal 2 lane 03"
+                },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Year-end tax preparation" },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for your business! Keep this receipt: returns are accepted within 30 days."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Gala setup, paid by the foundation card at pickup"
+                },
+                { "pause": 300 },
+                { "click": "sales-receipt-save-draft" },
+                { "waitFor": "Draft sales receipt" },
+                { "click": "sales-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "pdf-stale",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Credit card" },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "VISA 4417 auth 731042 terminal 2 lane 03"
+                },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Year-end tax preparation" },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for your business! Keep this receipt: returns are accepted within 30 days."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Gala setup, paid by the foundation card at pickup"
+                },
+                { "pause": 300 },
+                { "click": "sales-receipt-save-draft" },
+                { "waitFor": "Draft sales receipt" },
+                { "fill": "form-input-memo", "value": "Gala setup, paid by card at pickup" },
+                { "click": "sales-receipt-tab-pdf" },
+                { "waitFor": "sales-receipt-pdf-stale" },
+                { "waitFor": "sales-receipt-pdf" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "./pdf-stale",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Credit card" },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "VISA 4417 auth 731042 terminal 2 lane 03"
+                },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Year-end tax preparation" },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for your business! Keep this receipt: returns are accepted within 30 days."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Gala setup, paid by the foundation card at pickup"
+                },
+                { "pause": 300 },
+                { "click": "sales-receipt-save-draft" },
+                { "waitFor": "Draft sales receipt" },
+                { "fill": "form-input-memo", "value": "Gala setup, paid by card at pickup" },
+                { "click": "sales-receipt-tab-pdf" },
+                { "waitFor": "sales-receipt-pdf-stale" },
+                { "waitFor": "sales-receipt-pdf" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "void",
+            "widths": [390],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Check" },
+                { "fill": "form-input-reference_no", "value": "2210" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Workstation setup and imaging" },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Surge protector, 8 outlet" },
+                { "pause": 300 },
+                { "click": "sales-receipt-post" },
+                { "waitFor": "sales-receipt-read-only" },
+                { "click": "sales-receipt-read-more" },
+                { "click": "sales-receipt-read-void" },
+                { "click": "void-confirm" },
+                { "waitFor": "sales-receipt-voided-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./void",
+            "widths": [1280],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Check" },
+                { "fill": "form-input-reference_no", "value": "2210" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Workstation setup and imaging" },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Surge protector, 8 outlet" },
+                { "pause": 300 },
+                { "click": "sales-receipt-post" },
+                { "waitFor": "sales-receipt-read-only" },
+                { "click": "sales-receipt-read-void" },
+                { "click": "void-confirm" },
+                { "waitFor": "sales-receipt-voided-by" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

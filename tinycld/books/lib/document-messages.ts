@@ -8,7 +8,7 @@ import type { SalesDocumentKind } from './sales-document-kinds'
 // The texts themselves live in lib/document-texts.ts, a module with no imports, so the
 // kinds' data module (lib/sales-document-kinds.ts) loads without the money code below.
 // This module exports them too, beside the helpers that read them.
-export { type DocumentMessages, INVOICE_MESSAGES } from './document-texts'
+export { type DocumentMessages, INVOICE_MESSAGES, SALES_RECEIPT_MESSAGES } from './document-texts'
 
 // Every kind refuses an inactive customer with the same words.
 export function customerInactiveText(name: string): string {
@@ -17,25 +17,42 @@ export function customerInactiveText(name: string): string {
 }
 
 // Where a server refusal of a sales document save shows: under the field it names, under
-// the line it numbers (zero-based), else in the form's error summary.
-export type DocumentRefusalTarget = 'customer' | 'due_date' | 'tax_rate' | { line: number } | 'root'
+// the line it numbers (zero-based), else in the form's error summary. A PocketBase field
+// error (`reference_no`, `payment_method`) is keyed by its field and never comes here.
+export type DocumentRefusalTarget =
+    | 'customer'
+    | 'date'
+    | 'due_date'
+    | 'tax_rate'
+    | 'deposit_to'
+    | { line: number }
+    | 'root'
 
 const LINE_REFUSAL = /^Line (\d+):/
 const CUSTOMER_REFUSAL = /^Customer\b|is inactive\. Choose an active customer\.?$/
+// server/sales_documents.go msgDocumentDay. An invoice's server sends it for its due date
+// too, so the text names the date field only for a kind with no due date.
+const DATE_REFUSAL = /^Enter a date that exists\b/
 const DUE_DATE_REFUSAL = /^(The due date|Due date)\b/
 // The server's own "The tax rate is inactive. Choose an active rate." included.
 const TAX_REFUSAL = /^(The tax|Tax)\b/
+// server/sales_receipts.go msgReceiptDepositInvalid and msgReceiptDepositNone.
+const DEPOSIT_REFUSAL =
+    /^(Choose an active bank or Undeposited funds account|Add a bank account or an Undeposited funds account)\b/
 
-// The kind decides which fields it has: only an invoice has a due date (its `key`).
+// The kind decides which fields it has (its `key`): only an invoice has a due date, only
+// a sales receipt has Deposit to.
 export function documentRefusalTarget(
     message: string,
-    kind: SalesDocumentKind
+    kind: Pick<SalesDocumentKind, 'key'>
 ): DocumentRefusalTarget {
     const line = LINE_REFUSAL.exec(message)
     if (line) return { line: Number(line[1]) - 1 }
     if (CUSTOMER_REFUSAL.test(message)) return 'customer'
+    if (kind.key === 'sales_receipt' && DATE_REFUSAL.test(message)) return 'date'
     if (kind.key === 'invoice' && DUE_DATE_REFUSAL.test(message)) return 'due_date'
     if (TAX_REFUSAL.test(message)) return 'tax_rate'
+    if (kind.key === 'sales_receipt' && DEPOSIT_REFUSAL.test(message)) return 'deposit_to'
     return 'root'
 }
 

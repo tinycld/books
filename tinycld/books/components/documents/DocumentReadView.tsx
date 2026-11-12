@@ -10,6 +10,7 @@ import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { DOCUMENT_NOTE_LABELS } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
+import { NO_CUSTOMER_TEXT } from '../../lib/document-texts'
 import { stampText } from '../../lib/entry-display'
 import { formatMoney } from '../../lib/money'
 import { formatDay } from '../../lib/register-range'
@@ -77,32 +78,42 @@ interface BandProps {
 }
 
 // The band as the form draws it: Customer, Bill to and Email in the left column at full
-// width; the kind's details around the date in one row with Tax under them on the right.
-// A phone stacks the two columns in flow: a column there has no flex-1, because a zero
-// flex basis in a column of auto height lets the blocks draw on top of each other.
+// width; the kind's details around the date in one row with Tax under them on the right;
+// then the kind's own ruled row (a sales receipt's Payment). A phone stacks the two
+// columns in flow: a column there has no flex-1, because a zero flex basis in a column of
+// auto height lets the blocks draw on top of each other.
 function ReadBand({ isPhone, record, customer, billTo, date, tax }: BandProps) {
-    const { ReadDetails, doc } = useDocumentKind()
+    const { ReadDetails, ReadBandRow, doc } = useDocumentKind()
     const dateLabel = useBuiltinLabel(doc.hostKey, 'date')
     const direction = isPhone ? 'flex-col gap-3' : 'flex-row gap-6'
-    const bandClass = `${direction} rounded-xl border border-border bg-surface-secondary p-4`
     const column = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
+    const bandRow = ReadBandRow ? <ReadBandRow record={record} /> : null
     return (
-        <View className={bandClass}>
-            <View className={column}>
-                <DocumentDetail field="customer" label="Customer" value={customer} />
-                <DocumentDetail field="bill-to" label="Bill to" value={billTo} />
-                <DocumentDetail field="email" label="Email" value={record.email} />
-            </View>
-            <View className={column}>
-                <View className="flex-row flex-wrap gap-x-6 gap-y-3">
-                    <ReadDetails record={record} isPhone={isPhone}>
-                        <DocumentDetail field="date" label={dateLabel} value={date} />
-                    </ReadDetails>
+        <View className="gap-3 rounded-xl border border-border bg-surface-secondary p-4">
+            <View className={direction}>
+                <View className={column}>
+                    <DocumentDetail field="customer" label="Customer" value={customer} />
+                    <DocumentDetail field="bill-to" label="Bill to" value={billTo} />
+                    <DocumentDetail field="email" label="Email" value={record.email} />
                 </View>
-                <DocumentDetail field="tax" label="Tax" value={tax} />
+                <View className={column}>
+                    <View className="flex-row flex-wrap gap-x-6 gap-y-3">
+                        <ReadDetails record={record} isPhone={isPhone}>
+                            <DocumentDetail field="date" label={dateLabel} value={date} />
+                        </ReadDetails>
+                    </View>
+                    <DocumentDetail field="tax" label="Tax" value={tax} />
+                </View>
             </View>
+            {bandRow}
         </View>
     )
+}
+
+// "No customer" for a document saved without one (a sales receipt's walk-in sale).
+function customerNameOf(data: DocumentScreenData, record: DocumentRecord): string {
+    if (record.customer === '') return NO_CUSTOMER_TEXT
+    return data.customer?.display_name ?? ''
 }
 
 // Wide: the totals end under the lines' Amount column (the Tax column's width and the
@@ -199,7 +210,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
     const totals = readTotals(data, record)
     const billTo = billToLines(record).join('\n')
-    const customerName = data.customer?.display_name ?? ''
+    const customerName = customerNameOf(data, record)
     const date = record.date ? formatDay(record.date) : ''
     const tax = totals.tax?.label ?? ''
     const posted = stampText(record.postedBy?.name, record.posted_at)

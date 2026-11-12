@@ -7,10 +7,11 @@ import {
     customerInactiveText,
     documentRefusalTarget,
     INVOICE_MESSAGES,
+    SALES_RECEIPT_MESSAGES,
 } from '../tinycld/books/lib/document-messages'
 import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
 import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
-import { INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import { INVOICE_KIND, SALES_RECEIPT_KIND } from '../tinycld/books/lib/sales-document-kinds'
 
 const invoiceRefusalTarget = (message: string) => documentRefusalTarget(message, INVOICE_KIND)
 
@@ -71,6 +72,58 @@ describe('server/invoices.go', () => {
     for (const [key, text] of Object.entries(SHARED)) {
         it(`holds the ${key} text verbatim as a Go string`, () => {
             expect(serverSource()).toContain(`"${text}"`)
+        })
+    }
+})
+
+// The sales receipt's texts the client and the server both show (plan, Decisions:
+// Messages).
+const RECEIPT_SHARED = {
+    totalNegative: 'A sales receipt total cannot be below zero. Use a refund receipt.',
+    totalTooLarge: 'The sales receipt total is more than Books can store.',
+    tooManyLines: 'A sales receipt can have at most 250 lines.',
+    customerInactive: '%s is inactive. Choose an active customer.',
+    customerOnInvoices: '%s is on sales receipts. Make it inactive instead.',
+    depositInvalid: 'Choose an active bank or Undeposited funds account',
+    depositNone: 'Add a bank account or an Undeposited funds account to the chart of accounts',
+} as const
+
+const RECEIPT_CLIENT_ONLY = {
+    noAccess: 'You need bookkeeper access to create sales receipts',
+    notFound: 'This sales receipt does not exist',
+    cannotEdit: 'This sales receipt cannot be edited',
+    loadFailed: 'Books could not load this sales receipt.',
+    depositLoadFailed: 'Books could not load the deposit accounts.',
+    depositRequired: 'Choose where the money was deposited',
+    referenceTooLong: 'Reference no. can be at most 40 characters',
+    needItemLine: 'Add at least one product or service line',
+    pdfUnsaved: 'Save a draft to see the PDF',
+    pdfStale: 'Shows the last saved version',
+    voidBody: 'A reversing entry is posted in the original period. The number is kept.',
+} as const
+
+function receiptServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'sales_receipts.go'), 'utf8')
+}
+
+describe('SALES_RECEIPT_MESSAGES', () => {
+    it('holds every shared text under its key', () => {
+        expect(SALES_RECEIPT_MESSAGES).toMatchObject(RECEIPT_SHARED)
+    })
+
+    it('holds every client text under its key', () => {
+        expect(SALES_RECEIPT_MESSAGES).toMatchObject(RECEIPT_CLIENT_ONLY)
+    })
+
+    it('is the sales receipt kind’s texts', () => {
+        expect(SALES_RECEIPT_KIND.messages).toBe(SALES_RECEIPT_MESSAGES)
+    })
+})
+
+describe('server/sales_receipts.go', () => {
+    for (const [key, text] of Object.entries(RECEIPT_SHARED)) {
+        it(`holds the receipt's ${key} text verbatim as a Go string`, () => {
+            expect(receiptServerSource()).toContain(`"${text}"`)
         })
     }
 })

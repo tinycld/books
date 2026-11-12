@@ -67,7 +67,7 @@ export function copyInvoiceValues(
         customer: invoice.customer,
         bill_to: fills.bill_to,
         email: fills.email,
-        terms: fills.terms,
+        terms: fills.terms ?? '',
         date: today,
         due_date: fills.due_date ?? today,
         tax_rate: invoice.tax_rate,

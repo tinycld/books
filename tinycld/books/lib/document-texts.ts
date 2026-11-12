@@ -2,8 +2,12 @@
 // Pure data with no imports: lib/sales-document-kinds.ts reads it, and the generator
 // loads that module in Node through forms/hosts.ts.
 
+// A document saved without a customer (a kind whose customer is optional): the Customer
+// picker's clear choice, Bill to's empty text and the read view's Customer.
+export const NO_CUSTOMER_TEXT = 'No customer'
+
 // The deposit and reference texts belong to the sales receipt only, so an invoice has
-// none of them.
+// none of them. `customerOnInvoices` is the kind's "<name> is on <documents>" text.
 export type DocumentMessages = {
     percentTarget: string
     totalNegative: string
@@ -70,3 +74,40 @@ export const INVOICE_MESSAGES = {
     pdfStale: 'Shows the last saved version',
     voidBody: 'A reversing entry is posted in the original period. The number is kept.',
 } as const satisfies DocumentMessages & { dueBeforeDate: string }
+
+// The sales receipt's texts. The first group is shown by the client and refused by the
+// server with the same words (server/sales_receipts.go); tests/document-messages.test.ts
+// fails when they drift. The deposit texts name Deposit to, which only a receipt has.
+export const SALES_RECEIPT_MESSAGES = {
+    percentTarget: INVOICE_MESSAGES.percentTarget,
+    totalNegative: 'A sales receipt total cannot be below zero. Use a refund receipt.',
+    totalTooLarge: 'The sales receipt total is more than Books can store.',
+    tooManyLines: 'A sales receipt can have at most 250 lines.',
+    customerInactive: '%s is inactive. Choose an active customer.',
+    customerOnInvoices: '%s is on sales receipts. Make it inactive instead.',
+    depositInvalid: 'Choose an active bank or Undeposited funds account',
+    depositNone: 'Add a bank account or an Undeposited funds account to the chart of accounts',
+
+    // Client only.
+    needItemLine: INVOICE_MESSAGES.needItemLine,
+    quantityNotPositive: INVOICE_MESSAGES.quantityNotPositive,
+    quantityDecimals: INVOICE_MESSAGES.quantityDecimals,
+    quantityTooLarge: INVOICE_MESSAGES.quantityTooLarge,
+    rateMalformed: INVOICE_MESSAGES.rateMalformed,
+    rateTooLarge: INVOICE_MESSAGES.rateTooLarge,
+    percentRange: INVOICE_MESSAGES.percentRange,
+    percentDecimals: INVOICE_MESSAGES.percentDecimals,
+    noAccess: 'You need bookkeeper access to create sales receipts',
+    notFound: 'This sales receipt does not exist',
+    cannotEdit: 'This sales receipt cannot be edited',
+    loadFailed: 'Books could not load this sales receipt.',
+    customerLoadFailed: INVOICE_MESSAGES.customerLoadFailed,
+    bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
+    bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
+    pdfUnsaved: INVOICE_MESSAGES.pdfUnsaved,
+    pdfStale: INVOICE_MESSAGES.pdfStale,
+    voidBody: INVOICE_MESSAGES.voidBody,
+    depositLoadFailed: 'Books could not load the deposit accounts.',
+    depositRequired: 'Choose where the money was deposited',
+    referenceTooLong: 'Reference no. can be at most 40 characters',
+} as const satisfies DocumentMessages

@@ -2,7 +2,7 @@ import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
 import { DOCUMENT_NOTE_LABELS } from '../lib/document-notes'
-import { INVOICE_KIND } from '../lib/sales-document-kinds'
+import { INVOICE_KIND, SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
@@ -146,10 +146,10 @@ const SALES_RECEIPT_LAYOUT = {
         date: { width: 'quarter' },
         tax_rate: { width: 'quarter', narrowWidth: 'full' },
         payment_method: { width: 'third' },
-        reference_no: { width: 'third' },
+        reference_no: { width: 'third', description: 'Check or card reference' },
         deposit_to: { width: 'third' },
-        message: { description: 'Shown on the sales receipt and its PDF.' },
-        memo: { description: INVOICE_KIND.noteHints.memo },
+        message: { description: SALES_RECEIPT_KIND.noteHints.message },
+        memo: { description: SALES_RECEIPT_KIND.noteHints.memo },
     },
     rules: [],
 } satisfies FormHostDefInput['layout']

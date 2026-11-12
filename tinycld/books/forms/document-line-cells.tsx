@@ -169,9 +169,15 @@ function useBundlePick(fieldKey: string, noteBundle: NoteBundle) {
 }
 
 /**
- * A product picked on a line: the line's cells are filled from the product once it is
- * read, then focus moves to the line's next cell (Description), so that cell shows the
- * filled text from its first line. A bundle on an Item line expands (useBundlePick).
+ * A product picked on a line: the line's cells are filled from the product, then focus
+ * moves to the line's next cell (Description), so that cell shows the filled text from
+ * its first line. A bundle on an Item line expands (useBundlePick).
+ *
+ * The picker's own query holds the products it offers, so the pick reads its product
+ * from the store in the press handler, and the focus moves on the frame after the pick.
+ * A focus move after a wait would take the focus from where the user went meanwhile (the
+ * Message box) and put the next keys in Description. So a product the store no longer
+ * holds, read from the server, fills the line and leaves the focus where it is.
  */
 function useProductPick(props: BuiltinFieldProps, noteBundle: NoteBundle) {
     const [productsCollection] = useStore('books_products')
@@ -189,13 +195,16 @@ function useProductPick(props: BuiltinFieldProps, noteBundle: NoteBundle) {
         noteBundle(null)
         const rowId = table.row.id
         const isRowThere = () => currentRow(getValues(fieldKey), rowId) !== undefined
+        const held = productsCollection.get(id)
         try {
-            const product = await queryOnce(q =>
-                q
-                    .from({ p: productsCollection })
-                    .where(({ p }) => eq(p.id, id))
-                    .findOne()
-            )
+            const product =
+                held ??
+                (await queryOnce(q =>
+                    q
+                        .from({ p: productsCollection })
+                        .where(({ p }) => eq(p.id, id))
+                        .findOne()
+                ))
             if (!product) throw new Error(`product ${id} not found`)
             if (product.type === 'bundle' && table.rowKind === 'item') {
                 await pickBundle(table, id)
@@ -212,7 +221,7 @@ function useProductPick(props: BuiltinFieldProps, noteBundle: NoteBundle) {
             if (!isRowThere()) return
             table.onRowChange({ product: id })
         }
-        table.focusNext()
+        if (held) table.focusNext()
     }
 }
 
