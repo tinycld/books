@@ -41,3 +41,4 @@
 - A numeric line cell (Qty, Rate, Percent) selects its whole value on focus, by Tab or by a jump after a pick, so typing replaces it. — invoice-form, human, eval
 - Give a short header field (Tax) a width that fits its content beside its row neighbours; never half the row. — invoice-form, human, eval
 - On web, select an input's text at once in its focus handler; react-native-web's selectTextOnFocus selects later and eats the first keys typed. — invoice-form, retro, p2-invoice
+- A report's `display.oneLine` gate is measured for its own columns at 390; never copy another report's display block. — profit-and-loss, retro, p5-profit-and-loss

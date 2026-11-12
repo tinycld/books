@@ -1,6 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
 import {
-    authStorageKey,
     chooseParamOption,
     hubRow,
     login,
@@ -16,10 +15,13 @@ import {
     dayWords,
     detailsUnder,
     endOfLastMonth,
+    expectedHeading,
     filterToAccounts,
     openAccountRow,
     openBooksReports,
+    openEntriesFromSidebar,
     openTrialBalance,
+    snapshotWhen,
     type TbSnapshot,
     tbSnapshot,
 } from './books-report-helpers'
@@ -99,17 +101,6 @@ async function createAccounts(page: Page, accounts: { name: string; kind: typeof
     for (const { name, kind } of accounts) await createAccount(page, name, kind)
 }
 
-// The entries list from the Books sidebar: the chart has no way to it, and openNewEntry
-// expects the list, an entry or the Lists hub on screen.
-async function openEntriesFromSidebar(page: Page) {
-    const item = page.getByTestId('books-nav-entries')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await expect(toggle).toBeVisible()
-    if (!(await item.isVisible())) await toggle.click()
-    await item.click()
-    await expect(page.getByTestId('entries-screen')).toBeVisible()
-}
-
 async function postEntry(page: Page, amount: string, debitAccount: string, creditAccount: string) {
     await createPostedEntry(page, {
         memo: uniqueName('TB entry'),
@@ -152,28 +143,6 @@ function figures(row: Row | undefined) {
     return { debit: row.debit, credit: row.credit }
 }
 
-// Polls snapshots until `isReady` holds and returns that snapshot, so every later
-// assertion reads the same single snapshot.
-async function snapshotWhen(
-    page: Page,
-    isReady: (snapshot: TbSnapshot) => boolean,
-    message: string
-): Promise<TbSnapshot> {
-    const last: { snapshot: TbSnapshot } = {
-        snapshot: { rows: [], total: { label: '', debit: '', credit: '' } },
-    }
-    await expect
-        .poll(
-            async () => {
-                last.snapshot = await tbSnapshot(page)
-                return isReady(last.snapshot)
-            },
-            { message }
-        )
-        .toBe(true)
-    return last.snapshot
-}
-
 // Every row of the run is mounted once the Total row, the last one, is.
 function isWhole(snapshot: TbSnapshot) {
     return snapshot.total.label === 'Total'
@@ -208,6 +177,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await filterToAccounts(page, [expense, card])
         const first = await snapshotWhen(
             page,
+            tbSnapshot,
             s => showsOnly(s, [expense, card]) && groupRow(s, expense) !== undefined,
             'the report narrowed to the two accounts'
         )
@@ -222,6 +192,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await filterToAccounts(page, [expense, card])
         const second = await snapshotWhen(
             page,
+            tbSnapshot,
             s => showsOnly(s, [expense, card]) && groupRow(s, expense)?.credit === '76.55',
             'the two accounts after the second entry'
         )
@@ -267,6 +238,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await chooseParamOption(page, 'rows', { from: 'chip', labels: ['Active'] })
         const active = await snapshotWhen(
             page,
+            tbSnapshot,
             s => isWhole(s) && groupRow(s, a) !== undefined,
             'the three accounts under Active'
         )
@@ -277,6 +249,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await chooseParamOption(page, 'rows', { from: 'chip', labels: ['All'] })
         const all = await snapshotWhen(
             page,
+            tbSnapshot,
             s => isWhole(s) && groupRow(s, c) !== undefined,
             'the three accounts under All'
         )
@@ -308,6 +281,7 @@ test.describe("trial-balance: the report in core's view", () => {
             await filterAccounts(page, first)
             const one = await snapshotWhen(
                 page,
+                tbSnapshot,
                 s => isWhole(s) && groupLabels(s).length === 1,
                 'the report narrowed to one account'
             )
@@ -344,6 +318,7 @@ test.describe("trial-balance: the report in core's view", () => {
             // number-less accounts sort first in their type, so they are mounted.
             const expenses = await snapshotWhen(
                 page,
+                tbSnapshot,
                 s => groupRow(s, second) !== undefined,
                 'the report narrowed to every Expense account'
             )
@@ -354,6 +329,7 @@ test.describe("trial-balance: the report in core's view", () => {
             await expect(page.getByTestId('report-param-accounts')).toHaveCount(0)
             await snapshotWhen(
                 page,
+                tbSnapshot,
                 s => groupRow(s, bank) !== undefined,
                 'the bank account back after the filter is removed'
             )
@@ -394,6 +370,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await openAccountRow(page, account)
         const opened = await snapshotWhen(
             page,
+            tbSnapshot,
             s => detailsUnder(s, account).length === 2,
             'the account opened onto its two lines'
         )
@@ -424,6 +401,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await pressToolbar(page, 'report-fold-all', 'Collapse all')
         await snapshotWhen(
             page,
+            tbSnapshot,
             s => groupRow(s, account) !== undefined && detailsUnder(s, account).length === 0,
             'the lines closed by Collapse all'
         )
@@ -432,6 +410,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await pressToolbar(page, 'report-fold-all', 'Expand all')
         await snapshotWhen(
             page,
+            tbSnapshot,
             s => detailsUnder(s, account).length === 2,
             'the lines opened again by Expand all'
         )
@@ -450,6 +429,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await chooseParamOption(page, 'rows', { from: 'chip', labels: ['All'] })
         const before = await snapshotWhen(
             page,
+            tbSnapshot,
             s => isWhole(s) && groupRow(s, account) !== undefined,
             'the new account, with no lines yet, under All'
         )
@@ -465,6 +445,7 @@ test.describe("trial-balance: the report in core's view", () => {
 
         const live = await snapshotWhen(
             page,
+            tbSnapshot,
             s => groupRow(s, account)?.debit === '15.00',
             'the post in the open report'
         )
@@ -492,6 +473,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await filterToAccounts(page, SEEDED_EQUITY_AND_INCOME)
         const today = await snapshotWhen(
             page,
+            tbSnapshot,
             s =>
                 showsOnly(s, SEEDED_EQUITY_AND_INCOME) &&
                 groupRow(s, 'Consulting Income') !== undefined,
@@ -513,6 +495,7 @@ test.describe("trial-balance: the report in core's view", () => {
         const folded = new RegExp(`^${priorDay} · JE-\\d+ · Prior-year consulting$`)
         const opened = await snapshotWhen(
             page,
+            tbSnapshot,
             s => detailsUnder(s, 'Retained earnings').some(row => folded.test(row.label)),
             'the prior-year line under Retained earnings'
         )
@@ -522,7 +505,12 @@ test.describe("trial-balance: the report in core's view", () => {
         expect(figures(priorLine)).toEqual({ debit: '', credit: '3,000.00' })
 
         await chooseAsOf(page, { day: priorDay })
-        const thatDay = await snapshotWhen(page, isWhole, `the seeded accounts as of ${priorDay}`)
+        const thatDay = await snapshotWhen(
+            page,
+            tbSnapshot,
+            isWhole,
+            `the seeded accounts as of ${priorDay}`
+        )
         expect(figures(groupRow(thatDay, 'Consulting Income'))).toEqual({
             debit: '',
             credit: '3,000.00',
@@ -554,6 +542,7 @@ test.describe("trial-balance: the report in core's view", () => {
             await expect(page.getByTestId('report-empty')).toHaveCount(0)
             await snapshotWhen(
                 page,
+                tbSnapshot,
                 s => s.rows.some(row => row.kind === 'group'),
                 'account rows back after the empty action'
             )
@@ -705,27 +694,6 @@ test.describe("trial-balance: the report in core's view", () => {
             })
     })
 })
-
-// The heading core's document header prints (useReportView headingOf): the Books business
-// name, else the organization's name. Read-only: books-settings.spec.ts types over the
-// business name and restores it on the shared DB, so it is read when compared.
-async function expectedHeading(page: Page): Promise<string> {
-    const key = await authStorageKey(page)
-    const token = await page.evaluate(
-        k => (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? '',
-        key
-    )
-    const settings = await page.request.get(
-        '/api/collections/books_settings/records/bookssettings01',
-        { headers: { Authorization: token } }
-    )
-    expect(settings.ok()).toBe(true)
-    const businessName = ((await settings.json()) as { business_name?: string }).business_name
-    if (businessName?.trim()) return businessName.trim()
-    const org = await page.request.get('/api/org-info')
-    expect(org.ok()).toBe(true)
-    return (((await org.json()) as { name?: string }).name ?? '').trim()
-}
 
 // The test ids of the report's controls, in the order the row draws them.
 function controlOrder(page: Page): Promise<string[]> {

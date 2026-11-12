@@ -1,11 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import {
-    authStorageKey,
-    login,
-    navigateToPackage,
-    pressToolbar,
-    waitForTableFit,
-} from '@tinycld/core/e2e-helpers'
+import { login, navigateToPackage, pressToolbar, waitForTableFit } from '@tinycld/core/e2e-helpers'
 import { textWidth } from '@tinycld/core/reports/lib/text-width'
 import { GENERAL_LEDGER_LONG_SECTION } from '../../tinycld/books/lib/general-ledger-fixture'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
@@ -13,10 +7,12 @@ import {
     browserToday,
     choosePeriod,
     dayWords,
+    expectedHeading,
     GL_DAY_1,
     GL_DAY_2,
     type GlSnapshot,
     glSnapshot,
+    openEntriesFromSidebar,
     openJournal,
     postEntryOn,
     voidPostedEntry,
@@ -55,17 +51,6 @@ async function startBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(DESKTOP)
-}
-
-// The entries list from the Books sidebar: postEntryOn expects the list, an entry or the
-// Lists hub on screen.
-async function openEntriesFromSidebar(page: Page) {
-    const item = page.getByTestId('books-nav-entries')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await expect(toggle).toBeVisible()
-    if (!(await item.isVisible())) await toggle.click()
-    await item.click()
-    await expect(page.getByTestId('entries-screen')).toBeVisible()
 }
 
 // The posted entry open in its read view: its number, from the title the server's
@@ -342,27 +327,6 @@ async function pressBlockHeading(page: Page, heading: string) {
     await row.evaluate(element => element.scrollIntoView({ block: 'center' }))
     if (await sticky.isVisible()) return sticky.click()
     await row.click()
-}
-
-// The heading core's document header prints: the Books business name, else the
-// organization's name. Read-only: books-settings.spec.ts types over the business name and
-// restores it on the shared DB, so it is read when compared.
-async function expectedHeading(page: Page): Promise<string> {
-    const key = await authStorageKey(page)
-    const token = await page.evaluate(
-        k => (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? '',
-        key
-    )
-    const settings = await page.request.get(
-        '/api/collections/books_settings/records/bookssettings01',
-        { headers: { Authorization: token } }
-    )
-    expect(settings.ok()).toBe(true)
-    const businessName = ((await settings.json()) as { business_name?: string }).business_name
-    if (businessName?.trim()) return businessName.trim()
-    const org = await page.request.get('/api/org-info')
-    expect(org.ok()).toBe(true)
-    return (((await org.json()) as { name?: string }).name ?? '').trim()
 }
 
 // Posts a two-line entry on `date` that debits `account` and credits Business Checking, and

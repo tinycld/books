@@ -1,0 +1,70 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports",
+            "openReport": "profit-and-loss",
+            "ready": "report-table",
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [{ "waitForHidden": "report-updating" }]
+        },
+        {
+            "name": "rows-active",
+            "url": "/a/reports",
+            "openReport": "profit-and-loss",
+            "ready": "report-table",
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "rows": "active" },
+                { "waitForHidden": "report-updating" }
+            ]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/reports",
+            "openReport": "profit-and-loss",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "click": "report-fold-all" },
+                { "waitFor": "Expand all" }
+            ]
+        },
+        {
+            "name": "no-lines",
+            "url": "/a/reports",
+            "openReport": "profit-and-loss",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "period": { "from": "2024-08-01", "to": "2024-08-14" } },
+                { "pause": 800 },
+                { "waitForHidden": "report-updating" },
+                { "click": "report-document-title" }
+            ]
+        },
+        {
+            "name": "customize",
+            "url": "/a/reports",
+            "openReport": "profit-and-loss",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitForHidden": "report-updating" },
+                { "click": "report-customize-open" },
+                { "waitFor": "report-customize" },
+                { "click": "report-customize-section-columns" },
+                { "waitFor": "report-option-column-pct" }
+            ],
+            "stable": "report-customize-reset"
+        }
+    ]
+}
