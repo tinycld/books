@@ -590,6 +590,17 @@ test.describe('books-settings: Settings screens', () => {
         page,
     }) => {
         await openSettings(page)
+        // The section list in screen order, in the wide rail and in the phone list: Sales
+        // sits between Accounting and Numbering (presence and order only; its summary
+        // follows "Sales deposited to", which sales-receipt-form-settings.spec.ts changes).
+        const sectionOrder = () =>
+            page
+                .locator('[data-testid^="books-settings-section-"]:visible')
+                .evaluateAll(els => els.map(el => el.getAttribute('data-testid')))
+        const order = ['company', 'accounting', 'sales', 'numbering', 'form-1099', 'access'].map(
+            section => `books-settings-section-${section}`
+        )
+        await expect.poll(sectionOrder).toEqual(order)
         const historyLength = () => page.evaluate(() => window.history.length)
         const before = await historyLength()
         for (const section of ['numbering', 'accounting', 'company', 'numbering']) {
@@ -602,6 +613,7 @@ test.describe('books-settings: Settings screens', () => {
         await id(page, 'books-settings-back').click()
         await expect(page).toHaveURL(/\/books\/settings$/)
         await expect(id(page, 'books-settings-section-accounting')).toBeVisible()
+        await expect.poll(sectionOrder).toEqual(order)
         await id(page, 'books-settings-section-accounting').click()
         await expect(page).toHaveURL(/\/books\/settings\/accounting$/)
         await expect(id(page, 'books-settings-back')).toBeVisible()

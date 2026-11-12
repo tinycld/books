@@ -29,6 +29,11 @@ describe('help/banking.md', () => {
         }
     })
 
+    // Checkpoint 5: where a sale's money goes (Undeposited funds or a bank account).
+    it('links the sales receipts topic', () => {
+        expect(body).toContain('(help://books:sales-receipts)')
+    })
+
     it.each([
         'connect account',
         'choose file',

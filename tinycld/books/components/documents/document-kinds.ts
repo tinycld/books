@@ -62,6 +62,8 @@ export type DocumentKind = {
             customer: CustomerFill | null
             rates: TaxRateFill[]
             defaultRateId: string
+            // The Books setting "Default message to customer" (defaultMessageFor).
+            message: string
             // Undefined only where no data source read it (a unit test's form).
             start: DocumentStart | undefined
         }) => DocumentFormValuesBase

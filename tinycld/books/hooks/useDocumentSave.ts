@@ -140,7 +140,9 @@ function showRefusal(
 }
 
 // Asked when a save's answer arrives, from the values the form holds then (useRecordSave's
-// hiddenFieldsOf): the fields the rendered definition hides, by itself or by a rule.
+// hiddenFieldsOf): the fields the rendered definition hides, by itself or by a rule. A
+// sales receipt's rendered definition hides `deposit_to` while "Sales deposited to" names
+// an account (useDocumentForm), so its refusal joins the summary then.
 function hiddenFieldsOf(state: DocumentFormState, definition?: FormDefinition): HiddenFields {
     return () =>
         hiddenRefusalKeys(
@@ -458,6 +460,16 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         if (kept.length !== lines.length) state.form.setValue('lines', kept, { shouldDirty: true })
     }
 
+    // A Deposit to that appeared ("Sales deposited to" went back to Ask) on a form that
+    // holds no account shows the default rule's account; the save writes that account.
+    // Set here, at the save, not by an effect, so an open form's value never changes on
+    // its own.
+    const fillDepositFallback = () => {
+        const fallback = state.depositFallback
+        if (fallback === '' || state.form.getValues('deposit_to') !== '') return
+        state.form.setValue('deposit_to', fallback, { shouldDirty: true })
+    }
+
     // A post holds the document before its first write (set synchronously, so the very
     // render the optimistic write triggers sees it); the mutation releases it.
     const holdFor = (id: string, mode: SaveMode) => {
@@ -538,6 +550,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         state.form.clearErrors('root')
         try {
             dropEmptyLine()
+            fillDepositFallback()
             // Post validates with its own rule added (at least one Item line); the
             // record schema reads the mode when it runs.
             if (mode.post) state.saveMode.current = 'post'

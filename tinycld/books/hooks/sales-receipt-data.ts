@@ -14,6 +14,7 @@ import {
     type EMPTY_SALES_RECEIPT_COLUMNS,
     salesReceiptColumnsFrom,
 } from '../lib/sales-receipt-columns'
+import { depositShown } from '../lib/sales-settings'
 import type { BooksSalesReceipts } from '../types'
 import {
     type DocumentDataSource,
@@ -198,14 +199,16 @@ function useSalesReceiptScreenReads(
 /**
  * What a receipt form starts from besides the receipt: the chart's deposit accounts and
  * the account "Sales deposited to" names ('' for Ask) choose a new form's and a copy's
- * Deposit to, and the schema requires Deposit to while it is drawn (until "Sales
- * deposited to" can hide it, always), with the no-account text when the chart offers
- * none. The settings row is the screen's own read (its readiness and Retry are there).
+ * Deposit to. Deposit to is drawn, and the schema requires it, only with "Ask"
+ * (`depositShown`, read live, so the field shows or hides at once), with the no-account
+ * text when the chart offers none. The settings row is the screen's own read (its
+ * readiness and Retry are there).
  */
 function useSalesReceiptFormStart(): DocumentScreenReads['formStart'] {
     const deposit = useDepositAccounts()
     const { settings } = useBooksSettings()
     const setAccount = settings?.sales_deposit_account ?? ''
+    const isHidden = !depositShown(settings)
     const { rows } = deposit
     const data = useMemo<DocumentFormStart>(() => {
         const active = rows.filter(isDepositAccountRow)
@@ -218,9 +221,9 @@ function useSalesReceiptFormStart(): DocumentScreenReads['formStart'] {
                     defaultId: defaultDepositAccount(rows),
                 },
             },
-            deposit: { hasOptions: active.length > 0, hidden: false },
+            deposit: { hasOptions: active.length > 0, hidden: isHidden },
         }
-    }, [rows, setAccount])
+    }, [rows, setAccount, isHidden])
     return {
         data,
         isReady: deposit.isReady,

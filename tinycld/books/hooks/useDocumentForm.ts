@@ -13,6 +13,7 @@ import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { type DepositRule, type DocumentSaveMode, documentSchema } from '../lib/document-schema'
 import { documentTaxOf } from '../lib/document-tax'
 import type { DocumentFormValuesBase } from '../lib/document-values'
+import { hideBuiltins } from '../lib/form-definition'
 import { todayIso } from '../lib/register-range'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { type DocumentStart, recordColumnsOf } from './document-data'
@@ -55,6 +56,17 @@ type FormInput = Pick<DocumentScreenData, 'record' | 'lines' | 'customer' | 'cur
     start?: DocumentStart
     // How a sales receipt draws Deposit to; an invoice has none.
     deposit?: DepositRule
+    // A new blank form's message (defaultMessageFor); none when not given.
+    defaultMessage?: string
+}
+
+const DEPOSIT_TO = ['deposit_to']
+
+// The account a shown Deposit to whose value is empty saves: the default rule's. Empty
+// for an invoice, and while Deposit to is hidden (the server stamps the set account).
+function depositFallbackOf(start: DocumentStart | undefined, isHidden: boolean): string {
+    if (isHidden || start?.kind !== 'sales_receipt') return ''
+    return start.deposit.defaultId
 }
 
 // `documentSchema` with the tax the validated values choose (their `tax_rate` through the
@@ -138,6 +150,7 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
               customer: input.customer ?? null,
               rates: input.taxRows,
               defaultRateId: defaultTaxRateId(input.taxRows),
+              message: input.defaultMessage ?? '',
               start: input.start,
           }))
         : {}
@@ -150,6 +163,19 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     const create = useFormCreate(host, undefined, context, createValues, schemas, recordSchema)
     const edit = useFormEdit(host, editRow, context, {}, tables, schemas, recordSchema)
     const chosen = isNew ? create : edit
+    // With an account set in "Sales deposited to", Deposit to is not drawn. Only the
+    // rendered copy hides it: core checks a definition against its host at host load and
+    // save, never in FormRenderer, so a locked built-in may be hidden here. The rule is
+    // read every render, so a settings change shows or hides the field at once.
+    const isDepositHidden = input.deposit?.hidden === true
+    const engineDefinition = chosen.definition
+    const definition = useMemo(
+        () =>
+            engineDefinition && isDepositHidden
+                ? hideBuiltins(engineDefinition, DEPOSIT_TO, host)
+                : engineDefinition,
+        [engineDefinition, isDepositHidden, host]
+    )
     // Read through the form state proxy, so a change re-renders the guard (useRecordForm).
     const dirtyFields = chosen.form.formState.dirtyFields
     return {
@@ -162,8 +188,10 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         isNew,
         create,
         edit,
-        definition: chosen.definition,
+        // The definition the screen renders; a refusal of a field it hides joins the summary.
+        definition,
         form: chosen.form,
+        depositFallback: depositFallbackOf(input.start, isDepositHidden),
         recordId: record?.id,
         // The posted document a new correction replaces; its insert writes it.
         replaces: isNew ? (input.startValues?.replaces ?? '') : '',

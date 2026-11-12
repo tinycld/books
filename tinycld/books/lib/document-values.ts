@@ -6,7 +6,7 @@ import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { tableRowsOf } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { newRecordId } from 'pbtsdb/core'
-import type { BooksInvoices } from '../types'
+import type { BooksInvoices, BooksSettings } from '../types'
 import { DOCUMENT_LINE_MAPPER, type DocumentLineRow } from './document-line-columns'
 import {
     type DocumentLineInput,
@@ -27,6 +27,15 @@ export type DocumentFormValuesBase = FormValues & {
     lines: TableRow[]
     message: string
     memo: string
+}
+
+// The message a new blank form starts with: the Books setting "Default message to
+// customer" ('' while the settings row is not read). A copy and a correction keep their
+// source's message instead.
+export function defaultMessageFor(
+    settings: Pick<BooksSettings, 'default_customer_message'> | undefined
+): string {
+    return settings?.default_customer_message ?? ''
 }
 
 export function emptyItemLine(): TableRow {

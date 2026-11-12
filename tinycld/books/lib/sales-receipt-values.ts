@@ -15,17 +15,19 @@ export type SalesReceiptFormValues = DocumentFormValuesBase & {
     deposit_to: string
 }
 
-// A new form: dated today, on the default deposit account, with one empty Item line and
-// no customer. With a customer (the `?customer` route param) the header is filled as a
-// pick fills it, and an exempt customer's line is not taxable.
+// A new form: dated today, on the default deposit account, with one empty Item line, the
+// default message (`defaultMessageFor`; none when not given) and no customer. With a
+// customer (the `?customer` route param) the header is filled as a pick fills it, and an
+// exempt customer's line is not taxable.
 export function newSalesReceiptValues(input: {
     today: string
     customer?: CustomerFill | null
     rates: TaxRateFill[]
     defaultRateId: string
     depositDefault: string
+    message?: string
 }): SalesReceiptFormValues {
-    const { today, customer, rates, defaultRateId, depositDefault } = input
+    const { today, customer, rates, defaultRateId, depositDefault, message = '' } = input
     const fills = customer ? customerFills(customer, rates, today, null, SALES_RECEIPT_KIND) : null
     const line = emptyItemLine()
     const lines = fills?.isExempt ? [{ ...line, taxable: false }] : [line]
@@ -39,7 +41,7 @@ export function newSalesReceiptValues(input: {
         reference_no: '',
         deposit_to: depositDefault,
         lines,
-        message: '',
+        message,
         memo: '',
     }
 }

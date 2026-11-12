@@ -31,6 +31,11 @@ describe('help/customers.md', () => {
         }
     })
 
+    // Checkpoint 5: cross-linked from the sales receipt topic's neighbours (spec §3.10).
+    it('links the sales receipts topic', () => {
+        expect(body).toContain('(help://books:sales-receipts)')
+    })
+
     it('explains creating a customer', () => {
         expect(body).toMatch(/\bcreate\b/i)
         expect(body).toContain('New customer')

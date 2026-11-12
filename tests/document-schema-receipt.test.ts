@@ -169,6 +169,23 @@ describe("documentSchema(SALES_RECEIPT_KIND, 'USD', 'draft')", () => {
     })
 })
 
+// Checkpoint 5: with an account set in "Sales deposited to" Deposit to is hidden and the
+// server stamps the set account, so an empty Deposit to passes; with "Ask" it is refused.
+describe('documentSchema(SALES_RECEIPT_KIND) with Deposit to hidden', () => {
+    const HIDDEN: DepositRule = { hasOptions: true, hidden: true }
+
+    it('accepts an empty Deposit to on a draft and a post', () => {
+        const values = valuesWith([item()], { deposit_to: '' })
+        expect(draftIssues(values, HIDDEN)).toEqual([])
+        expect(postIssues(values, HIDDEN)).toEqual([])
+    })
+
+    it('refuses it with Deposit to shown, as in checkpoint 4', () => {
+        const values = valuesWith([item()], { deposit_to: '' })
+        expect(messagesAt(postIssues(values, ASK), ['deposit_to'])).toEqual([DEPOSIT_REQUIRED])
+    })
+})
+
 describe("documentSchema(SALES_RECEIPT_KIND, 'USD', 'post')", () => {
     it('adds the one-product-line rule', () => {
         const issues = postIssues(valuesWith([item({ product: '' })]))

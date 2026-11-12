@@ -1,5 +1,6 @@
-import { expect, type Page } from '@playwright/test'
-import { isPhone } from './account-register-helpers'
+import { expect, type Locator, type Page } from '@playwright/test'
+import { accountItem, DESKTOP, isPhone, openChart } from './account-register-helpers'
+import { openBooksMenu } from './books-report-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 
@@ -117,4 +118,134 @@ export async function openSalesReceiptBySearch(page: Page, memo: string) {
     await expect(
         page.getByTestId('sales-receipt-form').or(page.getByTestId('sales-receipt-read-only'))
     ).toBeVisible()
+}
+
+// Settings → Sales (spec §3.11). Only sales-receipt-form-settings.spec.ts may use these:
+// they change the shared books_settings row.
+
+const SETTINGS_ROW_PATH = '/api/collections/books_settings/records/bookssettings01'
+
+// A screen covered in the navigation stack stays mounted but hidden, so only the visible
+// match counts.
+export function visibleTestId(page: Page, testId: string): Locator {
+    return page.locator(`[data-testid="${testId}"]:visible`)
+}
+
+// Books must already be open. Opens Settings → Sales: on desktop through the sidebar and
+// the rail, on a phone through the Books menu (the drawer) and the section list.
+export async function openSalesSettings(page: Page) {
+    if (isPhone(page)) {
+        await openBooksMenu(page)
+        await page.getByTestId('mobile-drawer-panel').getByTestId('books-nav-settings').click()
+    } else {
+        await visibleTestId(page, 'books-nav-settings').click()
+    }
+    // On a settings route the press pushes a new Settings root and keeps the old screen
+    // hidden in the DOM; a rail click before the push lands resolves to the old screen's
+    // hidden row and waits on it until timeout.
+    await expect(page).toHaveURL(/\/books\/settings$/)
+    await visibleTestId(page, 'books-settings-section-sales').click()
+    await expect(page).toHaveURL(/\/books\/settings\/sales$/)
+    await expect(visibleTestId(page, 'books-settings-sales-deposit')).toBeVisible()
+}
+
+// Saves one Settings → Sales card whose value the caller changed from the stored one, and
+// waits for the stored row. The caller decides from the stored value, never from Save's
+// state: Save may read disabled for a moment right after the edit, and a skip then would
+// leave the setting unchanged without a failure.
+async function saveSalesCard(page: Page, saveTestId: string) {
+    const save = visibleTestId(page, saveTestId)
+    await expect(save).toBeEnabled()
+    const answered = page.waitForResponse(
+        response =>
+            response.request().method() === 'PATCH' &&
+            new URL(response.url()).pathname === SETTINGS_ROW_PATH
+    )
+    await save.click()
+    expect((await answered).status()).toBe(200)
+    await expect(save).toBeDisabled()
+}
+
+// Stores "Sales deposited to" as the option `label`, unless the stored value is already
+// that option (the select's trigger names the stored choice once the accounts are read).
+async function storeSalesDeposit(page: Page, label: 'Ask' | string) {
+    const select = visibleTestId(page, 'books-settings-sales-deposit')
+    // The select is disabled while the deposit accounts load.
+    await expect(select).toBeEnabled()
+    if ((await select.innerText()).trim() === label) return
+    await select.click()
+    const item = page.getByRole('menuitem', { name: label, exact: true })
+    await item.click()
+    await expect(item).toHaveCount(0)
+    await expect(select).toContainText(label)
+    await saveSalesCard(page, 'books-settings-sales-deposit-save')
+}
+
+// Stores "Default message to customer" as `text`, unless it is already the stored text.
+async function storeDefaultMessage(page: Page, text: string) {
+    const input = visibleTestId(page, 'books-settings-default-message')
+    await expect(input).toBeVisible()
+    if ((await input.inputValue()) === text) return
+    await input.fill(text)
+    await expect(input).toHaveValue(text)
+    await saveSalesCard(page, 'books-settings-default-message-save')
+}
+
+// Books must already be open, as the admin the specs log in as. Sets "Sales deposited to"
+// ("Ask" or an account's "<number> <name>") and saves it; stays on Settings → Sales.
+export async function setSalesDepositedTo(page: Page, label: 'Ask' | string) {
+    await openSalesSettings(page)
+    await storeSalesDeposit(page, label)
+}
+
+// Books must already be open. Sets "Default message to customer" and saves it; stays on
+// Settings → Sales.
+export async function setDefaultMessage(page: Page, text: string) {
+    await openSalesSettings(page)
+    await storeDefaultMessage(page, text)
+}
+
+// Back out of Settings to the screen it was opened from (same-document history moves,
+// no page load), so the next helper starts where it would without the detour.
+export async function leaveSettings(page: Page) {
+    const inSettings = () => /\/books\/settings(\/|$)/.test(new URL(page.url()).pathname)
+    for (let step = 0; step < 4 && inSettings(); step++) {
+        const from = page.url()
+        await page.goBack()
+        await expect(page).not.toHaveURL(from)
+    }
+    await expect(page).not.toHaveURL(/\/books\/settings(\/|$)/)
+}
+
+const UNDEPOSITED_FUNDS = 'Undeposited funds'
+
+// Makes 1200 Undeposited funds active again when the chart shows it inactive, so a
+// broken set-account guard cannot leave the shared book without its deposit account.
+async function reactivateUndepositedFunds(page: Page) {
+    await openChart(page)
+    await expect(accountItem(page, 'Business Checking')).toBeVisible()
+    if ((await accountItem(page, UNDEPOSITED_FUNDS).count()) > 0) return
+    await visibleTestId(page, 'account-show-inactive').click()
+    const item = accountItem(page, UNDEPOSITED_FUNDS)
+    await expect(item).toHaveCount(1)
+    const stored = page.waitForResponse(
+        response =>
+            response.request().method() === 'PATCH' &&
+            new URL(response.url()).pathname.includes('/api/collections/books_accounts/records/')
+    )
+    await item.locator('[data-testid^="account-menu-"]').click()
+    await page.getByRole('menuitem', { name: 'Make active', exact: true }).click()
+    expect((await stored).status()).toBe(200)
+}
+
+// Puts both Sales settings back as seeded through the Settings UI (Sales deposited to
+// "Ask", no default message), then the Undeposited funds account active. Runs at the
+// desktop viewport, from wherever the test left the page.
+export async function restoreSalesSettings(page: Page) {
+    await page.unrouteAll({ behavior: 'wait' })
+    await page.setViewportSize(DESKTOP)
+    await openSalesSettings(page)
+    await storeSalesDeposit(page, 'Ask')
+    await storeDefaultMessage(page, '')
+    await reactivateUndepositedFunds(page)
 }

@@ -384,6 +384,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
         startValues: data.startValues,
         start: data.start,
         deposit: data.deposit,
+        defaultMessage: data.defaultMessage,
     })
     const form = state.form as EngineForm
     // A save from the PDF tab that ends with a field error shows the form, where the
