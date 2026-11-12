@@ -27,4 +27,9 @@ var documentKinds = map[string]documentKind{
 		Build:      buildInvoiceDocument,
 		FileName:   invoiceFileName,
 	},
+	"sales_receipt": {
+		Collection: "books_sales_receipts",
+		Build:      buildSalesReceiptDocument,
+		FileName:   salesReceiptFileName,
+	},
 }

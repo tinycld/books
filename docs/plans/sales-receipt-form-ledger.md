@@ -30,6 +30,11 @@ with the reason, and shown to the human at the end)
 - cp 1 · reviewer A: the `books:sales_receipt` host names `PaymentMethodField` / `DepositAccountField`; core `HostMount` returns null for a missing component, so cp4 must add both to `forms/ui.ts`. The message label is a literal until cp3's `DOCUMENT_NOTE_LABELS`.
 - cp 1 · reviewer A: until cp4's `lib/entry-route.ts` change, the two seeded receipt entries open as `books/entries/<id>` in the Journal Entries list, and Edit leads to a server refusal.
 - cp 1 · fix reviewer: `server/sales_documents.go:112` comment names `lib/sales-document-kinds.ts`, which cp3/cp4 create; correct the comment if that file is named differently.
+- cp 2 · reviewer A: `checkAccountChange` on the set deposit account runs the journal-lines / sub-account type checks (type change) and the active sub-accounts check (deactivation) before the set-account text; each refusal is correct, only which text shows first differs. Optional: call `checkSetDepositAccountChange` first in both branches, after the Banking checks.
+- cp 2 · reviewers A and B: federated search returns `sales_receipt:<id>` rows, but `lib/search-target.ts` has no `sales_receipt` path until cp4 (its Files block names `['sales_receipt', 'books/sales-receipts/[id]']`); a receipt hit opens nothing until then. cp4 reviewers check it and the file's header comment.
+- cp 2 · reviewer A: the PDF prints the label "Payment" before "Check · 43567" (spec §3.8 names no label; the read view uses "Payment"); the receipt PDF's big amount is "Amount received".
+- cp 2 · reviewer A: `lib/payment-methods.ts` `LABELS` Map repeats `PAYMENT_METHOD_LABELS`; `paymentMethodLabel` could read the record through an own-key guard.
+- cp 2 · reviewers A and B: the scratch route `helix-mockup.tsx` (git-excluded) lost a `.filter(([key]) => key !== '')` in cp2 (the re-exported `PAYMENT_METHOD_LABELS` has no `''` key; "None" comes from `paymentMethodOptions()`); cp3's import edits start from that state.
 
 ## Out-of-plan changes
 - cp 1 · `tinycld/books/forms/hosts.ts` — `books:sales_receipt` host; the generic Go line guard (`lineRowError`) reads the host by `kind.HostKey`, so receipt lines are refused without it.
@@ -39,6 +44,9 @@ with the reason, and shown to the human at the end)
 - cp 1 · `BooksSettings` literals gain the two new settings fields (tsc): `lib/books-settings-fixture.ts`, `lib/account-register-fixture.ts`, `lib/setup-wizard-fixture.ts`, `tests/setup-step-hooks.test.tsx`, `tests/setup-parts.test.tsx`, `tests/useBooksSetup.test.tsx`, `tests/lists-hub.test.tsx`, `tests/useSettingsShell.test.tsx`.
 - cp 1 · comment-only (code moved to `sales_documents.go`): `lib/document-lines.ts`, `lib/invoice-line-order.ts`, `lib/invoice-schema.ts`, `tests/invoice-line-order.test.ts`, `tests/e2e/invoice-form-draft.spec.ts`, `pb-migrations/2100000010_create_books_invoices.js`; `docs/plans/sales-receipt-form-capture.json` biome format only.
 - cp 1 · `tinycld/books/types.ts` — re-exports the generated `BooksSalesReceipts`, `BooksSalesReceiptLines`, `BooksSalesReceiptTaxLines` (the fixture and the tests import them from there).
+- cp 2 · `server/pdf_template.html` — one `{{if .Payment}}` line under the dates; `pdfDocument.Payment` cannot print without it (invoice PDFs unchanged: Payment empty).
+- cp 2 · `server/search_index_test.go` — index count 6 → 7 (resolved test dispute: Do 5 registers `fts_books_sales_receipts`).
+- cp 2 · `tinycld/books/screens/helix-mockup.tsx` (git-excluded scratch route) — one filter removed so tsc compiles after the fixture re-export.
 
 ## Phase notes
 - phase 1: no corrections to the extractions (intake at staging/p2-sales-receipt/intake.md). Design gate 2026-11-11 (revise 1, then approval):
@@ -106,6 +114,22 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 5 listed under Design notes
 - reviewer-caught deferrals: none
 - commit: 20cdd74
+- human: none (review mode C)
+
+## Checkpoint 2
+- test writer: server/settings_test.go, accounts_test.go, customers_test.go, products_test.go, sales_tax_test.go, document_posting_test.go, search_test.go, registrations_test.go (edited), audit_test.go, oauth_scopes_test.go, pdf_sales_receipt_test.go (new), tests/payment-methods.test.ts (new); 25 tests; red for the right reason: 20 yes; 5 green before the code because cp1 or existing behavior already delivers them (audit labels and settings audit row, OAuth scopes — cp1 brought them forward; settings checked-only-on-change has no guard to refuse yet; the 4000-char message is the cp1 migration's limit); `TestTaxRateReferences_StartWithGroupComponents` count raised to 5 for the new references; untestable: none. "the lower `sort_key`" in the brief: accounts have no sort key; loop decision: chart order (number, unnumbered last, id), as `ensureReceivables`.
+- implementer: settings and account guards for the set deposit account, deposit-of-receipts delete refusal, customer (`Msgs.CustomerOnDocs`, cp1 note answered) / product / tax-rate references, `ensureUndepositedFunds`, generic `searchSalesDocs` (LEFT JOIN) + `fts_books_sales_receipts` (cp1 note answered), PDF kind `sales_receipt` with shared `documentPDF*` builders and `pdfDocument.Payment`, `payment_methods.json` + Go/TS mirrors, fixture re-exports; DONE (1 dispute, 7 declared differences).
+- test disputes: `server/search_index_test.go` `TestSearchIndex_TablesHoldTheConfiguredColumns` pinned 6 indexes. Settled by Do 5: "`search_index.go` registers `fts_books_sales_receipts`" → test wrong; fresh test writer set 7, staged.
+- self-declared differences: one generic `searchSalesDocs` with `invoiceSearch` / `salesReceiptSearch` values instead of a copied `searchSalesReceipts` (invoice now LEFT JOIN + COALESCE, same rows) · `documentPDFLines` / `documentPDFTaxLines` take collection + parent field; also `invoiceTitle` → `documentPDFTitle`, `invoiceBillTo` → `documentPDFParty`, new `documentPDFCompany` · PDF payment line labelled "Payment"; receipt big amount "Amount received" · `PAYMENT_METHOD_KEYS` an `as const` tuple, `PAYMENT_METHODS` built from keys + labels · re-exported `PAYMENT_METHOD_LABELS` has no `''` key (scratch route filter removed) · delete-refusal order (changed in the fix round, see gate 3 A) · `lib/search-target.ts` gains no `sales_receipt` path until cp4's route (cp4 Files names it; Design notes).
+- gate 1: tests unedited: yes (after the dispute fix, staged) · `tinycld-pkg check` pass (229 files, 4617 tests), `go test ./...` pass · no e2e in this checkpoint's Gates line.
+- gate 2: n/a (nothing new renders)
+- gate 3 A (correctness): 1 BLOCK, 6 NOTE · BLOCK 1 set deposit account with postings gets the journal-lines delete text, then "make inactive" is refused → accepted+fixed (fix items 1, 2) · NOTE 4 `documentPDFLines` copies `salesDocLines`' query → accepted with B F4 (fix item 3) · NOTEs 2, 3, 5, 6, 7 → Design notes.
+- gate 3 B (conformance): script lines: 0 · F1 `pdf_template.html` out of plan → accepted, recorded under Out-of-plan · F2 `search_index_test.go` count change → accepted, the resolved dispute, recorded under Out-of-plan · F3 scratch route edit → recorded under Out-of-plan and Design notes · F4 copied lines query → accepted+fixed (fix item 3). The script's out-of-plan list also named pdf_document.go, pdf_invoice.go, pdf_kinds.go, pdf_sales_receipt.go, which the Files block names (script misparse; retro log).
+- fix round (cp2-fix.md, 3 items): 1 spec-logic → set-account delete refusal moved before the journal-lines count, after the Banking check · 2 weak-test → fresh test writer added `TestAccount_SetDepositAccountRefusals/deleted_with_journal_lines` (posts a receipt to the set 1200, then deletes it; red with the journal-lines text before the fix) · 3 mirror → one lines query: `salesDocLines` and `documentPDFLines` share it · gate 1 again: `tinycld-pkg check` pass, `go test ./...` pass.
+- fix review: round 1: clean (0 BLOCK, 0 NOTE).
+- gate 3 A notes: 5 listed under Design notes (4 from A, 1 shared with B)
+- reviewer-caught deferrals: none
+- commit: (this commit)
 - human: none (review mode C)
 
 ## Final review

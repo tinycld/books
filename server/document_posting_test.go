@@ -1,6 +1,7 @@
 package books
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -175,4 +176,114 @@ func TestDocumentEntry_RESTGuards(t *testing.T) {
 			}.run(t, de.app)
 		})
 	}
+}
+
+// undepositedFundsAccounts lists the chart's Undeposited funds accounts.
+func undepositedFundsAccounts(t testing.TB, app core.App) []*core.Record {
+	t.Helper()
+	rows, err := app.FindAllRecords("books_accounts", dbx.HashExp{"detail_type": "undeposited_funds"})
+	if err != nil {
+		t.Fatalf("read the Undeposited funds accounts: %v", err)
+	}
+	return rows
+}
+
+// Spec §4.3: ensureUndepositedFunds returns the first active Undeposited funds
+// account in chart order (by number, unnumbered last), skipping inactive ones,
+// and creates none while one exists.
+func TestEnsureUndepositedFunds_ReturnsTheFirstActiveInChartOrder(t *testing.T) {
+	app := newGuardedApp(t)
+	later := mkNumberedAccount(t, app, "Cash to deposit", "1250", "other_current_asset", "undeposited_funds")
+	first := mkNumberedAccount(t, app, "Undeposited funds", "1210", "other_current_asset", "undeposited_funds")
+	retired := mkNumberedAccount(t, app, "Old undeposited funds", "1205", "other_current_asset", "undeposited_funds")
+	makeAccountInactive(t, app, retired)
+	mkAccount(t, app, "Unnumbered funds", "other_current_asset", "undeposited_funds")
+
+	var got *core.Record
+	err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		got, err = ensureUndepositedFunds(tx)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("ensureUndepositedFunds: %v", err)
+	}
+	if got == nil || got.Id != first.Id {
+		t.Errorf("ensureUndepositedFunds = %v, want 1210 Undeposited funds (%s), not 1250 (%s)", got, first.Id, later.Id)
+	}
+	if n := len(undepositedFundsAccounts(t, app)); n != 4 {
+		t.Errorf("%d Undeposited funds accounts after the call, want the 4 that were there", n)
+	}
+}
+
+// With no active Undeposited funds account, ensureUndepositedFunds creates
+// "Undeposited funds" (other current asset, detail undeposited_funds),
+// numbered 1200 when no account holds that number, inside the caller's
+// transaction.
+func TestEnsureUndepositedFunds_CreatesOneWhenTheChartHasNone(t *testing.T) {
+	ensure := func(t *testing.T, app core.App) *core.Record {
+		t.Helper()
+		var got *core.Record
+		if err := app.RunInTransaction(func(tx core.App) error {
+			var err error
+			got, err = ensureUndepositedFunds(tx)
+			return err
+		}); err != nil {
+			t.Fatalf("ensureUndepositedFunds: %v", err)
+		}
+		if got == nil {
+			t.Fatal("ensureUndepositedFunds returned no account")
+		}
+		return reload(t, app, "books_accounts", got.Id)
+	}
+	requireCreated := func(t *testing.T, r *core.Record, number string) {
+		t.Helper()
+		if r.GetString("name") != "Undeposited funds" || r.GetString("type") != "other_current_asset" ||
+			r.GetString("detail_type") != "undeposited_funds" || r.GetString("number") != number || r.GetBool("inactive") {
+			t.Errorf("created account = %q %q %q number %q inactive %v, want Undeposited funds, other_current_asset, undeposited_funds, number %q, active",
+				r.GetString("name"), r.GetString("type"), r.GetString("detail_type"), r.GetString("number"), r.GetBool("inactive"), number)
+		}
+	}
+
+	t.Run("numbered 1200 when free", func(t *testing.T) {
+		app := newGuardedApp(t)
+		requireCreated(t, ensure(t, app), "1200")
+		if n := len(undepositedFundsAccounts(t, app)); n != 1 {
+			t.Errorf("%d Undeposited funds accounts, want the 1 created", n)
+		}
+	})
+
+	t.Run("unnumbered when 1200 is taken", func(t *testing.T) {
+		app := newGuardedApp(t)
+		mkNumberedAccount(t, app, "Prepaid insurance", "1200", "other_current_asset", "prepaid_expenses")
+		requireCreated(t, ensure(t, app), "")
+	})
+
+	t.Run("a rolled-back transaction leaves no account", func(t *testing.T) {
+		app := newGuardedApp(t)
+		before, err := app.CountRecords("books_accounts")
+		if err != nil {
+			t.Fatal(err)
+		}
+		rollback := errors.New("roll back")
+		err = app.RunInTransaction(func(tx core.App) error {
+			created, err := ensureUndepositedFunds(tx)
+			if err != nil {
+				return err
+			}
+			if created == nil || created.Id == "" {
+				t.Error("ensureUndepositedFunds created no account inside the transaction")
+			}
+			return rollback
+		})
+		if !errors.Is(err, rollback) {
+			t.Fatalf("transaction error = %v, want the rollback", err)
+		}
+		if after, _ := app.CountRecords("books_accounts"); after != before {
+			t.Errorf("%d accounts after the rollback, want %d", after, before)
+		}
+		if n := len(undepositedFundsAccounts(t, app)); n != 0 {
+			t.Errorf("%d Undeposited funds accounts after the rollback, want 0", n)
+		}
+	})
 }
