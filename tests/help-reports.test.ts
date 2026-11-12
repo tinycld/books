@@ -248,6 +248,95 @@ describe('help/reports.md', () => {
         })
     })
 
+    describe('the "Read the Profit and Loss" section', () => {
+        const pl = section('## Read the Profit and Loss')
+        const sentences = pl.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('has the heading after the last statement section and before "Who sees Books reports"', () => {
+            expect(body).toMatch(/^## Read the Profit and Loss$/m)
+            const at = body.indexOf('## Read the Profit and Loss\n')
+            const statements = ['## Read the Journal\n', '## Read the Balance Sheet\n']
+                .map(heading => body.indexOf(heading))
+                .filter(index => index >= 0)
+            expect(statements.length).toBeGreaterThan(0)
+            expect(at).toBeGreaterThan(Math.max(...statements))
+            expect(at).toBeLessThan(body.indexOf('## Who sees Books reports\n'))
+        })
+
+        it('names the statement in its order, with the four computed rows', () => {
+            const order = [
+                'Income',
+                'Cost of goods sold',
+                'Gross profit',
+                'Expenses',
+                'Net operating income',
+                'Other income',
+                'Other expenses',
+                'Net other income',
+                'Net income',
+            ]
+            let from = 0
+            const missing: string[] = []
+            for (const name of order) {
+                const found = pl.slice(from).search(new RegExp(`\\b${name}\\b`))
+                if (found < 0) {
+                    missing.push(name)
+                    continue
+                }
+                from += found + name.length
+            }
+            expect(missing).toEqual([])
+        })
+
+        it("says amounts read by the account's normal side, so a discount account reads negative", () => {
+            expect(oneSentence(/\bamounts?\b/i, /normal side/i)).toBe(true)
+            expect(oneSentence(/\bdiscount/i, /\bnegative\b/i)).toBe(true)
+        })
+
+        it('says % of income divides by Total Income, and Other income is not counted', () => {
+            expect(oneSentence(/% of income/, /Total Income/)).toBe(true)
+            expect(oneSentence(/Other income/, /\b(not|never)\b/i)).toBe(true)
+        })
+
+        it('names the Period chip with its default, its presets and Custom', () => {
+            expect(pl).toMatch(/\bPeriod\b/)
+            expect(pl).toContain('This fiscal year to date')
+            expect(oneSentence(/\bpreset/i, /\bThis month\b/, /\bLast quarter\b/)).toBe(true)
+            expect(pl).toContain('Custom')
+        })
+
+        it('names the Rows chip with Non-zero and Active', () => {
+            expect(pl).toMatch(/\bRows\b/)
+            expect(pl).toContain('Non-zero')
+            expect(pl).toMatch(/\bActive\b/)
+        })
+
+        it('says a press on an account opens its lines', () => {
+            expect(oneSentence(/\bpress/i, /\baccount\b/i, /\blines\b/i)).toBe(true)
+        })
+
+        it('names the Profit and Loss by Month: every month shown, a month with no line at 0.00, at most 36 months', () => {
+            expect(pl).toContain('Profit and Loss by Month')
+            expect(oneSentence(/Profit and Loss by Month/, /\bevery month\b/i)).toBe(true)
+            expect(oneSentence(/\bmonth with no line\b/i, /\b0\.00\b/)).toBe(true)
+            expect(oneSentence(/\b36\b/, /\bmonths?\b/i)).toBe(true)
+        })
+
+        it('says the P&L is on the accrual basis', () => {
+            expect(pl).toContain(
+                'Books reports the P&L on the accrual basis: income counts on the day it is entered, not the day it is paid.'
+            )
+        })
+    })
+
+    it('"Who sees Books reports" names the Profit and Loss and the Profit and Loss by Month', () => {
+        const who = section('## Who sees Books reports')
+        expect(who).toContain('Profit and Loss by Month')
+        expect(who.replaceAll('Profit and Loss by Month', '')).toContain('Profit and Loss')
+    })
+
     it('"Who sees Books reports" names the Journal with the Trial Balance and the General Ledger', () => {
         const sentences = section('## Who sees Books reports').split(/(?<=[.!?])\s+/)
         expect(
