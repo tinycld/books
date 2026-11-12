@@ -1,11 +1,11 @@
 import { eq, inArray, queryOnce } from '@tanstack/db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import type { BundleItemFill } from '../lib/invoice-fills'
+import type { BundleItemFill } from '../lib/document-fills'
 
-export type { BundleItemFill } from '../lib/invoice-fills'
+export type { BundleItemFill } from '../lib/document-fills'
 
 /**
- * Reads a bundle's items once, at the pick that expands it on an invoice line: the
+ * Reads a bundle's items once, at the pick that expands it on a sales document line: the
  * bundle's `books_bundle_items` in position order, then their products by id. Items whose
  * product is inactive or gone are left out, so a bundle whose items are all inactive
  * gives `[]`. Two one-shot reads, each from its own collection by a known key, so neither

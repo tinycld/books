@@ -1,8 +1,8 @@
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { describe, expect, it } from 'vitest'
 import { documentTotals } from '../tinycld/books/lib/document-lines'
+import { documentTaxOf, shownDocumentTotals } from '../tinycld/books/lib/document-tax'
 import { INVOICE_CURRENCY, INVOICE_TODAY } from '../tinycld/books/lib/invoice-form-fixture'
-import { invoiceTaxOf, shownInvoiceTotals } from '../tinycld/books/lib/invoice-tax'
 import { type InvoiceFormValues, newInvoiceValues } from '../tinycld/books/lib/invoice-values'
 import { TAX_IDS, TAX_RATE_ROWS } from '../tinycld/books/lib/tax-rates-fixture'
 
@@ -18,14 +18,14 @@ function ppmOf(id: string) {
 
 describe('invoiceTaxOf', () => {
     it('a rate is its own one component, labelled with its percent', () => {
-        expect(invoiceTaxOf(TAX_RATE_ROWS, TAX_IDS.lodging)).toEqual({
+        expect(documentTaxOf(TAX_RATE_ROWS, TAX_IDS.lodging)).toEqual({
             tax: { components: [{ id: TAX_IDS.lodging, ppm: 88_750 }] },
             label: 'Denver lodging (8.875%)',
         })
     })
 
     it("a group is its component rates, labelled with their sum: 'Denver combined (8.71%)'", () => {
-        expect(invoiceTaxOf(TAX_RATE_ROWS, TAX_IDS.denverCombined)).toEqual({
+        expect(documentTaxOf(TAX_RATE_ROWS, TAX_IDS.denverCombined)).toEqual({
             tax: {
                 components: [
                     { id: TAX_IDS.state, ppm: ppmOf(TAX_IDS.state) },
@@ -39,7 +39,7 @@ describe('invoiceTaxOf', () => {
 
     it('a group leaves out a component whose row is not loaded', () => {
         const rows = TAX_RATE_ROWS.filter(r => r.id !== TAX_IDS.rtd)
-        expect(invoiceTaxOf(rows, TAX_IDS.denverCombined)).toEqual({
+        expect(documentTaxOf(rows, TAX_IDS.denverCombined)).toEqual({
             tax: {
                 components: [
                     { id: TAX_IDS.state, ppm: ppmOf(TAX_IDS.state) },
@@ -51,9 +51,9 @@ describe('invoiceTaxOf', () => {
     })
 
     it('no choice, or a choice whose row is not loaded, is no tax', () => {
-        expect(invoiceTaxOf(TAX_RATE_ROWS, '')).toEqual({ tax: null, label: null })
+        expect(documentTaxOf(TAX_RATE_ROWS, '')).toEqual({ tax: null, label: null })
         const rows = TAX_RATE_ROWS.filter(r => r.id !== TAX_IDS.denverCombined)
-        expect(invoiceTaxOf(rows, TAX_IDS.denverCombined)).toEqual({ tax: null, label: null })
+        expect(documentTaxOf(rows, TAX_IDS.denverCombined)).toEqual({ tax: null, label: null })
     })
 })
 
@@ -77,10 +77,10 @@ describe('shownInvoiceTotals', () => {
         }
     }
 
-    const { tax } = invoiceTaxOf(TAX_RATE_ROWS, TAX_IDS.denverCombined)
+    const { tax } = documentTaxOf(TAX_RATE_ROWS, TAX_IDS.denverCombined)
 
     it('is the totals with the header tax when every cell parses', () => {
-        const shown = shownInvoiceTotals(values([item({})]), tax, INVOICE_CURRENCY)
+        const shown = shownDocumentTotals(values([item({})]), tax, INVOICE_CURRENCY)
         const expected = documentTotals(
             [{ kind: 'item', quantity: 2, rate: 10_000, percentPpm: 0, taxable: true }],
             tax
@@ -92,13 +92,13 @@ describe('shownInvoiceTotals', () => {
 
     it('is null while a rate does not parse', () => {
         expect(
-            shownInvoiceTotals(values([item({ rate: 'abc' })]), tax, INVOICE_CURRENCY)
+            shownDocumentTotals(values([item({ rate: 'abc' })]), tax, INVOICE_CURRENCY)
         ).toBeNull()
     })
 
     it('is null while a quantity is blank', () => {
         expect(
-            shownInvoiceTotals(values([item({ quantity: null })]), tax, INVOICE_CURRENCY)
+            shownDocumentTotals(values([item({ quantity: null })]), tax, INVOICE_CURRENCY)
         ).toBeNull()
     })
 
@@ -112,6 +112,6 @@ describe('shownInvoiceTotals', () => {
             amount: null,
             taxable: false,
         }
-        expect(shownInvoiceTotals(values([percent]), tax, INVOICE_CURRENCY)).toBeNull()
+        expect(shownDocumentTotals(values([percent]), tax, INVOICE_CURRENCY)).toBeNull()
     })
 })

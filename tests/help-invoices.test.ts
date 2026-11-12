@@ -64,11 +64,17 @@ describe('help/invoices.md', () => {
 
     // Revise 1 item 4: the topic names the two notes by the labels the form shows.
     it.each([
-        'Message to customer (prints on invoice)',
+        'Message to customer (printed)',
         'Internal memo (not printed)',
     ])('names the field %s', label => {
         expect(topicExists).toBe(true)
         expect(body).toContain(label)
+    })
+
+    // Spec §3.5: the invoice takes the shared message label, so the old one is gone.
+    it('no longer names the old message label', () => {
+        expect(topicExists).toBe(true)
+        expect(body).not.toContain('prints on invoice')
     })
 
     it('has no Ctrl or Alt keyboard text', () => {

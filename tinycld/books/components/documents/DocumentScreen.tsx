@@ -1,0 +1,62 @@
+import type { DocumentScreenInput } from '../../hooks/document-data'
+import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
+import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
+import { DocumentForm } from './DocumentForm'
+import { DocumentLoadError } from './DocumentLoadError'
+import { DocumentLoading } from './DocumentLoading'
+import { DocumentNotice } from './DocumentNotice'
+import { DocumentReadView } from './DocumentReadView'
+import { DocumentKindContext, useDocumentKind } from './document-kind-context'
+import type { DocumentKind } from './document-kinds'
+
+// `read` comes with the record loaded; the check keeps the type honest.
+function ReadState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab }) {
+    if (!data.record) return <DocumentLoading />
+    return <DocumentReadView data={data} record={data.record} tab={tab} />
+}
+
+function ScreenState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab }) {
+    const { messages, testId } = useDocumentKind().doc
+    const ids = {
+        notFound: `${testId}-not-found`,
+        noAccess: `${testId}-no-access`,
+        cannotEdit: `${testId}-cannot-edit`,
+    }
+    switch (data.state) {
+        case 'loading':
+            return <DocumentLoading />
+        case 'error':
+            return <DocumentLoadError onRetry={data.retry} />
+        case 'not-found':
+            return <DocumentNotice testID={ids.notFound} message={messages.notFound} />
+        case 'no-access':
+            return <DocumentNotice testID={ids.noAccess} message={messages.noAccess} />
+        case 'cannot-edit':
+            return <DocumentNotice testID={ids.cannotEdit} message={messages.cannotEdit} />
+        case 'read':
+            return <ReadState data={data} tab={tab} />
+        case 'form':
+            return <DocumentForm key={data.formKey} data={data} tab={tab} />
+    }
+}
+
+/**
+ * A sales document route's one screen: it loads the document of the kind (or nothing, on
+ * a new form) and shows the state `documentScreenState` names, on the tab the `tab` param
+ * names. The kind is provided once to every component under it. The form is keyed on its
+ * form key, so a new route (another id, or a fresh `new`) mounts a fresh form; a tab
+ * change keeps it.
+ */
+export function DocumentScreen({
+    document: documentKind,
+    tab: tabParam,
+    ...input
+}: DocumentScreenInput & { document: DocumentKind; tab?: string }) {
+    const data = useDocumentScreen(documentKind, input)
+    const tab = documentTabOf(tabParam)
+    return (
+        <DocumentKindContext.Provider value={documentKind}>
+            <ScreenState data={data} tab={tab} />
+        </DocumentKindContext.Provider>
+    )
+}
