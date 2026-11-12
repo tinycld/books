@@ -1,5 +1,15 @@
-import { expect, type Page } from '@playwright/test'
-import { chooseParamOption, hubRow, navigateToPackage, rowOf } from '@tinycld/core/e2e-helpers'
+import { expect, type Page, type Request } from '@playwright/test'
+import {
+    authStorageKey,
+    chooseParamOption,
+    hubRow,
+    navigateToPackage,
+    rowOf,
+} from '@tinycld/core/e2e-helpers'
+import {
+    PROFIT_AND_LOSS_BY_MONTH_TITLE,
+    PROFIT_AND_LOSS_TITLE,
+} from '~/tinycld/books/lib/profit-and-loss-fixture'
 import { isPhone } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
@@ -47,6 +57,60 @@ export function browserToday(page: Page): Promise<string> {
         const pad = (value: number) => String(value).padStart(2, '0')
         return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
     })
+}
+
+// The entries list from the Books sidebar: the chart has no way to it, and postEntryOn /
+// openNewEntry expect the list, an entry or the Lists hub on screen.
+export async function openEntriesFromSidebar(page: Page): Promise<void> {
+    const item = page.getByTestId('books-nav-entries')
+    const toggle = page.getByTestId('books-nav-accounting-toggle')
+    await expect(toggle).toBeVisible()
+    if (!(await item.isVisible())) await toggle.click()
+    await item.click()
+    await expect(page.getByTestId('entries-screen')).toBeVisible()
+}
+
+// Polls `take` (one report snapshot, e.g. glSnapshot) until `isReady` holds and returns
+// that snapshot, so every later assertion reads the same single snapshot.
+export async function snapshotWhen<T>(
+    page: Page,
+    take: (page: Page) => Promise<T>,
+    isReady: (snapshot: T) => boolean,
+    message: string
+): Promise<T> {
+    const last: { snapshot: T | undefined } = { snapshot: undefined }
+    await expect
+        .poll(
+            async () => {
+                last.snapshot = await take(page)
+                return isReady(last.snapshot)
+            },
+            { message }
+        )
+        .toBe(true)
+    if (last.snapshot === undefined) throw new Error(message)
+    return last.snapshot
+}
+
+// The heading core's document header prints (useReportView headingOf): the Books business
+// name, else the organization's name. Read-only: books-settings.spec.ts types over the
+// business name and restores it on the shared DB, so it is read when compared.
+export async function expectedHeading(page: Page): Promise<string> {
+    const key = await authStorageKey(page)
+    const token = await page.evaluate(
+        k => (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? '',
+        key
+    )
+    const settings = await page.request.get(
+        '/api/collections/books_settings/records/bookssettings01',
+        { headers: { Authorization: token } }
+    )
+    expect(settings.ok()).toBe(true)
+    const businessName = ((await settings.json()) as { business_name?: string }).business_name
+    if (businessName?.trim()) return businessName.trim()
+    const org = await page.request.get('/api/org-info')
+    expect(org.ok()).toBe(true)
+    return (((await org.json()) as { name?: string }).name ?? '').trim()
 }
 
 // Below core's mobile breakpoint (useBreakpoint) the Books sidebar lives in the drawer.
@@ -370,7 +434,8 @@ export function glSnapshot(page: Page): Promise<GlSnapshot> {
     })
 }
 
-export type BsSnapshot = {
+// A read of a layout report (the Balance Sheet, the Profit and Loss and its by-month form).
+export type ReportSnapshot = {
     // The document header's first line: the Books business name.
     business: string
     title: string
@@ -384,7 +449,7 @@ export type BsSnapshot = {
         // The outline level core indents the label to: 16 + depth × 16 px (ReportRow labelStyle).
         depth: number
         label: string
-        // Each cell's text by column id (current, prior, change, pct).
+        // Each cell's text by column id.
         cells: Record<string, string>
     }[]
 }
@@ -401,30 +466,37 @@ export async function openBalanceSheet(page: Page): Promise<void> {
 
 const ROWS_LABELS = { nonzero: 'Non-zero', active: 'Active' } as const
 
-// Sets Rows through its chip and waits for the run that asks for it: core keeps the
-// previous run's rows on screen until the new run lands.
+// Sets Rows through its chip and waits until the URL holds the new value and the run
+// for it has landed: core keeps the previous run's rows on screen until the new run
+// lands. The run is awaited by its request body, so the choice must be one the page has
+// not run with these params before (React Query answers a body it has cached with no
+// request).
 export async function chooseRows(page: Page, choice: 'nonzero' | 'active'): Promise<void> {
-    const ran = page.waitForResponse(response => {
+    const landed = page.waitForResponse(response => {
         if (!response.url().includes('/api/reports/run') || !response.ok()) return false
-        const body = response.request().postDataJSON() as { params?: { rows?: unknown } } | null
-        return body?.params?.rows === choice
+        const body = response.request().postDataJSON() as { params?: { rows?: string } } | null
+        return (body?.params?.rows ?? 'nonzero') === choice
     })
     await chooseParamOption(page, 'rows', { from: 'chip', labels: [ROWS_LABELS[choice]] })
-    await ran
+    await expect
+        .poll(() => new URL(page.url()).searchParams.get('p-rows') ?? 'nonzero')
+        .toBe(choice)
+    await landed
     await expect(page.getByTestId('report-param-rows')).toContainText(ROWS_LABELS[choice])
 }
 
 // The document header, every column heading and every mounted row of the report table, top
 // to bottom, with every cell, read in ONE pass so no re-render lands between two reads. The
-// row kind comes from core's row id: g: a group, d: a line, s: a group's total, c: a
-// computed row, total: the Total.
-export function bsSnapshot(page: Page): Promise<BsSnapshot> {
+// row kind comes from core's row id: g: a group or an account, d: a line, s: a group's
+// total, c: a computed row, total: the Total.
+export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
     return page.evaluate(() => {
         const textOf = (element: Element | null | undefined) =>
             (element as HTMLElement | null | undefined)?.innerText.trim() ?? ''
         // Core draws headings with CSS `uppercase`, and innerText applies it; the
-        // heading's value is the text before that transform.
-        const untransformedText = (element: Element) => element.textContent?.trim() ?? ''
+        // heading's value is the words before that transform.
+        const untransformedText = (element: Element) =>
+            (element.textContent ?? '').replace(/\s+/g, ' ').trim()
         const header = document.querySelector('[data-testid="report-document-header"]')
         const business =
             textOf(header)
@@ -446,7 +518,7 @@ export function bsSnapshot(page: Page): Promise<BsSnapshot> {
             row[rest.slice(0, dash)] = textOf(cell)
             cells.set(rest.slice(dash + 1), row)
         }
-        const kindOf = (id: string): BsSnapshot['rows'][number]['kind'] | null => {
+        const kindOf = (id: string): ReportSnapshot['rows'][number]['kind'] | null => {
             if (id.startsWith('g:')) return 'group'
             if (id.startsWith('d:')) return 'detail'
             if (id.startsWith('s:')) return 'subtotal'
@@ -454,7 +526,7 @@ export function bsSnapshot(page: Page): Promise<BsSnapshot> {
             if (id.startsWith('total')) return 'total'
             return null
         }
-        const rows: BsSnapshot['rows'] = []
+        const rows: ReportSnapshot['rows'] = []
         const labels = [...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? [])]
             .map(element => ({
                 id: (element.getAttribute('data-testid') ?? '').slice('report-row-'.length),
@@ -481,19 +553,19 @@ export function bsSnapshot(page: Page): Promise<BsSnapshot> {
 
 // The opened lines under the row labelled `label`: the detail rows that follow it until the
 // next row that is not a line. Empty when the row is not mounted or not open.
-export function bsLinesUnder(snapshot: BsSnapshot, label: string): BsSnapshot['rows'] {
-    const start = snapshot.rows.findIndex(row => row.label === label)
+export function reportLinesUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
+    const start = snapshot.rows.findIndex(row => row.kind !== 'detail' && row.label === label)
     if (start < 0) return []
     const after = snapshot.rows.slice(start + 1)
     const end = after.findIndex(row => row.kind !== 'detail')
     return end < 0 ? after : after.slice(0, end)
 }
 
-// Presses a Balance Sheet account row and waits until its lines show beneath it.
-export async function openBalanceSheetAccount(page: Page, label: string): Promise<void> {
+// Presses an account row of a layout report and waits until its lines show beneath it.
+export async function openReportAccount(page: Page, label: string): Promise<void> {
     await rowOf(page, label).click()
     await expect
-        .poll(async () => bsLinesUnder(await bsSnapshot(page), label).length)
+        .poll(async () => reportLinesUnder(await reportSnapshot(page), label).length)
         .toBeGreaterThan(0)
 }
 
@@ -511,4 +583,67 @@ export async function postEntryOn(
         await fillLine(page, index, line)
     }
     await postOpenEntry(page)
+}
+
+// The shipped Profit and Loss from the Books hub, reached as openJournal reaches the
+// Journal. "Profit and Loss by Month" holds "Profit and Loss", so the row is narrowed to
+// the one whose title reads "Profit and Loss" exactly.
+export async function openProfitAndLoss(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, PROFIT_AND_LOSS_TITLE)
+        .filter({ has: page.getByText(PROFIT_AND_LOSS_TITLE, { exact: true }) })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(page.getByTestId('report-table')).toBeVisible()
+}
+
+// The shipped Profit and Loss by Month from the Books hub, the row whose title reads
+// "Profit and Loss by Month" exactly.
+export async function openProfitAndLossByMonth(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, PROFIT_AND_LOSS_BY_MONTH_TITLE)
+        .filter({ has: page.getByText(PROFIT_AND_LOSS_BY_MONTH_TITLE, { exact: true }) })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(page.getByTestId('report-table')).toBeVisible()
+}
+
+// How long a press is watched for a run it starts. An opened row's lines come from a new
+// run (/api/reports/run with the row's path in `expand`), which the press sends at once
+// and which lands well inside this window.
+const PRESS_WATCH_MS = 1500
+
+// The length of a P&L section's `expand` path: its type and its currency (["income",
+// "USD"]). An account's path adds the account between them.
+const SECTION_PATH_LENGTH = 2
+
+// Presses the row labelled `label` and proves it opens nothing: over the watch window no
+// run asks to open a row under a section (an `expand` path longer than a section's), and
+// no snapshot taken in it shows a line beneath the row. Other workers post on the shared
+// DB, so a live re-run may come in the window; only one that opens a row fails.
+export async function expectPressOpensNothing(page: Page, label: string): Promise<ReportSnapshot> {
+    const opening: unknown[][][] = []
+    const watch = (request: Request) => {
+        if (!request.url().includes('/api/reports/run') || request.method() !== 'POST') return
+        const body = request.postDataJSON() as { options?: { expand?: unknown[][] } } | null
+        const deep = (body?.options?.expand ?? []).filter(path => path.length > SECTION_PATH_LENGTH)
+        if (deep.length > 0) opening.push(deep)
+    }
+    page.on('request', watch)
+    try {
+        await rowOf(page, label).click()
+        const until = Date.now() + PRESS_WATCH_MS
+        let last = await reportSnapshot(page)
+        while (Date.now() < until) {
+            expect(reportLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual(
+                []
+            )
+            last = await reportSnapshot(page)
+        }
+        expect(reportLinesUnder(last, label), `lines beneath ${label} after the press`).toEqual([])
+        expect(opening, `runs that open a row after the press on ${label}`).toEqual([])
+        return last
+    } finally {
+        page.off('request', watch)
+    }
 }
