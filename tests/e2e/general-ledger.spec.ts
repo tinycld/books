@@ -1,6 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
 import {
-    authStorageKey,
     chooseParamOption,
     login,
     navigateToPackage,
@@ -12,13 +11,16 @@ import {
     browserToday,
     choosePeriod,
     dayWords,
+    expectedHeading,
     filterToAccounts,
     GL_DAY_1,
     GL_DAY_2,
     type GlSnapshot,
     glSnapshot,
+    openEntriesFromSidebar,
     openGeneralLedger,
     postEntryOn,
+    snapshotWhen,
 } from './books-report-helpers'
 import { createCustomer } from './customer-form-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
@@ -59,17 +61,6 @@ async function createAccounts(
     for (const { name, kind } of accounts) await createAccount(page, name, kind)
 }
 
-// The entries list from the Books sidebar: postEntryOn expects the list, an entry or the
-// Lists hub on screen.
-async function openEntriesFromSidebar(page: Page) {
-    const item = page.getByTestId('books-nav-entries')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await expect(toggle).toBeVisible()
-    if (!(await item.isVisible())) await toggle.click()
-    await item.click()
-    await expect(page.getByTestId('entries-screen')).toBeVisible()
-}
-
 // A cell's figure without the currency sign the Total rows carry.
 function figure(text: string | undefined): string {
     return (text ?? '').replace('$', '')
@@ -107,47 +98,6 @@ function sectionTotal(snapshot: GlSnapshot, label: string): Row | undefined {
 
 function balancesOf(rows: Row[]): string[] {
     return rows.map(row => figure(row.cells.balance))
-}
-
-// Polls snapshots until `isReady` holds and returns that snapshot, so every later
-// assertion reads the same single snapshot.
-async function snapshotWhen(
-    page: Page,
-    isReady: (snapshot: GlSnapshot) => boolean,
-    message: string
-): Promise<GlSnapshot> {
-    const last: { snapshot: GlSnapshot } = { snapshot: { header: '', rows: [] } }
-    await expect
-        .poll(
-            async () => {
-                last.snapshot = await glSnapshot(page)
-                return isReady(last.snapshot)
-            },
-            { message }
-        )
-        .toBe(true)
-    return last.snapshot
-}
-
-// The heading core's document header prints: the Books business name, else the
-// organization's name. Read-only: books-settings.spec.ts types over the business name and
-// restores it on the shared DB, so it is read when compared.
-async function expectedHeading(page: Page): Promise<string> {
-    const key = await authStorageKey(page)
-    const token = await page.evaluate(
-        k => (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? '',
-        key
-    )
-    const settings = await page.request.get(
-        '/api/collections/books_settings/records/bookssettings01',
-        { headers: { Authorization: token } }
-    )
-    expect(settings.ok()).toBe(true)
-    const businessName = ((await settings.json()) as { business_name?: string }).business_name
-    if (businessName?.trim()) return businessName.trim()
-    const org = await page.request.get('/api/org-info')
-    expect(org.ok()).toBe(true)
-    return (((await org.json()) as { name?: string }).name ?? '').trim()
 }
 
 // Core's period words for two days of one year (core/reports/lib/dates.ts rangeWords).
@@ -423,6 +373,7 @@ test.describe('general-ledger: report', () => {
         await filterToAccounts(page, [account])
         await snapshotWhen(
             page,
+            glSnapshot,
             s => hasTotal(s) && linesOf(s, account).length === 1,
             'the account and its one line'
         )
@@ -521,6 +472,7 @@ test.describe('general-ledger: report', () => {
         await choosePeriod(page, { from: GL_DAY_1, to: GL_DAY_2 })
         const both = await snapshotWhen(
             page,
+            glSnapshot,
             s =>
                 s.header === rangeWords(GL_DAY_1, GL_DAY_2) &&
                 hasTotal(s) &&
@@ -545,6 +497,7 @@ test.describe('general-ledger: report', () => {
         await page.getByTestId('report-sticky-group').getByText(bank, { exact: true }).click()
         const folded = await snapshotWhen(
             page,
+            glSnapshot,
             s => sectionLabels(s).includes(bank) && linesOf(s, bank).length === 0,
             "the bank's section folded"
         )
@@ -552,12 +505,14 @@ test.describe('general-ledger: report', () => {
         await pressToolbar(page, 'report-fold-all', 'Collapse all')
         await snapshotWhen(
             page,
+            glSnapshot,
             s => sectionLabels(s).length === 3 && s.rows.every(row => row.kind !== 'detail'),
             'every section folded'
         )
         await pressToolbar(page, 'report-fold-all', 'Expand all')
         await snapshotWhen(
             page,
+            glSnapshot,
             s =>
                 linesOf(s, bank).length === 2 &&
                 linesOf(s, expense).length === 3 &&
@@ -568,6 +523,7 @@ test.describe('general-ledger: report', () => {
         await choosePeriod(page, { from: GL_DAY_2, to: GL_DAY_2 })
         const second = await snapshotWhen(
             page,
+            glSnapshot,
             s => s.header === dayWords(GL_DAY_2) && hasTotal(s) && linesOf(s, bank).length === 1,
             'the second day alone'
         )
@@ -577,6 +533,7 @@ test.describe('general-ledger: report', () => {
         await choosePeriod(page, { preset: 'allDates' })
         const all = await snapshotWhen(
             page,
+            glSnapshot,
             s => s.header === 'All dates' && hasTotal(s) && linesOf(s, bank).length === 2,
             'all dates'
         )
@@ -645,6 +602,7 @@ test.describe('general-ledger: report', () => {
         await choosePeriod(page, { preset: 'allDates' })
         const s = await snapshotWhen(
             page,
+            glSnapshot,
             snap => hasTotal(snap) && linesOf(snap, from).length === 4,
             'the four accounts and their lines'
         )
@@ -700,6 +658,7 @@ test.describe('general-ledger: report', () => {
         await choosePeriod(page, { from: GL_DAY_2, to: GL_DAY_2 })
         const active = await snapshotWhen(
             page,
+            glSnapshot,
             s =>
                 s.header === dayWords(GL_DAY_2) &&
                 hasTotal(s) &&
@@ -713,6 +672,7 @@ test.describe('general-ledger: report', () => {
         await chooseParamOption(page, 'rows', { from: 'chip', labels: ['All'] })
         const all = await snapshotWhen(
             page,
+            glSnapshot,
             s => hasTotal(s) && sectionLabels(s).includes(idle),
             'Rows All adds the idle account'
         )
@@ -729,6 +689,7 @@ test.describe('general-ledger: report', () => {
         // on screen, so the proof is a section the Accounts filter had held out.
         const cleared = await snapshotWhen(
             page,
+            glSnapshot,
             s => sectionLabels(s).some(label => label !== earlier && label !== idle),
             'every section back after Clear filters'
         )
@@ -769,6 +730,7 @@ test.describe('general-ledger: report', () => {
         ]
         const plain = await snapshotWhen(
             page,
+            glSnapshot,
             s => hasTotal(s) && linesOf(s, account).length === 3,
             'the three lines in the report order'
         )
@@ -779,6 +741,7 @@ test.describe('general-ledger: report', () => {
         await expect.poll(sortParam).toBe('debit:asc')
         const ascending = await snapshotWhen(
             page,
+            glSnapshot,
             s => pairs(s)[0]?.[0] === '10.00',
             'the lines by Debit, ascending'
         )
@@ -792,6 +755,7 @@ test.describe('general-ledger: report', () => {
         await expect.poll(sortParam).toBe('debit:desc')
         const descending = await snapshotWhen(
             page,
+            glSnapshot,
             s => pairs(s)[0]?.[0] === '50.00',
             'the lines by Debit, descending'
         )
@@ -805,6 +769,7 @@ test.describe('general-ledger: report', () => {
         await expect.poll(sortParam).toBeNull()
         const unsorted = await snapshotWhen(
             page,
+            glSnapshot,
             s => pairs(s)[0]?.[0] === '20.00',
             'the report order again'
         )
@@ -826,6 +791,7 @@ test.describe('general-ledger: report', () => {
         await chooseParamOption(page, 'rows', { from: 'chip', labels: ['All'] })
         const before = await snapshotWhen(
             page,
+            glSnapshot,
             s => hasTotal(s) && sectionLabels(s).includes(account),
             'the new account, with no lines yet, under All'
         )
@@ -851,6 +817,7 @@ test.describe('general-ledger: report', () => {
 
         const live = await snapshotWhen(
             page,
+            glSnapshot,
             s => linesOf(s, account).length === 1,
             'the post in the open report'
         )
@@ -881,6 +848,7 @@ test.describe('general-ledger: report', () => {
         await filterToAccounts(page, [account])
         const s = await snapshotWhen(
             page,
+            glSnapshot,
             snap => hasTotal(snap) && linesOf(snap, account).length === 2,
             'the account and its two lines'
         )
@@ -948,6 +916,7 @@ test.describe('general-ledger: report', () => {
         await filterToAccounts(page, [account])
         const s = await snapshotWhen(
             page,
+            glSnapshot,
             snap => hasTotal(snap) && linesOf(snap, account).length === 1,
             'the account and its line'
         )
@@ -1037,6 +1006,7 @@ test.describe('general-ledger: report', () => {
         await filterToAccounts(page, [SAVINGS])
         await snapshotWhen(
             page,
+            glSnapshot,
             snap => snap.rows.some(row => row.kind === 'group' && row.label.includes(SAVINGS)),
             'the savings section'
         )
@@ -1088,6 +1058,7 @@ test.describe('general-ledger: report', () => {
         // The snapshot's row ids are core's row ids (report-row-<id>), as the answer's are.
         await snapshotWhen(
             page,
+            glSnapshot,
             snap =>
                 snap.rows.some(
                     row => secondIds.has(row.id) && row.cells.description === LONG_SECTION_MEMO

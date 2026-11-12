@@ -18,16 +18,16 @@ import { SEED_ACCOUNTS } from '~/tinycld/books/lib/seed-accounts'
 import { PRIOR_YEAR_SEED } from '~/tinycld/books/lib/trial-balance-fixture'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
-    type BsSnapshot,
     browserToday,
-    bsLinesUnder,
-    bsSnapshot,
     chooseAsOf,
     chooseRows,
     dayWords,
     openBalanceSheet,
-    openBalanceSheetAccount,
+    openReportAccount,
     postEntryOn,
+    type ReportSnapshot,
+    reportLinesUnder,
+    reportSnapshot,
 } from './books-report-helpers'
 import { ACCOUNT_LABELS, postedEntryNumber } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
@@ -35,7 +35,7 @@ import { uniqueName } from './record-form-helpers'
 // The shipped Balance Sheet in core's report view (/a/reports/<id>), read by the e2e
 // user through the viewer share Books keeps. Every test makes its own accounts and
 // entries through the UI, names them with `uniqueName`, and reads rows in ONE snapshot
-// (`bsSnapshot`). Entries are dated today: never before 2026-07-01, so the close date
+// (`reportSnapshot`). Entries are dated today: never before 2026-07-01, so the close date
 // and the fiscal start month books-settings.spec.ts sets on the shared DB neither refuse a
 // post nor change what a test asserts.
 //
@@ -67,7 +67,7 @@ const RECEIVABLE_LABEL = `${RECEIVABLE?.number} ${RECEIVABLE?.name}`
 // The seed's prior-year entry: debit Accounts receivable, credit Consulting income.
 const SEED_CENTS = PRIOR_YEAR_SEED.lines[0][1]
 
-type Row = BsSnapshot['rows'][number]
+type Row = ReportSnapshot['rows'][number]
 
 async function startBooks(page: Page) {
     await login(page)
@@ -124,14 +124,14 @@ async function expectedHeading(page: Page): Promise<string> {
 // assertion reads the same single snapshot.
 async function snapshotWhen(
     page: Page,
-    isReady: (snapshot: BsSnapshot) => boolean,
+    isReady: (snapshot: ReportSnapshot) => boolean,
     message: string
-): Promise<BsSnapshot> {
-    const last: { snapshot: BsSnapshot | null } = { snapshot: null }
+): Promise<ReportSnapshot> {
+    const last: { snapshot: ReportSnapshot | null } = { snapshot: null }
     await expect
         .poll(
             async () => {
-                last.snapshot = await bsSnapshot(page)
+                last.snapshot = await reportSnapshot(page)
                 return isReady(last.snapshot)
             },
             { message }
@@ -141,15 +141,15 @@ async function snapshotWhen(
     return last.snapshot
 }
 
-function indexOf(snapshot: BsSnapshot, label: string): number {
+function indexOf(snapshot: ReportSnapshot, label: string): number {
     return snapshot.rows.findIndex(row => row.label === label)
 }
 
-function has(snapshot: BsSnapshot, ...labels: string[]): boolean {
+function has(snapshot: ReportSnapshot, ...labels: string[]): boolean {
     return labels.every(label => indexOf(snapshot, label) >= 0)
 }
 
-function rowOf(snapshot: BsSnapshot, label: string): Row {
+function rowOf(snapshot: ReportSnapshot, label: string): Row {
     const row = snapshot.rows.find(candidate => candidate.label === label)
     if (!row) throw new Error(`no row labelled ${label}`)
     return row
@@ -166,7 +166,7 @@ function cents(text: string | undefined): number | null {
     return isNegative ? -value : value
 }
 
-function figure(snapshot: BsSnapshot, label: string, column: string): number | null {
+function figure(snapshot: ReportSnapshot, label: string, column: string): number | null {
     return cents(rowOf(snapshot, label).cells[column])
 }
 
@@ -347,12 +347,12 @@ test.describe('balance-sheet: report', () => {
 
         await expect
             .poll(async () => {
-                const snapshot = await bsSnapshot(page)
+                const snapshot = await reportSnapshot(page)
                 const expected = await expectedHeading(page)
                 return { matches: snapshot.business === expected && expected !== '', expected }
             })
             .toMatchObject({ matches: true })
-        const snapshot = await bsSnapshot(page)
+        const snapshot = await reportSnapshot(page)
         expect(snapshot.title).toBe(BALANCE_SHEET_TITLE)
         expect(snapshot.header).toBe(`As of ${dayWords(today)}`)
         expect(snapshot.headings.current).toBe(shortDay(today))
@@ -715,15 +715,15 @@ test.describe('balance-sheet: report', () => {
             s => has(s, bank, 'Total Bank accounts'),
             `${bank} through Total Bank accounts`
         )
-        expect(bsLinesUnder(closed, bank)).toEqual([])
+        expect(reportLinesUnder(closed, bank)).toEqual([])
 
-        await openBalanceSheetAccount(page, bank)
+        await openReportAccount(page, bank)
         const opened = await snapshotWhen(
             page,
-            s => bsLinesUnder(s, bank).length === 2,
+            s => reportLinesUnder(s, bank).length === 2,
             `${bank} opened onto its two lines`
         )
-        const lines = bsLinesUnder(opened, bank).map(row => ({
+        const lines = reportLinesUnder(opened, bank).map(row => ({
             label: row.label,
             current: cents(row.cells.current),
             prior: cents(row.cells.prior),
@@ -764,7 +764,7 @@ test.describe('balance-sheet: report', () => {
             s => has(s, 'Current liabilities', RETAINED_EARNINGS_LABEL, NET_INCOME_LABEL),
             'Liabilities open again, through Retained earnings and Net income'
         )
-        expect(bsLinesUnder(after, RETAINED_EARNINGS_LABEL)).toEqual([])
+        expect(reportLinesUnder(after, RETAINED_EARNINGS_LABEL)).toEqual([])
         const next = after.rows[indexOf(after, RETAINED_EARNINGS_LABEL) + 1]
         expect(next?.label).toBe(NET_INCOME_LABEL)
     })
@@ -845,7 +845,7 @@ test.describe('balance-sheet: report', () => {
         await openBalanceSheet(page)
         await expect
             .poll(async () => {
-                const snapshot = await bsSnapshot(page)
+                const snapshot = await reportSnapshot(page)
                 const expected = await expectedHeading(page)
                 return { matches: snapshot.business === expected && expected !== '', expected }
             })
