@@ -7,14 +7,15 @@
 // (Qty x Rate and Percent x the amount above rounded half away from zero to cents, tax
 // `taxOn` per component of the header rate on the taxable total).
 //
-// The collections do not exist yet. SalesReceiptRecord, SalesReceiptLineRecord and
-// SalesReceiptTaxLineRecord mirror spec §4.1 (the invoice's columns minus terms and
-// due_date, plus payment_method, reference_no and deposit_to). The migration checkpoint
-// (2100000011_create_books_sales_receipts.js) must replace them with the generated
-// BooksSalesReceipts / BooksSalesReceiptLines / BooksSalesReceiptTaxLines through
-// `satisfies`, and PaymentMethodKey with the key type of lib/payment-methods.ts.
+// SalesReceiptRecord, SalesReceiptLineRecord and SalesReceiptTaxLineRecord are the
+// generated types of the collections of 2100000011_create_books_sales_receipts.js, so
+// a fixture row that drifts from the schema fails tsc.
 
-import type { BooksInvoiceLines, BooksInvoices, BooksInvoiceTaxLines } from '../types'
+import type {
+    BooksSalesReceiptLines,
+    BooksSalesReceipts,
+    BooksSalesReceiptTaxLines,
+} from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { DISCOUNT_PRODUCT_ID, INVOICE_PRODUCTS } from './invoice-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
@@ -26,15 +27,8 @@ export const SALES_RECEIPT_TODAY = '2026-11-11'
 
 const STAMP = '2026-11-11 09:00:00.000Z'
 
-// Spec §3.3: "None" is the empty value; the rest are PAYMENT_METHODS keys.
-export type PaymentMethodKey =
-    | ''
-    | 'cash'
-    | 'check'
-    | 'credit_card'
-    | 'debit_card'
-    | 'bank_transfer'
-    | 'other'
+// Spec §3.3: "None" is the empty value; the rest are the payment_method select's values.
+export type PaymentMethodKey = BooksSalesReceipts['payment_method']
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethodKey, string> = {
     '': 'None',
@@ -46,15 +40,9 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethodKey, string> = {
     other: 'Other',
 }
 
-export type SalesReceiptRecord = Omit<BooksInvoices, 'terms' | 'due_date'> & {
-    payment_method: PaymentMethodKey
-    reference_no: string
-    deposit_to: string
-}
-export type SalesReceiptLineRecord = Omit<BooksInvoiceLines, 'invoice'> & { sales_receipt: string }
-export type SalesReceiptTaxLineRecord = Omit<BooksInvoiceTaxLines, 'invoice'> & {
-    sales_receipt: string
-}
+export type SalesReceiptRecord = BooksSalesReceipts
+export type SalesReceiptLineRecord = BooksSalesReceiptLines
+export type SalesReceiptTaxLineRecord = BooksSalesReceiptTaxLines
 export type SalesReceiptStatus = SalesReceiptRecord['status']
 
 // The deposit accounts of the e2e book (lib/seed-accounts.ts; spec §4.6 adds 1200

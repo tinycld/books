@@ -17,6 +17,14 @@ import {
 } from './lib/invoice-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
+import {
+    DEPOSIT_ACCOUNTS,
+    SALES_RECEIPT_IDS,
+    SALES_RECEIPT_LINES,
+    SALES_RECEIPT_SEED_DRAFT_ID,
+    SALES_RECEIPT_SEED_IDS,
+    SALES_RECEIPTS,
+} from './lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
 import { CUSTOMER_TAX_PATCHES, TAX_AGENCIES, TAX_IDS, TAX_RATE_ROWS } from './lib/tax-rates-fixture'
 import { TRANSFER_SEED } from './lib/transfer-fixture'
@@ -165,6 +173,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seed1099(pb, accountIds)
     await seedSalesTax(pb, accountIds, customerIds)
     await seedInvoices(pb, ctx, customerIds)
+    await seedSalesReceipts(pb, ctx, accountIds, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -403,6 +412,86 @@ export async function seedInvoices(
             .collection('books_invoices')
             .update(created.id, { status: 'posted', posted_by: ctx.user.id })
     }
+}
+
+// The memo of a seeded sales receipt names its SALES_RECEIPT_IDS key, so a spec finds it.
+function seedSalesReceiptMemo(id: string): string {
+    const key = Object.entries(SALES_RECEIPT_IDS).find(([, value]) => value === id)?.[0]
+    if (key === undefined) throw new Error(`seed: sales receipt ${id} is not in SALES_RECEIPT_IDS`)
+    return `Seed sales receipt ${key}`
+}
+
+// Creates a fixture sales receipt as a draft with its lines, through the writes
+// the receipt form makes. The fixture's deposit account id is a fixture id, so
+// the account is resolved by its number; `customerIds` maps a customer-form
+// fixture id to the created customer's id, and a walk-in receipt has none.
+async function createSeedSalesReceipt(
+    pb: PocketBase,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>,
+    id: string
+): Promise<string> {
+    const fixture = SALES_RECEIPTS.find(row => row.id === id)
+    if (fixture === undefined) throw new Error(`seed: sales receipt ${id} is not in SALES_RECEIPTS`)
+    const customer = fixture.customer === '' ? '' : customerIds.get(fixture.customer)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: sales receipt ${id} names customer ${fixture.customer}, which was not created`
+        )
+    }
+    const number = DEPOSIT_ACCOUNTS.find(row => row.id === fixture.deposit_to)?.number
+    const depositTo = number === undefined ? undefined : accountIds.get(number)
+    if (depositTo === undefined) {
+        throw new Error(
+            `seed: sales receipt ${id} deposits to ${fixture.deposit_to}, which was not created`
+        )
+    }
+    const created = await pb.collection('books_sales_receipts').create({
+        customer,
+        status: 'draft',
+        date: fixture.date,
+        tax_rate: fixture.tax_rate,
+        payment_method: fixture.payment_method,
+        reference_no: fixture.reference_no,
+        deposit_to: depositTo,
+        message: fixture.message,
+        memo: seedSalesReceiptMemo(id),
+        bill_to: fixture.bill_to,
+        email: fixture.email,
+    })
+    for (const line of SALES_RECEIPT_LINES.filter(row => row.sales_receipt === id)) {
+        await pb.collection('books_sales_receipt_lines').create({
+            sales_receipt: created.id,
+            position: line.position,
+            kind: line.kind,
+            product: line.product,
+            description: line.description,
+            quantity: line.quantity,
+            rate: line.rate,
+            percent_ppm: line.percent_ppm,
+            taxable: line.taxable,
+        })
+    }
+    return created.id
+}
+
+// Posts the SALES_RECEIPT_SEED_IDS fixture receipts in order (spec §4.6: Check
+// to 1200 Undeposited funds with a customer, then a walk-in Cash sale to 1000),
+// so the server numbers each, computes every amount and writes the journal
+// entry; then keeps SALES_RECEIPT_SEED_DRAFT_ID a draft.
+export async function seedSalesReceipts(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const id of SALES_RECEIPT_SEED_IDS) {
+        const created = await createSeedSalesReceipt(pb, accountIds, customerIds, id)
+        await pb
+            .collection('books_sales_receipts')
+            .update(created, { status: 'posted', posted_by: ctx.user.id })
+    }
+    await createSeedSalesReceipt(pb, accountIds, customerIds, SALES_RECEIPT_SEED_DRAFT_ID)
 }
 
 interface PostInput {

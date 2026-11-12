@@ -38,6 +38,13 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         detail_type: 'accounts_receivable',
     },
     {
+        key: 'undeposited',
+        name: 'Undeposited funds',
+        number: '1200',
+        type: 'other_current_asset',
+        detail_type: 'undeposited_funds',
+    },
+    {
         key: 'equipment',
         name: 'Office Equipment',
         number: '1500',

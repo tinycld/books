@@ -24,6 +24,8 @@ export const FRESH_SETTINGS: BooksSettings = {
     setup_started: false,
     setup_completed: false,
     threshold_1099: 200000,
+    sales_deposit_account: '',
+    default_customer_message: '',
     created: '2026-10-01 00:00:00.000Z',
     updated: '2026-10-01 00:00:00.000Z',
 }

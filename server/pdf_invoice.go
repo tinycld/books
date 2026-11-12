@@ -118,7 +118,7 @@ func invoiceBillTo(app core.App, invoice *core.Record) (pdfParty, error) {
 // prints its product's name; a percent line prints its percent in the Qty
 // column ("−10%") and no rate.
 func invoicePDFLines(app core.App, invoiceID string) ([]pdfLine, error) {
-	records, err := invoiceLines(app, invoiceID)
+	records, err := salesDocLines(app, invoiceKind, invoiceID)
 	if err != nil {
 		return nil, err
 	}
