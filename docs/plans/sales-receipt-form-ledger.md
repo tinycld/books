@@ -156,7 +156,7 @@
 - fix review: round 1: 0 BLOCK, 0 not fixed · 2 NOTEs to Design notes.
 - gate 3 A notes: 2 listed under Design notes (N2, N7)
 - reviewer-caught deferrals: 3 (A D1–D3, B D1–D2, overlapping: kinds module not pure / hints, `emptyColumns`, `kindFields` receipt variant) — the implementer declared the hints and `emptyColumns` gaps as differences, not deferrals, and did not declare `kindFields`; all fixed in the fix round.
-- commit: (this commit; sha in the next ledger commit)
+- commit: 5e5ca9b
 - human: none (review mode C)
 
 ## Final review
