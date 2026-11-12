@@ -229,7 +229,7 @@
 - fix review: round 1: 0 BLOCK, 0 not fixed · 1 NOTE to Design notes.
 - gate 3 A notes: 1 listed under Design notes (N6)
 - reviewer-caught deferrals: none
-- commit: (sha in the next ledger commit)
+- commit: c0e2bd1
 - human: none (review mode C)
 
 ## Final review
