@@ -2,9 +2,12 @@ import type { Transaction } from '@tanstack/react-db'
 import type { Users } from '@tinycld/core/types/pbSchema'
 import { useRef } from 'react'
 import type { DocumentLineRow } from '../lib/document-line-columns'
+import type { DepositRule } from '../lib/document-schema'
 import type { LiveRecovery } from '../lib/live-recovery'
+import type { CopyDeposit } from '../lib/sales-receipt-values'
 import type { TableWriteOps } from '../lib/table-writes'
 import type {
+    BooksAccounts,
     BooksInvoices,
     BooksInvoiceTaxLines,
     BooksProducts,
@@ -54,24 +57,38 @@ type SharedColumns = Pick<
 >
 
 // The columns only one kind has, tagged with the kind.
-export type DocumentKindFields =
-    | ({ kind: 'invoice' } & Pick<BooksInvoices, 'terms' | 'due_date'>)
-    | ({ kind: 'sales_receipt' } & Pick<
-          BooksSalesReceipts,
-          'payment_method' | 'reference_no' | 'deposit_to'
-      >)
+type InvoiceKindFields = { kind: 'invoice' } & Pick<BooksInvoices, 'terms' | 'due_date'>
+type SalesReceiptKindFields = { kind: 'sales_receipt' } & Pick<
+    BooksSalesReceipts,
+    'payment_method' | 'reference_no' | 'deposit_to'
+>
+export type DocumentKindFields = InvoiceKindFields | SalesReceiptKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
 export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 
 // The header row as the screen reads it: who posted and voided it, and its tax rate (the
-// read view's tax line names it).
-export type DocumentRecord = DocumentSource & {
+// read view's tax line names it). A sales receipt's own fields add its deposit account,
+// which its payment line names.
+export type DocumentRecord = SharedColumns & {
+    kindFields:
+        | InvoiceKindFields
+        | (SalesReceiptKindFields & {
+              depositRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
+          })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
     taxRateRow: Pick<BooksTaxRates, 'name'> | undefined
 }
+
+// A kind's own input to its new form's values and to a copy's, which its data source
+// reads: none for an invoice; for a sales receipt, how Deposit to is chosen.
+export type DocumentStart = { kind: 'invoice' } | { kind: 'sales_receipt'; deposit: CopyDeposit }
+
+// What a kind's form starts from besides the document: its start input and the Deposit
+// to rule of its schema (none for an invoice).
+export type DocumentFormStart = { start: DocumentStart; deposit: DepositRule | undefined }
 
 // A stored line with the product the read view names.
 export type DocumentReadLine = DocumentLineRow & { productRow: BooksProducts | undefined }
@@ -96,6 +113,8 @@ export type DocumentScreenReads = {
     source: DocumentRead<DocumentSource | undefined>
     sourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
+    // `errorText` is the error state's text when only this read failed.
+    formStart: DocumentRead<DocumentFormStart> & { errorText?: string }
 }
 
 export type DocumentTransaction = Transaction<Record<string, unknown>>
@@ -130,7 +149,7 @@ export type DocumentDataSource = {
     useVersion(id: string | undefined): string
 }
 
-const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
+export const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
 type QueryState = {
     isEnabled: boolean

@@ -12,13 +12,14 @@ import { columnsOrThrow } from '../lib/record-save'
 import type { BooksInvoices } from '../types'
 import {
     type DocumentDataSource,
+    type DocumentKindFields,
     type DocumentRecord,
     type DocumentScreenInput,
     type DocumentScreenReads,
-    type DocumentSource,
     type DocumentWrites,
     documentRead,
     linkedReadIds,
+    NO_RECOVERY,
     useHeldRecord,
 } from './document-data'
 
@@ -27,7 +28,9 @@ const LOG_CONTEXT = 'books.invoice'
 type InvoiceInsertColumns = typeof EMPTY_INVOICE_COLUMNS
 
 // The invoice's own columns go into `kindFields`; the row keeps the shared ones.
-function invoiceSourceOf<R extends BooksInvoices>(row: R): R & DocumentSource {
+function invoiceSourceOf<R extends BooksInvoices>(
+    row: R
+): R & { kindFields: Extract<DocumentKindFields, { kind: 'invoice' }> } {
     return { ...row, kindFields: { kind: 'invoice', terms: row.terms, due_date: row.due_date } }
 }
 
@@ -156,7 +159,16 @@ function useInvoiceScreenReads(
         taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),
+        formStart: INVOICE_FORM_START,
     }
+}
+
+// An invoice's form starts from the document alone: ready at once, never failed.
+const INVOICE_FORM_START: DocumentScreenReads['formStart'] = {
+    data: { start: { kind: 'invoice' }, deposit: undefined },
+    isReady: true,
+    isError: false,
+    recovery: NO_RECOVERY,
 }
 
 // The invoice's writes: its row and its lines, whose insert names the invoice.

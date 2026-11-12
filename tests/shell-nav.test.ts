@@ -111,18 +111,34 @@ describe('registries', () => {
     it('the New menu starts with the Customers column holding Customer', () => {
         const columns = newMenuColumns(NEW_ACTIONS)
         expect(columns[0]?.heading).toBe('Customers')
-        expect(columns[0]?.actions.map(a => a.id)).toEqual(['customer', 'invoice'])
+        expect(columns[0]?.actions.map(a => a.id)).toEqual(['customer', 'invoice', 'sales_receipt'])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual(['vendor'])
     })
 
     it('the New menu puts an available Invoice right after Customer in the Customers column', () => {
         const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
-        expect(customers?.actions.map(a => a.label)).toEqual(['Customer', 'Invoice'])
+        expect(customers?.actions.map(a => a.label)).toEqual([
+            'Customer',
+            'Invoice',
+            'Sales receipt',
+        ])
         const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
         expect(invoice).toMatchObject({
             label: 'Invoice',
             href: 'books/invoices/new',
+            column: 'customers',
+            available: true,
+        })
+    })
+
+    it('the New menu lists Sales receipt right after Invoice in the Customers column', () => {
+        const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
+        const labels = customers?.actions.map(a => a.label) ?? []
+        expect(labels.indexOf('Sales receipt')).toBe(labels.indexOf('Invoice') + 1)
+        expect(NEW_ACTIONS.find(a => a.id === 'sales_receipt')).toMatchObject({
+            label: 'Sales receipt',
+            href: 'books/sales-receipts/new',
             column: 'customers',
             available: true,
         })
@@ -429,6 +445,8 @@ describe('hidesNewFab', () => {
         '/a/books/invoices/new',
         '/a/books/invoices/abc',
         '/a/acme/books/invoices/abc123/',
+        '/a/books/sales-receipts/new',
+        '/a/books/sales-receipts/abc',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

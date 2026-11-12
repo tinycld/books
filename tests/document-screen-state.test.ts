@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { SALES_RECEIPT_MESSAGES } from '../tinycld/books/lib/document-messages'
 import { documentScreenState } from '../tinycld/books/lib/document-screen-state'
+import { SALES_RECEIPT_KIND } from '../tinycld/books/lib/sales-document-kinds'
 
 type Input = Parameters<typeof documentScreenState>[0]
 
@@ -73,5 +75,38 @@ describe('documentScreenState', () => {
 
     it('a correction of a posted invoice is the form', () => {
         expect(documentScreenState({ ...NEW, replacesStatus: 'posted' })).toBe('form')
+    })
+})
+
+// The sales receipt's states (spec §3.9) and the texts its screen shows for them.
+describe('documentScreenState for a sales receipt', () => {
+    // Read inside each test, so a missing kind fails those tests and not the file.
+    const texts = () => SALES_RECEIPT_KIND.messages
+
+    it('a non-writer at new gets no-access with the receipt text', () => {
+        expect(documentScreenState({ ...NEW, canWrite: false })).toBe('no-access')
+        expect(SALES_RECEIPT_MESSAGES.noAccess).toBe(
+            'You need bookkeeper access to create sales receipts'
+        )
+        expect(texts().noAccess).toBe(SALES_RECEIPT_MESSAGES.noAccess)
+    })
+
+    it('an id with no row is not-found with the receipt text', () => {
+        expect(documentScreenState({ ...DRAFT, status: null })).toBe('not-found')
+        expect(texts().notFound).toBe('This sales receipt does not exist')
+    })
+
+    it('a correction of a draft cannot be edited, with the receipt text', () => {
+        expect(documentScreenState({ ...NEW, replacesStatus: 'draft' })).toBe('cannot-edit')
+        expect(texts().cannotEdit).toBe('This sales receipt cannot be edited')
+    })
+
+    it('a failed load is the error with the receipt text', () => {
+        expect(documentScreenState({ ...DRAFT, isError: true })).toBe('error')
+        expect(texts().loadFailed).toBe('Books could not load this sales receipt.')
+    })
+
+    it('is loading while the reads are not ready', () => {
+        expect(documentScreenState({ ...NEW, isReady: false })).toBe('loading')
     })
 })

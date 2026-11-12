@@ -5,7 +5,9 @@ import { useDocumentKind } from './document-kind-context'
 
 const TAP = { minHeight: 44 }
 
-export function DocumentLoadError({ onRetry }: { onRetry(): void }) {
+// `message` names what failed: the document, or only a read its form needs (a sales
+// receipt's deposit accounts).
+export function DocumentLoadError({ message, onRetry }: { message: string; onRetry(): void }) {
     const { doc } = useDocumentKind()
     const errorId = `${doc.testId}-error`
     const retryId = `${doc.testId}-retry`
@@ -17,9 +19,7 @@ export function DocumentLoadError({ onRetry }: { onRetry(): void }) {
                 accessibilityRole="alert"
                 className="flex-1 items-center gap-3 p-6"
             >
-                <Text className="text-base font-medium text-foreground">
-                    {doc.messages.loadFailed}
-                </Text>
+                <Text className="text-base font-medium text-foreground">{message}</Text>
                 <Button testID={retryId} variant="outline" style={TAP} onPress={onRetry}>
                     <ButtonText>Retry</ButtonText>
                 </Button>

@@ -17,6 +17,7 @@ import type {
     BooksSalesReceiptTaxLines,
 } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
+import type { DepositAccountRow } from './deposit-accounts'
 import { DISCOUNT_PRODUCT_ID, INVOICE_PRODUCTS } from './invoice-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
 import { TAX_IDS, TAX_RATE_ROWS } from './tax-rates-fixture'
@@ -27,6 +28,7 @@ export const SALES_RECEIPT_TODAY = '2026-11-11'
 
 const STAMP = '2026-11-11 09:00:00.000Z'
 
+export type { DepositAccountRow } from './deposit-accounts'
 // Spec §3.3: the payment_method select's values; "None" (empty) is no method.
 export { PAYMENT_METHOD_LABELS, type PaymentMethodKey } from './payment-methods'
 
@@ -44,15 +46,8 @@ export const DEPOSIT_ACCOUNT_IDS = {
     undeposited: 'acctfixundep001',
 } as const
 
-export type DepositAccountRow = {
-    id: string
-    number: string
-    name: string
-    type: 'bank' | 'other_current_asset'
-    detail_type: string
-}
-
-// In chart order: every active bank account and the Undeposited funds account.
+// In chart order: every active bank account and the Undeposited funds account, all
+// top-level, as the seed makes them.
 export const DEPOSIT_ACCOUNTS: DepositAccountRow[] = [
     {
         id: DEPOSIT_ACCOUNT_IDS.checking,
@@ -60,6 +55,8 @@ export const DEPOSIT_ACCOUNTS: DepositAccountRow[] = [
         name: 'Business Checking',
         type: 'bank',
         detail_type: 'checking',
+        parent: '',
+        inactive: false,
     },
     {
         id: DEPOSIT_ACCOUNT_IDS.savings,
@@ -67,6 +64,8 @@ export const DEPOSIT_ACCOUNTS: DepositAccountRow[] = [
         name: 'Business Savings',
         type: 'bank',
         detail_type: 'savings',
+        parent: '',
+        inactive: false,
     },
     {
         id: DEPOSIT_ACCOUNT_IDS.undeposited,
@@ -74,6 +73,8 @@ export const DEPOSIT_ACCOUNTS: DepositAccountRow[] = [
         name: 'Undeposited funds',
         type: 'other_current_asset',
         detail_type: 'undeposited_funds',
+        parent: '',
+        inactive: false,
     },
 ]
 

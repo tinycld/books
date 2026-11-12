@@ -1,4 +1,5 @@
 import { extractValidationErrors } from '@tinycld/core/lib/errors'
+import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
 import { planTableWrites, type TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
@@ -16,11 +17,15 @@ import {
     DOCUMENT_ROW_KINDS,
 } from '../lib/document-line-columns'
 import { documentLineWriteSteps } from '../lib/document-line-order'
-import { documentRefusalTarget, labelledLineRefusal } from '../lib/document-messages'
+import {
+    type DocumentRefusalTarget,
+    documentRefusalTarget,
+    labelledLineRefusal,
+} from '../lib/document-messages'
 import { type DocumentTab, documentHref, documentNewHref } from '../lib/document-routes'
 import { documentTaxOf } from '../lib/document-tax'
 import { documentLinesForSave } from '../lib/document-values'
-import { refusalMessage } from '../lib/record-refusals'
+import { type HiddenFields, hiddenRefusalKeys, refusalMessage } from '../lib/record-refusals'
 import {
     columnsOrThrow,
     hasRecordChanges,
@@ -79,28 +84,46 @@ function rootServerForm(form: DocumentFormState['form']): RefusalForm {
 
 type Refused = { error: unknown; rowLabel: string | null }
 
+// The field a text refusal names, or null for the summary: a target the form does not
+// draw when the answer arrives has no cell.
+function refusalFieldOf(
+    form: DocumentFormState['form'],
+    target: DocumentRefusalTarget,
+    isDrawn: (key: string) => boolean
+): string | null {
+    if (target === 'root') return null
+    if (typeof target === 'object') {
+        return isDrawn('lines') ? lineRefusalPath(form, target.line) : null
+    }
+    return isDrawn(target) ? target : null
+}
+
 /**
  * Where a refusal of a document save shows: "Line n: …" under that line, a customer,
- * due date or tax text under its field, any other text in the screen's summary, field
- * errors under their fields (a key the form does not show joins the summary), and a
- * failure with no message (a network error) as the host's toast.
+ * date, due date, tax or Deposit to text under its field, any other text in the screen's
+ * summary, field errors under their fields, and a failure with no message (a network
+ * error) as the host's toast. A refusal of a field the form does not draw when the answer
+ * arrives (not in the definition, or hidden by it or a rule; `hiddenFields`, as
+ * recordRefusalHandler) joins the summary.
  */
 function showRefusal(
     state: DocumentFormState,
     onError: (error: unknown) => void,
-    refused: Refused
+    refused: Refused,
+    hiddenFields: HiddenFields
 ) {
     const { form } = state
     const root = rootServerForm(form)
     const server = (message: string): ErrorOption => ({ type: 'server', message })
+    const hidden = hiddenFields()
+    const inDefinition = new Set(state.definition?.fields.map(f => f.key) ?? [])
+    const isDrawn = (key: string) => inDefinition.has(key) && !hidden.has(key)
     const message = messageOnlyRefusal(refused.error)
     if (message !== null) {
         const text = labelledLineRefusal(refused.rowLabel, message)
-        const target = documentRefusalTarget(text, state.kind)
-        if (typeof target === 'object')
-            form.setError(lineRefusalPath(form, target.line), server(text))
-        else if (target === 'root') root.setError('root', server(text))
-        else form.setError(target, server(text))
+        const field = refusalFieldOf(form, documentRefusalTarget(text, state.kind), isDrawn)
+        if (field === null) root.setError('root', server(text))
+        else form.setError(field, server(text))
         return
     }
     const fields = extractValidationErrors(refused.error)
@@ -108,13 +131,24 @@ function showRefusal(
         onError(refused.error)
         return
     }
-    const shown = new Set(state.definition?.fields.map(f => f.key) ?? [])
     const unshown: string[] = []
     for (const [key, text] of Object.entries(fields)) {
-        if (shown.has(key)) form.setError(key, server(text))
+        if (isDrawn(key)) form.setError(key, server(text))
         else unshown.push(labelledLineRefusal(refused.rowLabel, text))
     }
     if (unshown.length > 0) root.setError('root', server(unshown.join(' ')))
+}
+
+// Asked when a save's answer arrives, from the values the form holds then (useRecordSave's
+// hiddenFieldsOf): the fields the rendered definition hides, by itself or by a rule.
+function hiddenFieldsOf(state: DocumentFormState, definition?: FormDefinition): HiddenFields {
+    return () =>
+        hiddenRefusalKeys(
+            state.host,
+            definition ?? state.definition,
+            state.form.getValues(),
+            state.context
+        )
 }
 
 // A refusal that arrives after the user left the form: logged, and a toast.
@@ -221,6 +255,9 @@ type DocumentSaveOptions = {
     // A save ended with an error under a field: the form's own check refused it, or the
     // server's refusal names a field or a line.
     onFieldErrors?: () => void
+    // The definition the screen renders when it is not the form's own (a copy with
+    // built-ins hidden): a refusal of a field it hides joins the summary.
+    definition?: FormDefinition
 }
 
 // Whether a field the form shows holds an error now. Read through `getFieldState`, which
@@ -276,7 +313,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             showClosedRefusal(texts, onError, refused)
             return
         }
-        showRefusal(state, onError, refused)
+        showRefusal(state, onError, refused, hiddenFieldsOf(state, options.definition))
         reportFieldErrors()
     }
 

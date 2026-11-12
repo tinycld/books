@@ -5,6 +5,7 @@ import { dueDateFor } from '../tinycld/books/lib/document-dates'
 import {
     bundleLines,
     type CustomerFill,
+    clearedCustomerFills,
     customerFills,
     documentCustomerOptions,
     lineFromProduct,
@@ -13,6 +14,7 @@ import {
     type TaxRateFill,
 } from '../tinycld/books/lib/document-fills'
 import { PRODUCT_IDS, PRODUCTS } from '../tinycld/books/lib/products-services-fixture'
+import { INVOICE_KIND, SALES_RECEIPT_KIND } from '../tinycld/books/lib/sales-document-kinds'
 import { TAX_IDS, TAX_RATE_ROWS } from '../tinycld/books/lib/tax-rates-fixture'
 
 const DATE = '2026-11-04'
@@ -389,5 +391,43 @@ describe('percentTaxableDefault', () => {
     it('under a Description line or as the first line is off', () => {
         expect(percentTaxableDefault([itemRow('p', true), descriptionRow()])).toBe(false)
         expect(percentTaxableDefault([])).toBe(false)
+    })
+})
+
+// Choosing "No customer" on a sales receipt (spec §3.3): Bill to and Email clear, Tax
+// goes to the book's default rate; the line taxable flags are not part of it.
+describe('clearedCustomerFills', () => {
+    it('clears Bill to and Email and sets the default rate', () => {
+        expect(clearedCustomerFills('rate1')).toEqual({
+            bill_to: null,
+            email: '',
+            tax_rate: 'rate1',
+        })
+    })
+})
+
+// A sales receipt has no Terms and no Due date, so a customer pick on it fills neither.
+describe('customerFills for the sales receipt kind', () => {
+    it('sets no terms and no due_date key', () => {
+        const harborview = customer(CUSTOMER_IDS.harborview, {
+            default_tax_rate: TAX_IDS.denverCombined,
+        })
+        const fills = customerFills(harborview, RATES, DATE, null, SALES_RECEIPT_KIND)
+        expect(fills).not.toHaveProperty('terms')
+        expect(fills).not.toHaveProperty('due_date')
+        expect(fills.bill_to).toEqual(harborview.billing_address)
+        expect(fills.email).toBe(harborview.email)
+        expect(fills.tax_rate).toBe(TAX_IDS.denverCombined)
+    })
+
+    it('still fills terms and due_date for the invoice kind', () => {
+        const fills = customerFills(
+            customer(CUSTOMER_IDS.harborview),
+            RATES,
+            DATE,
+            null,
+            INVOICE_KIND
+        )
+        expect(fills).toMatchObject({ terms: 'net_30', due_date: '2026-12-04' })
     })
 })

@@ -2,8 +2,8 @@
 // schemas (`FormHostUi.recordSchema`), so every message is a field error of the same
 // resolver. Core already checks each row kind's required cells; these are the rules core
 // cannot read from the host: the quantity's bounds and decimals, the typed rate and
-// percent, the text lengths in code points, an invoice's due date against its date, the
-// percent target and the totals. The texts are the kind's (`kind.messages`). The host's
+// percent, the text lengths in code points, an invoice's due date against its date, a
+// sales receipt's Deposit to and Reference no., the percent target and the totals. The texts are the kind's (`kind.messages`). The host's
 // columns carry no bounds, so each cell shows one message, from here.
 //
 // The total rules report at `lines`, so their message shows under the lines table.
@@ -141,6 +141,33 @@ function dueDateIssues(kind: SalesDocumentKind, values: Record<string, unknown>)
     return [{ path: ['due_date'], message: INVOICE_MESSAGES.dueBeforeDate }]
 }
 
+// The books_sales_receipts schema's `reference_no` max, in code points as the server
+// counts it.
+const MAX_REFERENCE = 40
+
+// Only a sales receipt has a payment row. Deposit to is required while it is drawn: a
+// hidden field ("Sales deposited to" names an account) is filled by the save. With no
+// deposit account in the chart the text says to add one.
+function paymentIssues(
+    kind: SalesDocumentKind,
+    values: Record<string, unknown>,
+    deposit: DepositRule | undefined
+): Issue[] {
+    if (kind.key !== 'sales_receipt') return []
+    const { messages } = kind
+    const issues: Issue[] = []
+    const isDepositMissing =
+        deposit !== undefined && !deposit.hidden && textOf(values.deposit_to) === ''
+    if (isDepositMissing) {
+        const message = deposit.hasOptions ? messages.depositRequired : messages.depositNone
+        if (message) issues.push({ path: ['deposit_to'], message })
+    }
+    if ([...textOf(values.reference_no)].length > MAX_REFERENCE && messages.referenceTooLong) {
+        issues.push({ path: ['reference_no'], message: messages.referenceTooLong })
+    }
+    return issues
+}
+
 function hasItemLine(lines: readonly TableRow[]): boolean {
     return lines.some(row => row.kind === 'item' && textOf(row.product).trim() !== '')
 }
@@ -150,12 +177,17 @@ function documentIssues(
     values: Record<string, unknown>,
     currency: string,
     mode: DocumentSaveMode,
-    tax: DocumentTax
+    tax: DocumentTax,
+    deposit: DepositRule | undefined
 ): Issue[] {
     const { messages } = kind
     const lines = linesOf(values.lines)
     const cells = lines.flatMap((row, index) => cellIssues(row, index, currency, messages))
-    const issues: Issue[] = [...dueDateIssues(kind, values), ...cells]
+    const issues: Issue[] = [
+        ...dueDateIssues(kind, values),
+        ...paymentIssues(kind, values, deposit),
+        ...cells,
+    ]
     if (lines.length > MAX_DOCUMENT_LINES) {
         issues.push({ path: ['lines'], message: messages.tooManyLines })
     }
@@ -174,20 +206,19 @@ function documentIssues(
 
 // Save draft and Post share every rule; Post adds one: at least one Item line with a
 // product. `tax` is the header's chosen tax; absent, the totals are checked without it.
-// `deposit` is how a sales receipt draws Deposit to; the invoice passes none, and no
-// rule reads it yet.
+// `deposit` is how a sales receipt draws Deposit to; the invoice passes none.
 export function documentSchema(
     kind: SalesDocumentKind,
     currency: string,
     mode: DocumentSaveMode,
     tax: DocumentTax = null,
-    _deposit?: DepositRule
+    deposit?: DepositRule
 ): ZodTypeAny {
     return z
         .object({})
         .passthrough()
         .superRefine((values, ctx) => {
-            for (const issue of documentIssues(kind, values, currency, mode, tax)) {
+            for (const issue of documentIssues(kind, values, currency, mode, tax, deposit)) {
                 ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
             }
         })

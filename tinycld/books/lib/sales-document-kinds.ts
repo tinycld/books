@@ -3,7 +3,7 @@
 // other code, as the generator loads them in Node through forms/hosts.ts. The per-kind
 // reads and writes live in hooks/<kind>-data.ts.
 
-import { type DocumentMessages, INVOICE_MESSAGES } from './document-texts'
+import { type DocumentMessages, INVOICE_MESSAGES, SALES_RECEIPT_MESSAGES } from './document-texts'
 
 // The memo's hint, the same on every kind.
 const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
@@ -58,4 +58,26 @@ export const INVOICE_KIND: SalesDocumentKind = {
     pdfStem: number => (number ? `invoice-${number}` : 'draft-invoice'),
     bandSplitAt: null,
     helpTopic: 'books:invoices',
+}
+
+export const SALES_RECEIPT_KIND: SalesDocumentKind = {
+    key: 'sales_receipt',
+    hostKey: 'books:sales_receipt',
+    testId: 'sales-receipt',
+    routeBase: 'books/sales-receipts',
+    noun: 'Sales receipt',
+    thisNoun: 'This sales receipt',
+    draftTitle: 'Draft sales receipt',
+    newTitle: 'New sales receipt',
+    shortcutGroup: 'Sales receipt',
+    figure: { label: 'Amount received', testId: 'amount-received' },
+    lastTotal: { label: 'Amount received', testId: 'total-received' },
+    customerRequired: false,
+    noteHints: { message: 'Shown on the sales receipt and its PDF.', memo: MEMO_HINT },
+    messages: SALES_RECEIPT_MESSAGES,
+    // The server's names (server/pdf_sales_receipt.go).
+    pdfStem: number => (number ? `sales-receipt-${number}` : 'draft-sales-receipt'),
+    // The Payment row: Payment method, Reference no. and Deposit to.
+    bandSplitAt: 'payment_method',
+    helpTopic: 'books:sales-receipts',
 }

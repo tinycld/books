@@ -26,7 +26,7 @@ function ScreenState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab
         case 'loading':
             return <DocumentLoading />
         case 'error':
-            return <DocumentLoadError onRetry={data.retry} />
+            return <DocumentLoadError message={data.errorText} onRetry={data.retry} />
         case 'not-found':
             return <DocumentNotice testID={ids.notFound} message={messages.notFound} />
         case 'no-access':
