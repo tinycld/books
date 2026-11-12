@@ -105,6 +105,8 @@ with the reason, and shown to the human at the end)
 - fix review: round 1: clean (0 BLOCK) · 1 NOTE to Design notes.
 - gate 3 A notes: 5 listed under Design notes
 - reviewer-caught deferrals: none
+- commit: 20cdd74
+- human: none (review mode C)
 
 ## Final review
 - eval:
