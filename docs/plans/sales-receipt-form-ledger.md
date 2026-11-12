@@ -129,7 +129,7 @@ with the reason, and shown to the human at the end)
 - fix review: round 1: clean (0 BLOCK, 0 NOTE).
 - gate 3 A notes: 5 listed under Design notes (4 from A, 1 shared with B)
 - reviewer-caught deferrals: none
-- commit: (this commit)
+- commit: 2d565b2
 - human: none (review mode C)
 
 ## Final review
