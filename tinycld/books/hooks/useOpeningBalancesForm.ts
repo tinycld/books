@@ -31,6 +31,7 @@ import {
     openingFormSchema,
 } from '../lib/opening-balances-schema'
 import { todayIso } from '../lib/register-range'
+import { isRevisionConflict, OPENING_CONFLICT_TEXT } from '../lib/revision'
 import { useOpeningPostStore } from '../stores/opening-post-store'
 import { useBackToChart } from './useBackToChart'
 import type { OpeningScreen } from './useOpeningBalancesScreen'
@@ -169,7 +170,11 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
     const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false)
     const [isDiscardOpen, setIsDiscardOpen] = useState(false)
     const goBack = useBackToChart()
-    const writes = useOpeningDraftWrites(screen)
+    // The revision of the draft the form was seeded from; each save and the post state
+    // it and move it on. It is not read from the live entry: another session's save
+    // updates that entry under this form.
+    const baseline = useRef(screen.state.kind === 'draft' ? screen.state.entry.revision : 0)
+    const writes = useOpeningDraftWrites(screen, baseline)
     const setPostPending = useOpeningPostStore(s => s.setPostPending)
     const [entriesCollection] = useStore('books_journal_entries')
     const draft = screen.state.kind === 'draft' ? screen.state.entry : null
@@ -194,6 +199,10 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
                 return
             }
             onWriteError(error.cause)
+            return
+        }
+        if (isRevisionConflict(error)) {
+            setError('root', { type: 'server', message: OPENING_CONFLICT_TEXT })
             return
         }
         const message = refusalMessage(error)

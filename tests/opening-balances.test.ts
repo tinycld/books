@@ -510,6 +510,7 @@ describe('openingScreenState', () => {
         status,
         number: status === 'posted' ? 'JE-1046' : '',
         replaces: '',
+        revision: 1,
     })
     const base = {
         isReady: true,

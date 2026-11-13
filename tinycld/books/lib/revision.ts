@@ -24,3 +24,7 @@ export function chunkOps<T>(ops: readonly T[], size = MAX_LINE_OPS): T[][] {
     }
     return chunks
 }
+
+// The opening balances screen has no "load" action: the person opens it again.
+export const OPENING_CONFLICT_TEXT =
+    'These opening balances changed after you opened them. Open this screen again, then review them before you save or post.'
