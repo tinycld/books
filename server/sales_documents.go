@@ -94,6 +94,9 @@ func (k salesDocKind) isEditableStatus(status string) bool {
 type salesDocMessages struct {
 	TotalNegative, TotalTooLarge, TooManyLines, ZeroTotal, PostedFromForm, NotDraft, DeleteNotDraft,
 	LineStays, LineNotDraft, LineRestating, LineUnknownKind, EditMissing, CustomerOnDocs string
+	// RevisionConflict refuses a save or a post of a document that changed after
+	// the caller loaded it (revision.go), with status 409.
+	RevisionConflict string
 }
 
 // The lines built-in of every sales document host, whose row kinds say which
@@ -316,8 +319,16 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 	from, to := stored.GetString("status"), r.GetString("status")
 	switch {
 	case from == statusDraft && to == statusDraft:
+		// Every draft write, a person's or Books' own save of the totals after
+		// a line write, takes the transaction's one increase.
+		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
+			return err
+		}
 		return checkDraftSalesDoc(tx, kind, stored, r)
 	case from == statusDraft && to == statusPosted:
+		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
+			return err
+		}
 		if err := checkDraftSalesDoc(tx, kind, stored, r); err != nil {
 			return err
 		}
