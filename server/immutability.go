@@ -96,6 +96,9 @@ func registerImmutabilityGuards(app core.App) {
 			if err := requireDraftEntry(tx, e.Record); err != nil {
 				return 0, err
 			}
+			if err := checkLineStamp(tx, stored, e.Record); err != nil {
+				return 0, err
+			}
 			return e.Record.GetInt("debit") - stored.GetInt("debit"), checkLineParty(tx, stored, e.Record)
 		})
 	})
@@ -121,6 +124,9 @@ func lineGuard(e *core.RecordEvent) error {
 				return 0, err
 			}
 			return -stored.GetInt("debit"), nil
+		}
+		if err := checkLineStamp(tx, nil, e.Record); err != nil {
+			return 0, err
 		}
 		return e.Record.GetInt("debit"), checkLineParty(tx, nil, e.Record)
 	})

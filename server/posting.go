@@ -100,9 +100,22 @@ func postEntry(tx core.App, entry *core.Record, now time.Time) error {
 	return stampPosted(tx, entry, lines, day, seq, number, total, now)
 }
 
+// markPosting marks entryID while stampPosted stamps its lines, so the line
+// guard lets the posted flag and the date through (checkLineStamp). The mark
+// belongs to the posting transaction (txmarks.go) and to one entry: a write of
+// another request, or a later write of the same transaction, reads none.
+func markPosting(tx core.App, entryID string) func() {
+	return setTxMark(tx, "entry.posting", entryID)
+}
+
+func isPosting(tx core.App, entryID string) bool {
+	return hasTxMark(tx, "entry.posting", entryID)
+}
+
 // stampPosted freezes a validated entry: its lines carry the posting date,
 // each line reaches its account's month row, and the entry takes its number.
 func stampPosted(tx core.App, entry *core.Record, lines []*core.Record, day string, seq int, number string, total int, now time.Time) error {
+	defer markPosting(tx, entry.Id)()
 	currency := entry.GetString("currency")
 	for _, line := range lines {
 		line.Set("posted", true)
