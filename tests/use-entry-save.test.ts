@@ -73,10 +73,12 @@ type Props = {
 }
 
 function renderSave(initialProps: Props = { entryId: null, saved: [], currency: 'USD' }) {
-    return renderHook((props: Props) => useEntrySave({ currency: 'USD', revision: 0, ...props }), {
-        wrapper,
-        initialProps,
-    })
+    // A stored draft of the fixtures is at revision 1; a new entry has none.
+    const loaded = (props: Props) => (props.entryId === null ? 0 : 1)
+    return renderHook(
+        (props: Props) => useEntrySave({ currency: 'USD', revision: loaded(props), ...props }),
+        { wrapper, initialProps }
+    )
 }
 
 function entries() {
@@ -478,6 +480,21 @@ describe('useEntrySave: one batch and a revision', () => {
             await hook.result.current.saveDraft(values(changed, { memo: 'again' }))
         })
         expect(entries()[0]).toMatchObject({ memo: 'again', revision: 5 })
+    })
+
+    // The header does not change here, so the batch would hold only lines, which the
+    // server does not check: the form must refuse it.
+    it('refuses a save of lines when the stored draft moved past the loaded revision', async () => {
+        seedDraft()
+        const hook = renderSave({ entryId: 'je_draft', revision: 2, saved: SAVED_FORM })
+        const changed = [{ ...SAVED_FORM[0], debit: '99.00' }, SAVED_FORM[1], SAVED_FORM[2]]
+        await act(async () => {
+            await expect(
+                hook.result.current.saveDraft(values(changed, { memo: savedEntry.memo }))
+            ).rejects.toMatchObject({ status: 409 })
+        })
+        expect(entries()[0]).toMatchObject({ revision: 3 })
+        expect(lines()[0].debit).toBe(1000)
     })
 
     it('posts an existing draft in its save, with the entry written last', async () => {
