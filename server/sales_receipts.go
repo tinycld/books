@@ -45,6 +45,7 @@ const docTypeSalesReceipt = "sales_receipt"
 // debits for the total. Posting never creates an account.
 var salesReceiptKind = salesDocKind{
 	DocType:            docTypeSalesReceipt,
+	Lifecycle:          lifecyclePosting,
 	Collection:         "books_sales_receipts",
 	LinesCollection:    "books_sales_receipt_lines",
 	TaxLinesCollection: "books_sales_receipt_tax_lines",

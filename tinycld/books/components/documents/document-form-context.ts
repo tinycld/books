@@ -19,6 +19,17 @@ export type DocumentFormScope = {
     customerLoadFailed: boolean
     retryCustomer: () => void
     taxRows: ReturnType<typeof useTaxRateOptions>['rows']
+    // The saved expiration date of an estimate that shows as Expired (expiredOnOf), for
+    // the hint under Expiration date; null otherwise.
+    expiredOn: string | null
+    // The number of the estimate an invoice is made from ("From estimate <n>"), read by
+    // the screen (estimateNumberOf), so the Customer field runs no query of its own; ''
+    // when the invoice names none.
+    estimateNumber: string
+    // The id of that estimate: the one a new invoice is made from (or a new correction
+    // keeps), else the stored invoice's; '' when it names none. While it is set the
+    // customer cannot change (the server refuses it), so Customer draws as text.
+    estimateId: string
 }
 
 export const DocumentFormContext = createContext<DocumentFormScope | null>(null)
@@ -34,6 +45,9 @@ const EMPTY_SCOPE: DocumentFormScope = {
     customerLoadFailed: false,
     retryCustomer: () => {},
     taxRows: [],
+    expiredOn: null,
+    estimateNumber: '',
+    estimateId: '',
 }
 
 export function useDocumentFormScope(): DocumentFormScope {

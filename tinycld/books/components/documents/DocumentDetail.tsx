@@ -10,15 +10,16 @@ interface DocumentDetailProps {
     valueSuffix?: string
 }
 
-// One body field of the read view; an empty value is left out. Its width is the column's
-// it sits in.
+// One body field of the read view; an empty value is left out. It is never wider than the
+// column it sits in, so a long value wraps there: in a wrapping row of details its width
+// would otherwise be its text's, past the card's edge.
 export function DocumentDetail({ field, label, value, valueSuffix }: DocumentDetailProps) {
     const { doc } = useDocumentKind()
     if (value === '') return null
     const testID = `${doc.testId}-detail-${field}`
     const valueTestID = valueSuffix ? `${doc.testId}-${valueSuffix}` : undefined
     return (
-        <View testID={testID} className="gap-0.5">
+        <View testID={testID} className="min-w-0 max-w-full gap-0.5">
             <Text className="text-xs text-muted-foreground">{label}</Text>
             <Text testID={valueTestID} className="text-sm text-foreground">
                 {value}

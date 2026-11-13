@@ -9,9 +9,14 @@ import {
     INVOICE_MESSAGES,
     SALES_RECEIPT_MESSAGES,
 } from '../tinycld/books/lib/document-messages'
+import { ESTIMATE_MESSAGES } from '../tinycld/books/lib/document-texts'
 import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
 import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
-import { INVOICE_KIND, SALES_RECEIPT_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import {
+    ESTIMATE_KIND,
+    INVOICE_KIND,
+    SALES_RECEIPT_KIND,
+} from '../tinycld/books/lib/sales-document-kinds'
 
 const invoiceRefusalTarget = (message: string) => documentRefusalTarget(message, INVOICE_KIND)
 
@@ -126,6 +131,110 @@ describe('server/sales_receipts.go', () => {
             expect(receiptServerSource()).toContain(`"${text}"`)
         })
     }
+})
+
+// The estimate's texts the client and the server both show, whose Go constants live in
+// server/estimates.go (plan, Decisions: Messages). The conversion texts are checked
+// against server/estimate_conversion.go once that file exists (checkpoint 3).
+const ESTIMATE_SHARED = {
+    totalNegative: 'An estimate total cannot be below zero.',
+    totalTooLarge: 'The estimate total is more than Books can store.',
+    tooManyLines: 'An estimate can have at most 250 lines.',
+    customerOnInvoices: '%s is on estimates. Make it inactive instead.',
+    expirationBeforeDate: "Expiration date can't be before the estimate date",
+    acceptedDateRequired: 'Enter the accepted date',
+} as const
+
+const ESTIMATE_CLIENT_ONLY = {
+    customerInactive: '%s is inactive. Choose an active customer.',
+    noAccess: 'You need bookkeeper access to create estimates',
+    notFound: 'This estimate does not exist',
+    cannotEdit: 'This estimate cannot be edited',
+    loadFailed: 'Books could not load this estimate.',
+    pdfUnsaved: 'Save the estimate to see its PDF',
+} as const
+
+function estimateServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'estimates.go'), 'utf8')
+}
+
+describe('ESTIMATE_MESSAGES', () => {
+    it('holds every shared text under its key', () => {
+        expect(ESTIMATE_MESSAGES).toMatchObject(ESTIMATE_SHARED)
+    })
+
+    it('holds the client texts under their keys', () => {
+        expect(ESTIMATE_MESSAGES).toMatchObject(ESTIMATE_CLIENT_ONLY)
+    })
+
+    it('is the estimate kind’s texts', () => {
+        expect(ESTIMATE_MESSAGES).toBeDefined()
+        expect(ESTIMATE_KIND.messages).toBe(ESTIMATE_MESSAGES)
+    })
+})
+
+describe('server/estimates.go', () => {
+    for (const [key, text] of Object.entries(ESTIMATE_SHARED)) {
+        it(`holds the estimate's ${key} text verbatim as a Go string, as ESTIMATE_MESSAGES does`, () => {
+            expect(estimateServerSource()).toContain(`"${text}"`)
+            expect(ESTIMATE_MESSAGES[key as keyof typeof ESTIMATE_SHARED]).toBe(text)
+        })
+    }
+})
+
+// The conversion texts (spec §3.7; plan, Decisions: Messages): the client and the server
+// show them with the same words, and their Go constants live in
+// server/estimate_conversion.go. `%s` is compared as written.
+const CONVERSION_SHARED = {
+    alreadyOnInvoice: 'Estimate %s is already on invoice %s.',
+    alreadyOnDraftInvoice: 'Estimate %s is already on a draft invoice.',
+    estimateCustomer: "An invoice from an estimate bills the estimate's customer.",
+    estimateCustomerInactive: '%s is inactive. Make the customer active to convert this estimate.',
+} as const
+
+// The delete refusals of an estimate an invoice names (spec §3.6). The estimate's delete
+// hook is in server/estimates.go; the constant may sit in either estimate file.
+const ESTIMATE_DELETE_SHARED = {
+    hasInvoice: 'Estimate %s has invoice %s. Set it to Rejected instead.',
+    hasDraftInvoice: 'Estimate %s has a draft invoice. Set it to Rejected instead.',
+} as const
+
+function conversionServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'estimate_conversion.go'), 'utf8')
+}
+
+describe('server/estimate_conversion.go', () => {
+    for (const [key, text] of Object.entries(CONVERSION_SHARED)) {
+        it(`holds the conversion's ${key} text verbatim as a Go string, as ESTIMATE_MESSAGES does`, () => {
+            expect(conversionServerSource()).toContain(`"${text}"`)
+            expect(ESTIMATE_MESSAGES).toHaveProperty(key, text)
+        })
+    }
+
+    for (const [key, text] of Object.entries(ESTIMATE_DELETE_SHARED)) {
+        it(`holds the estimate delete's ${key} text verbatim as a Go string, as ESTIMATE_MESSAGES does`, () => {
+            const goSources = `${estimateServerSource()}\n${conversionServerSource()}`
+            expect(goSources).toContain(`"${text}"`)
+            expect(ESTIMATE_MESSAGES).toHaveProperty(key, text)
+        })
+    }
+
+    it('holds the estimate delete confirm texts', () => {
+        expect(ESTIMATE_MESSAGES.deleteTitle.replace('%s', '1001')).toBe('Delete estimate 1001?')
+        expect(ESTIMATE_MESSAGES.deleteBody).toBe("This can't be undone.")
+        expect(ESTIMATE_MESSAGES.deleteAction).toBe('Delete estimate')
+    })
+
+    it('holds the client-only cannot-convert text of the invoice screen', () => {
+        expect(ESTIMATE_MESSAGES).toHaveProperty(
+            'cannotConvert',
+            'This estimate cannot be converted to an invoice'
+        )
+        expect(ESTIMATE_KIND.messages).toHaveProperty(
+            'cannotConvert',
+            'This estimate cannot be converted to an invoice'
+        )
+    })
 })
 
 // Server refusals carry PocketBase's final period.

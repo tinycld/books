@@ -9,7 +9,7 @@ To see how your documents print, open Settings, choose Company and press Preview
 
 The preview uses the saved company details. If you change a detail, press Save before you preview. Any person with access to Books can preview; only an admin can change the details.
 
-To see or download the PDF of an invoice or a sales receipt, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices) and [Sales receipts](help://books:sales-receipts).
+To see or download the PDF of an invoice, a sales receipt or an estimate, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices), [Sales receipts](help://books:sales-receipts) and [Estimates](help://books:estimates).
 
 ## What a document shows
 

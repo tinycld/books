@@ -30,8 +30,32 @@ describe('documentReadActions', () => {
 })
 
 describe('DOCUMENT_READ_KEYS', () => {
-    it('matches the key map: Edit E, Void V, Copy C, View journal entry J', () => {
-        expect(DOCUMENT_READ_KEYS).toEqual({ edit: 'e', void: 'v', copy: 'c', entry: 'j' })
+    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I', () => {
+        expect(DOCUMENT_READ_KEYS).toEqual({
+            edit: 'e',
+            void: 'v',
+            copy: 'c',
+            entry: 'j',
+            invoice: 'i',
+        })
+    })
+})
+
+// A closed estimate's Open invoice (spec §3.2 read view keys): key I. It belongs to the
+// quote lifecycle only (quoteReadActions); a posted or void document never offers it.
+describe('Open invoice', () => {
+    it('has the key I and is never a read action of a posting document', () => {
+        expect(DOCUMENT_READ_KEYS.invoice).toBe('i')
+        const posting = [
+            ['posted', true],
+            ['posted', false],
+            ['void', true],
+            ['void', false],
+            ['draft', true],
+        ] as const
+        for (const [status, canWrite] of posting) {
+            expect(documentReadActions(status, canWrite)).not.toContain('invoice')
+        }
     })
 })
 
@@ -62,6 +86,7 @@ describe('the sales receipt read view', () => {
             void: 'v',
             copy: 'c',
             entry: 'j',
+            invoice: 'i',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })

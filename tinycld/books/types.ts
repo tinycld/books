@@ -19,6 +19,8 @@ export type {
     BooksCloseOverrides,
     BooksCustomers,
     BooksDocSequences,
+    BooksEstimateLines,
+    BooksEstimates,
     BooksInvoiceLines,
     BooksInvoices,
     BooksInvoiceTaxLines,

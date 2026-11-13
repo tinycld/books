@@ -1,0 +1,216 @@
+{
+    "outDir": "estimate-form-reference",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1400
+        },
+        {
+            "name": "filled",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 2000
+        },
+        {
+            "name": "filled-phone",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 4400
+        },
+        {
+            "name": "accepted",
+            "url": "/a/books/helix-mockup?state=accepted",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "accepted-phone",
+            "url": "/a/books/helix-mockup?state=accepted",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2900
+        },
+        {
+            "name": "expired",
+            "url": "/a/books/helix-mockup?state=expired",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1400
+        },
+        {
+            "name": "expired-phone",
+            "url": "/a/books/helix-mockup?state=expired",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 1500
+        },
+        {
+            "name": "rejected",
+            "url": "/a/books/helix-mockup?state=rejected",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "errors-phone",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 1900
+        },
+        {
+            "name": "delete",
+            "url": "/a/books/helix-mockup?state=delete",
+            "ready": "estimate-delete-dialog",
+            "opaque": "estimate-delete-dialog",
+            "hideLabels": ["New"],
+            "height": 900
+        },
+        {
+            "name": "delete-refused",
+            "url": "/a/books/helix-mockup?state=delete-refused",
+            "ready": "estimate-delete-dialog",
+            "opaque": "estimate-delete-dialog",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 900
+        },
+        {
+            "name": "phone-more",
+            "url": "/a/books/helix-mockup?state=filled",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 844,
+            "actions": [{ "click": "estimate-more" }, { "waitFor": "Convert to invoice" }]
+        },
+        {
+            "name": "pdf",
+            "url": "/a/books/helix-mockup?state=pdf",
+            "ready": "estimate-pdf-unsaved",
+            "hideLabels": ["New"],
+            "height": 800
+        },
+        {
+            "name": "closed",
+            "url": "/a/books/helix-mockup?state=closed",
+            "ready": "estimate-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "closed-phone",
+            "url": "/a/books/helix-mockup?state=closed",
+            "ready": "estimate-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2200
+        },
+        {
+            "name": "closed-draft",
+            "url": "/a/books/helix-mockup?state=closed-draft",
+            "ready": "estimate-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "estimate-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1600
+        },
+        {
+            "name": "reader-phone",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "estimate-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 3400
+        },
+        {
+            "name": "invoice-from-estimate",
+            "url": "/a/books/helix-mockup?state=invoice-from-estimate",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "invoice-from-estimate-phone",
+            "url": "/a/books/helix-mockup?state=invoice-from-estimate",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2900
+        },
+        {
+            "name": "invoice-posted",
+            "url": "/a/books/helix-mockup?state=invoice-posted",
+            "ready": "invoice-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "settings",
+            "url": "/a/books/helix-mockup?state=settings",
+            "ready": "books-settings",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "helix-mockup",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "estimate-error",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "estimate-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "estimate-no-access",
+            "hideLabels": ["New"],
+            "height": 700
+        }
+    ]
+}
