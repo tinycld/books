@@ -42,6 +42,11 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
 })
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
+})
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
@@ -323,8 +328,9 @@ describe('a reference_no field refusal', () => {
                 shouldDirty: true,
             })
         })
+        // The save is one batch: the receipt and its line enter together.
         refuseNthWrite(
-            1,
+            2,
             new ClientResponseError({
                 url: 'http://127.0.0.1:7100/api/collections/books_sales_receipts/records',
                 status: 400,
@@ -350,7 +356,8 @@ describe('a reference_no field refusal', () => {
             expect(messageOf(form.getFieldState('reference_no').error)).toBe(REFERENCE_FIELD_TEXT)
         )
         await waitFor(() => expect(current().save.isSaving).toBe(false))
-        expect(enteredWrites()).toHaveLength(1)
+        // The refused batch is the only write: no delete follows it, and nothing is stored.
+        expect(enteredWrites()).toHaveLength(2)
         expect(receipts.toArray).toEqual([])
         expect(messageOf(form.getFieldState('root.server').error)).toBeUndefined()
         expect(messageOf(form.getFieldState('root').error)).toBeUndefined()

@@ -34,6 +34,11 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
 })
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
+})
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
@@ -176,7 +181,7 @@ describe('useDocumentSave post on a sales receipt: a refused Deposit to', () => 
     for (const refusal of REFUSALS) {
         it(`${refusal.shape}, with Deposit to hidden, goes to the summary`, async () => {
             const current = await openNew(true)
-            // The receipt insert, its line, then the status write.
+            // The batch (the receipt and its line), then the status write.
             refuseNthWrite(3, refusal.error())
 
             await act(async () => {

@@ -2,7 +2,6 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import type { TableRowWrite } from '@tinycld/core/lib/forms/table-rows'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { evictRows } from '@tinycld/core/lib/server-rows'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
@@ -25,8 +24,6 @@ import {
     NO_RECOVERY,
     useHeldRecord,
 } from './document-data'
-
-const LOG_CONTEXT = 'books.estimate'
 
 type EstimateInsertColumns = typeof EMPTY_ESTIMATE_COLUMNS
 
@@ -250,15 +247,21 @@ function useEstimateWrites(): DocumentWrites {
                 fields: input.fields,
             }),
         updateRecord: (id, input) => {
+            if (input.post) throw new Error('an estimate never posts')
             const columns = columnsOrThrow(estimateColumnsFrom, input.columns)
             return estimatesCollection.update(id, draft => {
                 Object.assign(draft, columns)
                 if (Object.keys(input.fields).length > 0) draft.fields = input.fields
+                draft.revision = input.revision
             })
         },
-        setStatus: () => {
-            throw new Error('an estimate never posts or voids')
+        postRecord: () => {
+            throw new Error('an estimate never posts')
         },
+        voidRecord: () => {
+            throw new Error('an estimate never voids')
+        },
+        storedRevision: id => estimatesCollection.get(id)?.revision,
         deleteRecord: id => estimatesCollection.delete(id),
         lineOps: estimateId => ({
             insert: write =>
@@ -273,7 +276,6 @@ function useEstimateWrites(): DocumentWrites {
                 }),
             remove: lineId => linesCollection.delete(lineId),
         }),
-        evictLines: ids => evictRows(linesCollection, ids, LOG_CONTEXT),
     }
 }
 
@@ -284,9 +286,20 @@ function useEstimateVersion(id: string | undefined): string {
     return record?.updated ?? ''
 }
 
+function useEstimateReload(): () => Promise<void> {
+    const [estimatesCollection, linesCollection] = useStore(
+        'books_estimates',
+        'books_estimate_lines'
+    )
+    return async () => {
+        await Promise.all([estimatesCollection.reload(), linesCollection.reload()])
+    }
+}
+
 // The estimate kind's data source: every `useStore` of an estimate collection.
 export const ESTIMATE_DATA: DocumentDataSource = {
     useScreenReads: useEstimateScreenReads,
     useWrites: useEstimateWrites,
     useVersion: useEstimateVersion,
+    useReload: useEstimateReload,
 }

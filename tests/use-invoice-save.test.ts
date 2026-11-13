@@ -12,10 +12,12 @@ import { View } from 'react-native'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INVOICE_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
 import hosts, { INVOICE_HOST_KEY } from '../tinycld/books/forms/hosts'
+import type { DocumentReadLine, DocumentRecord } from '../tinycld/books/hooks/document-data'
 import { useDocumentForm } from '../tinycld/books/hooks/useDocumentForm'
 import { postAndNewHref, useDocumentSave } from '../tinycld/books/hooks/useDocumentSave'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { INVOICE_MESSAGES } from '../tinycld/books/lib/document-messages'
+import { INVOICE_IDS, INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
 import { PRODUCT_IDS } from '../tinycld/books/lib/products-services-fixture'
 import { INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../tinycld/books/stores/document-save-store'
@@ -37,15 +39,20 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
 })
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
+})
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 const logged = silenceLog()
 
-// Post and Post & new on the invoice form (spec §3.5): the invoice row, then its lines, then
-// `status: 'posted'`, with the form held by the save store through the write, and each
-// refusal of the status write routed to the field it names. The collections are the
-// harness's real local-only ones and the form hooks are the real ones; nothing of ours is
-// mocked.
+// Post and Post & new on the invoice form (spec §3.5): the invoice row and its lines in
+// one batch, then `status: 'posted'` with the revision, with the form held by the save
+// store through the write, and each refusal of the status write routed to the field it
+// names. The collections are the harness's real local-only ones and the form hooks are
+// the real ones; `atomic` is the harness's (a batch on local-only collections).
 
 type ScreenStubValue = {
     pathname: string
@@ -231,24 +238,21 @@ beforeEach(() => {
 })
 
 describe('useInvoiceSave post: write order and hold', () => {
-    it('writes the invoice, then its lines, then status posted, in that order', async () => {
+    it('writes the invoice and its lines in one batch, then status posted with revision 2', async () => {
         const probe = await openNew()
         fill(probe, [LINE_A, LINE_B])
         const steps = stepWrites()
 
         await post(probe)
-        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        // The batch enters with all its rows at once.
+        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
         const id = insertedInvoiceId()
-        expect(invoices.get(id)?.status).toBe('draft')
-        steps.next()
-        await waitFor(() => expect(enteredWrites()).toEqual([id, LINE_A.id]))
-        expect(invoices.get(id)?.status).toBe('draft')
-        steps.next()
-        await waitFor(() => expect(enteredWrites()).toEqual([id, LINE_A.id, LINE_B.id]))
+        expect(enteredWrites()).toEqual([id, LINE_A.id, LINE_B.id])
         expect(invoices.get(id)?.status).toBe('draft')
         steps.next()
         await waitFor(() => expect(enteredWrites()).toEqual([id, LINE_A.id, LINE_B.id, id]))
         expect(invoices.get(id)?.status).toBe('posted')
+        expect(invoices.get(id)?.revision).toBe(2)
         steps.stop()
 
         await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
@@ -276,11 +280,10 @@ describe('useInvoiceSave post: write order and hold', () => {
         const steps = stepWrites()
 
         await post(probe)
-        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        // The batch: the invoice and its one line.
+        await waitFor(() => expect(enteredWrites()).toHaveLength(2))
         const id = insertedInvoiceId()
         expect(heldAtChange[0]).toEqual({ key: id, status: 'draft', heldId: id })
-        steps.next()
-        await waitFor(() => expect(enteredWrites()).toHaveLength(2))
         expect(useDocumentSaveStore.getState().heldId).toBe(id)
         steps.next()
         await waitFor(() => expect(enteredWrites()).toHaveLength(3))
@@ -348,7 +351,7 @@ describe('useInvoiceSave post: a refused status write', () => {
         it(`${refusal.name} and the draft stays`, async () => {
             const probe = await openNew()
             fill(probe, [...refusal.rows])
-            // The invoice insert, one write per line, then the status write.
+            // The batch (the invoice and its lines), then the status write.
             refuseNthWrite(refusal.rows.length + 2, messageRefusal(refusal.text))
 
             await post(probe)
@@ -375,7 +378,7 @@ describe('useInvoiceSave post: a refused status write', () => {
         const release = holdWrites()
 
         await post(probe)
-        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        await waitFor(() => expect(enteredWrites()).toHaveLength(2))
         probe.presence.focused = false
         release()
 
@@ -421,5 +424,163 @@ describe('useInvoiceSave post & new', () => {
         expect(withoutNonce(href)).toBe(
             withoutNonce(appHref(postAndNewHref(INVOICE_KIND, undefined)))
         )
+    })
+})
+
+describe('useDocumentSave: a refused post of a new invoice', () => {
+    it('keeps the draft, and the next post updates and posts that same invoice', async () => {
+        const probe = await openNew()
+        fill(probe, [LINE_A])
+        refuseNthWrite(3, messageRefusal(CLOSED_TEXT))
+
+        await post(probe)
+        await waitFor(() => expect(rootMessage(probe.current().form)).toBe(CLOSED_TEXT))
+        await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
+        const id = insertedInvoiceId()
+        expect(probe.current().save.writtenId).toBe(id)
+
+        await post(probe)
+        await waitFor(() => expect(invoices.get(id)?.status).toBe('posted'))
+        // No second invoice: the draft's baseline is 1, and its post states 2.
+        expect(invoices.toArray).toHaveLength(1)
+        expect(invoices.get(id)?.revision).toBe(2)
+        expect(lines.toArray.map(l => l.id)).toEqual([LINE_A.id])
+    })
+})
+
+describe('useDocumentSave: a stored draft', () => {
+    const DRAFT = (() => {
+        const row = INVOICES.find(invoice => invoice.id === INVOICE_IDS.draft)
+        if (!row) throw new Error('no draft invoice in the fixture')
+        return { ...row, revision: 5 }
+    })()
+
+    const recordOf = (row: BooksInvoices): DocumentRecord => ({
+        ...row,
+        kindFields: {
+            kind: 'invoice',
+            terms: row.terms,
+            due_date: row.due_date,
+            estimate: row.estimate,
+            estimateRow: undefined,
+        },
+        postedBy: undefined,
+        voidedBy: undefined,
+        taxRateRow: undefined,
+    })
+
+    // The draft's lines as the screen's line query reads them, and as the form holds them.
+    const STORED_LINES = INVOICE_LINES.filter(line => line.invoice === INVOICE_IDS.draft)
+    const DRAFT_LINES: DocumentReadLine[] = STORED_LINES.map(line => ({
+        ...line,
+        productRow: undefined,
+    }))
+    const firstLineId = DRAFT_LINES[0].id
+
+    function StoredProbe({ record, seen }: { record: DocumentRecord; seen: ProbeProps['seen'] }) {
+        const state = useDocumentForm(INVOICE_DOCUMENT, {
+            record,
+            lines: DRAFT_LINES,
+            customer: undefined,
+            currency: 'USD',
+            taxRows: [],
+        })
+        const save = useDocumentSave(state)
+        seen.current = { form: state.form as unknown as Form, isReady: state.isReady, save }
+        return createElement(View, { ref: save.surfaceRef })
+    }
+
+    // `storedRevision` is the revision the store row holds; the form's record starts at
+    // DRAFT's (5). They differ when another session's save reached the store.
+    async function openStored(storedRevision = DRAFT.revision) {
+        invoices = guardedStore<BooksInvoices>('books_invoices', [
+            { ...DRAFT, revision: storedRevision },
+        ])
+        lines = guardedStore<BooksInvoiceLines>('books_invoice_lines', STORED_LINES)
+        const seen: { current: Seen | null } = { current: null }
+        const screen: ScreenStubValue = {
+            pathname: `/a/books/invoices/${DRAFT.id}`,
+            navigation: { isFocused: () => true, dispatch: () => {} },
+        }
+        const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+        const tree = (record: DocumentRecord) =>
+            createElement(
+                QueryClientProvider,
+                { client },
+                createElement(
+                    ScreenStub,
+                    { value: screen },
+                    createElement(StoredProbe, { record, seen })
+                )
+            )
+        const view = render(tree(recordOf(DRAFT)))
+        const current = () => {
+            if (!seen.current) throw new Error('the probe has not rendered')
+            return seen.current
+        }
+        await waitFor(() => {
+            expect(current().isReady).toBe(true)
+            expect(current().form.getValues('lines')).toHaveLength(DRAFT_LINES.length)
+        })
+        return { current, show: (row: BooksInvoices) => view.rerender(tree(recordOf(row))) }
+    }
+
+    // Changes only a line: the quantity of line 1. No header field is touched.
+    const changeFirstQuantity = (probe: { current: () => Seen }, quantity: number) =>
+        act(() => {
+            const { form } = probe.current()
+            const rows = form.getValues('lines') as TableRow[]
+            const changed = rows.map((row, index) => (index === 0 ? { ...row, quantity } : row))
+            form.setValue('lines', changed, { shouldDirty: true })
+        })
+
+    it('states the revision it loaded, as the next value, with the line first and the header last', async () => {
+        const probe = await openStored()
+        changeFirstQuantity(probe, 4)
+
+        await act(async () => {
+            await probe.current().save.saveDraft()
+        })
+
+        await waitFor(() => expect(invoices.get(DRAFT.id)?.revision).toBe(6))
+        expect(enteredWrites()).toEqual([firstLineId, DRAFT.id])
+        expect(lines.get(firstLineId)?.quantity).toBe(4)
+        expect(probe.current().save.isConflict).toBe(false)
+    })
+
+    // The header does not change here. The update would set revision 6 on a row that holds
+    // 6 already, so the batch would hold only the line, which the server does not check:
+    // the form must refuse it.
+    it('refuses a save of lines when the stored document moved past the loaded revision', async () => {
+        // Another session's save reached the store (6) after this form took its values (5).
+        const probe = await openStored(6)
+        changeFirstQuantity(probe, 9)
+
+        await act(async () => {
+            await probe.current().save.saveDraft()
+        })
+
+        await waitFor(() => expect(probe.current().save.isConflict).toBe(true))
+        expect(enteredWrites()).toEqual([])
+        expect(lines.get(firstLineId)?.quantity).toBe(DRAFT_LINES[0].quantity)
+        expect(invoices.get(DRAFT.id)?.revision).toBe(6)
+        // What was typed stays.
+        const rows = probe.current().form.getValues('lines') as TableRow[]
+        expect(rows[0].quantity).toBe(9)
+    })
+
+    it('follows the row while nothing is typed, so a form that showed the change saves', async () => {
+        const probe = await openStored(6)
+        // The row the form reads moves to 6 while the form has no unsaved change.
+        probe.show({ ...DRAFT, revision: 6 })
+        changeFirstQuantity(probe, 4)
+
+        await act(async () => {
+            await probe.current().save.saveDraft()
+        })
+
+        await waitFor(() => expect(invoices.get(DRAFT.id)?.revision).toBe(7))
+        expect(enteredWrites()).toEqual([firstLineId, DRAFT.id])
+        expect(probe.current().save.isConflict).toBe(false)
     })
 })
