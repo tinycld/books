@@ -441,8 +441,9 @@ function useDraftPdf(kind: SalesDocumentKind, draftId: string | undefined, isSav
 interface DocumentFormProps {
     data: DocumentScreenData
     tab: DocumentTab
-    // Loads the stored document again and mounts a new form on it (DocumentScreen).
-    onReload: () => void
+    // Reads the stored document again and mounts a new form on it (DocumentScreen); it
+    // rejects when the read fails.
+    onReload: () => Promise<void>
 }
 
 /**

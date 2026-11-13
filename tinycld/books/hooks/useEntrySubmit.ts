@@ -18,8 +18,9 @@ interface EntrySubmitProps {
     saved?: readonly EntryFormLine[]
     // The revision of the draft the form's values were taken from; 0 for a new entry.
     revision?: number
-    // Loads the draft again, in place of what is typed here. Only a saved draft has one.
-    onReload?(): void
+    // Reads the draft again and mounts a new form on it, in place of what is typed here.
+    // It rejects, and mounts nothing, when the read fails. Only a saved draft has one.
+    onReload?(): Promise<void>
     // The posted entry a new draft replaces.
     replaces?: string
     onSaved(id: string, outcome: SaveOutcome): void
@@ -28,6 +29,9 @@ interface EntrySubmitProps {
     // optimistic status change is not yet confirmed.
     onBusyChange?(isBusy: boolean): void
 }
+
+const ENTRY_RELOAD_FAILED_TEXT =
+    'Books could not load this entry. Check your connection, then try again.'
 
 type Refusal = { message?: unknown }
 
@@ -192,10 +196,26 @@ export function useEntrySubmit({
         onCancel()
     }
 
+    // Load the current entry in place of what is typed here: the screen reads the rows
+    // again and mounts a new form. When that read fails, a new form would show the rows
+    // the store already holds in place of what is typed. So this form stays as it is,
+    // with the notice and its action, and the summary says the entry could not be loaded.
+    const reload = onReload
+        ? async () => {
+              form.clearErrors('root.server')
+              try {
+                  await onReload()
+              } catch (error) {
+                  log.error('books.entry', error, { operation: 'reload' })
+                  setError('root.server', { type: 'client', message: ENTRY_RELOAD_FAILED_TEXT })
+              }
+          }
+        : undefined
+
     return {
         isPending,
         isConflict,
-        reload: onReload,
+        reload,
         isDiscardOpen,
         saveDraft: submit('draft', 'draft'),
         post: submit('post', 'post'),

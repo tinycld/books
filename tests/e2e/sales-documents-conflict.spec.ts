@@ -19,6 +19,14 @@ import {
     uniqueMemo,
 } from './invoice-helpers'
 import { DESKTOP, PHONE } from './journal-entries-helpers'
+import {
+    openNewSalesReceipt,
+    openSalesReceiptBySearch,
+    pickReceiptCustomer,
+    pickReceiptLineProduct,
+    receiptLineRowId,
+    SALES_RECEIPT_URL,
+} from './sales-receipt-helpers'
 
 // Two sessions on one sales document (general ledger review, GL-01, for documents). The
 // first session's view goes stale when the second one saves. Its save or post must be
@@ -34,6 +42,15 @@ import { DESKTOP, PHONE } from './journal-entries-helpers'
 // behind and the server's own refusal is the one that shows.
 
 const INVOICE_CONFLICT = 'This invoice changed after you opened it.'
+const RECEIPT_CONFLICT = 'This sales receipt changed after you opened it.'
+const INVOICE_RELOAD_FAILED =
+    'Books could not load this invoice. Check your connection, then try again.'
+// The body PocketBase answers a refused list request with.
+const READ_REFUSED = {
+    status: 400,
+    message: 'Something went wrong while processing your request.',
+    data: {},
+}
 const ESTIMATE_CONFLICT = 'This estimate changed after you opened it.'
 
 function seededCustomer() {
@@ -134,6 +151,144 @@ for (const [name, size] of [
         await other.context().close()
     })
 }
+
+// A post changes the header (its status), so this request does state a revision. The form
+// must still refuse it, and the draft must stay a draft with the other session's line.
+test('a stale invoice post that changes only a line is refused, posts nothing and overwrites nothing', async ({
+    page,
+    browser,
+}) => {
+    const memo = uniqueMemo('Invoice conflict post')
+    await openBooks(page)
+    await saveInvoiceDraft(page, { customer: seededCustomer(), product: ACCESS_POINT, memo })
+
+    // The first session changes only line 1's quantity: its view is fixed from here.
+    const rowId = await lineRowId(page, 0)
+    await page.getByTestId(lineCellTestId(rowId, 'quantity')).fill('2')
+    await page.getByTestId('invoice-title').click()
+    const subtotal = page.getByTestId('invoice-total-subtotal')
+    const own = await amountIn(subtotal)
+
+    const other = await secondSession(browser)
+    await saveOtherRate(other, memo)
+
+    await page.getByTestId('invoice-post').click()
+    await expect(page.getByTestId('invoice-conflict')).toContainText(INVOICE_CONFLICT)
+    // Nothing was posted, and what was typed is still on the screen.
+    await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
+    await expect(page.getByTestId('invoice-read-only')).toHaveCount(0)
+    await expect(subtotal).toContainText(own)
+
+    // Load the current invoice: it is still a draft, and the other session's line is the
+    // stored one (quantity 1 at 50.00).
+    await page.getByTestId('invoice-conflict-reload').click()
+    await expect(page.getByTestId('invoice-conflict')).toHaveCount(0)
+    await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
+    await expect(subtotal).toContainText('50.00')
+    await expect(subtotal).not.toContainText('100.00')
+    // The other session, which follows the stored row, still shows a draft too.
+    await expect(other.getByTestId('invoice-title')).toHaveText('Draft invoice')
+    await expect(other.getByTestId('invoice-read-only')).toHaveCount(0)
+    await other.context().close()
+})
+
+test('a stale sales receipt save that changes only a line is refused and overwrites nothing', async ({
+    page,
+    browser,
+}) => {
+    const memo = uniqueMemo('Receipt conflict')
+    await openBooks(page)
+    await openNewSalesReceipt(page)
+    await pickReceiptCustomer(page, seededCustomer())
+    await pickReceiptLineProduct(page, 0, ACCESS_POINT)
+    await page.getByTestId('form-input-memo').fill(memo)
+    await page.getByTestId('sales-receipt-save-draft').click()
+    await expect(page).toHaveURL(SALES_RECEIPT_URL)
+    await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
+
+    // The first session changes only line 1's quantity: its view is fixed from here.
+    const subtotal = page.getByTestId('sales-receipt-total-subtotal')
+    const ownRow = await receiptLineRowId(page, 0)
+    await page.getByTestId(lineCellTestId(ownRow, 'quantity')).fill('2')
+    await page.getByTestId('sales-receipt-title').click()
+    const own = await amountIn(subtotal)
+
+    // The second session sets line 1's rate to 50.00 and saves the draft.
+    const other = await secondSession(browser)
+    await openSalesReceiptBySearch(other, memo)
+    await expect(other.getByTestId('form-input-memo')).toHaveValue(memo)
+    const rowId = await receiptLineRowId(other, 0)
+    await other.getByTestId(lineCellTestId(rowId, 'rate')).fill('50.00')
+    await other.getByTestId('sales-receipt-title').click()
+    await expect(other.getByTestId('sales-receipt-total-subtotal')).toContainText('50.00')
+    const saved = batchAnswered(other, 'books_sales_receipts', 'PATCH', 200)
+    await other.getByTestId('sales-receipt-save-draft').click()
+    await saved
+
+    await page.getByTestId('sales-receipt-save-draft').click()
+    await expect(page.getByTestId('sales-receipt-conflict')).toContainText(RECEIPT_CONFLICT)
+    await expect(subtotal).toContainText(own)
+    await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
+
+    // The other session's line is the stored one: the refused save wrote nothing over it.
+    await page.getByTestId('sales-receipt-conflict-reload').click()
+    await expect(page.getByTestId('sales-receipt-conflict')).toHaveCount(0)
+    await expect(subtotal).toContainText('50.00')
+    await expect(subtotal).not.toContainText('100.00')
+    await other.context().close()
+})
+
+// The reload reads the rows again before it mounts a new form. When that read fails, a
+// new form would show the rows this session already has (the stale ones) in place of
+// what was typed, so the form stays and says the invoice could not be loaded.
+test('a reload that cannot read the invoice keeps the form and what was typed, and says so', async ({
+    page,
+    browser,
+}) => {
+    const memo = uniqueMemo('Invoice conflict failed reload')
+    await openBooks(page)
+    await saveInvoiceDraft(page, { customer: seededCustomer(), product: ACCESS_POINT, memo })
+
+    const rowId = await lineRowId(page, 0)
+    await page.getByTestId(lineCellTestId(rowId, 'quantity')).fill('2')
+    await page.getByTestId('invoice-title').click()
+    const subtotal = page.getByTestId('invoice-total-subtotal')
+    const own = await amountIn(subtotal)
+
+    const other = await secondSession(browser)
+    await saveOtherRate(other, memo)
+
+    await page.getByTestId('invoice-save-draft').click()
+    await expect(page.getByTestId('invoice-conflict')).toContainText(INVOICE_CONFLICT)
+
+    // The server refuses to read the invoice and its lines. (A read that gets no answer
+    // at all is tried again until it gets one, so it does not fail.)
+    const READS = '**/api/collections/books_invoice*/records*'
+    const refused = page.waitForResponse(
+        response => response.url().includes('books_invoice') && response.status() === 400
+    )
+    await page.route(READS, route =>
+        route.request().method() === 'GET'
+            ? route.fulfill({ status: 400, json: READ_REFUSED })
+            : route.fallback()
+    )
+    await page.getByTestId('invoice-conflict-reload').click()
+    await refused
+    await expect(page.getByText(INVOICE_RELOAD_FAILED)).toBeVisible()
+    // The notice, with its action, and what was typed are still on the screen.
+    await expect(page.getByTestId('invoice-conflict')).toContainText(INVOICE_CONFLICT)
+    await expect(page.getByTestId(lineCellTestId(rowId, 'quantity'))).toHaveValue('2')
+    await expect(subtotal).toContainText(own)
+
+    // The read works again: the reload shows the other session's line, and no message.
+    await page.unroute(READS)
+    await page.getByTestId('invoice-conflict-reload').click()
+    await expect(page.getByTestId('invoice-conflict')).toHaveCount(0)
+    await expect(page.getByText(INVOICE_RELOAD_FAILED)).toHaveCount(0)
+    await expect(subtotal).toContainText('50.00')
+    await expect(subtotal).not.toContainText('100.00')
+    await other.context().close()
+})
 
 test('with realtime off, the server refuses the stale save and the reload reads the invoice again', async ({
     page,

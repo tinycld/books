@@ -20,6 +20,13 @@ import { uniqueName } from './record-form-helpers'
 // different layout and action bar there.
 
 const CONFLICT = 'This entry changed after you opened it.'
+const RELOAD_FAILED = 'Books could not load this entry. Check your connection, then try again.'
+// The body PocketBase answers a refused list request with.
+const READ_REFUSED = {
+    status: 400,
+    message: 'Something went wrong while processing your request.',
+    data: {},
+}
 const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
 const CARDS = '[data-testid^="entries-card-"]'
 
@@ -134,6 +141,65 @@ test('a stale save that changes only amounts is refused and overwrites nothing',
     // The other session's amounts are still the stored ones.
     await page.getByTestId('entry-conflict-reload').click()
     await expect(page.getByTestId('entry-conflict')).toHaveCount(0)
+    await expect(page.getByTestId('entry-line-debit-0')).toHaveValue(/200\.00/)
+    await other.context().close()
+})
+
+// The reload reads the rows again before it mounts a new form. When that read fails, a
+// new form would show the rows this session already has (the stale ones) in place of
+// what was typed, so the form stays and says the entry could not be loaded.
+test('a reload that cannot read the entry keeps the form and what was typed, and says so', async ({
+    page,
+    browser,
+}) => {
+    const memo = uniqueName('Conflict failed reload')
+    await openBooks(page)
+    await createDraftEntry(page, {
+        memo,
+        amount: '$100.00',
+        debitAccount: ACCOUNT_LABELS.checking,
+        creditAccount: ACCOUNT_LABELS.equity,
+    })
+    await openDraft(page, memo)
+
+    const other = await secondSession(browser)
+    await openDraft(other, memo)
+    await fillLine(other, 0, { debit: '$200.00' })
+    await fillLine(other, 1, { credit: '$200.00' })
+    const saved = other.waitForResponse(
+        res => res.url().includes('/api/batch') && res.status() === 200
+    )
+    await other.getByTestId('entry-save-draft').click()
+    await saved
+
+    await fillLine(page, 0, { debit: '$300.00' })
+    await fillLine(page, 1, { credit: '$300.00' })
+    await page.getByTestId('entry-save-draft').click()
+    await expect(page.getByTestId('entry-conflict')).toContainText(CONFLICT)
+
+    // The server refuses to read the entry and its lines. (A read that gets no answer at
+    // all is tried again until it gets one, so it does not fail.)
+    const READS = '**/api/collections/books_journal_*/records*'
+    const refused = page.waitForResponse(
+        response => response.url().includes('books_journal_') && response.status() === 400
+    )
+    await page.route(READS, route =>
+        route.request().method() === 'GET'
+            ? route.fulfill({ status: 400, json: READ_REFUSED })
+            : route.fallback()
+    )
+    await page.getByTestId('entry-conflict-reload').click()
+    await refused
+    await expect(page.getByText(RELOAD_FAILED)).toBeVisible()
+    // The notice, with its action, and what was typed are still on the screen.
+    await expect(page.getByTestId('entry-conflict')).toContainText(CONFLICT)
+    await expect(page.getByTestId('entry-line-debit-0')).toHaveValue(/300\.00/)
+
+    // The read works again: the reload shows the other session's amounts, and no message.
+    await page.unroute(READS)
+    await page.getByTestId('entry-conflict-reload').click()
+    await expect(page.getByTestId('entry-conflict')).toHaveCount(0)
+    await expect(page.getByText(RELOAD_FAILED)).toHaveCount(0)
     await expect(page.getByTestId('entry-line-debit-0')).toHaveValue(/200\.00/)
     await other.context().close()
 })

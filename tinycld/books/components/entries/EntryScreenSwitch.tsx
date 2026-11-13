@@ -1,5 +1,4 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
-import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { router, useIsFocused } from 'expo-router'
@@ -37,8 +36,9 @@ interface DraftScreenProps {
     flipped: ReadyEntryDetail | null
     onSaveBusyChange(isBusy: boolean): void
     onDeleteBusyChange(isBusy: boolean): void
-    // Takes the draft from the store again, after another session changed it.
-    onReload(): void
+    // Reads the draft again and takes it from the store, after another session changed
+    // it. It rejects, and changes nothing, when the read fails.
+    onReload(): Promise<void>
 }
 
 // While a save or delete runs, this screen stays mounted whatever the optimistic rows say,
@@ -142,13 +142,10 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
     )
     // The store can be behind the server (a realtime message that did not arrive), and a
     // form built from it would be refused again, so the rows are read again first. A
-    // failed read still loads what the store holds.
+    // failed read rejects before the held draft is dropped: the form stays, with what is
+    // typed in it, and shows the failure (useEntrySubmit `reload`).
     const reload = async () => {
-        try {
-            await Promise.all([entriesCollection.reload(), linesCollection.reload()])
-        } catch (error) {
-            log.error('books.entry', error)
-        }
+        await Promise.all([entriesCollection.reload(), linesCollection.reload()])
         setHeld(null)
         setReloads(count => count + 1)
     }
