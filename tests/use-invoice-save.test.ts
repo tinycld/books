@@ -9,7 +9,7 @@ import * as expoRouter from 'expo-router'
 import { createElement, type Provider } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { View } from 'react-native'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { INVOICE_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
 import hosts, { INVOICE_HOST_KEY } from '../tinycld/books/forms/hosts'
 import type { DocumentReadLine, DocumentRecord } from '../tinycld/books/hooks/document-data'
@@ -81,6 +81,13 @@ formHosts.push(
         },
     ])
 )
+
+// The form is ready only after the host UI module is loaded. Load it before the first
+// test: with the whole suite running, the first load can take longer than waitFor waits,
+// and that time is not part of what a test measures.
+beforeAll(async () => {
+    await import('../tinycld/books/forms/ui')
+})
 
 // The `?customer` customer as the screen's customer query publishes it.
 const HARBORVIEW = (() => {
