@@ -38,6 +38,7 @@ function entryRow(id: string): BooksJournalEntries {
         doc_type: 'journal',
         status: 'draft',
         origin: 'manual',
+        revision: 1,
         number: '',
         sequence: 0,
         date: '2026-10-12',

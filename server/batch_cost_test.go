@@ -107,3 +107,39 @@ func TestBatchCost_Post1000LineDraft(t *testing.T) {
 		t.Fatalf("bank month row = %d/%d, want 500/0", d, c)
 	}
 }
+
+// The editor's largest save: every one of 200 lines replaced, then the post,
+// in one batch (200 deletes, 200 creates, one entry update).
+func TestBatchCost_ReplaceAndPost200Lines(t *testing.T) {
+	env := newLedgerEnv(t)
+	enableBatch(t, env.app)
+	entry := bigDraft(t, env, 200)
+	saw := revisionOf(t, env.app, entry.Id)
+
+	var ops []string
+	for _, line := range mustLines(t, env.app, entry.Id) {
+		ops = append(ops, fmt.Sprintf(`{"method":"DELETE","url":"/api/collections/books_journal_lines/records/%s"}`, line.Id))
+	}
+	for i := 0; i < 200; i++ {
+		if i%2 == 0 {
+			ops = append(ops, lineCreateOp(entry.Id, env.checking, 2, 0, i))
+		} else {
+			ops = append(ops, lineCreateOp(entry.Id, env.revenue, 0, 2, i))
+		}
+	}
+	ops = append(ops, fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_journal_entries/records/%s","body":{"status":"posted","revision":%d}}`, entry.Id, saw+1))
+
+	took := timedRun(t, env.app, apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, env.users.bookkeeper),
+		body: batchBody(ops...), want: http.StatusOK, content: []string{`"status":"posted"`},
+	})
+	t.Logf("replace of 200 lines and the post in one batch: %s", took)
+	if took > costBound {
+		t.Fatalf("took %s, want under %s", took, costBound)
+	}
+	posted := reload(t, env.app, "books_journal_entries", entry.Id)
+	if posted.GetInt("total") != 200 || posted.GetInt("revision") != saw+1 {
+		t.Fatalf("total/revision = %d/%d, want 200/%d", posted.GetInt("total"), posted.GetInt("revision"), saw+1)
+	}
+	requireNoDrift(t, env.app)
+}
