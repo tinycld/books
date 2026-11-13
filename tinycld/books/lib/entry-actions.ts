@@ -3,7 +3,7 @@ import type { BooksAccessState } from './access'
 
 export type EntryActionId = 'open' | 'edit' | 'reverse' | 'void' | 'delete'
 
-// isReversed means a POSTED reversal exists (reversalSummary's linkText); the server ignores draft and void ones.
+// isReversed means a POSTED reversal exists (reversedByText, lib/entry-display.ts); the server ignores draft and void ones.
 type EntryActionState = Pick<BooksJournalEntries, 'status' | 'origin' | 'doc_type'> & {
     isReversed: boolean
 }
