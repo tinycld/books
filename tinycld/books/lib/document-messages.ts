@@ -37,9 +37,10 @@ export type DocumentRefusalTarget =
 
 const LINE_REFUSAL = /^Line (\d+):/
 const CUSTOMER_REFUSAL = /^Customer\b|is inactive\. Choose an active customer\.?$/
-// server/sales_documents.go msgDocumentDay. An invoice's server sends it for its due date
-// too, so the text names the date field only for a kind with no due date.
-const DATE_REFUSAL = /^Enter a date that exists\b/
+// server/sales_documents.go msgDocumentDay and msgDocumentDayTooEarly. An invoice's
+// server sends them for its due date too, so the text names the date field only for a
+// kind with no due date.
+const DATE_REFUSAL = /^Enter a date (that exists|in 1900 or later)\b/
 const DUE_DATE_REFUSAL = /^(The due date|Due date)\b/
 // The server's own "The tax rate is inactive. Choose an active rate." included.
 const TAX_REFUSAL = /^(The tax|Tax)\b/

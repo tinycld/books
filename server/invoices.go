@@ -93,11 +93,11 @@ var invoiceKind = salesDocKind{
 func checkInvoiceDays(r *core.Record) error {
 	date, err := parseDay(r.GetString("date"))
 	if err != nil {
-		return refuseField("date", msgDocumentDay)
+		return refuseDocumentDay("date", err)
 	}
 	due, err := parseDay(r.GetString("due_date"))
 	if err != nil {
-		return refuseField("due_date", msgDocumentDay)
+		return refuseDocumentDay("due_date", err)
 	}
 	if due.Before(date) {
 		return refuseField("due_date", msgDueBeforeDate)

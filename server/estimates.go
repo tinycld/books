@@ -114,12 +114,12 @@ func checkEstimateDelete(tx core.App, stored *core.Record) error {
 func checkEstimateHeader(_ core.App, _, r *core.Record) error {
 	date, err := parseDay(r.GetString("date"))
 	if err != nil {
-		return refuseField("date", msgDocumentDay)
+		return refuseDocumentDay("date", err)
 	}
 	if expiration := r.GetString("expiration_date"); expiration != "" {
 		day, err := parseDay(expiration)
 		if err != nil {
-			return refuseField("expiration_date", msgDocumentDay)
+			return refuseDocumentDay("expiration_date", err)
 		}
 		if day.Before(date) {
 			return refuseField("expiration_date", msgExpirationBeforeDate)
@@ -133,7 +133,7 @@ func checkEstimateHeader(_ core.App, _, r *core.Record) error {
 		return refuseField("accepted_date", msgAcceptedDateRequired)
 	}
 	if _, err := parseDay(accepted); err != nil {
-		return refuseField("accepted_date", msgDocumentDay)
+		return refuseDocumentDay("accepted_date", err)
 	}
 	return nil
 }

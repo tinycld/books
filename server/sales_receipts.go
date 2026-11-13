@@ -80,7 +80,7 @@ var salesReceiptKind = salesDocKind{
 // held by the schema (at most 40 characters; a PAYMENT_METHODS key).
 func checkSalesReceiptHeader(tx core.App, stored, r *core.Record) error {
 	if _, err := parseDay(r.GetString("date")); err != nil {
-		return refuseField("date", msgDocumentDay)
+		return refuseDocumentDay("date", err)
 	}
 	return checkReceiptDeposit(tx, stored, r)
 }

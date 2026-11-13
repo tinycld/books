@@ -107,6 +107,7 @@ const salesDocLinesKey = "lines"
 // its number; a product's name is kept as typed (refuseNamed).
 const (
 	msgDocumentDay             = "Enter a date that exists, in the form YYYY-MM-DD."
+	msgDocumentDayTooEarly     = "Enter a date in 1900 or later."
 	msgDocumentTaxRateInactive = "The tax rate is inactive. Choose an active rate."
 	msgLineAmountByBooks       = "Books computes a line's amount."
 	msgLineProductInactive     = "Line %d: %s is inactive. Choose an active product or service."
@@ -266,6 +267,16 @@ func refuseNamedField(field, format string, args ...any) error {
 		item["message"] = msg
 	}
 	return err
+}
+
+// refuseDocumentDay refuses a document's day that parseDay refused, under its
+// field: a year before 1900 has its own text, because "a date that exists"
+// would be false for it.
+func refuseDocumentDay(field string, err error) error {
+	if isDayTooEarly(err) {
+		return refuseField(field, msgDocumentDayTooEarly)
+	}
+	return refuseField(field, msgDocumentDay)
 }
 
 // validateSalesDoc guards a document write. A quote's create and update follow
