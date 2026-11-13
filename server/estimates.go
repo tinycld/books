@@ -51,6 +51,8 @@ const (
 	msgEstimateLineClosed        = "The lines of a closed estimate cannot change."
 	msgEstimateLineRestating     = "Only a line's amount changes while Books restates its estimate."
 	msgEstimateLineUnknownKind   = "Line %d: an estimate line is an item, description, subtotal or percent line."
+	// An estimate has no post: the text names the one write a person makes.
+	msgEstimateRevisionConflict = "This estimate changed after you opened it. Load it again, then review it before you save."
 )
 
 // estimateKind is the estimate as a sales document of the quote lifecycle: it
@@ -66,16 +68,17 @@ var estimateKind = salesDocKind{
 	HostKey:            estimateHostKey,
 	CustomerRequired:   true,
 	Msgs: salesDocMessages{
-		TotalNegative:   msgEstimateTotalNegative,
-		TotalTooLarge:   msgEstimateTotalTooLarge,
-		TooManyLines:    msgEstimateTooManyLines,
-		NotDraft:        msgEstimateClosedUnchanged,
-		DeleteNotDraft:  msgEstimateClosedNoDelete,
-		LineStays:       msgEstimateLineStays,
-		LineNotDraft:    msgEstimateLineClosed,
-		LineRestating:   msgEstimateLineRestating,
-		LineUnknownKind: msgEstimateLineUnknownKind,
-		CustomerOnDocs:  msgCustomerOnEstimates,
+		TotalNegative:    msgEstimateTotalNegative,
+		TotalTooLarge:    msgEstimateTotalTooLarge,
+		TooManyLines:     msgEstimateTooManyLines,
+		NotDraft:         msgEstimateClosedUnchanged,
+		DeleteNotDraft:   msgEstimateClosedNoDelete,
+		LineStays:        msgEstimateLineStays,
+		LineNotDraft:     msgEstimateLineClosed,
+		LineRestating:    msgEstimateLineRestating,
+		LineUnknownKind:  msgEstimateLineUnknownKind,
+		CustomerOnDocs:   msgCustomerOnEstimates,
+		RevisionConflict: msgEstimateRevisionConflict,
 	},
 	CheckHeader:  checkEstimateHeader,
 	CheckDelete:  checkEstimateDelete,
@@ -162,7 +165,9 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 // transitionQuote guards a quote's update. A closed quote does not change
 // (except PocketBase unlinking a deleted form) and no update closes one, both
 // unless Books is converting it (markConverting). Otherwise the status moves
-// freely among pending, accepted and rejected, and the header guards run.
+// freely among pending, accepted and rejected, and the header guards run. A
+// write to an estimate that is not closed takes the transaction's one revision
+// increase (revision.go).
 func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	converting := isConverting(tx, r.Id)
 	if stored.GetString("status") == statusClosed && !converting {
@@ -174,6 +179,15 @@ func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) err
 	}
 	if r.GetString("status") == statusClosed && !converting {
 		return refuse("%s", msgEstimateClosesFromInvoice)
+	}
+	// A write to an estimate a person can edit takes the transaction's one
+	// increase: a save, a line's restatement, and the close an invoice's create
+	// makes. The reopen of a closed estimate changes one nobody edits, as a
+	// void does, and adds none.
+	if kind.isEditableStatus(stored.GetString("status")) {
+		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
+			return err
+		}
 	}
 	clearAcceptance(r)
 	return checkDraftSalesDoc(tx, kind, stored, r)
