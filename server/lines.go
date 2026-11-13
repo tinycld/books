@@ -172,13 +172,13 @@ func touchDraft(tx core.App, line *core.Record, debitChange int) error {
 	if err != nil {
 		return err
 	}
-	base, first := draftBase(tx, entry.Id, entry.GetInt("revision"))
+	base, first := draftBase(tx, "books_journal_entries", entry.Id, entry.GetInt("revision"))
 	if !first && entry.GetInt("total") == sum {
 		return nil
 	}
 	entry.Set("total", sum)
 	entry.Set("revision", base+1)
-	defer ownWrite(tx, entry.Id)()
+	defer ownWrite(tx, "books_journal_entries", entry.Id)()
 	return tx.Save(entry)
 }
 

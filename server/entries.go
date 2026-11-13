@@ -48,7 +48,7 @@ func registerEntryHooks(app core.App) {
 		return e.Next()
 	})
 	app.OnRecordUpdateRequest("books_journal_entries").BindFunc(func(e *core.RecordRequestEvent) error {
-		done, err := checkRequestRevision(e)
+		done, err := checkRequestRevision(e, e.Record.Original().GetString("status") == statusDraft, msgRevisionConflict)
 		if err != nil {
 			return err
 		}
@@ -85,7 +85,7 @@ func registerEntryHooks(app core.App) {
 				return err
 			}
 			e.Record.Set("revision", 1)
-			markCreated(tx, e.Record.Id)
+			markCreated(tx, "books_journal_entries", e.Record.Id)
 			return nil
 		})
 	})
@@ -265,10 +265,10 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 	switch {
 	case from == statusDraft && to == statusDraft:
 		// Books' own save of the total and the revision after a line write.
-		if isOwnWrite(tx, stored.Id) {
+		if isOwnWrite(tx, "books_journal_entries", stored.Id) {
 			return nil
 		}
-		if err := settleRevision(tx, stored, next); err != nil {
+		if err := settleRevision(tx, stored, next, msgRevisionConflict); err != nil {
 			return err
 		}
 		changed, err := changesBeyondUnlinks(tx, stored, next, draftEditable, entryUserLinks)
@@ -281,7 +281,7 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 		}
 		return refuseServerFields(changed)
 	case from == statusDraft && to == statusPosted:
-		if err := settleRevision(tx, stored, next); err != nil {
+		if err := settleRevision(tx, stored, next, msgRevisionConflict); err != nil {
 			return err
 		}
 		if err := checkDraftEdit(stored, next); err != nil {
