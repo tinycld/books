@@ -190,7 +190,13 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
         isMounted.current = node !== null
     }, [])
 
-    const routeFieldErrors = handleMutationErrorsWithForm({ setError, getValues })
+    // The date and the memo are fields of the entry. A save is a batch of the entry and
+    // its lines, so a field error goes on the form only when the refused row is the entry.
+    const routeFieldErrors = handleMutationErrorsWithForm({
+        setError,
+        getValues,
+        collection: 'books_journal_entries',
+    })
     const onWriteError = (error: unknown) => {
         if (error instanceof LineWriteError) {
             const message = lineRefusalMessage(error.cause)
