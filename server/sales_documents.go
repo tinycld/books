@@ -215,37 +215,33 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	})
 }
 
-// The app store keys of a document whose lines Books is writing itself: the
-// restatement of their amounts, or the cascade of the document's delete. They
-// are per doc type ("books.invoice.restating.<id>"), so the invoice's keys are
-// the ones it always had.
-func restatingKey(kind salesDocKind, docID string) string {
-	return "books." + kind.DocType + ".restating." + docID
-}
-
-func deletingKey(kind salesDocKind, docID string) string {
-	return "books." + kind.DocType + ".deleting." + docID
+// The marks of a document whose rows Books is writing itself: the restatement
+// of its lines' amounts, the cascade of its delete, the void a correction's
+// post makes. Each is per doc type and belongs to one transaction
+// (txmarks.go), so a write of another request never reads it.
+func docMark(kind salesDocKind, what string) string {
+	return kind.DocType + "." + what
 }
 
 // markRestating marks docID's lines as written by restateSalesDoc, so the line
-// guard lets their amounts change; the returned func clears the mark. The app
-// store is shared by an app and its transactions.
-func markRestating(app core.App, kind salesDocKind, docID string) func() {
-	app.Store().Set(restatingKey(kind, docID), true)
-	return func() { app.Store().Remove(restatingKey(kind, docID)) }
+// guard lets their amounts change; the returned func clears the mark.
+func markRestating(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "restating"), docID)
 }
 
-func isRestating(app core.App, kind salesDocKind, docID string) bool {
-	return app.Store().Has(restatingKey(kind, docID))
+func isRestating(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "restating"), docID)
 }
 
-func markDeleting(app core.App, kind salesDocKind, docID string) func() {
-	app.Store().Set(deletingKey(kind, docID), true)
-	return func() { app.Store().Remove(deletingKey(kind, docID)) }
+func markDeleting(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "deleting"), docID)
 }
 
-func isDeleting(app core.App, kind salesDocKind, docID string) bool {
-	return app.Store().Has(deletingKey(kind, docID))
+// isDeleting is read by a line delete before it opens its own transaction: the
+// cascade of a document's delete runs with that delete's transaction app and
+// reads the mark; a person's line delete runs with the base app and reads none.
+func isDeleting(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "deleting"), docID)
 }
 
 // refuseNamedField is refuseField for a message that starts with a name people

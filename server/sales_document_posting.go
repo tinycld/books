@@ -24,23 +24,16 @@ const (
 	msgTaxComponentNoAgency      = "%s has no tax agency. Choose one on the tax rate."
 )
 
-// replacingKey marks, in the app store, a posted document whose correction is
-// posting ("books.invoice.replacing.<id>").
-func replacingKey(kind salesDocKind, docID string) string {
-	return "books." + kind.DocType + ".replacing." + docID
-}
-
 // markReplacing marks the posted document a correction is replacing, so its
 // own update hook lets Books set it void with replaced_by while its entry is
 // already voided by the correction's post (voidReplaced). The returned func
-// clears the mark; the app store is shared by an app and its transactions.
-func markReplacing(app core.App, kind salesDocKind, docID string) func() {
-	app.Store().Set(replacingKey(kind, docID), true)
-	return func() { app.Store().Remove(replacingKey(kind, docID)) }
+// clears the mark, which belongs to the posting transaction (txmarks.go).
+func markReplacing(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "replacing"), docID)
 }
 
-func isReplacing(app core.App, kind salesDocKind, docID string) bool {
-	return app.Store().Has(replacingKey(kind, docID))
+func isReplacing(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "replacing"), docID)
 }
 
 // salesDocName is how a refusal names a document: "Invoice 1001", "Sales
