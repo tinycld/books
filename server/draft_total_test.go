@@ -281,3 +281,38 @@ func TestDraftTotal_RecoversFromTheStorageCap(t *testing.T) {
 		t.Fatalf("total after the large lines are gone = %d, want 100", total())
 	}
 }
+
+// A delete request loads its line before the transaction. Two deletes of one
+// line, or a delete of a line another editor just changed, must take the
+// line's STORED debit off the total, and nothing when the line is gone.
+func TestDraftTotal_ADeleteUsesTheStoredLine(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := env.sale(t, "2026-05-10", 100)
+	total := func() int { return reload(t, env.app, "books_journal_entries", entry.Id).GetInt("total") }
+	line := addLine(t, env.app, entry.Id, env.rent, 50, 0)
+
+	first := reload(t, env.app, "books_journal_lines", line.Id)
+	second := reload(t, env.app, "books_journal_lines", line.Id)
+	stale := reload(t, env.app, "books_journal_lines", line.Id)
+
+	// Another editor raises the line to 80 after `stale` was loaded.
+	line.Set("debit", 80)
+	if err := env.app.Save(line); err != nil {
+		t.Fatal(err)
+	}
+	if total() != 180 {
+		t.Fatalf("total = %d, want 180", total())
+	}
+	if err := env.app.Delete(stale); err != nil {
+		t.Fatal(err)
+	}
+	if total() != 100 {
+		t.Fatalf("after the delete of a line loaded before its change: total = %d, want 100", total())
+	}
+	// The line is gone; deleting it again from older copies changes nothing.
+	_ = env.app.Delete(first)
+	_ = env.app.Delete(second)
+	if total() != 100 {
+		t.Fatalf("after two more deletes of the same line: total = %d, want 100", total())
+	}
+}

@@ -99,6 +99,17 @@ func checkRequestRevision(e *core.RecordRequestEvent) (done func(), err error) {
 	if _, stated := info.Body["revision"]; !stated {
 		return noop, errRevisionConflict()
 	}
+	// PocketBase resolves "revision+": 1 to the stored value plus one before
+	// this hook reads the body. That is always the right number and states
+	// nothing about what the caller saw, so the body as sent must name the
+	// value itself.
+	sent := map[string]any{}
+	if err := e.BindBody(&sent); err != nil {
+		return noop, err
+	}
+	if _, plain := sent["revision"]; !plain {
+		return noop, errRevisionConflict()
+	}
 	rec := e.Record
 	requestRevisions.Store(rec, rec.GetInt("revision"))
 	return func() { requestRevisions.Delete(rec) }, nil
