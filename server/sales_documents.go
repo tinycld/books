@@ -330,6 +330,11 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
 			return err
 		}
+		// Books' own save of the totals after a line write: restateSalesDoc
+		// computed them from the stored lines and changed no other field.
+		if isOwnWrite(tx, kind.Collection, stored.Id) {
+			return nil
+		}
 		return checkDraftSalesDoc(tx, kind, stored, r)
 	case from == statusDraft && to == statusPosted:
 		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
@@ -782,7 +787,7 @@ func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) 
 // restateSalesDoc recomputes every line amount and the document's totals from
 // its stored lines and header tax, and saves each line whose amount changed
 // and the document. The line guard lets the amounts through while the
-// document is marked restating; the header guard sets the same totals again.
+// document is marked restating; the header guard lets Books' own save through.
 func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTotalsResult, error) {
 	doc, err := tx.FindRecordById(kind.Collection, docID)
 	if err != nil {
@@ -803,6 +808,8 @@ func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTota
 		return documentTotalsResult{}, err
 	}
 	setSalesDocTotals(doc, totals)
+	// The header guard would read the lines again to set these same totals.
+	defer ownWrite(tx, kind.Collection, doc.Id)()
 	if err := tx.Save(doc); err != nil {
 		return documentTotalsResult{}, err
 	}

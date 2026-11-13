@@ -189,6 +189,10 @@ func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) err
 			return err
 		}
 	}
+	// Books' own save of the totals after a line write (restateSalesDoc).
+	if isOwnWrite(tx, kind.Collection, stored.Id) {
+		return nil
+	}
 	clearAcceptance(r)
 	return checkDraftSalesDoc(tx, kind, stored, r)
 }
