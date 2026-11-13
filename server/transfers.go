@@ -46,6 +46,9 @@ func entryNouns(docType string) (noun, this, draft string) {
 		return "Invoice", "This invoice", "Draft invoice"
 	case docTypeSalesReceipt:
 		return "Sales receipt", "This sales receipt", "Draft sales receipt"
+	case docTypeEstimate:
+		// An estimate has no draft: it is numbered when it is created.
+		return "Estimate", "This estimate", "Estimate"
 	}
 	return "Journal entry", "This journal entry", "Draft journal entry"
 }

@@ -24,6 +24,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerLedger(app)
 	registerSalesDocGuards(app, invoiceKind)
 	registerSalesDocGuards(app, salesReceiptKind)
+	registerSalesDocGuards(app, estimateKind)
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}

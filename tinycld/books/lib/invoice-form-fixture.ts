@@ -109,6 +109,7 @@ function invoice(
         entry: '',
         replaces: '',
         replaced_by: '',
+        estimate: '',
         posted_by: '',
         posted_at: '',
         voided_by: '',

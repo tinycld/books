@@ -58,15 +58,19 @@ var productReferences = []productReference{
 	{collection: "books_bundle_items", field: "product", distinct: "bundle", message: productOnBundlesMessage},
 	{collection: "books_invoice_lines", field: "product", distinct: "invoice", message: productOnInvoicesMessage},
 	{collection: "books_sales_receipt_lines", field: "product", distinct: "sales_receipt", message: productOnSalesReceiptsMessage},
+	{collection: "books_estimate_lines", field: "product", distinct: "estimate", message: productOnEstimatesMessage},
 }
 
-// The delete refusals of a product on invoice lines, counted by invoice, and
-// on sales receipt lines, counted by sales receipt.
+// The delete refusals of a product on invoice lines, counted by invoice, on
+// sales receipt lines, counted by sales receipt, and on estimate lines,
+// counted by estimate.
 const (
 	msgProductOnOneInvoice      = "This product or service is on 1 invoice. Make it inactive instead."
 	msgProductOnInvoices        = "This product or service is on %d invoices. Make it inactive instead."
 	msgProductOnOneSalesReceipt = "This product or service is on 1 sales receipt. Make it inactive instead."
 	msgProductOnSalesReceipts   = "This product or service is on %d sales receipts. Make it inactive instead."
+	msgProductOnOneEstimate     = "This product or service is on 1 estimate. Make it inactive instead."
+	msgProductOnEstimates       = "This product or service is on %d estimates. Make it inactive instead."
 )
 
 // The product and bundle row guards read other products and the accounts
@@ -282,6 +286,13 @@ func productOnSalesReceiptsMessage(count int) string {
 		return msgProductOnOneSalesReceipt
 	}
 	return fmt.Sprintf(msgProductOnSalesReceipts, count)
+}
+
+func productOnEstimatesMessage(count int) string {
+	if count == 1 {
+		return msgProductOnOneEstimate
+	}
+	return fmt.Sprintf(msgProductOnEstimates, count)
 }
 
 // productTypeLabel is a product type as a person reads it; an unknown type

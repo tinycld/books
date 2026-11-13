@@ -28,7 +28,9 @@
 // their own (TR-1, TR-2) so a transfer never shares a number with a journal
 // entry; a record id is exactly 15 characters, hence booksseqtransfr.
 // Invoices number from 1001 with no prefix (booksseqinvoice); sales receipts
-// number on their own from 1001 with no prefix too (booksseqsalesrc).
+// number on their own from 1001 with no prefix too (booksseqsalesrc), and so
+// do estimates (booksseqestimat), which take their number when they are created
+// because an estimate never posts.
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -120,7 +122,7 @@ migrate(
                     type: 'select',
                     required: true,
                     maxSelect: 1,
-                    values: ['journal', 'transfer', 'invoice', 'sales_receipt'],
+                    values: ['journal', 'transfer', 'invoice', 'sales_receipt', 'estimate'],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
                 {
@@ -160,6 +162,12 @@ migrate(
         salesReceipt.set('prefix', '')
         salesReceipt.set('next_number', 1001)
         app.save(salesReceipt)
+        const estimate = new Record(sequences)
+        estimate.set('id', 'booksseqestimat')
+        estimate.set('doc_type', 'estimate')
+        estimate.set('prefix', '')
+        estimate.set('next_number', 1001)
+        app.save(estimate)
 
         app.save(
             new Collection({

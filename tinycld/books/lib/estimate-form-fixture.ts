@@ -8,13 +8,12 @@
 // `taxOn` per component of the header rate on the taxable total). An estimate never
 // posts, so it has no tax snapshot: tax_total is the live tax of its lines (spec §4).
 //
-// EstimateRecord, EstimateLineRecord and ConvertedInvoiceRecord are LOCAL types that
-// mirror spec §4: the collections books_estimates and books_estimate_lines and the field
-// books_invoices.estimate do not exist yet. The migration checkpoint (2100000012) must
-// replace them with the generated `BooksEstimates` / `BooksEstimateLines` /
-// `BooksInvoices` through `satisfies`, so a row that drifts from the schema fails tsc.
+// EstimateRecord, EstimateLineRecord and ConvertedInvoiceRecord are the generated
+// types of books_estimates, books_estimate_lines and books_invoices (2100000012 adds
+// books_invoices.estimate), and every row array `satisfies` them, so a row that drifts
+// from the schema fails tsc.
 
-import type { BooksInvoiceLines, BooksInvoices } from '../types'
+import type { BooksEstimateLines, BooksEstimates, BooksInvoiceLines, BooksInvoices } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { DISCOUNT_PRODUCT_ID, INVOICE_PRODUCTS } from './invoice-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
@@ -27,46 +26,14 @@ export const ESTIMATE_TODAY = '2026-11-12'
 const STAMP = '2026-11-12 09:00:00.000Z'
 
 // Spec §3.3: the writer picks Pending, Accepted or Rejected; only the server sets Closed.
-export type EstimateStatus = 'pending' | 'accepted' | 'rejected' | 'closed'
+export type EstimateStatus = BooksEstimates['status']
 
-// Spec §4 books_estimates. Replace with the generated BooksEstimates (migration checkpoint).
-export type EstimateRecord = Pick<
-    BooksInvoices,
-    | 'id'
-    | 'customer'
-    | 'number'
-    | 'sequence'
-    | 'date'
-    | 'bill_to'
-    | 'email'
-    | 'tax_rate'
-    | 'message'
-    | 'memo'
-    | 'subtotal'
-    | 'tax_total'
-    | 'total'
-    | 'currency'
-    | 'form'
-    | 'fields'
-    | 'sort_key'
-    | 'created'
-    | 'updated'
-> & {
-    status: EstimateStatus
-    expiration_date: string
-    accepted_by: string
-    accepted_date: string
-    // The invoice the estimate was converted to; set and cleared only by the server.
-    invoice: string
-}
+export type EstimateRecord = BooksEstimates
 
-// Spec §4 books_estimate_lines: the invoice line shape with the parent field `estimate`.
-// Replace with the generated BooksEstimateLines (migration checkpoint).
-export type EstimateLineRecord = Omit<BooksInvoiceLines, 'invoice'> & { estimate: string }
+export type EstimateLineRecord = BooksEstimateLines
 
-// Spec §4 books_invoices.estimate. Replace with the generated BooksInvoices (migration
-// checkpoint).
-export type ConvertedInvoiceRecord = BooksInvoices & { estimate: string }
+// An invoice made from an estimate names it in `estimate`.
+export type ConvertedInvoiceRecord = BooksInvoices
 
 export const ESTIMATE_STATUS_LABELS: Record<EstimateStatus, string> = {
     pending: 'Pending',
@@ -215,8 +182,9 @@ export const ESTIMATES = [
     }),
 ] satisfies EstimateRecord[]
 
-// The order the seed creates them, so the server numbers them 1001 to 1005; then it
-// saves CONVERTED_INVOICE as a draft, which closes 1005.
+// The order the estimates are numbered in, 1001 to 1005. The seed (seedEstimates)
+// creates the four that are not closed, so the server numbers them 1001 to 1004; the
+// closed one is closed only by the first save of an invoice made from it.
 export const ESTIMATE_SEED_IDS = [
     IDS.pending,
     IDS.expired,
@@ -453,7 +421,7 @@ for (const row of ESTIMATES) {
 // §3.6, §3.7).
 export const ESTIMATE_REFUSALS = {
     expirationBeforeDate: "Expiration date can't be before the estimate date.",
-    acceptedDateRequired: 'Accepted date is required',
+    acceptedDateRequired: 'Enter the accepted date.',
     deleteConverted: 'Estimate 1001 has invoice 1004. Set it to Rejected instead.',
     alreadyConverted: 'Estimate 1001 is already on invoice 1004.',
     customerChange: "An invoice from an estimate bills the estimate's customer.",

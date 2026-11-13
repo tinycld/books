@@ -45,6 +45,7 @@ const docTypeInvoice = "invoice"
 // when the chart has none (ensureReceivables).
 var invoiceKind = salesDocKind{
 	DocType:            docTypeInvoice,
+	Lifecycle:          lifecyclePosting,
 	Collection:         "books_invoices",
 	LinesCollection:    "books_invoice_lines",
 	TaxLinesCollection: "books_invoice_tax_lines",

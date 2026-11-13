@@ -32,4 +32,9 @@ var documentKinds = map[string]documentKind{
 		Build:      buildSalesReceiptDocument,
 		FileName:   salesReceiptFileName,
 	},
+	"estimate": {
+		Collection: "books_estimates",
+		Build:      buildEstimateDocument,
+		FileName:   estimateFileName,
+	},
 }

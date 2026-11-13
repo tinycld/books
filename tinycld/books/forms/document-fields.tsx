@@ -413,7 +413,8 @@ interface DayFieldProps {
     onChange: (value: string) => void
 }
 
-function DayField({ fieldKey, label, value, disabled, onChange }: DayFieldProps) {
+// A document's day built-in on core DateField; the estimate's day fields reuse it.
+export function DayField({ fieldKey, label, value, disabled, onChange }: DayFieldProps) {
     const onDateChange = (next: string | null) => onChange(next ?? '')
     return (
         <DateField

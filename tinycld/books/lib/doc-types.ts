@@ -3,6 +3,7 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     transfer: { label: 'Transfers', noun: 'transfer' },
     invoice: { label: 'Invoices', noun: 'invoice' },
     sales_receipt: { label: 'Sales receipts', noun: 'sales receipt' },
+    estimate: { label: 'Estimates', noun: 'estimate' },
 }
 
 export function docTypeLabel(docType: string): string {

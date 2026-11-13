@@ -542,6 +542,49 @@ func TestPDFRoute_SalesReceiptFollowsTheReceiptViewRule(t *testing.T) {
 	})
 }
 
+// The estimate kind prints a books_estimates record at
+// /api/books/pdf/estimate/<id> under the estimate's view rule: a reader
+// downloads estimate-<n>.pdf; an estimate the view rule hides is not found.
+func TestPDFRoute_EstimateFollowsTheEstimateViewRule(t *testing.T) {
+	savedEstimate := func(t *testing.T) (*estimateEnv, *core.Record) {
+		t.Helper()
+		ee := newEstimateEnv(t)
+		r := ee.mkEstimate(t, nil)
+		mkEstimateLine(t, ee.app, r, 0, item(ee.service, 1, 45000, false))
+		return ee, reload(t, ee.app, "books_estimates", r.Id)
+	}
+	t.Run("a reader downloads estimate-<n>.pdf", func(t *testing.T) {
+		ee, saved := savedEstimate(t)
+		apiReq{
+			method:  http.MethodGet,
+			url:     "/api/books/pdf/estimate/" + saved.Id,
+			token:   tokenFor(t, ee.users.readOnly),
+			want:    http.StatusOK,
+			content: []string{"%PDF-"},
+			before:  bindPDFRoutes,
+			response: func(t testing.TB, res *http.Response) {
+				want := `attachment; filename="estimate-1001.pdf"`
+				if got := res.Header.Get("Content-Disposition"); got != want {
+					t.Errorf("Content-Disposition = %q, want %q", got, want)
+				}
+			},
+		}.run(t, ee.app)
+	})
+	t.Run("an estimate the view rule hides is not found", func(t *testing.T) {
+		ee, saved := savedEstimate(t)
+		col, err := ee.app.FindCollectionByNameOrId("books_estimates")
+		if err != nil {
+			t.Fatalf("find: %v", err)
+		}
+		rule := `id = "never"`
+		col.ViewRule = &rule
+		if err := ee.app.Save(col); err != nil {
+			t.Fatalf("save rule: %v", err)
+		}
+		pdfReq(t, ee.app, "/api/books/pdf/estimate/"+saved.Id, tokenFor(t, ee.users.readOnly), http.StatusNotFound)
+	})
+}
+
 func TestOAuth_CoversEveryBooksCollection(t *testing.T) {
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
@@ -801,6 +844,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerLedger(parts)
 	registerSalesDocGuards(parts, invoiceKind)
 	registerSalesDocGuards(parts, salesReceiptKind)
+	registerSalesDocGuards(parts, estimateKind)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)

@@ -162,6 +162,22 @@ func TestAllocateNumber_InvoiceSequenceStartsAt1001(t *testing.T) {
 	}
 }
 
+// Spec §3.11: the estimate sequence is seeded as booksseqestimat, with no
+// prefix, starting at 1001.
+func TestAllocateNumber_EstimateSequenceStartsAt1001(t *testing.T) {
+	app := newBooksApp(t)
+	row := reload(t, app, "books_doc_sequences", "booksseqestimat")
+	if got := row.GetString("doc_type"); got != "estimate" {
+		t.Fatalf("doc_type = %q, want estimate", got)
+	}
+	if got := row.GetString("prefix"); got != "" {
+		t.Fatalf("prefix = %q, want none", got)
+	}
+	if got := row.GetInt("next_number"); got != 1001 {
+		t.Fatalf("next_number = %d, want 1001", got)
+	}
+}
+
 func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 	app := newBooksApp(t)
 	col, err := app.FindCollectionByNameOrId("books_journal_entries")
@@ -179,8 +195,14 @@ func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 
 func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	app := newBooksApp(t)
-	want := []string{"journal", "transfer", "invoice", "sales_receipt"}
+	// Estimates never post, so only the sequences know the estimate doc type.
+	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt"}
+	want := map[string][]string{
+		"books_journal_entries": entryTypes,
+		"books_doc_sequences":   append(slices.Clone(entryTypes), "estimate"),
+	}
 	for _, name := range []string{"books_journal_entries", "books_doc_sequences"} {
+		want := want[name]
 		col, err := app.FindCollectionByNameOrId(name)
 		if err != nil {
 			t.Fatalf("find %s: %v", name, err)
