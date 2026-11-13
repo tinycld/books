@@ -19,10 +19,11 @@ import { centsToText, parseMoney } from './money-text'
 // row − row menu − gaps) and never less than its `minWidth` floor. The numeric columns
 // have floors so their cells show a whole value at the narrowest grid, a 640 px lines
 // container (548 px free): Qty "1000", Rate "1890.00", Amount its 112 px figure
-// (AMOUNT_COLUMN_WIDTH) and Tax its 44 px switch. Product and Description have no
-// floor: below the width where the floors hold, they share what the floors leave, so
-// a wide grid gives them most of its width (at 1280, Product ≥ 200 px and Description
-// ≥ 260 px) and Description stays the widest with Product next.
+// (AMOUNT_COLUMN_WIDTH) and Tax its header "Tax" on one line between core's 13 px header
+// insets (TABLE_INPUT_TEXT_INSET), which also holds its 44 px switch. Product and
+// Description have no floor: below the width where the floors hold, they share what the
+// floors leave, so a wide grid gives them most of its width (at 1280, Product ≥ 200 px
+// and Description ≥ 260 px) and Description stays the widest with Product next.
 //
 // Every floored column has the same floor-to-weight ratio (FLOOR_PER_WEIGHT), so all
 // floors hold, or all release, at one grid width. A footer span over a group of slots
@@ -107,7 +108,9 @@ export const DOCUMENT_LINE_COLUMNS: readonly HostTableColumn[] = [
         hidden: false,
         // Its own cell, so a phone card shows the "Tax" label core omits for a switch.
         component: 'LineTaxableCell',
-        ...floored(45),
+        // 48: "Tax" (about 21 px) between the two 13 px header insets. No wider: at 1280
+        // the floors hold, and each px here comes out of Product and Description.
+        ...floored(48),
     },
 ]
 

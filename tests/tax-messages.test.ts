@@ -353,7 +353,7 @@ describe('client-only texts', () => {
         expect(RATE_INVALID).toBe('Enter a rate from 0 to 100 with at most four decimals.')
         expect(NO_LIABILITY_ACCOUNT).toBe('Your chart has no sales tax liability account.')
         expect(DEFAULT_HELP).toBe(
-            'Invoices and sales receipts start with this tax unless the customer has its own default.'
+            'Invoices, estimates and sales receipts start with this tax unless the customer has its own default.'
         )
         expect(EMPTY_QUESTION).toBe('Which agencies do you collect sales tax for?')
         expect(EMPTY_HINT).toBe(

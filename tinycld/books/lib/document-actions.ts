@@ -1,13 +1,21 @@
-import type { BooksInvoices } from '../types'
+import type { DocumentStatus } from './document-lifecycle'
 
 // The read view's actions of a posted or void sales document (spec §3.6 of the invoice).
-// Pure, so who sees which action and the key map are unit-tested.
+// Pure, so who sees which action and the key map are unit-tested. A quote's are
+// `quoteReadActions` (lib/document-lifecycle.ts); Open invoice (`invoice`) is a quote's
+// only, never a posting document's.
 
-export type DocumentReadAction = 'edit' | 'void' | 'copy' | 'entry' | 'pdf'
+export type DocumentReadAction = 'edit' | 'void' | 'copy' | 'entry' | 'invoice' | 'pdf'
 
 // The read view's letter keys: single letters, so they never fire while a text field has
 // focus. Download PDF has ⌘P (DOCUMENT_PDF_KEY), on the form as well.
-export const DOCUMENT_READ_KEYS = { edit: 'e', void: 'v', copy: 'c', entry: 'j' } as const
+export const DOCUMENT_READ_KEYS = {
+    edit: 'e',
+    void: 'v',
+    copy: 'c',
+    entry: 'j',
+    invoice: 'i',
+} as const
 
 export type DocumentReadKeyAction = keyof typeof DOCUMENT_READ_KEYS
 
@@ -26,10 +34,10 @@ export const DOCUMENT_TAB_KEYS = { edit: 'Alt+1', pdf: 'Alt+2' } as const
 
 // A writer edits or voids a posted document and copies any; a void document (a replaced
 // original is void too) is only copied. A reader views the journal entry and the PDF.
-// A draft opens in the form, never here, so it offers nothing. Every kind shares the
-// statuses.
+// A draft opens in the form, never here, so it offers nothing. The posting rule: every
+// posting kind shares the statuses.
 export function documentReadActions(
-    status: BooksInvoices['status'],
+    status: DocumentStatus,
     canWrite: boolean
 ): DocumentReadAction[] {
     if (status === 'draft') return []

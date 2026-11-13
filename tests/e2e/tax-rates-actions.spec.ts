@@ -26,7 +26,7 @@ import {
 
 const DENVER = 'City and County of Denver'
 const DEFAULT_HELP =
-    'Invoices and sales receipts start with this tax unless the customer has its own default.'
+    'Invoices, estimates and sales receipts start with this tax unless the customer has its own default.'
 const IN_GROUP = 'This rate is in the group “Denver combined”. Remove it from the group first.'
 const ACTIVE_RATES_FIRST = 'Make its 2 active rates inactive first.'
 

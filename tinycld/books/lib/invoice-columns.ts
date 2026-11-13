@@ -18,6 +18,9 @@ export const invoiceColumnsSchema = z.strictObject({
     tax_rate: optionalText,
     message: optionalText,
     memo: optionalText,
+    // The estimate an invoice is made from (Convert to invoice). Not drawn as a field;
+    // the server refuses any change after the create.
+    estimate: optionalText,
 })
 
 export type InvoiceColumns = z.infer<typeof invoiceColumnsSchema>
@@ -27,7 +30,7 @@ export function invoiceColumnsFrom(columns: Record<string, unknown>): ColumnsPar
 }
 
 // The base of an insert, so a column the form left out is stored empty. A new invoice is
-// always a draft; `replaces` is set by a correction (checkpoint 5).
+// always a draft; `replaces` is set by a correction, `estimate` by Convert to invoice.
 export const EMPTY_INVOICE_COLUMNS: Required<InvoiceColumns> & {
     status: 'draft'
     replaces: string
@@ -41,6 +44,7 @@ export const EMPTY_INVOICE_COLUMNS: Required<InvoiceColumns> & {
     tax_rate: '',
     message: '',
     memo: '',
+    estimate: '',
     status: 'draft',
     replaces: '',
 }

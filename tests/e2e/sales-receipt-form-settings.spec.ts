@@ -3,6 +3,7 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import { accountItem, DESKTOP, openChart, PHONE } from './account-register-helpers'
+import { NEW_ESTIMATE_URL, openNewEstimate } from './estimate-helpers'
 import { lineCellTestId, NEW_INVOICE_URL, openNewInvoice, uniqueMemo } from './invoice-helpers'
 import {
     chooseReceiptSelect,
@@ -47,7 +48,8 @@ const UNDEPOSITED = '1200 Undeposited funds'
 const DEPOSIT_NOTE =
     'Ask shows Deposit to on every sales receipt. Choose an account to hide Deposit to and deposit every sale there.'
 const MESSAGE_NOTE =
-    'New invoices and sales receipts start with this message. You can change it on each one.'
+    'New invoices, estimates and sales receipts start with this message. You can change it on each one.'
+const MESSAGE_CARD_TITLE = 'Invoices, estimates and sales receipts'
 // server/accounts.go msgAccountIsSalesDeposit. PocketBase ends every message with a
 // period and adds none to a text that has one, so this is the text the chart shows.
 const SET_ACCOUNT_REFUSAL =
@@ -390,7 +392,7 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await expect(item.getByText('Inactive', { exact: true })).toHaveCount(0)
     })
 
-    test('the default message fills new invoices and sales receipts, never a saved one', async ({
+    test('the default message fills new invoices, estimates and sales receipts, never a saved one', async ({
         page,
     }) => {
         const memo = uniqueMemo('Receipt default message')
@@ -401,6 +403,7 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         const second = uniqueMemo('Default message B')
         await openBooks(page)
         await setDefaultMessage(page, first)
+        await expect(page.getByText(MESSAGE_CARD_TITLE, { exact: true })).toBeVisible()
         await expect(page.getByText(MESSAGE_NOTE, { exact: true })).toBeVisible()
         await leaveSettings(page)
 
@@ -410,6 +413,13 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await expect(message).toHaveValue(first)
         await page.getByTestId('invoice-cancel').click()
         await expect(page).not.toHaveURL(NEW_INVOICE_URL)
+
+        // So does a new estimate; Cancel leaves it unsaved.
+        await openNewEstimate(page)
+        const estimateMessage = page.getByTestId('estimate-form').getByTestId('form-input-message')
+        await expect(estimateMessage).toHaveValue(first)
+        await page.getByTestId('estimate-cancel').click()
+        await expect(page).not.toHaveURL(NEW_ESTIMATE_URL)
 
         // So does a new sales receipt, which is saved as a draft with it.
         await openNewSalesReceipt(page)

@@ -51,6 +51,8 @@ func oauthPackage() oauth.Package {
 			"books_sales_receipts":          rw,
 			"books_sales_receipt_lines":     rw,
 			"books_sales_receipt_tax_lines": ro,
+			"books_estimates":               rw,
+			"books_estimate_lines":          rw,
 			"books_account_balances":        ro,
 			"books_settings":                ro,
 			"books_doc_sequences":           ro,

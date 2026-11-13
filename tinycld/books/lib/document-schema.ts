@@ -3,7 +3,8 @@
 // resolver. Core already checks each row kind's required cells; these are the rules core
 // cannot read from the host: the quantity's bounds and decimals, the typed rate and
 // percent, the text lengths in code points, an invoice's due date against its date, a
-// sales receipt's Deposit to and Reference no., the percent target and the totals. The texts are the kind's (`kind.messages`). The host's
+// sales receipt's Deposit to and Reference no., an estimate's Expiration date, Accepted
+// date and Accepted by, the percent target and the totals. The texts are the kind's (`kind.messages`). The host's
 // columns carry no bounds, so each cell shows one message, from here.
 //
 // The total rules report at `lines`, so their message shows under the lines table.
@@ -16,9 +17,10 @@ import { z } from '@tinycld/core/ui/form'
 import type { ZodTypeAny } from 'zod'
 import { percentTextToPpm } from './document-line-columns'
 import { type DocumentTax, documentTotals, MAX_DOCUMENT_LINES } from './document-lines'
-import { type DocumentMessages, INVOICE_MESSAGES } from './document-messages'
+import { type DocumentMessages, ESTIMATE_MESSAGES, INVOICE_MESSAGES } from './document-messages'
 import { DOCUMENT_NOTE_TOO_LONG } from './document-notes'
 import { documentLinesOf } from './document-values'
+import { acceptanceShown } from './estimate-status'
 import { moneyInputCents } from './money-input'
 import { isWellFormedMoney, maxLineAmount, maxStoredAmount } from './money-text'
 import { isIsoDay } from './register-range'
@@ -141,6 +143,30 @@ function dueDateIssues(kind: SalesDocumentKind, values: Record<string, unknown>)
     return [{ path: ['due_date'], message: INVOICE_MESSAGES.dueBeforeDate }]
 }
 
+// The books_estimates schema's `accepted_by` max, in code points as the server counts it.
+const MAX_ACCEPTED_BY = 200
+
+// Only an estimate has Expiration date and the acceptance fields. Expiration date may be
+// empty and must not be before the estimate date; Accepted date is required while Status
+// is Accepted (the only status that draws it).
+function estimateIssues(kind: SalesDocumentKind, values: Record<string, unknown>): Issue[] {
+    if (kind.key !== 'estimate') return []
+    const issues: Issue[] = []
+    const date = dayOf(values.date)
+    const expiration = dayOf(values.expiration_date)
+    if (isIsoDay(date) && isIsoDay(expiration) && expiration < date) {
+        issues.push({ path: ['expiration_date'], message: ESTIMATE_MESSAGES.expirationBeforeDate })
+    }
+    const isAccepted = acceptanceShown(textOf(values.status))
+    if (isAccepted && dayOf(values.accepted_date) === '') {
+        issues.push({ path: ['accepted_date'], message: ESTIMATE_MESSAGES.acceptedDateRequired })
+    }
+    if ([...textOf(values.accepted_by)].length > MAX_ACCEPTED_BY) {
+        issues.push({ path: ['accepted_by'], message: ESTIMATE_MESSAGES.acceptedByTooLong })
+    }
+    return issues
+}
+
 // The books_sales_receipts schema's `reference_no` max, in code points as the server
 // counts it.
 const MAX_REFERENCE = 40
@@ -186,6 +212,7 @@ function documentIssues(
     const issues: Issue[] = [
         ...dueDateIssues(kind, values),
         ...paymentIssues(kind, values, deposit),
+        ...estimateIssues(kind, values),
         ...cells,
     ]
     if (lines.length > MAX_DOCUMENT_LINES) {

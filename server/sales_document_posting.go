@@ -133,7 +133,7 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	if original == nil {
 		return nil
 	}
-	return voidReplacedSalesDoc(tx, kind, original, doc.Id, actor, now)
+	return voidReplacedSalesDoc(tx, kind, original, doc, actor, now)
 }
 
 // correctedSalesDoc is the posted document a correction replaces, nil for a
@@ -162,7 +162,8 @@ func correctedSalesDoc(tx core.App, kind salesDocKind, doc *core.Record) (*core.
 
 // checkPostCustomer refuses to post for an inactive customer, under the
 // Customer field, before the journal line guard would refuse the entry's lines
-// with no field (Q23). A correction keeps its original's customer. A document
+// with no field (Q23); an invoice made from an estimate with the estimate's
+// text. A correction keeps its original's customer. A document
 // with no customer (a sales receipt may have none) has nothing to check.
 func checkPostCustomer(tx core.App, kind salesDocKind, doc *core.Record) error {
 	id := doc.GetString("customer")
@@ -183,6 +184,11 @@ func checkPostCustomer(tx core.App, kind salesDocKind, doc *core.Record) error {
 	keeps, err := keepsCorrectedCustomer(tx, kind, doc, id)
 	if err != nil || keeps {
 		return err
+	}
+	// An invoice made from an estimate cannot change its customer, so "Choose an
+	// active customer" would be a dead end there (plan decision E1).
+	if doc.GetString("estimate") != "" {
+		return refuseNamedField("customer", msgEstimateCustomerInactive, customer.GetString("display_name"))
 	}
 	return refuseNamedField("customer", msgCustomerInactive, customer.GetString("display_name"))
 }
@@ -405,7 +411,9 @@ func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals d
 
 // voidReplacedSalesDoc sets the original of a posted correction void with
 // replaced_by. Its entry is already void: the correction's entry replaced it.
-func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original *core.Record, correctionID, actor string, now time.Time) error {
+// The kind's Replace then hands on what the original held (an invoice's
+// estimate).
+func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original, correction *core.Record, actor string, now time.Time) error {
 	done := markReplacing(tx, kind, original.Id)
 	defer done()
 	fresh, err := tx.FindRecordById(kind.Collection, original.Id)
@@ -413,16 +421,23 @@ func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original *core.Record,
 		return err
 	}
 	fresh.Set("status", statusVoid)
-	fresh.Set("replaced_by", correctionID)
+	fresh.Set("replaced_by", correction.Id)
 	fresh.Set("voided_by", actor)
 	fresh.Set("voided_at", now)
-	return tx.Save(fresh)
+	if err := tx.Save(fresh); err != nil {
+		return err
+	}
+	if kind.Replace == nil {
+		return nil
+	}
+	return kind.Replace(tx, fresh, correction)
 }
 
 // voidSalesDoc voids a posted document's entry while the document moves from
 // posted to void, inside the update's transaction: the entry's own hook posts
 // the void reversal in the original period under the same number (voidEntry),
-// and the close date applies to it as to any post.
+// and the close date applies to it as to any post. The kind's Withdraw then
+// undoes what the document held (an invoice reopens its estimate).
 func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
 	entryID := doc.GetString("entry")
 	if entryID == "" {
@@ -438,5 +453,8 @@ func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 		return err
 	}
 	doc.Set("voided_at", now)
-	return nil
+	if kind.Withdraw == nil {
+		return nil
+	}
+	return kind.Withdraw(tx, doc)
 }

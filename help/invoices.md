@@ -67,6 +67,14 @@ To see the entry an invoice posted, open it and choose View journal entry. A pos
 
 To start a new invoice from one that you already have, open it and choose Copy. The new draft has the same customer, lines, tax and message, and today's date.
 
+## Convert an estimate
+
+To bill the work of an estimate, open the estimate and choose Convert to invoice. A new invoice opens with the estimate's customer, Bill to, Email, Tax, lines and message, and today's date. The Terms and Due date come from the customer. Under the customer, the invoice shows **From estimate** with the estimate's number: choose it to open the estimate. The posted invoice shows the same link under its Posted by line.
+
+On an invoice from an estimate, the customer cannot be changed: it bills the estimate's customer. If that customer is inactive, make the customer active to convert the estimate.
+
+When you save the invoice (Save draft or Post), the estimate becomes Closed. If you cancel the new invoice, the estimate does not change. To undo the conversion, delete the draft invoice with Delete draft, or void the posted invoice: the estimate goes back to Accepted when it has an accepted date, else to Pending. When you edit a posted invoice and post the edit, the estimate stays Closed and names the new invoice. For more, see [Estimates](help://books:estimates).
+
 ## PDF view
 
 Each invoice has two tabs under its title: Edit (Details on a posted invoice) and PDF view. The PDF view shows the invoice as it prints. A new invoice has no PDF until you save it: choose Save draft on the tab. If you changed the form after the last save, the PDF view says "Shows the last saved version".

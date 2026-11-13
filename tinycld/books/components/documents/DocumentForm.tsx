@@ -16,7 +16,7 @@ import { useFocusEffect } from 'expo-router'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { FormProvider, type UseFormReturn, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
-import type { DocumentWrites } from '../../hooks/document-data'
+import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
@@ -29,11 +29,13 @@ import {
     DOCUMENT_FOOTER_ROW,
     DOCUMENT_FOOTER_SPANS,
 } from '../../lib/document-footer-layout'
+import { canDeleteStatus, type DocumentStatus } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
+import { todayIso } from '../../lib/register-range'
 import { rootErrorOnly } from '../../lib/root-errors'
 import type { SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
@@ -41,10 +43,15 @@ import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
-import { DocumentActionBar, type DocumentMoreItem } from './DocumentActionBar'
+import {
+    DocumentActionBar,
+    type DocumentActionBarProps,
+    type DocumentMoreItem,
+} from './DocumentActionBar'
 import { DocumentHeader } from './DocumentHeader'
 import { DocumentLoading } from './DocumentLoading'
 import { DocumentPdfView } from './DocumentPdfView'
+import { DocumentSaveBar, type DocumentSaveBarProps } from './DocumentSaveBar'
 import { DocumentTabs, openDocumentTab, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import {
@@ -271,11 +278,19 @@ interface FooterProps {
     isStacked: boolean
 }
 
+// How far the wide totals reach left of the Qty slot, px, with the notes kept as far
+// back: at the narrowest floors the Qty to Amount slots leave a label about 157 px, less
+// than a tax label such as "Denver combined (8.71%)" needs on one line.
+const TOTALS_REACH = 40
+const NOTES_SPAN_END = { paddingRight: TOTALS_REACH }
+const TOTALS_REACH_LEFT = { marginLeft: -TOTALS_REACH }
+
 /**
  * Message and Memo beside the totals. On the wide grid the totals sit on the grid's
- * slots (lib/document-footer-layout.ts), so they end under Amount. When the lines draw
- * as cards there is no Amount column, so the footer stacks full width: the totals right
- * under the lines, then Message, then Memo.
+ * slots (lib/document-footer-layout.ts), so they end under Amount; their labels reach
+ * TOTALS_REACH further left, into room the notes leave free. When the lines draw as cards
+ * there is no Amount column, so the footer stacks full width: the totals right under the
+ * lines, then Message, then Memo.
  */
 function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     const { testId } = state.kind
@@ -291,9 +306,13 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     }
     return (
         <View testID={ids.footer} style={DOCUMENT_FOOTER_ROW}>
-            <View style={DOCUMENT_FOOTER_SPANS.left}>{renderer}</View>
+            <View style={DOCUMENT_FOOTER_SPANS.left}>
+                <View style={NOTES_SPAN_END}>{renderer}</View>
+            </View>
             <View style={DOCUMENT_FOOTER_SPANS.totals}>
-                <DocumentTotalsPanel totals={totals} />
+                <View style={TOTALS_REACH_LEFT}>
+                    <DocumentTotalsPanel totals={totals} />
+                </View>
             </View>
             <View style={DOCUMENT_FOOTER_SPANS.right} />
             <View style={DOCUMENT_FOOTER_MENU_SPACER} />
@@ -301,13 +320,16 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     )
 }
 
-// "Edit 1004" for a correction, new or saved; the kind's draft title once the draft is
-// stored; else its new title.
-function documentFormTitle(
+// A quote: its new title until the first save, then "Estimate 1001" by the
+// stored number. A posting kind: "Edit 1004" for a correction, new or saved; the kind's
+// draft title once the draft is stored; else its new title.
+export function documentFormTitle(
     kind: SalesDocumentKind,
     replacesNumber: string,
-    isStored: boolean
+    isStored: boolean,
+    number: string
 ): string {
+    if (kind.lifecycle === 'quote') return isStored ? `${kind.noun} ${number}` : kind.newTitle
     if (replacesNumber) return `Edit ${replacesNumber}`
     return isStored ? kind.draftTitle : kind.newTitle
 }
@@ -340,7 +362,60 @@ function ErrorSummary({ form, testID }: { form: EngineForm; testID: string }) {
     )
 }
 
+// The bar by the kind's lifecycle: a posting kind's Save draft / Post bar, or a quote's
+// Save bar.
+function PostingActionBar({
+    isVisible,
+    ...props
+}: DocumentActionBarProps & { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <DocumentActionBar {...props} />
+}
+
+function QuoteSaveBar({ isVisible, ...props }: DocumentSaveBarProps & { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <DocumentSaveBar {...props} />
+}
+
 const PDF_HINT = formatHint(DOCUMENT_PDF_KEY).text
+
+// The estimate a stored invoice was made from; '' for any other record.
+function estimateIdOf(record: DocumentScreenData['record']): string {
+    const fields = record?.kindFields
+    return fields?.kind === 'invoice' ? fields.estimate : ''
+}
+
+// A posting kind deletes its stored draft (the route's, or the one a refused post
+// wrote); a quote deletes a saved record its lifecycle allows (not a closed estimate).
+function canDeleteOf(
+    kind: SalesDocumentKind,
+    isNew: boolean,
+    status: DocumentStatus | undefined,
+    writtenId: string | null
+): boolean {
+    if (kind.lifecycle === 'posting') return (!isNew && status === 'draft') || writtenId !== null
+    return !isNew && status !== undefined && canDeleteStatus(kind.lifecycle, status)
+}
+
+// Convert to invoice: a quote, while writes are available, on a Pending or Accepted
+// status in the form (a change to Rejected hides it before the save).
+function canConvertOf(kind: SalesDocumentKind, canWrite: boolean, status: unknown): boolean {
+    if (kind.lifecycle !== 'quote' || !canWrite) return false
+    return status === 'pending' || status === 'accepted'
+}
+
+// The delete confirm's words: a posting kind's draft defaults, or a quote kind's own
+// (kind.messages: "Delete estimate 1001?", its body and its action).
+function deleteDialogTexts(kind: SalesDocumentKind, number: string) {
+    const { deleteTitle, deleteBody, deleteAction } = kind.messages
+    if (kind.lifecycle === 'posting' || !deleteTitle || !deleteBody || !deleteAction) return {}
+    return {
+        title: deleteTitle.replace('%s', number),
+        body: deleteBody,
+        actionLabel: deleteAction,
+        testIdPrefix: `${kind.testId}-delete`,
+    }
+}
 
 // Download PDF of the saved draft, from the More row and ⌘P. A new form has nothing
 // printed yet; while a save runs the More menu is disabled, and so is the key.
@@ -368,8 +443,9 @@ interface DocumentFormProps {
 
 /**
  * A sales document form, new, draft, correction or copy: the header band, the lines
- * table, the footer (DocumentFooter: Message, Memo and the totals), and the sticky action
- * bar; or, on the PDF view tab, the saved draft's PDF above the same bar. Keyed on its
+ * table, the footer (DocumentFooter: Message, Memo and the totals), and the sticky bar of
+ * the kind's lifecycle (DocumentActionBar, or a quote's DocumentSaveBar); or, on the PDF
+ * view tab, the saved document's PDF above the same bar. Keyed on its
  * form key by the screen, so a new route mounts a fresh form; a tab change keeps it.
  */
 export function DocumentForm({ data, tab }: DocumentFormProps) {
@@ -392,10 +468,18 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const revealErrors = () => {
         if (tab === 'pdf') openDocumentTab('edit')
     }
-    const save = useDocumentSave(state, { tab, onFieldErrors: revealErrors })
+    const estimateId = state.estimate || estimateIdOf(data.record)
+    const { onBack: leave } = useBackToEntries(estimateId)
+    const save = useDocumentSave(state, {
+        tab,
+        onFieldErrors: revealErrors,
+        leave,
+        writer: data.writer,
+    })
     const writes = documentKind.data.useWrites()
-    const { onBack: leave } = useBackToEntries()
     const formCustomer = useFormCustomer(form, `books.${kind.key}`)
+    const expiredOn = expiredOnOf(data.record, todayIso())
+    const estimateNumber = estimateNumberOf(data.record, data.estimateSource)
     // Per mounted form: the band's address inputs belong to this form only, so a form
     // opened later starts with them folded.
     const instanceId = useId()
@@ -410,8 +494,20 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
             customerLoadFailed: formCustomer.isError,
             retryCustomer: formCustomer.retry,
             taxRows: data.taxOptions.rows,
+            expiredOn,
+            estimateNumber,
+            estimateId,
         }),
-        [kind, bandKey, data.currency, data.taxOptions.rows, formCustomer]
+        [
+            kind,
+            bandKey,
+            data.currency,
+            data.taxOptions.rows,
+            formCustomer,
+            expiredOn,
+            estimateNumber,
+            estimateId,
+        ]
     )
     const totals = useDocumentTotals(form, scope)
     const linesLayout = useLinesAreCards()
@@ -425,11 +521,21 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const draftId = state.recordId ?? save.writtenId ?? undefined
     const deletion = useDocumentDelete(writes, draftId, leave)
     useScreenHoldRelease(draftId)
-    const canDeleteDraft =
-        (!state.isNew && data.record?.status === 'draft') || save.writtenId !== null
+    const canDelete = canDeleteOf(kind, state.isNew, data.record?.status, save.writtenId)
+    const convertStatus = useWatch({ control: form.control, name: 'status' })
+    const canConvert = canConvertOf(kind, data.canWrite, convertStatus)
     const isPhone = useBreakpoint() === 'mobile'
     const onPostAndNew = () => {
         void save.post(true)
+    }
+    const onSave = () => {
+        void save.save()
+    }
+    const onSaveAndNew = () => {
+        void save.saveAndNew()
+    }
+    const onConvert = () => {
+        void save.convert()
     }
     const isBusy = save.isSaving || deletion.isPending
     const pdf = useDraftPdf(kind, draftId, isBusy)
@@ -437,10 +543,14 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const shortcuts = useDocumentShortcuts({
         kind,
         isSaving: isBusy,
-        canDeleteDraft,
-        deleteDraft: deletion.open,
+        canDelete,
+        deleteRecord: deletion.open,
         isPhone,
         postAndNew: onPostAndNew,
+        save: onSave,
+        saveAndNew: onSaveAndNew,
+        canConvert,
+        convert: onConvert,
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
@@ -463,15 +573,29 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const onPost = () => {
         void save.post(false)
     }
+    const onSaveAndClose = () => {
+        void save.saveAndClose()
+    }
+    const isQuote = kind.lifecycle === 'quote'
+    // The PDF tab's save of a new form: the bar's Save draft, or a quote's Save.
+    const onPdfSave = isQuote ? onSave : onSaveDraft
     const moreItems = [pdf.item]
     const pdfDocumentId = draftId ?? null
-    const title = documentFormTitle(kind, data.replacesNumber, draftId !== undefined)
-    // The form shows only drafts: a post's optimistic status shows here only once the
-    // read view replaces the form.
-    const status = 'draft'
+    // A quote is titled by its stored number, so it reads as stored only once its row is
+    // here (a written id alone has no number yet); a posting draft is stored once written.
+    const isStored = isQuote ? data.record !== undefined : draftId !== undefined
+    const title = documentFormTitle(kind, data.replacesNumber, isStored, data.record?.number ?? '')
+    // A posting form shows only drafts: a post's optimistic status shows here only once
+    // the read view replaces the form. A quote's badges follow its saved row (a new one is
+    // Pending), never the unsaved Status.
+    const status = isQuote ? (data.record?.status ?? 'pending') : 'draft'
+    const isExpired = expiredOn !== null
     const isEditTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
     const isFooterStacked = isPhone || linesLayout.isCards
+    const convertAction = isQuote ? { isOffered: canConvert, onPress: onConvert } : null
+    const removeAction = isQuote ? { isOffered: canDelete, onPress: deletion.open } : null
+    const deleteTexts = deleteDialogTexts(kind, data.record?.number ?? '')
     const ids = {
         form: `${kind.testId}-form`,
         errorSummary: `${kind.testId}-error-summary`,
@@ -499,6 +623,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                     title={title}
                                     status={status}
                                     figure={totals.figure}
+                                    isExpired={isExpired}
                                 />
                                 <ReplaceNote kind={kind} number={data.replacesNumber} />
                                 <DocumentTabs
@@ -535,19 +660,33 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                         version={pdfVersion}
                                         isDirty={state.isDirty}
                                         isSaving={save.isSaving}
-                                        onSaveDraft={onSaveDraft}
+                                        onSave={onPdfSave}
                                     />
                                 </TabPanel>
                             </ScrollView>
-                            <DocumentActionBar
+                            <PostingActionBar
+                                isVisible={!isQuote}
                                 isSaving={save.isSaving}
-                                canDeleteDraft={canDeleteDraft}
+                                canDeleteDraft={canDelete}
                                 isPhone={isPhone}
                                 onCancel={cancel}
                                 onSaveDraft={onSaveDraft}
                                 onPost={onPost}
                                 onPostAndNew={onPostAndNew}
                                 onDeleteDraft={deletion.open}
+                                moreItems={moreItems}
+                                scopeOwner={shortcuts.scopeOwner}
+                            />
+                            <QuoteSaveBar
+                                isVisible={isQuote}
+                                isSaving={save.isSaving}
+                                isPhone={isPhone}
+                                onCancel={cancel}
+                                onSave={onSave}
+                                onSaveAndClose={onSaveAndClose}
+                                onSaveAndNew={onSaveAndNew}
+                                convert={convertAction}
+                                remove={removeAction}
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
                             />
@@ -563,6 +702,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                 onCancel={deletion.cancel}
                                 isPending={deletion.isPending}
                                 errorMessage={deletion.errorMessage}
+                                {...deleteTexts}
                             />
                         </View>
                     </FormProvider>

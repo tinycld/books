@@ -82,8 +82,12 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts)
-	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal
+	estimates, estimateTotal, err := searchSalesDocs(ctx, app, estimateSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates)
+	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal + estimateTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -351,6 +355,12 @@ var invoiceSearch = salesDocSearch{
 
 var salesReceiptSearch = salesDocSearch{
 	table: "books_sales_receipts", index: salesReceiptsIndex, docType: docTypeSalesReceipt, kind: "sales_receipt",
+}
+
+// estimateSearch lists every estimate: an estimate has its number from its
+// first save, so its title is always "Estimate 1001 · Customer".
+var estimateSearch = salesDocSearch{
+	table: "books_estimates", index: estimatesIndex, docType: docTypeEstimate, kind: "estimate",
 }
 
 // salesDocTermMatch is true when one query word matches a document's own

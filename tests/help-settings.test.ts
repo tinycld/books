@@ -43,8 +43,14 @@ describe('help/settings.md', () => {
         expect(body).toMatch(/Settings → Sales|the Sales section|#+ Sales\s*$/m)
         expect(body).toContain('Sales receipts')
         expect(body).toContain('Sales deposited to')
-        expect(body).toContain('Invoices and sales receipts')
+        expect(body).toContain('Invoices, estimates and sales receipts')
         expect(body).toContain('Default message to customer')
+    })
+
+    // Estimate checkpoint 4: the Numbering section names the Estimates card.
+    it('names the Estimates card in the Numbering section', () => {
+        const numbering = /^## Numbering\s*$([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body)?.[1] ?? ''
+        expect(numbering).toContain('Estimates')
     })
 
     it('links the sales receipts topic', () => {

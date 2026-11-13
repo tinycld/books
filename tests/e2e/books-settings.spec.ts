@@ -389,6 +389,15 @@ test.describe('books-settings: Settings screens', () => {
         const preview = id(page, 'books-settings-seq-journal-preview')
         await expect(preview).toContainText('Next entry:')
 
+        // The Estimates card: its preview names the next estimate (other specs take
+        // numbers, so only the prefix is checked) and its helper says estimates are saved.
+        const estimates = id(page, 'books-settings-seq-estimate')
+        await expect(estimates).toBeVisible()
+        await expect(id(page, 'books-settings-seq-estimate-preview')).toContainText(
+            'Next estimate:'
+        )
+        await expect(estimates).toContainText('estimates saved from now on')
+
         // Parallel workers advance the shared counter, so every save goes above the live value.
         const started = Number(await next.inputValue())
         expect(started).toBeGreaterThan(0)
