@@ -6,7 +6,7 @@ interface Props {
     isVisible: boolean
     // Absent on a form with no stored draft of its own route (a new entry, a correction):
     // the person opens the draft again from the list.
-    onReload?: () => void
+    onReload?: () => void | Promise<void>
 }
 
 // The entry form's conflict notice, in the form's own padding.
