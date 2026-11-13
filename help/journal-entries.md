@@ -37,6 +37,8 @@ To see their changes, choose Load the current entry. This replaces what you type
 
 To have Books reverse an entry on a later day, type a date in Auto-reverse on. The date must be after the entry date. If the books are closed through a date, the auto-reverse date must also be after that close date. When that day comes, Books posts the reversing entry. The posted entry shows the date it will reverse.
 
+Nobody posts an automatic reversal, so the entry shows no poster. The audit log records it as created by the system, with the entry it reverses.
+
 ## Edit a posted entry
 
 To edit a posted entry, open it and choose Edit, or choose Edit in the menu of its row. The form opens with the posted figures and a notice. The form is a copy: the original stays posted and your books do not change until you post. Save draft keeps your changes for later. When you post, the new entry replaces the original under the same number, and the original is voided.
