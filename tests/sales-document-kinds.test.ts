@@ -3,10 +3,54 @@ import { documentTotals } from '../tinycld/books/lib/document-lines'
 import { bigFigureText } from '../tinycld/books/lib/document-messages'
 import { maxLineAmount } from '../tinycld/books/lib/money-text'
 import {
+    DOCUMENT_PARTIES,
     ESTIMATE_KIND,
     INVOICE_KIND,
+    SALES_LINE_TABLES,
     SALES_RECEIPT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
+
+// The layer per kind (spec §3.1; plan Decisions "TS names"): the party, the line tables
+// and the features. The three sales kinds keep one `lines` table, the customer, and
+// every feature.
+describe('the sales kinds: party, line tables and features', () => {
+    for (const kind of [INVOICE_KIND, SALES_RECEIPT_KIND, ESTIMATE_KIND]) {
+        it(`${kind.key} has the customer, the one lines table and every feature`, () => {
+            expect(kind.party).toBe('customer')
+            expect(kind.lineTables).toBe(SALES_LINE_TABLES)
+            expect(kind.lineTables).toEqual([
+                { key: 'lines', rowLabel: 'Line', heading: null, subtotal: null },
+            ])
+            expect(kind.features).toEqual({ tax: true, message: true, email: true, pdf: true })
+        })
+    }
+})
+
+describe('DOCUMENT_PARTIES', () => {
+    it("names the vendor's field, address, edit link, route and inactive text", () => {
+        expect(DOCUMENT_PARTIES.vendor).toEqual({
+            field: 'vendor',
+            label: 'Vendor',
+            addressField: 'mailing_address',
+            addressLabel: 'Mailing address',
+            editLabel: 'Edit vendor',
+            routeBase: 'books/vendors',
+            inactiveText: '%s is inactive. Choose an active vendor.',
+        })
+    })
+
+    it("keeps the invoice's words for the customer", () => {
+        expect(DOCUMENT_PARTIES.customer).toEqual({
+            field: 'customer',
+            label: 'Customer',
+            addressField: 'bill_to',
+            addressLabel: 'Bill to',
+            editLabel: 'Edit customer',
+            routeBase: 'books/customers',
+            inactiveText: '%s is inactive. Choose an active customer.',
+        })
+    })
+})
 
 // The invoice kind of the shared sales document layer (plan Decisions "TS kind names").
 describe('INVOICE_KIND', () => {

@@ -30,7 +30,7 @@ export interface DocumentActionBarProps {
     onPost: () => void
     onPostAndNew: () => void
     onDeleteDraft: () => void
-    // More rows after Delete draft (Download PDF).
+    // More rows after Delete draft (Download PDF, on a kind with a PDF).
     moreItems?: DocumentMoreItem[]
     scopeOwner: ScopeOwner
 }
@@ -156,7 +156,8 @@ function PostAndNewButton({
 /**
  * The form's sticky bar, in Tab order: Cancel (Esc), Save draft (⌘S), Post (⌘↵), Post &
  * new (⌘⇧↵; a More row on a phone) and More (Delete draft when the document is a saved
- * draft; Download PDF, ⌘P). Each button with a key is a core ShortcutButton in the
+ * draft; then the caller's rows: Download PDF, ⌘P, on a kind with a PDF, which the form
+ * passes only then). Each button with a key is a core ShortcutButton in the
  * screen's scope, in the kind's shortcut group; Save draft, Post and Post & new are
  * server actions, so they and their keys are idle offline.
  */

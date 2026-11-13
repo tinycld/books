@@ -51,6 +51,14 @@ export type DocumentMessages = {
     referenceTooLong?: string
 }
 
+// The Amount cell of an account line (a bill's), the same on every kind that has one. The
+// server refuses 0 with "Account line <n>: Enter an amount other than 0." (server/bills.go).
+export const ACCOUNT_AMOUNT_MESSAGES = {
+    zero: 'Enter an amount other than 0',
+    malformed: 'Enter an amount like 1,234.50',
+    tooLarge: 'The amount is too large',
+} as const
+
 // The invoice's texts. The first group is shown by the client and refused by the
 // server with the same words (server/invoices.go); tests/document-messages.test.ts
 // fails when they drift. PocketBase adds a final period to a server text that has

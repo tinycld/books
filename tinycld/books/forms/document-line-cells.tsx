@@ -125,8 +125,8 @@ type NoteBundle = (message: string | null) => void
 function useBundlePick(fieldKey: string, noteBundle: NoteBundle) {
     const loadBundleLines = useBundleLines()
     const { getValues } = useFormContext()
-    const { customer, currency, kind } = useDocumentFormScope()
-    const isExempt = customer?.tax_exempt ?? false
+    const { party, currency, kind } = useDocumentFormScope()
+    const isExempt = party?.tax_exempt ?? false
     return async (table: TableCellContext, bundleId: string) => {
         const rowId = table.row.id
         table.onRowChange({ product: bundleId, rate: '', description: '' })
@@ -181,11 +181,11 @@ function useBundlePick(fieldKey: string, noteBundle: NoteBundle) {
  */
 function useProductPick(props: BuiltinFieldProps, noteBundle: NoteBundle) {
     const [productsCollection] = useStore('books_products')
-    const { customer, currency, kind } = useDocumentFormScope()
+    const { party, currency, kind } = useDocumentFormScope()
     const { getValues } = useFormContext()
     const { fieldKey, table, onChange } = props
     const pickBundle = useBundlePick(fieldKey, noteBundle)
-    const isExempt = customer?.tax_exempt ?? false
+    const isExempt = party?.tax_exempt ?? false
     return async (id: string) => {
         if (!table) {
             onChange(id)
@@ -528,7 +528,7 @@ function useShowsTargetError(fieldKey: string, table: TableCellContext | undefin
     const { getFieldState } = useFormContext()
     const formState = useFormState({ name: path })
     const hasFieldError = getFieldState(path, formState).error !== undefined
-    return amounts[rowIndex]?.kind === 'no-target' && !hasFieldError
+    return amounts[fieldKey]?.[rowIndex]?.kind === 'no-target' && !hasFieldError
 }
 
 // Percent: the typed percent text (ppm is computed at write), with a "%" drawn over the
@@ -652,7 +652,7 @@ const SUBTOTAL_GRID_ROW: ViewStyle = { flexDirection: 'row', gap: DOCUMENT_FOOTE
 // across the card on a phone.
 export function LineAmountCell({ fieldKey, table }: BuiltinFieldProps) {
     const { amounts, isCards } = useDocumentLinesView()
-    const view = amounts[table?.rowIndex ?? -1] ?? NO_VIEW
+    const view = amounts[fieldKey]?.[table?.rowIndex ?? -1] ?? NO_VIEW
     const testID = cellTestId(fieldKey, table, 'amount')
     if (view.kind === 'none' || view.kind === 'no-target') return <View testID={testID} />
     const amount = (

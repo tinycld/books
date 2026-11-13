@@ -185,7 +185,7 @@ function Card({ line, index, currency }: { line: ReadLine; index: number; curren
     )
 }
 
-interface DocumentReadLinesProps {
+export interface DocumentReadLinesProps {
     lines: ReadLine[]
     currency: string
     isPhone: boolean

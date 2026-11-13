@@ -59,7 +59,8 @@ export function DocumentScreen({
     ...input
 }: DocumentScreenInput & { document: DocumentKind; tab?: string }) {
     const data = useDocumentScreen(documentKind, input)
-    const tab = documentTabOf(tabParam)
+    // A kind without a PDF has no tabs: a `tab` param in its URL shows the form.
+    const tab = documentKind.doc.features.pdf ? documentTabOf(tabParam) : 'edit'
     return (
         <DocumentKindContext.Provider value={documentKind}>
             <ScreenState data={data} tab={tab} />

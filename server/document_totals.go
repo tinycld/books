@@ -38,10 +38,10 @@ type documentTaxLine struct {
 // documentTotalsResult is what documentTotals finds. HasAmount is false for a
 // description line and for a percent line with no item or subtotal right above
 // it (its index is in PercentTargetErrors). TooLarge is a line amount past
-// maxAmount, or a header tax that cannot be computed (a taxable total past
-// maxStoredAmount, or a rate outside 0..100%); the total's own limit is the
-// caller's check. The sums saturate at the int64 bounds, which are past
-// maxStoredAmount, so a caller's check still refuses them.
+// maxAmount, a subtotal or total past maxStoredAmount, or a header tax that
+// cannot be computed (a taxable total past maxStoredAmount, or a rate outside
+// 0..100%). The sums saturate at the int64 bounds, which are past
+// maxStoredAmount.
 type documentTotalsResult struct {
 	Amounts             []int64
 	HasAmount           []bool
@@ -201,10 +201,15 @@ func documentTotals(lines []documentLine, componentPpms []int64, componentIDs []
 	} else {
 		result.TooLarge = true
 	}
+	maxStored := big.NewInt(maxStoredAmount)
+	total := new(big.Int).Add(subtotal, taxTotal)
+	if new(big.Int).Abs(subtotal).Cmp(maxStored) > 0 || new(big.Int).Abs(total).Cmp(maxStored) > 0 {
+		result.TooLarge = true
+	}
 
 	result.Subtotal, _ = toInt64(subtotal)
 	result.TaxableTotal, _ = toInt64(taxable)
 	result.TaxTotal, _ = toInt64(taxTotal)
-	result.Total, _ = toInt64(new(big.Int).Add(subtotal, taxTotal))
+	result.Total, _ = toInt64(total)
 	return result
 }

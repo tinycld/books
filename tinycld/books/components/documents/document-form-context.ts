@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react'
+import type { DocumentPartyRow } from '../../hooks/document-data'
 import type { useTaxRateOptions } from '../../hooks/useTaxRateOptions'
 import type { LineAmountView } from '../../lib/document-tax'
 import { INVOICE_KIND, type SalesDocumentKind } from '../../lib/sales-document-kinds'
-import type { BooksCustomers } from '../../types'
 
 // What a sales document's header fields and line cells read beyond their own value: core
 // hands a host component only its value and onChange. Server data the screen already
@@ -13,11 +13,12 @@ export type DocumentFormScope = {
     // This mounted form: which form the band store's flag names.
     bandKey: string
     currency: string
-    // The customer the form names now (the stored one, then each pick).
-    customer: BooksCustomers | undefined
-    isCustomerLoading: boolean
-    customerLoadFailed: boolean
-    retryCustomer: () => void
+    // The party the form names now (the stored one, then each pick), read through the
+    // kind's data source (DocumentDataSource.useParty).
+    party: DocumentPartyRow | undefined
+    isPartyLoading: boolean
+    partyLoadFailed: boolean
+    retryParty: () => void
     taxRows: ReturnType<typeof useTaxRateOptions>['rows']
     // The saved expiration date of an estimate that shows as Expired (expiredOnOf), for
     // the hint under Expiration date; null otherwise.
@@ -40,10 +41,10 @@ const EMPTY_SCOPE: DocumentFormScope = {
     kind: INVOICE_KIND,
     bandKey: '',
     currency: 'USD',
-    customer: undefined,
-    isCustomerLoading: false,
-    customerLoadFailed: false,
-    retryCustomer: () => {},
+    party: undefined,
+    isPartyLoading: false,
+    partyLoadFailed: false,
+    retryParty: () => {},
     taxRows: [],
     expiredOn: null,
     estimateNumber: '',
@@ -54,16 +55,17 @@ export function useDocumentFormScope(): DocumentFormScope {
     return useContext(DocumentFormContext) ?? EMPTY_SCOPE
 }
 
-// The lines table as the form computes it once per change: each line's Amount cell (by
-// row index), and whether core draws the rows as cards (a narrow container). Its own
-// context, so a keystroke in a line re-renders the line cells and not the header fields.
+// The line tables as the form computes them once per change: each line's Amount cell (by
+// table key, then row index), and whether core draws the rows as cards (a narrow
+// container). Its own context, so a keystroke in a line re-renders the line cells and not
+// the header fields.
 export type DocumentLinesView = {
-    amounts: readonly LineAmountView[]
+    amounts: Readonly<Record<string, readonly LineAmountView[]>>
     isCards: boolean
 }
 
 export const DocumentLinesContext = createContext<DocumentLinesView>({
-    amounts: [],
+    amounts: {},
     isCards: false,
 })
 

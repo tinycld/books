@@ -17,6 +17,7 @@ type documentTotalsVectors struct {
 			Rate       int64   `json:"rate"`
 			PercentPpm int64   `json:"percent_ppm"`
 			Taxable    bool    `json:"taxable"`
+			Amount     int64   `json:"amount"`
 		} `json:"lines"`
 		Components          []int64  `json:"components"`
 		Amounts             []*int64 `json:"amounts"`
@@ -50,7 +51,7 @@ func TestDocumentTotals_Vectors(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			lines := make([]documentLine, len(tc.Lines))
 			for i, l := range tc.Lines {
-				lines[i] = documentLine{Kind: l.Kind, Quantity: l.Quantity, Rate: l.Rate, PercentPpm: l.PercentPpm, Taxable: l.Taxable}
+				lines[i] = documentLine{Kind: l.Kind, Quantity: l.Quantity, Rate: l.Rate, PercentPpm: l.PercentPpm, Taxable: l.Taxable, Amount: l.Amount}
 			}
 			ids := make([]string, len(tc.Components))
 			for i := range tc.Components {

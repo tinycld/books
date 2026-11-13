@@ -6,11 +6,11 @@ import { evictRows } from '@tinycld/core/lib/server-rows'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
-import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { type EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../lib/estimate-columns'
 import { columnsOrThrow } from '../lib/record-save'
 import { ESTIMATE_KIND } from '../lib/sales-document-kinds'
 import type { BooksEstimates } from '../types'
+import { customerPartyRead } from './customer-party'
 import {
     type DocumentDataSource,
     type DocumentKindFields,
@@ -235,8 +235,6 @@ function useEstimateWrites(): DocumentWrites {
         'books_estimates',
         'books_estimate_lines'
     )
-    const lineRecord = (write: TableRowWrite) =>
-        DOCUMENT_LINE_MAPPER.toRecord(write.row, write.position)
     return {
         // The columns were checked by estimateColumnsFrom before the save started and laid
         // over EMPTY_ESTIMATE_COLUMNS (DocumentKind.emptyColumns), so they hold every
@@ -260,19 +258,22 @@ function useEstimateWrites(): DocumentWrites {
             throw new Error('an estimate never posts or voids')
         },
         deleteRecord: id => estimatesCollection.delete(id),
-        lineOps: estimateId => ({
-            insert: write =>
-                linesCollection.insert({
-                    id: write.row.id,
-                    estimate: estimateId,
-                    ...lineRecord(write),
-                }),
-            update: write =>
-                linesCollection.update(write.row.id, draft => {
-                    Object.assign(draft, lineRecord(write))
-                }),
-            remove: lineId => linesCollection.delete(lineId),
-        }),
+        lineOps: (estimateId, mapper) => {
+            const lineRecord = (write: TableRowWrite) => mapper.toRecord(write.row, write.position)
+            return {
+                insert: write =>
+                    linesCollection.insert({
+                        id: write.row.id,
+                        estimate: estimateId,
+                        ...lineRecord(write),
+                    }),
+                update: write =>
+                    linesCollection.update(write.row.id, draft => {
+                        Object.assign(draft, lineRecord(write))
+                    }),
+                remove: lineId => linesCollection.delete(lineId),
+            }
+        },
         evictLines: ids => evictRows(linesCollection, ids, LOG_CONTEXT),
     }
 }
@@ -287,6 +288,7 @@ function useEstimateVersion(id: string | undefined): string {
 // The estimate kind's data source: every `useStore` of an estimate collection.
 export const ESTIMATE_DATA: DocumentDataSource = {
     useScreenReads: useEstimateScreenReads,
+    useParty: customerPartyRead(LOG_CONTEXT),
     useWrites: useEstimateWrites,
     useVersion: useEstimateVersion,
 }

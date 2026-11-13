@@ -6,11 +6,11 @@ import { evictRows } from '@tinycld/core/lib/server-rows'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
-import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { type EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../lib/invoice-columns'
 import { columnsOrThrow } from '../lib/record-save'
 import { INVOICE_KIND } from '../lib/sales-document-kinds'
 import type { BooksInvoices } from '../types'
+import { customerPartyRead } from './customer-party'
 import {
     type DocumentDataSource,
     type DocumentKindFields,
@@ -209,8 +209,6 @@ const INVOICE_FORM_START: DocumentScreenReads['formStart'] = {
 // The invoice's writes: its row and its lines, whose insert names the invoice.
 function useInvoiceWrites(): DocumentWrites {
     const [invoicesCollection, linesCollection] = useStore('books_invoices', 'books_invoice_lines')
-    const lineRecord = (write: TableRowWrite) =>
-        DOCUMENT_LINE_MAPPER.toRecord(write.row, write.position)
     return {
         // The columns were checked by invoiceColumnsFrom before the save started and laid
         // over EMPTY_INVOICE_COLUMNS (DocumentKind.emptyColumns), so they hold every
@@ -236,19 +234,22 @@ function useInvoiceWrites(): DocumentWrites {
                 draft.status = status
             }),
         deleteRecord: id => invoicesCollection.delete(id),
-        lineOps: invoiceId => ({
-            insert: write =>
-                linesCollection.insert({
-                    id: write.row.id,
-                    invoice: invoiceId,
-                    ...lineRecord(write),
-                }),
-            update: write =>
-                linesCollection.update(write.row.id, draft => {
-                    Object.assign(draft, lineRecord(write))
-                }),
-            remove: lineId => linesCollection.delete(lineId),
-        }),
+        lineOps: (invoiceId, mapper) => {
+            const lineRecord = (write: TableRowWrite) => mapper.toRecord(write.row, write.position)
+            return {
+                insert: write =>
+                    linesCollection.insert({
+                        id: write.row.id,
+                        invoice: invoiceId,
+                        ...lineRecord(write),
+                    }),
+                update: write =>
+                    linesCollection.update(write.row.id, draft => {
+                        Object.assign(draft, lineRecord(write))
+                    }),
+                remove: lineId => linesCollection.delete(lineId),
+            }
+        },
         evictLines: ids => evictRows(linesCollection, ids, LOG_CONTEXT),
     }
 }
@@ -263,6 +264,7 @@ function useInvoiceVersion(id: string | undefined): string {
 // The invoice kind's data source: every `useStore` of an invoice collection.
 export const INVOICE_DATA: DocumentDataSource = {
     useScreenReads: useInvoiceScreenReads,
+    useParty: customerPartyRead(LOG_CONTEXT),
     useWrites: useInvoiceWrites,
     useVersion: useInvoiceVersion,
 }

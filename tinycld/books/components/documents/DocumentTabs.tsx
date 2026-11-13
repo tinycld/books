@@ -102,9 +102,16 @@ interface DocumentTabsProps {
 
 /**
  * The tabs under a document's title: the form or its details, and the PDF view. The
- * selected tab is the `tab` search param, so a reload or a shared link keeps it.
+ * selected tab is the `tab` search param, so a reload or a shared link keeps it. A kind
+ * without a PDF (`features.pdf`) draws no tabs and registers no ⌥1 / ⌥2.
  */
-export function DocumentTabs({ selected, firstLabel, scopeOwner }: DocumentTabsProps) {
+export function DocumentTabs(props: DocumentTabsProps) {
+    const { doc } = useDocumentKind()
+    if (!doc.features.pdf) return null
+    return <TabRow {...props} />
+}
+
+function TabRow({ selected, firstLabel, scopeOwner }: DocumentTabsProps) {
     const { doc } = useDocumentKind()
     useTabKeys(doc, firstLabel, scopeOwner)
     return (

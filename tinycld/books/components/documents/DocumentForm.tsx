@@ -1,13 +1,7 @@
-import { eq } from '@tanstack/db'
-import { useLiveQuery } from '@tanstack/react-db'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { errorToString } from '@tinycld/core/lib/errors'
 import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
-import type { TableRow } from '@tinycld/core/lib/forms/values'
-import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
-import { useStore } from '@tinycld/core/lib/pocketbase'
-import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { formatHint, ScopeProvider } from '@tinycld/core/lib/shortcuts'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { FormRenderer, NARROW_BELOW } from '@tinycld/core/ui/forms'
@@ -33,11 +27,17 @@ import { canDeleteStatus, type DocumentStatus } from '../../lib/document-lifecyc
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
+import { lineTableRows } from '../../lib/document-values'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
 import { todayIso } from '../../lib/register-range'
 import { rootErrorOnly } from '../../lib/root-errors'
-import type { SalesDocumentKind } from '../../lib/sales-document-kinds'
+import {
+    DOCUMENT_PARTIES,
+    type DocumentFeatures,
+    type DocumentLineTable,
+    type SalesDocumentKind,
+} from '../../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
@@ -61,89 +61,111 @@ import {
     type DocumentLinesView,
 } from './document-form-context'
 import { useDocumentKind } from './document-kind-context'
+import type { DocumentKind } from './document-kinds'
 
 type EngineForm = UseFormReturn<Record<string, unknown>>
 
-// The definition around the lines table: the header band (every field before `lines`,
-// an admin's custom fields included; split in two rows at the kind's `bandSplitAt` when
-// it names a band field), the table, and the footer (Message and Memo, with the totals:
-// DocumentFooter). Each renderer validates nothing itself: the core hooks build the
-// whole definition's schema at save.
-function splitDefinition(definition: FormDefinition, bandSplitAt: string | null) {
-    const part = (fields: FormDefinition['fields']): FormDefinition => {
+type DefinitionFields = FormDefinition['fields']
+
+// One line table's part of the lines: the table built-in and the custom fields an admin
+// put after it, up to the next table.
+type LineTablePart = { table: DocumentLineTable; definition: FormDefinition }
+
+// The definition around the line tables: the header band (every field before the first
+// line table, an admin's custom fields included; split in two rows at the kind's
+// `bandSplitAt` when it names a band field), the lines (every field from the first line
+// table through the last, custom fields between them included, split per table), and
+// the footer (Message and Memo, with the totals: DocumentFooter). Each renderer validates
+// nothing itself: the core hooks build the whole definition's schema at save.
+function splitDefinition(
+    definition: FormDefinition,
+    bandSplitAt: string | null,
+    lineTables: readonly DocumentLineTable[]
+) {
+    const part = (fields: DefinitionFields): FormDefinition => {
         const pages = new Set(fields.map(field => field.page))
         return { ...definition, fields, pages: definition.pages.filter(p => pages.has(p.key)) }
     }
-    const at = definition.fields.findIndex(field => field.key === 'lines')
-    const bandFields = at < 0 ? definition.fields : definition.fields.slice(0, at)
+    const fields = definition.fields
+    const tableAt = lineTables
+        .map(table => ({ table, at: fields.findIndex(field => field.key === table.key) }))
+        .filter(entry => entry.at >= 0)
+        .sort((a, b) => a.at - b.at)
+    const first = tableAt[0]?.at ?? -1
+    const last = tableAt[tableAt.length - 1]?.at ?? -1
+    const bandFields = first < 0 ? fields : fields.slice(0, first)
     const splitAt = bandSplitAt ? bandFields.findIndex(field => field.key === bandSplitAt) : -1
     const band = splitAt < 0 ? bandFields : bandFields.slice(0, splitAt)
     const bandSecond = splitAt < 0 ? [] : bandFields.slice(splitAt)
-    if (at < 0) {
-        return { band: part(band), bandSecond: part(bandSecond), lines: part([]), footer: part([]) }
-    }
-    return {
-        band: part(band),
-        bandSecond: part(bandSecond),
-        lines: part(definition.fields.slice(at, at + 1)),
-        footer: part(definition.fields.slice(at + 1)),
-    }
+    const tables: LineTablePart[] = tableAt.map(({ table, at }, index) => {
+        const end = index + 1 < tableAt.length ? tableAt[index + 1].at : last + 1
+        return { table, definition: part(fields.slice(at, end)) }
+    })
+    const footer = first < 0 ? [] : fields.slice(last + 1)
+    return { band: part(band), bandSecond: part(bandSecond), tables, footer: part(footer) }
 }
 
-// The customer the form names now: the stored one, then each pick. One live query, so
-// every header field and line cell reads the same row.
-function useFormCustomer(form: EngineForm, logContext: string) {
-    const [customersCollection] = useStore('books_customers')
-    const watched = useWatch({ control: form.control, name: 'customer' })
+// The footer's fields the kind draws: no Message without the message feature.
+function footerOf(footer: FormDefinition, features: DocumentFeatures): FormDefinition {
+    if (features.message) return footer
+    return { ...footer, fields: footer.fields.filter(field => field.key !== 'message') }
+}
+
+/**
+ * The party the form names now (DOCUMENT_PARTIES: a sales kind's customer): the stored
+ * one, then each pick. Read through the kind's data source (`useParty`), one live query of
+ * its own, so every header field and line cell reads the same row; while it loads the
+ * party fields show their loading text, and a failed read shows their error with Retry.
+ */
+function useFormParty(form: EngineForm, documentKind: DocumentKind) {
+    const field = DOCUMENT_PARTIES[documentKind.doc.party].field
+    const watched = useWatch({ control: form.control, name: field })
     const id = typeof watched === 'string' ? watched : ''
-    const query = useLiveQuery({
-        query: q => {
-            if (!id) return undefined
-            return q
-                .from({ c: customersCollection })
-                .where(({ c }) => eq(c.id, id))
-                .findOne()
-        },
-        // Its own key: the screen's customer query has other consumers and its own
-        // error handling (the screen's Retry).
-        queryKey: ['books.document.form-customer', id],
-    })
-    const retry = () => {
-        if (!query.collection) return
-        void recoverLiveQueries({
-            queries: [query.collection],
-            sources: [customersCollection],
-            onError: err => log.error(logContext, err),
-        })
-    }
-    return {
-        customer: id ? query.data : undefined,
-        isLoading: id !== '' && query.isLoading,
-        isError: query.isError,
-        retry,
-    }
+    const read = documentKind.data.useParty(id)
+    return { party: read.data, isLoading: read.isLoading, isError: read.isError, retry: read.retry }
 }
 
 function moneyOrTooLarge(cents: number, isTooLarge: boolean, currency: string) {
     return isTooLarge ? TOO_LARGE_TEXT : formatMoney(cents, currency)
 }
 
-// The live totals, the big figure and each line's Amount cell, from the lines and the
-// chosen tax: one pass per change for the whole form.
+// Every line table's rows, keyed by the table's key. One watch of all the tables, so a
+// change to any of them recomputes the totals once.
+function useWatchedTables(form: EngineForm, tables: readonly DocumentLineTable[]) {
+    const names = useMemo(() => tables.map(table => table.key), [tables])
+    const watched = useWatch({ control: form.control, name: names })
+    return Object.fromEntries(names.map((name, index) => [name, watched[index]]))
+}
+
+// The live totals, the big figure and each line's Amount cell, from every line table and
+// the chosen tax: one pass per change for the whole form. A kind with more than one table
+// shows each table's subtotal (only a table with a line whose amount is not 0) in place
+// of one Subtotal; a kind without sales tax has no tax line.
 function useDocumentTotals(form: EngineForm, scope: DocumentFormScope) {
-    const watched = useWatch({ control: form.control, name: 'lines' })
+    const { kind } = scope
+    const values = useWatchedTables(form, kind.lineTables)
     const taxRate = useWatch({ control: form.control, name: 'tax_rate' })
     const { tax, label } = documentTaxOf(scope.taxRows, typeof taxRate === 'string' ? taxRate : '')
-    const lines = (Array.isArray(watched) ? watched : []) as TableRow[]
-    const amounts = lineAmountViews(lines, scope.currency)
-    const totals = shownDocumentTotals({ lines }, tax, scope.currency)
+    const amounts = Object.fromEntries(
+        kind.lineTables.map(table => [
+            table.key,
+            lineAmountViews(lineTableRows(values, table.key), scope.currency),
+        ])
+    )
+    const totals = shownDocumentTotals(values, tax, scope.currency, kind.lineTables)
     const figure = bigFigureText(totals, scope.currency)
     const none = '—'
     const tooLarge = totals?.isTooLarge ?? false
     const taxAmount = totals ? moneyOrTooLarge(totals.taxTotal, tooLarge, scope.currency) : none
+    const hasOneTable = kind.lineTables.length <= 1
+    const subtotal = totals?.subtotal ?? null
+    const subtotalText =
+        subtotal === null ? none : moneyOrTooLarge(subtotal, tooLarge, scope.currency)
+    const taxLine = kind.features.tax && label !== null ? { label, amount: taxAmount } : null
     const view: DocumentTotalsView = {
-        subtotal: totals ? moneyOrTooLarge(totals.subtotal, tooLarge, scope.currency) : none,
-        tax: label === null ? null : { label, amount: taxAmount },
+        subtotal: hasOneTable ? subtotalText : null,
+        tableSubtotals: totals?.tableSubtotals ?? [],
+        tax: taxLine,
         total: figure,
         last: figure,
     }
@@ -206,8 +228,8 @@ function useScreenHoldRelease(documentId: string | undefined) {
 }
 
 // Whether core draws the lines table as cards: it measures the table's container and
-// switches below NARROW_BELOW. The lines renderer is the only child of the measured view,
-// so both read the same width.
+// switches below NARROW_BELOW. The lines renderers are the only children of the measured
+// view and take its full width, so they all read the same width.
 function useLinesAreCards() {
     const { width, onLayout } = useContainerWidth()
     return { isCards: width > 0 && width < NARROW_BELOW, onLayout }
@@ -268,6 +290,48 @@ function BandSecondRow({ state, definition }: Omit<RendererProps, 'testID'>) {
             <PartRenderer state={state} definition={definition} testID={ids.form} />
         </View>
     )
+}
+
+// The section heading above a line table that has one, unless the definition hides the
+// table.
+function LineTableHeading({ part, testID }: { part: LineTablePart; testID: string }) {
+    const { heading, key } = part.table
+    const tableField = part.definition.fields.find(field => field.key === key)
+    if (heading === null || tableField?.hidden) return null
+    return (
+        <Text testID={testID} className="text-sm font-semibold text-foreground">
+            {heading}
+        </Text>
+    )
+}
+
+// One line table of a kind with more than one, in its own wrapper
+// (`<test id>-<table key>`, underscores as dashes) under its heading.
+function LineTableSection({ state, part }: { state: DocumentFormState; part: LineTablePart }) {
+    const base = `${state.kind.testId}-${part.table.key.replace(/_/g, '-')}`
+    const ids = { section: base, heading: `${base}-heading`, form: `${base}-form` }
+    return (
+        <View testID={ids.section} className="gap-2">
+            <LineTableHeading part={part} testID={ids.heading} />
+            <PartRenderer state={state} definition={part.definition} testID={ids.form} />
+        </View>
+    )
+}
+
+/**
+ * The lines: a kind with one line table draws it as the one renderer of the lines (the
+ * sales kinds, `<test id>-lines-form`); a kind with more draws each table in its own
+ * section, in form order.
+ */
+function DocumentLines({ state, tables }: { state: DocumentFormState; tables: LineTablePart[] }) {
+    if (tables.length === 1) {
+        const testID = `${state.kind.testId}-lines-form`
+        return <PartRenderer state={state} definition={tables[0].definition} testID={testID} />
+    }
+    const sections = tables.map(part => (
+        <LineTableSection key={part.table.key} state={state} part={part} />
+    ))
+    return <View className="gap-6">{sections}</View>
 }
 
 interface FooterProps {
@@ -454,7 +518,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const state = useDocumentForm(documentKind, {
         record: data.record,
         lines: data.lines,
-        customer: data.customer,
+        party: data.party,
         currency: data.currency,
         taxRows: data.taxOptions.rows,
         startValues: data.startValues,
@@ -477,7 +541,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
         writer: data.writer,
     })
     const writes = documentKind.data.useWrites()
-    const formCustomer = useFormCustomer(form, `books.${kind.key}`)
+    const formParty = useFormParty(form, documentKind)
     const expiredOn = expiredOnOf(data.record, todayIso())
     const estimateNumber = estimateNumberOf(data.record, data.estimateSource)
     // Per mounted form: the band's address inputs belong to this form only, so a form
@@ -489,10 +553,10 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
             kind,
             bandKey,
             currency: data.currency,
-            customer: formCustomer.customer,
-            isCustomerLoading: formCustomer.isLoading,
-            customerLoadFailed: formCustomer.isError,
-            retryCustomer: formCustomer.retry,
+            party: formParty.party,
+            isPartyLoading: formParty.isLoading,
+            partyLoadFailed: formParty.isError,
+            retryParty: formParty.retry,
             taxRows: data.taxOptions.rows,
             expiredOn,
             estimateNumber,
@@ -503,7 +567,10 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
             bandKey,
             data.currency,
             data.taxOptions.rows,
-            formCustomer,
+            formParty.party,
+            formParty.isLoading,
+            formParty.isError,
+            formParty.retry,
             expiredOn,
             estimateNumber,
             estimateId,
@@ -555,8 +622,11 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
         downloadPdf: pdf.run,
     })
     const parts = useMemo(
-        () => (state.definition ? splitDefinition(state.definition, kind.bandSplitAt) : null),
-        [state.definition, kind.bandSplitAt]
+        () =>
+            state.definition
+                ? splitDefinition(state.definition, kind.bandSplitAt, kind.lineTables)
+                : null,
+        [state.definition, kind.bandSplitAt, kind.lineTables]
     )
 
     if (!state.isReady || !parts) return <DocumentLoading />
@@ -579,7 +649,9 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const isQuote = kind.lifecycle === 'quote'
     // The PDF tab's save of a new form: the bar's Save draft, or a quote's Save.
     const onPdfSave = isQuote ? onSave : onSaveDraft
-    const moreItems = [pdf.item]
+    // Download PDF only on a kind with a PDF.
+    const moreItems = kind.features.pdf ? [pdf.item] : []
+    const footer = footerOf(parts.footer, kind.features)
     const pdfDocumentId = draftId ?? null
     // A quote is titled by its stored number, so it reads as stored only once its row is
     // here (a written id alone has no number yet); a posting draft is stored once written.
@@ -600,7 +672,6 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
         form: `${kind.testId}-form`,
         errorSummary: `${kind.testId}-error-summary`,
         lines: `${kind.testId}-lines`,
-        linesForm: `${kind.testId}-lines-form`,
     }
 
     return (
@@ -640,16 +711,12 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                     />
                                     <View testID={ids.lines} onLayout={linesLayout.onLayout}>
                                         <DocumentLinesContext.Provider value={linesView}>
-                                            <PartRenderer
-                                                state={state}
-                                                definition={parts.lines}
-                                                testID={ids.linesForm}
-                                            />
+                                            <DocumentLines state={state} tables={parts.tables} />
                                         </DocumentLinesContext.Provider>
                                     </View>
                                     <DocumentFooter
                                         state={state}
-                                        definition={parts.footer}
+                                        definition={footer}
                                         totals={totals.view}
                                         isStacked={isFooterStacked}
                                     />

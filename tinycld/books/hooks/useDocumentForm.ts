@@ -3,6 +3,7 @@ import type { FormHostUi } from '@tinycld/core/lib/forms/host-ui'
 import type { EvalContext } from '@tinycld/core/lib/forms/logic'
 import { tableRowsOf } from '@tinycld/core/lib/forms/table-rows'
 import { type FormHost, useFormHost } from '@tinycld/core/lib/forms/use-form-hosts'
+import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
 import { z } from '@tinycld/core/ui/form'
 import { useFormCreate, useFormEdit, useHostUi } from '@tinycld/core/ui/forms'
@@ -10,7 +11,7 @@ import { type RefObject, useMemo, useRef } from 'react'
 import { useWatch } from 'react-hook-form'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { defaultTaxRateId } from '../lib/document-fills'
-import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
+import type { DocumentLineRow } from '../lib/document-line-columns'
 import { type DepositRule, type DocumentSaveMode, documentSchema } from '../lib/document-schema'
 import { documentTaxOf } from '../lib/document-tax'
 import type { DocumentFormValuesBase } from '../lib/document-values'
@@ -50,7 +51,7 @@ function useDocumentHost(kind: SalesDocumentKind) {
 
 type TaxRows = DocumentScreenData['taxOptions']['rows']
 
-type FormInput = Pick<DocumentScreenData, 'record' | 'lines' | 'customer' | 'currency'> & {
+type FormInput = Pick<DocumentScreenData, 'record' | 'lines' | 'party' | 'currency'> & {
     taxRows: TaxRows
     // A new form's values when it corrects (`?replaces`) or copies (`?copy`) a document.
     startValues?: DocumentFormValuesBase
@@ -95,6 +96,23 @@ function documentRecordSchema(
                 ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
             }
         })
+}
+
+// A stored document's lines as each line table's form rows, by the table's spec
+// (DocumentKind.lineSpecs). A kind with one table gets every line there; with more, each
+// table gets the lines of its own row kinds.
+export function storedTableRowsOf(
+    documentKind: DocumentKind,
+    lines: readonly DocumentLineRow[]
+): Record<string, TableRow[]> {
+    const tables = documentKind.doc.lineTables
+    const entries = tables.map(table => {
+        const spec = documentKind.lineSpecs[table.key]
+        const kinds = new Set(spec.rowKinds.map(rowKind => rowKind.key))
+        const own = tables.length === 1 ? lines : lines.filter(line => kinds.has(line.kind))
+        return [table.key, tableRowsOf(own, spec.mapper)] as const
+    })
+    return Object.fromEntries(entries)
 }
 
 // The built-ins of a correction's, a copy's or an invoice-from-estimate's values:
@@ -152,7 +170,7 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         ? (builtinValuesOf(input.startValues) ??
           documentKind.values.new({
               today: context.today as string,
-              customer: input.customer ?? null,
+              party: input.party ?? null,
               rates: input.taxRows,
               defaultRateId: defaultTaxRateId(input.taxRows),
               message: input.defaultMessage ?? '',
@@ -160,7 +178,7 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
           }))
         : {}
     const { lines, record } = input
-    const tables = useMemo(() => ({ lines: tableRowsOf(lines, DOCUMENT_LINE_MAPPER) }), [lines])
+    const tables = useMemo(() => storedTableRowsOf(documentKind, lines), [documentKind, lines])
     // The engine reads the row as one flat record of its columns.
     const editRow = useMemo(() => (record ? recordColumnsOf(record) : { id: '' }), [record])
     const schemas = ui?.schemas
@@ -213,9 +231,10 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         // The estimate a new invoice is made from, or a new correction keeps; its insert
         // writes it. A stored invoice's is on its record and is never written again.
         estimate: isNew ? (input.startValues?.estimate ?? '') : '',
-        // The `?customer` a new form was opened with: Post & new keeps only that one. A
-        // copy's or a correction's customer comes from its source, not from the route.
-        openedWithCustomer: isNew && !input.startValues ? input.customer?.id : undefined,
+        // The party a new form was opened with (`?customer`, `?vendor`): Post & new keeps
+        // only that one. A copy's or a correction's party comes from its source, not from
+        // the route.
+        openedWithParty: isNew && !input.startValues ? input.party?.id : undefined,
         // The lines as stored and the tax rows: the save orders its line writes against
         // them (lib/document-line-order.ts).
         storedLines: lines,
