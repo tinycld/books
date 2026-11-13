@@ -109,6 +109,37 @@ func registerLineHooks(app core.App) {
 	})
 }
 
+// Refusals of a write to a field of a line that only Books writes.
+const (
+	msgLineStampByBooks  = "Books sets a line's posted flag and date when it posts the entry."
+	msgLineCurrencyFixed = "A line's currency cannot change."
+)
+
+// checkLineStamp keeps a line's posting stamp and currency Books' own. The
+// posted flag and the date say that the line is in the ledger and on which
+// day; every report and register selects lines by them, and the month rows
+// are written from the entry, so a stamp that disagrees with the entry shows
+// in one and not the other. Only stampPosted writes them, under its mark. The
+// update rule pins these fields for a person; this holds for Go and a
+// superuser too. stored is the line before an update, nil on a create (a new
+// line starts unstamped; its currency is stampCurrency's).
+func checkLineStamp(tx core.App, stored, line *core.Record) error {
+	if stored != nil && stored.GetString("currency") != line.GetString("currency") {
+		return refuse(msgLineCurrencyFixed)
+	}
+	wasPosted, wasDate := false, ""
+	if stored != nil {
+		wasPosted, wasDate = stored.GetBool("posted"), stored.GetString("date")
+	}
+	if line.GetBool("posted") == wasPosted && line.GetString("date") == wasDate {
+		return nil
+	}
+	if isPosting(tx, line.GetString("entry")) {
+		return nil
+	}
+	return refuse(msgLineStampByBooks)
+}
+
 // serializedLine is serialized for a line write: after the write succeeds, in
 // the same transaction, the entry's draft total and revision follow it.
 // check returns how much the write changes the entry's debits: a new line's
