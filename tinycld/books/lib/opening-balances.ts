@@ -354,6 +354,8 @@ export type OpeningEntryRow = {
     status: string
     number: string
     replaces: string
+    // The draft's revision when it was read; a save states it (lib/revision.ts).
+    revision: number
 }
 export type OpeningScreenState =
     | { kind: 'loading' }
