@@ -14,6 +14,11 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
 })
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
+})
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 const { warn } = silenceLog()

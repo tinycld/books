@@ -5,6 +5,7 @@
 import {
     BasicIndex,
     createCollection,
+    createTransaction,
     extractSimpleComparisons,
     localOnlyCollectionOptions,
     type OperationType,
@@ -1198,4 +1199,31 @@ export function messageRefusal(message: string) {
         status: 400,
         response: { message, data: {} },
     })
+}
+
+// The harness's `atomic` (core's batch): every mutation made in `fn` lands together,
+// or none. pbtsdb's own batch refuses a collection it did not build, so a hook test
+// mocks `@tinycld/core/lib/mutations` to serve `atomic` from here, as it serves
+// `useStore` from `useStoreStub`. The batch goes through the same handler as a single
+// write, so a test holds, counts or refuses it with the same controls; a refused batch
+// changes no row.
+export async function atomicStub(fn: () => void): Promise<void> {
+    const transaction = createTransaction({
+        autoCommit: false,
+        mutationFn: async ({ transaction: tx }) => {
+            await refuseSharedWrite({ transaction: tx })
+            const stores = new Set(tx.mutations.map(mutation => mutation.collection))
+            for (const store of stores) {
+                const utils = store.utils as { acceptMutations?: (t: typeof tx) => void }
+                utils.acceptMutations?.(tx)
+            }
+        },
+    })
+    try {
+        transaction.mutate(fn)
+    } catch (error) {
+        transaction.rollback()
+        throw error
+    }
+    await transaction.commit()
 }
