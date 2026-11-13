@@ -33,7 +33,7 @@ import {
 } from '../lib/document-fills'
 import { NO_CUSTOMER_TEXT } from '../lib/document-texts'
 import type { PaymentTermKey } from '../lib/payment-terms'
-import { ESTIMATE_KIND } from '../lib/sales-document-kinds'
+import { DOCUMENT_PARTIES, type DocumentParty, ESTIMATE_KIND } from '../lib/sales-document-kinds'
 import { useDocumentBandStore } from '../stores/document-band-store'
 import { EmailField } from './contact-fields'
 import { TaxRateField } from './tax-fields'
@@ -100,7 +100,7 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
                         .findOne(),
             })
             if (!customer) throw new Error(`customer ${id} not found`)
-            const previousExempt = value === '' ? null : (scope.customer?.tax_exempt ?? null)
+            const previousExempt = value === '' ? null : (scope.party?.tax_exempt ?? null)
             const fills = customerFills(
                 customer,
                 scope.taxRows,
@@ -130,10 +130,16 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
     return { pick, pickFailed }
 }
 
-function customerTriggerLabel(value: string, scope: ReturnType<typeof useDocumentFormScope>) {
-    if (!value) return scope.kind.customerRequired ? 'Choose a customer' : NO_CUSTOMER_TEXT
-    if (scope.customer) return scope.customer.display_name
-    return scope.isCustomerLoading ? '…' : 'Unknown customer'
+// The party's noun in the picker's texts: "customer", "vendor".
+function partyNounOf(party: DocumentParty): string {
+    return party.label.toLowerCase()
+}
+
+function partyTriggerLabel(value: string, scope: ReturnType<typeof useDocumentFormScope>) {
+    const noun = partyNounOf(DOCUMENT_PARTIES[scope.kind.party])
+    if (!value) return scope.kind.customerRequired ? `Choose a ${noun}` : NO_CUSTOMER_TEXT
+    if (scope.party) return scope.party.display_name
+    return scope.isPartyLoading ? '…' : `Unknown ${noun}`
 }
 
 const TAP = { minHeight: 44 }
@@ -146,7 +152,7 @@ function CustomerLoadError({ isVisible, onRetry }: { isVisible: boolean; onRetry
             <ButtonText>Retry</ButtonText>
         </Button>
     ) : null
-    const testID = `${kind.testId}-customer-load-error`
+    const testID = `${kind.testId}-${DOCUMENT_PARTIES[kind.party].field}-load-error`
     return (
         <View
             accessibilityRole="alert"
@@ -197,11 +203,11 @@ function CustomerExemptHint({ isVisible, testID }: { isVisible: boolean; testID:
 // The customer's name on an invoice made from an estimate, whose customer cannot change:
 // '…' while the form's customer loads; its load error and Retry draw under it.
 function readOnlyCustomerText(scope: ReturnType<typeof useDocumentFormScope>): string {
-    if (scope.customer) {
-        const suffix = scope.customer.inactive ? ' (inactive)' : ''
-        return `${scope.customer.display_name}${suffix}`
+    if (scope.party) {
+        const suffix = scope.party.inactive ? ' (inactive)' : ''
+        return `${scope.party.display_name}${suffix}`
     }
-    return scope.isCustomerLoading ? '…' : ''
+    return scope.isPartyLoading ? '…' : ''
 }
 
 /**
@@ -214,7 +220,7 @@ function ReadOnlyCustomer() {
     const scope = useDocumentFormScope()
     const { kind } = scope
     const name = readOnlyCustomerText(scope)
-    const retry = scope.customerLoadFailed ? scope.retryCustomer : undefined
+    const retry = scope.partyLoadFailed ? scope.retryParty : undefined
     const label = `From estimate ${scope.estimateNumber}`
     const ids = { name: `${kind.testId}-customer-read-only`, link: `${kind.testId}-from-estimate` }
     return (
@@ -228,7 +234,7 @@ function ReadOnlyCustomer() {
                 id={scope.estimateId}
                 testID={ids.link}
             />
-            <CustomerLoadError isVisible={scope.customerLoadFailed} onRetry={retry} />
+            <CustomerLoadError isVisible={scope.partyLoadFailed} onRetry={retry} />
         </View>
     )
 }
@@ -249,9 +255,17 @@ export function CustomerField(props: BuiltinFieldProps) {
     return <CustomerPickerField {...props} />
 }
 
-function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: BuiltinFieldProps) {
+// The party picker. Its label is the form definition's (an admin may relabel the locked
+// built-in); its field, test ids and noun texts come from the kind's party
+// (DOCUMENT_PARTIES). The options query, the pick's fills and the tax-exempt hint are the
+// customer's: only the sales kinds draw this picker (a bill's vendor picker is checkpoint
+// 3's VendorField).
+function CustomerPickerField({ value, onChange, disabled, label }: BuiltinFieldProps) {
     const id = textOf(value)
     const scope = useDocumentFormScope()
+    const party = DOCUMENT_PARTIES[scope.kind.party]
+    const fieldKey = party.field
+    const noun = partyNounOf(party)
     const picker = useSearchPicker()
     const trigger = useRef<PressableInstance | null>(null)
     const triggerRef = useCallback((node: PressableInstance | null) => {
@@ -260,16 +274,16 @@ function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: Bui
     const onPicked = () => focusNextField(trigger.current, `${scope.kind.testId}-form`)
     const options = useDocumentCustomerOptions(picker.debouncedTerm, picker.isOpen)
     const { pick, pickFailed } = useCustomerPick(id, onChange)
-    const triggerLabel = customerTriggerLabel(id, scope)
-    const triggerSuffix = scope.customer?.inactive ? '(inactive)' : undefined
+    const triggerLabel = partyTriggerLabel(id, scope)
+    const triggerSuffix = scope.party?.inactive ? '(inactive)' : undefined
     const onPick = (next: string) => {
         void pick(next)
     }
-    const retry = scope.customerLoadFailed ? scope.retryCustomer : undefined
+    const retry = scope.partyLoadFailed ? scope.retryParty : undefined
     const noneOption = scope.kind.customerRequired
         ? undefined
         : { label: NO_CUSTOMER_TEXT, testID: `form-input-${fieldKey}-none` }
-    const isExempt = id !== '' && scope.customer?.tax_exempt === true
+    const isExempt = id !== '' && scope.party?.tax_exempt === true
     return (
         <View>
             <SearchPicker
@@ -281,7 +295,7 @@ function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: Bui
                 triggerAccessibilityLabel={`${label}: ${id ? triggerLabel : 'none'}`}
                 triggerTestId={`form-input-${fieldKey}`}
                 disabled={disabled}
-                searchPlaceholder="Search customers"
+                searchPlaceholder={`Search ${noun}s`}
                 searchTestId={`form-input-${fieldKey}-search`}
                 options={options.options}
                 optionTestIdPrefix={`form-input-${fieldKey}-option`}
@@ -291,7 +305,7 @@ function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: Bui
                 isLoading={options.isLoading}
                 loadFailed={options.loadFailed}
                 onRetry={options.retry}
-                emptyText="No customers match"
+                emptyText={`No ${noun}s match`}
                 autoFocus={Platform.OS === 'web'}
                 triggerRef={triggerRef}
                 onPicked={onPicked}
@@ -300,7 +314,7 @@ function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: Bui
                 isVisible={isExempt}
                 testID={`${scope.kind.testId}-customer-exempt`}
             />
-            <CustomerLoadError isVisible={pickFailed || scope.customerLoadFailed} onRetry={retry} />
+            <CustomerLoadError isVisible={pickFailed || scope.partyLoadFailed} onRetry={retry} />
         </View>
     )
 }
@@ -378,30 +392,32 @@ function BillToBody(props: BuiltinFieldProps & { isEditing: boolean; showsNoCust
 }
 
 /**
- * Bill to: the snapshot of the customer's billing address as text, with "Edit address"
- * (reveals the address inputs and the Email input in the band) and "Edit customer"
- * (pushes the customer's own form, so Back returns to the unsaved document). With no
- * customer on a kind where it is optional, a muted "No customer" until an address is
- * typed; "Edit address" still works.
+ * The party's address (a sales document's Bill to): the snapshot of the party's address
+ * as text, with "Edit address" (reveals the address inputs and the Email input in the
+ * band) and the party's edit link ("Edit customer"), which pushes the party's own form,
+ * so Back returns to the unsaved document. The party, its field, its route and its words
+ * come from the kind's party (DOCUMENT_PARTIES). With no party on a kind where it is
+ * optional, a muted "No customer" until an address is typed; "Edit address" still works.
  */
 export function BillToField(props: BuiltinFieldProps) {
     const { bandKey, kind } = useDocumentFormScope()
+    const party = DOCUMENT_PARTIES[kind.party]
     const editingFor = useDocumentBandStore(s => s.editingFor)
     const edit = useDocumentBandStore(s => s.edit)
     const orgHref = useOrgHref()
-    const customerId = textOf(useWatch<FormValues>({ name: 'customer' }))
+    const partyId = textOf(useWatch<FormValues>({ name: party.field }))
     const isEditing = isEditingBand(bandKey, editingFor)
-    // A kind whose customer is optional says so while the form names none.
-    const showsNoCustomer = !kind.customerRequired && customerId === ''
+    // A kind whose party is optional says so while the form names none.
+    const showsNoCustomer = !kind.customerRequired && partyId === ''
     const onEditAddress = () => edit(bandKey)
-    const onEditCustomer = () => router.push(orgHref(`books/customers/${customerId}`))
+    const onEditParty = () => router.push(orgHref(`${party.routeBase}/${partyId}`))
     const ids = {
-        billTo: `${kind.testId}-bill-to`,
+        address: `${kind.testId}-${party.addressField.replaceAll('_', '-')}`,
         editAddress: `${kind.testId}-edit-address`,
-        editCustomer: `${kind.testId}-edit-customer`,
+        editParty: `${kind.testId}-edit-${party.field}`,
     }
     return (
-        <View testID={ids.billTo} className="gap-1">
+        <View testID={ids.address} className="gap-1">
             <BillToBody {...props} isEditing={isEditing} showsNoCustomer={showsNoCustomer} />
             <View className="flex-row flex-wrap gap-x-4">
                 <LinkButton
@@ -411,10 +427,10 @@ export function BillToField(props: BuiltinFieldProps) {
                     isVisible={!isEditing && !props.disabled}
                 />
                 <LinkButton
-                    label="Edit customer"
-                    onPress={onEditCustomer}
-                    testID={ids.editCustomer}
-                    isVisible={customerId !== ''}
+                    label={party.editLabel}
+                    onPress={onEditParty}
+                    testID={ids.editParty}
+                    isVisible={partyId !== ''}
                 />
             </View>
         </View>

@@ -17,29 +17,45 @@
 // sorted as writes apply (no copy, no sort per check), so a document the default order
 // suits costs one pass per write. Only a write the default order cannot send now adds a
 // search over the pending writes.
+//
+// A kind with more than one line table (a bill's account and product lines) sends the
+// writes of all its tables as one set: the server checks each write against the whole
+// document, so a table's writes are ordered against every table's lines. The default
+// order takes the tables in form order.
 
 import type { TableRowWrite, TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
-import { DOCUMENT_LINE_MAPPER, type DocumentLineRow } from './document-line-columns'
+import type { DocumentLineRow } from './document-line-columns'
 import {
     type DocumentLineInput,
+    type DocumentLineKind,
     type DocumentTax,
     documentTotals,
     MAX_DOCUMENT_LINES,
 } from './document-lines'
+import { documentLinesOf } from './document-values'
 import { maxStoredAmount } from './money-text'
 import type { TableWriteOps, TableWriteStep } from './table-writes'
 
 type StoredLine = { id: string; position: number; line: DocumentLineInput }
 
-type PendingWrite =
+type PendingWrite = { table: string } & (
     | { kind: 'remove'; id: string; position: number }
     | { kind: 'update' | 'insert'; write: TableRowWrite }
+)
 
+// A step of a save's line writes, with the line table its row belongs to.
+export type DocumentTableWriteStep<T> = TableWriteStep<T> & { table: string }
+
+// A stored line of any line kind; `amount` is read only on an account line, whose amount
+// is typed.
 function storedLineOf(
     line: Pick<
         DocumentLineRow,
-        'id' | 'kind' | 'quantity' | 'rate' | 'percent_ppm' | 'taxable' | 'position'
-    >
+        'id' | 'quantity' | 'rate' | 'percent_ppm' | 'taxable' | 'position'
+    > & {
+        kind: DocumentLineKind
+        amount?: number
+    }
 ): StoredLine {
     return {
         id: line.id,
@@ -50,23 +66,16 @@ function storedLineOf(
             rate: line.rate,
             percentPpm: line.percent_ppm,
             taxable: line.taxable,
+            amount: line.amount,
         },
     }
 }
 
+// The line a write stores, as the totals read a form row (documentLinesOf: an account
+// line's typed amount, an item's quantity and rate).
 function writtenLineOf(write: TableRowWrite): StoredLine {
-    const record = DOCUMENT_LINE_MAPPER.toRecord(write.row, write.position)
-    return {
-        id: write.row.id,
-        position: write.position,
-        line: {
-            kind: record.kind,
-            quantity: Number.isFinite(record.quantity) ? record.quantity : 0,
-            rate: record.rate,
-            percentPpm: record.percent_ppm,
-            taxable: record.taxable,
-        },
-    }
+    const [line] = documentLinesOf([write.row])
+    return { id: write.row.id, position: write.position, line }
 }
 
 // The server's line order: position, then id (server/sales_documents.go compareLines).
@@ -103,19 +112,25 @@ function applied(lines: readonly StoredLine[], pending: PendingWrite): StoredLin
 
 const byPosition = (a: TableRowWrite, b: TableRowWrite) => a.position - b.position
 
-function defaultOrder(plan: TableWritePlan, stored: readonly StoredLine[]): PendingWrite[] {
+function defaultOrder(
+    table: string,
+    plan: TableWritePlan,
+    stored: readonly StoredLine[]
+): PendingWrite[] {
     const positions = new Map(stored.map(line => [line.id, line.position]))
     const removes = plan.remove
-        .map(id => ({ kind: 'remove' as const, id, position: positions.get(id) ?? 0 }))
+        .map(id => ({ table, kind: 'remove' as const, id, position: positions.get(id) ?? 0 }))
         .sort((a, b) => b.position - a.position)
     const updates = [...plan.update]
         .sort(byPosition)
-        .map(write => ({ kind: 'update' as const, write }))
+        .map(write => ({ table, kind: 'update' as const, write }))
     const inserts = [...plan.insert]
         .sort(byPosition)
-        .map(write => ({ kind: 'insert' as const, write }))
+        .map(write => ({ table, kind: 'insert' as const, write }))
     return [...removes, ...updates, ...inserts]
 }
+
+type StoredLineInput = Parameters<typeof storedLineOf>[0]
 
 /**
  * The line writes of a save in an order the server accepts one by one: `storedLines` are
@@ -124,26 +139,50 @@ function defaultOrder(plan: TableWritePlan, stored: readonly StoredLine[]): Pend
  * in the table from 1; a removed row has none.
  */
 export function documentLineWriteSteps<T>(input: {
-    storedLines: readonly Parameters<typeof storedLineOf>[0][]
+    storedLines: readonly StoredLineInput[]
     plan: TableWritePlan | undefined
     tax: DocumentTax
     ops: TableWriteOps<T>
 }): TableWriteStep<T>[] {
-    const { plan, ops, tax } = input
-    if (!plan) return []
-    let lines = input.storedLines.map(storedLineOf).sort(byStoredOrder)
-    const pending = defaultOrder(plan, lines)
-    const steps: TableWriteStep<T>[] = []
+    const { plan, ops, ...rest } = input
+    const steps = documentTablesWriteSteps({ ...rest, plans: [{ table: '', plan, ops }] })
+    return steps.map(({ itemNumber, run }) => ({ itemNumber, run }))
+}
+
+/**
+ * The line writes of a save over every line table of a kind, as documentLineWriteSteps
+ * orders one table's: `storedLines` are the document's lines of all its tables, `plans`
+ * each table's plan in form order with the ops that write its rows (each table's rows
+ * convert through its own mapper), and each step names its table.
+ */
+export function documentTablesWriteSteps<T>(input: {
+    storedLines: readonly StoredLineInput[]
+    plans: readonly { table: string; plan: TableWritePlan | undefined; ops: TableWriteOps<T> }[]
+    tax: DocumentTax
+}): DocumentTableWriteStep<T>[] {
+    const { tax } = input
+    const opsByTable = new Map(input.plans.map(({ table, ops }) => [table, ops]))
+    const stepOf = (pending: PendingWrite) => {
+        const ops = opsByTable.get(pending.table)
+        if (!ops) throw new Error(`no line writes for table ${pending.table}`)
+        return tableStepOf(pending, ops)
+    }
+    const storedLines = input.storedLines.map(storedLineOf).sort(byStoredOrder)
+    const pending = input.plans.flatMap(({ table, plan }) =>
+        plan ? defaultOrder(table, plan, storedLines) : []
+    )
+    let lines = storedLines
+    const steps: DocumentTableWriteStep<T>[] = []
     while (pending.length > 0) {
         const index = nextWriteIndex(pending, lines, tax)
         if (index < 0) {
             // The server refuses the next write and the save stops at it.
-            for (const write of pending) steps.push(stepOf(write, ops))
+            for (const write of pending) steps.push(stepOf(write))
             break
         }
         const [next] = pending.splice(index, 1)
         lines = applied(lines, next)
-        steps.push(stepOf(next, ops))
+        steps.push(stepOf(next))
     }
     return steps
 }
@@ -158,9 +197,12 @@ function nextWriteIndex(
     return pending.findIndex(write => isStorable(applied(lines, write), tax))
 }
 
-function stepOf<T>(pending: PendingWrite, ops: TableWriteOps<T>): TableWriteStep<T> {
-    if (pending.kind === 'remove') return { itemNumber: null, run: () => ops.remove(pending.id) }
+function tableStepOf<T>(pending: PendingWrite, ops: TableWriteOps<T>): DocumentTableWriteStep<T> {
+    const { table } = pending
+    if (pending.kind === 'remove') {
+        return { table, itemNumber: null, run: () => ops.remove(pending.id) }
+    }
     const { write } = pending
     const run = pending.kind === 'update' ? () => ops.update(write) : () => ops.insert(write)
-    return { itemNumber: write.position + 1, run }
+    return { table, itemNumber: write.position + 1, run }
 }

@@ -15,7 +15,7 @@ import { NO_CUSTOMER_TEXT } from '../../lib/document-texts'
 import { stampText } from '../../lib/entry-display'
 import { formatMoney } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
-import type { DocumentLifecycle } from '../../lib/sales-document-kinds'
+import type { SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
@@ -37,12 +37,14 @@ const LINK_STYLE = { minHeight: 44 }
 // a group's components), and the stored tax total. A posting document with a rate but no
 // snapshot rows (no line was taxable) shows the rate's name and the stored tax total, as
 // there is no snapshot percent to show.
+// A kind without sales tax (`features.tax`) has no tax line.
 function readTaxLine(
     data: DocumentScreenData,
     record: DocumentRecord,
-    lifecycle: DocumentLifecycle
+    doc: Pick<SalesDocumentKind, 'lifecycle' | 'features'>
 ): DocumentTotalsView['tax'] {
-    if (!record.tax_rate) return null
+    const { lifecycle } = doc
+    if (!doc.features.tax || !record.tax_rate) return null
     const amount = (cents: number) => formatMoney(cents, data.currency)
     const name = record.taxRateRow?.name ?? 'Tax'
     if (lifecycle === 'quote') {
@@ -60,13 +62,16 @@ function readTaxLine(
 function readTotals(
     data: DocumentScreenData,
     record: DocumentRecord,
-    lifecycle: DocumentLifecycle
+    doc: Pick<SalesDocumentKind, 'lifecycle' | 'features' | 'lineTables'>
 ): DocumentTotalsView {
     const money = (cents: number) => formatMoney(cents, data.currency)
     const total = money(record.total)
+    // A kind with more than one line table has no single Subtotal row.
+    const subtotal = doc.lineTables.length > 1 ? null : money(record.subtotal)
     return {
-        subtotal: money(record.subtotal),
-        tax: readTaxLine(data, record, lifecycle),
+        subtotal,
+        tableSubtotals: [],
+        tax: readTaxLine(data, record, doc),
         total,
         last: total,
     }
@@ -105,13 +110,16 @@ function ReadBand({ isPhone, record, customer, billTo, date, tax }: BandProps) {
     const direction = isPhone ? 'flex-col gap-3' : 'flex-row gap-6'
     const column = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const bandRow = ReadBandRow ? <ReadBandRow record={record} /> : null
+    // A detail with no value is not drawn (DocumentDetail): a kind without an email shows
+    // none, and one without sales tax has no tax line (readTaxLine), so no Tax.
+    const email = doc.features.email ? record.email : ''
     return (
         <View className="gap-3 rounded-xl border border-border bg-surface-secondary p-4">
             <View className={direction}>
                 <View className={column}>
                     <DocumentDetail field="customer" label="Customer" value={customer} />
                     <DocumentDetail field="bill-to" label="Bill to" value={billTo} />
-                    <DocumentDetail field="email" label="Email" value={record.email} />
+                    <DocumentDetail field="email" label="Email" value={email} />
                 </View>
                 <View className={column}>
                     <View className="flex-row flex-wrap gap-x-6 gap-y-3">
@@ -130,7 +138,7 @@ function ReadBand({ isPhone, record, customer, billTo, date, tax }: BandProps) {
 // "No customer" for a document saved without one (a sales receipt's walk-in sale).
 function customerNameOf(data: DocumentScreenData, record: DocumentRecord): string {
     if (record.customer === '') return NO_CUSTOMER_TEXT
-    return data.customer?.display_name ?? ''
+    return data.party?.display_name ?? ''
 }
 
 // Wide: the totals end under the lines' Amount column (the Tax column's width and the
@@ -264,7 +272,10 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
-    const totals = readTotals(data, record, doc.lifecycle)
+    const totals = readTotals(data, record, doc)
+    const ReadLines = documentKind.ReadLines ?? DocumentReadLines
+    // A kind without a message to the customer shows none (an empty detail is not drawn).
+    const message = doc.features.message ? record.message : ''
     const billTo = billToLines(record).join('\n')
     const customerName = customerNameOf(data, record)
     const date = record.date ? formatDay(record.date) : ''
@@ -296,15 +307,11 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             date={date}
                             tax={tax}
                         />
-                        <DocumentReadLines
-                            lines={data.lines}
-                            currency={data.currency}
-                            isPhone={isPhone}
-                        />
+                        <ReadLines lines={data.lines} currency={data.currency} isPhone={isPhone} />
                         <ReadFooter
                             isPhone={isPhone}
                             totals={totals}
-                            message={record.message}
+                            message={message}
                             memo={record.memo}
                         />
                         <ReadStamps record={record} isPosting={isPosting} />

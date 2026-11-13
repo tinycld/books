@@ -3,7 +3,7 @@ import { INVOICE_MESSAGES } from './document-texts'
 import { TOO_LARGE_TEXT } from './entry-lines'
 import { formatMoney } from './money'
 import { maxStoredAmount } from './money-text'
-import type { SalesDocumentKind } from './sales-document-kinds'
+import type { DocumentLineTable, SalesDocumentKind } from './sales-document-kinds'
 
 // The texts themselves live in lib/document-texts.ts, a module with no imports, so the
 // kinds' data module (lib/sales-document-kinds.ts) loads without the money code below.
@@ -68,11 +68,37 @@ export function documentRefusalTarget(
     return 'root'
 }
 
-// The refusal text of a line write, with the write's "Line n" label in front. The
-// server's line checks already start their text with the stored line's number, which
-// is the one the user sees, so such a text keeps its own label and gets no second one.
+function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// "<row label> <n>:" at the start of a refusal ("Line 3:", "Account line 2:").
+function rowLabelPattern(rowLabel: string): RegExp {
+    return new RegExp(`^${escapeRegExp(rowLabel)} (\\d+):`)
+}
+
+// The line table and the zero-based line a refusal text numbers, by the row labels of
+// the kind's line tables ("Line 3: …" on a sales kind, "Account line 2: …" on a bill);
+// null for a text that numbers none of them.
+export function tableLineRefusal(
+    message: string,
+    tables: readonly Pick<DocumentLineTable, 'key' | 'rowLabel'>[]
+): { table: string; line: number } | null {
+    for (const table of tables) {
+        const match = rowLabelPattern(table.rowLabel).exec(message)
+        if (match) return { table: table.key, line: Number(match[1]) - 1 }
+    }
+    return null
+}
+
+// The refusal text of a line write, with the write's "<row label> <n>" label in front.
+// The server's line checks already start their text with the stored line's number under
+// the same row label, which is the one the user sees, so such a text keeps its own label
+// and gets no second one.
 export function labelledLineRefusal(rowLabel: string | null, message: string): string {
     if (rowLabel === null || LINE_REFUSAL.test(message)) return message
+    const labelWord = rowLabel.replace(/ \d+$/, '')
+    if (rowLabelPattern(labelWord).test(message)) return message
     return `${rowLabel}: ${message}`
 }
 
@@ -81,7 +107,10 @@ const NO_TOTAL = '—'
 // The header's big figure (an invoice's Balance due): a dash while the lines do not add
 // up, "Too large" past the limit (a line past it, or a total past what Books can store),
 // else the total as money.
-export function bigFigureText(totals: DocumentTotals | null, currency: string): string {
+export function bigFigureText(
+    totals: Pick<DocumentTotals, 'isTooLarge' | 'total'> | null,
+    currency: string
+): string {
     if (totals === null) return NO_TOTAL
     if (totals.isTooLarge || Math.abs(totals.total) > maxStoredAmount) return TOO_LARGE_TEXT
     return formatMoney(totals.total, currency)

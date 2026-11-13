@@ -1,7 +1,9 @@
 // The kinds of the sales document layer (spec §3.1): every text, route, test id and key
-// the shared layer reads per kind. Data only: this module and the one it imports load no
-// other code, as the generator loads them in Node through forms/hosts.ts. The per-kind
-// reads and writes live in hooks/<kind>-data.ts.
+// the shared layer reads per kind. The layer keeps its "sales" names but serves purchase
+// documents (a bill) too: a kind names its party, its line tables and the features it
+// has. Data only: this module and the one it imports load no other code, as the
+// generator loads them in Node through forms/hosts.ts. The per-kind reads and writes
+// live in hooks/<kind>-data.ts.
 
 import {
     type DocumentMessages,
@@ -19,6 +21,66 @@ export type SalesDocKey = 'invoice' | 'sales_receipt' | 'estimate'
 // How a kind's statuses run (lib/document-lifecycle.ts): `posting` (draft → posted →
 // void) or `quote` (pending / accepted / rejected → closed, never posted).
 export type DocumentLifecycle = 'posting' | 'quote'
+
+// The party a document is with: its header field, which also names it on every journal
+// line the document posts.
+export type DocumentPartyKey = 'customer' | 'vendor'
+
+export type DocumentParty = {
+    // The header built-in that holds the party's id.
+    field: DocumentPartyKey
+    label: string
+    // The built-in that holds the party's address snapshot, and its label.
+    addressField: 'bill_to' | 'mailing_address'
+    addressLabel: string
+    // The "Edit <party>" link, and the party's own routes without the org prefix.
+    editLabel: string
+    routeBase: string
+    // The refusal of an inactive party; `%s` is its name.
+    inactiveText: string
+}
+
+export const DOCUMENT_PARTIES: Record<DocumentPartyKey, DocumentParty> = {
+    customer: {
+        field: 'customer',
+        label: 'Customer',
+        addressField: 'bill_to',
+        addressLabel: 'Bill to',
+        editLabel: 'Edit customer',
+        routeBase: 'books/customers',
+        inactiveText: '%s is inactive. Choose an active customer.',
+    },
+    vendor: {
+        field: 'vendor',
+        label: 'Vendor',
+        addressField: 'mailing_address',
+        addressLabel: 'Mailing address',
+        editLabel: 'Edit vendor',
+        routeBase: 'books/vendors',
+        inactiveText: '%s is inactive. Choose an active vendor.',
+    },
+}
+
+// One line table of a kind: the forms host's table built-in (`key`), the label of its
+// rows in a refusal ("Line 3"), the section heading above it (none on a kind with one
+// table), and its own subtotal row in the totals (none on a kind with one table, whose
+// Subtotal row sums it).
+export type DocumentLineTable = {
+    key: string
+    rowLabel: string
+    heading: string | null
+    subtotal: { label: string; testId: string } | null
+}
+
+export const SALES_LINE_TABLES: readonly DocumentLineTable[] = [
+    { key: 'lines', rowLabel: 'Line', heading: null, subtotal: null },
+]
+
+// What a kind has besides its lines: sales tax, a message to the customer, an email and
+// a PDF. A kind without one draws none of its fields, rows, actions or keys.
+export type DocumentFeatures = { tax: boolean; message: boolean; email: boolean; pdf: boolean }
+
+export const SALES_FEATURES: DocumentFeatures = { tax: true, message: true, email: true, pdf: true }
 
 export type SalesDocumentKind = {
     key: SalesDocKey
@@ -39,6 +101,8 @@ export type SalesDocumentKind = {
     // The header's big figure and the last row of the totals; null draws no last row.
     figure: { label: string; testId: string }
     lastTotal: { label: string; testId: string } | null
+    // Whether the party is required (the name predates purchase kinds, whose party is a
+    // vendor).
     customerRequired: boolean
     noteHints: { message: string; memo: string }
     messages: DocumentMessages
@@ -48,6 +112,10 @@ export type SalesDocumentKind = {
     bandSplitAt: string | null
     // A help topic id, `<package>:<topic>`.
     helpTopic: `${string}:${string}`
+    party: DocumentPartyKey
+    // The kind's line tables in form order, all summed into one set of totals.
+    lineTables: readonly DocumentLineTable[]
+    features: DocumentFeatures
 }
 
 export const INVOICE_KIND: SalesDocumentKind = {
@@ -70,6 +138,9 @@ export const INVOICE_KIND: SalesDocumentKind = {
     pdfStem: number => (number ? `invoice-${number}` : 'draft-invoice'),
     bandSplitAt: null,
     helpTopic: 'books:invoices',
+    party: 'customer',
+    lineTables: SALES_LINE_TABLES,
+    features: SALES_FEATURES,
 }
 
 export const SALES_RECEIPT_KIND: SalesDocumentKind = {
@@ -93,6 +164,9 @@ export const SALES_RECEIPT_KIND: SalesDocumentKind = {
     // The Payment row: Payment method, Reference no. and Deposit to.
     bandSplitAt: 'payment_method',
     helpTopic: 'books:sales-receipts',
+    party: 'customer',
+    lineTables: SALES_LINE_TABLES,
+    features: SALES_FEATURES,
 }
 
 // Its messages keep their own type, so a reader of a quote-only text (cannotConvert)
@@ -122,4 +196,7 @@ export const ESTIMATE_KIND: SalesDocumentKind & { messages: typeof ESTIMATE_MESS
     // The status row: Status, Accepted by and Accepted date.
     bandSplitAt: 'status',
     helpTopic: 'books:estimates',
+    party: 'customer',
+    lineTables: SALES_LINE_TABLES,
+    features: SALES_FEATURES,
 }

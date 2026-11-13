@@ -7,7 +7,6 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { defaultDepositAccount, isDepositAccountRow } from '../lib/deposit-accounts'
-import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { SALES_RECEIPT_MESSAGES } from '../lib/document-texts'
 import { columnsOrThrow } from '../lib/record-save'
 import { SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
@@ -17,6 +16,7 @@ import {
 } from '../lib/sales-receipt-columns'
 import { depositShown } from '../lib/sales-settings'
 import type { BooksSalesReceipts } from '../types'
+import { customerPartyRead } from './customer-party'
 import {
     type DocumentDataSource,
     type DocumentFormStart,
@@ -246,8 +246,6 @@ function useSalesReceiptWrites(): DocumentWrites {
         'books_sales_receipts',
         'books_sales_receipt_lines'
     )
-    const lineRecord = (write: TableRowWrite) =>
-        DOCUMENT_LINE_MAPPER.toRecord(write.row, write.position)
     return {
         // The columns were checked by salesReceiptColumnsFrom before the save started and
         // laid over EMPTY_SALES_RECEIPT_COLUMNS (DocumentKind.emptyColumns), so they hold
@@ -272,19 +270,22 @@ function useSalesReceiptWrites(): DocumentWrites {
                 draft.status = status
             }),
         deleteRecord: id => receiptsCollection.delete(id),
-        lineOps: receiptId => ({
-            insert: write =>
-                linesCollection.insert({
-                    id: write.row.id,
-                    sales_receipt: receiptId,
-                    ...lineRecord(write),
-                }),
-            update: write =>
-                linesCollection.update(write.row.id, draft => {
-                    Object.assign(draft, lineRecord(write))
-                }),
-            remove: lineId => linesCollection.delete(lineId),
-        }),
+        lineOps: (receiptId, mapper) => {
+            const lineRecord = (write: TableRowWrite) => mapper.toRecord(write.row, write.position)
+            return {
+                insert: write =>
+                    linesCollection.insert({
+                        id: write.row.id,
+                        sales_receipt: receiptId,
+                        ...lineRecord(write),
+                    }),
+                update: write =>
+                    linesCollection.update(write.row.id, draft => {
+                        Object.assign(draft, lineRecord(write))
+                    }),
+                remove: lineId => linesCollection.delete(lineId),
+            }
+        },
         evictLines: ids => evictRows(linesCollection, ids, LOG_CONTEXT),
     }
 }
@@ -299,6 +300,7 @@ function useSalesReceiptVersion(id: string | undefined): string {
 // The sales receipt kind's data source: every `useStore` of a sales receipt collection.
 export const SALES_RECEIPT_DATA: DocumentDataSource = {
     useScreenReads: useSalesReceiptScreenReads,
+    useParty: customerPartyRead(`books.${SALES_RECEIPT_KIND.key}`),
     useWrites: useSalesReceiptWrites,
     useVersion: useSalesReceiptVersion,
 }

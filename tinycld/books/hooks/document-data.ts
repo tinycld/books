@@ -1,6 +1,7 @@
 import type { Transaction } from '@tanstack/react-db'
 import type { Users } from '@tinycld/core/types/pbSchema'
 import { useRef } from 'react'
+import type { DocumentLineMapper } from '../components/documents/document-kinds'
 import { type DocumentStatus, isReadOnlyStatus } from '../lib/document-lifecycle'
 import type { DocumentLineRow } from '../lib/document-line-columns'
 import type { DepositRule } from '../lib/document-schema'
@@ -11,6 +12,7 @@ import type { CopyDeposit } from '../lib/sales-receipt-values'
 import type { TableWriteOps } from '../lib/table-writes'
 import type {
     BooksAccounts,
+    BooksCustomers,
     BooksEstimates,
     BooksInvoices,
     BooksInvoiceTaxLines,
@@ -29,7 +31,10 @@ export type DocumentScreenInput = {
     id: string | null
     replaces?: string
     copy?: string
+    // The party a new form is opened with (`?customer`, or `?vendor` on a kind whose party
+    // is a vendor): the screen reads the one its kind's party names.
     customer?: string
+    vendor?: string
     fresh?: string
     // On an invoice's new form: the estimate it is made from (Convert to invoice).
     estimate?: string
@@ -110,6 +115,14 @@ export function expiredOnOf(record: DocumentRecord | undefined, today: string): 
     return isExpired(estimate, today) ? fields.expiration_date : null
 }
 
+// The id of a document's party (DOCUMENT_PARTIES): a purchase kind keeps its vendor in
+// its own columns (`kindFields.vendor`); every sales kind's party is `customer`.
+export function documentPartyIdOf(record: Pick<DocumentSource, 'customer' | 'kindFields'>): string {
+    const fields = record.kindFields
+    if ('vendor' in fields && typeof fields.vendor === 'string') return fields.vendor
+    return record.customer
+}
+
 // A kind's own input to its new form's values and to a copy's, which its data source
 // reads: none for an invoice or an estimate; for a sales receipt, how Deposit to is
 // chosen.
@@ -174,14 +187,35 @@ export type DocumentWrites = {
     ): DocumentTransaction
     setStatus(id: string, status: 'posted' | 'void'): DocumentTransaction
     deleteRecord(id: string): DocumentTransaction
-    // A line insert sets the parent field.
-    lineOps(parentId: string): TableWriteOps<DocumentTransaction>
+    // One line table's writes: each row converts through the table's mapper
+    // (DocumentKind.lineSpecs), and a line insert sets the parent field.
+    lineOps(parentId: string, mapper: DocumentLineMapper): TableWriteOps<DocumentTransaction>
     // Takes line rows out of the store at once (a new document deleted after a refusal).
     evictLines(ids: string[]): void
 }
 
+// The party row a form and a screen read: a sales kind's customer. (A purchase kind adds
+// its vendor row to this union.)
+export type DocumentPartyRow = BooksCustomers
+
+// One read of the party a document names: its row (undefined with no id, while it loads,
+// or when it does not exist), its state, what the screen's one Retry recovers (empty
+// unless it failed) and a Retry of this read alone.
+export type DocumentPartyRead = {
+    data: DocumentPartyRow | undefined
+    isLoading: boolean
+    isReady: boolean
+    isError: boolean
+    recovery: LiveRecovery
+    retry: () => void
+}
+
 export type DocumentDataSource = {
     useScreenReads(input: DocumentScreenInput & { isHeld: boolean }): DocumentScreenReads
+    // The party `id` names ('' reads nothing), from the collection of the kind's party.
+    // Each call is its own live query: the screen's and the form's reads fail and recover
+    // apart.
+    useParty(id: string): DocumentPartyRead
     useWrites(): DocumentWrites
     // The stored document's `updated`, read from its own row ('' with no id): every write
     // moves it, so the PDF view fetches again.

@@ -1,3 +1,6 @@
+import type { HostTableColumn } from '@tinycld/core/lib/forms/definition'
+import type { HostRowKind } from '@tinycld/core/lib/forms/host'
+import type { TableRowMapper } from '@tinycld/core/lib/forms/table-rows'
 import type { ComponentType, ReactNode } from 'react'
 import type {
     DocumentDataSource,
@@ -10,7 +13,13 @@ import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
 import type { CustomerFill, TaxRateFill } from '../../lib/document-fills'
-import type { DocumentLineRow } from '../../lib/document-line-columns'
+import {
+    DOCUMENT_LINE_COLUMNS,
+    DOCUMENT_LINE_MAPPER,
+    DOCUMENT_ROW_KINDS,
+    type DocumentLineRow,
+    type DocumentLineValues,
+} from '../../lib/document-line-columns'
 import type { DocumentFormValuesBase } from '../../lib/document-values'
 import { EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../../lib/estimate-columns'
 import { copyEstimateValues, newEstimateValues } from '../../lib/estimate-values'
@@ -38,6 +47,7 @@ import {
     newSalesReceiptValues,
     salesReceiptCorrectionValues,
 } from '../../lib/sales-receipt-values'
+import type { DocumentReadLinesProps } from './DocumentReadLines'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
@@ -51,6 +61,25 @@ export type DocumentReadDetailsProps = {
 
 export type DocumentReadBandRowProps = { record: DocumentRecord }
 
+// How a kind's stored line rows map to a line table's form rows and back. The sales
+// kinds' lines are DocumentLineRow.
+export type DocumentLineMapper = TableRowMapper<DocumentLineRow, DocumentLineValues>
+
+// One line table's columns, row kinds and mapper, as its forms host built-in has them.
+export type DocumentLineSpec = {
+    columns: readonly HostTableColumn[]
+    rowKinds: readonly HostRowKind[]
+    mapper: DocumentLineMapper
+}
+
+const SALES_LINE_SPECS: Record<string, DocumentLineSpec> = {
+    lines: {
+        columns: DOCUMENT_LINE_COLUMNS,
+        rowKinds: DOCUMENT_ROW_KINDS,
+        mapper: DOCUMENT_LINE_MAPPER,
+    },
+}
+
 /**
  * A sales document kind as the screen runs it: its words and ids (`doc`), its reads and
  * writes, the check of the built-in columns its form writes, the base of a new row's
@@ -63,10 +92,11 @@ export type DocumentKind = {
     // A new row's columns before the form's are laid over them, so a column the form left
     // out is stored empty.
     emptyColumns: Record<string, unknown>
+    // `party` is the form's party row (DOCUMENT_PARTIES[doc.party]: a sales kind's customer).
     values: {
         new: (input: {
             today: string
-            customer: CustomerFill | null
+            party: CustomerFill | null
             rates: TaxRateFill[]
             defaultRateId: string
             // The Books setting "Default message to customer" (defaultMessageFor).
@@ -74,12 +104,12 @@ export type DocumentKind = {
             // Undefined only where no data source read it (a unit test's form).
             start: DocumentStart | undefined
         }) => DocumentFormValuesBase
-        // `customer` is null for a source saved without one (a walk-in sales receipt).
+        // `party` is null for a source saved without one (a walk-in sales receipt).
         copy: (
             source: DocumentSource,
             lines: readonly DocumentLineRow[],
             today: string,
-            customer: CustomerFill | null,
+            party: CustomerFill | null,
             start: DocumentStart
         ) => DocumentFormValuesBase
         correction: (
@@ -92,7 +122,7 @@ export type DocumentKind = {
             estimate: EstimateSource,
             lines: readonly DocumentLineRow[],
             today: string,
-            customer: CustomerFill,
+            party: CustomerFill,
             message: string
         ) => DocumentFormValuesBase
     }
@@ -102,6 +132,10 @@ export type DocumentKind = {
     // A line under the read view's message and memo, below the Posted-by stamp of a posting
     // kind (an invoice's "From estimate <n>", a closed estimate's "Converted to invoice <n>").
     ReadStampRow?: ComponentType<DocumentReadBandRowProps>
+    // Each line table's spec, keyed by the table's key (`doc.lineTables`).
+    lineSpecs: Record<string, DocumentLineSpec>
+    // The read view's lines; DocumentReadLines when absent.
+    ReadLines?: ComponentType<DocumentReadLinesProps>
 }
 
 // The source row with the invoice's own columns back at the top level. The invoice's
@@ -125,14 +159,15 @@ export const INVOICE_DOCUMENT: DocumentKind = {
     columnsFrom: invoiceColumnsFrom,
     emptyColumns: EMPTY_INVOICE_COLUMNS,
     values: {
-        new: newInvoiceValues,
-        copy: (source, lines, today, customer) =>
-            copyInvoiceValues(invoiceRowOf(source), lines, today, invoiceCustomerOf(customer)),
+        new: ({ party, ...input }) => newInvoiceValues({ ...input, customer: party }),
+        copy: (source, lines, today, party) =>
+            copyInvoiceValues(invoiceRowOf(source), lines, today, invoiceCustomerOf(party)),
         correction: (source, lines) => invoiceCorrectionValues(invoiceRowOf(source), lines),
         fromEstimate: invoiceValuesFromEstimate,
     },
     ReadDetails: InvoiceReadDetails,
     ReadStampRow: InvoiceFromEstimateLink,
+    lineSpecs: SALES_LINE_SPECS,
 }
 
 // The source row with the receipt's own columns back at the top level, as invoiceRowOf.
@@ -178,9 +213,9 @@ export const ESTIMATE_DOCUMENT: DocumentKind = {
     columnsFrom: estimateColumnsFrom,
     emptyColumns: EMPTY_ESTIMATE_COLUMNS,
     values: {
-        new: newEstimateValues,
-        copy: (source, lines, today, customer) =>
-            copyEstimateValues(estimateRowOf(source), lines, today, estimateCustomerOf(customer)),
+        new: ({ party, ...input }) => newEstimateValues({ ...input, customer: party }),
+        copy: (source, lines, today, party) =>
+            copyEstimateValues(estimateRowOf(source), lines, today, estimateCustomerOf(party)),
         // A quote is edited in place while it is open and never posts, so it has no
         // correction route (`?replaces`) to start one.
         correction: () => {
@@ -189,6 +224,7 @@ export const ESTIMATE_DOCUMENT: DocumentKind = {
     },
     ReadDetails: EstimateReadDetails,
     ReadStampRow: EstimateConvertedLink,
+    lineSpecs: SALES_LINE_SPECS,
 }
 
 export const SALES_RECEIPT_DOCUMENT: DocumentKind = {
@@ -197,14 +233,18 @@ export const SALES_RECEIPT_DOCUMENT: DocumentKind = {
     columnsFrom: salesReceiptColumnsFrom,
     emptyColumns: EMPTY_SALES_RECEIPT_COLUMNS,
     values: {
-        new: ({ start, ...input }) =>
-            newSalesReceiptValues({ ...input, depositDefault: depositStartOf(start).defaultId }),
-        copy: (source, lines, today, customer, start) =>
+        new: ({ start, party, ...input }) =>
+            newSalesReceiptValues({
+                ...input,
+                customer: party,
+                depositDefault: depositStartOf(start).defaultId,
+            }),
+        copy: (source, lines, today, party, start) =>
             copySalesReceiptValues(
                 salesReceiptRowOf(source),
                 lines,
                 today,
-                customer,
+                party,
                 depositStartOf(start)
             ),
         correction: (source, lines) =>
@@ -212,4 +252,5 @@ export const SALES_RECEIPT_DOCUMENT: DocumentKind = {
     },
     ReadDetails: SalesReceiptReadDetails,
     ReadBandRow: SalesReceiptPaymentRow,
+    lineSpecs: SALES_LINE_SPECS,
 }

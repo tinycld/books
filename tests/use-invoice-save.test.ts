@@ -122,7 +122,7 @@ function Probe({ customer, seen }: ProbeProps) {
     const state = useDocumentForm(INVOICE_DOCUMENT, {
         record: undefined,
         lines: [],
-        customer,
+        party: customer,
         currency: 'USD',
         taxRows: [],
     })

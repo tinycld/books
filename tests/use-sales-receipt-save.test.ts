@@ -96,7 +96,7 @@ function Probe({ hidden, seen }: { hidden: boolean; seen: { current: Seen | null
     const state = useDocumentForm(SALES_RECEIPT_DOCUMENT, {
         record: undefined,
         lines: [],
-        customer: undefined,
+        party: undefined,
         currency: 'USD',
         taxRows: [],
         start: START,
