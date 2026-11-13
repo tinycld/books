@@ -72,6 +72,9 @@ func postEntry(tx core.App, entry *core.Record, now time.Time) error {
 	if err != nil {
 		return err
 	}
+	if err := checkOpeningLines(tx, entry, lines); err != nil {
+		return err
+	}
 	// A transfer's reversal mirrors its lines, so the transfer rules apply to
 	// the transfer itself only.
 	if entry.GetString("doc_type") == docTypeTransfer && entry.GetString("reverses") == "" {

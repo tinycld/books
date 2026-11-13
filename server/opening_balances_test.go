@@ -1,6 +1,7 @@
 package books
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -34,9 +35,20 @@ func mkOpening(t testing.TB, app core.App, date, replaces string, lines ...ln) *
 	return entry
 }
 
+// openingEquity is the equity account the opening fixtures credit. An opening
+// entry has no income or expense line (checkOpeningLines).
+func openingEquity(t testing.TB, app core.App) *core.Record {
+	t.Helper()
+	found, err := app.FindFirstRecordByFilter("books_accounts", "detail_type = 'opening_balance_equity'")
+	if err == nil {
+		return found
+	}
+	return mkAccount(t, app, "Opening Balance Equity", "equity", "opening_balance_equity")
+}
+
 func (env *ledgerEnv) opening(t testing.TB, date, replaces string, amount int) *core.Record {
 	t.Helper()
-	return mkOpening(t, env.app, date, replaces, ln{env.checking, amount, 0}, ln{env.revenue, 0, amount})
+	return mkOpening(t, env.app, date, replaces, ln{env.checking, amount, 0}, ln{openingEquity(t, env.app), 0, amount})
 }
 
 func countOpening(t testing.TB, app core.App, filter string) int {
@@ -62,8 +74,8 @@ func TestOpening_ADraftPostsThroughTheRealPath(t *testing.T) {
 	if d, c := balanceOf(t, env.app, env.checking, "2025-12"); d != 5000 || c != 0 {
 		t.Errorf("checking %d/%d, want 5000/0", d, c)
 	}
-	if d, c := balanceOf(t, env.app, env.revenue, "2025-12"); d != 0 || c != 5000 {
-		t.Errorf("revenue %d/%d, want 0/5000", d, c)
+	if d, c := balanceOf(t, env.app, openingEquity(t, env.app), "2025-12"); d != 0 || c != 5000 {
+		t.Errorf("opening equity %d/%d, want 0/5000", d, c)
 	}
 	requireNoDrift(t, env.app)
 }
@@ -267,19 +279,22 @@ func TestOpening_ADraftCannotReverseAnEntry(t *testing.T) {
 	requireRefused(t, env.app.Save(draft), "An opening balance entry cannot reverse another entry.")
 }
 
-// (11a)
+// (11a) Ten debit lines and ten credit lines of the largest line amount, each
+// on its own account: one line for each account is the opening entry's shape.
 func TestOpening_TotalOverTheStoredLimitIsRefused(t *testing.T) {
 	env := newLedgerEnv(t)
 	var lines []ln
-	for range 10 {
-		lines = append(lines, ln{env.checking, maxAmount, 0}, ln{env.revenue, 0, maxAmount})
+	for i := range 10 {
+		bank := mkAccount(t, env.app, fmt.Sprintf("Bank %d", i), "bank", "checking")
+		equity := mkAccount(t, env.app, fmt.Sprintf("Owner %d", i), "equity", "opening_balance_equity")
+		lines = append(lines, ln{bank, maxAmount, 0}, ln{equity, 0, maxAmount})
 	}
 	entry := mkOpening(t, env.app, "2025-12-31", "", lines...)
 	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),
 		"largest amount Books can store (90071992547409.91)")
 	requireNothingPosted(t, env.app, entry.Id, maxStoredAmount)
-	if d, c := balanceOf(t, env.app, env.checking, "2025-12"); d != 0 || c != 0 {
-		t.Errorf("a refused post moved a balance: %d/%d", d, c)
+	if n, err := env.app.CountRecords("books_account_balances"); err != nil || n != 0 {
+		t.Errorf("a refused post wrote %d balance rows (err %v)", n, err)
 	}
 }
 
@@ -296,7 +311,7 @@ func TestOpening_BalanceRowOverTheStoredLimitIsRefused(t *testing.T) {
 	if d, c := balanceOf(t, env.app, env.checking, "2025-12"); d != maxStoredAmount-50 || c != 0 {
 		t.Errorf("checking = %d/%d, want the seeded row unchanged", d, c)
 	}
-	if d, c := balanceOf(t, env.app, env.revenue, "2025-12"); d != 0 || c != 0 {
-		t.Errorf("revenue = %d/%d, want no row", d, c)
+	if d, c := balanceOf(t, env.app, openingEquity(t, env.app), "2025-12"); d != 0 || c != 0 {
+		t.Errorf("opening equity = %d/%d, want no row", d, c)
 	}
 }

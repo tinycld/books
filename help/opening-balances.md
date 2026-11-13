@@ -17,6 +17,8 @@ Books balances the entry with the account Opening Balance Equity. Books creates 
 
 Accounts receivable and Accounts payable take one total. You do not enter customers or vendors here.
 
+An opening balance entry has one line for each account. Its lines are on asset, liability and equity accounts only, and no line names a customer or a vendor. The form always writes this shape. If an entry was made in another way (for example, through the API) and has a different shape, Books refuses to post it and tells you which line is wrong.
+
 ## Negative amounts
 
 A negative amount puts the figure on the opposite side of the normal side of the account. For example, enter accumulated depreciation under Assets as a negative amount. To make a figure negative, press the ± button at the left of the amount field, or type a minus sign before the figure, for example -250. After you type a figure, the ± button flips its sign.
