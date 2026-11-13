@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/estimate-form-checkpoints.md
 - reference: docs/plans/estimate-form-reference/
 - evidence: docs/plans/estimate-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~
 - capture manifest: docs/plans/estimate-form-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -181,4 +181,6 @@
 - human: review mode C, no message
 
 ## Final review
-- eval:
+- eval: approved by the human 2026-11-13 at 1c2a9f0 (CI green on books #43: Typecheck & Unit, E2E 4/4). The human accepted the build's defaults on the open decisions: Copy reads Bill to / Email from the customer's current record; "From estimate" on a new invoice pops back to the estimate; Cancel on an invoice that names an estimate returns to the estimate; a Closed estimate keeps Accepted by / Accepted date. Retro items 1–5 approved (agent rules and hook updated; capture lesson merged into lesson 16; the exact-text rule went to the test-writer agent file).
+- human comments and what changed: none beyond the above
+- native: not executed in this run
