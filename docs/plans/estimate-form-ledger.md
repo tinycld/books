@@ -58,6 +58,7 @@
 - cp 3 · fix review NOTE 3: `ReadStamps` renders an empty `gap-1` view on pending / accepted / rejected estimate read views (may add one gap at the bottom).
 - cp 3 · fix review NOTE 4: a quote kind without `deleteTitle` / `deleteBody` / `deleteAction` would fall back to the draft dialog's words; `ESTIMATE_MESSAGES`' `satisfies` prevents it today.
 - cp 3 · e2e: search opens a second screen of a record already lower in the Books stack (core search navigation); a spec that reopens by search locates the visible screen.
+- cp 4 · reviewer A NOTE 3: `tests/doc-types.test.ts` checks `sequenceHelper('invoice')` with `toContain('applies to invoices posted from now on.')` (as the brief asks), not the full text; drift in the two sentences after it is caught only by the estimate and journal `toBe` cases.
 
 ## Out-of-plan changes
 - cp 1 · `server/pdf_invoice.go`: `documentPDFTaxLines` used the tax snapshot for every non-draft status, so a pending estimate would query collection ""; it now uses today's rates when the kind has no snapshot collection. Invoice and receipt unchanged.
@@ -83,6 +84,8 @@
 - cp 3 · `tinycld/books/lib/document-values.ts`: `estimate?` on the start values, beside `replaces`.
 - cp 3 · `tinycld/books/lib/document-routes.ts`: `documentStackRouteName(kind)` for the pop-or-push links.
 - cp 3 · fix round: `tinycld/books/stores/document-save-store.ts` (`writtenId`, reviewer A BLOCK 1), `tinycld/books/lib/sales-document-kinds.ts` (`ESTIMATE_KIND` messages type, reviewer B 10), `tinycld/books/hooks/useOpenDocument.ts` (new, the pop-or-push rule), `tinycld/books/components/documents/DocumentReadView.tsx` (`ReadStamps` for both lifecycles, critic B1).
+
+- cp 4 · fix round (reviewer B 1): `tinycld/books/lib/tax-messages.ts` (`DEFAULT_HELP`), `help/sales-tax.md`, `tests/tax-messages.test.ts`, `tests/e2e/tax-rates-actions.spec.ts` — the Default-for-new-sales text now names estimates (a new estimate starts with the default rate); brief Do 2 had kept the old sentence.
 
 ## Phase notes
 - phase 1: none (unattended; intake in auto-helix staging intake.md)
@@ -157,6 +160,24 @@
 - reviewer-caught deferrals: reviewer A DEFERRAL 1 (test 2 reopened by link, not search) → fixed now (T2); not self-declared (a settled test change, not an implementer skip).
 - deferrals: none open. Rebuttals: none. Design notes: cp 3 rows (10). Out-of-plan: cp 3 rows (10).
 - commit: see git (feat(books): convert estimates to invoices, delete and undo)
+- human: review mode C, no message
+
+## Checkpoint 4
+- test writer: tests/doc-types.test.ts (3 `it`s for `sequenceHelper`), tests/help-estimates.test.ts (rewritten: full topic), help-invoices, help-settings (one assertion changed to the new card title, one `it` added), help-customers, help-documents (`.test.ts`, added `it`s); e2e books-settings.spec.ts (Numbering test gains steps) and sales-receipt-form-settings.spec.ts (note constant; default-message test gains the card-title and new-estimate steps; its title now says "invoices, estimates and sales receipts", no new test); 23 assertions (21 unit, 2 e2e); red for the right reason: yes (missing export / missing help text / old card texts); untestable: none. books-settings.spec.ts also asserts the Estimates card helper says "estimates saved from now on" (stronger than the Tests bullet; the brief's ledger decision "its helper says "estimates saved from now on"").
+- implementer: `sequenceHelper` in `lib/doc-types.ts`, used by both `SequenceCard` rows; card title and note renamed; help topics estimates (complete), invoices ("Convert an estimate"), customers, documents, settings. DONE (first runner's dispatch; this runner continued from the hand-off).
+- test disputes: none
+- self-declared differences: (1) the tax-rate sentence "Invoices and sales receipts start with this tax…" kept (brief Do 2); the git-excluded scratch route keeps the old texts. (2) help/estimates.md says "The lines take the same keys as on an invoice" and does not repeat the line-key table (the invoices topic has it).
+- gate 1: tests unedited: yes (`git diff --name-only -- tests/` empty) · packages:generate, `tinycld-pkg check`: pass (no Go changed) · estimate-form e2e 9 passed · sales-receipt-form-settings 6 passed · books-settings 17 passed.
+- gate 2: capture `evidence/cp4/capture.json` (settings-numbering, settings-sales; 390/1280, light/dark). Critic (`evidence/cp4/critique.md`): 0 INVALID, 0 BLOCKING, 0 NOTE.
+- gate 3 A (correctness): 0 BLOCK, 3 NOTE, 0 DEFERRAL. NOTE 1 (help/estimates.md says an edit of a posted invoice moves the estimate; `moveEstimateTo` moves it only when the edit posts) → accepted, one-line text fix (fix item 3). NOTE 2 (= B 1) → accepted (fix items T1, 1). NOTE 3 (`sequenceHelper('invoice')` checked with `toContain`, matches the brief) → Design notes.
+- gate 3 B (conformance): script lines: 0. Finding 1 (the Default-for-new-sales text "Invoices and sales receipts start with this tax…" omits estimates, though `lib/estimate-values.ts:48` gives a new estimate the default rate; brief Do 2 kept the sentence) → accepted: the text no longer describes the built behavior (fix items T1, 1; out-of-plan files). Finding 2 (line keys named only through another topic, no link) → accepted (fix item 2: link to `help://books:invoices`).
+- fix round 1: findings file staging `cp/cp4-fix.md` (T1, items 1–3, all cause `help-text`). Test writer T1 (`tests/tax-messages.test.ts`, `tests/e2e/tax-rates-actions.spec.ts` expect the new text): red for the right reason (`DEFAULT_HELP` old text). Implementer items 1–3: all FIXED, no disputes, no declared differences.
+- gate 1 rerun: tests unedited by the implementer: yes · packages:generate, `tinycld-pkg check` (246 files, 4904 tests): pass · tax-rates-actions.spec.ts 3 passed. No shot changed (help and tax-rate texts only; the settings shots show neither), so no re-capture.
+- fix review: round 1: clean. Rounds: 1.
+- gate 3 A notes: 1 to Design notes (NOTE 3).
+- reviewer-caught deferrals: none
+- deferrals: none open. Rebuttals: none. Design notes: cp 4 row (1). Out-of-plan: cp 4 row (1, four files).
+- commit: see git (feat(books): numbering, default message and help for estimates)
 - human: review mode C, no message
 
 ## Final review

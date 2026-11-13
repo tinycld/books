@@ -1,0 +1,19 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "settings-numbering",
+            "url": "/a/books/settings/numbering",
+            "ready": "books-settings-seq-estimate",
+            "hideLabels": ["New"],
+            "height": 1600
+        },
+        {
+            "name": "settings-sales",
+            "url": "/a/books/settings/sales",
+            "ready": "books-settings-default-message",
+            "hideLabels": ["New"],
+            "height": 1000
+        }
+    ]
+}
