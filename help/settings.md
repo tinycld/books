@@ -22,13 +22,13 @@ To change the month the fiscal year starts, open Settings, choose Accounting, pi
 To set how sales receipts deposit and the message new documents start with, open Settings and choose Sales. Everyone with Books access sees the section; only a Books admin can change it. The section has two cards, each with its own Save button:
 
 - Sales receipts: **Sales deposited to**. With Ask (the default), each sales receipt shows Deposit to and you pick the account there. Choose a bank account or an Undeposited funds account to hide Deposit to and deposit every sale to that account. While an account is chosen, Books does not let you make it inactive, delete it, or change it to a type that cannot take deposits.
-- Invoices and sales receipts: **Default message to customer**, at most 4000 characters. New invoices and sales receipts start with this message, and you can change it on each one. A change does not touch documents that you already made.
+- Invoices, estimates and sales receipts: **Default message to customer**, at most 4000 characters. New invoices, estimates and sales receipts start with this message, and you can change it on each one. A change does not touch documents that you already made.
 
 For more, see [Sales receipts](help://books:sales-receipts).
 
 ## Numbering
 
-To change how entries are numbered, open Settings and choose Numbering. Each document type has a prefix and a next number. A new prefix applies to entries posted from now on, and numbers already issued do not change. The next number can move forward only, so it never repeats a number. If a number is already used, Books shows a message under Next number.
+To change how entries are numbered, open Settings and choose Numbering. Each document type has a card with a prefix and a next number, such as Invoices and Estimates. A new prefix applies to entries posted from now on (on the Estimates card, to estimates saved from now on, because an estimate takes its number when you first save it), and numbers already issued do not change. The next number can move forward only, so it never repeats a number. If a number is already used, Books shows a message under Next number.
 
 ## 1099s
 

@@ -41,10 +41,14 @@ const (
 const docTypeInvoice = "invoice"
 
 // invoiceKind is the invoice as a sales document: it requires a customer,
-// checks its two days, and debits Accounts receivable, which posting creates
-// when the chart has none (ensureReceivables).
+// checks its two days and the estimate it is made from, and debits Accounts
+// receivable, which posting creates when the chart has none
+// (ensureReceivables). Its create closes that estimate, its draft delete or
+// void reopens it, and a correction's post moves it to the correction
+// (estimate_conversion.go).
 var invoiceKind = salesDocKind{
 	DocType:            docTypeInvoice,
+	Lifecycle:          lifecyclePosting,
 	Collection:         "books_invoices",
 	LinesCollection:    "books_invoice_lines",
 	TaxLinesCollection: "books_invoice_tax_lines",
@@ -66,7 +70,15 @@ var invoiceKind = salesDocKind{
 		EditMissing:     msgInvoiceEditMissing,
 		CustomerOnDocs:  msgCustomerOnInvoices,
 	},
-	CheckHeader: func(_ core.App, _, r *core.Record) error { return checkInvoiceDays(r) },
+	CheckHeader: func(tx core.App, stored, r *core.Record) error {
+		if err := checkInvoiceDays(r); err != nil {
+			return err
+		}
+		return checkInvoiceEstimate(tx, stored, r)
+	},
+	AfterCreate: closeEstimateFor,
+	Withdraw:    reopenEstimate,
+	Replace:     moveEstimateTo,
 	DebitAccount: func(tx core.App, _ *core.Record) (string, error) {
 		receivable, err := ensureReceivables(tx)
 		if err != nil {

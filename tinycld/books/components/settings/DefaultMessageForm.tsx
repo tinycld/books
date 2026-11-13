@@ -8,9 +8,9 @@ import type { BooksSettings } from '../../types'
 import { FieldNote } from './SectionCard'
 
 export const DEFAULT_MESSAGE_NOTE =
-    'New invoices and sales receipts start with this message. You can change it on each one.'
+    'New invoices, estimates and sales receipts start with this message. You can change it on each one.'
 
-// "Default message to customer": the message a new invoice or sales receipt starts with.
+// "Default message to customer": the message a new invoice, estimate or sales receipt starts with.
 export function DefaultMessageForm({ settings }: { settings: BooksSettings }) {
     const { form, submit, isPending, isDirty } = useSettingsForm({
         schema: defaultMessageSchema,

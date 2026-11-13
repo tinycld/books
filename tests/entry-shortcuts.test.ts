@@ -10,6 +10,7 @@ import {
     type FormKeyState,
     formKeyAvailable,
     formShortcuts,
+    QUOTE_FORM_KEYS,
     READ_KEYS,
     type ReadKeyAction,
     type ReadKeyState,
@@ -88,6 +89,21 @@ describe('FORM_KEYS and READ_KEYS', () => {
             deleteDraft: '$mod+Backspace',
         })
         expect(READ_KEYS).toEqual({ edit: 'e', void: 'v', reverse: 'r' })
+    })
+})
+
+// The estimate form's keys (spec §3.2): ⌥I for Convert follows the line keys ⌥T / ⌥S
+// (⌘⇧I opens the browser's tools).
+describe('QUOTE_FORM_KEYS', () => {
+    it('maps each quote action to its key', () => {
+        expect(QUOTE_FORM_KEYS).toEqual({
+            saveAndClose: '$mod+Enter',
+            saveAndNew: '$mod+Shift+Enter',
+            save: '$mod+s',
+            cancel: 'Escape',
+            deleteRecord: '$mod+Backspace',
+            convert: 'Alt+i',
+        })
     })
 })
 

@@ -1,6 +1,7 @@
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
+import { ESTIMATE_KIND } from '../../lib/sales-document-kinds'
 import { DocumentForm } from './DocumentForm'
 import { DocumentLoadError } from './DocumentLoadError'
 import { DocumentLoading } from './DocumentLoading'
@@ -21,7 +22,10 @@ function ScreenState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab
         notFound: `${testId}-not-found`,
         noAccess: `${testId}-no-access`,
         cannotEdit: `${testId}-cannot-edit`,
+        cannotConvert: `${testId}-cannot-convert`,
     }
+    // Only an invoice is made from an estimate; the estimate's words say it cannot be.
+    const { cannotConvert } = ESTIMATE_KIND.messages
     switch (data.state) {
         case 'loading':
             return <DocumentLoading />
@@ -33,6 +37,8 @@ function ScreenState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab
             return <DocumentNotice testID={ids.noAccess} message={messages.noAccess} />
         case 'cannot-edit':
             return <DocumentNotice testID={ids.cannotEdit} message={messages.cannotEdit} />
+        case 'cannot-convert':
+            return <DocumentNotice testID={ids.cannotConvert} message={cannotConvert} />
         case 'read':
             return <ReadState data={data} tab={tab} />
         case 'form':

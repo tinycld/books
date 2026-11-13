@@ -52,6 +52,32 @@ func TestAudit_LabelsASalesReceiptAndItsLines(t *testing.T) {
 	}
 }
 
+// Spec §3.11: an estimate's audit row is "Estimate 1001"; a line's row follows
+// its estimate ("Estimate 1001: line 2"). An estimate has its number from its
+// first save, so it has no draft label.
+func TestAudit_LabelsAnEstimateAndItsLines(t *testing.T) {
+	ee := newEstimateEnv(t)
+	audited := auditedCollections(ee.app)
+	estimates, ok := audited["books_estimates"]
+	if !ok {
+		t.Fatal("books_estimates is not audited")
+	}
+	lines, ok := audited["books_estimate_lines"]
+	if !ok {
+		t.Fatal("books_estimate_lines is not audited")
+	}
+	r := ee.mkEstimate(t, nil)
+	mkEstimateLine(t, ee.app, r, 0, item(ee.service, 1, 45000, false))
+	line := mkEstimateLine(t, ee.app, r, 1, item(ee.accessPoint, 1, 18900, false))
+
+	if got, want := estimates.ExtractLabel(reload(t, ee.app, "books_estimates", r.Id)), "Estimate 1001"; got != want {
+		t.Errorf("estimate label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, ee.app, "books_estimate_lines", line.Id)), "Estimate 1001: line 2"; got != want {
+		t.Errorf("estimate line label = %q, want %q", got, want)
+	}
+}
+
 // Spec §3.11: an edit of "Sales deposited to" shows in the audit log as other
 // settings edits do: a books_settings row naming the change.
 func TestAudit_LogsASalesDepositAccountChange(t *testing.T) {

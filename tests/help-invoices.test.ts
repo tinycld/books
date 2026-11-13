@@ -88,6 +88,13 @@ describe('help/invoices.md', () => {
         expect(body).not.toContain('prints on invoice')
     })
 
+    // Estimate checkpoint 4: the section on an invoice made from an estimate.
+    it('covers an invoice converted from an estimate and links the estimates topic', () => {
+        expect(topicExists).toBe(true)
+        expect(body).toContain('From estimate')
+        expect(body).toContain('(help://books:estimates)')
+    })
+
     it('has no Ctrl or Alt keyboard text', () => {
         expect(topicExists).toBe(true)
         expect(body).not.toMatch(/\bCtrl\b/i)

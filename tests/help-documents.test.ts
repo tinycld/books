@@ -30,6 +30,10 @@ describe('help/documents.md', () => {
         expect(body).toContain('(help://books:sales-receipts)')
     })
 
+    it('links the estimates topic', () => {
+        expect(body).toContain('(help://books:estimates)')
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)

@@ -10,6 +10,7 @@ import { defaultDepositAccount, isDepositAccountRow } from '../lib/deposit-accou
 import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { SALES_RECEIPT_MESSAGES } from '../lib/document-texts'
 import { columnsOrThrow } from '../lib/record-save'
+import { SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
 import {
     type EMPTY_SALES_RECEIPT_COLUMNS,
     salesReceiptColumnsFrom,
@@ -19,6 +20,7 @@ import type { BooksSalesReceipts } from '../types'
 import {
     type DocumentDataSource,
     type DocumentFormStart,
+    type DocumentKindFields,
     type DocumentRecord,
     type DocumentScreenInput,
     type DocumentScreenReads,
@@ -26,6 +28,7 @@ import {
     type DocumentWrites,
     documentRead,
     linkedReadIds,
+    NO_ESTIMATE_SOURCE,
     useHeldRecord,
 } from './document-data'
 import { useBooksSettings } from './useBooksSettings'
@@ -36,7 +39,9 @@ const LOG_CONTEXT = 'books.salesReceipt'
 type SalesReceiptInsertColumns = typeof EMPTY_SALES_RECEIPT_COLUMNS
 
 // The receipt's own columns go into `kindFields`; the row keeps the shared ones.
-function salesReceiptSourceOf<R extends BooksSalesReceipts>(row: R): R & DocumentSource {
+function salesReceiptSourceOf<R extends BooksSalesReceipts>(
+    row: R
+): R & DocumentSource & { kindFields: Extract<DocumentKindFields, { kind: 'sales_receipt' }> } {
     return {
         ...row,
         kindFields: {
@@ -136,7 +141,7 @@ function useSalesReceiptScreenReads(
         return { ...source, kindFields: { ...source.kindFields, depositRow } }
     }, [read])
     const record = useHeldRecord(mapped, input.isHeld)
-    const ids = linkedReadIds(input, record, read?.status ?? null)
+    const ids = linkedReadIds(input, record, read?.status ?? null, SALES_RECEIPT_KIND.lifecycle)
     const sourceQuery = useLiveQuery({
         query: q => {
             if (!ids.sourceId) return undefined
@@ -189,6 +194,8 @@ function useSalesReceiptScreenReads(
             sourceLinesQuery.data ?? [],
             [linesCollection]
         ),
+        // A sales receipt is never made from an estimate.
+        ...NO_ESTIMATE_SOURCE,
         taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),

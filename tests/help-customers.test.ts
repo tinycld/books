@@ -36,6 +36,11 @@ describe('help/customers.md', () => {
         expect(body).toContain('(help://books:sales-receipts)')
     })
 
+    // Estimate checkpoint 4: cross-linked from the estimate topic's neighbours.
+    it('links the estimates topic', () => {
+        expect(body).toContain('(help://books:estimates)')
+    })
+
     it('explains creating a customer', () => {
         expect(body).toMatch(/\bcreate\b/i)
         expect(body).toContain('New customer')

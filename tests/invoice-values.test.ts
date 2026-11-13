@@ -6,11 +6,13 @@ import { type CustomerFill, customerFills } from '../tinycld/books/lib/document-
 import { DOCUMENT_LINE_MAPPER } from '../tinycld/books/lib/document-line-columns'
 import { type DocumentTax, documentTotals } from '../tinycld/books/lib/document-lines'
 import { documentLinesForSave, documentTotalsOf } from '../tinycld/books/lib/document-values'
+import { ESTIMATE_IDS, ESTIMATE_LINES, ESTIMATES } from '../tinycld/books/lib/estimate-form-fixture'
 import { INVOICE_IDS, INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
 import {
     copyInvoiceValues,
     type InvoiceFormValues,
     invoiceCorrectionValues,
+    invoiceValuesFromEstimate,
     newInvoiceValues,
 } from '../tinycld/books/lib/invoice-values'
 import { TAX_IDS, TAX_RATE_ROWS, TAX_RATES } from '../tinycld/books/lib/tax-rates-fixture'
@@ -233,7 +235,7 @@ function storedCells(record: {
 
 function expectSameCellsWithNewIds(
     rows: TableRow[],
-    lines: ReturnType<typeof posted1004>['lines']
+    lines: ReadonlyArray<Parameters<typeof storedCells>[0] & { id: string }>
 ) {
     expect(rows).toHaveLength(lines.length)
     rows.forEach((row, index) => {
@@ -328,6 +330,100 @@ describe('copyInvoiceValues', () => {
         expect(values.date).toBe(COPY_DAY)
         expect(values.due_date).toBe(dueDateFor(COPY_DAY, 'net_15'))
         expect(values.due_date).toBe('2026-11-24')
+    })
+})
+
+// An estimate and its lines in position order, from the estimate fixture.
+function estimateWithLines(id: string) {
+    const estimate = ESTIMATES.find(e => e.id === id)
+    if (!estimate) throw new Error(`no estimate ${id} in the estimate fixture`)
+    const lines = ESTIMATE_LINES.filter(l => l.estimate === id).sort(
+        (a, b) => a.position - b.position
+    )
+    if (lines.length === 0) throw new Error(`estimate ${id} has no lines in the fixture`)
+    return { estimate, lines }
+}
+
+// Convert to invoice (spec §3.7): the invoice starts from the estimate — customer, Bill to,
+// Email, Tax, every line in order and the message — dated today, with Terms and Due date
+// from the customer as on a new invoice, no memo and no custom field values.
+describe('invoiceValuesFromEstimate', () => {
+    const CONVERT_DAY = '2026-11-12'
+
+    // The customer's current record differs from the estimate's Bill to and Email, so a
+    // start that refilled them from the customer would show here.
+    function alvarezNet30(): CustomerFill {
+        const row = CUSTOMERS.find(c => c.id === CUSTOMER_IDS.alvarez)
+        if (!row) throw new Error('no Alvarez in the fixture')
+        return {
+            id: row.id,
+            display_name: row.display_name,
+            email: 'billing@alvarez.example',
+            billing_address: {
+                line1: '9 Quarry Lane',
+                line2: '',
+                city: 'Golden',
+                region: 'CO',
+                postal_code: '80401',
+                country: 'United States',
+            },
+            terms: 'net_30',
+            tax_exempt: false,
+            default_tax_rate: TAX_IDS.adamsCombined,
+        }
+    }
+
+    it("keeps the accepted estimate's customer, Bill to, Email, Tax, message and lines, dated today with the customer's terms, no memo, no custom fields, and names the estimate", () => {
+        const { estimate, lines } = estimateWithLines(ESTIMATE_IDS.accepted)
+        expect(estimate.status).toBe('accepted')
+        expect(estimate.memo).not.toBe('')
+        const customer = alvarezNet30()
+        expect(customer.email).not.toBe(estimate.email)
+        expect(customer.billing_address).not.toEqual(estimate.bill_to)
+        expect(customer.default_tax_rate).not.toBe(estimate.tax_rate)
+        // The source carries custom field values; the invoice's own form starts with none.
+        const source = { ...estimate, fields: { po_number: 'PO-7781' } }
+
+        const values = invoiceValuesFromEstimate(
+            source,
+            lines,
+            CONVERT_DAY,
+            customer,
+            estimate.message
+        )
+
+        expect(values.customer).toBe(estimate.customer)
+        expect(values.bill_to).toEqual(estimate.bill_to)
+        expect(values.email).toBe(estimate.email)
+        expect(values.tax_rate).toBe(estimate.tax_rate)
+        expect(values.message).toBe(estimate.message)
+        expect(values.message).not.toBe('')
+        expect(values.date).toBe(CONVERT_DAY)
+        expect(values.terms).toBe('net_30')
+        expect(values.due_date).toBe(dueDateFor(CONVERT_DAY, 'net_30'))
+        expect(values.due_date).toBe('2026-12-12')
+        expect(values.memo).toBe('')
+        expect(values.fields).toEqual({})
+        expect(values.estimate).toBe(estimate.id)
+        expect(values.replaces ?? '').toBe('')
+        expectSameCellsWithNewIds(values.lines, lines)
+    })
+
+    // Pending 1001 holds every line kind: items, a subtotal, a percent and a description.
+    it('keeps every line kind in order, each with a new id', () => {
+        const { estimate, lines } = estimateWithLines(ESTIMATE_IDS.pending)
+        expect(new Set(lines.map(l => l.kind))).toEqual(
+            new Set(['item', 'subtotal', 'percent', 'description'])
+        )
+        const values = invoiceValuesFromEstimate(
+            estimate,
+            lines,
+            CONVERT_DAY,
+            harborview(),
+            estimate.message
+        )
+        expectSameCellsWithNewIds(values.lines, lines)
+        expect(values.estimate).toBe(estimate.id)
     })
 })
 

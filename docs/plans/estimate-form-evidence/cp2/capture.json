@@ -1,0 +1,1076 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "widths": [390],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1400
+        },
+        {
+            "name": "./new",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1400
+        },
+        {
+            "name": "filled",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 2000,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2027-01-15"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Bookkeeping catch-up (per month)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 3, line 3"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-subtotal"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 5, line 5"
+                },
+                {
+                    "clickMenuItem": "On-site network troubleshooting, two-hour minimum with travel inside the Portland metro area"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for the chance to quote this work. Prices hold until the expiration date."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Annex network refresh, quoted after the October walk-through"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "filled-phone",
+            "widths": [390],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 4400,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2027-01-15"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Bookkeeping catch-up (per month)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 3, line 3"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add-more"
+                },
+                {
+                    "click": "form-table-lines-add-subtotal"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 5, line 5"
+                },
+                {
+                    "clickMenuItem": "On-site network troubleshooting, two-hour minimum with travel inside the Portland metro area"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Thank you for the chance to quote this work. Prices hold until the expiration date."
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Annex network refresh, quoted after the October walk-through"
+                },
+                {
+                    "click": "estimate-more"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "accepted",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Marisol Alvarez"
+                },
+                {
+                    "clickMenuItem": "Marisol Alvarez"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "fill": "form-input-date",
+                    "value": "2026-10-20"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2026-12-20"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-input-status"
+                },
+                {
+                    "clickMenuItem": "Accepted"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-accepted_by",
+                    "value": "Marisol Alvarez-Whitfield, owner, by phone with the site lead"
+                },
+                {
+                    "fill": "form-input-accepted_date",
+                    "value": "2026-10-24"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Year-end return; she asked for one review round"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "accepted-phone",
+            "widths": [390],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 2900,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Marisol Alvarez"
+                },
+                {
+                    "clickMenuItem": "Marisol Alvarez"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "fill": "form-input-date",
+                    "value": "2026-10-20"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2026-12-20"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Initial consultation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-input-status"
+                },
+                {
+                    "clickMenuItem": "Accepted"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-accepted_by",
+                    "value": "Marisol Alvarez-Whitfield, owner, by phone with the site lead"
+                },
+                {
+                    "fill": "form-input-accepted_date",
+                    "value": "2026-10-24"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Year-end return; she asked for one review round"
+                },
+                {
+                    "click": "estimate-more"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "expired",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Northwind Traders"
+                },
+                {
+                    "clickMenuItem": "Northwind Traders"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "fill": "form-input-date",
+                    "value": "2026-10-01"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2026-10-31"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Resale certificate CO-98-01234-0000 on file."
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "expired-phone",
+            "widths": [390],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Northwind Traders"
+                },
+                {
+                    "clickMenuItem": "Northwind Traders"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "fill": "form-input-date",
+                    "value": "2026-10-01"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2026-10-31"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Resale certificate CO-98-01234-0000 on file."
+                },
+                {
+                    "click": "estimate-more"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "rejected",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Aspen Ridge Dental"
+                },
+                {
+                    "clickMenuItem": "Aspen Ridge Dental"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "fill": "form-input-date",
+                    "value": "2026-10-09"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Workstation setup and imaging"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Surge protector, 8 outlet"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-input-status"
+                },
+                {
+                    "clickMenuItem": "Rejected"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Went with their hardware vendor"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Bookkeeping catch-up (per month)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Annex network refresh"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-error-summary"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2026-10-30"
+                },
+                {
+                    "click": "form-input-status"
+                },
+                {
+                    "clickMenuItem": "Accepted"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-accepted_date",
+                    "value": ""
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "form-field-expiration_date-error"
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "writes": {
+                "collection": "books_estimates",
+                "answers": [400, 400, 400],
+                "message": "The estimate total is more than Books can store."
+            }
+        },
+        {
+            "name": "errors-phone",
+            "widths": [390],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New"],
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Bookkeeping catch-up (per month)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2, line 2"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "estimate-more"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-badge"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Annex network refresh"
+                },
+                {
+                    "click": "estimate-more"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "estimate-error-summary"
+                },
+                {
+                    "fill": "form-input-expiration_date",
+                    "value": "2026-10-30"
+                },
+                {
+                    "click": "form-input-status"
+                },
+                {
+                    "clickMenuItem": "Accepted"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "fill": "form-input-accepted_date",
+                    "value": ""
+                },
+                {
+                    "click": "estimate-more"
+                },
+                {
+                    "click": "estimate-save"
+                },
+                {
+                    "waitFor": "form-field-expiration_date-error"
+                },
+                {
+                    "click": "estimate-title"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "writes": {
+                "collection": "books_estimates",
+                "answers": [400, 400, 400],
+                "message": "The estimate total is more than Books can store."
+            }
+        },
+        {
+            "name": "pdf",
+            "widths": [390],
+            "url": "/a/books/estimates/new?tab=pdf",
+            "ready": "estimate-pdf-unsaved",
+            "hideLabels": ["New"],
+            "height": 800
+        },
+        {
+            "name": "./pdf",
+            "widths": [1280],
+            "url": "/a/books/estimates/new?tab=pdf",
+            "ready": "estimate-pdf-unsaved",
+            "hideLabels": ["New"],
+            "height": 800
+        },
+        {
+            "name": "loading",
+            "widths": [390],
+            "url": "/a/books/estimates/doesnotexist000",
+            "ready": "estimate-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_estimates",
+                "hold": true
+            }
+        },
+        {
+            "name": "./loading",
+            "widths": [1280],
+            "url": "/a/books/estimates/doesnotexist000",
+            "ready": "estimate-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_estimates",
+                "hold": true
+            }
+        },
+        {
+            "name": "error",
+            "widths": [390],
+            "url": "/a/books/estimates/doesnotexist000",
+            "ready": "estimate-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_estimates",
+                "status": 400
+            }
+        },
+        {
+            "name": "./error",
+            "widths": [1280],
+            "url": "/a/books/estimates/doesnotexist000",
+            "ready": "estimate-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_estimates",
+                "status": 400
+            }
+        },
+        {
+            "name": "not-found",
+            "widths": [390],
+            "url": "/a/books/estimates/doesnotexist000",
+            "ready": "estimate-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "./not-found",
+            "widths": [1280],
+            "url": "/a/books/estimates/doesnotexist000",
+            "ready": "estimate-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "no-access",
+            "widths": [390],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "./no-access",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "reader",
+            "widths": [1280],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1600,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Marisol Alvarez" },
+                { "clickMenuItem": "Marisol Alvarez" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "fill": "form-input-date", "value": "2026-10-20" },
+                { "fill": "form-input-expiration_date", "value": "2026-12-20" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Year-end tax preparation" },
+                { "pause": 300 },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2, line 2" },
+                { "clickMenuItem": "Initial consultation" },
+                { "pause": 300 },
+                { "click": "form-input-status" },
+                { "clickMenuItem": "Accepted" },
+                { "pause": 300 },
+                {
+                    "fill": "form-input-accepted_by",
+                    "value": "Marisol Alvarez-Whitfield, owner, by phone with the site lead"
+                },
+                { "fill": "form-input-accepted_date", "value": "2026-10-24" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Year-end return; she asked for one review round"
+                },
+                { "click": "estimate-save" },
+                { "waitFor": "estimate-badge" },
+                { "pause": 1000 },
+                {
+                    "fakeRecords": {
+                        "collection": "books_access",
+                        "items": [
+                            {
+                                "collectionId": "pbc_books_access",
+                                "collectionName": "books_access",
+                                "id": "$authId",
+                                "user": "$authId",
+                                "level": "read_only",
+                                "can_read": true,
+                                "can_write": false,
+                                "is_admin": false
+                            }
+                        ]
+                    }
+                },
+                { "reload": true, "ready": "estimate-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "reader-phone",
+            "widths": [390],
+            "url": "/a/books/estimates/new",
+            "ready": "estimate-form",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 3400,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Marisol Alvarez" },
+                { "clickMenuItem": "Marisol Alvarez" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "fill": "form-input-date", "value": "2026-10-20" },
+                { "fill": "form-input-expiration_date", "value": "2026-12-20" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Year-end tax preparation" },
+                { "pause": 300 },
+                { "click": "form-table-lines-add" },
+                { "clickLabel": "Product or service, row 2, line 2" },
+                { "clickMenuItem": "Initial consultation" },
+                { "pause": 300 },
+                { "click": "form-input-status" },
+                { "clickMenuItem": "Accepted" },
+                { "pause": 300 },
+                {
+                    "fill": "form-input-accepted_by",
+                    "value": "Marisol Alvarez-Whitfield, owner, by phone with the site lead"
+                },
+                { "fill": "form-input-accepted_date", "value": "2026-10-24" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Year-end return; she asked for one review round"
+                },
+                { "click": "estimate-more" },
+                { "click": "estimate-save" },
+                { "waitFor": "estimate-badge" },
+                { "pause": 1000 },
+                {
+                    "fakeRecords": {
+                        "collection": "books_access",
+                        "items": [
+                            {
+                                "collectionId": "pbc_books_access",
+                                "collectionName": "books_access",
+                                "id": "$authId",
+                                "user": "$authId",
+                                "level": "read_only",
+                                "can_read": true,
+                                "can_write": false,
+                                "is_admin": false
+                            }
+                        ]
+                    }
+                },
+                { "reload": true, "ready": "estimate-read-only" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

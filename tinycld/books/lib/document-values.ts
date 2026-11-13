@@ -19,6 +19,9 @@ import {
 // built-in: a correction's save writes it with the new document.
 export type DocumentFormValuesBase = FormValues & {
     replaces?: string
+    // An invoice's: the estimate it is made from (Convert to invoice, or kept by a
+    // correction). Like `replaces`, no field of the form: the save writes it.
+    estimate?: string
     customer: string
     bill_to: BooksInvoices['bill_to']
     email: string

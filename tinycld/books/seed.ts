@@ -2,6 +2,13 @@ import type PocketBase from 'pocketbase'
 import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
+import {
+    CONVERTED_INVOICE,
+    CONVERTED_INVOICE_LINES,
+    ESTIMATE_LINES,
+    ESTIMATE_SEED_IDS,
+    ESTIMATES,
+} from './lib/estimate-form-fixture'
 import { REVIEW_SEED_STATEMENT } from './lib/for-review-fixture'
 import {
     GENERAL_LEDGER_LONG_SECTION,
@@ -174,6 +181,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedSalesTax(pb, accountIds, customerIds)
     await seedInvoices(pb, ctx, customerIds)
     await seedSalesReceipts(pb, ctx, accountIds, customerIds)
+    await seedEstimates(pb, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -492,6 +500,105 @@ export async function seedSalesReceipts(
             .update(created, { status: 'posted', posted_by: ctx.user.id })
     }
     await createSeedSalesReceipt(pb, accountIds, customerIds, SALES_RECEIPT_SEED_DRAFT_ID)
+}
+
+// Creates the ESTIMATE_SEED_IDS fixture estimates, in order, through the writes the
+// estimate form makes: create the estimate with its status, then its lines. The server
+// numbers each at its create (1001 to 1005 on a fresh book; the fixture's numbers are
+// the same), computes every amount and the totals, and writes no journal entry. A
+// closed estimate is closed only by the first save of an invoice made from it, so the
+// closed one is created Accepted and then closed by seedConvertedInvoice. The product
+// and tax rate fixture ids are valid PocketBase ids and are sent as-is; `customerIds`
+// maps a customer-form fixture id to the created customer's id.
+export async function seedEstimates(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const createdIds = new Map<string, string>()
+    for (const id of ESTIMATE_SEED_IDS) {
+        const fixture = ESTIMATES.find(row => row.id === id)
+        if (fixture === undefined) throw new Error(`seed: estimate ${id} is not in ESTIMATES`)
+        const customer = customerIds.get(fixture.customer)
+        if (customer === undefined) {
+            throw new Error(
+                `seed: estimate ${id} names customer ${fixture.customer}, which was not created`
+            )
+        }
+        const status = fixture.status === 'closed' ? 'accepted' : fixture.status
+        const created = await pb.collection('books_estimates').create({
+            customer,
+            status,
+            date: fixture.date,
+            expiration_date: fixture.expiration_date,
+            accepted_by: fixture.accepted_by,
+            accepted_date: fixture.accepted_date,
+            tax_rate: fixture.tax_rate,
+            message: fixture.message,
+            memo: fixture.memo,
+            bill_to: fixture.bill_to,
+            email: fixture.email,
+        })
+        for (const line of ESTIMATE_LINES.filter(row => row.estimate === id)) {
+            await pb.collection('books_estimate_lines').create({
+                estimate: created.id,
+                position: line.position,
+                kind: line.kind,
+                product: line.product,
+                description: line.description,
+                quantity: line.quantity,
+                rate: line.rate,
+                percent_ppm: line.percent_ppm,
+                taxable: line.taxable,
+            })
+        }
+        createdIds.set(id, created.id)
+    }
+    await seedConvertedInvoice(pb, customerIds, createdIds)
+}
+
+// Saves CONVERTED_INVOICE as a draft that names its estimate, then its lines, as the
+// invoice form made from an estimate does: the server closes the estimate at this first
+// save. A draft posts nothing. `estimateIds` maps an estimate fixture id to the created
+// estimate's id.
+async function seedConvertedInvoice(
+    pb: PocketBase,
+    customerIds: Map<string, string>,
+    estimateIds: Map<string, string>
+): Promise<void> {
+    const invoice = CONVERTED_INVOICE
+    const customer = customerIds.get(invoice.customer)
+    const estimate = estimateIds.get(invoice.estimate)
+    if (customer === undefined || estimate === undefined) {
+        throw new Error(
+            `seed: the converted invoice names customer ${invoice.customer} and estimate ${invoice.estimate}; one was not created`
+        )
+    }
+    const created = await pb.collection('books_invoices').create({
+        customer,
+        status: 'draft',
+        date: invoice.date,
+        due_date: invoice.due_date,
+        terms: invoice.terms,
+        tax_rate: invoice.tax_rate,
+        message: invoice.message,
+        memo: invoice.memo,
+        bill_to: invoice.bill_to,
+        email: invoice.email,
+        estimate,
+    })
+    for (const line of CONVERTED_INVOICE_LINES) {
+        await pb.collection('books_invoice_lines').create({
+            invoice: created.id,
+            position: line.position,
+            kind: line.kind,
+            product: line.product,
+            description: line.description,
+            quantity: line.quantity,
+            rate: line.rate,
+            percent_ppm: line.percent_ppm,
+            taxable: line.taxable,
+        })
+    }
 }
 
 interface PostInput {

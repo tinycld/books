@@ -21,6 +21,12 @@ import {
     LineRateCell,
     LineTaxableCell,
 } from './document-line-cells'
+import {
+    AcceptedByField,
+    AcceptedDateField,
+    EstimateStatusField,
+    ExpirationDateField,
+} from './estimate-fields'
 import { MoneyField } from './money-fields'
 import { DepositAccountField, PaymentMethodField } from './payment-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
@@ -67,6 +73,10 @@ const ui: FormHostUi = {
         LineTaxableCell,
         PaymentMethodField,
         DepositAccountField,
+        EstimateStatusField,
+        ExpirationDateField,
+        AcceptedByField,
+        AcceptedDateField,
     },
     // The money input's rules run through the forms engine, at save and between saves,
     // so a refused amount blocks the save and its message is the cell's inline text.

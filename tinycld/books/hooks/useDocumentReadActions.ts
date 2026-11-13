@@ -11,34 +11,51 @@ import {
     type DocumentReadAction,
     documentReadActions,
 } from '../lib/document-actions'
+import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
 import { writeRefusalText } from '../lib/refusal'
+import { type DocumentLifecycle, INVOICE_KIND } from '../lib/sales-document-kinds'
 import type { DocumentRecord } from './document-data'
+import { useOpenDocument } from './useOpenDocument'
 import { usePdfDownload } from './usePdfDownload'
 
-type ReadRecord = Pick<DocumentRecord, 'id' | 'status' | 'number' | 'entry'>
+type ReadRecord = Pick<DocumentRecord, 'id' | 'status' | 'number' | 'entry' | 'kindFields'>
 
 const LABELS: Record<DocumentReadAction, string> = {
     edit: 'Edit',
     void: 'Void',
     copy: 'Copy',
     entry: 'View journal entry',
+    invoice: 'Open invoice',
     pdf: 'Download PDF',
+}
+
+// The invoice made from a closed estimate; '' for any other record.
+function invoiceIdOf(record: ReadRecord): string {
+    return record.kindFields.kind === 'estimate' ? record.kindFields.invoice : ''
 }
 
 // A bar or More row of the read view, with the action it runs (its key comes from it).
 export type DocumentReadItem = DocumentMoreItem & { action: DocumentReadAction }
 
-// The offered actions in the read view's order; View journal entry needs the entry the
-// post wrote.
-function offeredActionsOf(record: ReadRecord, canWrite: boolean): DocumentReadAction[] {
+// The offered actions in the read view's order, by the kind's lifecycle; View journal
+// entry needs the entry the post wrote.
+function offeredActionsOf(
+    lifecycle: DocumentLifecycle,
+    record: ReadRecord,
+    canWrite: boolean
+): DocumentReadAction[] {
+    if (lifecycle === 'quote') {
+        return quoteReadActions(record.status, canWrite, invoiceIdOf(record) !== '')
+    }
     return documentReadActions(record.status, canWrite).filter(
         action => action !== 'entry' || record.entry !== ''
     )
 }
 
 /**
- * The read view's actions of a posted or void sales document, as rows the bar draws (a
+ * The read view's actions of a posted or void sales document, or of a quote the read
+ * view shows (a closed estimate, or any estimate for a reader), as rows the bar draws (a
  * button each on a wide screen; Edit and a More menu on a phone), and the Void dialog.
  * Edit, Copy and View journal entry replace the read view (a pushed screen would stay
  * mounted under the new one); Download PDF saves the server's PDF through usePdfDownload.
@@ -64,6 +81,7 @@ export function useDocumentReadActions(
     const isVoiding = voidDocument.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const download = usePdfDownload()
+    const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const run: Record<DocumentReadAction, () => void> = {
         edit: () => router.replace(orgHref(documentNewHref(doc, { replaces: record.id }))),
         void: () => {
@@ -72,6 +90,9 @@ export function useDocumentReadActions(
         },
         copy: () => router.replace(orgHref(documentNewHref(doc, { copy: record.id }))),
         entry: () => router.replace(orgHref(`books/entries/${record.entry}`)),
+        // Back to the invoice's screen when it is below; else pushed, so Back returns to
+        // the estimate.
+        invoice: openInvoice,
         pdf: () =>
             download.mutate({
                 kind: doc.key,
@@ -86,15 +107,17 @@ export function useDocumentReadActions(
         if (action === 'pdf') return download.isPending
         return isVoiding
     }
-    const actions: DocumentReadItem[] = offeredActionsOf(record, canWrite).map(action => ({
-        action,
-        id: `read-${action}`,
-        label: LABELS[action],
-        keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
-        isDisabled: disabledOf(action),
-        isDestructive: action === 'void',
-        onSelect: run[action],
-    }))
+    const actions: DocumentReadItem[] = offeredActionsOf(doc.lifecycle, record, canWrite).map(
+        action => ({
+            action,
+            id: `read-${action}`,
+            label: LABELS[action],
+            keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
+            isDisabled: disabledOf(action),
+            isDestructive: action === 'void',
+            onSelect: run[action],
+        })
+    )
     // The dialog closes when Void stops being offered (the document was voided or
     // replaced elsewhere while it was open), unless this dialog's own void runs.
     const isVoidOffered = actions.some(item => item.id === 'read-void')

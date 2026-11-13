@@ -109,11 +109,23 @@ function usePdfKeyWhileBusy(kind: KeyKind, items: DocumentReadItem[], scopeOwner
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 
+// The one button a phone's bar keeps beside More. A posting document keeps Edit (a
+// voided one has none, so all its actions are in More); a quote keeps its primary action,
+// the first, so a reader's only action (Download PDF) is never hidden in a menu.
+function phoneButtonOf(
+    lifecycle: SalesDocumentKind['lifecycle'],
+    actions: DocumentReadItem[]
+): DocumentReadItem | undefined {
+    if (lifecycle === 'quote') return actions[0]
+    return actions.find(item => item.id === 'read-edit')
+}
+
 /**
  * The read view's bar. Wide: a ShortcutButton per action (Edit E, Void V, Copy C, View
- * journal entry J, Download PDF ⌘P), the first one primary. Phone: Edit as a button and
- * the rest in a More menu whose rows show their keys. A reader gets View journal entry
- * and Download PDF; a hidden action's key is not registered.
+ * journal entry J, Download PDF ⌘P), the first one primary. Phone: one button (Edit on a
+ * posting document, the first action on a quote) and the rest in a More menu whose rows
+ * show their keys. A reader gets View journal entry and Download PDF on a posting
+ * document, Download PDF on a quote; a hidden action's key is not registered.
  */
 export function DocumentReadActions({
     actions,
@@ -122,9 +134,9 @@ export function DocumentReadActions({
     scopeOwner,
 }: DocumentReadActionsProps) {
     const { doc } = useDocumentKind()
-    const edit = actions.find(item => item.id === 'read-edit')
-    const inBar = isPhone ? (edit ? [edit] : []) : actions
-    const inMore = isPhone ? actions.filter(item => item !== edit) : []
+    const phoneButton = phoneButtonOf(doc.lifecycle, actions)
+    const inBar = isPhone ? (phoneButton ? [phoneButton] : []) : actions
+    const inMore = isPhone ? actions.filter(item => item !== phoneButton) : []
     useMoreKeys(doc, inMore, scopeOwner)
     usePdfKeyWhileBusy(doc, actions, scopeOwner)
     if (actions.length === 0) return null
