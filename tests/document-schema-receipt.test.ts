@@ -225,6 +225,8 @@ describe('documentRefusalTarget(message, SALES_RECEIPT_KIND)', () => {
     it("sends the invoice's day and tax-rate texts to Sale date and Tax", () => {
         // server/sales_documents.go msgDocumentDay.
         expect(target('Enter a date that exists, in the form YYYY-MM-DD.')).toBe('date')
+        // server/sales_documents.go msgDocumentDayTooEarly.
+        expect(target('Enter a date in 1900 or later.')).toBe('date')
         expect(target('Tax rate Old is inactive. Choose an active rate.')).toBe('tax_rate')
     })
 

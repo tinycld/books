@@ -20,14 +20,31 @@ func newGuardedApp(t *testing.T) *tests.TestApp {
 }
 
 func TestParseDay(t *testing.T) {
-	for _, ok := range []string{"2024-02-29", "2026-12-31"} {
+	for _, ok := range []string{"2024-02-29", "2026-12-31", "1900-01-01", "1900-02-28", "9999-12-31"} {
 		if _, err := parseDay(ok); err != nil {
 			t.Errorf("%s: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"2026-02-30", "2025-02-29", "2026-13-01", "26-01-01", ""} {
-		if _, err := parseDay(bad); err == nil {
+	for _, bad := range []string{"2026-02-30", "2025-02-29", "2026-13-01", "26-01-01", "", "1900-02-29"} {
+		_, err := parseDay(bad)
+		if err == nil {
 			t.Errorf("%q was accepted", bad)
+		}
+		if isDayTooEarly(err) {
+			t.Errorf("%q: the refusal says too early, want not a date", bad)
+		}
+	}
+	// The client refuses the same years (FIRST_YEAR, lib/register-range.ts).
+	for _, early := range []string{"0000-01-01", "0099-01-01", "0100-01-01", "1899-12-31"} {
+		_, err := parseDay(early)
+		if !isDayTooEarly(err) {
+			t.Errorf("%q: err = %v, want the too-early refusal", early, err)
+		}
+		if err != nil && !strings.Contains(err.Error(), "is before 1900") {
+			t.Errorf("%q: text = %q", early, err.Error())
+		}
+		if _, err := parseCalendarDay(early); err != nil {
+			t.Errorf("parseCalendarDay(%q) = %v: printing has no lower bound", early, err)
 		}
 	}
 	if periodOf("2026-05-31") != "2026-05" {
