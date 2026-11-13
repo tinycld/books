@@ -33,6 +33,8 @@ You need bookkeeper access to change accounts. With read-only access you can loo
 
 An inactive account stays in your books but you cannot post to it. To make an account inactive, open the menu on its row and choose Make inactive. To do the same for several accounts, select them with the checkboxes and choose Make inactive from Batch actions. To use an inactive account again, turn on Show inactive and choose Make active in its menu. You cannot make the Retained earnings account inactive.
 
+An active account cannot be under an inactive account. Make the sub-accounts inactive before their parent, and make the parent active before its sub-accounts. Books refuses to add an active sub-account to an inactive account and to move an active account under one. When you add or edit an active account, the Parent account list shows only active accounts.
+
 You cannot make an account inactive while an active tax agency uses it as its liability account. First choose another account for the agency, or make the agency inactive.
 
 ## The Retained earnings account
@@ -58,6 +60,8 @@ To add many accounts at once, choose Import on the Chart of Accounts page. The i
 3. **Import.** The preview lists every row as Ready, Skipped: already exists, or Error with the reason. Rows with errors are never imported. The button reads Import N accounts, where N is the number of Ready rows. Choose it to add those rows. Parents are added before their children. If two rows claim the same number, the preview marks the row inserted second (parents go first) with an Error, and error rows are not imported.
 
 A Parent cell can hold the full path, for example `Cash and bank:Operating checking`, or just a name when only one account has it. Inactive accepts yes, no, true, false, 1 or 0.
+
+A row that is not inactive needs an active parent. If its parent is an inactive account, or an inactive row of the file, the preview marks the row with "parent is inactive".
 
 If the server refuses a row, the import stops. The page shows how many rows were imported, the row that failed as Row N, its name and the reason. Fix the file and import it again: rows that already exist are skipped, so nothing is added twice. Books refuses a row that would be a second Retained earnings account, and the import stops at that row.
 

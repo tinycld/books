@@ -55,7 +55,14 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function existingFrom(rows: readonly ExistingAccount[]): ExistingAccount[] {
-    return rows.map(({ id, name, number, type, parent }) => ({ id, name, number, type, parent }))
+    return rows.map(({ id, name, number, type, parent, inactive }) => ({
+        id,
+        name,
+        number,
+        type,
+        parent,
+        inactive,
+    }))
 }
 
 const HEADER = 'Number,Name,Type,Detail type,Parent,Description,Inactive'

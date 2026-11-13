@@ -192,13 +192,24 @@ export function flattenAccountTree<T extends TreeAccount>(
     const matches = (account: T) =>
         account.name.toLowerCase().includes(query) || account.number.toLowerCase().includes(query)
 
-    const isExcluded = (account: T) => {
-        if (account.inactive && !filters.showInactive) return true
-        return filters.group !== '' && accountTypeDef(account.type)?.group !== filters.group
+    // An inactive account with an active account below it stays in the list: hiding
+    // it would hide the active one, which still takes postings. The server refuses
+    // that state now (server/accounts.go checkActiveParent), but a row older than
+    // the rule can hold it. The row shows its Inactive label as any inactive row.
+    const hasActiveBelow = (node: TreeNode<T>): boolean =>
+        node.children.some(child => !child.account.inactive || hasActiveBelow(child))
+
+    const isExcluded = (node: TreeNode<T>) => {
+        const { account } = node
+        if (filters.group !== '' && accountTypeDef(account.type)?.group !== filters.group) {
+            return true
+        }
+        if (!account.inactive || filters.showInactive) return false
+        return !hasActiveBelow(node)
     }
 
     const isKept = (node: TreeNode<T>): boolean => {
-        if (isExcluded(node.account)) return false
+        if (isExcluded(node)) return false
         if (query === '') return true
         return matches(node.account) || node.children.some(isKept)
     }
@@ -284,8 +295,14 @@ export function parentChoices<T extends TreeAccount>(
     }
     for (const root of tree) visit(root, false)
 
+    // A new account is active. An active account gets no inactive parent
+    // (server/accounts.go checkActiveParent); an inactive one may have any.
+    const editing = accounts.find(account => account.id === opts.editingId)
+    const needsActiveParent = !(editing?.inactive ?? false)
+
     return accounts.filter(candidate => {
         if (candidate.type !== opts.type || excluded.has(candidate.id)) return false
+        if (needsActiveParent && candidate.inactive) return false
         const depth = depthById.get(candidate.id)
         return depth !== undefined && depth + 1 + height <= maxAccountDepth
     })
