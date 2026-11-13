@@ -154,8 +154,32 @@ const SALES_RECEIPT_LAYOUT = {
     rules: [],
 } satisfies FormHostDefInput['layout']
 
-// The lines built-in both sales documents share: the same columns, row kinds and keys,
-// so the server's line guard checks an invoice line and a receipt line alike.
+export const ESTIMATE_HOST_KEY = 'books:estimate'
+
+// The default Estimate form (spec §3.3): one page. The header band's first row holds
+// Customer, Bill to, Email, Estimate date, Expiration date and Tax as the invoice's
+// does; its second row holds Status, Accepted by and Accepted date, a third each. The
+// lines, the message to the customer and the internal memo follow.
+const ESTIMATE_LAYOUT = {
+    pages: [{ key: 'main', title: 'Estimate' }],
+    fields: {
+        customer: { width: 'full' },
+        bill_to: { width: 'full' },
+        email: { width: 'full' },
+        date: { width: 'quarter' },
+        expiration_date: { width: 'quarter' },
+        tax_rate: { width: 'quarter', narrowWidth: 'full' },
+        status: { width: 'third' },
+        accepted_by: { width: 'third' },
+        accepted_date: { width: 'third' },
+        message: { description: 'Shown on the estimate and its PDF.' },
+        memo: { description: 'Only your team sees this.' },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
+// The lines built-in the sales documents share: the same columns, row kinds and keys,
+// so the server's line guard checks an invoice, receipt or estimate line alike.
 const DOCUMENT_LINES_BUILTIN = {
     key: 'lines',
     label: 'Lines',
@@ -676,6 +700,7 @@ const hosts: FormHostDefInput[] = [
             'voided_by',
             'replaces',
             'replaced_by',
+            'estimate',
             'form',
             'fields',
             'sort_key',
@@ -909,6 +934,148 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'lines',
         layout: SALES_RECEIPT_LAYOUT,
+    },
+    {
+        key: ESTIMATE_HOST_KEY,
+        label: 'Estimate',
+        collection: 'books_estimates',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column.
+        columns: [
+            'id',
+            'customer',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'expiration_date',
+            'accepted_by',
+            'accepted_date',
+            'bill_to',
+            'email',
+            'tax_rate',
+            'message',
+            'memo',
+            'subtotal',
+            'tax_total',
+            'total',
+            'currency',
+            'invoice',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'customer',
+                label: 'Customer',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'CustomerField',
+                chrome: 'cell',
+            },
+            {
+                key: 'bill_to',
+                label: 'Bill to',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BillToField',
+                chrome: 'cell',
+            },
+            {
+                key: 'email',
+                label: 'Email',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BandEmailField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Estimate date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'expiration_date',
+                label: 'Expiration date',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'ExpirationDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_rate',
+                label: 'Tax',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DocumentTaxField',
+                chrome: 'cell',
+            },
+            {
+                key: 'status',
+                label: 'Status',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'EstimateStatusField',
+                chrome: 'cell',
+            },
+            // Accepted by and Accepted date show only while Status is Accepted (the
+            // form hides them by the status value), and a hidden built-in cannot be
+            // host-required: the form's schema requires Accepted date while it is
+            // shown, and the server requires it on an accepted estimate.
+            {
+                key: 'accepted_by',
+                label: 'Accepted by',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+                maxLength: 200,
+            },
+            {
+                key: 'accepted_date',
+                label: 'Accepted date',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'AcceptedDateField',
+                chrome: 'cell',
+            },
+            DOCUMENT_LINES_BUILTIN,
+            {
+                key: 'message',
+                label: DOCUMENT_NOTE_LABELS.message,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'memo',
+                label: DOCUMENT_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'lines',
+        layout: ESTIMATE_LAYOUT,
     },
 ]
 

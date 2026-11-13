@@ -923,3 +923,78 @@ func TestSearch_FindsSalesReceipts(t *testing.T) {
 	requireOnly([]string{"cables"}, "sales_receipt:"+walkIn.Id)
 	requireOnly([]string{"quick", "visit"}, "sales_receipt:"+draft.Id)
 }
+
+func estimateRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "estimate:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Spec §3.11: search finds estimates by number, message, memo and the
+// customer's name. A row opens the estimate (id estimate:<id>, kind estimate)
+// and is titled "Estimate <n> · <Customer>".
+func TestSearch_FindsEstimates(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerSalesDocGuards(app, estimateKind)
+	bindEstimateHost(t, app)
+	re := receiptEnvOn(t, app)
+	ee := &estimateEnv{receiptEnv: re}
+
+	lakeshore := mkCustomer(t, app, "Dr. Mira Okafor", "")
+	if err := setCustomer(t, app, lakeshore.Id, map[string]any{"company": "Lakeshore Orthodontics PLLC"}); err != nil {
+		t.Fatalf("give Dr. Mira Okafor her company: %v", err)
+	}
+
+	annex := ee.mkEstimate(t, map[string]any{"memo": "annex quokka rewiring"})
+	gala := ee.mkEstimate(t, map[string]any{"message": "Prices hold for the zebrafinch gala"})
+	braces := ee.mkEstimate(t, map[string]any{"customer": lakeshore.Id})
+
+	numberOf := func(r *core.Record) string {
+		t.Helper()
+		n := reload(t, app, "books_estimates", r.Id).GetString("number")
+		if n == "" {
+			t.Fatalf("estimate %s has no number", r.Id)
+		}
+		return n
+	}
+	annexNumber, galaNumber, bracesNumber := numberOf(annex), numberOf(gala), numberOf(braces)
+	titles := map[string]string{
+		"estimate:" + annex.Id:  "Estimate " + annexNumber + " · Harborview Dental",
+		"estimate:" + gala.Id:   "Estimate " + galaNumber + " · Harborview Dental",
+		"estimate:" + braces.Id: "Estimate " + bracesNumber + " · Dr. Mira Okafor",
+	}
+
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, re.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := estimateRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found estimate rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "estimate" {
+				t.Errorf("%q row %s title %q kind %v, want %q, estimate", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"harborview", annexNumber}, "estimate:"+annex.Id)
+	requireOnly([]string{"harborview"}, "estimate:"+annex.Id, "estimate:"+gala.Id)
+	requireOnly([]string{"quokka"}, "estimate:"+annex.Id)
+	requireOnly([]string{"zebrafinch"}, "estimate:"+gala.Id)
+	requireOnly([]string{"orthodontics"}, "estimate:"+braces.Id)
+}

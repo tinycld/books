@@ -28,6 +28,8 @@ const NAMES = [
     'books_sales_receipts',
     'books_sales_receipt_lines',
     'books_sales_receipt_tax_lines',
+    'books_estimates',
+    'books_estimate_lines',
 ]
 
 function register() {

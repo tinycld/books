@@ -197,7 +197,9 @@ func productNames(app core.App, lines []*core.Record) (map[string]string, error)
 // name, its percent (a group's is the sum of its components) and the stored
 // tax. A posted or void document prints the percents of its tax snapshot (the
 // rows of taxLinesCollection that name it in parentField), so a later change
-// to a rate never changes what it charged; a draft prints today's rates.
+// to a rate never changes what it charged; a draft prints today's rates, and
+// so does a kind with no snapshot (taxLinesCollection "": an estimate never
+// posts, and the server keeps its tax_total live).
 func documentPDFTaxLines(app core.App, taxLinesCollection, parentField string, doc *core.Record) ([]pdfTaxLine, error) {
 	rateID := doc.GetString("tax_rate")
 	if rateID == "" {
@@ -208,7 +210,7 @@ func documentPDFTaxLines(app core.App, taxLinesCollection, parentField string, d
 		return nil, fmt.Errorf("books: read the document's tax rate: %w", err)
 	}
 	var ppms []int64
-	if doc.GetString("status") == statusDraft {
+	if taxLinesCollection == "" || doc.GetString("status") == statusDraft {
 		ppms, _, err = taxComponents(app, rateID)
 		if err != nil {
 			return nil, err

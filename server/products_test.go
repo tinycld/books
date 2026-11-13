@@ -939,3 +939,29 @@ func TestProduct_DeleteRefusedWhileOnSalesReceiptLines(t *testing.T) {
 		"This product or service is on 2 sales receipts. Make it inactive instead.")
 	requireProductCount(t, app, 1)
 }
+
+// Spec §3.11: a product on an estimate line cannot be deleted; the count is of
+// estimates, not of lines.
+func TestProduct_DeleteRefusedWhileOnEstimateLines(t *testing.T) {
+	app := newGuardedApp(t)
+	cable := mkService(t, app, "Patch cable", mkIncomeAccount(t, app))
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+	line := func(estimate *core.Record, position int) {
+		t.Helper()
+		saveRecord(t, app, "books_estimate_lines", map[string]any{
+			"estimate": estimate.Id, "kind": "item", "product": cable.Id, "quantity": 1, "rate": 875, "position": position,
+		})
+	}
+	first := mkEstimateRow(t, app, customer, nil)
+	line(first, 0)
+	line(first, 1)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 1 estimate. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+
+	second := mkEstimateRow(t, app, customer, map[string]any{"status": "accepted", "accepted_date": "2026-11-05"})
+	line(second, 0)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 2 estimates. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+}

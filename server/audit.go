@@ -46,6 +46,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_sales_receipt_lines": {
 			ExtractLabel: func(r *core.Record) string { return salesReceiptLineLabel(app, r) },
 		},
+		"books_estimates": {ExtractLabel: estimateLabel, Redact: []string{"sort_key"}},
+		"books_estimate_lines": {
+			ExtractLabel: func(r *core.Record) string { return estimateLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -132,6 +136,26 @@ func salesReceiptLineLabel(app core.App, r *core.Record) string {
 		receipt = salesReceiptLabel(rec)
 	}
 	return fmt.Sprintf("%s: line %d", receipt, r.GetInt("position")+1)
+}
+
+// estimateLabel names an estimate by its number: "Estimate 1001". An estimate
+// is numbered when it is created, so it has no draft label.
+func estimateLabel(r *core.Record) string {
+	noun, _, _ := entryNouns(docTypeEstimate)
+	if n := r.GetString("number"); n != "" {
+		return noun + " " + n
+	}
+	return noun
+}
+
+// estimateLineLabel is invoiceLineLabel for an estimate's line: "Estimate
+// 1001: line 2".
+func estimateLineLabel(app core.App, r *core.Record) string {
+	estimate := r.GetString("estimate")
+	if rec, err := app.FindRecordById("books_estimates", estimate); err == nil {
+		estimate = estimateLabel(rec)
+	}
+	return fmt.Sprintf("%s: line %d", estimate, r.GetInt("position")+1)
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office

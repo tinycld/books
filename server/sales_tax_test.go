@@ -692,14 +692,16 @@ func TestTaxRate_InactiveRefusals(t *testing.T) {
 
 // Later units append their document tax columns; the list starts with the
 // groups' rates, then each sales document's header rate and its tax lines'
-// components (invoice, sales receipt).
+// components (invoice, sales receipt), then the estimate's header rate (an
+// estimate never posts, so it has no tax lines).
 func TestTaxRateReferences_StartWithGroupComponents(t *testing.T) {
-	if len(taxRateReferences) != 5 {
-		t.Fatalf("taxRateReferences has %d entries, want 5", len(taxRateReferences))
+	if len(taxRateReferences) != 6 {
+		t.Fatalf("taxRateReferences has %d entries, want 6", len(taxRateReferences))
 	}
 	for _, want := range [][2]string{
 		{"books_invoices", "tax_rate"}, {"books_invoice_tax_lines", "component"},
 		{"books_sales_receipts", "tax_rate"}, {"books_sales_receipt_tax_lines", "component"},
+		{"books_estimates", "tax_rate"},
 	} {
 		found := false
 		for _, ref := range taxRateReferences[1:] {
@@ -790,4 +792,17 @@ func TestTaxRate_DeleteRefusedWhileOnSalesReceipts(t *testing.T) {
 		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, component), wantOnReceipts)
 		requireStillThere(t, app, "books_tax_rates", component)
 	})
+}
+
+// Spec §3.11: a rate on an estimate's header cannot be deleted.
+func TestTaxRate_DeleteRefusedWhileOnEstimates(t *testing.T) {
+	const wantOnEstimates = "This tax rate is on estimates. Make it inactive instead."
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+
+	boulder := mkTaxRate(t, app, "Boulder city", 38600, agency)
+	mkEstimateRow(t, app, customer, map[string]any{"tax_rate": boulder.Id})
+	requireMessageOnlyRefusal(t, deleteTaxRate(t, app, boulder), wantOnEstimates)
+	requireStillThere(t, app, "books_tax_rates", boulder)
 }

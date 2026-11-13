@@ -9,6 +9,13 @@ describe('sales_receipt doc type', () => {
     })
 })
 
+describe('estimate doc type', () => {
+    it('names the Numbering card "Estimates" and previews the next estimate', () => {
+        expect(DOC_TYPES.estimate).toEqual({ label: 'Estimates', noun: 'estimate' })
+        expect(nextNumberPreview('estimate', '', '1001')).toBe('Next estimate: 1001')
+    })
+})
+
 describe('docTypeLabel', () => {
     it('labels journal and falls back to the raw doc type', () => {
         expect(docTypeLabel('journal')).toBe('Journal entries')

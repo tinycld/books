@@ -300,6 +300,34 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the invoice's: server-owned fields below the omit line (the number when
+    // the estimate is created, the totals at every write, the invoice made from
+    // it by the invoice guards), no relations (the estimate screen reads its
+    // customer, tax rate and invoice through its own queries).
+    const books_estimates = newCollection('books_estimates', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'tax_total',
+            'total',
+            'currency',
+            'invoice',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // amount is recomputed by the server at every line write.
+    const books_estimate_lines = newCollection('books_estimate_lines', {
+        omitOnInsert: ['created', 'updated', 'amount'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_bank_connections,
@@ -327,5 +355,7 @@ export function registerCollections(
         books_sales_receipts,
         books_sales_receipt_lines,
         books_sales_receipt_tax_lines,
+        books_estimates,
+        books_estimate_lines,
     }
 }

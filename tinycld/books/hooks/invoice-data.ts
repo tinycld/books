@@ -184,6 +184,8 @@ function useInvoiceWrites(): DocumentWrites {
             invoicesCollection.insert({
                 ...(input.columns as InvoiceInsertColumns),
                 replaces: input.replaces,
+                // No invoice screen makes an invoice from an estimate yet.
+                estimate: '',
                 id: input.id,
                 form: input.form,
                 fields: input.fields,
