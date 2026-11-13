@@ -111,7 +111,12 @@ describe('registries', () => {
     it('the New menu starts with the Customers column holding Customer', () => {
         const columns = newMenuColumns(NEW_ACTIONS)
         expect(columns[0]?.heading).toBe('Customers')
-        expect(columns[0]?.actions.map(a => a.id)).toEqual(['customer', 'invoice', 'sales_receipt'])
+        expect(columns[0]?.actions.map(a => a.id)).toEqual([
+            'customer',
+            'invoice',
+            'estimate',
+            'sales_receipt',
+        ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual(['vendor'])
     })
@@ -121,6 +126,7 @@ describe('registries', () => {
         expect(customers?.actions.map(a => a.label)).toEqual([
             'Customer',
             'Invoice',
+            'Estimate',
             'Sales receipt',
         ])
         const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
@@ -132,13 +138,27 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu lists Sales receipt right after Invoice in the Customers column', () => {
+    it('the New menu lists Sales receipt right after Estimate in the Customers column', () => {
         const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
         const labels = customers?.actions.map(a => a.label) ?? []
-        expect(labels.indexOf('Sales receipt')).toBe(labels.indexOf('Invoice') + 1)
+        expect(labels.indexOf('Sales receipt')).toBe(labels.indexOf('Estimate') + 1)
         expect(NEW_ACTIONS.find(a => a.id === 'sales_receipt')).toMatchObject({
             label: 'Sales receipt',
             href: 'books/sales-receipts/new',
+            column: 'customers',
+            available: true,
+        })
+    })
+
+    // Spec §2: + New → Customers → "Estimate", after "Invoice".
+    it('the New menu lists an available Estimate right after Invoice, opening a new estimate', () => {
+        const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
+        const ids = customers?.actions.map(a => a.id) ?? []
+        expect(ids.indexOf('estimate')).toBe(ids.indexOf('invoice') + 1)
+        expect(NEW_ACTIONS.find(a => a.id === 'estimate')).toEqual({
+            id: 'estimate',
+            label: 'Estimate',
+            href: 'books/estimates/new',
             column: 'customers',
             available: true,
         })
@@ -447,6 +467,8 @@ describe('hidesNewFab', () => {
         '/a/acme/books/invoices/abc123/',
         '/a/books/sales-receipts/new',
         '/a/books/sales-receipts/abc',
+        '/a/books/estimates/new',
+        '/a/books/estimates/abc',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

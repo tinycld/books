@@ -11,12 +11,14 @@ import {
     type DocumentReadAction,
     documentReadActions,
 } from '../lib/document-actions'
+import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
 import { writeRefusalText } from '../lib/refusal'
+import type { DocumentLifecycle } from '../lib/sales-document-kinds'
 import type { DocumentRecord } from './document-data'
 import { usePdfDownload } from './usePdfDownload'
 
-type ReadRecord = Pick<DocumentRecord, 'id' | 'status' | 'number' | 'entry'>
+type ReadRecord = Pick<DocumentRecord, 'id' | 'status' | 'number' | 'entry' | 'kindFields'>
 
 const LABELS: Record<DocumentReadAction, string> = {
     edit: 'Edit',
@@ -29,16 +31,25 @@ const LABELS: Record<DocumentReadAction, string> = {
 // A bar or More row of the read view, with the action it runs (its key comes from it).
 export type DocumentReadItem = DocumentMoreItem & { action: DocumentReadAction }
 
-// The offered actions in the read view's order; View journal entry needs the entry the
-// post wrote.
-function offeredActionsOf(record: ReadRecord, canWrite: boolean): DocumentReadAction[] {
+// The offered actions in the read view's order, by the kind's lifecycle; View journal
+// entry needs the entry the post wrote.
+function offeredActionsOf(
+    lifecycle: DocumentLifecycle,
+    record: ReadRecord,
+    canWrite: boolean
+): DocumentReadAction[] {
+    if (lifecycle === 'quote') {
+        const hasInvoice = record.kindFields.kind === 'estimate' && record.kindFields.invoice !== ''
+        return quoteReadActions(record.status, canWrite, hasInvoice)
+    }
     return documentReadActions(record.status, canWrite).filter(
         action => action !== 'entry' || record.entry !== ''
     )
 }
 
 /**
- * The read view's actions of a posted or void sales document, as rows the bar draws (a
+ * The read view's actions of a posted or void sales document, or of a quote the read
+ * view shows (a closed estimate, or any estimate for a reader), as rows the bar draws (a
  * button each on a wide screen; Edit and a More menu on a phone), and the Void dialog.
  * Edit, Copy and View journal entry replace the read view (a pushed screen would stay
  * mounted under the new one); Download PDF saves the server's PDF through usePdfDownload.
@@ -86,15 +97,17 @@ export function useDocumentReadActions(
         if (action === 'pdf') return download.isPending
         return isVoiding
     }
-    const actions: DocumentReadItem[] = offeredActionsOf(record, canWrite).map(action => ({
-        action,
-        id: `read-${action}`,
-        label: LABELS[action],
-        keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
-        isDisabled: disabledOf(action),
-        isDestructive: action === 'void',
-        onSelect: run[action],
-    }))
+    const actions: DocumentReadItem[] = offeredActionsOf(doc.lifecycle, record, canWrite).map(
+        action => ({
+            action,
+            id: `read-${action}`,
+            label: LABELS[action],
+            keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
+            isDisabled: disabledOf(action),
+            isDestructive: action === 'void',
+            onSelect: run[action],
+        })
+    )
     // The dialog closes when Void stops being offered (the document was voided or
     // replaced elsewhere while it was open), unless this dialog's own void runs.
     const isVoidOffered = actions.some(item => item.id === 'read-void')

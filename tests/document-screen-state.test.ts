@@ -7,6 +7,7 @@ type Input = Parameters<typeof documentScreenState>[0]
 
 // A writer on a loaded draft.
 const DRAFT: Input = {
+    lifecycle: 'posting',
     isReady: true,
     isError: false,
     canWrite: true,
@@ -108,5 +109,44 @@ describe('documentScreenState for a sales receipt', () => {
 
     it('is loading while the reads are not ready', () => {
         expect(documentScreenState({ ...NEW, isReady: false })).toBe('loading')
+    })
+})
+
+// The quote lifecycle (spec §3.1): the form opens for a writer on pending, accepted and
+// rejected estimates; a closed estimate opens in the read view for everyone; a reader
+// sees every estimate in the read view and gets no-access at new.
+describe('documentScreenState for a quote', () => {
+    const PENDING: Input = { ...DRAFT, lifecycle: 'quote', status: 'pending' }
+    const NEW_QUOTE: Input = { ...PENDING, isNew: true, status: null }
+
+    it.each([
+        'pending',
+        'accepted',
+        'rejected',
+    ] as const)('a writer on a %s estimate gets the form', status => {
+        expect(documentScreenState({ ...PENDING, status })).toBe('form')
+    })
+
+    it('a writer on a closed estimate gets the read view', () => {
+        expect(documentScreenState({ ...PENDING, status: 'closed' })).toBe('read')
+    })
+
+    it('a reader on a pending estimate gets the read view', () => {
+        expect(documentScreenState({ ...PENDING, canWrite: false })).toBe('read')
+    })
+
+    it('a reader at new gets no-access, a writer the form', () => {
+        expect(documentScreenState({ ...NEW_QUOTE, canWrite: false })).toBe('no-access')
+        expect(documentScreenState(NEW_QUOTE)).toBe('form')
+    })
+
+    // The first save's optimistic row would swap the new form before the server answers.
+    it('a new estimate held through its save stays the form', () => {
+        expect(documentScreenState({ ...NEW_QUOTE, isHeld: true })).toBe('form')
+        expect(documentScreenState({ ...PENDING, isHeld: true })).toBe('form')
+    })
+
+    it('an id with no row is not-found', () => {
+        expect(documentScreenState({ ...PENDING, status: null })).toBe('not-found')
     })
 })

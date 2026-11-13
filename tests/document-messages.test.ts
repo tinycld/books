@@ -9,9 +9,14 @@ import {
     INVOICE_MESSAGES,
     SALES_RECEIPT_MESSAGES,
 } from '../tinycld/books/lib/document-messages'
+import { ESTIMATE_MESSAGES } from '../tinycld/books/lib/document-texts'
 import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
 import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
-import { INVOICE_KIND, SALES_RECEIPT_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import {
+    ESTIMATE_KIND,
+    INVOICE_KIND,
+    SALES_RECEIPT_KIND,
+} from '../tinycld/books/lib/sales-document-kinds'
 
 const invoiceRefusalTarget = (message: string) => documentRefusalTarget(message, INVOICE_KIND)
 
@@ -124,6 +129,55 @@ describe('server/sales_receipts.go', () => {
     for (const [key, text] of Object.entries(RECEIPT_SHARED)) {
         it(`holds the receipt's ${key} text verbatim as a Go string`, () => {
             expect(receiptServerSource()).toContain(`"${text}"`)
+        })
+    }
+})
+
+// The estimate's texts the client and the server both show, whose Go constants live in
+// server/estimates.go (plan, Decisions: Messages). The conversion texts are checked
+// against server/estimate_conversion.go once that file exists (checkpoint 3).
+const ESTIMATE_SHARED = {
+    totalNegative: 'An estimate total cannot be below zero.',
+    totalTooLarge: 'The estimate total is more than Books can store.',
+    tooManyLines: 'An estimate can have at most 250 lines.',
+    customerOnInvoices: '%s is on estimates. Make it inactive instead.',
+    expirationBeforeDate: "Expiration date can't be before the estimate date",
+    acceptedDateRequired: 'Enter the accepted date',
+} as const
+
+const ESTIMATE_CLIENT_ONLY = {
+    customerInactive: '%s is inactive. Choose an active customer.',
+    noAccess: 'You need bookkeeper access to create estimates',
+    notFound: 'This estimate does not exist',
+    cannotEdit: 'This estimate cannot be edited',
+    loadFailed: 'Books could not load this estimate.',
+    pdfUnsaved: 'Save the estimate to see its PDF',
+} as const
+
+function estimateServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'estimates.go'), 'utf8')
+}
+
+describe('ESTIMATE_MESSAGES', () => {
+    it('holds every shared text under its key', () => {
+        expect(ESTIMATE_MESSAGES).toMatchObject(ESTIMATE_SHARED)
+    })
+
+    it('holds the client texts under their keys', () => {
+        expect(ESTIMATE_MESSAGES).toMatchObject(ESTIMATE_CLIENT_ONLY)
+    })
+
+    it('is the estimate kind’s texts', () => {
+        expect(ESTIMATE_MESSAGES).toBeDefined()
+        expect(ESTIMATE_KIND.messages).toBe(ESTIMATE_MESSAGES)
+    })
+})
+
+describe('server/estimates.go', () => {
+    for (const [key, text] of Object.entries(ESTIMATE_SHARED)) {
+        it(`holds the estimate's ${key} text verbatim as a Go string, as ESTIMATE_MESSAGES does`, () => {
+            expect(estimateServerSource()).toContain(`"${text}"`)
+            expect(ESTIMATE_MESSAGES[key as keyof typeof ESTIMATE_SHARED]).toBe(text)
         })
     }
 })

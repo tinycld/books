@@ -8,7 +8,12 @@ import type { SalesDocumentKind } from './sales-document-kinds'
 // The texts themselves live in lib/document-texts.ts, a module with no imports, so the
 // kinds' data module (lib/sales-document-kinds.ts) loads without the money code below.
 // This module exports them too, beside the helpers that read them.
-export { type DocumentMessages, INVOICE_MESSAGES, SALES_RECEIPT_MESSAGES } from './document-texts'
+export {
+    type DocumentMessages,
+    ESTIMATE_MESSAGES,
+    INVOICE_MESSAGES,
+    SALES_RECEIPT_MESSAGES,
+} from './document-texts'
 
 // Every kind refuses an inactive customer with the same words.
 export function customerInactiveText(name: string): string {
@@ -25,6 +30,8 @@ export type DocumentRefusalTarget =
     | 'due_date'
     | 'tax_rate'
     | 'deposit_to'
+    | 'expiration_date'
+    | 'accepted_date'
     | { line: number }
     | 'root'
 
@@ -39,9 +46,12 @@ const TAX_REFUSAL = /^(The tax|Tax)\b/
 // server/sales_receipts.go msgReceiptDepositInvalid and msgReceiptDepositNone.
 const DEPOSIT_REFUSAL =
     /^(Choose an active bank or Undeposited funds account|Add a bank account or an Undeposited funds account)\b/
+// server/estimates.go msgExpirationBeforeDate and msgAcceptedDateRequired.
+const EXPIRATION_REFUSAL = /^Expiration date\b/
+const ACCEPTED_DATE_REFUSAL = /^Enter the accepted date\b/
 
 // The kind decides which fields it has (its `key`): only an invoice has a due date, only
-// a sales receipt has Deposit to.
+// a sales receipt has Deposit to, only an estimate has Expiration date and Accepted date.
 export function documentRefusalTarget(
     message: string,
     kind: Pick<SalesDocumentKind, 'key'>
@@ -53,6 +63,8 @@ export function documentRefusalTarget(
     if (kind.key === 'invoice' && DUE_DATE_REFUSAL.test(message)) return 'due_date'
     if (TAX_REFUSAL.test(message)) return 'tax_rate'
     if (kind.key === 'sales_receipt' && DEPOSIT_REFUSAL.test(message)) return 'deposit_to'
+    if (kind.key === 'estimate' && EXPIRATION_REFUSAL.test(message)) return 'expiration_date'
+    if (kind.key === 'estimate' && ACCEPTED_DATE_REFUSAL.test(message)) return 'accepted_date'
     return 'root'
 }
 

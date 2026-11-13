@@ -10,6 +10,7 @@ import { defaultDepositAccount, isDepositAccountRow } from '../lib/deposit-accou
 import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { SALES_RECEIPT_MESSAGES } from '../lib/document-texts'
 import { columnsOrThrow } from '../lib/record-save'
+import { SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
 import {
     type EMPTY_SALES_RECEIPT_COLUMNS,
     salesReceiptColumnsFrom,
@@ -136,7 +137,7 @@ function useSalesReceiptScreenReads(
         return { ...source, kindFields: { ...source.kindFields, depositRow } }
     }, [read])
     const record = useHeldRecord(mapped, input.isHeld)
-    const ids = linkedReadIds(input, record, read?.status ?? null)
+    const ids = linkedReadIds(input, record, read?.status ?? null, SALES_RECEIPT_KIND.lifecycle)
     const sourceQuery = useLiveQuery({
         query: q => {
             if (!ids.sourceId) return undefined

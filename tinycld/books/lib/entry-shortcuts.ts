@@ -19,6 +19,26 @@ export const FORM_KEYS: Record<FormKeyAction, string> = {
     deleteDraft: '$mod+Backspace',
 }
 
+// The keys of a quote form (the estimate's DocumentSaveBar): no draft and no post, so the
+// save keys take Post's places. ⌥I for Convert follows the line keys ⌥T / ⌥S
+// (lib/document-line-columns.ts); ⌘⇧I opens the browser's tools.
+export type QuoteKeyAction =
+    | 'saveAndClose'
+    | 'saveAndNew'
+    | 'save'
+    | 'cancel'
+    | 'deleteRecord'
+    | 'convert'
+
+export const QUOTE_FORM_KEYS: Record<QuoteKeyAction, string> = {
+    saveAndClose: '$mod+Enter',
+    saveAndNew: '$mod+Shift+Enter',
+    save: '$mod+s',
+    cancel: 'Escape',
+    deleteRecord: '$mod+Backspace',
+    convert: 'Alt+i',
+}
+
 const FORM_DESCRIPTIONS: Record<FormKeyAction, string> = {
     post: 'Post',
     postAndNew: 'Post & new',

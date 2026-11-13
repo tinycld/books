@@ -1,9 +1,11 @@
 import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { useFormContext } from 'react-hook-form'
-import { View } from 'react-native'
+import { Text, View } from 'react-native'
+import { useDocumentFormScope } from '../components/documents/document-form-context'
+import { ContactInput } from '../components/forms/ContactInput'
 import { acceptanceShown, ESTIMATE_STATUS_OPTIONS } from '../lib/estimate-status'
-import { todayIso } from '../lib/register-range'
+import { formatDay, todayIso } from '../lib/register-range'
 import { HostSelect } from './account-fields'
 import { DayField } from './document-fields'
 
@@ -39,12 +41,42 @@ export function EstimateStatusField(props: BuiltinFieldProps) {
     )
 }
 
-// Expiration date: optional; the form's schema and the server refuse a day before the
-// estimate date.
-export function ExpirationDateField(props: BuiltinFieldProps) {
+// "Expired on <date>" under the input (lesson 27), from the saved estimate only.
+function ExpiredHint({ expiredOn }: { expiredOn: string | null }) {
+    if (expiredOn === null) return null
+    const text = `Expired on ${formatDay(expiredOn)}`
     return (
-        <View testID="estimate-expiration-date">
+        <Text testID="estimate-expired-hint" className="text-xs text-muted-foreground">
+            {text}
+        </Text>
+    )
+}
+
+// Expiration date: optional; the form's schema and the server refuse a day before the
+// estimate date. The Expired hint follows the saved row (the form scope's `expiredOn`),
+// so an unsaved date never shows it.
+export function ExpirationDateField(props: BuiltinFieldProps) {
+    const { expiredOn } = useDocumentFormScope()
+    return (
+        <View testID="estimate-expiration-date" className="gap-1">
             <DayField {...props} />
+            <ExpiredHint expiredOn={expiredOn} />
+        </View>
+    )
+}
+
+// Accepted by: the person who accepted, shown only while Status is Accepted. A text
+// built-in (the form's schema bounds it at 200 characters with the estimate's own words);
+// drawn here only so the band row can find it by its test id.
+export function AcceptedByField(props: BuiltinFieldProps) {
+    return (
+        <View testID="estimate-accepted-by">
+            <ContactInput
+                {...props}
+                keyboardType="default"
+                autoComplete="name"
+                autoCapitalize="words"
+            />
         </View>
     )
 }
