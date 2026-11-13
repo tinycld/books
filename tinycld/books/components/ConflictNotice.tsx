@@ -1,3 +1,4 @@
+import { useMutation } from '@tinycld/core/lib/mutations'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Text, View } from 'react-native'
 
@@ -8,13 +9,18 @@ interface Props {
     // The notice's test id; its action's is `<testID>-reload`.
     testID: string
     // Absent on a form that cannot load the record in place: the notice has no button.
-    onReload?: () => void
+    // It settles when the record was read, or when the form says the read failed.
+    onReload?: () => void | Promise<void>
 }
 
 const ACTION_STYLE = { minHeight: 44 }
 
+// A read that gets no answer is tried again until it gets one, so the load can take a
+// long time: the button says so and takes no second press until it settles.
 function ReloadButton({ actionLabel, testID, onReload }: Omit<Props, 'isVisible' | 'text'>) {
+    const reload = useMutation({ mutationFn: async () => onReload?.() })
     if (!onReload) return null
+    const label = reload.isPending ? 'Loading…' : actionLabel
     return (
         <Button
             testID={`${testID}-reload`}
@@ -22,9 +28,10 @@ function ReloadButton({ actionLabel, testID, onReload }: Omit<Props, 'isVisible'
             size="sm"
             className="self-start"
             style={ACTION_STYLE}
-            onPress={onReload}
+            isDisabled={reload.isPending}
+            onPress={() => reload.mutate()}
         >
-            <ButtonText>{actionLabel}</ButtonText>
+            <ButtonText>{label}</ButtonText>
         </Button>
     )
 }
