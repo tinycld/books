@@ -154,6 +154,7 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 	}
 	r.Set("sequence", sequence)
 	r.Set("number", number)
+	startRevision(tx, kind, r)
 	clearAcceptance(r)
 	return checkDraftSalesDoc(tx, kind, nil, r)
 }

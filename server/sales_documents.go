@@ -283,7 +283,17 @@ func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) er
 	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
+	startRevision(tx, kind, r)
 	return checkDraftSalesDoc(tx, kind, nil, r)
+}
+
+// startRevision gives a new document revision 1, whatever its record carries,
+// and records the create for its transaction, so the lines written with it are
+// part of the create (revision.go). The create rule refuses the field in a
+// person's body.
+func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
+	r.Set("revision", 1)
+	markCreated(tx, kind.Collection, r.Id)
 }
 
 // salesDocUnlinks are a document's links PocketBase clears on its own when the
