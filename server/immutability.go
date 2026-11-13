@@ -110,8 +110,17 @@ func lineGuard(e *core.RecordEvent) error {
 			return 0, err
 		}
 		if !e.Record.IsNew() {
-			// A delete: the entry loses the line's debit.
-			return -e.Record.GetInt("debit"), nil
+			// A delete: the entry loses the line's stored debit. The record
+			// was loaded before this transaction, so the line may have
+			// changed since, or be gone already (a second delete of it).
+			stored, err := tx.FindRecordById("books_journal_lines", e.Record.Id)
+			if errors.Is(err, sql.ErrNoRows) {
+				return 0, nil
+			}
+			if err != nil {
+				return 0, err
+			}
+			return -stored.GetInt("debit"), nil
 		}
 		return e.Record.GetInt("debit"), checkLineParty(tx, nil, e.Record)
 	})

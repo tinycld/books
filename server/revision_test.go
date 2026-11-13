@@ -326,3 +326,22 @@ func TestRequestRevision_AStaleBatchChangesNothing(t *testing.T) {
 		t.Fatalf("revision = %d, want %d (the other editor's one change)", got, saw+1)
 	}
 }
+
+// A number field accepts "revision+": 1, which always resolves to the stored
+// value plus one. That states nothing about what the caller saw.
+func TestRequestRevision_AModifierIsNotAStatement(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := env.sale(t, "2026-05-10", 100)
+	patchEntry(env, t, entry.Id, `{"status":"posted","revision+":1}`, http.StatusConflict, msgRevisionConflict)
+	if got := reload(t, env.app, "books_journal_entries", entry.Id).GetString("status"); got != statusDraft {
+		t.Fatalf("status = %q: the entry must not post", got)
+	}
+}
+
+func TestRequestRevision_AStaleDraftSaveIsRefused(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := env.sale(t, "2026-05-10", 100)
+	saw := revisionOf(t, env.app, entry.Id)
+	addLine(t, env.app, entry.Id, env.rent, 5, 0) // another editor
+	patchEntry(env, t, entry.Id, fmt.Sprintf(`{"memo":"stale","revision":%d}`, saw+1), http.StatusConflict, msgRevisionConflict)
+}
