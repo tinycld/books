@@ -395,3 +395,55 @@ func TestSetupCompletionEnsuresRetainedEarnings(t *testing.T) {
 		}
 	})
 }
+
+// The review's reproduction: a Go write changed the currency after a USD entry
+// posted, and every report then showed the old amounts with the new label.
+func TestSettings_TheCurrencyCannotChange(t *testing.T) {
+	env := newLedgerEnv(t)
+	mustPost(t, env.app, env.sale(t, "2026-05-10", 100).Id, "")
+	s := reload(t, env.app, "books_settings", settingsID)
+	s.Set("currency", "EUR")
+	requireRefused(t, env.app.Save(s), msgCurrencyFixed)
+	if got := reload(t, env.app, "books_settings", settingsID).GetString("currency"); got != "USD" {
+		t.Fatalf("currency = %q, want USD", got)
+	}
+	// Another setting still saves.
+	saveSettings(t, env.app, map[string]any{"business_name": "Northwind"})
+}
+
+// A superuser's request skips the update rule that pins the field, so only
+// the hook can refuse it.
+func TestSettings_ASuperuserRequestCannotChangeTheCurrency(t *testing.T) {
+	app := newGuardedApp(t)
+	apiReq{
+		method: http.MethodPatch, url: "/api/collections/books_settings/records/" + settingsID,
+		token: tokenFor(t, mkSuperuser(t, app)), body: `{"currency":"EUR"}`,
+		want: http.StatusBadRequest, content: []string{msgCurrencyFixed},
+	}.run(t, app)
+}
+
+func TestSettings_ABatchCannotChangeTheCurrency(t *testing.T) {
+	app := newGuardedApp(t)
+	enableBatch(t, app)
+	op := `{"method":"PATCH","url":"/api/collections/books_settings/records/` + settingsID + `","body":{"currency":"EUR","business_name":"Northwind"}}`
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, mkSuperuser(t, app)),
+		body: batchBody(op), want: http.StatusBadRequest, content: []string{msgCurrencyFixed},
+		after: func(t testing.TB, app *tests.TestApp) {
+			s := reload(t, app, "books_settings", settingsID)
+			if s.GetString("currency") != "USD" || s.GetString("business_name") != "" {
+				t.Fatalf("settings = %v", s.PublicExport())
+			}
+		},
+	}.run(t, app)
+}
+
+func TestSequence_TheDocumentTypeCannotChange(t *testing.T) {
+	app := newGuardedApp(t)
+	requireRefused(t, setFields(t, app, "books_doc_sequences", "booksseqjournal", map[string]any{"doc_type": "transfer"}),
+		msgSequenceDocTypeFixed)
+	// The prefix and a later number still save.
+	if err := setFields(t, app, "books_doc_sequences", "booksseqjournal", map[string]any{"prefix": "JE-", "next_number": 5}); err != nil {
+		t.Fatal(err)
+	}
+}

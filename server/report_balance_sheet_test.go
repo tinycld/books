@@ -524,7 +524,11 @@ func TestBalanceSheetOutline(t *testing.T) {
 func TestBalanceSheetEmptyBookCurrency(t *testing.T) {
 	b := newBSBook(t)
 	mkRetainedEarnings(t, b.app, "3900")
-	saveSettings(t, b.app, map[string]any{"currency": "EUR"})
+	// Raw SQL on purpose: the settings guard refuses a change of the currency,
+	// and this test only needs a book whose currency is not the default.
+	if _, err := b.app.DB().NewQuery("UPDATE books_settings SET currency = 'EUR'").Execute(); err != nil {
+		t.Fatalf("set the currency: %v", err)
+	}
 	res := b.runAt(t, bsToday, "")
 	if len(res.Rows) == 0 {
 		t.Fatal("no rows")
