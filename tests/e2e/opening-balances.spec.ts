@@ -249,10 +249,11 @@ function amount(page: Page, id: string) {
     return page.getByTestId(`opening-amount-${id}`)
 }
 
+const MOUNTED_AMOUNTS =
+    '[data-testid^="opening-amount-"]:not([data-testid^="opening-amount-error-"])'
+
 function mountedAmounts(page: Page) {
-    return page.locator(
-        '[data-testid^="opening-amount-"]:not([data-testid^="opening-amount-error-"])'
-    )
+    return page.locator(MOUNTED_AMOUNTS)
 }
 
 // The grid mounts only the accounts near its scroll position (useRowWindow), and
@@ -275,12 +276,14 @@ async function reach(page: Page, id: string) {
         })
     await expect(page.getByTestId('opening-band-asset')).toBeAttached()
     while ((await target.count()) === 0) {
-        // Scroll the element whose id was read: a re-render between the two calls
-        // would otherwise let `.last()` resolve to another row.
-        const lastId = await mountedAmounts(page).last().getAttribute('data-testid')
-        await page
-            .getByTestId(lastId ?? '')
-            .evaluate(element => element.scrollIntoView({ block: 'start' }))
+        // Read the last mounted row and scroll it in one call in the page: a re-render
+        // between two calls (another worker adds an account) can unmount the row whose
+        // id was read, and a second call would then wait for a row that is gone.
+        const lastId = await page.evaluate(selector => {
+            const last = [...document.querySelectorAll(selector)].at(-1)
+            last?.scrollIntoView({ block: 'start' })
+            return last?.getAttribute('data-testid') ?? null
+        }, MOUNTED_AMOUNTS)
         await expect
             .poll(() => mountedAmounts(page).last().getAttribute('data-testid'), {
                 message: `the grid mounted no further account on the way to ${id}`,
