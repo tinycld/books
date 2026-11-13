@@ -123,8 +123,43 @@ export async function searchToEstimate(page: Page, memo: string) {
 }
 
 // Reopens an estimate through the search palette, by its memo, and waits for its screen.
+// A lower screen of the same estimate may stay mounted, hidden, in the Books stack, so
+// the wait is for the visible (top) screen.
 export async function openEstimateBySearch(page: Page, memo: string) {
     await searchToEstimate(page, memo)
+    await expect(
+        page
+            .getByTestId('estimate-form')
+            .or(page.getByTestId('estimate-read-only'))
+            .filter({ visible: true })
+    ).toBeVisible()
+}
+
+// The invoice form started from an estimate: `books/invoices/new?estimate=<id>`.
+export const INVOICE_FROM_ESTIMATE_URL = /\/books\/invoices\/new\?estimate=([^&#]+)$/
+
+// The estimate id of the invoice form started from it.
+export function estimateIdOfInvoiceUrl(page: Page): string {
+    const id = new URL(page.url()).searchParams.get('estimate')
+    if (!id) throw new Error(`Not on an invoice from an estimate: ${page.url()}`)
+    return id
+}
+
+// Convert to invoice from the estimate's Save bar: the wide bar's button, or its row in
+// the phone bar's More menu. Leaves the page on the invoice route without waiting for the
+// invoice form, for a test whose load is meant to fail; returns the estimate's id.
+export async function convertEstimate(page: Page): Promise<string> {
+    if (isPhone(page)) await page.getByTestId('estimate-more').click()
+    await page.getByTestId('estimate-convert').click()
+    await expect(page).toHaveURL(INVOICE_FROM_ESTIMATE_URL)
+    return estimateIdOfInvoiceUrl(page)
+}
+
+// The "From estimate <n>" link of an invoice made from an estimate (its form's band or
+// its read view) opens the estimate's screen.
+export async function openInvoiceFromEstimateLink(page: Page) {
+    await page.getByTestId('invoice-from-estimate').click()
+    await expect(page).toHaveURL(ESTIMATE_URL)
     await expect(
         page.getByTestId('estimate-form').or(page.getByTestId('estimate-read-only'))
     ).toBeVisible()

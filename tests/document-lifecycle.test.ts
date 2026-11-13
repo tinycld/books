@@ -79,4 +79,12 @@ describe('quoteReadActions', () => {
         expect(quoteReadActions('closed', false, false)).toEqual(['pdf'])
         expect(quoteReadActions('pending', false, false)).toEqual(['pdf'])
     })
+
+    // Spec §3.8: Open invoice on a closed estimate, first, for every user.
+    // An open estimate has no invoice, so it offers no Open invoice.
+    it('puts Open invoice first on a closed estimate that has its invoice, for a writer and a reader', () => {
+        expect(quoteReadActions('closed', true, true)).toEqual(['invoice', 'copy', 'pdf'])
+        expect(quoteReadActions('closed', false, true)).toEqual(['invoice', 'pdf'])
+        expect(quoteReadActions('pending', true, false)).toEqual(['copy', 'pdf'])
+    })
 })

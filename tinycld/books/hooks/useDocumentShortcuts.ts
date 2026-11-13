@@ -8,18 +8,22 @@ import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 interface DocumentShortcutsInput {
     // The kind's shortcut group, the prefix of the key ids, and its lifecycle (which bar
     // the form draws).
-    kind: Pick<SalesDocumentKind, 'key' | 'shortcutGroup' | 'lifecycle'>
+    kind: Pick<SalesDocumentKind, 'key' | 'shortcutGroup' | 'lifecycle' | 'noun'>
     isSaving: boolean
-    // The form is a saved draft the user may delete.
-    canDeleteDraft: boolean
-    deleteDraft: () => void
-    // On a phone, Post & new (a quote's Save and Save & new) is a row of More, not a bar
-    // button.
+    // The form's Delete is offered: a saved posting draft (Delete draft), or a saved
+    // quote that is not closed (Delete estimate).
+    canDelete: boolean
+    deleteRecord: () => void
+    // On a phone, Post & new (a quote's Save, Save & new, Convert and Delete) is a row of
+    // More, not a bar button.
     isPhone: boolean
     postAndNew: () => void
     // A quote's Save and Save & new.
     save: () => void
     saveAndNew: () => void
+    // A quote's Convert to invoice, and whether it is offered now.
+    canConvert: boolean
+    convert: () => void
     // A saved draft and no download running: the Download PDF row takes a press.
     canDownloadPdf: boolean
     downloadPdf: () => void
@@ -27,31 +31,40 @@ interface DocumentShortcutsInput {
 
 type KeyState = {
     isSaving: boolean
-    canDeleteDraft: boolean
+    canDelete: boolean
+    canConvert: boolean
     canDownloadPdf: boolean
     writesAvailable: boolean
 }
 
 type KeyRuns = Pick<
     DocumentShortcutsInput,
-    'deleteDraft' | 'postAndNew' | 'save' | 'saveAndNew' | 'downloadPdf'
+    'deleteRecord' | 'postAndNew' | 'save' | 'saveAndNew' | 'convert' | 'downloadPdf'
 >
 
 interface KeyListInput {
     idOf: (name: string) => string
     group: string
+    // The kind's noun ("Estimate"), which names its Delete.
+    noun: string
     isPhone: boolean
+    // Whether a quote's Convert and Delete are offered now: their keys are registered only
+    // then, as the ⇧? list ignores `when`.
+    canConvert: boolean
+    canDelete: boolean
     state: { current: KeyState }
     run: { current: KeyRuns }
 }
 
-// A More row's key: it fires while the row would take a press.
+// A More row's key: it fires while the row would take a press (and, for a row shown only
+// sometimes, while `isOffered` says it is shown).
 function writeKey(
     { idOf, group, state }: KeyListInput,
     name: string,
     keys: string,
     description: string,
-    run: () => void
+    run: () => void,
+    isOffered: (current: KeyState) => boolean = () => true
 ): Shortcut {
     return {
         id: idOf(name),
@@ -60,7 +73,10 @@ function writeKey(
         description,
         group,
         allowInInputs: true,
-        when: () => state.current.writesAvailable && !state.current.isSaving,
+        when: () => {
+            const current = state.current
+            return current.writesAvailable && !current.isSaving && isOffered(current)
+        },
         run,
     }
 }
@@ -98,20 +114,15 @@ function downloadPdfKey({ idOf, group, state, run }: KeyListInput): Shortcut {
 }
 
 function postingKeys(input: KeyListInput): Shortcut[] {
-    const { idOf, group, state, run, isPhone } = input
-    const deleteDraft: Shortcut = {
-        id: idOf('deleteDraft'),
-        keys: FORM_KEYS.deleteDraft,
-        scope: 'compose',
-        description: 'Delete draft',
-        group,
-        allowInInputs: true,
-        when: () => {
-            const current = state.current
-            return current.canDeleteDraft && current.writesAvailable && !current.isSaving
-        },
-        run: () => run.current.deleteDraft(),
-    }
+    const { run, isPhone } = input
+    const deleteDraft = writeKey(
+        input,
+        'deleteDraft',
+        FORM_KEYS.deleteDraft,
+        'Delete draft',
+        () => run.current.deleteRecord(),
+        current => current.canDelete
+    )
     const keys = [
         deleteDraft,
         idleSaveKey(input, FORM_KEYS.saveDraft, 'Save draft'),
@@ -125,14 +136,33 @@ function postingKeys(input: KeyListInput): Shortcut[] {
 }
 
 function quoteKeys(input: KeyListInput): Shortcut[] {
-    const { run, isPhone } = input
+    const { run, isPhone, canConvert, canDelete } = input
     const keys = [idleSaveKey(input, QUOTE_FORM_KEYS.save, 'Save'), downloadPdfKey(input)]
     if (!isPhone) return keys
     const save = writeKey(input, 'save', QUOTE_FORM_KEYS.save, 'Save', () => run.current.save())
     const saveAndNew = writeKey(input, 'saveAndNew', QUOTE_FORM_KEYS.saveAndNew, 'Save & new', () =>
         run.current.saveAndNew()
     )
-    return [...keys, save, saveAndNew]
+    const phoneKeys = [...keys, save, saveAndNew]
+    const convert = writeKey(
+        input,
+        'convert',
+        QUOTE_FORM_KEYS.convert,
+        'Convert to invoice',
+        () => run.current.convert(),
+        current => current.canConvert
+    )
+    const remove = writeKey(
+        input,
+        'deleteRecord',
+        QUOTE_FORM_KEYS.deleteRecord,
+        `Delete ${input.noun.toLowerCase()}`,
+        () => run.current.deleteRecord(),
+        current => current.canDelete
+    )
+    if (canConvert) phoneKeys.push(convert)
+    if (canDelete) phoneKeys.push(remove)
+    return phoneKeys
 }
 
 /**
@@ -149,8 +179,10 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
  *
  * A quote (Cancel Esc and Save & close ⌘↵ are bar buttons on every width; Save ⌘S and
  * Save & new ⌘⇧↵ on a wide screen):
- * - ⌘S Save and ⌘⇧↵ Save & new on a phone, where their rows sit in More: registered only
- *   there.
+ * - ⌘S Save, ⌘⇧↵ Save & new, ⌥I Convert to invoice and ⌘⌫ Delete on a phone, where
+ *   their rows sit in More: registered only there, ⌥I and ⌘⌫ only while their rows are
+ *   offered (`canConvert`, `canDelete`). On a wide screen the Convert and
+ *   Delete buttons hold ⌥I and ⌘⌫, while they are offered.
  *
  * Both:
  * - ⌘S while the save that holds it cannot take it (offline, or a save runs): that key is
@@ -166,43 +198,46 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
 export function useDocumentShortcuts({
     kind,
     isSaving,
-    canDeleteDraft,
-    deleteDraft,
+    canDelete,
+    deleteRecord,
     isPhone,
     postAndNew,
     save,
     saveAndNew,
+    canConvert,
+    convert,
     canDownloadPdf,
     downloadPdf,
 }: DocumentShortcutsInput) {
     const scopeOwner = useShortcutScope('compose')
     const instance = useId()
     const writes = useWritesAvailable()
-    const stateRef = useRef<KeyState>({
+    const keyState: KeyState = {
         isSaving,
-        canDeleteDraft,
-        canDownloadPdf,
-        writesAvailable: writes.available,
-    })
-    stateRef.current = {
-        isSaving,
-        canDeleteDraft,
+        canDelete,
+        canConvert,
         canDownloadPdf,
         writesAvailable: writes.available,
     }
-    const runRef = useRef<KeyRuns>({ deleteDraft, postAndNew, save, saveAndNew, downloadPdf })
-    runRef.current = { deleteDraft, postAndNew, save, saveAndNew, downloadPdf }
-    const { key: kindKey, shortcutGroup: group, lifecycle } = kind
+    const stateRef = useRef<KeyState>(keyState)
+    stateRef.current = keyState
+    const runs: KeyRuns = { deleteRecord, postAndNew, save, saveAndNew, convert, downloadPdf }
+    const runRef = useRef<KeyRuns>(runs)
+    runRef.current = runs
+    const { key: kindKey, shortcutGroup: group, lifecycle, noun } = kind
     const shortcuts = useMemo<Shortcut[]>(() => {
         const input: KeyListInput = {
             idOf: name => `books.${kindKey}.form.${instance}.${name}`,
             group,
+            noun,
             isPhone,
+            canConvert,
+            canDelete,
             state: stateRef,
             run: runRef,
         }
         return lifecycle === 'quote' ? quoteKeys(input) : postingKeys(input)
-    }, [instance, isPhone, kindKey, group, lifecycle])
+    }, [instance, isPhone, kindKey, group, noun, lifecycle, canConvert, canDelete])
     useRegisterShortcuts(shortcuts, scopeOwner)
     return { scopeOwner }
 }

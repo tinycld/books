@@ -1,6 +1,9 @@
 package books
 
 import (
+	"fmt"
+
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -32,6 +35,11 @@ const (
 	msgCustomerOnEstimates   = "%s is on estimates. Make it inactive instead."
 	msgExpirationBeforeDate  = "Expiration date can't be before the estimate date"
 	msgAcceptedDateRequired  = "Enter the accepted date"
+	// The delete refusals of an estimate an invoice names (spec §3.6): the
+	// first %s is the estimate's number, the second the invoice's; a draft
+	// invoice has none yet.
+	msgEstimateHasInvoice      = "Estimate %s has invoice %s. Set it to Rejected instead."
+	msgEstimateHasDraftInvoice = "Estimate %s has a draft invoice. Set it to Rejected instead."
 )
 
 // Go-only refusal texts of the estimate.
@@ -70,8 +78,30 @@ var estimateKind = salesDocKind{
 		CustomerOnDocs:  msgCustomerOnEstimates,
 	},
 	CheckHeader:  checkEstimateHeader,
+	CheckDelete:  checkEstimateDelete,
 	BeforePost:   nil,
 	DebitAccount: nil,
+}
+
+// checkEstimateDelete refuses to delete an estimate any invoice names, void
+// ones included, before the closed check, so the refusal says what to do. It
+// names the newest such invoice. Refusing here also keeps PocketBase from
+// unlinking the deleted estimate from a posted or void invoice, which the
+// invoice's guard would refuse.
+func checkEstimateDelete(tx core.App, stored *core.Record) error {
+	invoices, err := tx.FindRecordsByFilter("books_invoices", "estimate = {:estimate}", "-created,-id", 1, 0,
+		dbx.Params{"estimate": stored.Id})
+	if err != nil {
+		return fmt.Errorf("books: read the invoices of the estimate: %w", err)
+	}
+	if len(invoices) == 0 {
+		return nil
+	}
+	number := stored.GetString("number")
+	if invoices[0].GetString("status") == statusDraft {
+		return refuse(msgEstimateHasDraftInvoice, number)
+	}
+	return refuse(msgEstimateHasInvoice, number, invoices[0].GetString("number"))
 }
 
 // checkEstimateHeader is the estimate's own header guard on every write of an

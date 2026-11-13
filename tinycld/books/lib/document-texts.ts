@@ -36,6 +36,14 @@ export type DocumentMessages = {
     pdfStale: string
     // Only the posting lifecycle offers Void, so a quote kind has no void text.
     voidBody?: string
+    // A quote kind's: the invoice screen's notice at `?estimate=` of an estimate that does
+    // not convert (rejected, closed or already on an invoice).
+    cannotConvert?: string
+    // A quote kind's delete confirm: its title (`%s` is the number), body and action. A
+    // posting kind's Delete draft keeps DeleteDraftDialog's own words.
+    deleteTitle?: string
+    deleteBody?: string
+    deleteAction?: string
     depositInvalid?: string
     depositNone?: string
     depositLoadFailed?: string
@@ -130,6 +138,17 @@ export const ESTIMATE_MESSAGES = {
     customerOnInvoices: '%s is on estimates. Make it inactive instead.',
     expirationBeforeDate: "Expiration date can't be before the estimate date",
     acceptedDateRequired: 'Enter the accepted date',
+    // The delete refusals of an estimate an invoice names (server/estimates.go). The
+    // first `%s` is the estimate's number, the second the invoice's.
+    hasInvoice: 'Estimate %s has invoice %s. Set it to Rejected instead.',
+    hasDraftInvoice: 'Estimate %s has a draft invoice. Set it to Rejected instead.',
+    // The conversion refusals of the invoice made from an estimate
+    // (server/estimate_conversion.go). `estimateCustomer` and `estimateCustomerInactive`
+    // are refused under `customer`; the latter's `%s` is the customer's name.
+    alreadyOnInvoice: 'Estimate %s is already on invoice %s.',
+    alreadyOnDraftInvoice: 'Estimate %s is already on a draft invoice.',
+    estimateCustomer: "An invoice from an estimate bills the estimate's customer.",
+    estimateCustomerInactive: '%s is inactive. Make the customer active to convert this estimate.',
 
     // Client only.
     needItemLine: INVOICE_MESSAGES.needItemLine,
@@ -152,8 +171,22 @@ export const ESTIMATE_MESSAGES = {
     pdfUnsavedSave: 'Save',
     pdfStale: INVOICE_MESSAGES.pdfStale,
     acceptedByTooLong: 'Accepted by can be at most 200 characters',
+    cannotConvert: 'This estimate cannot be converted to an invoice',
+    deleteTitle: 'Delete estimate %s?',
+    deleteBody: "This can't be undone.",
+    deleteAction: 'Delete estimate',
 } as const satisfies DocumentMessages & {
     expirationBeforeDate: string
     acceptedDateRequired: string
     acceptedByTooLong: string
+    hasInvoice: string
+    hasDraftInvoice: string
+    alreadyOnInvoice: string
+    alreadyOnDraftInvoice: string
+    estimateCustomer: string
+    estimateCustomerInactive: string
+    cannotConvert: string
+    deleteTitle: string
+    deleteBody: string
+    deleteAction: string
 }

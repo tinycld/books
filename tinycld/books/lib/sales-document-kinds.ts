@@ -94,7 +94,9 @@ export const SALES_RECEIPT_KIND: SalesDocumentKind = {
     helpTopic: 'books:sales-receipts',
 }
 
-export const ESTIMATE_KIND: SalesDocumentKind = {
+// Its messages keep their own type, so a reader of a quote-only text (cannotConvert)
+// needs no fallback.
+export const ESTIMATE_KIND: SalesDocumentKind & { messages: typeof ESTIMATE_MESSAGES } = {
     key: 'estimate',
     lifecycle: 'quote',
     hostKey: 'books:estimate',

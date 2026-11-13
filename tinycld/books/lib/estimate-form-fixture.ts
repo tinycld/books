@@ -183,8 +183,8 @@ export const ESTIMATES = [
 ] satisfies EstimateRecord[]
 
 // The order the estimates are numbered in, 1001 to 1005. The seed (seedEstimates)
-// creates the four that are not closed, so the server numbers them 1001 to 1004; the
-// closed one is closed only by the first save of an invoice made from it.
+// creates all five in this order; the closed one is created Accepted and is closed by
+// the first save of CONVERTED_INVOICE, which names it.
 export const ESTIMATE_SEED_IDS = [
     IDS.pending,
     IDS.expired,

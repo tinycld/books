@@ -77,6 +77,20 @@ describe('documentScreenState', () => {
     it('a correction of a posted invoice is the form', () => {
         expect(documentScreenState({ ...NEW, replacesStatus: 'posted' })).toBe('form')
     })
+
+    // Convert to invoice (spec §3.7): `books/invoices/new?estimate=<id>`. `estimateStatus`
+    // is the estimate's status, null when it does not exist. Only a pending or accepted
+    // estimate converts; a rejected or closed one shows the cannot-convert notice.
+    it('an invoice from an estimate is the form only while the estimate is pending or accepted', () => {
+        expect(documentScreenState({ ...NEW, estimateStatus: 'pending' })).toBe('form')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'accepted' })).toBe('form')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'rejected' })).toBe('cannot-convert')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'closed' })).toBe('cannot-convert')
+        expect(documentScreenState({ ...NEW, estimateStatus: null })).toBe('not-found')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'pending', canWrite: false })).toBe(
+            'no-access'
+        )
+    })
 })
 
 // The sales receipt's states (spec §3.9) and the texts its screen shows for them.

@@ -20,6 +20,7 @@ import type { BooksSalesReceipts } from '../types'
 import {
     type DocumentDataSource,
     type DocumentFormStart,
+    type DocumentKindFields,
     type DocumentRecord,
     type DocumentScreenInput,
     type DocumentScreenReads,
@@ -27,6 +28,7 @@ import {
     type DocumentWrites,
     documentRead,
     linkedReadIds,
+    NO_ESTIMATE_SOURCE,
     useHeldRecord,
 } from './document-data'
 import { useBooksSettings } from './useBooksSettings'
@@ -37,7 +39,9 @@ const LOG_CONTEXT = 'books.salesReceipt'
 type SalesReceiptInsertColumns = typeof EMPTY_SALES_RECEIPT_COLUMNS
 
 // The receipt's own columns go into `kindFields`; the row keeps the shared ones.
-function salesReceiptSourceOf<R extends BooksSalesReceipts>(row: R): R & DocumentSource {
+function salesReceiptSourceOf<R extends BooksSalesReceipts>(
+    row: R
+): R & DocumentSource & { kindFields: Extract<DocumentKindFields, { kind: 'sales_receipt' }> } {
     return {
         ...row,
         kindFields: {
@@ -190,6 +194,8 @@ function useSalesReceiptScreenReads(
             sourceLinesQuery.data ?? [],
             [linesCollection]
         ),
+        // A sales receipt is never made from an estimate.
+        ...NO_ESTIMATE_SOURCE,
         taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),

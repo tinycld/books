@@ -14,8 +14,9 @@ import {
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
 import { writeRefusalText } from '../lib/refusal'
-import type { DocumentLifecycle } from '../lib/sales-document-kinds'
+import { type DocumentLifecycle, INVOICE_KIND } from '../lib/sales-document-kinds'
 import type { DocumentRecord } from './document-data'
+import { useOpenDocument } from './useOpenDocument'
 import { usePdfDownload } from './usePdfDownload'
 
 type ReadRecord = Pick<DocumentRecord, 'id' | 'status' | 'number' | 'entry' | 'kindFields'>
@@ -25,7 +26,13 @@ const LABELS: Record<DocumentReadAction, string> = {
     void: 'Void',
     copy: 'Copy',
     entry: 'View journal entry',
+    invoice: 'Open invoice',
     pdf: 'Download PDF',
+}
+
+// The invoice made from a closed estimate; '' for any other record.
+function invoiceIdOf(record: ReadRecord): string {
+    return record.kindFields.kind === 'estimate' ? record.kindFields.invoice : ''
 }
 
 // A bar or More row of the read view, with the action it runs (its key comes from it).
@@ -39,8 +46,7 @@ function offeredActionsOf(
     canWrite: boolean
 ): DocumentReadAction[] {
     if (lifecycle === 'quote') {
-        const hasInvoice = record.kindFields.kind === 'estimate' && record.kindFields.invoice !== ''
-        return quoteReadActions(record.status, canWrite, hasInvoice)
+        return quoteReadActions(record.status, canWrite, invoiceIdOf(record) !== '')
     }
     return documentReadActions(record.status, canWrite).filter(
         action => action !== 'entry' || record.entry !== ''
@@ -75,6 +81,7 @@ export function useDocumentReadActions(
     const isVoiding = voidDocument.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const download = usePdfDownload()
+    const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const run: Record<DocumentReadAction, () => void> = {
         edit: () => router.replace(orgHref(documentNewHref(doc, { replaces: record.id }))),
         void: () => {
@@ -83,6 +90,9 @@ export function useDocumentReadActions(
         },
         copy: () => router.replace(orgHref(documentNewHref(doc, { copy: record.id }))),
         entry: () => router.replace(orgHref(`books/entries/${record.entry}`)),
+        // Back to the invoice's screen when it is below; else pushed, so Back returns to
+        // the estimate.
+        invoice: openInvoice,
         pdf: () =>
             download.mutate({
                 kind: doc.key,
