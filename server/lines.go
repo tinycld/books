@@ -110,20 +110,22 @@ func registerLineHooks(app core.App) {
 }
 
 // serializedLine is serialized for a line write: after the write succeeds, in
-// the same transaction, the entry's draft total is restated so the list can
-// show it without reading the lines.
-func serializedLine(e *core.RecordEvent, check func(tx core.App) error) error {
+// the same transaction, the entry's draft total and revision follow it.
+// check returns how much the write changes the entry's debits: a new line's
+// debit, an update's new debit less the stored one, a delete's debit negated.
+func serializedLine(e *core.RecordEvent, check func(tx core.App) (debitChange int, err error)) error {
 	original := e.App
 	defer func() { e.App = original }()
 	return original.RunInTransaction(func(tx core.App) error {
 		e.App = tx
-		if err := check(tx); err != nil {
+		debitChange, err := check(tx)
+		if err != nil {
 			return err
 		}
 		if err := e.Next(); err != nil {
 			return err
 		}
-		return touchDraft(tx, e.Record)
+		return touchDraft(tx, e.Record, debitChange)
 	})
 }
 
@@ -152,7 +154,7 @@ func draftDebitSum(app core.App, entryID string) (int, error) {
 // does nothing when the entry is gone (cascade delete), is not a draft, or is
 // a reversal, and when the line is being stamped by a post: Books owns those
 // totals and stamps them itself at post.
-func touchDraft(tx core.App, line *core.Record) error {
+func touchDraft(tx core.App, line *core.Record, debitChange int) error {
 	if line.GetBool("posted") {
 		return nil
 	}
@@ -166,7 +168,7 @@ func touchDraft(tx core.App, line *core.Record) error {
 	if entry.GetString("status") != statusDraft || entry.GetString("reverses") != "" {
 		return nil
 	}
-	sum, err := draftDebitSum(tx, entry.Id)
+	sum, err := draftTotalAfter(tx, entry, debitChange)
 	if err != nil {
 		return err
 	}
@@ -178,6 +180,19 @@ func touchDraft(tx core.App, line *core.Record) error {
 	entry.Set("revision", base+1)
 	defer ownWrite(tx, entry.Id)()
 	return tx.Save(entry)
+}
+
+// draftTotalAfter is the entry's draft total after a line write that changed
+// its debits by debitChange: the stored total plus the change, with no read
+// of the other lines. A save of N lines would otherwise read N*N rows. A
+// total at the storage cap is not the real sum, so the lines are summed then,
+// and also when the change would reach the cap.
+func draftTotalAfter(tx core.App, entry *core.Record, debitChange int) (int, error) {
+	stored := entry.GetInt("total")
+	if next := stored + debitChange; stored < maxStoredAmount && next >= 0 && next < maxStoredAmount {
+		return next, nil
+	}
+	return draftDebitSum(tx, entry.Id)
 }
 
 // withoutRestatedTotal removes total from a draft's changed fields and sets it
