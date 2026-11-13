@@ -1,10 +1,12 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { createIncomeAccount, openChart } from './account-register-helpers'
 import {
     ACCOUNT_LABELS,
     DESKTOP,
     fillLine,
     isPhone,
+    makeAccountInactiveElsewhere,
     openEntriesList,
     openNewEntry,
     PHONE,
@@ -21,15 +23,16 @@ import { uniqueName } from './record-form-helpers'
 // `entry-more` menu; validation is zod, server refusals show in the error
 // summary and under the line.
 //
-// Entries are made by driving the form; nothing is written raw. The one
-// intercepted request is the planned `page.route` refusal in the server-refusal
-// test: no seeded account is inactive and the picker never offers one, so the
-// only way to make the server refuse a post is to answer the status update
-// with a 400. That test therefore does not cover the server's own rule, only
-// how the screen reacts to a refusal. The same holds for the other `page.route`
-// answers below: the delayed entries write (leaving while a save is in flight) and the
-// PocketBase-shaped 400 that keys an error to `auto_reverse_on` (no real input makes the
-// server refuse that field). It also does not cover the 200-line limit
+// Entries are made by driving the form; nothing is written raw. The refused posts
+// are the server's own: the test creates an account, chooses it on line 2 and makes
+// it inactive from another tab (the picker never offers an inactive account), so the
+// server refuses the post with "Line 2: account <name> is inactive.". Two
+// `page.route` answers remain: the delayed entries write (leaving while a save is in
+// flight, passed on to the server) and the PocketBase-shaped 400 that keys an error
+// to `auto_reverse_on`. That one covers only where the screen puts a field-keyed
+// refusal: the form's zod schema stops every auto-reverse date the server refuses
+// except one on or before the close date, and a spec may not set a close date on the
+// shared DB. It also does not cover the 200-line limit
 // (`tests/entry-schema.test.ts`) or editing an existing draft (checkpoint 7).
 
 const SIZES = [
@@ -84,21 +87,34 @@ async function pressPostAndNew(page: Page) {
     await page.getByTestId('entry-post-new').click()
 }
 
-const ENTRY_WRITE = '**/api/collections/books_journal_entries/records**'
 // A save of a draft (the entry and its lines) is one batch request.
 const BATCH_WRITE = '**/api/batch'
-const STATUS_REFUSAL = 'Line 2: account Old is inactive.'
 
-// Answers the status update (a PATCH) of a post with a 400; the draft insert passes.
-async function refuseStatusUpdates(page: Page) {
-    await page.route(ENTRY_WRITE, route => {
-        if (route.request().method() !== 'PATCH') return route.continue()
-        return route.fulfill({
-            status: 400,
-            contentType: 'application/json',
-            body: JSON.stringify({ message: STATUS_REFUSAL, data: {} }),
-        })
-    })
+// The server's refusal of a post whose line 2 uses an inactive account
+// (server/posting.go, validateLines).
+const inactiveRefusal = (account: string) => `Line 2: account ${account} is inactive.`
+
+// Books open on the new-entry form with a balanced entry whose line 2 uses an account the
+// test created. The account picker offers no inactive account, so a test that needs the
+// server to refuse the post makes this account inactive from another tab
+// (`makeAccountInactiveElsewhere`) after the form chose it.
+async function startWithOwnAccount(
+    page: Page,
+    size: { width: number; height: number },
+    label: string
+) {
+    await login(page)
+    await navigateToPackage(page, 'books')
+    await page.setViewportSize(size)
+    const account = uniqueName(`${label} account`)
+    await openChart(page)
+    await createIncomeAccount(page, account)
+    await openNewEntry(page)
+    const memo = uniqueName(label)
+    await page.getByTestId('entry-memo').fill(memo)
+    await fillLine(page, 0, { account: ACCOUNT_LABELS.checking, debit: '$10.00' })
+    await fillLine(page, 1, { account, credit: '$10.00' })
+    return { memo, account }
 }
 
 async function backToList(page: Page) {
@@ -215,19 +231,9 @@ test.describe('journal-entries: save and post (desktop)', () => {
     test('server refusal: shows the message, keeps the draft, the next Post reuses it', async ({
         page,
     }) => {
-        await start(page, size)
-        const memo = uniqueName(`Refused post ${sizeName}`)
-        await fillBalanced(page, memo)
-        const refusal = 'Line 2: account Old is inactive.'
-        const statusUpdate = '**/api/collections/books_journal_entries/records/*'
-        await page.route(statusUpdate, route => {
-            if (route.request().method() !== 'PATCH') return route.continue()
-            return route.fulfill({
-                status: 400,
-                contentType: 'application/json',
-                body: JSON.stringify({ message: refusal, data: {} }),
-            })
-        })
+        const { memo, account } = await startWithOwnAccount(page, size, `Refused post ${sizeName}`)
+        const refusal = inactiveRefusal(account)
+        await makeAccountInactiveElsewhere(page, account)
 
         await page.getByTestId('entry-post').click()
 
@@ -247,7 +253,8 @@ test.describe('journal-entries: save and post (desktop)', () => {
         await expect(other.getByTestId(`entries-status-${await idOf(draft)}`)).toHaveText('Draft')
         await other.close()
 
-        await page.unroute(statusUpdate)
+        // With an active account on line 2, the next Post updates that same draft.
+        await fillLine(page, 1, { account: ACCOUNT_LABELS.equity })
         await page.getByTestId('entry-post').click()
         await expect(page.getByTestId('entry-read-only')).toBeVisible()
         await expect(page.getByTestId('entry-title')).toHaveText(/^Journal entry JE-\d+$/)
@@ -336,19 +343,17 @@ test.describe('journal-entries: save and post (desktop)', () => {
     test('after a refused post, editing a line clears its refusal and Cancel asks to discard again', async ({
         page,
     }) => {
-        await start(page, size)
-        await fillBalanced(page, uniqueName(`Stale refusal ${sizeName}`))
-        await refuseStatusUpdates(page)
+        const { account } = await startWithOwnAccount(page, size, `Stale refusal ${sizeName}`)
+        const refusal = inactiveRefusal(account)
+        await makeAccountInactiveElsewhere(page, account)
         await page.getByTestId('entry-post').click()
-        await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
-        await expect(page.getByTestId('entry-line-error-1')).toContainText(STATUS_REFUSAL)
+        await expect(page.getByTestId('entry-error-summary')).toContainText(refusal)
+        await expect(page.getByTestId('entry-line-error-1')).toContainText(refusal)
 
         await fillLine(page, 1, { credit: '$11.00' })
 
         await expect(page.getByTestId('entry-line-error-1')).toHaveCount(0)
-        await expect(page.getByTestId('entry-error-summary').getByText(STATUS_REFUSAL)).toHaveCount(
-            0
-        )
+        await expect(page.getByTestId('entry-error-summary').getByText(refusal)).toHaveCount(0)
 
         // The saved draft no longer matches the form, so leaving asks first.
         await page.getByTestId('entry-cancel').click()
@@ -401,11 +406,12 @@ test.describe('journal-entries: save and post (desktop)', () => {
     test('cancel after a refused post leaves without asking, the draft is already saved', async ({
         page,
     }) => {
-        await start(page, size)
-        await fillBalanced(page, uniqueName(`Cancel saved ${sizeName}`))
-        await refuseStatusUpdates(page)
+        const { account } = await startWithOwnAccount(page, size, `Cancel saved ${sizeName}`)
+        await makeAccountInactiveElsewhere(page, account)
         await page.getByTestId('entry-post').click()
-        await expect(page.getByTestId('entry-error-summary')).toContainText(STATUS_REFUSAL)
+        await expect(page.getByTestId('entry-error-summary')).toContainText(
+            inactiveRefusal(account)
+        )
 
         await page.getByTestId('entry-cancel').click()
 

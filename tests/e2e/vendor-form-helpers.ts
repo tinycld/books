@@ -86,7 +86,6 @@ export const chooseFromMenu = vendorHelpers.chooseFromMenu
 export const deleteDialog = vendorHelpers.deleteDialog
 export const openDeleteDialog = vendorHelpers.openDeleteDialog
 export const inactiveLabel = vendorHelpers.inactiveLabel
-export const refuseDelete = vendorHelpers.refuseDelete
 export const isRecordUrl = vendorHelpers.isRecordUrl
 export const isRecordsUrl = vendorHelpers.isRecordsUrl
 export const patchAnswered = vendorHelpers.patchAnswered
