@@ -19,12 +19,13 @@ export function useAccountsImportScreen() {
     })
     const existing = useMemo(
         () =>
-            (data ?? []).map(({ id, name, number, type, parent }) => ({
+            (data ?? []).map(({ id, name, number, type, parent, inactive }) => ({
                 id,
                 name,
                 number,
                 type,
                 parent,
+                inactive,
             })),
         [data]
     )

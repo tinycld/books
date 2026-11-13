@@ -318,11 +318,11 @@ describe('flattenAccountTree', () => {
         expect(ids).toContain('acct_exp_0008')
     })
 
-    it('drops the whole subtree under an inactive parent when showInactive is false', () => {
+    it('drops an inactive parent with its inactive subtree when showInactive is false', () => {
         const tree = buildAccountTree(
             [
                 acct({ id: 'off', inactive: true }),
-                acct({ id: 'kid', parent: 'off' }),
+                acct({ id: 'kid', parent: 'off', inactive: true }),
                 acct({ id: 'on' }),
             ],
             defaultSort
@@ -331,6 +331,24 @@ describe('flattenAccountTree', () => {
         expect(hidden.map(r => r.node.account.id)).toEqual(['on'])
         const shown = flattenAccountTree(tree, allFilters({ showInactive: true }))
         expect(shown.map(r => r.node.account.id).sort()).toEqual(['kid', 'off', 'on'])
+    })
+
+    // The server refuses this state now, but a row older than the rule can hold it.
+    it('keeps an active account visible below an inactive ancestor, and shows the ancestor as inactive', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'off', inactive: true }),
+                acct({ id: 'mid', parent: 'off', inactive: true }),
+                acct({ id: 'kid', parent: 'mid' }),
+                acct({ id: 'gone', parent: 'off', inactive: true }),
+                acct({ id: 'on' }),
+            ],
+            defaultSort
+        )
+        const rows = flattenAccountTree(tree, allFilters({ showInactive: false }))
+        expect(rows.map(r => r.node.account.id)).toEqual(['off', 'mid', 'kid', 'on'])
+        expect(rows[0].node.account.inactive).toBe(true)
+        expect(rows[1].node.account.inactive).toBe(true)
     })
 
     it('lists the fixture in tree order with nothing filtered', () => {
@@ -353,6 +371,31 @@ describe('parentIds', () => {
 
 describe('parentChoices', () => {
     const ids = (list: TreeAccount[]) => list.map(a => a.id).sort()
+
+    it('leaves out inactive accounts for a new account and for an active account', () => {
+        const accounts = [
+            acct({ id: 'live' }),
+            acct({ id: 'retired', inactive: true }),
+            acct({ id: 'me' }),
+        ]
+        expect(ids(parentChoices(accounts, { type: 'bank', editingId: '' }))).toEqual([
+            'live',
+            'me',
+        ])
+        expect(ids(parentChoices(accounts, { type: 'bank', editingId: 'me' }))).toEqual(['live'])
+    })
+
+    it('offers inactive accounts to an inactive account', () => {
+        const accounts = [
+            acct({ id: 'live' }),
+            acct({ id: 'retired', inactive: true }),
+            acct({ id: 'me', inactive: true }),
+        ]
+        expect(ids(parentChoices(accounts, { type: 'bank', editingId: 'me' }))).toEqual([
+            'live',
+            'retired',
+        ])
+    })
 
     it('excludes the editing account and its descendants', () => {
         const choices = parentChoices(fixtureAccounts, {

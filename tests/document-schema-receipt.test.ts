@@ -9,7 +9,7 @@ import { ClientResponseError } from 'pocketbase'
 import { createElement, type Provider } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { View } from 'react-native'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ZodTypeAny } from 'zod'
 import { SALES_RECEIPT_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
 import hosts, { SALES_RECEIPT_HOST_KEY } from '../tinycld/books/forms/hosts'
@@ -262,6 +262,13 @@ formHosts.push(
         },
     ])
 )
+
+// The form is ready only after the host UI module is loaded. Load it before the first
+// test: with the whole suite running, the first load can take longer than waitFor waits,
+// and that time is not part of what a test measures.
+beforeAll(async () => {
+    await import('../tinycld/books/forms/ui')
+})
 
 const REFERENCE_FIELD_TEXT = 'Must be less than 40 character(s).'
 

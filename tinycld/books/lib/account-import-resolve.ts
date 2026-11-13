@@ -6,12 +6,14 @@ export type ExistingAccount = {
     number: string
     type: string
     parent: string
+    inactive: boolean
 }
 
 export type RowInput = {
     name: string
     typeKey: string
     parentRaw: string
+    inactive: boolean
     // A reason the cells alone are invalid; it outranks every parent problem.
     fieldError: string | null
 }
@@ -104,6 +106,8 @@ type Resolved = ResolvedRow & {
     path: string
     depth: number
     typeKey: string
+    // What the row will be: an active row needs an active parent.
+    inactive: boolean
     // The existing account a Skipped row stands for.
     match: ExistingNode | null
 }
@@ -290,6 +294,7 @@ export function resolveRows(
         let parentError: string | null = null
         let parentPath = ''
         let parentType = ''
+        let parentInactive = false
         let parentDepth = 0
         let parentKey = ''
         let parentFile: number | null = null
@@ -301,6 +306,7 @@ export function resolveRows(
         } else if (link.kind === 'existing') {
             parentPath = link.node.path
             parentType = link.node.account.type
+            parentInactive = link.node.account.inactive
             parentDepth = link.node.depth
             parentKey = `e:${link.node.account.id}`
         } else if (link.kind === 'file') {
@@ -311,6 +317,7 @@ export function resolveRows(
             } else {
                 parentPath = parent.path
                 parentType = parent.typeKey
+                parentInactive = parent.inactive
                 parentDepth = parent.depth
                 parentKey = `f:${link.index}`
                 parentFile = link.index
@@ -325,6 +332,8 @@ export function resolveRows(
         else if (inCycle.has(i)) reason = 'parent cycle'
         else if (parentError) reason = parentError
         else if (parentType !== '' && parentType !== row.typeKey) reason = 'parent type differs'
+        // server/accounts.go checkActiveParent refuses the insert.
+        else if (parentInactive && !row.inactive) reason = 'parent is inactive'
         else if (depth > maxAccountDepth) reason = `depth over ${maxAccountDepth}`
 
         const isError = reason !== null
@@ -338,6 +347,7 @@ export function resolveRows(
             path: parentPath === '' ? row.name : `${parentPath}:${row.name}`,
             depth,
             typeKey: row.typeKey,
+            inactive: row.inactive,
             match: isError ? null : match,
         }
     }
