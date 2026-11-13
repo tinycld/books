@@ -123,7 +123,7 @@ func serializedLine(e *core.RecordEvent, check func(tx core.App) error) error {
 		if err := e.Next(); err != nil {
 			return err
 		}
-		return restateDraftTotal(tx, e.Record)
+		return touchDraft(tx, e.Record)
 	})
 }
 
@@ -146,11 +146,13 @@ func draftDebitSum(app core.App, entryID string) (int, error) {
 	return sum, nil
 }
 
-// restateDraftTotal writes entries.total after a line write. It does nothing
-// when the entry is gone (cascade delete), is not a draft, or is a reversal,
-// and when the line is being stamped by a post: Books owns those totals and
-// stamps them itself at post.
-func restateDraftTotal(tx core.App, line *core.Record) error {
+// touchDraft records a line write on its entry, in the same transaction: the
+// entry's draft total is restated so the list can show it without reading the
+// lines, and the entry's revision takes the transaction's one increase. It
+// does nothing when the entry is gone (cascade delete), is not a draft, or is
+// a reversal, and when the line is being stamped by a post: Books owns those
+// totals and stamps them itself at post.
+func touchDraft(tx core.App, line *core.Record) error {
 	if line.GetBool("posted") {
 		return nil
 	}
@@ -168,10 +170,13 @@ func restateDraftTotal(tx core.App, line *core.Record) error {
 	if err != nil {
 		return err
 	}
-	if entry.GetInt("total") == sum {
+	base, first := draftBase(tx, entry.Id, entry.GetInt("revision"))
+	if !first && entry.GetInt("total") == sum {
 		return nil
 	}
 	entry.Set("total", sum)
+	entry.Set("revision", base+1)
+	defer ownWrite(tx, entry.Id)()
 	return tx.Save(entry)
 }
 

@@ -76,3 +76,50 @@ func isOwnWrite(tx core.App, entryID string) bool {
 	_, ok := ownWrites.Load(touchKey{tx.TxInfo(), entryID})
 	return ok
 }
+
+// requestRevisions holds the revision a request stated, for the model hook
+// that runs inside the write's transaction. Keyed by the record pointer, which
+// the request handler and the model hooks share; never by id, so two requests
+// for one entry cannot read each other's value.
+var requestRevisions sync.Map // *core.Record → int
+
+// checkRequestRevision records the revision a request states for a draft
+// entry. A request that updates a draft must state one. The comparison is in
+// settleRevision, inside the transaction, where no other write can come
+// between the read and the save.
+func checkRequestRevision(e *core.RecordRequestEvent) (done func(), err error) {
+	noop := func() {}
+	if e.Record.Original().GetString("status") != statusDraft {
+		return noop, nil
+	}
+	info, err := e.RequestInfo()
+	if err != nil {
+		return noop, err
+	}
+	if _, stated := info.Body["revision"]; !stated {
+		return noop, errRevisionConflict()
+	}
+	rec := e.Record
+	requestRevisions.Store(rec, rec.GetInt("revision"))
+	return func() { requestRevisions.Delete(rec) }, nil
+}
+
+// settleRevision is the revision rule for an update of a draft entry, a save
+// or a post: the transaction leaves the draft at base + 1.
+//
+// A request states the revision a person saw, as base + 1. Any other value
+// means the draft changed after that person read it, and the write is refused.
+//
+// Books' own Go callers (a reversal, the auto-reverse sweep, a document's
+// post) state none. The value their record carries says nothing about what a
+// person saw: a record kept from before a line write carries an old one. So
+// it is replaced, as a stale total is, and never refused.
+func settleRevision(tx core.App, stored, next *core.Record) error {
+	base, _ := draftBase(tx, stored.Id, stored.GetInt("revision"))
+	want := base + 1
+	if stated, isRequest := requestRevisions.Load(next); isRequest && stated.(int) != want {
+		return errRevisionConflict()
+	}
+	next.Set("revision", want)
+	return nil
+}
