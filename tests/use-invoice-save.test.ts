@@ -20,9 +20,12 @@ import { INVOICE_MESSAGES } from '../tinycld/books/lib/document-messages'
 import { INVOICE_IDS, INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
 import { PRODUCT_IDS } from '../tinycld/books/lib/products-services-fixture'
 import { INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import { TAX_RATE_ROWS } from '../tinycld/books/lib/tax-rates-fixture'
 import { useDocumentSaveStore } from '../tinycld/books/stores/document-save-store'
 import type { BooksInvoiceLines, BooksInvoices } from '../tinycld/books/types'
 import {
+    afterNextBatch,
+    arriveFromServer,
     enteredWrites,
     guardedStore,
     holdWrites,
@@ -446,6 +449,31 @@ describe('useDocumentSave: a refused post of a new invoice', () => {
         expect(invoices.get(id)?.revision).toBe(2)
         expect(lines.toArray.map(l => l.id)).toEqual([LINE_A.id])
     })
+
+    // The post is its own request after the create batch. Another session's save reaches
+    // the store between the two: the post would state a revision the row already has.
+    it('refuses the post, with no request, when the draft moved after its create batch', async () => {
+        const probe = await openNew()
+        fill(probe, [LINE_A])
+        afterNextBatch(() =>
+            arriveFromServer(() => {
+                invoices.update(insertedInvoiceId(), draft => {
+                    draft.revision = 2
+                })
+            })
+        )
+
+        await post(probe)
+
+        await waitFor(() => expect(probe.current().save.isConflict).toBe(true))
+        await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
+        const id = insertedInvoiceId()
+        // The create batch only: no post entered.
+        expect(enteredWrites()).toEqual([id, LINE_A.id])
+        expect(invoices.get(id)?.status).toBe('draft')
+        expect(invoices.get(id)?.revision).toBe(2)
+        expect(probe.current().save.writtenId).toBe(id)
+    })
 })
 
 describe('useDocumentSave: a stored draft', () => {
@@ -477,13 +505,19 @@ describe('useDocumentSave: a stored draft', () => {
     }))
     const firstLineId = DRAFT_LINES[0].id
 
-    function StoredProbe({ record, seen }: { record: DocumentRecord; seen: ProbeProps['seen'] }) {
+    // What the store holds and the screen reads: the draft's lines, and the tax rows.
+    type Stored = { lines: BooksInvoiceLines[]; taxRows: typeof TAX_RATE_ROWS }
+    const EVERY_KIND: Stored = { lines: STORED_LINES, taxRows: [] }
+
+    type StoredProbeProps = { record: DocumentRecord; stored: Stored; seen: ProbeProps['seen'] }
+
+    function StoredProbe({ record, stored, seen }: StoredProbeProps) {
         const state = useDocumentForm(INVOICE_DOCUMENT, {
             record,
-            lines: DRAFT_LINES,
+            lines: stored.lines.map(line => ({ ...line, productRow: undefined })),
             customer: undefined,
             currency: 'USD',
-            taxRows: [],
+            taxRows: stored.taxRows,
         })
         const save = useDocumentSave(state)
         seen.current = { form: state.form as unknown as Form, isReady: state.isReady, save }
@@ -492,11 +526,11 @@ describe('useDocumentSave: a stored draft', () => {
 
     // `storedRevision` is the revision the store row holds; the form's record starts at
     // DRAFT's (5). They differ when another session's save reached the store.
-    async function openStored(storedRevision = DRAFT.revision) {
+    async function openStored(storedRevision = DRAFT.revision, stored = EVERY_KIND) {
         invoices = guardedStore<BooksInvoices>('books_invoices', [
             { ...DRAFT, revision: storedRevision },
         ])
-        lines = guardedStore<BooksInvoiceLines>('books_invoice_lines', STORED_LINES)
+        lines = guardedStore<BooksInvoiceLines>('books_invoice_lines', stored.lines)
         const seen: { current: Seen | null } = { current: null }
         const screen: ScreenStubValue = {
             pathname: `/a/books/invoices/${DRAFT.id}`,
@@ -510,7 +544,7 @@ describe('useDocumentSave: a stored draft', () => {
                 createElement(
                     ScreenStub,
                     { value: screen },
-                    createElement(StoredProbe, { record, seen })
+                    createElement(StoredProbe, { record, stored, seen })
                 )
             )
         const view = render(tree(recordOf(DRAFT)))
@@ -520,7 +554,7 @@ describe('useDocumentSave: a stored draft', () => {
         }
         await waitFor(() => {
             expect(current().isReady).toBe(true)
-            expect(current().form.getValues('lines')).toHaveLength(DRAFT_LINES.length)
+            expect(current().form.getValues('lines')).toHaveLength(stored.lines.length)
         })
         return { current, show: (row: BooksInvoices) => view.rerender(tree(recordOf(row))) }
     }
@@ -582,5 +616,96 @@ describe('useDocumentSave: a stored draft', () => {
         await waitFor(() => expect(invoices.get(DRAFT.id)?.revision).toBe(7))
         expect(enteredWrites()).toEqual([firstLineId, DRAFT.id])
         expect(probe.current().save.isConflict).toBe(false)
+    })
+
+    // Decision D2. Stored: one line of 100.00, not taxable, under Denver combined. The
+    // save adds a taxable credit of -95.00 and removes the tax. With the stored tax the
+    // credit's own tax takes the total below zero, so no line order holds; with no tax
+    // the total is 5.00. The header (the tax change) then goes first.
+    describe('a save that changes the tax rate the lines need', () => {
+        const ONE_LINE: Stored = {
+            lines: [
+                {
+                    ...STORED_LINES[0],
+                    quantity: 1,
+                    rate: 10_000,
+                    amount: 10_000,
+                    taxable: false,
+                },
+            ],
+            taxRows: TAX_RATE_ROWS,
+        }
+        const CREDIT: TableRow = { ...LINE_B, id: 'invlinetest0003', rate: '-95.00', taxable: true }
+
+        const removeTaxAndAddCredit = (probe: { current: () => Seen }) =>
+            act(() => {
+                const { form } = probe.current()
+                const rows = form.getValues('lines') as TableRow[]
+                form.setValue('tax_rate', '', { shouldDirty: true })
+                form.setValue('lines', [...rows, CREDIT], { shouldDirty: true })
+            })
+
+        it('saves the header first, with the next revision, then the line, in one batch', async () => {
+            const probe = await openStored(DRAFT.revision, ONE_LINE)
+            removeTaxAndAddCredit(probe)
+
+            await act(async () => {
+                await probe.current().save.saveDraft()
+            })
+
+            await waitFor(() => expect(invoices.get(DRAFT.id)?.revision).toBe(6))
+            await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
+            expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id])
+            expect(invoices.get(DRAFT.id)?.tax_rate).toBe('')
+            expect(invoices.get(DRAFT.id)?.status).toBe('draft')
+            expect(lines.toArray.map(l => l.id)).toEqual([ONE_LINE.lines[0].id, CREDIT.id])
+            expect(probe.current().save.isConflict).toBe(false)
+        })
+
+        it('posts with the header first in the batch (revision + 1), then the post alone (revision + 2)', async () => {
+            const probe = await openStored(DRAFT.revision, ONE_LINE)
+            removeTaxAndAddCredit(probe)
+            const steps = stepWrites()
+
+            await post(probe)
+            // The batch: the header, then the line. It does not post.
+            await waitFor(() => expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id]))
+            expect(invoices.get(DRAFT.id)?.revision).toBe(6)
+            expect(invoices.get(DRAFT.id)?.tax_rate).toBe('')
+            expect(invoices.get(DRAFT.id)?.status).toBe('draft')
+            steps.next()
+            // The post, as its own request.
+            await waitFor(() => expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id, DRAFT.id]))
+            expect(invoices.get(DRAFT.id)?.revision).toBe(7)
+            expect(invoices.get(DRAFT.id)?.status).toBe('posted')
+            steps.stop()
+
+            await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
+            expect(invoices.get(DRAFT.id)?.revision).toBe(7)
+            expect(invoices.get(DRAFT.id)?.status).toBe('posted')
+            expect(probe.current().save.isConflict).toBe(false)
+        })
+
+        // Another session's save reaches the store between the batch and the post.
+        it('refuses the post, with no request, when the draft moved after the batch', async () => {
+            const probe = await openStored(DRAFT.revision, ONE_LINE)
+            removeTaxAndAddCredit(probe)
+            afterNextBatch(() =>
+                arriveFromServer(() => {
+                    invoices.update(DRAFT.id, draft => {
+                        draft.revision = 7
+                    })
+                })
+            )
+
+            await post(probe)
+
+            await waitFor(() => expect(probe.current().save.isConflict).toBe(true))
+            await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
+            // The batch only: no post entered.
+            expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id])
+            expect(invoices.get(DRAFT.id)?.status).toBe('draft')
+            expect(invoices.get(DRAFT.id)?.revision).toBe(7)
+        })
     })
 })
