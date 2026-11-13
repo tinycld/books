@@ -3,38 +3,26 @@
     "shots": [
         {
             "name": "new",
-            "widths": [
-                390
-            ],
+            "widths": [390],
             "url": "/a/books/sales-receipts/new",
             "ready": "sales-receipt-form",
-            "hideLabels": [
-                "New"
-            ],
+            "hideLabels": ["New"],
             "height": 1300
         },
         {
             "name": "./new",
-            "widths": [
-                1280
-            ],
+            "widths": [1280],
             "url": "/a/books/sales-receipts/new",
             "ready": "sales-receipt-form",
-            "hideLabels": [
-                "New"
-            ],
+            "hideLabels": ["New"],
             "height": 1300
         },
         {
             "name": "filled",
-            "widths": [
-                1280
-            ],
+            "widths": [1280],
             "url": "/a/books/entries",
             "ready": "entries-screen",
-            "hideLabels": [
-                "New"
-            ],
+            "hideLabels": ["New"],
             "height": 1900,
             "actions": [
                 {
@@ -76,14 +64,10 @@
         },
         {
             "name": "filled-phone",
-            "widths": [
-                390
-            ],
+            "widths": [390],
             "url": "/a/books/entries",
             "ready": "entries-screen",
-            "hideLabels": [
-                "New"
-            ],
+            "hideLabels": ["New"],
             "height": 4200,
             "actions": [
                 {
@@ -128,14 +112,10 @@
         },
         {
             "name": "errors",
-            "widths": [
-                1280
-            ],
+            "widths": [1280],
             "url": "/a/books/sales-receipts/new",
             "ready": "sales-receipt-form",
-            "hideLabels": [
-                "New"
-            ],
+            "hideLabels": ["New"],
             "height": 1900,
             "actions": [
                 {
@@ -186,14 +166,10 @@
         },
         {
             "name": "errors-phone",
-            "widths": [
-                390
-            ],
+            "widths": [390],
             "url": "/a/books/sales-receipts/new",
             "ready": "sales-receipt-form",
-            "hideLabels": [
-                "New"
-            ],
+            "hideLabels": ["New"],
             "height": 4300,
             "actions": [
                 {
