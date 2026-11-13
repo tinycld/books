@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/sales-receipt-form-checkpoints.md
 - reference: docs/plans/sales-receipt-form-reference/
 - evidence: docs/plans/sales-receipt-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~
 - capture manifest: docs/plans/sales-receipt-form-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -240,7 +240,8 @@
 - human: none (review mode C)
 
 ## Final review
-- eval: revise 1 (2026-11-12, at the merge of origin/main; CI on tinycld/books#39 green: E2E shards 1-4, Typecheck & Unit). Human note: the Reference no. hint draws between the label and the input, so the input sits lower than the Payment method and Deposit to inputs in its row; draw the hint below the field. Human pick: core change, `core/ui/forms/FieldCell.tsx` draws the description under the input, above the error, for every forms-engine field. Open at the gate: Edit address / Edit customer keys or pointer-only; retro items 1-6.
+- eval: approved by the human 2026-11-12 after revise 1 (Edit address / Edit customer: Tab stops, no keys; retro items 1-6 accepted). CI green at c3b39b2 on tinycld/books#39 (E2E shards 1-4, Typecheck & Unit) with core tinycld/tinycld#466 at 7d9d3ab (all checks green; Go 1.27.4 for GO-2026-6859). Deferrals: 1 (cp4 Tax header, core HeaderSlot). native: not executed.
+- eval (earlier): revise 1 (2026-11-12, at the merge of origin/main; CI on tinycld/books#39 green: E2E shards 1-4, Typecheck & Unit). Human note: the Reference no. hint draws between the label and the input, so the input sits lower than the Payment method and Deposit to inputs in its row; draw the hint below the field. Human pick: core change, `core/ui/forms/FieldCell.tsx` draws the description under the input, above the error, for every forms-engine field. Open at the gate: Edit address / Edit customer keys or pointer-only; retro items 1-6.
 - revise 1 run (findings `cp5-revise1-fix.md`, 5 items; human item 2, Edit address / Edit customer as Tab stops with no shortcut, added during the run):
   - test writer: core `form-layout.test.tsx` (hint after the input, before the error, `mt-1`; designer `onPress` cell too); `sales-receipt-form.spec.ts` (Reference no. input top = Payment method trigger top at 1280; Tab Customer → Edit address → Edit customer → Sale date both ways; Space on Edit address), `sales-receipt-form-settings.spec.ts` (edit test's Tab step changed for the new behavior), `invoice-form-lines.spec.ts` (Customer → Edit address → Edit customer → Terms; Enter on Edit customer opens it, Back keeps the 4 lines); 6 red for the right reason.
   - implementer: `FieldCell` draws `CellDescription` after the input with `mt-1`, before `CellError`; `LinkButton` loses `tabIndex={-1}` and opens on Enter/Space through `onKeyDown` (react-native-web opens a link-role Pressable without href on no key) — declared; both spec Tab order lines updated; `queryOnce` call form (see Out-of-plan) — declared. DONE, no disputes.
