@@ -23,6 +23,12 @@
 // subtotal, tax_total and total with server/document_totals.go at every line
 // or header write of a draft, so the client never sends them.
 //
+// REVISION. revision counts the transactions that changed a draft or one of
+// its lines. Books sets it to 1 on create (the create rule pins it) and
+// increases it in Go. A request that updates a draft states the revision it
+// saw, so the update rule cannot pin it; Go checks the value
+// (server/revision.go).
+//
 // MONEY is integer minor units (onlyInt). rate is the line's price in cents
 // and may be 0 or negative; percent_ppm is a percent line's percent in parts
 // per million of the line above (-10% = -100 000), from -100% to +1000%.
@@ -105,7 +111,7 @@ migrate(
                 type: 'base',
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && @request.body.status = "draft" && ${unset(...INVOICE_SERVER_FIELDS)}`,
+                createRule: `${WRITE} && @request.body.status = "draft" && ${unset(...INVOICE_SERVER_FIELDS, 'revision')}`,
                 updateRule: `${WRITE} && ${unset(...INVOICE_SERVER_FIELDS)} && (status = "draft" || (status = "posted" && @request.body.status = "void"))`,
                 deleteRule: `${WRITE} && status = "draft"`,
                 fields: [
@@ -149,6 +155,9 @@ migrate(
                     { name: 'subtotal', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'tax_total', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    // Counts the transactions that changed the draft or its lines. A
+                    // save or a post states the value it saw (server/revision.go).
+                    { name: 'revision', type: 'number', onlyInt: true, min: 0 },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
                     {
                         name: 'entry',
