@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { type EntryFormLine, isBlankLine } from '../lib/entry-lines'
 import { parseLineRefusal } from '../lib/entry-messages'
 import type { EntryFormValues } from '../lib/entry-schema'
+import { isRevisionConflict } from '../lib/revision'
 import type { useEntryForm } from './useEntryForm'
 import { useEntrySave } from './useEntrySave'
 
@@ -15,6 +16,10 @@ interface EntrySubmitProps {
     // The draft being edited and its saved lines; a new entry has neither.
     entryId?: string | null
     saved?: readonly EntryFormLine[]
+    // The revision of the draft the form's values were taken from; 0 for a new entry.
+    revision?: number
+    // Loads the draft again, in place of what is typed here. Only a saved draft has one.
+    onReload?(): void
     // The posted entry a new draft replaces.
     replaces?: string
     onSaved(id: string, outcome: SaveOutcome): void
@@ -61,6 +66,8 @@ export function useEntrySubmit({
     currency,
     entryId = null,
     saved = [],
+    revision = 0,
+    onReload,
     replaces,
     onSaved,
     onCancel,
@@ -76,6 +83,7 @@ export function useEntrySubmit({
     const submittedSnapshot = useRef<string | null>(null)
     const { saveDraft, post, isPending } = useEntrySave({
         entryId,
+        revision,
         saved,
         replaces,
         currency,
@@ -96,6 +104,9 @@ export function useEntrySubmit({
         },
     })
     const [isDiscardOpen, setDiscardOpen] = useState(false)
+    // Another session changed the draft after this form loaded it. It is a state of the
+    // screen, not a field error: what the person typed is valid and stays as it is.
+    const [isConflict, setConflict] = useState(false)
     const isBusy = useRef(false)
     const isLive = useRef(true)
     const left = useRef(false)
@@ -113,6 +124,10 @@ export function useEntrySubmit({
     }, [])
 
     const showRefusal = (error: unknown, lines: EntryFormValues['lines']) => {
+        if (isRevisionConflict(error)) {
+            setConflict(true)
+            return
+        }
         const fieldErrors = Object.entries(extractValidationErrors(error) ?? {})
         if (fieldErrors.length > 0) {
             // A key that is no field of this form (the server names columns, the form
@@ -145,6 +160,7 @@ export function useEntrySubmit({
         isBusy.current = true
         onBusyChange?.(true)
         left.current = false
+        setConflict(false)
         modeRef.current = mode
         submittedKeys.current = entryForm.fields.map(field => field.key)
         submittedSnapshot.current = editSnapshot(getValues())
@@ -178,6 +194,8 @@ export function useEntrySubmit({
 
     return {
         isPending,
+        isConflict,
+        reload: () => onReload?.(),
         isDiscardOpen,
         saveDraft: submit('draft', 'draft'),
         post: submit('post', 'post'),

@@ -15,7 +15,6 @@ import {
     liftRefusal,
     lineStore,
     messageRefusal,
-    refuseAfterMore,
     seedBooks,
 } from './accounts-form-harness'
 import { silenceLog } from './silence-log'
@@ -23,6 +22,11 @@ import { silenceLog } from './silence-log'
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
+})
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
 })
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
@@ -61,6 +65,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 type Props = {
     entryId: string | null
+    revision?: number
     saved: readonly EntryFormLine[]
     replaces?: string
     currency?: string
@@ -68,7 +73,7 @@ type Props = {
 }
 
 function renderSave(initialProps: Props = { entryId: null, saved: [], currency: 'USD' }) {
-    return renderHook((props: Props) => useEntrySave({ currency: 'USD', ...props }), {
+    return renderHook((props: Props) => useEntrySave({ currency: 'USD', revision: 0, ...props }), {
         wrapper,
         initialProps,
     })
@@ -349,45 +354,6 @@ describe('useEntrySave: existing draft, saved twice on one mount', () => {
 })
 
 describe('useEntrySave: refusals', () => {
-    it('keeps the first line when the second line insert is refused, and a retry updates the same entry', async () => {
-        const message = 'Line 2: account Old is inactive.'
-        seedBooks({
-            ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] },
-            // entry and first line pass, the second line is refused
-            refuseAfter: { after: 2, error: messageRefusal(message) },
-        })
-        const hook = renderSave()
-
-        await act(async () => {
-            await expect(
-                hook.result.current.saveDraft(values([debit(), credit()]))
-            ).rejects.toThrow(message)
-        })
-        expect(entries()).toHaveLength(1)
-        expect(lines()).toHaveLength(1)
-        expect(lines()[0]).toMatchObject({ position: 0, account: CASH, debit: 1000 })
-
-        const entryId = entries()[0].id
-        const firstLine = lines()[0]
-        liftRefusal()
-        const before = enteredWrites().length
-        hook.rerender({
-            entryId,
-            saved: [line({ id: firstLine.id, account: CASH, debit: '10.00' })],
-        })
-        await act(async () => {
-            const id = await hook.result.current.saveDraft(
-                values([line({ id: firstLine.id, account: CASH, debit: '10.00' }), credit()])
-            )
-            expect(id).toBe(entryId)
-        })
-
-        expect(entries()).toHaveLength(1)
-        expect(lines()).toHaveLength(2)
-        expect(lines().map(l => l.position)).toEqual([0, 1])
-        expect(enteredWrites().slice(before)).not.toContain(firstLine.id)
-    })
-
     it('leaves the draft and its lines when the post is refused, and rejects with the message', async () => {
         const message = 'Books are closed through 2026-09-30.'
         seedBooks({
@@ -456,111 +422,114 @@ describe('useEntrySave: post while a draft save is in flight', () => {
     })
 })
 
-describe('useEntrySave: retry on the same instance', () => {
-    const message = 'Line 2: account Old is inactive.'
-
-    // The form never carries line ids for new lines, so a retry sends them blank again.
-    it('reuses the entry and keeps the first line when no rerender happens between attempts', async () => {
-        seedBooks({
-            ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] },
-            refuseAfter: { after: 2, error: messageRefusal(message) },
-        })
-        const hook = renderSave()
-        const form = values([debit(), credit()])
-
-        await act(async () => {
-            await expect(hook.result.current.saveDraft(form)).rejects.toThrow(message)
-        })
-        const entryId = entries()[0].id
-        const firstLineId = lines()[0].id
-        liftRefusal()
-
-        let id = ''
-        await act(async () => {
-            id = await hook.result.current.saveDraft(form)
-        })
-
-        expect(id).toBe(entryId)
-        expect(entries()).toHaveLength(1)
-        expect(lines()).toHaveLength(2)
-        expect(lines()[0].id).toBe(firstLineId)
-        expect(lines().map(l => l.position)).toEqual([0, 1])
-    })
-
-    it('does not delete a line twice when it was removed between attempts and a later write failed', async () => {
-        seedBooks({
-            ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] },
-            // entry and the first two lines pass, the third line is refused
-            refuseAfter: { after: 3, error: messageRefusal(message) },
-        })
-        const hook = renderSave()
-
-        await act(async () => {
-            await expect(
-                hook.result.current.post(values([debit(), credit(), debit({ memo: 'third' })]))
-            ).rejects.toThrow(message)
-        })
-        const removedId = lines()[1].id
-        liftRefusal()
-
-        // The second attempt drops line 2 and gets as far as the status write, which is
-        // refused (an unchanged header writes nothing, so the delete is the first write).
-        const only = values([debit()])
-        refuseAfterMore(1, messageRefusal('Books are closed.'))
-        await act(async () => {
-            await expect(hook.result.current.post(only)).rejects.toThrow('Books are closed.')
-        })
-        expect(lines().map(l => l.id)).not.toContain(removedId)
-        liftRefusal()
-
-        const before = enteredWrites().length
-        await act(async () => {
-            await hook.result.current.post(only)
-        })
-        expect(enteredWrites().slice(before)).not.toContain(removedId)
-        expect(entries()).toHaveLength(1)
-        expect(entries()[0].status).toBe('posted')
-        expect(lines()).toHaveLength(1)
-    })
-})
-
-describe('useEntrySave: existing draft, partial failure', () => {
-    it('a retry with the same stale saved prop updates the line it inserted instead of inserting it again', async () => {
-        const message = 'Line 3: account Old is inactive.'
+// A save is one batch that states the revision the form loaded (server/revision.go).
+describe('useEntrySave: one batch and a revision', () => {
+    const seedDraft = (refusal?: unknown) =>
         seedBooks({
             ledger: {
                 lines: SAVED_ROWS,
-                entries: [savedEntry],
+                entries: [{ ...savedEntry, revision: 3 }],
                 balances: [],
                 settings: [SETTINGS],
             },
-            // header update and the first inserted line pass, the second insert is refused
-            refuseAfter: { after: 2, error: messageRefusal(message) },
+            refusal,
         })
-        const hook = renderSave({ entryId: 'je_draft', saved: SAVED_FORM })
-        const next = values([
-            SAVED_FORM[0],
-            line({ account: EQUITY, credit: '4.00', memo: 'A' }),
-            line({ account: EQUITY, credit: '6.00', memo: 'B' }),
-        ])
 
-        await act(async () => {
-            await expect(hook.result.current.saveDraft(next)).rejects.toThrow(message)
+    it('writes no row of a new entry when the save is refused', async () => {
+        seedBooks({
+            ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] },
+            refusal: messageRefusal('Line 2: the account is inactive.'),
         })
-        const inserted = lines().filter(l => l.memo === 'A')
-        expect(inserted).toHaveLength(1)
+        const hook = renderSave()
+        await act(async () => {
+            await expect(
+                hook.result.current.saveDraft(values([debit(), credit()]))
+            ).rejects.toThrow('inactive')
+        })
+        expect(entries()).toHaveLength(0)
+        expect(lines()).toHaveLength(0)
+    })
+
+    it('changes no row of an existing draft when the save is refused', async () => {
+        seedDraft(messageRefusal('Line 1: the account is inactive.'))
+        const hook = renderSave({ entryId: 'je_draft', revision: 3, saved: SAVED_FORM })
+        const changed = [{ ...SAVED_FORM[0], debit: '99.00' }, SAVED_FORM[1], SAVED_FORM[2]]
+        await act(async () => {
+            await expect(
+                hook.result.current.saveDraft(values(changed, { memo: 'changed' }))
+            ).rejects.toThrow('inactive')
+        })
+        expect(entries()[0]).toMatchObject({ memo: 'Existing draft', revision: 3 })
+        expect(lines()[0].debit).toBe(1000)
+    })
+
+    it('states the revision it loaded, as the next value, with the header and the lines', async () => {
+        seedDraft()
+        const hook = renderSave({ entryId: 'je_draft', revision: 3, saved: SAVED_FORM })
+        const changed = [{ ...SAVED_FORM[0], debit: '12.00' }, SAVED_FORM[1], SAVED_FORM[2]]
+        await act(async () => {
+            await hook.result.current.saveDraft(values(changed, { memo: 'changed' }))
+        })
+        expect(entries()[0]).toMatchObject({ memo: 'changed', revision: 4, status: 'draft' })
+        expect(lines()[0].debit).toBe(1200)
+
+        // The next save on the same mount states the revision the first one left.
+        await act(async () => {
+            await hook.result.current.saveDraft(values(changed, { memo: 'again' }))
+        })
+        expect(entries()[0]).toMatchObject({ memo: 'again', revision: 5 })
+    })
+
+    it('posts an existing draft in its save, with the entry written last', async () => {
+        seedDraft()
+        const hook = renderSave({ entryId: 'je_draft', revision: 3, saved: SAVED_FORM })
+        const changed = [{ ...SAVED_FORM[0], memo: 'new line memo' }, SAVED_FORM[1], SAVED_FORM[2]]
+        await act(async () => {
+            await hook.result.current.post(values(changed))
+        })
+        expect(entries()[0]).toMatchObject({ status: 'posted', revision: 4 })
+        expect(enteredWrites()).toEqual(['l1', 'je_draft'])
+    })
+
+    it('creates a new entry as a draft, then posts it with revision 2', async () => {
+        seedBooks({ ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] } })
+        const hook = renderSave()
+        await act(async () => {
+            await hook.result.current.post(values([debit(), credit()]))
+        })
+        expect(entries()).toHaveLength(1)
+        expect(entries()[0]).toMatchObject({ status: 'posted', revision: 2 })
+        expect(lines()).toHaveLength(2)
+    })
+})
+
+// The create batch succeeded and the post was refused: the form goes on with that
+// draft. The next post updates it and creates no second entry.
+describe('useEntrySave: a refused post of a new entry', () => {
+    it('keeps the draft, and the next post updates and posts that same entry', async () => {
+        const message = 'Books are closed through 2026-09-30.'
+        seedBooks({
+            ledger: { lines: [], entries: [], balances: [], settings: [SETTINGS] },
+            // the create batch (the entry and two lines) passes, the post is refused
+            refuseAfter: { after: 3, error: messageRefusal(message) },
+        })
+        const hook = renderSave()
+        await act(async () => {
+            await expect(hook.result.current.post(values([debit(), credit()]))).rejects.toThrow(
+                message
+            )
+        })
+        expect(entries()).toHaveLength(1)
+        expect(entries()[0].status).toBe('draft')
         liftRefusal()
 
         await act(async () => {
-            await hook.result.current.saveDraft(next)
+            await hook.result.current.post(
+                values([debit({ debit: '12.00' }), credit({ credit: '12.00' })])
+            )
         })
-
-        const rows = lines()
-        expect(rows).toHaveLength(3)
-        expect(rows.filter(l => l.memo === 'A').map(l => l.id)).toEqual([inserted[0].id])
-        expect(rows.filter(l => l.memo === 'B')).toHaveLength(1)
-        expect(rows.map(l => l.position)).toEqual([0, 1, 2])
-        expect(rows.map(l => l.id)).not.toContain('l2')
-        expect(rows.map(l => l.id)).not.toContain('l3')
+        expect(entries()).toHaveLength(1)
+        expect(entries()[0]).toMatchObject({ status: 'posted', revision: 2 })
+        expect(lines().map(l => l.debit + l.credit)).toEqual([1200, 1200])
     })
 })

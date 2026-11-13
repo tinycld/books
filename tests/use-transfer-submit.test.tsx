@@ -26,6 +26,11 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
 })
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
+})
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 const logSpies = silenceLog()
@@ -88,7 +93,7 @@ beforeEach(() => {
 })
 
 describe('useTransferSubmit: post', () => {
-    it('writes the draft transfer entry, the From credit line, the To debit line, then the posted status', async () => {
+    it('writes the draft transfer entry with its From credit and To debit lines, then the posted status', async () => {
         const steps = stepWrites()
         const { hook, onSaved } = renderSubmit()
 
@@ -97,7 +102,8 @@ describe('useTransferSubmit: post', () => {
             posting = hook.result.current.submit.post()
         })
 
-        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        // The draft and its two lines are one batch; the post is the write after it.
+        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
         const id = enteredWrites()[0]
         expect(entryStore().get(id)).toMatchObject({
             doc_type: 'transfer',
@@ -105,9 +111,6 @@ describe('useTransferSubmit: post', () => {
             status: 'draft',
             replaces: '',
         })
-
-        act(() => steps.next())
-        await waitFor(() => expect(enteredWrites()).toHaveLength(2))
         expect(lineStore().get(enteredWrites()[1])).toMatchObject({
             entry: id,
             position: 0,
@@ -115,9 +118,6 @@ describe('useTransferSubmit: post', () => {
             debit: 0,
             credit: 1000,
         })
-
-        act(() => steps.next())
-        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
         expect(lineStore().get(enteredWrites()[2])).toMatchObject({
             entry: id,
             position: 1,
@@ -184,7 +184,7 @@ describe('useTransferSubmit: the post hold', () => {
         })
         // Set before the mutation, so the optimistic `posted` render still sees it.
         expect(useTransferPostStore.getState().isPostPending).toBe(true)
-        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
         expect(useTransferPostStore.getState().isPostPending).toBe(true)
 
         release()
@@ -204,7 +204,7 @@ describe('useTransferSubmit: the post hold', () => {
             saving = hook.result.current.submit.saveDraft()
         })
         expect(useTransferPostStore.getState().isPostPending).toBe(false)
-        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
         expect(useTransferPostStore.getState().isPostPending).toBe(false)
 
         release()
@@ -351,7 +351,7 @@ describe('useTransferSubmit: a refusal after leaving', () => {
         act(() => {
             posting = hook.result.current.submit.post()
         })
-        await waitFor(() => expect(enteredWrites()).toHaveLength(1))
+        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
         hook.unmount()
 
         release()
