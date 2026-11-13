@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { DOC_TYPES, docTypeLabel, nextNumberPreview } from '../tinycld/books/lib/doc-types'
+import {
+    DOC_TYPES,
+    docTypeLabel,
+    nextNumberPreview,
+    sequenceHelper,
+} from '../tinycld/books/lib/doc-types'
 import { DOC_TYPE_LABELS } from '../tinycld/books/lib/register'
 
 describe('sales_receipt doc type', () => {
@@ -13,6 +18,26 @@ describe('estimate doc type', () => {
     it('names the Numbering card "Estimates" and previews the next estimate', () => {
         expect(DOC_TYPES.estimate).toEqual({ label: 'Estimates', noun: 'estimate' })
         expect(nextNumberPreview('estimate', '', '1001')).toBe('Next estimate: 1001')
+    })
+})
+
+// The Numbering card's helper names what each doc type does from now on: estimates are
+// saved (they never post), every other doc type is posted.
+describe('sequenceHelper', () => {
+    it('says a new estimate prefix applies to estimates saved from now on', () => {
+        expect(sequenceHelper('estimate')).toBe(
+            'A new prefix applies to estimates saved from now on. Numbers already issued do not change. The next number can move forward only.'
+        )
+    })
+
+    it('keeps the journal helper text unchanged', () => {
+        expect(sequenceHelper('journal')).toBe(
+            'A new prefix applies to entries posted from now on. Numbers already issued do not change. The next number can move forward only.'
+        )
+    })
+
+    it('says a new invoice prefix applies to invoices posted from now on', () => {
+        expect(sequenceHelper('invoice')).toContain('applies to invoices posted from now on.')
     })
 })
 

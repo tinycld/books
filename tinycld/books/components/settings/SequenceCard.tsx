@@ -2,12 +2,9 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { TextInput } from '@tinycld/core/ui/form'
 import { Text, View } from 'react-native'
 import { useSequenceForm } from '../../hooks/useSequenceForm'
-import { docTypeLabel, nextNumberPreview } from '../../lib/doc-types'
+import { docTypeLabel, nextNumberPreview, sequenceHelper } from '../../lib/doc-types'
 import type { BooksDocSequences } from '../../types'
 import { FieldNote, ReadOnlyRow, SectionCard } from './SectionCard'
-
-const HELPER =
-    'A new prefix applies to entries posted from now on. Numbers already issued do not change. The next number can move forward only.'
 
 function Preview({ docType, text }: { docType: string; text: string }) {
     return (
@@ -27,6 +24,7 @@ function SequenceReader({
     if (!isVisible) return null
     const { doc_type: docType } = sequence
     const preview = nextNumberPreview(docType, sequence.prefix ?? '', String(sequence.next_number))
+    const helper = sequenceHelper(docType)
     return (
         <SectionCard title={docTypeLabel(docType)}>
             <View testID={`books-settings-seq-${docType}`}>
@@ -34,7 +32,7 @@ function SequenceReader({
                 <ReadOnlyRow label="Next number" value={String(sequence.next_number)} />
                 <View className="gap-1 pt-3">
                     <Preview docType={docType} text={preview} />
-                    <FieldNote text={HELPER} />
+                    <FieldNote text={helper} />
                 </View>
             </View>
         </SectionCard>
@@ -58,6 +56,7 @@ function SequenceFormBody({ sequence }: { sequence: BooksDocSequences }) {
     const { control } = form
     const docType = sequence.doc_type
     const id = `books-settings-seq-${docType}`
+    const helper = sequenceHelper(docType)
     return (
         <SectionCard title={docTypeLabel(docType)}>
             <View className="gap-4" testID={id}>
@@ -81,7 +80,7 @@ function SequenceFormBody({ sequence }: { sequence: BooksDocSequences }) {
                     </View>
                 </View>
                 <Preview docType={docType} text={preview} />
-                <FieldNote text={HELPER} />
+                <FieldNote text={helper} />
                 <View className="flex-row">
                     <Button
                         testID={`${id}-save`}
