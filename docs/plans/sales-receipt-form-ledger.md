@@ -247,5 +247,6 @@
   - gate 1: tests unedited: yes · core `tinycld-pkg check` pass (500 files, 4434 tests) · books `tinycld-pkg check` pass (238 files, 4772 tests) · e2e `-g "sales-receipt-form:"` 10 passed · `invoice-form-draft` + `invoice-form-lines` 10 passed.
   - gate 2: recaptured new 390/1280, filled 1280, filled-phone 390, errors 1280, errors-phone 390, light and dark (`evidence/revise-1/`) · invalid: none · blocking: none · notes: 3, under Design notes.
   - fix review: round 1: clean (5 of 5 fixed, 0 BLOCK, 1 NOTE to Design notes).
+  - commit: books 914c154 · core 1d5a3d3 (tinycld, branch books/p2-sales-receipt; the core PR must merge with or before the books PR).
 - human comments and what changed
 - native: not executed in this run
