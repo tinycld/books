@@ -119,6 +119,19 @@ async function postSeedDraft(pb: PocketBase, entryId: string, userId: string): P
     await entries.update(entryId, { status: 'posted', posted_by: userId, revision: revision + 1 })
 }
 
+// As postSeedDraft, for a sales document: the line creates before the post each
+// increased the draft's revision.
+async function postSeedDocument(
+    pb: PocketBase,
+    collection: 'books_invoices' | 'books_sales_receipts',
+    id: string,
+    userId: string
+): Promise<void> {
+    const documents = pb.collection(collection)
+    const { revision } = await documents.getOne<{ revision: number }>(id, { fields: 'revision' })
+    await documents.update(id, { status: 'posted', posted_by: userId, revision: revision + 1 })
+}
+
 // The first day of the latest month on or before today whose month number is the fiscal start.
 function fiscalYearStart(today: Date, startMonth: number): string {
     const year = today.getMonth() + 1 >= startMonth ? today.getFullYear() : today.getFullYear() - 1
@@ -422,9 +435,7 @@ export async function seedInvoices(
                 taxable: line.taxable,
             })
         }
-        await pb
-            .collection('books_invoices')
-            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+        await postSeedDocument(pb, 'books_invoices', created.id, ctx.user.id)
     }
 }
 
@@ -501,9 +512,7 @@ export async function seedSalesReceipts(
 ): Promise<void> {
     for (const id of SALES_RECEIPT_SEED_IDS) {
         const created = await createSeedSalesReceipt(pb, accountIds, customerIds, id)
-        await pb
-            .collection('books_sales_receipts')
-            .update(created, { status: 'posted', posted_by: ctx.user.id })
+        await postSeedDocument(pb, 'books_sales_receipts', created, ctx.user.id)
     }
     await createSeedSalesReceipt(pb, accountIds, customerIds, SALES_RECEIPT_SEED_DRAFT_ID)
 }

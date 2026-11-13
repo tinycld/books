@@ -37,7 +37,7 @@ export type DocumentScreenInput = {
 
 // The columns every kind's header row has, as the generated invoice type names them,
 // with any kind's status. The posting columns (`entry` … `replaced_by`) are '' on a kind
-// that never posts.
+// that never posts. `revision` is what a save states it saw (lib/revision.ts).
 type SharedColumns = { status: DocumentStatus } & Pick<
     BooksInvoices,
     | 'id'
@@ -52,6 +52,7 @@ type SharedColumns = { status: DocumentStatus } & Pick<
     | 'subtotal'
     | 'tax_total'
     | 'total'
+    | 'revision'
     | 'currency'
     | 'entry'
     | 'posted_at'

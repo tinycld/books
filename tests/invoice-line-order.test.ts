@@ -2,7 +2,7 @@ import type { TableRowWrite, TableWritePlan } from '@tinycld/core/lib/forms/tabl
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { describe, expect, it } from 'vitest'
 import { DOCUMENT_LINE_MAPPER } from '../tinycld/books/lib/document-line-columns'
-import { documentLineWriteSteps } from '../tinycld/books/lib/document-line-order'
+import { documentLineWriteSteps, documentSavePlan } from '../tinycld/books/lib/document-line-order'
 import {
     type DocumentLineInput,
     type DocumentTax,
@@ -301,5 +301,92 @@ describe('invoiceLineWriteSteps', () => {
             ops: fake.ops,
         })
         expect(steps.map(step => step.itemNumber)).toEqual([null, 2])
+    })
+})
+
+describe('documentSavePlan', () => {
+    const TEN_PERCENT: DocumentTax = { components: [{ id: 'rate', ppm: 100_000 }] }
+    const taxableItem = (id: string, rate: string): TableRow => ({
+        ...item(id, 1, rate),
+        taxable: true,
+    })
+    const names = {
+        insert: (write: TableRowWrite) => `insert:${write.row.id}`,
+        update: (write: TableRowWrite) => `update:${write.row.id}`,
+        remove: (id: string) => `remove:${id}`,
+    }
+
+    it('writes the header last when the line order holds with the stored tax', () => {
+        const stored = storedRows([item('a', 1, '10.00')])
+        const plan: TableWritePlan = {
+            insert: [{ row: item('b', 1, '5.00'), position: 1 }],
+            update: [],
+            remove: [],
+        }
+        const save = documentSavePlan({
+            storedLines: stored,
+            plan,
+            storedTax: null,
+            nextTax: TEN_PERCENT,
+            ops: names,
+        })
+        expect(save.headerFirst).toBe(false)
+        expect(save.steps.map(step => step.run())).toEqual(['insert:b'])
+    })
+
+    it('writes the header first when the lines hold only with the new tax', () => {
+        // Stored: 100.00 not taxable, tax 10%. Added: a taxable credit of -95.00.
+        // With the stored tax the total is 5.00 - 9.50; with no tax it is 5.00.
+        const stored = storedRows([item('a', 1, '100.00')])
+        const plan: TableWritePlan = {
+            insert: [{ row: taxableItem('c', '-95.00'), position: 1 }],
+            update: [],
+            remove: [],
+        }
+        const save = documentSavePlan({
+            storedLines: stored,
+            plan,
+            storedTax: TEN_PERCENT,
+            nextTax: null,
+            ops: names,
+        })
+        expect(save.headerFirst).toBe(true)
+        expect(save.steps.map(step => step.run())).toEqual(['insert:c'])
+    })
+
+    it('keeps the header last when no order holds with either tax, so the server names the line', () => {
+        const stored = storedRows([item('a', 1, '10.00')])
+        const plan: TableWritePlan = {
+            insert: [{ row: item('c', 1, '-50.00'), position: 1 }],
+            update: [],
+            remove: [],
+        }
+        const save = documentSavePlan({
+            storedLines: stored,
+            plan,
+            storedTax: TEN_PERCENT,
+            nextTax: null,
+            ops: names,
+        })
+        expect(save.headerFirst).toBe(false)
+    })
+
+    it('gives each step the id of its row, a removed row too', () => {
+        const stored = storedRows([item('a', 1, '10.00'), item('b', 1, '20.00')])
+        const save = documentSavePlan({
+            storedLines: stored,
+            plan: {
+                insert: [{ row: item('c', 1, '5.00'), position: 1 }],
+                update: [],
+                remove: ['b'],
+            },
+            storedTax: null,
+            nextTax: null,
+            ops: names,
+        })
+        expect(save.steps.map(step => [step.rowId, step.itemNumber])).toEqual([
+            ['b', null],
+            ['c', 2],
+        ])
     })
 })
