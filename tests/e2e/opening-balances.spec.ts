@@ -986,6 +986,36 @@ test.describe('opening-balances: save draft and discard', () => {
         await discardExistingDraft(page)
     })
 
+    // Only an amount changes in the stale session, so its save holds no entry field for
+    // the server to check: the form must see that the stored draft moved on.
+    test('(6b) a save of a draft that another session changed is refused and saves nothing', async ({
+        page,
+        browser,
+    }) => {
+        const ids = await begin(page, DESKTOP)
+        await type(page, ids['Office Equipment'], '5,000')
+        await saveAndSettle(page, trackWrites(page))
+
+        const context = await browser.newContext()
+        const other = await context.newPage()
+        await start(other, DESKTOP)
+        await openChart(other)
+        await openFromChart(other)
+        await expectAmount(other, ids['Office Equipment'], '5,000.00')
+        await type(other, ids['Office Equipment'], '6,000')
+        await saveAndSettle(other, trackWrites(other))
+
+        await type(page, ids['Office Equipment'], '7,000')
+        await saveButton(page).click()
+        await expect(page.getByTestId('opening-error-summary')).toContainText(
+            'These opening balances changed after you opened them.'
+        )
+        await reopen(page)
+        await expectAmount(page, ids['Office Equipment'], '6,000.00')
+        await context.close()
+        await discardExistingDraft(page)
+    })
+
     test('(8) Cancel asks only when there are unsaved changes', async ({ page }) => {
         const ids = await begin(page, DESKTOP)
         const writes = trackWrites(page)
