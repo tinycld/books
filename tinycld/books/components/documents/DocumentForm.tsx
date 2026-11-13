@@ -16,7 +16,7 @@ import { useFocusEffect } from 'expo-router'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { FormProvider, type UseFormReturn, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
-import { type DocumentWrites, expiredOnOf } from '../../hooks/document-data'
+import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
@@ -29,6 +29,7 @@ import {
     DOCUMENT_FOOTER_ROW,
     DOCUMENT_FOOTER_SPANS,
 } from '../../lib/document-footer-layout'
+import { canDeleteStatus, type DocumentStatus } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
@@ -319,7 +320,7 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     )
 }
 
-// A quote has no draft: its new title until the first save, then "Estimate 1001" by the
+// A quote: its new title until the first save, then "Estimate 1001" by the
 // stored number. A posting kind: "Edit 1004" for a correction, new or saved; the kind's
 // draft title once the draft is stored; else its new title.
 export function documentFormTitle(
@@ -378,6 +379,44 @@ function QuoteSaveBar({ isVisible, ...props }: DocumentSaveBarProps & { isVisibl
 
 const PDF_HINT = formatHint(DOCUMENT_PDF_KEY).text
 
+// The estimate a stored invoice was made from; '' for any other record.
+function estimateIdOf(record: DocumentScreenData['record']): string {
+    const fields = record?.kindFields
+    return fields?.kind === 'invoice' ? fields.estimate : ''
+}
+
+// A posting kind deletes its stored draft (the route's, or the one a refused post
+// wrote); a quote deletes a saved record its lifecycle allows (not a closed estimate).
+function canDeleteOf(
+    kind: SalesDocumentKind,
+    isNew: boolean,
+    status: DocumentStatus | undefined,
+    writtenId: string | null
+): boolean {
+    if (kind.lifecycle === 'posting') return (!isNew && status === 'draft') || writtenId !== null
+    return !isNew && status !== undefined && canDeleteStatus(kind.lifecycle, status)
+}
+
+// Convert to invoice: a quote, while writes are available, on a Pending or Accepted
+// status in the form (a change to Rejected hides it before the save).
+function canConvertOf(kind: SalesDocumentKind, canWrite: boolean, status: unknown): boolean {
+    if (kind.lifecycle !== 'quote' || !canWrite) return false
+    return status === 'pending' || status === 'accepted'
+}
+
+// The delete confirm's words: a posting kind's draft defaults, or a quote kind's own
+// (kind.messages: "Delete estimate 1001?", its body and its action).
+function deleteDialogTexts(kind: SalesDocumentKind, number: string) {
+    const { deleteTitle, deleteBody, deleteAction } = kind.messages
+    if (kind.lifecycle === 'posting' || !deleteTitle || !deleteBody || !deleteAction) return {}
+    return {
+        title: deleteTitle.replace('%s', number),
+        body: deleteBody,
+        actionLabel: deleteAction,
+        testIdPrefix: `${kind.testId}-delete`,
+    }
+}
+
 // Download PDF of the saved draft, from the More row and ⌘P. A new form has nothing
 // printed yet; while a save runs the More menu is disabled, and so is the key.
 function useDraftPdf(kind: SalesDocumentKind, draftId: string | undefined, isSaving: boolean) {
@@ -429,11 +468,18 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const revealErrors = () => {
         if (tab === 'pdf') openDocumentTab('edit')
     }
-    const { onBack: leave } = useBackToEntries()
-    const save = useDocumentSave(state, { tab, onFieldErrors: revealErrors, leave })
+    const estimateId = state.estimate || estimateIdOf(data.record)
+    const { onBack: leave } = useBackToEntries(estimateId)
+    const save = useDocumentSave(state, {
+        tab,
+        onFieldErrors: revealErrors,
+        leave,
+        writer: data.writer,
+    })
     const writes = documentKind.data.useWrites()
     const formCustomer = useFormCustomer(form, `books.${kind.key}`)
     const expiredOn = expiredOnOf(data.record, todayIso())
+    const estimateNumber = estimateNumberOf(data.record, data.estimateSource)
     // Per mounted form: the band's address inputs belong to this form only, so a form
     // opened later starts with them folded.
     const instanceId = useId()
@@ -449,8 +495,19 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
             retryCustomer: formCustomer.retry,
             taxRows: data.taxOptions.rows,
             expiredOn,
+            estimateNumber,
+            estimateId,
         }),
-        [kind, bandKey, data.currency, data.taxOptions.rows, formCustomer, expiredOn]
+        [
+            kind,
+            bandKey,
+            data.currency,
+            data.taxOptions.rows,
+            formCustomer,
+            expiredOn,
+            estimateNumber,
+            estimateId,
+        ]
     )
     const totals = useDocumentTotals(form, scope)
     const linesLayout = useLinesAreCards()
@@ -464,10 +521,9 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const draftId = state.recordId ?? save.writtenId ?? undefined
     const deletion = useDocumentDelete(writes, draftId, leave)
     useScreenHoldRelease(draftId)
-    // A quote has no draft (Delete estimate comes with its own rule).
-    const canDeleteDraft =
-        kind.lifecycle === 'posting' &&
-        ((!state.isNew && data.record?.status === 'draft') || save.writtenId !== null)
+    const canDelete = canDeleteOf(kind, state.isNew, data.record?.status, save.writtenId)
+    const convertStatus = useWatch({ control: form.control, name: 'status' })
+    const canConvert = canConvertOf(kind, data.canWrite, convertStatus)
     const isPhone = useBreakpoint() === 'mobile'
     const onPostAndNew = () => {
         void save.post(true)
@@ -478,18 +534,23 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const onSaveAndNew = () => {
         void save.saveAndNew()
     }
+    const onConvert = () => {
+        void save.convert()
+    }
     const isBusy = save.isSaving || deletion.isPending
     const pdf = useDraftPdf(kind, draftId, isBusy)
     const pdfVersion = documentKind.data.useVersion(draftId)
     const shortcuts = useDocumentShortcuts({
         kind,
         isSaving: isBusy,
-        canDeleteDraft,
-        deleteDraft: deletion.open,
+        canDelete,
+        deleteRecord: deletion.open,
         isPhone,
         postAndNew: onPostAndNew,
         save: onSave,
         saveAndNew: onSaveAndNew,
+        canConvert,
+        convert: onConvert,
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
@@ -532,6 +593,9 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const isEditTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
     const isFooterStacked = isPhone || linesLayout.isCards
+    const convertAction = isQuote ? { isOffered: canConvert, onPress: onConvert } : null
+    const removeAction = isQuote ? { isOffered: canDelete, onPress: deletion.open } : null
+    const deleteTexts = deleteDialogTexts(kind, data.record?.number ?? '')
     const ids = {
         form: `${kind.testId}-form`,
         errorSummary: `${kind.testId}-error-summary`,
@@ -603,7 +667,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                             <PostingActionBar
                                 isVisible={!isQuote}
                                 isSaving={save.isSaving}
-                                canDeleteDraft={canDeleteDraft}
+                                canDeleteDraft={canDelete}
                                 isPhone={isPhone}
                                 onCancel={cancel}
                                 onSaveDraft={onSaveDraft}
@@ -621,8 +685,8 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                 onSave={onSave}
                                 onSaveAndClose={onSaveAndClose}
                                 onSaveAndNew={onSaveAndNew}
-                                convert={null}
-                                remove={null}
+                                convert={convertAction}
+                                remove={removeAction}
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
                             />
@@ -638,6 +702,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                 onCancel={deletion.cancel}
                                 isPending={deletion.isPending}
                                 errorMessage={deletion.errorMessage}
+                                {...deleteTexts}
                             />
                         </View>
                     </FormProvider>

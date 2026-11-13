@@ -43,6 +43,13 @@ describe('documentNewHref', () => {
         expect(documentNewHref(OTHER_KIND, {})).toBe('books/x/new')
     })
 
+    // Convert to invoice (spec §3.7) opens the invoice form started from the estimate.
+    it('starts an invoice from an estimate with ?estimate', () => {
+        expect(documentNewHref(INVOICE_KIND, { estimate: 'e1' })).toBe(
+            'books/invoices/new?estimate=e1'
+        )
+    })
+
     // Save & new on an estimate carries the customer it was opened with; no screen of
     // this unit links to `?customer`, so this is its coverage. The layer's order holds:
     // `fresh` first, then `customer`.

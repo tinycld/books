@@ -23,6 +23,7 @@ import {
     NO_RECOVERY,
     useHeldRecord,
 } from './document-data'
+import { useEstimateSourceReads } from './estimate-data'
 
 const LOG_CONTEXT = 'books.invoice'
 
@@ -32,13 +33,23 @@ type InvoiceInsertColumns = typeof EMPTY_INVOICE_COLUMNS
 function invoiceSourceOf<R extends BooksInvoices>(
     row: R
 ): R & { kindFields: Extract<DocumentKindFields, { kind: 'invoice' }> } {
-    return { ...row, kindFields: { kind: 'invoice', terms: row.terms, due_date: row.due_date } }
+    return {
+        ...row,
+        kindFields: {
+            kind: 'invoice',
+            terms: row.terms,
+            due_date: row.due_date,
+            estimate: row.estimate,
+        },
+    }
 }
 
 /**
- * The invoice's reads: the invoice with the people who posted and voided it and its tax
- * rate, its lines in order with their products, the invoice a correction replaces or a
- * copy starts from with its lines, and the tax lines of a posted or void invoice.
+ * The invoice's reads: the invoice with the people who posted and voided it, its tax
+ * rate and the estimate it was made from, its lines in order with their products, the
+ * invoice a correction replaces or a copy starts from with its lines, the estimate a new
+ * invoice is made from (`?estimate`) with its lines, and the tax lines of a posted or
+ * void invoice.
  */
 function useInvoiceScreenReads(
     input: DocumentScreenInput & { isHeld: boolean }
@@ -49,9 +60,10 @@ function useInvoiceScreenReads(
         'users',
         'books_products'
     )
-    const [taxRatesCollection, taxLinesCollection] = useStore(
+    const [taxRatesCollection, taxLinesCollection, estimatesCollection] = useStore(
         'books_tax_rates',
-        'books_invoice_tax_lines'
+        'books_invoice_tax_lines',
+        'books_estimates'
     )
     const id = input.id ?? ''
     const invoiceQuery = useLiveQuery({
@@ -81,6 +93,13 @@ function useInvoiceScreenReads(
                             .where(({ t }) => eq(t.id, invoice.tax_rate))
                             .findOne()
                     ),
+                    // "From estimate <n>" names it.
+                    estimateRow: materialize(
+                        q
+                            .from({ e: estimatesCollection })
+                            .where(({ e }) => eq(e.id, invoice.estimate))
+                            .findOne()
+                    ),
                 }))
                 .findOne()
         },
@@ -107,10 +126,12 @@ function useInvoiceScreenReads(
         queryKey: ['books.invoice.lines', id],
     })
     const read = invoiceQuery.data
-    const mapped = useMemo<DocumentRecord | undefined>(
-        () => (read ? invoiceSourceOf(read) : undefined),
-        [read]
-    )
+    const mapped = useMemo<DocumentRecord | undefined>(() => {
+        if (!read) return undefined
+        const { estimateRow, ...row } = read
+        const source = invoiceSourceOf(row)
+        return { ...source, kindFields: { ...source.kindFields, estimateRow } }
+    }, [read])
     const record = useHeldRecord(mapped, input.isHeld)
     const ids = linkedReadIds(input, record, read?.status ?? null, INVOICE_KIND.lifecycle)
     const sourceQuery = useLiveQuery({
@@ -125,6 +146,14 @@ function useInvoiceScreenReads(
     })
     const sourceRow = sourceQuery.data
     const source = useMemo(() => (sourceRow ? invoiceSourceOf(sourceRow) : undefined), [sourceRow])
+    // Only a new form reads it: the estimate it is made from (`?estimate`), or, on a new
+    // correction, the one the posted invoice was made from (the correction carries it, and
+    // "From estimate <n>" names its number). A stored invoice names its estimate through
+    // `estimateRow`.
+    const correctedEstimate = input.replaces ? (sourceRow?.estimate ?? '') : ''
+    const estimateReads = useEstimateSourceReads(
+        input.id === null ? input.estimate || correctedEstimate : ''
+    )
     const sourceLinesQuery = useLiveQuery({
         query: q => {
             if (!ids.sourceLinesId) return undefined
@@ -148,7 +177,11 @@ function useInvoiceScreenReads(
         queryKey: ['books.invoice.tax-lines', ids.taxLinesId],
     })
     return {
-        record: documentRead(id, invoiceQuery, record, [invoicesCollection, usersCollection]),
+        record: documentRead(id, invoiceQuery, record, [
+            invoicesCollection,
+            usersCollection,
+            estimatesCollection,
+        ]),
         lines: documentRead(id, linesQuery, linesQuery.data ?? [], [linesCollection]),
         source: documentRead(ids.sourceId, sourceQuery, source, [invoicesCollection]),
         sourceLines: documentRead(
@@ -157,6 +190,7 @@ function useInvoiceScreenReads(
             sourceLinesQuery.data ?? [],
             [linesCollection]
         ),
+        ...estimateReads,
         taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),
@@ -180,13 +214,12 @@ function useInvoiceWrites(): DocumentWrites {
     return {
         // The columns were checked by invoiceColumnsFrom before the save started and laid
         // over EMPTY_INVOICE_COLUMNS (DocumentKind.emptyColumns), so they hold every
-        // column of that shape; the shared layer carries them untyped.
+        // column of that shape, `estimate` included (the estimate an invoice from an
+        // estimate is made from, else ''); the shared layer carries them untyped.
         insertRecord: input =>
             invoicesCollection.insert({
                 ...(input.columns as InvoiceInsertColumns),
                 replaces: input.replaces,
-                // No invoice screen makes an invoice from an estimate yet.
-                estimate: '',
                 id: input.id,
                 form: input.form,
                 fields: input.fields,

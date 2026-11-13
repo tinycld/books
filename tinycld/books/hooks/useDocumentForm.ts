@@ -97,14 +97,16 @@ function documentRecordSchema(
         })
 }
 
-// The built-ins of a correction's or a copy's values: `replaces` is no field of the form
-// (the save writes it), so the engine never files it among the custom fields.
+// The built-ins of a correction's, a copy's or an invoice-from-estimate's values:
+// `replaces` and `estimate` are no fields of the form (the save writes them), so the
+// engine never files them among the custom fields.
 function builtinValuesOf(
     values: DocumentFormValuesBase | undefined
 ): DocumentFormValuesBase | undefined {
     if (!values) return undefined
     const builtins: DocumentFormValuesBase = { ...values }
     delete builtins.replaces
+    delete builtins.estimate
     return builtins
 }
 
@@ -208,6 +210,9 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         recordId: record?.id,
         // The posted document a new correction replaces; its insert writes it.
         replaces: isNew ? (input.startValues?.replaces ?? '') : '',
+        // The estimate a new invoice is made from, or a new correction keeps; its insert
+        // writes it. A stored invoice's is on its record and is never written again.
+        estimate: isNew ? (input.startValues?.estimate ?? '') : '',
         // The `?customer` a new form was opened with: Post & new keeps only that one. A
         // copy's or a correction's customer comes from its source, not from the route.
         openedWithCustomer: isNew && !input.startValues ? input.customer?.id : undefined,

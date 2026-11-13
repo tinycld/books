@@ -182,6 +182,61 @@ describe('server/estimates.go', () => {
     }
 })
 
+// The conversion texts (spec §3.7; plan, Decisions: Messages): the client and the server
+// show them with the same words, and their Go constants live in
+// server/estimate_conversion.go. `%s` is compared as written.
+const CONVERSION_SHARED = {
+    alreadyOnInvoice: 'Estimate %s is already on invoice %s.',
+    alreadyOnDraftInvoice: 'Estimate %s is already on a draft invoice.',
+    estimateCustomer: "An invoice from an estimate bills the estimate's customer.",
+    estimateCustomerInactive: '%s is inactive. Make the customer active to convert this estimate.',
+} as const
+
+// The delete refusals of an estimate an invoice names (spec §3.6). The estimate's delete
+// hook is in server/estimates.go; the constant may sit in either estimate file.
+const ESTIMATE_DELETE_SHARED = {
+    hasInvoice: 'Estimate %s has invoice %s. Set it to Rejected instead.',
+    hasDraftInvoice: 'Estimate %s has a draft invoice. Set it to Rejected instead.',
+} as const
+
+function conversionServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'estimate_conversion.go'), 'utf8')
+}
+
+describe('server/estimate_conversion.go', () => {
+    for (const [key, text] of Object.entries(CONVERSION_SHARED)) {
+        it(`holds the conversion's ${key} text verbatim as a Go string, as ESTIMATE_MESSAGES does`, () => {
+            expect(conversionServerSource()).toContain(`"${text}"`)
+            expect(ESTIMATE_MESSAGES).toHaveProperty(key, text)
+        })
+    }
+
+    for (const [key, text] of Object.entries(ESTIMATE_DELETE_SHARED)) {
+        it(`holds the estimate delete's ${key} text verbatim as a Go string, as ESTIMATE_MESSAGES does`, () => {
+            const goSources = `${estimateServerSource()}\n${conversionServerSource()}`
+            expect(goSources).toContain(`"${text}"`)
+            expect(ESTIMATE_MESSAGES).toHaveProperty(key, text)
+        })
+    }
+
+    it('holds the estimate delete confirm texts', () => {
+        expect(ESTIMATE_MESSAGES.deleteTitle.replace('%s', '1001')).toBe('Delete estimate 1001?')
+        expect(ESTIMATE_MESSAGES.deleteBody).toBe("This can't be undone.")
+        expect(ESTIMATE_MESSAGES.deleteAction).toBe('Delete estimate')
+    })
+
+    it('holds the client-only cannot-convert text of the invoice screen', () => {
+        expect(ESTIMATE_MESSAGES).toHaveProperty(
+            'cannotConvert',
+            'This estimate cannot be converted to an invoice'
+        )
+        expect(ESTIMATE_KIND.messages).toHaveProperty(
+            'cannotConvert',
+            'This estimate cannot be converted to an invoice'
+        )
+    })
+})
+
 // Server refusals carry PocketBase's final period.
 describe('invoiceRefusalTarget', () => {
     it('sends an inactive customer refusal to Customer', () => {

@@ -21,6 +21,7 @@ import {
     type DocumentWrites,
     documentRead,
     linkedReadIds,
+    NO_ESTIMATE_SOURCE,
     NO_RECOVERY,
     useHeldRecord,
 } from './document-data'
@@ -75,10 +76,40 @@ function useEstimateSourceQuery(sourceId: string) {
 export type EstimateSourceRow = NonNullable<ReturnType<typeof useEstimateSourceQuery>['data']>
 
 /**
+ * The estimate an invoice is made from (`?estimate=<id>`) and its lines in position
+ * order, for the invoice's data source: this module holds the estimate collections'
+ * `useStore`. Both reads are idle (ready and empty) with no id.
+ */
+export function useEstimateSourceReads(
+    id: string
+): Pick<DocumentScreenReads, 'estimateSource' | 'estimateSourceLines'> {
+    const [estimatesCollection, linesCollection] = useStore(
+        'books_estimates',
+        'books_estimate_lines'
+    )
+    const sourceQuery = useEstimateSourceQuery(id)
+    const linesQuery = useLiveQuery({
+        query: q => {
+            if (!id) return undefined
+            return q
+                .from({ line: linesCollection })
+                .where(({ line }) => eq(line.estimate, id))
+                .orderBy(({ line }) => line.position)
+        },
+        queryKey: ['books.estimate.convert-lines', id],
+    })
+    return {
+        estimateSource: documentRead(id, sourceQuery, sourceQuery.data, [estimatesCollection]),
+        estimateSourceLines: documentRead(id, linesQuery, linesQuery.data ?? [], [linesCollection]),
+    }
+}
+
+/**
  * The estimate's reads: the estimate with its tax rate (the read view's tax line names
- * it), its lines in order with their products, and the estimate a copy starts from with
- * its lines. An estimate never posts, so no one posted or voided it and it has no tax
- * lines: that read is ready and empty.
+ * it) and the invoice made from it ("Converted to invoice <n>"), its lines in order with
+ * their products, and the estimate a copy starts from with its lines. An estimate never
+ * posts, so no one posted or voided it and it has no tax lines: that read is ready and
+ * empty.
  */
 function useEstimateScreenReads(
     input: DocumentScreenInput & { isHeld: boolean }
@@ -89,6 +120,7 @@ function useEstimateScreenReads(
         'books_products',
         'books_tax_rates'
     )
+    const [invoicesCollection] = useStore('books_invoices')
     const id = input.id ?? ''
     const estimateQuery = useLiveQuery({
         query: q => {
@@ -102,6 +134,13 @@ function useEstimateScreenReads(
                         q
                             .from({ t: taxRatesCollection })
                             .where(({ t }) => eq(t.id, estimate.tax_rate))
+                            .findOne()
+                    ),
+                    // A closed estimate's invoice: its number, or a draft's status.
+                    invoiceRow: materialize(
+                        q
+                            .from({ i: invoicesCollection })
+                            .where(({ i }) => eq(i.id, estimate.invoice))
                             .findOne()
                     ),
                 }))
@@ -130,13 +169,17 @@ function useEstimateScreenReads(
         queryKey: ['books.estimate.lines', id],
     })
     const read = estimateQuery.data
-    const mapped = useMemo<DocumentRecord | undefined>(
-        () =>
-            read
-                ? { ...estimateSourceOf(read), postedBy: undefined, voidedBy: undefined }
-                : undefined,
-        [read]
-    )
+    const mapped = useMemo<DocumentRecord | undefined>(() => {
+        if (!read) return undefined
+        const { invoiceRow, ...row } = read
+        const source = estimateSourceOf(row)
+        return {
+            ...source,
+            kindFields: { ...source.kindFields, invoiceRow },
+            postedBy: undefined,
+            voidedBy: undefined,
+        }
+    }, [read])
     const record = useHeldRecord(mapped, input.isHeld)
     const ids = linkedReadIds(input, record, read?.status ?? null, ESTIMATE_KIND.lifecycle)
     const sourceQuery = useEstimateSourceQuery(ids.sourceId)
@@ -153,7 +196,7 @@ function useEstimateScreenReads(
         queryKey: ['books.estimate.source-lines', ids.sourceLinesId],
     })
     return {
-        record: documentRead(id, estimateQuery, record, [estimatesCollection]),
+        record: documentRead(id, estimateQuery, record, [estimatesCollection, invoicesCollection]),
         lines: documentRead(id, linesQuery, linesQuery.data ?? [], [linesCollection]),
         source: documentRead(ids.sourceId, sourceQuery, source, [estimatesCollection]),
         sourceLines: documentRead(
@@ -162,6 +205,8 @@ function useEstimateScreenReads(
             sourceLinesQuery.data ?? [],
             [linesCollection]
         ),
+        // An estimate is never made from an estimate.
+        ...NO_ESTIMATE_SOURCE,
         taxLines: NO_TAX_LINES,
         formStart: ESTIMATE_FORM_START,
     }

@@ -54,6 +54,21 @@ type salesDocKind struct {
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
+	// AfterCreate runs after a create's write, in its transaction, so a
+	// failure rolls the create back (an invoice closes the estimate it is made
+	// from); nil is no step.
+	AfterCreate func(tx core.App, r *core.Record) error
+	// CheckDelete runs inside a delete's transaction before the status check
+	// (an estimate an invoice names is refused); nil is no check.
+	CheckDelete func(tx core.App, stored *core.Record) error
+	// Withdraw runs when a posting document stops standing: its draft is
+	// deleted, or it is voided (an invoice reopens its estimate). It does not
+	// run when a correction's post replaces the document (Replace does); nil
+	// is no step.
+	Withdraw func(tx core.App, doc *core.Record) error
+	// Replace runs when a correction's post sets its original void (an
+	// invoice moves its estimate to the correction); nil is no step.
+	Replace func(tx core.App, original, correction *core.Record) error
 	// BeforePost runs in the posting transaction before the lines are read;
 	// nil is no step, and a quote has none.
 	BeforePost func(tx core.App, doc *core.Record) error
@@ -114,9 +129,9 @@ const maxDocumentLines = 250
 // allows. Every line create, update and delete then restates the document
 // (each line's amount and the three totals) in the same transaction.
 func registerSalesDocGuards(app core.App, kind salesDocKind) {
-	bindSerializedGuard(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
+	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDoc(tx, kind, stored, r)
-	})
+	}, kind.AfterCreate)
 	bindSerializedGuard(app, kind.LinesCollection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDocLine(tx, kind, stored, r)
 	})
@@ -153,7 +168,10 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	// the caller loaded the record must not let its delete cascade a posted
 	// document (or a closed estimate). The mark is set only after that re-read
 	// passes, so a refused delete never lets a line write skip its guard while
-	// it runs.
+	// it runs. The kind's CheckDelete and Withdraw run in the same
+	// transaction, before the row goes: Withdraw clears the links that name
+	// it (an estimate's invoice), so PocketBase's unlink of the deleted row
+	// never writes to a closed estimate or a posted invoice.
 	app.OnRecordDelete(kind.Collection).BindFunc(func(e *core.RecordEvent) error {
 		done := func() {}
 		defer func() { done() }()
@@ -162,8 +180,18 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 			if err != nil {
 				return err
 			}
+			if kind.CheckDelete != nil {
+				if err := kind.CheckDelete(tx, stored); err != nil {
+					return err
+				}
+			}
 			if !kind.isEditableStatus(stored.GetString("status")) {
 				return refuse("%s", kind.Msgs.DeleteNotDraft)
+			}
+			if kind.Withdraw != nil {
+				if err := kind.Withdraw(tx, stored); err != nil {
+					return err
+				}
 			}
 			done = markDeleting(tx, kind, e.Record.Id)
 			return nil

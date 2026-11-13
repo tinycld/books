@@ -4,6 +4,7 @@ import type {
     DocumentRecord,
     DocumentSource,
     DocumentStart,
+    EstimateSource,
 } from '../../hooks/document-data'
 import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
@@ -17,6 +18,7 @@ import { EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../../lib/invoice-col
 import {
     copyInvoiceValues,
     invoiceCorrectionValues,
+    invoiceValuesFromEstimate,
     newInvoiceValues,
 } from '../../lib/invoice-values'
 import type { ColumnsParse } from '../../lib/record-columns'
@@ -36,8 +38,8 @@ import {
     newSalesReceiptValues,
     salesReceiptCorrectionValues,
 } from '../../lib/sales-receipt-values'
-import { EstimateReadDetails } from './EstimateReadDetails'
-import { InvoiceReadDetails } from './InvoiceReadDetails'
+import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
+import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
 
 export type DocumentReadDetailsProps = {
@@ -84,10 +86,22 @@ export type DocumentKind = {
             source: DocumentSource,
             lines: readonly DocumentLineRow[]
         ) => DocumentFormValuesBase
+        // Convert to invoice (`?estimate`): the invoice's only. `message` is the
+        // estimate's.
+        fromEstimate?: (
+            estimate: EstimateSource,
+            lines: readonly DocumentLineRow[],
+            today: string,
+            customer: CustomerFill,
+            message: string
+        ) => DocumentFormValuesBase
     }
     ReadDetails: ComponentType<DocumentReadDetailsProps>
     // A ruled row at the bottom of the read view's band (a sales receipt's Payment).
     ReadBandRow?: ComponentType<DocumentReadBandRowProps>
+    // A line under the read view's message and memo, below the Posted-by stamp of a posting
+    // kind (an invoice's "From estimate <n>", a closed estimate's "Converted to invoice <n>").
+    ReadStampRow?: ComponentType<DocumentReadBandRowProps>
 }
 
 // The source row with the invoice's own columns back at the top level. The invoice's
@@ -115,8 +129,10 @@ export const INVOICE_DOCUMENT: DocumentKind = {
         copy: (source, lines, today, customer) =>
             copyInvoiceValues(invoiceRowOf(source), lines, today, invoiceCustomerOf(customer)),
         correction: (source, lines) => invoiceCorrectionValues(invoiceRowOf(source), lines),
+        fromEstimate: invoiceValuesFromEstimate,
     },
     ReadDetails: InvoiceReadDetails,
+    ReadStampRow: InvoiceFromEstimateLink,
 }
 
 // The source row with the receipt's own columns back at the top level, as invoiceRowOf.
@@ -172,6 +188,7 @@ export const ESTIMATE_DOCUMENT: DocumentKind = {
         },
     },
     ReadDetails: EstimateReadDetails,
+    ReadStampRow: EstimateConvertedLink,
 }
 
 export const SALES_RECEIPT_DOCUMENT: DocumentKind = {

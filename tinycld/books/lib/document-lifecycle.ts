@@ -71,13 +71,17 @@ export function statusBadgeOf(
 }
 
 // The read view's actions of a quote (a closed estimate, or any estimate for a reader):
-// Copy for writers, then Download PDF for everyone. No Edit, no Void and no journal
-// entry: a quote never posts. `status` and `hasInvoice` are not read yet: only Open
-// invoice (a closed estimate's) needs them, and it is not offered yet.
+// Open invoice first for everyone on a closed estimate that names its invoice, Copy for
+// writers, then Download PDF for everyone. No Edit, no Void and no journal entry: a
+// quote never posts.
 export function quoteReadActions(
-    _status: DocumentStatus,
+    status: DocumentStatus,
     canWrite: boolean,
-    _hasInvoice: boolean
+    hasInvoice: boolean
 ): DocumentReadAction[] {
-    return canWrite ? ['copy', 'pdf'] : ['pdf']
+    const actions: DocumentReadAction[] = []
+    if (status === 'closed' && hasInvoice) actions.push('invoice')
+    if (canWrite) actions.push('copy')
+    actions.push('pdf')
+    return actions
 }

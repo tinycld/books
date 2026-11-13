@@ -348,6 +348,50 @@ func TestEstimate_DeleteCascadesAndKeepsTheNumber(t *testing.T) {
 	requireEstimateNumber(t, ee.app, next.Id, "1002", 1002)
 }
 
+// Spec §3.6: Delete is allowed while no invoice names the estimate. The refusal
+// names the newest invoice that does; a draft has no number yet.
+func TestEstimate_DeleteRefusedWhileAVoidInvoiceNamesIt(t *testing.T) {
+	ce := newConversionEnv(t)
+	est := ce.mkAccepted(t)
+	inv := ce.post(t, ce.convert(t, est, nil))
+	ce.void(t, inv)
+	if err := setFields(t, ce.app, "books_estimates", est.Id, map[string]any{"status": statusRejected}); err != nil {
+		t.Fatalf("set the reopened estimate to rejected: %v", err)
+	}
+
+	err := ce.app.Delete(reload(t, ce.app, "books_estimates", est.Id))
+	requireRefusalText(t, err, fmt.Sprintf("Estimate %s has invoice %s. Set it to Rejected instead.",
+		est.GetString("number"), inv.GetString("number")))
+	if _, err := ce.app.FindRecordById("books_estimates", est.Id); err != nil {
+		t.Fatalf("the refused estimate is gone: %v", err)
+	}
+	requireEstimateLineCount(t, ce.app, est, 1)
+}
+
+func TestEstimate_DeleteRefusedWhileADraftInvoiceNamesIt(t *testing.T) {
+	ce := newConversionEnv(t)
+	est := ce.mkEstimate(t, nil)
+	ce.convert(t, est, nil)
+	// No person can reopen a closed estimate; the test forces it with a Go save
+	// under the converting mark, so only the naming draft invoice can refuse.
+	done := markConverting(ce.app, est.Id)
+	forced := reload(t, ce.app, "books_estimates", est.Id)
+	forced.Set("status", statusRejected)
+	err := ce.app.Save(forced)
+	done()
+	if err != nil {
+		t.Fatalf("force the estimate to rejected: %v", err)
+	}
+
+	err = ce.app.Delete(reload(t, ce.app, "books_estimates", est.Id))
+	requireRefusalText(t, err, fmt.Sprintf("Estimate %s has a draft invoice. Set it to Rejected instead.",
+		est.GetString("number")))
+	if _, err := ce.app.FindRecordById("books_estimates", est.Id); err != nil {
+		t.Fatalf("the refused estimate is gone: %v", err)
+	}
+	requireEstimateLineCount(t, ce.app, est, 1)
+}
+
 func TestEstimate_ExpirationNotBeforeTheDate(t *testing.T) {
 	ee := newEstimateEnv(t)
 	_, err := ee.newEstimate(map[string]any{"date": "2026-11-04", "expiration_date": "2026-11-03"})

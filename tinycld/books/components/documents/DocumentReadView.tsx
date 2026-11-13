@@ -191,10 +191,10 @@ function Stamp({ testID, text }: { testID: string; text: string }) {
     )
 }
 
-function ReplacedByLink({ record }: { record: DocumentRecord }) {
+function ReplacedByLink({ record, isVisible }: { record: DocumentRecord; isVisible: boolean }) {
     const { doc } = useDocumentKind()
     const orgHref = useOrgHref()
-    if (!record.replaced_by) return null
+    if (!isVisible || !record.replaced_by) return null
     const open = () => router.replace(orgHref(documentHref(doc, record.replaced_by)))
     // A correction keeps the number of the document it replaces.
     const text = `Replaced by ${record.number} (edited)`
@@ -218,23 +218,26 @@ const NO_SAVE = () => {}
 interface StampsProps {
     record: DocumentRecord
     // Only the posting lifecycle posts, voids and replaces.
-    isVisible: boolean
+    isPosting: boolean
 }
 
-// Posted by, Voided by and the replacement's link of a posting document.
-function PostingStamps({ record, isVisible }: StampsProps) {
-    const { doc } = useDocumentKind()
-    if (!isVisible) return null
-    const posted = stampText(record.postedBy?.name, record.posted_at)
+// Under the message and memo: Posted by, the kind's line under it (an invoice's "From
+// estimate <n>", a closed estimate's "Converted to invoice <n>"), Voided by and the
+// replacement's link. A quote has only the kind's line.
+function ReadStamps({ record, isPosting }: StampsProps) {
+    const { doc, ReadStampRow } = useDocumentKind()
+    const stampRow = ReadStampRow ? <ReadStampRow record={record} /> : null
+    const posted = isPosting ? stampText(record.postedBy?.name, record.posted_at) : ''
     const postedText = posted ? `Posted by ${posted}` : ''
-    const voided = stampText(record.voidedBy?.name, record.voided_at)
+    const voided = isPosting ? stampText(record.voidedBy?.name, record.voided_at) : ''
     const voidedText = voided ? `Voided by ${voided}` : ''
     const ids = { postedBy: `${doc.testId}-posted-by`, voidedBy: `${doc.testId}-voided-by` }
     return (
         <View className="gap-1">
             <Stamp testID={ids.postedBy} text={postedText} />
+            {stampRow}
             <Stamp testID={ids.voidedBy} text={voidedText} />
-            <ReplacedByLink record={record} />
+            <ReplacedByLink record={record} isVisible={isPosting} />
         </View>
     )
 }
@@ -249,8 +252,9 @@ interface DocumentReadViewProps {
  * A posted or void sales document, or a quote shown read only (a closed estimate, or any
  * estimate for a reader): the header, Customer, Bill to, Email, the date and the kind's
  * own details, Tax, the lines with their stored amounts, the stored totals with the tax
- * snapshot, Message and Memo, and, for the posting lifecycle only, the Posted by / Voided
- * by stamps and, for a replaced original, the link to its replacement; or, on the PDF
+ * snapshot, Message and Memo, the kind's line under them (ReadStampRow) and, for the
+ * posting lifecycle only, the Posted by / Voided by stamps around it and, for a replaced
+ * original, the link to its replacement; or, on the PDF
  * view tab, its PDF. The bar's actions follow the lifecycle's read actions for the user's
  * access (useDocumentReadActions); their keys are in this screen's `compose` scope.
  */
@@ -303,7 +307,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             message={record.message}
                             memo={record.memo}
                         />
-                        <PostingStamps record={record} isVisible={isPosting} />
+                        <ReadStamps record={record} isPosting={isPosting} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>
                         <DocumentPdfView

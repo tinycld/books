@@ -31,6 +31,8 @@ export type DocumentScreenInput = {
     copy?: string
     customer?: string
     fresh?: string
+    // On an invoice's new form: the estimate it is made from (Convert to invoice).
+    estimate?: string
 }
 
 // The columns every kind's header row has, as the generated invoice type names them,
@@ -62,7 +64,10 @@ type SharedColumns = { status: DocumentStatus } & Pick<
 >
 
 // The columns only one kind has, tagged with the kind.
-type InvoiceKindFields = { kind: 'invoice' } & Pick<BooksInvoices, 'terms' | 'due_date'>
+type InvoiceKindFields = { kind: 'invoice' } & Pick<
+    BooksInvoices,
+    'terms' | 'due_date' | 'estimate'
+>
 type SalesReceiptKindFields = { kind: 'sales_receipt' } & Pick<
     BooksSalesReceipts,
     'payment_method' | 'reference_no' | 'deposit_to'
@@ -79,14 +84,17 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 
 // The header row as the screen reads it: who posted and voided it, and its tax rate (the
 // read view's tax line names it). A sales receipt's own fields add its deposit account,
-// which its payment line names.
+// which its payment line names; an invoice's the estimate it was made from ("From
+// estimate <n>"); an estimate's the invoice made from it ("Converted to invoice <n>").
 export type DocumentRecord = SharedColumns & {
     kindFields:
-        | InvoiceKindFields
+        | (InvoiceKindFields & { estimateRow: Pick<BooksEstimates, 'number'> | undefined })
         | (SalesReceiptKindFields & {
               depositRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
           })
-        | EstimateKindFields
+        | (EstimateKindFields & {
+              invoiceRow: Pick<BooksInvoices, 'number' | 'status'> | undefined
+          })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
     taxRateRow: Pick<BooksTaxRates, 'name'> | undefined
@@ -129,6 +137,9 @@ export type DocumentRead<T> = {
     recovery: LiveRecovery
 }
 
+// The estimate an invoice is made from (`?estimate`), as its own row.
+export type EstimateSource = BooksEstimates
+
 export type DocumentScreenReads = {
     // The row as the form keeps it: while the form is held through a delete, the last row
     // read (the store already dropped it).
@@ -136,6 +147,10 @@ export type DocumentScreenReads = {
     lines: DocumentRead<DocumentReadLine[]>
     source: DocumentRead<DocumentSource | undefined>
     sourceLines: DocumentRead<DocumentLineRow[]>
+    // On an invoice's new form with `?estimate`: the estimate it is made from and its
+    // lines in order. Idle (ready and empty) on every other form and kind.
+    estimateSource: DocumentRead<EstimateSource | undefined>
+    estimateSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
     // `errorText` is the error state's text when only this read failed.
     formStart: DocumentRead<DocumentFormStart> & { errorText?: string }
@@ -174,6 +189,27 @@ export type DocumentDataSource = {
 }
 
 export const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
+
+// The estimate reads of a form that is not made from an estimate: ready, empty, never
+// failed.
+export const NO_ESTIMATE_SOURCE: Pick<
+    DocumentScreenReads,
+    'estimateSource' | 'estimateSourceLines'
+> = {
+    estimateSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
+    estimateSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
+}
+
+// The number of the estimate an invoice names, for "From estimate <n>": the stored
+// invoice's estimate, else the estimate a new form is made from; '' for neither.
+export function estimateNumberOf(
+    record: DocumentRecord | undefined,
+    estimateSource: EstimateSource | undefined
+): string {
+    const fields = record?.kindFields
+    if (fields?.kind === 'invoice' && fields.estimateRow) return fields.estimateRow.number
+    return estimateSource?.number ?? ''
+}
 
 type QueryState = {
     isEnabled: boolean

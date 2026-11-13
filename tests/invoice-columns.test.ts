@@ -89,7 +89,7 @@ describe('invoiceColumnsFrom', () => {
 })
 
 describe('EMPTY_INVOICE_COLUMNS', () => {
-    it('stores every column empty, no address, as a draft that replaces nothing', () => {
+    it('stores every column empty, no address, as a draft that replaces nothing and names no estimate', () => {
         expect(EMPTY_INVOICE_COLUMNS).toEqual({
             customer: '',
             bill_to: null,
@@ -100,6 +100,7 @@ describe('EMPTY_INVOICE_COLUMNS', () => {
             tax_rate: '',
             message: '',
             memo: '',
+            estimate: '',
             status: 'draft',
             replaces: '',
         })
