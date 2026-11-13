@@ -74,7 +74,12 @@ func registerEntryHooks(app core.App) {
 			if err := checkLinkedEntries(tx, e.Record); err != nil {
 				return err
 			}
-			return stampCurrency(tx, e.Record)
+			if err := stampCurrency(tx, e.Record); err != nil {
+				return err
+			}
+			e.Record.Set("revision", 1)
+			markCreated(tx, e.Record.Id)
+			return nil
 		})
 	})
 	// Every entry update runs in one transaction. Posting writes the lines,
@@ -100,8 +105,9 @@ func registerEntryHooks(app core.App) {
 // The create rule refuses them over REST; checkNewEntry refuses them for a Go
 // caller too, so a draft never starts with a number, a poster or an override.
 // created_by and currency are not here: Books stamps them on create.
+// revision is Books' too: a create starts it at 1 (see revision.go).
 var postingFields = []string{
-	"number", "sequence", "total", "posted_at", "posted_by", "voided_at", "voided_by", "close_override",
+	"number", "sequence", "total", "posted_at", "posted_by", "voided_at", "voided_by", "close_override", "revision",
 }
 
 func checkNewEntry(r *core.Record) error {
