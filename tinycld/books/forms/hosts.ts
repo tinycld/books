@@ -1048,6 +1048,10 @@ const hosts: FormHostDefInput[] = [
                 storage: 'column',
                 required: false,
                 maxLength: 200,
+                // A text built-in still: the component only wraps the input in the
+                // band's `estimate-accepted-by` box.
+                component: 'AcceptedByField',
+                chrome: 'cell',
             },
             {
                 key: 'accepted_date',

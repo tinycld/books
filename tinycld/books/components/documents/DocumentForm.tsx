@@ -16,7 +16,7 @@ import { useFocusEffect } from 'expo-router'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { FormProvider, type UseFormReturn, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
-import type { DocumentWrites } from '../../hooks/document-data'
+import { type DocumentWrites, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
@@ -34,6 +34,7 @@ import type { DocumentTab } from '../../lib/document-routes'
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
+import { todayIso } from '../../lib/register-range'
 import { rootErrorOnly } from '../../lib/root-errors'
 import type { SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
@@ -41,10 +42,15 @@ import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
-import { DocumentActionBar, type DocumentMoreItem } from './DocumentActionBar'
+import {
+    DocumentActionBar,
+    type DocumentActionBarProps,
+    type DocumentMoreItem,
+} from './DocumentActionBar'
 import { DocumentHeader } from './DocumentHeader'
 import { DocumentLoading } from './DocumentLoading'
 import { DocumentPdfView } from './DocumentPdfView'
+import { DocumentSaveBar, type DocumentSaveBarProps } from './DocumentSaveBar'
 import { DocumentTabs, openDocumentTab, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import {
@@ -271,11 +277,19 @@ interface FooterProps {
     isStacked: boolean
 }
 
+// How far the wide totals reach left of the Qty slot, px, with the notes kept as far
+// back: at the narrowest floors the Qty to Amount slots leave a label about 157 px, less
+// than a tax label such as "Denver combined (8.71%)" needs on one line.
+const TOTALS_REACH = 40
+const NOTES_SPAN_END = { paddingRight: TOTALS_REACH }
+const TOTALS_REACH_LEFT = { marginLeft: -TOTALS_REACH }
+
 /**
  * Message and Memo beside the totals. On the wide grid the totals sit on the grid's
- * slots (lib/document-footer-layout.ts), so they end under Amount. When the lines draw
- * as cards there is no Amount column, so the footer stacks full width: the totals right
- * under the lines, then Message, then Memo.
+ * slots (lib/document-footer-layout.ts), so they end under Amount; their labels reach
+ * TOTALS_REACH further left, into room the notes leave free. When the lines draw as cards
+ * there is no Amount column, so the footer stacks full width: the totals right under the
+ * lines, then Message, then Memo.
  */
 function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     const { testId } = state.kind
@@ -291,9 +305,13 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     }
     return (
         <View testID={ids.footer} style={DOCUMENT_FOOTER_ROW}>
-            <View style={DOCUMENT_FOOTER_SPANS.left}>{renderer}</View>
+            <View style={DOCUMENT_FOOTER_SPANS.left}>
+                <View style={NOTES_SPAN_END}>{renderer}</View>
+            </View>
             <View style={DOCUMENT_FOOTER_SPANS.totals}>
-                <DocumentTotalsPanel totals={totals} />
+                <View style={TOTALS_REACH_LEFT}>
+                    <DocumentTotalsPanel totals={totals} />
+                </View>
             </View>
             <View style={DOCUMENT_FOOTER_SPANS.right} />
             <View style={DOCUMENT_FOOTER_MENU_SPACER} />
@@ -301,13 +319,16 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     )
 }
 
-// "Edit 1004" for a correction, new or saved; the kind's draft title once the draft is
-// stored; else its new title.
-function documentFormTitle(
+// A quote has no draft: its new title until the first save, then "Estimate 1001" by the
+// stored number. A posting kind: "Edit 1004" for a correction, new or saved; the kind's
+// draft title once the draft is stored; else its new title.
+export function documentFormTitle(
     kind: SalesDocumentKind,
     replacesNumber: string,
-    isStored: boolean
+    isStored: boolean,
+    number: string
 ): string {
+    if (kind.lifecycle === 'quote') return isStored ? `${kind.noun} ${number}` : kind.newTitle
     if (replacesNumber) return `Edit ${replacesNumber}`
     return isStored ? kind.draftTitle : kind.newTitle
 }
@@ -340,6 +361,21 @@ function ErrorSummary({ form, testID }: { form: EngineForm; testID: string }) {
     )
 }
 
+// The bar by the kind's lifecycle: a posting kind's Save draft / Post bar, or a quote's
+// Save bar.
+function PostingActionBar({
+    isVisible,
+    ...props
+}: DocumentActionBarProps & { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <DocumentActionBar {...props} />
+}
+
+function QuoteSaveBar({ isVisible, ...props }: DocumentSaveBarProps & { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <DocumentSaveBar {...props} />
+}
+
 const PDF_HINT = formatHint(DOCUMENT_PDF_KEY).text
 
 // Download PDF of the saved draft, from the More row and ⌘P. A new form has nothing
@@ -368,8 +404,9 @@ interface DocumentFormProps {
 
 /**
  * A sales document form, new, draft, correction or copy: the header band, the lines
- * table, the footer (DocumentFooter: Message, Memo and the totals), and the sticky action
- * bar; or, on the PDF view tab, the saved draft's PDF above the same bar. Keyed on its
+ * table, the footer (DocumentFooter: Message, Memo and the totals), and the sticky bar of
+ * the kind's lifecycle (DocumentActionBar, or a quote's DocumentSaveBar); or, on the PDF
+ * view tab, the saved document's PDF above the same bar. Keyed on its
  * form key by the screen, so a new route mounts a fresh form; a tab change keeps it.
  */
 export function DocumentForm({ data, tab }: DocumentFormProps) {
@@ -392,10 +429,11 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const revealErrors = () => {
         if (tab === 'pdf') openDocumentTab('edit')
     }
-    const save = useDocumentSave(state, { tab, onFieldErrors: revealErrors })
-    const writes = documentKind.data.useWrites()
     const { onBack: leave } = useBackToEntries()
+    const save = useDocumentSave(state, { tab, onFieldErrors: revealErrors, leave })
+    const writes = documentKind.data.useWrites()
     const formCustomer = useFormCustomer(form, `books.${kind.key}`)
+    const expiredOn = expiredOnOf(data.record, todayIso())
     // Per mounted form: the band's address inputs belong to this form only, so a form
     // opened later starts with them folded.
     const instanceId = useId()
@@ -410,8 +448,9 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
             customerLoadFailed: formCustomer.isError,
             retryCustomer: formCustomer.retry,
             taxRows: data.taxOptions.rows,
+            expiredOn,
         }),
-        [kind, bandKey, data.currency, data.taxOptions.rows, formCustomer]
+        [kind, bandKey, data.currency, data.taxOptions.rows, formCustomer, expiredOn]
     )
     const totals = useDocumentTotals(form, scope)
     const linesLayout = useLinesAreCards()
@@ -425,11 +464,19 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const draftId = state.recordId ?? save.writtenId ?? undefined
     const deletion = useDocumentDelete(writes, draftId, leave)
     useScreenHoldRelease(draftId)
+    // A quote has no draft (Delete estimate comes with its own rule).
     const canDeleteDraft =
-        (!state.isNew && data.record?.status === 'draft') || save.writtenId !== null
+        kind.lifecycle === 'posting' &&
+        ((!state.isNew && data.record?.status === 'draft') || save.writtenId !== null)
     const isPhone = useBreakpoint() === 'mobile'
     const onPostAndNew = () => {
         void save.post(true)
+    }
+    const onSave = () => {
+        void save.save()
+    }
+    const onSaveAndNew = () => {
+        void save.saveAndNew()
     }
     const isBusy = save.isSaving || deletion.isPending
     const pdf = useDraftPdf(kind, draftId, isBusy)
@@ -441,6 +488,8 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
         deleteDraft: deletion.open,
         isPhone,
         postAndNew: onPostAndNew,
+        save: onSave,
+        saveAndNew: onSaveAndNew,
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
@@ -463,12 +512,23 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const onPost = () => {
         void save.post(false)
     }
+    const onSaveAndClose = () => {
+        void save.saveAndClose()
+    }
+    const isQuote = kind.lifecycle === 'quote'
+    // The PDF tab's save of a new form: the bar's Save draft, or a quote's Save.
+    const onPdfSave = isQuote ? onSave : onSaveDraft
     const moreItems = [pdf.item]
     const pdfDocumentId = draftId ?? null
-    const title = documentFormTitle(kind, data.replacesNumber, draftId !== undefined)
-    // The form shows only drafts: a post's optimistic status shows here only once the
-    // read view replaces the form.
-    const status = 'draft'
+    // A quote is titled by its stored number, so it reads as stored only once its row is
+    // here (a written id alone has no number yet); a posting draft is stored once written.
+    const isStored = isQuote ? data.record !== undefined : draftId !== undefined
+    const title = documentFormTitle(kind, data.replacesNumber, isStored, data.record?.number ?? '')
+    // A posting form shows only drafts: a post's optimistic status shows here only once
+    // the read view replaces the form. A quote's badges follow its saved row (a new one is
+    // Pending), never the unsaved Status.
+    const status = isQuote ? (data.record?.status ?? 'pending') : 'draft'
+    const isExpired = expiredOn !== null
     const isEditTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
     const isFooterStacked = isPhone || linesLayout.isCards
@@ -499,6 +559,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                     title={title}
                                     status={status}
                                     figure={totals.figure}
+                                    isExpired={isExpired}
                                 />
                                 <ReplaceNote kind={kind} number={data.replacesNumber} />
                                 <DocumentTabs
@@ -535,11 +596,12 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                         version={pdfVersion}
                                         isDirty={state.isDirty}
                                         isSaving={save.isSaving}
-                                        onSaveDraft={onSaveDraft}
+                                        onSave={onPdfSave}
                                     />
                                 </TabPanel>
                             </ScrollView>
-                            <DocumentActionBar
+                            <PostingActionBar
+                                isVisible={!isQuote}
                                 isSaving={save.isSaving}
                                 canDeleteDraft={canDeleteDraft}
                                 isPhone={isPhone}
@@ -548,6 +610,19 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                 onPost={onPost}
                                 onPostAndNew={onPostAndNew}
                                 onDeleteDraft={deletion.open}
+                                moreItems={moreItems}
+                                scopeOwner={shortcuts.scopeOwner}
+                            />
+                            <QuoteSaveBar
+                                isVisible={isQuote}
+                                isSaving={save.isSaving}
+                                isPhone={isPhone}
+                                onCancel={cancel}
+                                onSave={onSave}
+                                onSaveAndClose={onSaveAndClose}
+                                onSaveAndNew={onSaveAndNew}
+                                convert={null}
+                                remove={null}
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
                             />

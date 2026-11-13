@@ -7,12 +7,14 @@ import { log } from '@tinycld/core/lib/logger'
 import { z } from '@tinycld/core/ui/form'
 import { useFormCreate, useFormEdit, useHostUi } from '@tinycld/core/ui/forms'
 import { type RefObject, useMemo, useRef } from 'react'
+import { useWatch } from 'react-hook-form'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { defaultTaxRateId } from '../lib/document-fills'
 import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { type DepositRule, type DocumentSaveMode, documentSchema } from '../lib/document-schema'
 import { documentTaxOf } from '../lib/document-tax'
 import type { DocumentFormValuesBase } from '../lib/document-values'
+import { acceptanceShown } from '../lib/estimate-status'
 import { hideBuiltins } from '../lib/form-definition'
 import { todayIso } from '../lib/register-range'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
@@ -61,6 +63,7 @@ type FormInput = Pick<DocumentScreenData, 'record' | 'lines' | 'customer' | 'cur
 }
 
 const DEPOSIT_TO = ['deposit_to']
+const ACCEPTANCE = ['accepted_by', 'accepted_date']
 
 // The account a shown Deposit to whose value is empty saves: the default rule's. Empty
 // for an invoice, and while Deposit to is hidden (the server stamps the set account).
@@ -168,13 +171,23 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     // save, never in FormRenderer, so a locked built-in may be hidden here. The rule is
     // read every render, so a settings change shows or hides the field at once.
     const isDepositHidden = input.deposit?.hidden === true
+    // An estimate draws Accepted by and Accepted date only while Status is Accepted. Core
+    // rules cannot test a custom built-in's value, so the rendered copy hides them here,
+    // on the watched Status; the save clears them (useDocumentSave).
+    const status = useWatch({ control: chosen.form.control, name: 'status' })
+    const isAcceptanceHidden =
+        kind.lifecycle === 'quote' && !acceptanceShown(typeof status === 'string' ? status : '')
+    const hiddenKeys = useMemo(
+        () => [...(isDepositHidden ? DEPOSIT_TO : []), ...(isAcceptanceHidden ? ACCEPTANCE : [])],
+        [isDepositHidden, isAcceptanceHidden]
+    )
     const engineDefinition = chosen.definition
     const definition = useMemo(
         () =>
-            engineDefinition && isDepositHidden
-                ? hideBuiltins(engineDefinition, DEPOSIT_TO, host)
+            engineDefinition && hiddenKeys.length > 0
+                ? hideBuiltins(engineDefinition, hiddenKeys, host)
                 : engineDefinition,
-        [engineDefinition, isDepositHidden, host]
+        [engineDefinition, hiddenKeys, host]
     )
     // Read through the form state proxy, so a change re-renders the guard (useRecordForm).
     const dirtyFields = chosen.form.formState.dirtyFields

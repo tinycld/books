@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { postAndNewHref } from '../tinycld/books/hooks/useDocumentSave'
 import { documentHref, documentNewHref } from '../tinycld/books/lib/document-routes'
-import { INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import { ESTIMATE_KIND, INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
 
 // A kind with another route base: the routes must come from the kind, not a constant.
 const OTHER_KIND = { ...INVOICE_KIND, routeBase: 'books/x' }
@@ -41,6 +41,15 @@ describe('documentNewHref', () => {
             'books/x/new?fresh=f1&customer=c1'
         )
         expect(documentNewHref(OTHER_KIND, {})).toBe('books/x/new')
+    })
+
+    // Save & new on an estimate carries the customer it was opened with; no screen of
+    // this unit links to `?customer`, so this is its coverage. The layer's order holds:
+    // `fresh` first, then `customer`.
+    it('starts a new estimate with its customer under books/estimates', () => {
+        expect(documentNewHref(ESTIMATE_KIND, { customer: 'c1', fresh: 'f1' })).toBe(
+            'books/estimates/new?fresh=f1&customer=c1'
+        )
     })
 })
 

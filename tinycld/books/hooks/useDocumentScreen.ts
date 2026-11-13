@@ -89,6 +89,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     const hasCopyCustomer = !source?.customer || copyCustomer !== undefined
     const copyStatus = hasCopyCustomer ? sourceStatus : null
     const state = documentScreenState({
+        lifecycle: documentKind.doc.lifecycle,
         isReady,
         isError,
         canWrite: access.canWrite,

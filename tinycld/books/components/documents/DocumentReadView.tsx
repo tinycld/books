@@ -4,16 +4,18 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { router } from 'expo-router'
 import { Pressable, ScrollView, Text, View } from 'react-native'
-import type { DocumentRecord } from '../../hooks/document-data'
+import { type DocumentRecord, expiredOnOf } from '../../hooks/document-data'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { DOCUMENT_NOTE_LABELS } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
+import { documentTaxOf } from '../../lib/document-tax'
 import { NO_CUSTOMER_TEXT } from '../../lib/document-texts'
 import { stampText } from '../../lib/entry-display'
 import { formatMoney } from '../../lib/money'
-import { formatDay } from '../../lib/register-range'
+import { formatDay, todayIso } from '../../lib/register-range'
+import type { DocumentLifecycle } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
@@ -29,13 +31,24 @@ import { useDocumentKind } from './document-kind-context'
 const LINK_STYLE = { minHeight: 44 }
 
 // The tax line: the document's rate name with the snapshot's combined percent and
-// amount, so a rate changed after posting does not change it. No row without a tax rate;
-// with a rate but no snapshot rows (no line was taxable), the rate's name and the stored
-// tax total, as there is no snapshot percent to show.
-function readTaxLine(data: DocumentScreenData, record: DocumentRecord): DocumentTotalsView['tax'] {
+// amount, so a rate changed after posting does not change it. No row without a tax rate.
+// A quote never posts, so it has no snapshot: its rate is named as the form names it,
+// with the rate's current percent (documentTaxOf over the screen's tax rates, which holds
+// a group's components), and the stored tax total. A posting document with a rate but no
+// snapshot rows (no line was taxable) shows the rate's name and the stored tax total, as
+// there is no snapshot percent to show.
+function readTaxLine(
+    data: DocumentScreenData,
+    record: DocumentRecord,
+    lifecycle: DocumentLifecycle
+): DocumentTotalsView['tax'] {
     if (!record.tax_rate) return null
     const amount = (cents: number) => formatMoney(cents, data.currency)
     const name = record.taxRateRow?.name ?? 'Tax'
+    if (lifecycle === 'quote') {
+        const { label } = documentTaxOf(data.taxOptions.rows, record.tax_rate)
+        return { label: label ?? name, amount: amount(record.tax_total) }
+    }
     if (data.taxLines.length === 0) return { label: name, amount: amount(record.tax_total) }
     const ppm = groupPpm(data.taxLines.map(line => line.rate_ppm))
     const total = data.taxLines.reduce((sum, line) => sum + line.amount, 0)
@@ -44,12 +57,16 @@ function readTaxLine(data: DocumentScreenData, record: DocumentRecord): Document
 
 // The last row and the big figure are the total in this unit (spec §3.4), posted or
 // void: payments come later.
-function readTotals(data: DocumentScreenData, record: DocumentRecord): DocumentTotalsView {
+function readTotals(
+    data: DocumentScreenData,
+    record: DocumentRecord,
+    lifecycle: DocumentLifecycle
+): DocumentTotalsView {
     const money = (cents: number) => formatMoney(cents, data.currency)
     const total = money(record.total)
     return {
         subtotal: money(record.subtotal),
-        tax: readTaxLine(data, record),
+        tax: readTaxLine(data, record, lifecycle),
         total,
         last: total,
     }
@@ -195,8 +212,32 @@ function ReplacedByLink({ record }: { record: DocumentRecord }) {
     )
 }
 
-// The read view has no unsaved state: its PDF view never offers Save draft.
+// The read view has no unsaved state: its PDF view never offers a save.
 const NO_SAVE = () => {}
+
+interface StampsProps {
+    record: DocumentRecord
+    // Only the posting lifecycle posts, voids and replaces.
+    isVisible: boolean
+}
+
+// Posted by, Voided by and the replacement's link of a posting document.
+function PostingStamps({ record, isVisible }: StampsProps) {
+    const { doc } = useDocumentKind()
+    if (!isVisible) return null
+    const posted = stampText(record.postedBy?.name, record.posted_at)
+    const postedText = posted ? `Posted by ${posted}` : ''
+    const voided = stampText(record.voidedBy?.name, record.voided_at)
+    const voidedText = voided ? `Voided by ${voided}` : ''
+    const ids = { postedBy: `${doc.testId}-posted-by`, voidedBy: `${doc.testId}-voided-by` }
+    return (
+        <View className="gap-1">
+            <Stamp testID={ids.postedBy} text={postedText} />
+            <Stamp testID={ids.voidedBy} text={voidedText} />
+            <ReplacedByLink record={record} />
+        </View>
+    )
+}
 
 interface DocumentReadViewProps {
     data: DocumentScreenData
@@ -205,12 +246,13 @@ interface DocumentReadViewProps {
 }
 
 /**
- * A posted or void sales document, read only: the header, Customer, Bill to, Email, the
- * date and the kind's own details, Tax, the lines with their stored amounts, the stored
- * totals with the tax snapshot, Message and Memo, the Posted by / Voided by stamps and,
- * for a replaced original, the link to its replacement; or, on the PDF view tab, its
- * PDF. The bar's actions follow `documentReadActions` for the user's access; their keys
- * are in this screen's `compose` scope.
+ * A posted or void sales document, or a quote shown read only (a closed estimate, or any
+ * estimate for a reader): the header, Customer, Bill to, Email, the date and the kind's
+ * own details, Tax, the lines with their stored amounts, the stored totals with the tax
+ * snapshot, Message and Memo, and, for the posting lifecycle only, the Posted by / Voided
+ * by stamps and, for a replaced original, the link to its replacement; or, on the PDF
+ * view tab, its PDF. The bar's actions follow the lifecycle's read actions for the user's
+ * access (useDocumentReadActions); their keys are in this screen's `compose` scope.
  */
 export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const documentKind = useDocumentKind()
@@ -218,29 +260,28 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
-    const totals = readTotals(data, record)
+    const totals = readTotals(data, record, doc.lifecycle)
     const billTo = billToLines(record).join('\n')
     const customerName = customerNameOf(data, record)
     const date = record.date ? formatDay(record.date) : ''
     const tax = totals.tax?.label ?? ''
-    const posted = stampText(record.postedBy?.name, record.posted_at)
-    const postedText = posted ? `Posted by ${posted}` : ''
-    const voided = stampText(record.voidedBy?.name, record.voided_at)
-    const voidedText = voided ? `Voided by ${voided}` : ''
     const title = `${doc.noun} ${record.number}`
     const isDetailsTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
-    const ids = {
-        readOnly: `${doc.testId}-read-only`,
-        postedBy: `${doc.testId}-posted-by`,
-        voidedBy: `${doc.testId}-voided-by`,
-    }
+    const isPosting = doc.lifecycle === 'posting'
+    const isExpired = expiredOnOf(record, todayIso()) !== null
+    const readOnlyId = `${doc.testId}-read-only`
     return (
         <ScopeProvider owner={scopeOwner}>
-            <View testID={ids.readOnly} className="flex-1 bg-background">
+            <View testID={readOnlyId} className="flex-1 bg-background">
                 <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-2 pb-6">
                     <EntryBackLink />
-                    <DocumentHeader title={title} status={record.status} figure={totals.last} />
+                    <DocumentHeader
+                        title={title}
+                        status={record.status}
+                        figure={totals.last}
+                        isExpired={isExpired}
+                    />
                     <DocumentTabs selected={tab} firstLabel="Details" scopeOwner={scopeOwner} />
                     <TabPanel isVisible={isDetailsTab}>
                         <ReadBand
@@ -262,11 +303,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             message={record.message}
                             memo={record.memo}
                         />
-                        <View className="gap-1">
-                            <Stamp testID={ids.postedBy} text={postedText} />
-                            <Stamp testID={ids.voidedBy} text={voidedText} />
-                            <ReplacedByLink record={record} />
-                        </View>
+                        <PostingStamps record={record} isVisible={isPosting} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>
                         <DocumentPdfView
@@ -274,7 +311,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             version={record.updated}
                             isDirty={false}
                             isSaving={false}
-                            onSaveDraft={NO_SAVE}
+                            onSave={NO_SAVE}
                         />
                     </TabPanel>
                 </ScrollView>

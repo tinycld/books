@@ -9,6 +9,7 @@ import { useMemo } from 'react'
 import { DOCUMENT_LINE_MAPPER } from '../lib/document-line-columns'
 import { type EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../lib/invoice-columns'
 import { columnsOrThrow } from '../lib/record-save'
+import { INVOICE_KIND } from '../lib/sales-document-kinds'
 import type { BooksInvoices } from '../types'
 import {
     type DocumentDataSource,
@@ -111,7 +112,7 @@ function useInvoiceScreenReads(
         [read]
     )
     const record = useHeldRecord(mapped, input.isHeld)
-    const ids = linkedReadIds(input, record, read?.status ?? null)
+    const ids = linkedReadIds(input, record, read?.status ?? null, INVOICE_KIND.lifecycle)
     const sourceQuery = useLiveQuery({
         query: q => {
             if (!ids.sourceId) return undefined

@@ -19,6 +19,9 @@ export type DocumentFormScope = {
     customerLoadFailed: boolean
     retryCustomer: () => void
     taxRows: ReturnType<typeof useTaxRateOptions>['rows']
+    // The saved expiration date of an estimate that shows as Expired (expiredOnOf), for
+    // the hint under Expiration date; null otherwise.
+    expiredOn: string | null
 }
 
 export const DocumentFormContext = createContext<DocumentFormScope | null>(null)
@@ -34,6 +37,7 @@ const EMPTY_SCOPE: DocumentFormScope = {
     customerLoadFailed: false,
     retryCustomer: () => {},
     taxRows: [],
+    expiredOn: null,
 }
 
 export function useDocumentFormScope(): DocumentFormScope {

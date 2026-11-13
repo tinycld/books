@@ -5,11 +5,14 @@ import type {
     DocumentSource,
     DocumentStart,
 } from '../../hooks/document-data'
+import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
 import type { CustomerFill, TaxRateFill } from '../../lib/document-fills'
 import type { DocumentLineRow } from '../../lib/document-line-columns'
 import type { DocumentFormValuesBase } from '../../lib/document-values'
+import { EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../../lib/estimate-columns'
+import { copyEstimateValues, newEstimateValues } from '../../lib/estimate-values'
 import { EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../../lib/invoice-columns'
 import {
     copyInvoiceValues,
@@ -18,6 +21,7 @@ import {
 } from '../../lib/invoice-values'
 import type { ColumnsParse } from '../../lib/record-columns'
 import {
+    ESTIMATE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
@@ -32,6 +36,7 @@ import {
     newSalesReceiptValues,
     salesReceiptCorrectionValues,
 } from '../../lib/sales-receipt-values'
+import { EstimateReadDetails } from './EstimateReadDetails'
 import { InvoiceReadDetails } from './InvoiceReadDetails'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
 
@@ -133,6 +138,40 @@ function depositStartOf(start: DocumentStart | undefined): CopyDeposit {
         throw new Error(`a sales receipt form has a ${start.kind} start`)
     }
     return start.deposit
+}
+
+// The source row with the estimate's own columns back at the top level, as invoiceRowOf.
+function estimateRowOf(source: DocumentSource) {
+    const fields = source.kindFields
+    if (fields.kind !== 'estimate') throw new Error(`an estimate source has ${fields.kind} columns`)
+    return { ...source, ...fields }
+}
+
+// An estimate always has a customer (it is required): the screen passes null only for a
+// source saved without one, which an estimate never is.
+function estimateCustomerOf(customer: CustomerFill | null): CustomerFill {
+    if (!customer) throw new Error('an estimate copy has no customer')
+    return customer
+}
+
+// A copied customer, product or tax rate that is now inactive stays in the form, and the
+// save refuses it with the shared inactive texts, as an invoice copy's does.
+export const ESTIMATE_DOCUMENT: DocumentKind = {
+    doc: ESTIMATE_KIND,
+    data: ESTIMATE_DATA,
+    columnsFrom: estimateColumnsFrom,
+    emptyColumns: EMPTY_ESTIMATE_COLUMNS,
+    values: {
+        new: newEstimateValues,
+        copy: (source, lines, today, customer) =>
+            copyEstimateValues(estimateRowOf(source), lines, today, estimateCustomerOf(customer)),
+        // A quote is edited in place while it is open and never posts, so it has no
+        // correction route (`?replaces`) to start one.
+        correction: () => {
+            throw new Error('an estimate has no correction')
+        },
+    },
+    ReadDetails: EstimateReadDetails,
 }
 
 export const SALES_RECEIPT_DOCUMENT: DocumentKind = {

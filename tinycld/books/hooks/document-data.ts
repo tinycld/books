@@ -1,13 +1,17 @@
 import type { Transaction } from '@tanstack/react-db'
 import type { Users } from '@tinycld/core/types/pbSchema'
 import { useRef } from 'react'
+import { type DocumentStatus, isReadOnlyStatus } from '../lib/document-lifecycle'
 import type { DocumentLineRow } from '../lib/document-line-columns'
 import type { DepositRule } from '../lib/document-schema'
+import { isExpired } from '../lib/estimate-status'
 import type { LiveRecovery } from '../lib/live-recovery'
+import type { DocumentLifecycle } from '../lib/sales-document-kinds'
 import type { CopyDeposit } from '../lib/sales-receipt-values'
 import type { TableWriteOps } from '../lib/table-writes'
 import type {
     BooksAccounts,
+    BooksEstimates,
     BooksInvoices,
     BooksInvoiceTaxLines,
     BooksProducts,
@@ -29,11 +33,12 @@ export type DocumentScreenInput = {
     fresh?: string
 }
 
-// The columns every kind's header row has, as the generated invoice type names them.
-type SharedColumns = Pick<
+// The columns every kind's header row has, as the generated invoice type names them,
+// with any kind's status. The posting columns (`entry` … `replaced_by`) are '' on a kind
+// that never posts.
+type SharedColumns = { status: DocumentStatus } & Pick<
     BooksInvoices,
     | 'id'
-    | 'status'
     | 'number'
     | 'customer'
     | 'date'
@@ -62,7 +67,11 @@ type SalesReceiptKindFields = { kind: 'sales_receipt' } & Pick<
     BooksSalesReceipts,
     'payment_method' | 'reference_no' | 'deposit_to'
 >
-export type DocumentKindFields = InvoiceKindFields | SalesReceiptKindFields
+type EstimateKindFields = { kind: 'estimate' } & Pick<
+    BooksEstimates,
+    'expiration_date' | 'accepted_by' | 'accepted_date' | 'invoice'
+>
+export type DocumentKindFields = InvoiceKindFields | SalesReceiptKindFields | EstimateKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -77,14 +86,29 @@ export type DocumentRecord = SharedColumns & {
         | (SalesReceiptKindFields & {
               depositRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
           })
+        | EstimateKindFields
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
     taxRateRow: Pick<BooksTaxRates, 'name'> | undefined
 }
 
+// The saved expiration date of a stored estimate that shows as Expired (isExpired); null
+// for any other record and on a new form. Read from the stored row, never the form, so an
+// unsaved date changes nothing.
+export function expiredOnOf(record: DocumentRecord | undefined, today: string): string | null {
+    const fields = record?.kindFields
+    if (!record || fields?.kind !== 'estimate') return null
+    const estimate = { status: record.status, expiration_date: fields.expiration_date }
+    return isExpired(estimate, today) ? fields.expiration_date : null
+}
+
 // A kind's own input to its new form's values and to a copy's, which its data source
-// reads: none for an invoice; for a sales receipt, how Deposit to is chosen.
-export type DocumentStart = { kind: 'invoice' } | { kind: 'sales_receipt'; deposit: CopyDeposit }
+// reads: none for an invoice or an estimate; for a sales receipt, how Deposit to is
+// chosen.
+export type DocumentStart =
+    | { kind: 'invoice' }
+    | { kind: 'sales_receipt'; deposit: CopyDeposit }
+    | { kind: 'estimate' }
 
 // What a kind's form starts from besides the document: its start input and the Deposit
 // to rule of its schema (none for an invoice).
@@ -189,18 +213,21 @@ export function useHeldRecord<T>(data: T | undefined, isHeld: boolean): T | unde
 // The ids of the reads that follow from the record. The source: on a new form, the one
 // `?replaces` corrects or `?copy` copies (its lines give the form's values); on a saved
 // correction draft, the one it replaces (its number titles the form). The tax lines come
-// from the posting snapshot of a posted or void document; not read while the form holds
+// from the posting snapshot of a posted or void document, so only the posting lifecycle
+// reads them (a quote never posts and has no tax lines); not read while the form holds
 // a post, as the optimistic `posted` status would start the read and the form would give
 // way to the loading state before a refusal could land on it.
 export function linkedReadIds(
     input: DocumentScreenInput & { isHeld: boolean },
     record: Pick<DocumentSource, 'replaces'> | undefined,
-    status: DocumentSource['status'] | null
+    status: DocumentStatus | null,
+    lifecycle: DocumentLifecycle
 ) {
     const id = input.id ?? ''
     const isNew = input.id === null
     const sourceId = (isNew ? (input.replaces ?? input.copy) : record?.replaces) ?? ''
-    const isReadStatus = status === 'posted' || status === 'void'
+    const isReadStatus =
+        lifecycle === 'posting' && status !== null && isReadOnlyStatus(lifecycle, status)
     return {
         sourceId,
         sourceLinesId: isNew ? sourceId : '',
