@@ -424,6 +424,99 @@ func TestDocRequestRevision_AStaleBatchChangesNothing(t *testing.T) {
 	}
 }
 
+// A save that changes the tax rate the lines need (plan Decision D2). Stored:
+// one line of 100.00, not taxable, under the Denver group (8.71%). The save
+// adds a taxable credit of -95.00 and removes the tax. With the stored tax the
+// credit's own tax takes the total below zero; with no tax the total is 5.00.
+type taxChangeSave struct {
+	pe          *postingEnv
+	inv         *core.Record
+	saw         int
+	token       string
+	header, add string
+}
+
+func newTaxChangeSave(t *testing.T) taxChangeSave {
+	t.Helper()
+	pe := newPostingEnv(t)
+	enableBatch(t, pe.app)
+	inv := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	mkInvoiceLine(t, pe.app, inv, 0, item(pe.service, 1, 10000, false))
+	saw := docRevision(t, pe.app, "books_invoices", inv.Id)
+	return taxChangeSave{
+		pe: pe, inv: inv, saw: saw, token: tokenFor(t, pe.users.bookkeeper),
+		header: fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_invoices/records/%s","body":{"tax_rate":"","revision":%d}}`, inv.Id, saw+1),
+		add: fmt.Sprintf(`{"method":"POST","url":"/api/collections/books_invoice_lines/records","body":{"invoice":%q,"position":1,"kind":"item","product":%q,"quantity":1,"rate":-9500,"taxable":true}}`,
+			inv.Id, pe.service.Id),
+	}
+}
+
+func (s taxChangeSave) batch(ops ...string) apiReq {
+	return apiReq{
+		method: http.MethodPost, url: "/api/batch", token: s.token,
+		body: batchBody(ops...),
+	}
+}
+
+func (s taxChangeSave) post(revision int) apiReq {
+	return apiReq{
+		method: http.MethodPatch, url: "/api/collections/books_invoices/records/" + s.inv.Id,
+		token: s.token,
+		body:  fmt.Sprintf(`{"status":"posted","revision":%d}`, revision),
+	}
+}
+
+// The shape the client sends when the lines hold only with the new tax: one
+// batch with the header first, stating the revision, then the line writes;
+// then the post as its own request, stating the next revision.
+func TestDocRequestRevision_AHeaderFirstBatchThenThePost(t *testing.T) {
+	t.Run("with the header last, the line is refused under the stored tax", func(t *testing.T) {
+		s := newTaxChangeSave(t)
+		batch := s.batch(s.add, s.header)
+		batch.want = http.StatusBadRequest
+		batch.run(t, s.pe.app)
+		if got := docRevision(t, s.pe.app, "books_invoices", s.inv.Id); got != s.saw {
+			t.Fatalf("revision = %d, want %d: the refused batch changed it", got, s.saw)
+		}
+	})
+
+	t.Run("the header first, then the post with the next revision", func(t *testing.T) {
+		s := newTaxChangeSave(t)
+		batch := s.batch(s.header, s.add)
+		batch.want = http.StatusOK
+		post := s.post(s.saw + 2)
+		post.want, post.content = http.StatusOK, []string{`"status":"posted"`}
+		apiSeq(t, s.pe.app, batch, post)
+
+		posted := reload(t, s.pe.app, "books_invoices", s.inv.Id)
+		if got := posted.GetInt("revision"); got != s.saw+2 {
+			t.Fatalf("revision = %d, want %d (the batch's one, then the post's one)", got, s.saw+2)
+		}
+		requireInvoiceTotals(t, s.pe.app, s.inv.Id, 500, 0, 500)
+		requireNoDrift(t, s.pe.app)
+	})
+
+	// The batch left the draft at saw+1. A post that states saw+1 again says
+	// the person saw the draft from before the batch.
+	t.Run("a post that states the batch's revision is refused", func(t *testing.T) {
+		s := newTaxChangeSave(t)
+		batch := s.batch(s.header, s.add)
+		batch.want = http.StatusOK
+		post := s.post(s.saw + 1)
+		post.want, post.content = http.StatusConflict, []string{wantInvoiceConflict}
+		apiSeq(t, s.pe.app, batch, post)
+
+		draft := reload(t, s.pe.app, "books_invoices", s.inv.Id)
+		if got := draft.GetString("status"); got != statusDraft {
+			t.Fatalf("status = %q: the refused post must not post", got)
+		}
+		if got := draft.GetInt("revision"); got != s.saw+1 {
+			t.Fatalf("revision = %d, want %d (the batch's one change)", got, s.saw+1)
+		}
+		requireInvoiceTotals(t, s.pe.app, s.inv.Id, 500, 0, 500)
+	})
+}
+
 // The shape the client sends for a new document: the header, then its lines,
 // in one batch. The lines are part of the create: the revision stays 1.
 func TestDocRequestRevision_ANewDocumentBatchLeavesRevisionOne(t *testing.T) {

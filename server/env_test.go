@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 
@@ -178,6 +180,47 @@ func (r apiReq) run(t *testing.T, app *tests.TestApp) {
 		}
 	}
 	scenario.Test(t)
+}
+
+// apiSeq runs several REST calls in order through one router, for a flow the
+// client makes as more than one request (a batch, then a post). OnServe runs
+// one time for all of them, so this is the app's one use of the router, as an
+// apiReq is. It reads method, url, token, body, want and content of each call.
+func apiSeq(t *testing.T, app *tests.TestApp, calls ...apiReq) {
+	t.Helper()
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serve := &core.ServeEvent{App: app, Router: router}
+	err = app.OnServe().Trigger(serve, func(e *core.ServeEvent) error {
+		mux, err := e.Router.BuildMux()
+		if err != nil {
+			return err
+		}
+		for i, call := range calls {
+			req := httptest.NewRequest(call.method, call.url, strings.NewReader(call.body))
+			req.Header.Set("Content-Type", "application/json")
+			if call.token != "" {
+				req.Header.Set("Authorization", call.token)
+			}
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			body := rec.Body.String()
+			if rec.Code != call.want {
+				t.Fatalf("call %d (%s %s): status = %d, want %d; body: %s", i+1, call.method, call.url, rec.Code, call.want, body)
+			}
+			for _, want := range call.content {
+				if !strings.Contains(body, want) {
+					t.Fatalf("call %d (%s %s): body has no %q: %s", i+1, call.method, call.url, want, body)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // mkAccount saves an account directly. It sets currency itself so it also
