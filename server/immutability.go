@@ -85,18 +85,18 @@ func registerImmutabilityGuards(app core.App) {
 	})
 	app.OnRecordCreate("books_journal_lines").BindFunc(lineGuard)
 	app.OnRecordUpdate("books_journal_lines").BindFunc(func(e *core.RecordEvent) error {
-		return serializedLine(e, func(tx core.App) error {
+		return serializedLine(e, func(tx core.App) (int, error) {
 			stored, err := tx.FindRecordById("books_journal_lines", e.Record.Id)
 			if err != nil {
-				return err
+				return 0, err
 			}
 			if stored.GetString("entry") != e.Record.GetString("entry") {
-				return refuse("A line cannot move to another journal entry.")
+				return 0, refuse("A line cannot move to another journal entry.")
 			}
 			if err := requireDraftEntry(tx, e.Record); err != nil {
-				return err
+				return 0, err
 			}
-			return checkLineParty(tx, stored, e.Record)
+			return e.Record.GetInt("debit") - stored.GetInt("debit"), checkLineParty(tx, stored, e.Record)
 		})
 	})
 	app.OnRecordDelete("books_journal_lines").BindFunc(lineGuard)
@@ -105,14 +105,15 @@ func registerImmutabilityGuards(app core.App) {
 // lineGuard guards a line create and delete. A new line's customer or vendor
 // is checked too; a delete names no party to check.
 func lineGuard(e *core.RecordEvent) error {
-	return serializedLine(e, func(tx core.App) error {
+	return serializedLine(e, func(tx core.App) (int, error) {
 		if err := requireDraftEntry(tx, e.Record); err != nil {
-			return err
+			return 0, err
 		}
 		if !e.Record.IsNew() {
-			return nil
+			// A delete: the entry loses the line's debit.
+			return -e.Record.GetInt("debit"), nil
 		}
-		return checkLineParty(tx, nil, e.Record)
+		return e.Record.GetInt("debit"), checkLineParty(tx, nil, e.Record)
 	})
 }
 
