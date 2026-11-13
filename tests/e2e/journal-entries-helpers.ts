@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, type Request, type Route } from '@playwright/test'
-import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
+import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { DESKTOP, isPhone, makeAccountInactive, openChart, PHONE } from './account-register-helpers'
 
 // Shared by the journal-entries e2e specs. Entries are made by driving the form,
 // never by raw PocketBase writes. `createPostedEntry` and `createDraftEntry`
@@ -155,6 +156,54 @@ export async function createDraftEntry(page: Page, entry: EntryInput): Promise<v
     // new screen is replaced by `entries/<id>`) says the save finished and the form remounted.
     await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
     await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+}
+
+// A second page of this session (another tab), in Books at the first page's viewport size.
+export async function openOtherBooksPage(page: Page): Promise<Page> {
+    const other = await page.context().newPage()
+    await login(other)
+    await navigateToPackage(other, 'books')
+    const size = page.viewportSize()
+    if (size) await other.setViewportSize(size)
+    return other
+}
+
+// Makes an account inactive from another tab, so a form open on `page` keeps the account
+// it already chose. The server then refuses a post that uses it: "Line n: account <name>
+// is inactive." The account picker never offers an inactive account, so this is the one
+// way a person reaches that rule.
+export async function makeAccountInactiveElsewhere(page: Page, accountName: string) {
+    const other = await openOtherBooksPage(page)
+    await openChart(other)
+    await makeAccountInactive(other, accountName)
+    await other.close()
+}
+
+// Puts a customer or vendor on a line of a draft journal entry, from another tab. The
+// server refuses to delete a customer or vendor that a journal line names. `release`
+// deletes that draft, so the delete is allowed again.
+export async function nameOnDraftLine(page: Page, partyName: string) {
+    const other = await openOtherBooksPage(page)
+    await openNewEntry(other)
+    await other.getByTestId('entry-memo').fill(`Names ${partyName}`)
+    await fillLine(other, 0, {
+        account: ACCOUNT_LABELS.checking,
+        debit: '1.00',
+        name: partyName,
+    })
+    await fillLine(other, 1, { account: ACCOUNT_LABELS.equity, credit: '1.00' })
+    await other.getByTestId('entry-save-draft').click()
+    await expect(other.getByTestId('entry-title')).toHaveText('Journal entry')
+    await expect(other.getByTestId('entry-badge')).toHaveText('Draft')
+    return {
+        release: async () => {
+            await other.getByTestId('entry-header-more').click()
+            await other.getByRole('menuitem', { name: 'Delete draft', exact: true }).click()
+            await other.getByTestId('delete-draft-confirm').click()
+            await expect(other.getByTestId('entries-screen')).toBeVisible()
+            await other.close()
+        },
+    }
 }
 
 export type HeldRequests = {

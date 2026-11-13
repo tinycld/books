@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
+import { createIncomeAccount, openChart } from './account-register-helpers'
 import {
     ACCOUNT_LABELS,
     BATCH_WRITE,
@@ -10,6 +11,7 @@ import {
     holdRequests,
     isBatchOf,
     isPhone,
+    makeAccountInactiveElsewhere,
     openEntriesList,
     PHONE,
     refuseEntryWrite,
@@ -36,12 +38,16 @@ import { uniqueName } from './record-form-helpers'
 // writes and the entry write, all saved or none), and a save states the revision the
 // form loaded, so the server refuses it when another session changed the draft.
 //
-// Server refusals (a refused post of an open draft, a refused delete) use
+// The refused post of an open draft is the server's own refusal: the draft's line 2
+// uses an account the test created and then made inactive from another tab, so the
+// post is refused with "Line 2: account <name> is inactive.". The refused delete uses
 // `page.route` to answer the batch with PocketBase's batch error (a 400 that carries
-// the refused entry write's own 400): no input makes the real server refuse these.
-// Those tests cover how the screen reacts to a refusal, not the server's own rule.
-// The held-request tests use `page.route` only to delay a batch and then pass it on
-// to the real server.
+// the refused entry write's own 400): the server refuses the delete of a posted or
+// void entry only, Delete draft shows on a draft only, and a post made elsewhere
+// flips the open screen to the read-only view, so no input makes the real server
+// refuse it. That test covers how the dialog reacts to a refusal, not the server's
+// rule (Go: TestImmutable_PostedRefusalsPointAtVoid). The held-request tests use
+// `page.route` only to delay a batch and then pass it on to the real server.
 
 const SIZES = [
     ['desktop', DESKTOP],
@@ -265,7 +271,8 @@ test.describe('journal-entries: edit and delete drafts (desktop)', () => {
     })
 })
 
-const REFUSAL = 'Books are closed through 2026-09-30.'
+// The invented text of the faked delete refusal; no server rule says it.
+const REFUSAL = 'This draft cannot be deleted right now.'
 const CONFLICT = 'This entry changed after you opened it.'
 
 async function openSecondPage(page: Page, size: { width: number; height: number }) {
@@ -293,14 +300,24 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
     }) => {
         await start(page, size)
         const memo = uniqueName(`Refused open post ${sizeName}`)
-        await makeDraft(page, memo)
-        await refuseEntryWrite(page, 'post', REFUSAL)
+        const account = `${memo} account`
+        await openChart(page)
+        await createIncomeAccount(page, account)
+        await createDraftEntry(page, {
+            memo,
+            amount: '$10.00',
+            debitAccount: ACCOUNT_LABELS.checking,
+            creditAccount: account,
+        })
+        await makeAccountInactiveElsewhere(page, account)
 
         const typed = `${memo} typed`
         await page.getByTestId('entry-memo').fill(typed)
         await page.getByTestId('entry-post').click()
 
-        await expect(page.getByTestId('entry-error-summary')).toContainText(REFUSAL)
+        const refusal = `Line 2: account ${account} is inactive.`
+        await expect(page.getByTestId('entry-error-summary')).toContainText(refusal)
+        await expect(page.getByTestId('entry-line-error-1')).toContainText(refusal)
         await expect(page.getByTestId('entry-read-only')).toHaveCount(0)
         await expect(page.getByTestId('entry-memo')).toHaveValue(typed)
         await expect(page.getByTestId('entry-actions')).toBeVisible()

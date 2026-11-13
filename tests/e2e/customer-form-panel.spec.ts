@@ -25,13 +25,15 @@ import {
     WIDE,
     watchForNotFoundAndDiscard,
 } from './customer-form-helpers'
+import { nameOnDraftLine } from './journal-entries-helpers'
 
 // The customer side panel: at a window of 1360 px or more a customer opens in a 480 px
 // panel beside the list, and a resize moves the open customer between the panel and the
 // page without losing anything. The open, dirty customer can be deleted from its row menu
 // beside the panel. Every customer this spec opens for editing or deletes it creates
 // with a unique name; it reads the seeded Old Mill Bakery and Northwind customers only.
-// The delete refusal is a 400 answered through `page.route`, which writes nothing. The
+// The delete refusal is the server's own: another tab puts the customer on a line of a
+// draft journal entry, and deletes that draft before the delete that goes through. The
 // last step holds a delete through `page.route` while the user goes to the Lists hub.
 //
 // Not covered here: there is no 390 run, because the panel surface does not exist below
@@ -48,7 +50,6 @@ const OLD_MILL = 'Old Mill Bakery'
 const cityLineFits = (page: Page) => customerHelpers.cityLineFits(page, 'billing_address')
 
 const UNSAVED_DELETE_WARNING = 'Unsaved changes to this customer will be lost.'
-const DELETE_REFUSAL = 'This customer is used on an invoice.'
 
 const jumpToBooksLists = customerHelpers.jumpToLists
 
@@ -317,18 +318,14 @@ test.describe('customer-form: side panel', () => {
             await expect(deleteDialog).toBeVisible()
             await expect(deleteBody).toContainText(UNSAVED_DELETE_WARNING)
         }
-        const recordD = `**/api/collections/books_customers/records/${idD}`
-        await page.route(recordD, route => {
-            if (route.request().method() !== 'DELETE') return route.continue()
-            return route.fulfill({
-                status: 400,
-                contentType: 'application/json',
-                body: JSON.stringify({ code: 400, message: DELETE_REFUSAL, data: {} }),
-            })
-        })
+        // Another tab puts D on a line of a draft journal entry, so the server refuses
+        // the delete (server/lines.go msgPartyOnLines).
+        const namedOnDraft = await nameOnDraftLine(page, nameD)
         await openDeleteFromRow()
         await deleteConfirm.click()
-        await expect(deleteBody).toContainText(DELETE_REFUSAL)
+        await expect(deleteBody).toContainText(
+            `${nameD} is on journal lines. Make it inactive instead.`
+        )
         await expect(page.getByTestId('customer-not-found')).toHaveCount(0)
         await expect(panel).toBeVisible()
         await expect(field(page, 'display_name')).toHaveValue(nameD)
@@ -339,7 +336,8 @@ test.describe('customer-form: side panel', () => {
         await expect(deleteDialog).toBeHidden()
         await expect(panel).toBeVisible()
         await expect(field(page, 'notes')).toHaveValue(typedNotes)
-        await page.unroute(recordD)
+        // The other tab deletes the draft entry; no line names D now.
+        await namedOnDraft.release()
 
         await openDeleteFromRow()
         await deleteConfirm.click()
