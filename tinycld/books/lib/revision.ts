@@ -22,8 +22,9 @@ export function isRevisionConflict(error: unknown): boolean {
 // every caller shows the two the same way.
 export class RevisionConflictError extends Error {
     readonly status = 409
-    constructor() {
-        super(REVISION_CONFLICT_TEXT)
+    // `message` is the text of the kind of record; the entry's when none is given.
+    constructor(message: string = REVISION_CONFLICT_TEXT) {
+        super(message)
     }
 }
 
@@ -31,8 +32,8 @@ export class RevisionConflictError extends Error {
 // server cannot refuse every such save: a save that changes no entry field sends only
 // lines, and a line carries no revision. `stored` is undefined when the store does not
 // hold the row; the server's check is then the only one.
-export function assertRevisionSeen(stored: number | undefined, loaded: number) {
-    if (stored !== undefined && stored !== loaded) throw new RevisionConflictError()
+export function assertRevisionSeen(stored: number | undefined, loaded: number, message?: string) {
+    if (stored !== undefined && stored !== loaded) throw new RevisionConflictError(message)
 }
 
 // The line operations of one save, split so each part fits a batch with its entry
@@ -49,3 +50,12 @@ export function chunkOps<T>(ops: readonly T[], size = MAX_LINE_OPS): T[][] {
 // The opening balances screen has no "load" action: the person opens it again.
 export const OPENING_CONFLICT_TEXT =
     'These opening balances changed after you opened them. Open this screen again, then review them before you save or post.'
+
+// The notice of a sales document form whose save or post was refused because the
+// document changed after the form took its values. `noun` is the kind's ("Invoice"); an
+// estimate (the quote lifecycle) has no post.
+export function documentConflictText(noun: string, lifecycle: 'posting' | 'quote'): string {
+    const name = noun.toLowerCase()
+    const action = lifecycle === 'posting' ? 'save or post' : 'save'
+    return `This ${name} changed after you opened it. Load the current ${name}, then review it before you ${action}.`
+}
