@@ -1002,3 +1002,61 @@ describe('unknown account type and the group filter', () => {
         expect(flat('').slice().sort()).toEqual(['odd', 'ok'])
     })
 })
+
+describe('a balance that is not exact', () => {
+    const PAST = 2 ** 53
+
+    it('is null when a sum is past the exact range, even when the net is exact', () => {
+        expect(ownBalance('bank', PAST, 0)).toBeNull()
+        expect(ownBalance('bank', 0, PAST)).toBeNull()
+        // 2^53 less 2^53 is 0, but neither sum is known to the cent.
+        expect(ownBalance('bank', PAST, PAST)).toBeNull()
+        expect(ownBalance('bank', Number.NaN, 0)).toBeNull()
+    })
+
+    it('is the net for sums inside the range, at the limit too', () => {
+        expect(ownBalance('bank', Number.MAX_SAFE_INTEGER, 0)).toBe(Number.MAX_SAFE_INTEGER)
+        expect(ownBalance('credit_card', 100, 350)).toBe(250)
+    })
+
+    it('keeps a parent’s own balance and makes its roll-up null when a sub-account is not exact', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'top', debit_total: 500 }),
+                acct({ id: 'kid', parent: 'top', debit_total: PAST }),
+                acct({ id: 'other', debit_total: 700 }),
+            ],
+            defaultSort
+        )
+        const top = tree.find(node => node.account.id === 'top')
+        expect(top?.ownBalance).toBe(500)
+        expect(top?.rollupBalance).toBeNull()
+        expect(top?.children[0].ownBalance).toBeNull()
+        expect(tree.find(node => node.account.id === 'other')?.rollupBalance).toBe(700)
+    })
+
+    it('makes a roll-up null when the sum of exact balances passes the range', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'top', debit_total: Number.MAX_SAFE_INTEGER }),
+                acct({ id: 'kid', parent: 'top', debit_total: 1 }),
+            ],
+            defaultSort
+        )
+        expect(tree[0].ownBalance).toBe(Number.MAX_SAFE_INTEGER)
+        expect(tree[0].rollupBalance).toBeNull()
+    })
+
+    it('shows the row and sorts by balance with a null balance in the list', () => {
+        const tree = buildAccountTree(
+            [acct({ id: 'big', debit_total: PAST }), acct({ id: 'small', debit_total: 5 })],
+            defaultSort
+        )
+        const rows = flattenAccountTree(
+            tree,
+            allFilters({ sort: { key: 'balance', direction: 'desc' } })
+        )
+        expect(rows.map(r => r.node.account.id).sort()).toEqual(['big', 'small'])
+        expect(rows.find(r => r.node.account.id === 'big')?.balance).toBeNull()
+    })
+})

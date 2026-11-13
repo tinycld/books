@@ -2,8 +2,9 @@ import { amountText, maxStoredAmount, parseMoney } from './money'
 
 export const maxLines = 200
 
-// Shown in place of an amount that cannot be stored.
-export const TOO_LARGE_TEXT = 'Too large'
+// Shown in place of an amount that cannot be stored. One text for every amount Books
+// cannot show; it lives in ./money with balanceText.
+export { TOO_LARGE_TEXT } from './money'
 
 // `id` is the saved line id, or '' for a line that is not saved yet. `customer` and
 // `vendor` are the line's Name: at most one is set, '' for none.

@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
     amountText,
+    balanceText,
+    balanceTone,
     dollarsToCents,
     formatMoney,
     maxStoredAmount,
     parseMoney,
     roundHalfAwayFromZero,
+    TOO_LARGE_TEXT,
 } from '../tinycld/books/lib/money'
 
 describe('money', () => {
@@ -226,5 +229,18 @@ describe('formatMoney always shows two decimals', () => {
 
     it('keeps the plain-number fallback for an invalid currency code', () => {
         expect(formatMoney(123456, 'NOPE!')).toContain('1,234.56')
+    })
+})
+
+describe('balanceText and balanceTone', () => {
+    it('prints an exact balance as money', () => {
+        expect(balanceText(123456, 'USD')).toBe('$1,234.56')
+        expect(balanceTone(123456)).toBe('text-foreground')
+    })
+
+    it('prints a balance that is not exact as an error, never as a number', () => {
+        expect(balanceText(null, 'USD')).toBe(TOO_LARGE_TEXT)
+        expect(TOO_LARGE_TEXT).toBe('Too large')
+        expect(balanceTone(null)).toBe('text-danger')
     })
 })

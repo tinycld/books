@@ -15,8 +15,11 @@ interface BalanceProps {
 // date, and not the balance after it.
 function BalanceLine({ side, accounts, storedId, currency }: BalanceProps) {
     if (!storedId) return null
-    const { text, isNegative } = transferBalanceLine(accounts.balanceOf(storedId) ?? 0, currency)
-    const tone = isNegative ? 'text-danger' : 'text-muted-foreground'
+    // undefined: the account's row is not loaded yet. null: its balance is not exact, and
+    // `?? 0` would print that as 0.00.
+    const balance = accounts.balanceOf(storedId)
+    const { text, isAlert } = transferBalanceLine(balance === undefined ? 0 : balance, currency)
+    const tone = isAlert ? 'text-danger' : 'text-muted-foreground'
     return (
         <Text testID={`transfer-balance-${side}`} className={`text-sm tabular-nums ${tone}`}>
             {text}

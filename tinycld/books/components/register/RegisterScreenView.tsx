@@ -5,12 +5,11 @@ import { ScrollView, Text, View } from 'react-native'
 import type { RegisterScreenModel } from '../../hooks/useRegisterScreen'
 import { useRowWindow } from '../../hooks/useRowWindow'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
-import { balanceTone } from '../../lib/register'
+import { balanceText, balanceTone } from '../../lib/money'
 import { EntryDrawer } from './EntryDrawer'
 import { CARD_HEIGHT, RegisterCard } from './RegisterCard'
 import { RegisterEmptyState } from './RegisterEmptyState'
 import { BackOnlyHeader, RegisterHeader } from './RegisterHeader'
-import { balanceText } from './RegisterRow'
 import { RegisterTable, type TableItem, tableItems } from './RegisterTable'
 
 function LoadingBody({ isVisible }: { isVisible: boolean }) {

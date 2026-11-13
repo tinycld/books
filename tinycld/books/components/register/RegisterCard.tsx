@@ -1,8 +1,8 @@
 import { Pressable, Text, View } from 'react-native'
-import { formatMoney } from '../../lib/money'
-import { balanceTone, type RegisterLine } from '../../lib/register'
+import { balanceText, balanceTone, formatMoney } from '../../lib/money'
+import type { RegisterLine } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
-import { balanceText, useAccountName } from './RegisterRow'
+import { useAccountName } from './RegisterRow'
 
 export const CARD_HEIGHT = 96
 

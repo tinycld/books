@@ -8,9 +8,8 @@ import {
     REGISTER_ACCOUNT_ID,
     REGISTER_TODAY,
 } from '../tinycld/books/lib/account-register-fixture'
-import { maxStoredAmount } from '../tinycld/books/lib/money'
+import { balanceTone, maxStoredAmount } from '../tinycld/books/lib/money'
 import {
-    balanceTone,
     buildRegister,
     DOC_TYPE_LABELS,
     defaultOrder,
@@ -632,5 +631,20 @@ describe('entryTypeLabel for opening balances', () => {
     it('names an opening entry and leaves a manual entry unchanged', () => {
         expect(entryTypeLabel('opening_balance', '')).toBe('Opening balances')
         expect(entryTypeLabel('manual', '')).toBe('Journal entry')
+    })
+})
+
+describe('buildRegister with prior sums past the exact range', () => {
+    it('shows no opening balance and no running balance, even when the sums net to zero', () => {
+        const register = buildRegister({
+            accountType: 'bank',
+            lines: [],
+            priorTotals: { debit: 2 ** 53, credit: 2 ** 53 },
+            range: { start: '2026-01-01', end: '2026-12-31' },
+            order: 'oldest',
+        })
+        expect(register.openingBalance).toBeNull()
+        expect(register.endingBalance).toBeNull()
+        expect(register.showOpeningRow).toBe(true)
     })
 })
