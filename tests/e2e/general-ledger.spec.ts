@@ -1083,12 +1083,17 @@ test.describe('general-ledger: report', () => {
                 return (await nextPages()).some(answer => answer.next === '')
             })
             .toBe(true)
+        // The open report runs again when another session posts (the shared DB has other
+        // workers), and the list then pages again, so there can be more than one last page.
+        // The rule is per page: a page carries the section total exactly when it is a last
+        // page.
         const pages = [first, ...(await nextPages())]
-        const withTotal = pages.filter(answer =>
+        const hasTotal = (answer: Answer) =>
             answer.rows.some(row => row.kind === 'subtotal' && row.section === savingsGroup?.id)
-        )
-        expect(withTotal.length).toBe(1)
-        expect(withTotal[0]?.next).toBe('')
+        const lastPages = pages.filter(answer => answer.next === '')
+        expect(lastPages.length).toBeGreaterThan(0)
+        expect(lastPages.every(hasTotal)).toBe(true)
+        expect(pages.filter(answer => answer.next !== '').some(hasTotal)).toBe(false)
         await page.unrouteAll({ behavior: 'wait' })
     })
 })
