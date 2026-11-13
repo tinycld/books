@@ -228,6 +228,36 @@ test.describe('journal-entries: save and post (desktop)', () => {
         await expect(page).toHaveURL(/\/entries\/new$/)
     })
 
+    test('validation: a memo past the limit shows under its own field and nothing is sent', async ({
+        page,
+    }) => {
+        await start(page, size)
+        await fillBalanced(page, uniqueName(`Long memo ${sizeName}`))
+        let writes = 0
+        page.on('request', request => {
+            if (request.method() !== 'GET' && request.url().includes('/api/batch')) writes += 1
+        })
+
+        // A line's memo: the error sits under that line, not under the entry's Memo.
+        await page.getByTestId('entry-line-memo-1').fill('m'.repeat(1001))
+        await page.getByTestId('entry-save-draft').click()
+        await expect(page.getByTestId('entry-line-error-1')).toContainText(
+            'A line memo can have at most 1000 characters'
+        )
+        const header = page.getByTestId('entry-memo').locator('xpath=../..')
+        await expect(header).not.toContainText('1000 character')
+        await expect(page).toHaveURL(/\/entries\/new$/)
+
+        // The entry's memo.
+        await page.getByTestId('entry-line-memo-1').fill('short')
+        await page.getByTestId('entry-memo').fill('m'.repeat(4001))
+        await page.getByTestId('entry-save-draft').click()
+        await expect(header).toContainText('A memo can have at most 4000 characters')
+        await expect(page.getByTestId('entry-line-error-1')).toHaveCount(0)
+        await expect(page).toHaveURL(/\/entries\/new$/)
+        expect(writes).toBe(0)
+    })
+
     test('server refusal: shows the message, keeps the draft, the next Post reuses it', async ({
         page,
     }) => {

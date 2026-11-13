@@ -3,9 +3,11 @@ import type { EntryFormLine } from '../tinycld/books/lib/entry-lines'
 import { LINE_BOTH_PARTIES } from '../tinycld/books/lib/entry-messages'
 import {
     defaultReverseDate,
+    ENTRY_MEMO_TOO_LONG,
     type EntryFormValues,
     emptyLine,
     entryResolver,
+    LINE_MEMO_TOO_LONG,
     newEntryDefaults,
     postSchema,
     reverseSchema,
@@ -80,6 +82,32 @@ describe('saveDraftSchema', () => {
     it('accepts 200 lines', () => {
         const lines = Array.from({ length: 200 }, () => line({ debit: '$1.00' }))
         expect(saveDraftSchema.safeParse(values({ lines })).success).toBe(true)
+    })
+
+    it('rejects an entry memo over 4000 characters and a line memo over 1000', () => {
+        // The limits are the server's, which counts characters: an emoji is one.
+        const atLimit = values({
+            memo: '😀'.repeat(4000),
+            lines: [line({ debit: '$10.00', memo: '😀'.repeat(1000) })],
+        })
+        expect(saveDraftSchema.safeParse(atLimit).success).toBe(true)
+
+        const result = saveDraftSchema.safeParse(
+            values({
+                memo: 'm'.repeat(4001),
+                lines: [
+                    line({ debit: '$10.00' }),
+                    line({ credit: '$10.00', memo: 'm'.repeat(1001) }),
+                ],
+            })
+        )
+        expect(result.success).toBe(false)
+        expect(issuesOf(result)).toContainEqual(
+            expect.objectContaining({ path: ['memo'], message: ENTRY_MEMO_TOO_LONG })
+        )
+        expect(issuesOf(result)).toContainEqual(
+            expect.objectContaining({ path: ['lines', 1, 'memo'], message: LINE_MEMO_TOO_LONG })
+        )
     })
 
     it('rejects a line with an amount but no account', () => {
@@ -247,6 +275,16 @@ describe('reverseSchema', () => {
         expect(
             reverseSchema('2026-10-15').safeParse({ date: '2026-10-15', memo: 'x' }).success
         ).toBe(true)
+    })
+
+    it('rejects a memo over 4000 characters', () => {
+        const result = reverseSchema('2026-10-15').safeParse({
+            date: '2026-10-15',
+            memo: 'm'.repeat(4001),
+        })
+        expect(issuesOf(result)).toContainEqual(
+            expect.objectContaining({ path: ['memo'], message: ENTRY_MEMO_TOO_LONG })
+        )
     })
 })
 
