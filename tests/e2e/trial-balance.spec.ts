@@ -65,12 +65,14 @@ const BANK = { type: 'Bank', detailType: 'Checking' }
 const SEEDED_EQUITY_AND_INCOME = ['Retained earnings', "Owner's Equity", 'Consulting Income']
 
 // The seeded accounts the Trial Balance shows as of the end of last month. Sales tax
-// payable holds the tax of the seeded invoices (seed.ts seedInvoices, dated October 2026).
+// payable holds the tax of the seeded invoices (seed.ts seedInvoices, dated October 2026);
+// Accounts payable and Design Tools hold the seeded October bills (seed.ts seedBills).
 const SEEDED_DEFAULT_ROWS = [
     'Business Checking',
     'Business Savings',
     'Accounts receivable',
     'Office Equipment',
+    'Accounts payable',
     'Company Card',
     'Sales tax payable',
     "Owner's Equity",
@@ -78,6 +80,8 @@ const SEEDED_DEFAULT_ROWS = [
     'Consulting Income',
     'Rent',
     'Software Subscriptions',
+    // A sub-account: the accounts filter names it by its full path.
+    'Software Subscriptions:Design Tools',
 ]
 
 // The account types in chart order (server/account_types.json, mirrored by lib).
@@ -564,7 +568,7 @@ test.describe("trial-balance: the report in core's view", () => {
     // 15 px of the 390 (measureColumns + fitTable: account 202 px at 375, 217 at 390).
     // The report is narrowed to the seeded accounts it shows by default, so another
     // spec's account, with its longer name and number, cannot change the measure. An
-    // account name wraps only between words, is never cut by the two-line clamp, and no
+    // account name wraps only between words, is never cut by the three-line clamp, and no
     // figure is cut. The phone's report-controls chip row is the one element that
     // scrolls sideways, on purpose (core PR #447, layout decision D11).
     test('on a phone the credit goes to a second line, account names wrap only between words, and only the chip row scrolls sideways', async ({
@@ -623,7 +627,7 @@ test.describe("trial-balance: the report in core's view", () => {
                         }
                         return split
                     }
-                    // The two-line clamp cuts a name when a line of its text falls below
+                    // The three-line clamp cuts a name when a line of its text falls below
                     // the text's box.
                     const isCut = (text: Element) => {
                         const box = text.getBoundingClientRect()

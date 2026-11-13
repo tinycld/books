@@ -7,18 +7,16 @@
 // Qty x Rate rounded half away from zero to cents, as the server writes it. A bill has no
 // tax, so `subtotal` and `total` are both the sum of every line of both tables.
 //
-// BillRecord and BillLineRecord mirror spec §4 (books_bills, books_bill_lines) because the
-// collections do not exist yet. The migration checkpoint (2100000013_create_books_bills.js)
-// must replace both with the generated `BooksBills` / `BooksBillLines` from '../types'
-// through `satisfies`, so a row that drifts from the schema fails tsc.
+// BillRecord and BillLineRecord are the generated `BooksBills` / `BooksBillLines`
+// (2100000013_create_books_bills.js), and the rows are checked with `satisfies`, so a row
+// that drifts from the schema fails tsc.
 //
 // A line names its account by seed account number (`account_number`), as the vendor
 // fixture names a default expense account: the relation id is known only after the seed
 // creates the accounts. The seed maps the number to the created account's id.
 
-import type { CustomerAddress } from './address'
+import type { BooksBillLines, BooksBills, BooksSettings } from '../types'
 import { INVOICE_USER_IDS } from './invoice-form-fixture'
-import type { PaymentTermKey } from './payment-terms'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
 import { SEED_ACCOUNTS } from './seed-accounts'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
@@ -29,58 +27,14 @@ export const BILL_TODAY = '2026-11-13'
 
 const STAMP = '2026-11-13 09:00:00.000Z'
 
-export type BillStatus = 'draft' | 'posted' | 'void'
-export type BillLineKind = 'account' | 'item'
+export type BillRecord = BooksBills
+export type BillLineRecord = BooksBillLines
+export type BillStatus = BillRecord['status']
+export type BillLineKind = BillLineRecord['kind']
 // Settings → Purchases → Bills → "Bill lines" (books_settings.purchase_lines, spec §3.11).
-export type PurchaseLines = 'both' | 'accounts' | 'products'
+export type PurchaseLines = BooksSettings['purchase_lines']
 
-// Spec §4 books_bills. Replace with the generated BooksBills (migration checkpoint).
-export interface BillRecord {
-    id: string
-    vendor: string
-    status: BillStatus
-    number: string
-    sequence: number
-    date: string
-    due_date: string
-    terms: PaymentTermKey | ''
-    mailing_address: CustomerAddress | null
-    ref_no: string
-    memo: string
-    subtotal: number
-    total: number
-    currency: string
-    entry: string
-    replaces: string
-    replaced_by: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    form: string
-    fields: Record<string, unknown> | null
-    sort_key: string
-    created: string
-    updated: string
-}
-
-// Spec §4 books_bill_lines. Replace with the generated BooksBillLines (migration
-// checkpoint); `account_number` stays a fixture column the seed maps to `account`.
-export interface BillLineRecord {
-    id: string
-    bill: string
-    kind: BillLineKind
-    account: string
-    product: string
-    description: string
-    quantity: number
-    rate: number
-    amount: number
-    position: number
-    created: string
-    updated: string
-}
-
+// `account_number` is a fixture column the seed maps to `account`.
 export type BillLineFixtureRecord = Omit<BillLineRecord, 'account'> & { account_number: string }
 
 // The users the read view names in "Posted by" and "Voided by" (the invoice fixture's).
@@ -209,7 +163,7 @@ export const BILLS = [
         voided_by: BILL_USER_IDS.omar,
         voided_at: '2026-10-03 09:25:00.000Z',
     }),
-] satisfies BillRecord[]
+] satisfies BooksBills[]
 
 // The bills the seed writes (spec §4 seed), in this order: posting numbers them 1001,
 // 1002, 1003 in the seeded book; the void one is posted, then voided. The draft is saved
@@ -346,7 +300,7 @@ export const BILL_REFUSALS = {
     } satisfies Record<PurchaseLines, string>,
 } as const
 
-export const NO_BILLS: BillRecord[] = []
+export const NO_BILLS: BooksBills[] = []
 
 // A fixture that names a missing vendor, product or account, or an account the bill's
 // Account picker does not list, is a fixture bug, not data.

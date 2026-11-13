@@ -14,7 +14,7 @@
 // doc_type 'transfer' and two lines (server/transfers.go).
 //
 // DOCUMENT ENTRIES. An entry with origin 'document' is the posting of a sales
-// or purchase document (doc_type 'invoice' or 'sales_receipt'); document is
+// or purchase document (doc_type 'invoice', 'sales_receipt' or 'bill'); document is
 // that document's id. Only the document's Go hooks create, post and void such
 // an entry, so document is server-owned and origin 'document' is not among the
 // origins a client may create. A client creates no entry with a document's
@@ -168,7 +168,7 @@ migrate(
                         type: 'select',
                         required: true,
                         maxSelect: 1,
-                        values: ['journal', 'transfer', 'invoice', 'sales_receipt'],
+                        values: ['journal', 'transfer', 'invoice', 'sales_receipt', 'bill'],
                     },
                     {
                         name: 'origin',

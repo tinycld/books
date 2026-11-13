@@ -36,7 +36,12 @@ function floored(minWidth: number) {
 }
 
 // A Percent line draws its cell in the Rate slot (`columnAt`), so both share one size.
-const RATE_SIZE = floored(90)
+// The bill's product lines (purchase-line-columns.ts) size Qty, Rate and Amount as
+// these.
+export const QUANTITY_SIZE = floored(68)
+export const RATE_SIZE = floored(90)
+// AMOUNT_COLUMN_WIDTH (forms/document-line-cells.tsx) is this floor.
+export const AMOUNT_SIZE = floored(112)
 
 export const DOCUMENT_LINE_COLUMNS: readonly HostTableColumn[] = [
     {
@@ -65,7 +70,7 @@ export const DOCUMENT_LINE_COLUMNS: readonly HostTableColumn[] = [
         hidden: false,
         component: 'LineQuantityCell',
         align: 'end',
-        ...floored(68),
+        ...QUANTITY_SIZE,
     },
     {
         key: 'rate',
@@ -98,7 +103,7 @@ export const DOCUMENT_LINE_COLUMNS: readonly HostTableColumn[] = [
         hidden: false,
         component: 'LineAmountCell',
         align: 'end',
-        ...floored(112),
+        ...AMOUNT_SIZE,
     },
     {
         key: 'taxable',

@@ -10,7 +10,7 @@ const salesReceiptHostKey = "books:sales_receipt"
 // Refusal texts of the sales receipt guards. This group is shown by the client
 // too, with the same words. PocketBase adds the final period to a text without
 // one. %s is the customer's name, which refuseNamedField keeps as typed. The
-// customer guards of every kind refuse with msgCustomerInactive (invoices.go),
+// customer guards of every sales kind refuse with msgCustomerInactive (invoices.go),
 // whose words msgReceiptCustomerInactive repeats so this list holds every text
 // the receipt's client shows.
 const (
@@ -51,7 +51,12 @@ var salesReceiptKind = salesDocKind{
 	TaxLinesCollection: "books_sales_receipt_tax_lines",
 	ParentField:        "sales_receipt",
 	HostKey:            salesReceiptHostKey,
+	LineTables:         []string{salesDocLinesKey},
+	Party:              partyCustomer,
+	PartyCollection:    "books_customers",
+	AddressField:       "bill_to",
 	CustomerRequired:   false,
+	HasTax:             true,
 	Msgs: salesDocMessages{
 		TotalNegative:   msgReceiptTotalNegative,
 		TotalTooLarge:   msgReceiptTotalTooLarge,
@@ -66,6 +71,7 @@ var salesReceiptKind = salesDocKind{
 		LineUnknownKind: msgReceiptLineUnknownKind,
 		EditMissing:     msgReceiptEditMissing,
 		CustomerOnDocs:  msgCustomerOnSalesReceipts,
+		PartyInactive:   msgCustomerInactive,
 	},
 	CheckHeader:  checkSalesReceiptHeader,
 	BeforePost:   checkReceiptDepositToPost,

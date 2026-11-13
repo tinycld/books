@@ -27,7 +27,8 @@ const (
 // Refusal texts of the estimate guards. This group is shown by the client
 // too, with the same words. PocketBase adds the final period to a text without
 // one. %s is the customer's name, which refuseNamedField keeps as typed. The
-// customer guards of every kind refuse with msgCustomerInactive (invoices.go).
+// customer guards of every sales kind refuse with msgCustomerInactive
+// (invoices.go).
 const (
 	msgEstimateTotalNegative = "An estimate total cannot be below zero."
 	msgEstimateTotalTooLarge = "The estimate total is more than Books can store."
@@ -64,7 +65,12 @@ var estimateKind = salesDocKind{
 	TaxLinesCollection: "",
 	ParentField:        "estimate",
 	HostKey:            estimateHostKey,
+	LineTables:         []string{salesDocLinesKey},
+	Party:              partyCustomer,
+	PartyCollection:    "books_customers",
+	AddressField:       "bill_to",
 	CustomerRequired:   true,
+	HasTax:             true,
 	Msgs: salesDocMessages{
 		TotalNegative:   msgEstimateTotalNegative,
 		TotalTooLarge:   msgEstimateTotalTooLarge,
@@ -76,6 +82,7 @@ var estimateKind = salesDocKind{
 		LineRestating:   msgEstimateLineRestating,
 		LineUnknownKind: msgEstimateLineUnknownKind,
 		CustomerOnDocs:  msgCustomerOnEstimates,
+		PartyInactive:   msgCustomerInactive,
 	},
 	CheckHeader:  checkEstimateHeader,
 	CheckDelete:  checkEstimateDelete,

@@ -50,6 +50,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_estimate_lines": {
 			ExtractLabel: func(r *core.Record) string { return estimateLineLabel(app, r) },
 		},
+		"books_bills": {ExtractLabel: billLabel, Redact: []string{"sort_key"}},
+		"books_bill_lines": {
+			ExtractLabel: func(r *core.Record) string { return billLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -156,6 +160,33 @@ func estimateLineLabel(app core.App, r *core.Record) string {
 		estimate = estimateLabel(rec)
 	}
 	return fmt.Sprintf("%s: line %d", estimate, r.GetInt("position")+1)
+}
+
+// billLabel names a bill by its number: "Bill 1003". A draft has no number:
+// "Draft bill".
+func billLabel(r *core.Record) string {
+	noun, _, draft := entryNouns(docTypeBill)
+	if n := r.GetString("number"); n != "" {
+		return noun + " " + n
+	}
+	return draft
+}
+
+// billLineLabel names a bill's line as the form and the refusals do, by its
+// table and its place among that table's lines: "Bill 1003: Account line 2".
+// r is placed among the bill's stored lines, so a deleted line keeps its
+// place. Lines that cannot be read fall back to the line's position, so the
+// audit row is still written.
+func billLineLabel(app core.App, r *core.Record) string {
+	bill := r.GetString("bill")
+	if rec, err := app.FindRecordById("books_bills", bill); err == nil {
+		bill = billLabel(rec)
+	}
+	lines, err := salesDocLines(app, billKind, r.GetString("bill"))
+	if err != nil {
+		return fmt.Sprintf("%s: line %d", bill, r.GetInt("position")+1)
+	}
+	return bill + ": " + lineRowLabel(billKind, withLine(lines, r), r)
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office
