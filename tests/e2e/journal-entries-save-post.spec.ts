@@ -13,9 +13,10 @@ import { uniqueName } from './record-form-helpers'
 
 // Save draft, Post, Post & new and Cancel on the new-entry form (`entries/new`).
 // Decisions that shape it (design gate): direction A, separate list and entry
-// screens with cards on phones; the draft save is not atomic (entry, then
-// lines); Post saves the draft first, then sets the status, so a refused post
-// leaves the draft behind and the next Post updates that same draft; the phone
+// screens with cards on phones; the draft save is one batch (the entry and its
+// lines, all or none); Post of a new entry saves the draft first, then sets the
+// status, so a refused post leaves the draft behind and the next Post updates
+// that same draft; the phone
 // action bar keeps Cancel, Save draft and Post and moves Post & new into the
 // `entry-more` menu; validation is zod, server refusals show in the error
 // summary and under the line.
@@ -84,6 +85,8 @@ async function pressPostAndNew(page: Page) {
 }
 
 const ENTRY_WRITE = '**/api/collections/books_journal_entries/records**'
+// A save of a draft (the entry and its lines) is one batch request.
+const BATCH_WRITE = '**/api/batch'
 const STATUS_REFUSAL = 'Line 2: account Old is inactive.'
 
 // Answers the status update (a PATCH) of a post with a 400; the draft insert passes.
@@ -297,19 +300,14 @@ test.describe('journal-entries: save and post (desktop)', () => {
         const gate = new Promise<void>(resolve => {
             release = resolve
         })
-        await page.route(ENTRY_WRITE, async route => {
-            if (route.request().method() !== 'POST') return route.continue()
+        await page.route(BATCH_WRITE, async route => {
             await gate
             return route.continue()
         })
-        // The save writes the entry, then one POST per line; the second line is the last write.
-        let lineWrites = 0
+        // The save writes the entry and its lines in one batch request.
         const lastWrite = new Promise<void>(resolve => {
             page.on('response', res => {
-                const isLineWrite =
-                    res.url().includes('books_journal_lines') && res.request().method() === 'POST'
-                if (isLineWrite) lineWrites += 1
-                if (lineWrites === 2) resolve()
+                if (res.url().includes('/api/batch')) resolve()
             })
         })
 
@@ -362,22 +360,35 @@ test.describe('journal-entries: save and post (desktop)', () => {
     }) => {
         await start(page, size)
         await fillBalanced(page, uniqueName(`Field refusal ${sizeName}`))
-        await page.route(ENTRY_WRITE, route => {
-            if (route.request().method() !== 'POST') return route.continue()
-            return route.fulfill({
+        // The answer of a batch whose first operation, the entry, is refused.
+        await page.route(BATCH_WRITE, route =>
+            route.fulfill({
                 status: 400,
                 contentType: 'application/json',
                 body: JSON.stringify({
-                    message: 'Failed to update record.',
+                    status: 400,
+                    message: 'Batch transaction failed.',
                     data: {
-                        auto_reverse_on: {
-                            code: 'validation_x',
-                            message: 'Auto-reverse date is not valid.',
+                        requests: {
+                            0: {
+                                code: 'batch_request_failed',
+                                message: 'Batch request failed.',
+                                response: {
+                                    status: 400,
+                                    message: 'Failed to create record.',
+                                    data: {
+                                        auto_reverse_on: {
+                                            code: 'validation_x',
+                                            message: 'Auto-reverse date is not valid.',
+                                        },
+                                    },
+                                },
+                            },
                         },
                     },
                 }),
             })
-        })
+        )
 
         await page.getByTestId('entry-save-draft').click()
 
