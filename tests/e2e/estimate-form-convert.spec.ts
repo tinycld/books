@@ -1,9 +1,10 @@
-import { expect, type Page, type Request, type Route, test } from '@playwright/test'
+import { expect, type Page, type Request, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import { formatDay } from '../../tinycld/books/lib/register-range'
 import { PHONE } from './account-register-helpers'
+import { refuseBatchWrite } from './document-batch-helpers'
 import {
     convertEstimate,
     ESTIMATE_URL,
@@ -30,6 +31,7 @@ import {
     localToday,
     uniqueMemo,
 } from './invoice-helpers'
+import { batchOperations } from './journal-entries-helpers'
 
 // Convert to invoice, Delete estimate and undoing a conversion (spec §3.6–§3.8). Every
 // estimate is made by driving the form with a unique memo and reopened through search;
@@ -109,21 +111,6 @@ async function saveNewEstimate(page: Page) {
     return { id: estimateIdFromUrl(page), number: await estimateNumberOf(page) }
 }
 
-// A server refusal under Customer for the estimate's create; every other request goes on.
-function refuseEstimateCreate(message: string) {
-    return (route: Route) =>
-        route.request().method() === 'POST'
-            ? route.fulfill({
-                  status: 400,
-                  contentType: 'application/json',
-                  body: JSON.stringify({
-                      message,
-                      data: { customer: { code: 'validation_books', message } },
-                  }),
-              })
-            : route.continue()
-}
-
 test.describe('estimate-form: convert and delete', () => {
     test('convert and undo by delete', async ({ page }) => {
         const memo = uniqueMemo('Estimate convert')
@@ -151,10 +138,10 @@ test.describe('estimate-form: convert and delete', () => {
 
         // A refused save stays on the form and does not convert.
         const refusal = `${HARBORVIEW} is inactive. Choose an active customer.`
-        await page.route(
-            '**/api/collections/books_estimates/records*',
-            refuseEstimateCreate(refusal)
-        )
+        await refuseBatchWrite(page, 'books_estimates', 'POST', {
+            message: refusal,
+            data: { customer: { code: 'validation_books', message: refusal } },
+        })
         await expect(memoInput).toBeFocused()
         await page.keyboard.press('Alt+i')
         await expect(page.getByTestId('form-field-customer-error')).toHaveText(refusal)
@@ -501,13 +488,16 @@ test.describe('estimate-form: convert and delete', () => {
         // of its estimate's lines fails and offers Retry. The estimate row itself is already
         // in the store (the estimate screen below holds it), so only the lines read fetches.
         let estimateWrites = 0
+        // A write of an estimate or its lines: a request of its own, or an operation of
+        // a batch.
         const countWrite = (request: Request) => {
-            if (
+            const isDirect =
                 request.method() !== 'GET' &&
                 new URL(request.url()).pathname.startsWith('/api/collections/books_estimate')
-            ) {
-                estimateWrites += 1
-            }
+            const isBatched = batchOperations(request).some(operation =>
+                operation.url.includes('/api/collections/books_estimate')
+            )
+            if (isDirect || isBatched) estimateWrites += 1
         }
         page.on('request', countWrite)
         await page.route('**/api/collections/books_estimate_lines/records*', route =>

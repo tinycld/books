@@ -4,6 +4,7 @@ import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-f
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import { formatDay } from '../../tinycld/books/lib/register-range'
 import { PHONE } from './account-register-helpers'
+import { batchWriteIndex, refuseBatchWrite } from './document-batch-helpers'
 import {
     ESTIMATE_URL,
     estimateIdFromUrl,
@@ -19,6 +20,7 @@ import {
     searchToEstimate,
 } from './estimate-helpers'
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
+import { batchOperations } from './journal-entries-helpers'
 import { isDisabled } from './record-form-helpers'
 
 // The estimate form, its Save bar and its states (spec §3.2–§3.10). Every estimate is made
@@ -102,13 +104,17 @@ async function fillNewEstimate(page: Page, memo: string) {
     await page.getByTestId('form-input-memo').fill(memo)
 }
 
-// Waits for the estimate's own update, the write of Save on a saved estimate.
+// Waits for the save of a saved estimate: one accepted batch whose header write is this
+// estimate's update.
 function estimateUpdated(page: Page, id: string) {
     return page.waitForResponse(
         r =>
-            r.request().method() === 'PATCH' &&
-            new URL(r.url()).pathname === `/api/collections/books_estimates/records/${id}` &&
-            r.status() === 200
+            r.status() === 200 &&
+            batchOperations(r.request()).some(
+                operation =>
+                    operation.method === 'PATCH' &&
+                    operation.url.includes(`/api/collections/books_estimates/records/${id}`)
+            )
     )
 }
 
@@ -408,12 +414,7 @@ test.describe('estimate-form: form and save', () => {
         // inline and sends no update.
         let patches = 0
         const countPatch = (request: Request) => {
-            if (
-                request.method() === 'PATCH' &&
-                new URL(request.url()).pathname === `/api/collections/books_estimates/records/${id}`
-            ) {
-                patches += 1
-            }
+            if (batchWriteIndex(request, 'books_estimates', 'PATCH') >= 0) patches += 1
         }
         page.on('request', countPatch)
         await acceptedDate.fill('')
@@ -474,20 +475,10 @@ test.describe('estimate-form: form and save', () => {
 
         // A field refusal lands under its field.
         const customerRefusal = `${HARBORVIEW.name} is inactive. Choose an active customer.`
-        await page.route('**/api/collections/books_estimates/records*', route =>
-            route.request().method() === 'POST'
-                ? route.fulfill({
-                      status: 400,
-                      contentType: 'application/json',
-                      body: JSON.stringify({
-                          message: customerRefusal,
-                          data: {
-                              customer: { code: 'validation_books', message: customerRefusal },
-                          },
-                      }),
-                  })
-                : route.fallback()
-        )
+        await refuseBatchWrite(page, 'books_estimates', 'POST', {
+            message: customerRefusal,
+            data: { customer: { code: 'validation_books', message: customerRefusal } },
+        })
         await page.getByTestId('estimate-save').click()
         await expect(page.getByTestId('form-field-customer-error')).toHaveText(customerRefusal)
         await expect(page).toHaveURL(NEW_ESTIMATE_URL)
@@ -495,15 +486,10 @@ test.describe('estimate-form: form and save', () => {
 
         // A line refusal names its line.
         const lineRefusal = `Line 1: ${ACCESS_POINT} is inactive. Choose an active product or service.`
-        await page.route('**/api/collections/books_estimate_lines/records*', route =>
-            route.request().method() === 'POST'
-                ? route.fulfill({
-                      status: 400,
-                      contentType: 'application/json',
-                      body: JSON.stringify({ message: lineRefusal, data: {} }),
-                  })
-                : route.fallback()
-        )
+        await refuseBatchWrite(page, 'books_estimate_lines', 'POST', {
+            message: lineRefusal,
+            data: {},
+        })
         await page.getByTestId('estimate-save').click()
         // The refusal lands under its own line, as the invoice's does: the row shows the
         // server's text once, with no second "Line 1:" label in front of it.
