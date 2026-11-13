@@ -138,6 +138,39 @@ func verifyBalances(app core.App) ([]BalanceDrift, error) {
 	return drifts, nil
 }
 
+// LineDrift is one journal line whose posting stamp disagrees with its entry.
+type LineDrift struct {
+	Line        string `db:"line" json:"line"`
+	Entry       string `db:"entry" json:"entry"`
+	EntryStatus string `db:"entry_status" json:"entryStatus"`
+	Posted      bool   `db:"posted" json:"posted"`
+	Date        string `db:"date" json:"date"`
+	EntryDate   string `db:"entry_date" json:"entryDate"`
+}
+
+// verifyLines reports every line whose posted flag or date disagrees with its
+// entry: a line of a posted or void entry that is not stamped or carries
+// another date, and a line of a draft that is stamped or carries a date.
+// verifyBalances cannot see these: it sums by the entry's status and date,
+// while every report and register selects lines by the line's own stamp. The
+// line guard (checkLineStamp) lets only a post write the stamp, so a row here
+// was written past the hooks.
+func verifyLines(app core.App) ([]LineDrift, error) {
+	drifts := []LineDrift{}
+	err := app.DB().NewQuery(`
+		SELECT l.id AS line, l.entry AS entry, e.status AS entry_status,
+		       l.posted AS posted, l.date AS date, e.date AS entry_date
+		FROM books_journal_lines l
+		JOIN books_journal_entries e ON e.id = l.entry
+		WHERE (e.status IN ('posted', 'void') AND (l.posted = 0 OR l.date != e.date))
+		   OR (e.status = 'draft' AND (l.posted = 1 OR l.date != ''))
+		ORDER BY l.entry, l.position, l.id`).All(&drifts)
+	if err != nil {
+		return nil, fmt.Errorf("books: compare the lines with their entries: %w", err)
+	}
+	return drifts, nil
+}
+
 // rebuildBalances makes every month row equal the ledger, in one transaction,
 // touching only the rows that differ. It returns how many it fixed.
 func rebuildBalances(app core.App) (int, error) {
@@ -202,6 +235,16 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		if err != nil {
 			return err
 		}
-		return re.JSON(http.StatusOK, map[string]int{"fixed": fixed})
+		// The rebuild repairs month rows only. A line that disagrees with
+		// its entry is reported, and logged as an error so it reaches
+		// Sentry: no write through the hooks makes one.
+		lineDrifts, err := verifyLines(re.App)
+		if err != nil {
+			return err
+		}
+		if len(lineDrifts) > 0 {
+			log.ErrorContext(re.Request.Context(), "journal lines disagree with their entries", "count", len(lineDrifts))
+		}
+		return re.JSON(http.StatusOK, map[string]any{"fixed": fixed, "lineDrifts": lineDrifts})
 	})
 }

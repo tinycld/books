@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -111,4 +112,93 @@ func TestRebuildRoute_AdminOnly(t *testing.T) {
 func TestRebuildRoute_AnonymousIsRefused(t *testing.T) {
 	app := newBooksApp(t)
 	apiReq{method: http.MethodPost, url: "/api/books/balances/rebuild", want: http.StatusForbidden, before: bindBalanceRoutes}.run(t, app)
+}
+
+func setLineRaw(t testing.TB, app core.App, lineID, set string) {
+	t.Helper()
+	// Raw SQL on purpose: the line guard refuses each of these writes.
+	if _, err := app.DB().NewQuery("UPDATE books_journal_lines SET " + set + " WHERE id = {:id}").
+		Bind(dbx.Params{"id": lineID}).Execute(); err != nil {
+		t.Fatalf("set %s: %v", set, err)
+	}
+}
+
+func TestVerifyLines_ACleanLedgerHasNone(t *testing.T) {
+	env := newLedgerEnv(t)
+	env.sale(t, "2026-05-01", 100)
+	posted := mustPost(t, env.app, env.sale(t, "2026-05-10", 200).Id, "")
+	if err := setStatus(env.app, posted.Id, statusVoid, ""); err != nil {
+		t.Fatal(err)
+	}
+	drifts, err := verifyLines(env.app)
+	if err != nil || len(drifts) != 0 {
+		t.Fatalf("drifts = %+v, err %v; want none", drifts, err)
+	}
+}
+
+// The review's reproduction: a draft's line carries the posted flag. The
+// month rows are right (the entry is a draft), so verifyBalances says nothing,
+// but every report that selects posted lines counts the line.
+func TestVerifyLines_ReportsEachDisagreement(t *testing.T) {
+	env := newLedgerEnv(t)
+	draft := env.sale(t, "2026-05-01", 100)
+	posted := mustPost(t, env.app, env.sale(t, "2026-05-10", 200).Id, "")
+	redated := mustPost(t, env.app, env.sale(t, "2026-05-20", 300).Id, "")
+
+	stamped := mustLines(t, env.app, draft.Id)[0]
+	setLineRaw(t, env.app, stamped.Id, "posted = 1")
+	dated := mustLines(t, env.app, draft.Id)[1]
+	setLineRaw(t, env.app, dated.Id, "date = '2026-05-01'")
+	cleared := mustLines(t, env.app, posted.Id)[0]
+	setLineRaw(t, env.app, cleared.Id, "posted = 0")
+	moved := mustLines(t, env.app, redated.Id)[0]
+	setLineRaw(t, env.app, moved.Id, "date = '2026-06-20'")
+
+	if balances, err := verifyBalances(env.app); err != nil || len(balances) != 0 {
+		t.Fatalf("verifyBalances = %+v, err %v: the month rows are still right", balances, err)
+	}
+	drifts, err := verifyLines(env.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]LineDrift{}
+	for _, d := range drifts {
+		got[d.Line] = d
+	}
+	if len(drifts) != 4 {
+		t.Fatalf("drifts = %+v, want 4", drifts)
+	}
+	if d := got[stamped.Id]; d.Entry != draft.Id || d.EntryStatus != statusDraft || !d.Posted {
+		t.Errorf("stamped draft line = %+v", d)
+	}
+	if d := got[dated.Id]; d.EntryStatus != statusDraft || d.Date != "2026-05-01" {
+		t.Errorf("dated draft line = %+v", d)
+	}
+	if d := got[cleared.Id]; d.EntryStatus != statusPosted || d.Posted {
+		t.Errorf("unstamped posted line = %+v", d)
+	}
+	if d := got[moved.Id]; d.Date != "2026-06-20" || d.EntryDate != "2026-05-20" {
+		t.Errorf("redated line = %+v", d)
+	}
+}
+
+func TestRebuildRoute_ReportsLineDrifts(t *testing.T) {
+	env := newLedgerEnv(t)
+	draft := env.sale(t, "2026-05-01", 100)
+	line := mustLines(t, env.app, draft.Id)[0]
+	setLineRaw(t, env.app, line.Id, "posted = 1")
+	apiReq{
+		method: http.MethodPost, url: "/api/books/balances/rebuild",
+		token: tokenFor(t, env.users.admin), want: http.StatusOK, before: bindBalanceRoutes,
+		content: []string{`"fixed":0`, `"lineDrifts":[{"line":"` + line.Id + `"`, `"entryStatus":"draft"`},
+	}.run(t, env.app)
+}
+
+func TestRebuildRoute_ACleanLedgerReportsAnEmptyList(t *testing.T) {
+	env := newLedgerEnv(t)
+	apiReq{
+		method: http.MethodPost, url: "/api/books/balances/rebuild",
+		token: tokenFor(t, env.users.admin), want: http.StatusOK, before: bindBalanceRoutes,
+		content: []string{`"lineDrifts":[]`},
+	}.run(t, env.app)
 }

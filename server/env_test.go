@@ -360,6 +360,8 @@ func grantOverride(t testing.TB, app core.App, user *core.Record, expires time.T
 	})
 }
 
+// requireNoDrift fails when a month row disagrees with the ledger, or a line's
+// posting stamp disagrees with its entry.
 func requireNoDrift(t testing.TB, app core.App) {
 	t.Helper()
 	drifts, err := verifyBalances(app)
@@ -368,5 +370,12 @@ func requireNoDrift(t testing.TB, app core.App) {
 	}
 	if len(drifts) > 0 {
 		t.Fatalf("balance rows drifted from the ledger: %+v", drifts)
+	}
+	lines, err := verifyLines(app)
+	if err != nil {
+		t.Fatalf("verify lines: %v", err)
+	}
+	if len(lines) > 0 {
+		t.Fatalf("lines disagree with their entries: %+v", lines)
 	}
 }
