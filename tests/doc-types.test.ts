@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { docTypeLabel, nextNumberPreview } from '../tinycld/books/lib/doc-types'
+import { DOC_TYPES, docTypeLabel, nextNumberPreview } from '../tinycld/books/lib/doc-types'
+import { DOC_TYPE_LABELS } from '../tinycld/books/lib/register'
+
+describe('sales_receipt doc type', () => {
+    it('names the Numbering card "Sales receipts" and the register Type "Sales receipt"', () => {
+        expect(DOC_TYPES.sales_receipt).toEqual({ label: 'Sales receipts', noun: 'sales receipt' })
+        expect(DOC_TYPE_LABELS.sales_receipt).toBe('Sales receipt')
+    })
+})
 
 describe('docTypeLabel', () => {
     it('labels journal and falls back to the raw doc type', () => {

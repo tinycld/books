@@ -3,9 +3,11 @@ import {
     closeDateSchema,
     closeDateValue,
     companySchema,
+    defaultMessageSchema,
     fiscalYearSchema,
     isReopening,
     overrideSchema,
+    salesDepositSchema,
     sequenceSchema,
     sequenceUpdate,
 } from '../tinycld/books/lib/settings-schema'
@@ -210,5 +212,42 @@ describe('sequenceSchema', () => {
             prefix: 'JE-',
             next_number: 1001,
         })
+    })
+})
+
+// Spec §3.11: "Default message to customer" holds at most 4000 characters, counted as
+// code points like the server's text max, so an emoji is one character.
+describe('defaultMessageSchema', () => {
+    const TOO_LONG = 'The default message is too long'
+
+    function messageIssues(text: string) {
+        const result = defaultMessageSchema.safeParse({ default_customer_message: text })
+        return result.success ? [] : result.error.issues.map(issue => issue.message)
+    }
+
+    it('accepts an empty message', () => {
+        expect(messageIssues('')).toEqual([])
+    })
+
+    it('accepts 4000 code points, an emoji counting as one', () => {
+        expect(messageIssues('a'.repeat(4000))).toEqual([])
+        const emoji = '😀'.repeat(4000)
+        expect(emoji.length).toBe(8000)
+        expect(messageIssues(emoji)).toEqual([])
+    })
+
+    it('refuses 4001 code points with the too-long text', () => {
+        expect(messageIssues('a'.repeat(4001))).toEqual([TOO_LONG])
+        expect(messageIssues('😀'.repeat(4001))).toEqual([TOO_LONG])
+    })
+})
+
+// "Sales deposited to": '' is "Ask"; otherwise an account id (the server checks it).
+describe('salesDepositSchema', () => {
+    it('accepts Ask and an account id', () => {
+        expect(salesDepositSchema.safeParse({ sales_deposit_account: '' }).success).toBe(true)
+        expect(
+            salesDepositSchema.safeParse({ sales_deposit_account: 'acctfixundep001' }).success
+        ).toBe(true)
     })
 })

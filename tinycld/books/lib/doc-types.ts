@@ -2,6 +2,7 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     journal: { label: 'Journal entries', noun: 'entry' },
     transfer: { label: 'Transfers', noun: 'transfer' },
     invoice: { label: 'Invoices', noun: 'invoice' },
+    sales_receipt: { label: 'Sales receipts', noun: 'sales receipt' },
 }
 
 export function docTypeLabel(docType: string): string {

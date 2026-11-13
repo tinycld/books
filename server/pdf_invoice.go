@@ -30,15 +30,15 @@ func buildInvoiceDocument(app core.App, invoice *core.Record) (pdfDocument, erro
 	if err != nil {
 		return pdfDocument{}, fmt.Errorf("books: read settings: %w", err)
 	}
-	party, err := invoiceBillTo(app, invoice)
+	party, err := documentPDFParty(app, invoice, "Bill to")
 	if err != nil {
 		return pdfDocument{}, err
 	}
-	lines, err := invoicePDFLines(app, invoice.Id)
+	lines, err := documentPDFLines(app, invoiceKind.LinesCollection, invoiceKind.ParentField, invoice.Id)
 	if err != nil {
 		return pdfDocument{}, err
 	}
-	taxLines, err := invoicePDFTaxLines(app, invoice)
+	taxLines, err := documentPDFTaxLines(app, invoiceKind.TaxLinesCollection, invoiceKind.ParentField, invoice)
 	if err != nil {
 		return pdfDocument{}, err
 	}
@@ -48,20 +48,14 @@ func buildInvoiceDocument(app core.App, invoice *core.Record) (pdfDocument, erro
 		currency = settings.GetString("currency")
 	}
 	return pdfDocument{
-		Title:    invoiceTitle(invoice),
+		Title:    documentPDFTitle(docTypeInvoice, invoice),
 		Number:   invoice.GetString("number"),
 		Currency: currency,
 		Dates: []pdfDate{
 			{Label: "Date", Day: invoice.GetString("date")},
 			{Label: "Due", Day: invoice.GetString("due_date")},
 		},
-		Company: pdfCompany{
-			Name:    settings.GetString("business_name"),
-			Address: settings.GetString("address"),
-			Phone:   settings.GetString("phone"),
-			Email:   settings.GetString("email"),
-			Website: settings.GetString("website"),
-		},
+		Company:       documentPDFCompany(settings),
 		Parties:       []pdfParty{party},
 		Lines:         lines,
 		SubtotalCents: int64(invoice.GetInt("subtotal")),
@@ -75,38 +69,53 @@ func buildInvoiceDocument(app core.App, invoice *core.Record) (pdfDocument, erro
 	}, nil
 }
 
-func invoiceTitle(invoice *core.Record) string {
-	noun, _, draft := entryNouns(docTypeInvoice)
-	number := invoice.GetString("number")
+// documentPDFTitle is a sales document's printed title: "Invoice" (the number
+// prints beside it), "Draft invoice" with no number, "Invoice 1004 (void)".
+func documentPDFTitle(docType string, doc *core.Record) string {
+	noun, _, draft := entryNouns(docType)
+	number := doc.GetString("number")
 	switch {
 	case number == "":
 		return draft
-	case invoice.GetString("status") == statusVoid:
+	case doc.GetString("status") == statusVoid:
 		return fmt.Sprintf("%s %s (void)", noun, number)
 	default:
 		return noun
 	}
 }
 
-// invoiceBillTo is the customer's name and company over the invoice's own
-// address snapshot, which later customer edits do not change.
-func invoiceBillTo(app core.App, invoice *core.Record) (pdfParty, error) {
-	customer, err := app.FindRecordById("books_customers", invoice.GetString("customer"))
+// documentPDFCompany is the seller block every sales document prints.
+func documentPDFCompany(settings *core.Record) pdfCompany {
+	return pdfCompany{
+		Name:    settings.GetString("business_name"),
+		Address: settings.GetString("address"),
+		Phone:   settings.GetString("phone"),
+		Email:   settings.GetString("email"),
+		Website: settings.GetString("website"),
+	}
+}
+
+// documentPDFParty is the customer's name and company over the document's own
+// bill_to address snapshot, which later customer edits do not change, under
+// label ("Bill to", "Sold to"). The caller checks that the document has a
+// customer.
+func documentPDFParty(app core.App, doc *core.Record, label string) (pdfParty, error) {
+	customer, err := app.FindRecordById("books_customers", doc.GetString("customer"))
 	if err != nil {
-		return pdfParty{}, fmt.Errorf("books: read the invoice's customer: %w", err)
+		return pdfParty{}, fmt.Errorf("books: read the document's customer: %w", err)
 	}
 	party := pdfParty{
-		Label:   "Bill to",
+		Label:   label,
 		Name:    customer.GetString("display_name"),
 		Company: customer.GetString("company"),
 	}
-	raw := strings.TrimSpace(invoice.GetString("bill_to"))
+	raw := strings.TrimSpace(doc.GetString("bill_to"))
 	if raw == "" || raw == "null" {
 		return party, nil
 	}
 	var address postalAddress
 	if err := json.Unmarshal([]byte(raw), &address); err != nil {
-		return pdfParty{}, fmt.Errorf("books: read the invoice's bill to: %w", err)
+		return pdfParty{}, fmt.Errorf("books: read the document's bill to: %w", err)
 	}
 	if address != (postalAddress{}) {
 		party.Address = &address
@@ -114,11 +123,12 @@ func invoiceBillTo(app core.App, invoice *core.Record) (pdfParty, error) {
 	return party, nil
 }
 
-// invoicePDFLines prints each stored line by its kind. An item or percent line
-// prints its product's name; a percent line prints its percent in the Qty
-// column ("−10%") and no rate.
-func invoicePDFLines(app core.App, invoiceID string) ([]pdfLine, error) {
-	records, err := invoiceLines(app, invoiceID)
+// documentPDFLines prints each stored line of a sales document by its kind,
+// read from linesCollection by its parentField. An item or percent line prints
+// its product's name; a percent line prints its percent in the Qty column
+// ("−10%") and no rate.
+func documentPDFLines(app core.App, linesCollection, parentField, docID string) ([]pdfLine, error) {
+	records, err := docLineRecords(app, linesCollection, parentField, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +185,7 @@ func productNames(app core.App, lines []*core.Record) (map[string]string, error)
 	}
 	products, err := app.FindRecordsByIds("books_products", ids)
 	if err != nil {
-		return nil, fmt.Errorf("books: read the invoice's products: %w", err)
+		return nil, fmt.Errorf("books: read the document's products: %w", err)
 	}
 	for _, p := range products {
 		names[p.Id] = p.GetString("name")
@@ -183,30 +193,31 @@ func productNames(app core.App, lines []*core.Record) (map[string]string, error)
 	return names, nil
 }
 
-// invoicePDFTaxLines is the one tax line of the header rate or group: its name,
-// its percent (a group's is the sum of its components) and the stored tax. A
-// posted or void invoice prints the percents of its tax snapshot, so a later
-// change to a rate never changes what it charged; a draft prints today's rates.
-func invoicePDFTaxLines(app core.App, invoice *core.Record) ([]pdfTaxLine, error) {
-	rateID := invoice.GetString("tax_rate")
+// documentPDFTaxLines is the one tax line of the header rate or group: its
+// name, its percent (a group's is the sum of its components) and the stored
+// tax. A posted or void document prints the percents of its tax snapshot (the
+// rows of taxLinesCollection that name it in parentField), so a later change
+// to a rate never changes what it charged; a draft prints today's rates.
+func documentPDFTaxLines(app core.App, taxLinesCollection, parentField string, doc *core.Record) ([]pdfTaxLine, error) {
+	rateID := doc.GetString("tax_rate")
 	if rateID == "" {
 		return nil, nil
 	}
 	rate, err := app.FindRecordById("books_tax_rates", rateID)
 	if err != nil {
-		return nil, fmt.Errorf("books: read the invoice's tax rate: %w", err)
+		return nil, fmt.Errorf("books: read the document's tax rate: %w", err)
 	}
 	var ppms []int64
-	if invoice.GetString("status") == statusDraft {
+	if doc.GetString("status") == statusDraft {
 		ppms, _, err = taxComponents(app, rateID)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		snapshot, err := app.FindRecordsByFilter("books_invoice_tax_lines", "invoice = {:id}", "position,id", 0, 0,
-			dbx.Params{"id": invoice.Id})
+		snapshot, err := app.FindRecordsByFilter(taxLinesCollection, parentField+" = {:id}", "position,id", 0, 0,
+			dbx.Params{"id": doc.Id})
 		if err != nil {
-			return nil, fmt.Errorf("books: read the invoice's tax lines: %w", err)
+			return nil, fmt.Errorf("books: read the document's tax lines: %w", err)
 		}
 		for _, s := range snapshot {
 			ppms = append(ppms, int64(s.GetInt("rate_ppm")))
@@ -219,6 +230,6 @@ func invoicePDFTaxLines(app core.App, invoice *core.Record) ([]pdfTaxLine, error
 	return []pdfTaxLine{{
 		Name:        rate.GetString("name"),
 		RatePpm:     ppm,
-		AmountCents: int64(invoice.GetInt("tax_total")),
+		AmountCents: int64(doc.GetInt("tax_total")),
 	}}, nil
 }

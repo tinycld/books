@@ -666,3 +666,117 @@ func TestAccount_TaxAgencyRefusals(t *testing.T) {
 		t.Errorf("changing only the detail type of an agency's account was refused: %v", err)
 	}
 }
+
+// mkReceiptRow saves a sales receipt with saveRecord on an app whose sales
+// receipt guards may not be bound (the delete-guard tests of accounts,
+// customers, products and tax rates), with the fields given over a valid draft
+// deposited to depositTo.
+func mkReceiptRow(t testing.TB, app core.App, depositTo *core.Record, fields map[string]any) *core.Record {
+	t.Helper()
+	all := map[string]any{
+		"status": "draft", "date": "2026-11-04", "deposit_to": depositTo.Id, "currency": "USD",
+	}
+	for k, v := range fields {
+		all[k] = v
+	}
+	return saveRecord(t, app, "books_sales_receipts", all)
+}
+
+const wantSetDepositAccount = "This account is where sales are deposited (Settings → Sales). Choose another account or Ask there first."
+
+// Spec §3.10: while "Sales deposited to" names an account, that account stays
+// a usable deposit account: it cannot be made inactive, deleted, or moved off
+// bank / Undeposited funds. A rename is not a deposit change, so it saves.
+func TestAccount_SetDepositAccountRefusals(t *testing.T) {
+	app := newGuardedApp(t)
+	undeposited := mkNumberedAccount(t, app, "Undeposited funds", "1200", "other_current_asset", "undeposited_funds")
+	setSalesDepositAccount(t, app, undeposited.Id)
+
+	refused := []struct {
+		name   string
+		fields map[string]any
+	}{
+		{"made inactive", map[string]any{"inactive": true}},
+		{"detail type prepaid_expenses", map[string]any{"detail_type": "prepaid_expenses"}},
+		{"type other_asset", map[string]any{"type": "other_asset", "detail_type": "other_long_term_asset"}},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			err := setFields(t, app, "books_accounts", undeposited.Id, tc.fields)
+			requireMessageOnlyRefusal(t, err, wantSetDepositAccount)
+			stored := reload(t, app, "books_accounts", undeposited.Id)
+			if stored.GetBool("inactive") || stored.GetString("type") != "other_current_asset" ||
+				stored.GetString("detail_type") != "undeposited_funds" {
+				t.Errorf("1200 after the refusal: inactive %v type %q detail %q, want it unchanged",
+					stored.GetBool("inactive"), stored.GetString("type"), stored.GetString("detail_type"))
+			}
+		})
+	}
+
+	t.Run("deleted", func(t *testing.T) {
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", undeposited.Id)), wantSetDepositAccount)
+		reload(t, app, "books_accounts", undeposited.Id)
+		requireSalesDepositSettingIs(t, app, undeposited.Id)
+	})
+
+	// The normal case: the set account already has postings, and the set
+	// account refusal must still be the one the user sees, not the journal
+	// lines one that says to make it inactive (which is refused too).
+	t.Run("deleted with journal lines", func(t *testing.T) {
+		re := newReceiptEnv(t)
+		setSalesDepositAccount(t, re.app, re.undeposited.Id)
+		r := re.harborviewSale(t, nil)
+		mustPostReceipt(t, re.app, r.Id, re.users.bookkeeper.Id)
+		if n, err := re.app.CountRecords("books_journal_lines", dbx.HashExp{"account": re.undeposited.Id}); err != nil || n == 0 {
+			t.Fatalf("%d journal lines on 1200 after the post (err %v), want at least 1", n, err)
+		}
+		requireMessageOnlyRefusal(t, re.app.Delete(reload(t, re.app, "books_accounts", re.undeposited.Id)), wantSetDepositAccount)
+		reload(t, re.app, "books_accounts", re.undeposited.Id)
+		requireSalesDepositSettingIs(t, re.app, re.undeposited.Id)
+	})
+
+	t.Run("renamed", func(t *testing.T) {
+		if err := setFields(t, app, "books_accounts", undeposited.Id, map[string]any{"name": "Cash on hand to deposit"}); err != nil {
+			t.Fatalf("renaming the set deposit account was refused: %v", err)
+		}
+		if got := reload(t, app, "books_accounts", undeposited.Id).GetString("name"); got != "Cash on hand to deposit" {
+			t.Errorf("name = %q, want the new name", got)
+		}
+	})
+}
+
+func requireSalesDepositSettingIs(t testing.TB, app core.App, want string) {
+	t.Helper()
+	if got := reload(t, app, "books_settings", settingsID).GetString("sales_deposit_account"); got != want {
+		t.Errorf("sales_deposit_account = %q, want %q", got, want)
+	}
+}
+
+// Spec §3.10: with Ask, an account that is the Deposit to of any sales
+// receipt, draft or posted, cannot be deleted; making it inactive is allowed
+// (Post then refuses it), and making an account active needs no receipt check.
+func TestAccount_DeleteRefusedWhileReceiptsDepositToIt(t *testing.T) {
+	app := newGuardedApp(t)
+	savings := mkNumberedAccount(t, app, "Business Savings", "1010", "bank", "savings")
+
+	mkReceiptRow(t, app, savings, nil)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", savings.Id)),
+		"This account is the deposit account of 1 sales receipt and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", savings.Id)
+
+	mkReceiptRow(t, app, savings, map[string]any{"status": "posted", "number": "1001"})
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", savings.Id)),
+		"This account is the deposit account of 2 sales receipts and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", savings.Id)
+
+	makeAccountInactive(t, app, savings)
+	if !reload(t, app, "books_accounts", savings.Id).GetBool("inactive") {
+		t.Fatal("Business Savings is not inactive")
+	}
+	if err := setFields(t, app, "books_accounts", savings.Id, map[string]any{"inactive": false}); err != nil {
+		t.Fatalf("making an inactive deposit account active was refused: %v", err)
+	}
+	if reload(t, app, "books_accounts", savings.Id).GetBool("inactive") {
+		t.Error("Business Savings is still inactive")
+	}
+}

@@ -11,7 +11,7 @@ import {
     DocumentTaxField,
     DocumentTermsField,
     DueDateField,
-} from './invoice-fields'
+} from './document-fields'
 import {
     LineAmountCell,
     LineDescriptionCell,
@@ -20,8 +20,9 @@ import {
     LineQuantityCell,
     LineRateCell,
     LineTaxableCell,
-} from './invoice-line-cells'
+} from './document-line-cells'
 import { MoneyField } from './money-fields'
+import { DepositAccountField, PaymentMethodField } from './payment-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
 import { ExemptionReasonField, TaxRateField } from './tax-fields'
 import { LegalNameField, TaxIdField, TaxIdTypeField } from './vendor-1099-fields'
@@ -64,6 +65,8 @@ const ui: FormHostUi = {
         LinePercentCell,
         LineAmountCell,
         LineTaxableCell,
+        PaymentMethodField,
+        DepositAccountField,
     },
     // The money input's rules run through the forms engine, at save and between saves,
     // so a refused amount blocks the save and its message is the cell's inline text.

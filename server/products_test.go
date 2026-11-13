@@ -913,3 +913,29 @@ func TestProduct_DeleteRefusedWhileOnInvoiceLines(t *testing.T) {
 		"This product or service is on 2 invoices. Make it inactive instead.")
 	requireProductCount(t, app, 1)
 }
+
+// Spec §3.10: a product on a sales receipt line cannot be deleted; the count
+// is of sales receipts, not of lines.
+func TestProduct_DeleteRefusedWhileOnSalesReceiptLines(t *testing.T) {
+	app := newGuardedApp(t)
+	cable := mkService(t, app, "Patch cable", mkIncomeAccount(t, app))
+	undeposited := mkNumberedAccount(t, app, "Undeposited funds", "1200", "other_current_asset", "undeposited_funds")
+	line := func(receipt *core.Record, position int) {
+		t.Helper()
+		saveRecord(t, app, "books_sales_receipt_lines", map[string]any{
+			"sales_receipt": receipt.Id, "kind": "item", "product": cable.Id, "quantity": 1, "rate": 875, "position": position,
+		})
+	}
+	first := mkReceiptRow(t, app, undeposited, nil)
+	line(first, 0)
+	line(first, 1)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 1 sales receipt. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+
+	second := mkReceiptRow(t, app, undeposited, map[string]any{"status": "posted", "number": "1001"})
+	line(second, 0)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 2 sales receipts. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+}

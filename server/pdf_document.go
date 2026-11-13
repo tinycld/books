@@ -35,6 +35,7 @@ type pdfDocument struct {
 	Number        string     // printed after "No."; "" prints no number
 	Currency      string     // ISO code of every amount
 	Dates         []pdfDate  // in print order: "Date", "Due"
+	Payment       string     // printed under the dates when set: "Check · 43567"; the invoice leaves it empty
 	Company       pdfCompany // the seller, from books_settings
 	Parties       []pdfParty // "Bill to", "Ship to"
 	Lines         []pdfLine
@@ -129,6 +130,7 @@ func (d pdfDocument) validate() error {
 type pdfView struct {
 	Title, Number string
 	Dates         []pdfText
+	Payment       string
 	Company       pdfBlock
 	Parties       []pdfBlock
 	Rows          []pdfRow
@@ -164,7 +166,7 @@ type pdfBrand struct {
 
 func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	money := func(cents int64) string { return formatMoney(cents, doc.Currency) }
-	v := pdfView{Title: doc.Title, Number: doc.Number, Brand: brandOf(org)}
+	v := pdfView{Title: doc.Title, Number: doc.Number, Payment: strings.TrimSpace(doc.Payment), Brand: brandOf(org)}
 	for _, d := range doc.Dates {
 		v.Dates = append(v.Dates, pdfText{Label: d.Label, Text: formatDay(d.Day)})
 	}

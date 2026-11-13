@@ -739,7 +739,7 @@ func TestGeneralLedgerLineColumns(t *testing.T) {
 // and names the customer too; a transfer still reads "Transfer" (spec Q24).
 func TestGeneralLedgerInvoiceRows(t *testing.T) {
 	b := newGLBook(t)
-	registerInvoiceGuards(b.app)
+	registerSalesDocGuards(b.app, invoiceKind)
 	ie := invoiceEnvOn(t, b.env)
 	receivable := b.account(t, "Receivables", "1200", "accounts_receivable", "accounts_receivable")
 	operating := b.account(t, "Operating", "1000", "bank", "checking")
@@ -1241,7 +1241,9 @@ const generalLedgerSpecGolden = "" +
 	`er":{"by":"declared"},"groupLabel":"All {group} accounts"},"multiple":true}],"columns":[{"id":"account","label":"Account / Date","path":[{"link":"account"}]},{"` +
 	`id":"type","label":"Type","formula":{"op":"case","args":[{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"invo` +
 	`ice"}]},{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
-	`{"value":"Invoice"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"transfer"}]},` +
+	`{"value":"Invoice"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"sales_receipt"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Sales receipt"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"transfer"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},{"value":"Transfer"},{"op":"eq","args":[{"path":[{"link":"entry` +
 	`"},{"field":"origin"}]},{"value":"reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]},{` +
 	`"value":"Reversal"},{"op":"concat","args":[{"value":"Reversal"},{"value":" of "},{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]}]},{"op":"e` +

@@ -82,6 +82,32 @@ export function isReopening(current: string, next: CloseDateValues): boolean {
 
 const lastsValues = LASTS_FOR_OPTIONS.map(o => o.value) as [LastsFor, ...LastsFor[]]
 
+// "Sales deposited to": '' is "Ask", else an account id. The server's settings guard
+// checks that the account is an active bank or Undeposited funds account.
+export const salesDepositSchema = z.object({ sales_deposit_account: z.string() })
+
+export type SalesDepositValues = z.infer<typeof salesDepositSchema>
+
+export function salesDepositValues(row: BooksSettings): SalesDepositValues {
+    return { sales_deposit_account: row.sales_deposit_account ?? '' }
+}
+
+// The books_settings `default_customer_message` max, in code points as the server counts
+// it (an emoji is one).
+const MAX_DEFAULT_MESSAGE = 4000
+
+export const defaultMessageSchema = z.object({
+    default_customer_message: z
+        .string()
+        .refine(v => [...v].length <= MAX_DEFAULT_MESSAGE, 'The default message is too long'),
+})
+
+export type DefaultMessageValues = z.infer<typeof defaultMessageSchema>
+
+export function defaultMessageValues(row: BooksSettings): DefaultMessageValues {
+    return { default_customer_message: row.default_customer_message ?? '' }
+}
+
 export const overrideSchema = z.object({
     user: z.string().min(1, 'Choose a person'),
     reason: z

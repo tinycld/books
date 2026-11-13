@@ -34,7 +34,7 @@ func (pe *postingEnv) pdfInvoice(t testing.TB) *core.Record {
 	})
 }
 
-func invoiceKind(t testing.TB) documentKind {
+func invoicePDFKind(t testing.TB) documentKind {
 	t.Helper()
 	kind, ok := documentKinds["invoice"]
 	if !ok {
@@ -133,7 +133,7 @@ func TestInvoicePDF_PostedPrintsEveryKindAndTheTotals(t *testing.T) {
 	if strings.Contains(fmt.Sprintf("%+v", doc), invoicePDFMemo) {
 		t.Errorf("the memo %q is in the document: %+v", invoicePDFMemo, doc)
 	}
-	if got := invoiceKind(t).FileName(doc); got != "invoice-1001" {
+	if got := invoicePDFKind(t).FileName(doc); got != "invoice-1001" {
 		t.Errorf("file name = %q, want invoice-1001", got)
 	}
 
@@ -157,7 +157,7 @@ func TestInvoicePDF_DraftHasNoNumber(t *testing.T) {
 	if doc.Title != "Draft invoice" || doc.Number != "" {
 		t.Errorf("title %q number %q, want Draft invoice and no number", doc.Title, doc.Number)
 	}
-	if got := invoiceKind(t).FileName(doc); got != "draft-invoice" {
+	if got := invoicePDFKind(t).FileName(doc); got != "draft-invoice" {
 		t.Errorf("file name = %q, want draft-invoice", got)
 	}
 }

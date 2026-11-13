@@ -42,6 +42,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},
 		"books_invoices":        {ExtractLabel: invoiceLabel, Redact: []string{"sort_key"}},
 		"books_invoice_lines":   {ExtractLabel: func(r *core.Record) string { return invoiceLineLabel(app, r) }},
+		"books_sales_receipts":  {ExtractLabel: salesReceiptLabel, Redact: []string{"sort_key"}},
+		"books_sales_receipt_lines": {
+			ExtractLabel: func(r *core.Record) string { return salesReceiptLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -109,6 +113,25 @@ func invoiceLineLabel(app core.App, r *core.Record) string {
 		invoice = invoiceLabel(inv)
 	}
 	return fmt.Sprintf("%s: line %d", invoice, r.GetInt("position")+1)
+}
+
+// salesReceiptLabel names a sales receipt by its number: "Sales receipt
+// 1004". A draft has no number: "Draft sales receipt".
+func salesReceiptLabel(r *core.Record) string {
+	if n := r.GetString("number"); n != "" {
+		return "Sales receipt " + n
+	}
+	return "Draft sales receipt"
+}
+
+// salesReceiptLineLabel is invoiceLineLabel for a sales receipt's line:
+// "Sales receipt 1004: line 2".
+func salesReceiptLineLabel(app core.App, r *core.Record) string {
+	receipt := r.GetString("sales_receipt")
+	if rec, err := app.FindRecordById("books_sales_receipts", receipt); err == nil {
+		receipt = salesReceiptLabel(rec)
+	}
+	return fmt.Sprintf("%s: line %d", receipt, r.GetInt("position")+1)
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office

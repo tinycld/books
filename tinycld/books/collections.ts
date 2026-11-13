@@ -261,6 +261,45 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the invoice's three: server-owned fields below the omit line, no
+    // relations (the receipt screen reads its customer, tax rate, deposit
+    // account and users through their own queries).
+    const books_sales_receipts = newCollection('books_sales_receipts', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'tax_total',
+            'total',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // amount is recomputed by the server at every line write.
+    const books_sales_receipt_lines = newCollection('books_sales_receipt_lines', {
+        omitOnInsert: ['created', 'updated', 'amount'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // Written by the server at posting; clients only read it.
+    const books_sales_receipt_tax_lines = newCollection('books_sales_receipt_tax_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_bank_connections,
@@ -285,5 +324,8 @@ export function registerCollections(
         books_invoices,
         books_invoice_lines,
         books_invoice_tax_lines,
+        books_sales_receipts,
+        books_sales_receipt_lines,
+        books_sales_receipt_tax_lines,
     }
 }

@@ -1,0 +1,8 @@
+[
+    { "key": "cash", "label": "Cash" },
+    { "key": "check", "label": "Check" },
+    { "key": "credit_card", "label": "Credit card" },
+    { "key": "debit_card", "label": "Debit card" },
+    { "key": "bank_transfer", "label": "Bank transfer" },
+    { "key": "other", "label": "Other" }
+]

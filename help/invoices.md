@@ -11,12 +11,16 @@ To bill a customer, create an invoice. An invoice lists what you sold, adds sale
 
 To create an invoice, choose New in the sidebar (the round + button on a phone) and pick Invoice, under Customers. In a web browser, the Customer field has focus when the form opens, so you can start to type the customer's name at once.
 
-1. Pick the customer. Books fills Bill to, Email, Terms and Tax from the customer, and the Due date from the terms and the invoice date. To change the address for this invoice only, choose Edit address. Later changes to the customer do not change an invoice that you already made. To open the customer, choose Edit customer.
+1. Pick the customer. Books fills Bill to, Email, Terms and Tax from the customer, and the Due date from the terms and the invoice date. To change the address for this invoice only, choose Edit address. Later changes to the customer do not change an invoice that you already made. To open the customer, choose Edit customer. A customer that is tax exempt shows "Tax exempt" under the Customer field.
 2. Check the Invoice date (today unless you change it) and the Due date. When you pick Terms or change the Invoice date, Books sets the Due date again. The Due date cannot be before the Invoice date.
 3. Add the lines (see below).
-4. To tell the customer something, type it in **Message to customer (prints on invoice)**. It shows on the invoice and its PDF. For a note to your team, use **Internal memo (not printed)**: only your team sees it, it is saved as the memo of the journal entry, and it does not print.
+4. To tell the customer something, type it in **Message to customer (printed)**. It shows on the invoice and its PDF. For a note to your team, use **Internal memo (not printed)**: only your team sees it, it is saved as the memo of the journal entry, and it does not print.
+
+A new invoice starts with the **Default message to customer** that an admin sets in Settings → Sales, if there is one. You can change or clear it on each invoice. A copy keeps the message of the invoice it copies, an edit keeps its original's, and a saved draft keeps its own: a later change to the setting does not change them. See [Settings](help://books:settings).
 
 Only an active customer can be on an invoice that you post. Inactive customers are not in the Customer list.
+
+When the customer pays at the time of the sale, record a [sales receipt](help://books:sales-receipts) instead.
 
 ## Lines and their kinds
 

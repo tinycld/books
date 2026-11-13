@@ -1,5 +1,5 @@
 // Money as typed text, with no import: forms/hosts.ts reaches this through
-// lib/invoice-lines.ts and the generator loads hosts.ts in Node, where money.ts's
+// lib/document-line-columns.ts and the generator loads hosts.ts in Node, where money.ts's
 // logger (and with it React Native) cannot load. money.ts re-exports every name.
 
 // Amounts are integer cents in memory and storage. PocketBase stores them as

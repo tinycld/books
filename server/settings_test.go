@@ -2,9 +2,11 @@ package books
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -200,6 +202,102 @@ func saveSettings(t testing.TB, app core.App, fields map[string]any) {
 	if err := setFields(t, app, "books_settings", settingsID, fields); err != nil {
 		t.Fatalf("save settings %v: %v", fields, err)
 	}
+}
+
+// The refusal of the "Sales deposited to" guard, as the client gets it
+// (PocketBase adds the final period).
+const wantSalesDepositSetting = "Choose Ask or an active bank or Undeposited funds account."
+
+// salesDepositSettingEnv is a guarded app with the e2e book's deposit
+// candidates: 1000 Business Checking, 1010 Business Savings (made inactive),
+// 1200 Undeposited funds, and 4000 Consulting Income.
+type salesDepositSettingEnv struct {
+	app                                     *tests.TestApp
+	checking, savings, undeposited, revenue *core.Record
+}
+
+func newSalesDepositSettingEnv(t *testing.T) *salesDepositSettingEnv {
+	t.Helper()
+	app := newGuardedApp(t)
+	env := &salesDepositSettingEnv{
+		app:         app,
+		checking:    mkNumberedAccount(t, app, "Business Checking", "1000", "bank", "checking"),
+		savings:     mkNumberedAccount(t, app, "Business Savings", "1010", "bank", "savings"),
+		undeposited: mkNumberedAccount(t, app, "Undeposited funds", "1200", "other_current_asset", "undeposited_funds"),
+		revenue:     mkNumberedAccount(t, app, "Consulting Income", "4000", "income", "service_income"),
+	}
+	makeAccountInactive(t, app, env.savings)
+	return env
+}
+
+func requireSalesDepositSetting(t testing.TB, app core.App, want string) {
+	t.Helper()
+	if got := reload(t, app, "books_settings", settingsID).GetString("sales_deposit_account"); got != want {
+		t.Errorf("sales_deposit_account = %q, want %q", got, want)
+	}
+}
+
+// Spec §4.3: "Sales deposited to" is empty (Ask) or an account that passes
+// isDepositAccount: an active bank account or an active Undeposited funds one.
+func TestSettings_SalesDepositAccountMustBeADepositAccount(t *testing.T) {
+	env := newSalesDepositSettingEnv(t)
+
+	for _, ok := range []*core.Record{env.undeposited, env.checking} {
+		if err := setFields(t, env.app, "books_settings", settingsID, map[string]any{"sales_deposit_account": ok.Id}); err != nil {
+			t.Fatalf("setting Sales deposited to %s was refused: %v", ok.GetString("name"), err)
+		}
+		requireSalesDepositSetting(t, env.app, ok.Id)
+	}
+
+	refused := []struct{ name, id string }{
+		{"4000 Consulting Income", env.revenue.Id},
+		{"an inactive bank account", env.savings.Id},
+		{"an id that does not exist", "doesnotexist123"},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			err := setFields(t, env.app, "books_settings", settingsID, map[string]any{"sales_deposit_account": tc.id})
+			requireFieldRefusal(t, err, "sales_deposit_account", wantSalesDepositSetting)
+			requireSalesDepositSetting(t, env.app, env.checking.Id)
+		})
+	}
+
+	if err := setFields(t, env.app, "books_settings", settingsID, map[string]any{"sales_deposit_account": ""}); err != nil {
+		t.Fatalf("setting Sales deposited to back to Ask was refused: %v", err)
+	}
+	requireSalesDepositSetting(t, env.app, "")
+}
+
+// The setting is checked only when it changes: an edit of another setting
+// saves while the stored account has become inactive.
+func TestSettings_SalesDepositAccountCheckedOnlyWhenItChanges(t *testing.T) {
+	env := newSalesDepositSettingEnv(t)
+	saveSettings(t, env.app, map[string]any{"sales_deposit_account": env.checking.Id})
+	// A direct write past the account guards, which refuse to make the set
+	// account inactive.
+	if _, err := env.app.DB().NewQuery("UPDATE books_accounts SET inactive = TRUE WHERE id = {:id}").
+		Bind(dbx.Params{"id": env.checking.Id}).Execute(); err != nil {
+		t.Fatalf("make 1000 Business Checking inactive: %v", err)
+	}
+	if err := setFields(t, env.app, "books_settings", settingsID, map[string]any{"business_name": "Harbor Lane Design LLC"}); err != nil {
+		t.Fatalf("a business name edit was refused over the stored inactive deposit account: %v", err)
+	}
+	stored := reload(t, env.app, "books_settings", settingsID)
+	if stored.GetString("business_name") != "Harbor Lane Design LLC" || stored.GetString("sales_deposit_account") != env.checking.Id {
+		t.Errorf("business_name %q sales_deposit_account %q, want the edit saved and the account kept",
+			stored.GetString("business_name"), stored.GetString("sales_deposit_account"))
+	}
+}
+
+// Spec §3.11: the default message is at most 4000 characters (the schema).
+func TestSettings_DefaultCustomerMessageIsAtMost4000(t *testing.T) {
+	app := newGuardedApp(t)
+	err := setFields(t, app, "books_settings", settingsID, map[string]any{"default_customer_message": strings.Repeat("x", 4001)})
+	requireSchemaRefusal(t, err, "default_customer_message")
+	if got := reload(t, app, "books_settings", settingsID).GetString("default_customer_message"); got != "" {
+		t.Errorf("default_customer_message has %d characters after the refusal, want none", len(got))
+	}
+	saveSettings(t, app, map[string]any{"default_customer_message": strings.Repeat("x", 4000)})
 }
 
 func TestSetupCompletionEnsuresRetainedEarnings(t *testing.T) {
