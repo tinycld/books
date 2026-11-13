@@ -2,7 +2,7 @@ import { type KeyDownEvent, Pressable, Text, View } from 'react-native'
 import type { AccountRow as AccountData } from '../../hooks/useAccountsQuery'
 import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
 import type { VisibleRow } from '../../lib/account-tree'
-import { formatMoney } from '../../lib/money'
+import { balanceText, balanceTone } from '../../lib/money'
 import { AccountCaret } from './AccountCaret'
 import { AccountRowMenu } from './AccountRowMenu'
 import { AccountSelectBox } from './AccountSelectBox'
@@ -102,8 +102,8 @@ export function AccountTableRow({
                 </Text>
             </View>
             <View style={BALANCE_CELL_STYLE} className="items-end">
-                <Text className="text-right text-sm font-medium text-foreground">
-                    {formatMoney(row.balance, account.currency)}
+                <Text className={`text-right text-sm font-medium ${balanceTone(row.balance)}`}>
+                    {balanceText(row.balance, account.currency)}
                 </Text>
                 <RollupLabel isVisible={row.showsRollup} />
             </View>

@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native'
 import type { AccountRow } from '../../hooks/useAccountsQuery'
 import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
 import type { VisibleRow } from '../../lib/account-tree'
-import { formatMoney } from '../../lib/money'
+import { balanceText, balanceTone } from '../../lib/money'
 import { AccountCaret } from './AccountCaret'
 import {
     INDENT_STEP,
@@ -102,8 +102,10 @@ export function AccountCard({
                             </Text>
                         </View>
                         <View className="items-end">
-                            <Text className="text-right text-sm font-medium text-foreground">
-                                {formatMoney(row.balance, account.currency)}
+                            <Text
+                                className={`text-right text-sm font-medium ${balanceTone(row.balance)}`}
+                            >
+                                {balanceText(row.balance, account.currency)}
                             </Text>
                             <RollupLabel isVisible={row.showsRollup} />
                         </View>

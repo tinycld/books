@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react-native'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { RegisterScreenModel } from '../../hooks/useRegisterScreen'
-import { formatMoney } from '../../lib/money'
+import { balanceText } from '../../lib/money'
 import { formatDay } from '../../lib/register-range'
 import { accountDisplay } from '../accounts/account-display'
 import { RegisterRangeSelect } from './RegisterRangeSelect'
@@ -57,10 +57,6 @@ function TitleBlock({ model }: { model: RegisterScreenModel }) {
     )
 }
 
-function figureText(cents: number | null, currency: string) {
-    return cents === null ? 'Too large' : formatMoney(cents, currency)
-}
-
 function BalanceFigure({
     testID,
     label,
@@ -83,7 +79,7 @@ function BalanceFigure({
         <View className="gap-0.5">
             <Text className="text-xs text-muted-foreground">{label}</Text>
             <Text testID={testID} className={`${size} ${tone}`}>
-                {figureText(cents, currency)}
+                {balanceText(cents, currency)}
             </Text>
             {children}
         </View>

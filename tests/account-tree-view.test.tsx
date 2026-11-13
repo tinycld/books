@@ -17,7 +17,7 @@ import {
     type SortState,
     type TreeFilters,
 } from '../tinycld/books/lib/account-tree'
-import { formatMoney } from '../tinycld/books/lib/money'
+import { balanceText, formatMoney } from '../tinycld/books/lib/money'
 import { byTestId, classOf, fixtureRows } from './accounts-test-rows'
 import { listProps } from './accounts-view-props'
 
@@ -614,7 +614,7 @@ describe('AccountCard', () => {
         const { getByText, row } = renderCard('acct_bank_0002')
         expect(getByText('Operating checking')).toBeTruthy()
         expect(getByText('1010')).toBeTruthy()
-        expect(getByText(formatMoney(row.balance, 'USD'))).toBeTruthy()
+        expect(getByText(balanceText(row.balance, 'USD'))).toBeTruthy()
         expect(getByText('Bank')).toBeTruthy()
         expect(getByText('Checking')).toBeTruthy()
     })
@@ -631,7 +631,7 @@ describe('AccountCard', () => {
             return null
         }
         const name = getByText('Operating checking')
-        const balance = getByText(formatMoney(row.balance, 'USD'))
+        const balance = getByText(balanceText(row.balance, 'USD'))
         const type = getByText('Bank')
         const nameRow = rowOf(name)
         const balanceRow = rowOf(balance)
@@ -705,7 +705,7 @@ describe('AccountCard', () => {
     it('shows incl. sub-accounts with the roll-up when collapsed and not when expanded', () => {
         const collapsed = renderCard('acct_fa_00001', { collapsed: new Set(['acct_fa_00001']) })
         expect(collapsed.getByText('incl. sub-accounts')).toBeTruthy()
-        expect(collapsed.getByText(formatMoney(collapsed.row.balance, 'USD'))).toBeTruthy()
+        expect(collapsed.getByText(balanceText(collapsed.row.balance, 'USD'))).toBeTruthy()
         collapsed.unmount()
         const expanded = renderCard('acct_fa_00001')
         expect(expanded.queryByText('incl. sub-accounts')).toBeNull()
