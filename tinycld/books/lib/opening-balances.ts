@@ -287,22 +287,28 @@ export function diffLines(saved: readonly SavedLine[], next: readonly OpeningLin
 // It lives in ./money; MoneyInput and the opening balance tests still import it here.
 export { centsToText } from './money'
 
+// Every line of an account counts. The form writes one line for each account, but a
+// draft written past it (an import, the API) can hold more, and dropping one would
+// save a smaller balance. The server refuses to post such a draft
+// (server/opening_balances.go checkOpeningLines); the next save here puts the sum on
+// one line (diffLines keeps the first and removes the others).
 export function amountsFromLines(
     accounts: readonly OpeningAccount[],
     lines: readonly SavedLine[],
     balancingAccountId: string
 ): Record<string, string> {
     const byId = new Map(accounts.map(account => [account.id, account]))
-    const amounts: Record<string, string> = {}
-    const seen = new Set<string>()
+    const cents = new Map<string, number>()
     for (const line of lines) {
         const account = byId.get(line.account)
         if (!account || line.account === balancingAccountId) continue
-        if (seen.has(account.id)) continue
-        seen.add(account.id)
         const normal = accountTypeDef(account.type)?.normal ?? 'debit'
-        const cents = normal === 'debit' ? line.debit - line.credit : line.credit - line.debit
-        if (cents !== 0) amounts[account.id] = centsToText(cents)
+        const signed = normal === 'debit' ? line.debit - line.credit : line.credit - line.debit
+        cents.set(account.id, (cents.get(account.id) ?? 0) + signed)
+    }
+    const amounts: Record<string, string> = {}
+    for (const [id, sum] of cents) {
+        if (sum !== 0) amounts[id] = centsToText(sum)
     }
     return amounts
 }
