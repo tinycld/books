@@ -10,7 +10,14 @@ import { DateField } from '@tinycld/core/ui/forms/fields/DateField'
 import { router } from 'expo-router'
 import { useCallback, useRef, useState } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
-import { Platform, Pressable, type PressableInstance, Text, View } from 'react-native'
+import {
+    type KeyDownEvent,
+    Platform,
+    Pressable,
+    type PressableInstance,
+    Text,
+    View,
+} from 'react-native'
 import { useDocumentFormScope } from '../components/documents/document-form-context'
 import { AddressField } from '../components/forms/AddressField'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
@@ -57,9 +64,9 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
     const productTaxableOf = async (rows: readonly TableRow[]) => {
         const ids = productIdsOf(rows)
         if (ids.length === 0) return new Map<string, boolean>()
-        const products = await queryOnce(q =>
-            q.from({ p: productsCollection }).where(({ p }) => inArray(p.id, ids))
-        )
+        const products = await queryOnce({
+            query: q => q.from({ p: productsCollection }).where(({ p }) => inArray(p.id, ids)),
+        })
         return new Map(products.map(product => [product.id, product.taxable]))
     }
     const { getValues, setValue } = useFormContext<FormValues>()
@@ -83,12 +90,13 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
             return
         }
         try {
-            const customer = await queryOnce(q =>
-                q
-                    .from({ c: customersCollection })
-                    .where(({ c }) => eq(c.id, id))
-                    .findOne()
-            )
+            const customer = await queryOnce({
+                query: q =>
+                    q
+                        .from({ c: customersCollection })
+                        .where(({ c }) => eq(c.id, id))
+                        .findOne(),
+            })
             if (!customer) throw new Error(`customer ${id} not found`)
             const previousExempt = value === '' ? null : (scope.customer?.tax_exempt ?? null)
             const fills = customerFills(
@@ -253,6 +261,8 @@ function isEditingBand(bandKey: string, editingFor: string | null) {
     return bandKey !== '' && editingFor === bandKey
 }
 
+const OPEN_KEYS = new Set(['Enter', ' '])
+
 function LinkButton({
     label,
     onPress,
@@ -265,14 +275,20 @@ function LinkButton({
     isVisible: boolean
 }) {
     if (!isVisible) return null
-    // Not a Tab stop (spec Tab order: Customer goes straight on to the next field); a
-    // pointer or a screen reader still presses it.
+    // A Tab stop right after Customer (spec Tab order), with no shortcut. Enter or Space
+    // opens it: react-native-web leaves a focused link's keys to the browser's native
+    // link, but with no href it renders a plain element that the browser never clicks.
+    const onKeyDown = (event: KeyDownEvent) => {
+        if (!OPEN_KEYS.has(event.nativeEvent.key)) return
+        event.preventDefault()
+        onPress()
+    }
     return (
         <Pressable
             accessibilityRole="link"
             onPress={onPress}
+            onKeyDown={onKeyDown}
             testID={testID}
-            tabIndex={-1}
             className="py-1"
         >
             <Text className="text-sm text-primary">{label}</Text>

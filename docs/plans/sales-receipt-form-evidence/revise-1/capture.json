@@ -1,0 +1,246 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "widths": [
+                390
+            ],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1300
+        },
+        {
+            "name": "./new",
+            "widths": [
+                1280
+            ],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1300
+        },
+        {
+            "name": "filled",
+            "widths": [
+                1280
+            ],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "click": "sales-receipt-read-copy"
+                },
+                {
+                    "waitFor": "sales-receipt-form"
+                },
+                {
+                    "waitFor": "New sales receipt"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "43567"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "filled-phone",
+            "widths": [
+                390
+            ],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 4200,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed sales receipt posted"
+                },
+                {
+                    "clickText": "Seed sales receipt posted"
+                },
+                {
+                    "waitFor": "sales-receipt-read-only"
+                },
+                {
+                    "click": "sales-receipt-read-more"
+                },
+                {
+                    "click": "sales-receipt-read-copy"
+                },
+                {
+                    "waitFor": "sales-receipt-form"
+                },
+                {
+                    "waitFor": "New sales receipt"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "43567"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [
+                1280
+            ],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 1900,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "click": "form-input-payment_method"
+                },
+                {
+                    "clickMenuItem": "Check"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "Check 43567 drawn on First Harbor Bank account 0091"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "sales-receipt-post"
+                },
+                {
+                    "waitFor": "Reference no. can be at most 40 characters"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "errors-phone",
+            "widths": [
+                390
+            ],
+            "url": "/a/books/sales-receipts/new",
+            "ready": "sales-receipt-form",
+            "hideLabels": [
+                "New"
+            ],
+            "height": 4300,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "click": "form-input-payment_method"
+                },
+                {
+                    "clickMenuItem": "Check"
+                },
+                {
+                    "fill": "form-input-reference_no",
+                    "value": "Check 43567 drawn on First Harbor Bank account 0091"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "sales-receipt-post"
+                },
+                {
+                    "waitFor": "Reference no. can be at most 40 characters"
+                },
+                {
+                    "click": "sales-receipt-title"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        }
+    ]
+}

@@ -64,6 +64,10 @@
 - cp 5 · settings-reader 1280: readers see two titled cards with one row each; the reference shows one untitled card with both rows (taste).
 - cp 5 · settings-reader 390: the "Default message to customer" read-only value wraps right-aligned beside its label into short ragged lines (shared `ReadOnlyRow` `multiline` layout; the reference wraps the same way); a long message would read poorly on a phone.
 - cp 5 · reviewer A N6: the hidden-Deposit-to e2e desktop run reads the section-list summary on the phone list (it resizes to 390), so the wide rail's summary is never read by e2e.
+- revise 1 · new-1280, filled-1280, errors-1280: lines grid — the "Tax" column header wraps to "Ta / x" (the open deferral above).
+- revise 1 · new-1280: band — an "Email" label with no input under it when no customer is chosen; the reference draws no Email row then.
+- revise 1 · new-1280: band — the gap between the Sale date row and the payment divider (~40 px) is wider than the gap under the payment row.
+- revise 1 · fix reviewer: the `queryOnce({ query })` call-form change in three Books files has the same behavior; no action.
 - cp 5 · fix reviewer: `tests/e2e/sales-receipt-helpers.ts:146` `openSalesSettings` — the `/books/settings$` wait passes at once when the page is already on the Settings root (e.g. an `afterEach` after a failure right after a nav press), so the rail click could still hit an old hidden row. Optional: wait for the visible Sales row to have count 1 before the click.
 
 ## Out-of-plan changes
@@ -99,6 +103,9 @@
 - cp 5 · `hooks/useSettingsShell.ts` (named file, out-of-plan behavior) — phone Settings Back pops to the list when it is right below, else replaces (the list was in the history twice); pinned by `tests/useSettingsShell.test.tsx`.
 - cp 5 · `tests/e2e/account-register-helpers.ts` — `openChart` back/screen locators visible-only (the resolved test dispute); `tests/e2e/books-report-helpers.ts` — `openBooksMenu` exported; `tests/use-sales-receipt-save.test.ts` (new, fix 3).
 - cp 5 · `docs/plans/sales-receipt-form-evidence/cp5/capture.json` — biome format.
+- revise 1 · core `tinycld/core/ui/forms/FieldCell.tsx` + `core/ui/forms/__tests__/form-layout.test.tsx` (core repo, branch books/p2-sales-receipt) — the human's approved core change: a field's hint draws under its input, above its error.
+- revise 1 · `tinycld/books/forms/document-line-cells.tsx`, `tinycld/books/hooks/useBundleLines.ts`, `tinycld/books/forms/document-fields.tsx` (`queryOnce` calls) — the core `tinycld-pkg check` (app tsconfig, `noImplicitAny: false`) inferred `queryOnce(q => …)` rows as `{}` (14 TS errors); changed to the `queryOnce({ query })` form, same reads. The core tsconfig was not changed.
+- revise 1 · `docs/specs/invoice-form-design.md` — Tab order line (human item 2 applies to the invoice too).
 
 ## Phase notes
 - phase 1: no corrections to the extractions (intake at staging/p2-sales-receipt/intake.md). Design gate 2026-11-11 (revise 1, then approval):
@@ -233,6 +240,12 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
+- eval: revise 1 (2026-11-12, at the merge of origin/main; CI on tinycld/books#39 green: E2E shards 1-4, Typecheck & Unit). Human note: the Reference no. hint draws between the label and the input, so the input sits lower than the Payment method and Deposit to inputs in its row; draw the hint below the field. Human pick: core change, `core/ui/forms/FieldCell.tsx` draws the description under the input, above the error, for every forms-engine field. Open at the gate: Edit address / Edit customer keys or pointer-only; retro items 1-6.
+- revise 1 run (findings `cp5-revise1-fix.md`, 5 items; human item 2, Edit address / Edit customer as Tab stops with no shortcut, added during the run):
+  - test writer: core `form-layout.test.tsx` (hint after the input, before the error, `mt-1`; designer `onPress` cell too); `sales-receipt-form.spec.ts` (Reference no. input top = Payment method trigger top at 1280; Tab Customer → Edit address → Edit customer → Sale date both ways; Space on Edit address), `sales-receipt-form-settings.spec.ts` (edit test's Tab step changed for the new behavior), `invoice-form-lines.spec.ts` (Customer → Edit address → Edit customer → Terms; Enter on Edit customer opens it, Back keeps the 4 lines); 6 red for the right reason.
+  - implementer: `FieldCell` draws `CellDescription` after the input with `mt-1`, before `CellError`; `LinkButton` loses `tabIndex={-1}` and opens on Enter/Space through `onKeyDown` (react-native-web opens a link-role Pressable without href on no key) — declared; both spec Tab order lines updated; `queryOnce` call form (see Out-of-plan) — declared. DONE, no disputes.
+  - gate 1: tests unedited: yes · core `tinycld-pkg check` pass (500 files, 4434 tests) · books `tinycld-pkg check` pass (238 files, 4772 tests) · e2e `-g "sales-receipt-form:"` 10 passed · `invoice-form-draft` + `invoice-form-lines` 10 passed.
+  - gate 2: recaptured new 390/1280, filled 1280, filled-phone 390, errors 1280, errors-phone 390, light and dark (`evidence/revise-1/`) · invalid: none · blocking: none · notes: 3, under Design notes.
+  - fix review: round 1: clean (5 of 5 fixed, 0 BLOCK, 1 NOTE to Design notes).
 - human comments and what changed
 - native: not executed in this run
