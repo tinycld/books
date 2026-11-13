@@ -88,20 +88,22 @@ const SWEEP_GRACE_MS = 5 * 60 * 1000
 // sweep that can post it is the first full hour at or after the later of the
 // start of that day and the moment the entry was posted. Before that the
 // reversal is still on its way and is not an error.
+// Both fields are optional: a row this session just created has no field that
+// the server stamps until the server answers.
 export function autoReversalOverdueAt(entry: {
-    auto_reverse_on: string
-    posted_at: string
+    auto_reverse_on?: string
+    posted_at?: string
 }): number | null {
     if (!entry.auto_reverse_on) return null
     const dayStart = Date.parse(`${entry.auto_reverse_on}T00:00:00Z`)
     if (Number.isNaN(dayStart)) return null
-    const postedAt = new Date(entry.posted_at.replace(' ', 'T')).getTime()
+    const postedAt = new Date((entry.posted_at ?? '').replace(' ', 'T')).getTime()
     const due = Number.isNaN(postedAt) ? dayStart : Math.max(dayStart, postedAt)
     return Math.ceil(due / HOUR_MS) * HOUR_MS + SWEEP_GRACE_MS
 }
 
 export function autoReversalState(
-    entry: { status: string; auto_reverse_on: string; posted_at: string },
+    entry: { status: string; auto_reverse_on?: string; posted_at?: string },
     reversals: readonly { status: string }[],
     nowMs: number
 ): AutoReversalState {
