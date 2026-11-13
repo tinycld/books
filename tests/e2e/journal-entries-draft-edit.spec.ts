@@ -403,13 +403,11 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         await other.getByTestId('entry-save-draft').click()
         await otherSaved
 
-        // This page still shows the two lines it loaded. Its save states the revision it
-        // loaded, so the server refuses the whole batch: no line is deleted, no memo saved.
+        // This page still shows the two lines it loaded. The stored draft moved past the
+        // revision it loaded, so the save is refused: no line is deleted, no memo saved.
         const edited = `${memo} edited`
         await page.getByTestId('entry-memo').fill(edited)
-        const refused = page.waitForResponse(res => res.url().includes('/api/batch'))
         await page.getByTestId('entry-save-draft').click()
-        expect((await refused).status()).toBe(400)
 
         await expect(page.getByTestId('entry-conflict')).toContainText(CONFLICT)
         // What was typed stays on the form.

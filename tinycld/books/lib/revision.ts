@@ -5,6 +5,10 @@
 export const REVISION_CONFLICT_TEXT =
     'This entry changed after you opened it. Load the current entry, then review it before you save or post.'
 
+// For a form that cannot load the draft in place (a new entry whose post was refused).
+export const REVISION_CONFLICT_REOPEN_TEXT =
+    'This entry changed after you opened it. Open it again from Journal Entries, then review it before you save or post.'
+
 // One batch holds 1,100 operations on the server; one of them is the entry update.
 export const MAX_LINE_OPS = 1099
 
@@ -12,6 +16,23 @@ export const MAX_LINE_OPS = 1099
 // puts the failed operation's own status on its error.
 export function isRevisionConflict(error: unknown): boolean {
     return typeof error === 'object' && error !== null && 'status' in error && error.status === 409
+}
+
+// The form's own refusal of a stale save. It has the status of the server's refusal, so
+// every caller shows the two the same way.
+export class RevisionConflictError extends Error {
+    readonly status = 409
+    constructor() {
+        super(REVISION_CONFLICT_TEXT)
+    }
+}
+
+// Refuses a save when the stored draft moved past the revision the form loaded. The
+// server cannot refuse every such save: a save that changes no entry field sends only
+// lines, and a line carries no revision. `stored` is undefined when the store does not
+// hold the row; the server's check is then the only one.
+export function assertRevisionSeen(stored: number | undefined, loaded: number) {
+    if (stored !== undefined && stored !== loaded) throw new RevisionConflictError()
 }
 
 // The line operations of one save, split so each part fits a batch with its entry

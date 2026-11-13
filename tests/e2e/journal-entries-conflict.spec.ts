@@ -98,3 +98,42 @@ for (const [name, size] of [
         await other.context().close()
     })
 }
+
+// The header is not changed here. A save that sends only lines carries no revision, so
+// the form itself must see that the stored draft moved on.
+test('a stale save that changes only amounts is refused and overwrites nothing', async ({
+    page,
+    browser,
+}) => {
+    const memo = uniqueName('Conflict lines only')
+    await openBooks(page)
+    await createDraftEntry(page, {
+        memo,
+        amount: '$100.00',
+        debitAccount: ACCOUNT_LABELS.checking,
+        creditAccount: ACCOUNT_LABELS.equity,
+    })
+    await openDraft(page, memo)
+
+    const other = await secondSession(browser)
+    await openDraft(other, memo)
+    await fillLine(other, 0, { debit: '$200.00' })
+    await fillLine(other, 1, { credit: '$200.00' })
+    const saved = other.waitForResponse(
+        res => res.url().includes('/api/batch') && res.status() === 200
+    )
+    await other.getByTestId('entry-save-draft').click()
+    await saved
+
+    await fillLine(page, 0, { debit: '$300.00' })
+    await fillLine(page, 1, { credit: '$300.00' })
+    await page.getByTestId('entry-save-draft').click()
+    await expect(page.getByTestId('entry-conflict')).toContainText(CONFLICT)
+    await expect(page.getByTestId('entry-line-debit-0')).toHaveValue(/300\.00/)
+
+    // The other session's amounts are still the stored ones.
+    await page.getByTestId('entry-conflict-reload').click()
+    await expect(page.getByTestId('entry-conflict')).toHaveCount(0)
+    await expect(page.getByTestId('entry-line-debit-0')).toHaveValue(/200\.00/)
+    await other.context().close()
+})

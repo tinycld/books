@@ -10,6 +10,7 @@ import {
     planLineWrites,
 } from '../lib/entry-lines'
 import type { EntryFormValues } from '../lib/entry-schema'
+import { assertRevisionSeen } from '../lib/revision'
 import type { BooksJournalEntries } from '../types'
 
 interface EntrySaveProps {
@@ -92,6 +93,7 @@ export function useEntrySave({
             const base = baseline.current
             const isNew = base.entryId === null
             const id = base.entryId ?? newRecordId()
+            if (!isNew) assertRevisionSeen(entriesCollection.get(id)?.revision, base.revision)
             // Every line has its id before the write. A blank line takes the id this
             // hook created for its position, unless the form carries that id elsewhere.
             const carried = new Set(typed.map(line => line.id).filter(Boolean))

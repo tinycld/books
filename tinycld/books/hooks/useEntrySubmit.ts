@@ -195,7 +195,7 @@ export function useEntrySubmit({
     return {
         isPending,
         isConflict,
-        reload: () => onReload?.(),
+        reload: onReload,
         isDiscardOpen,
         saveDraft: submit('draft', 'draft'),
         post: submit('post', 'post'),

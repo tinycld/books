@@ -13,7 +13,7 @@ import {
     type OpeningLine,
 } from '../lib/opening-balances'
 import type { OpeningFormValues } from '../lib/opening-balances-schema'
-import { chunkOps } from '../lib/revision'
+import { assertRevisionSeen, chunkOps } from '../lib/revision'
 import type { OpeningScreen } from './useOpeningBalancesScreen'
 
 function balancingLine(build: OpeningBuild, accountId: string): OpeningLine[] {
@@ -138,6 +138,7 @@ export function useOpeningDraftWrites(screen: OpeningScreen, baseline: { current
         }
 
         if (draft) {
+            assertRevisionSeen(entriesCollection.get(draft.id)?.revision, baseline.current)
             const diff = diffLines(screen.savedLines, nextLines)
             const lineWrites: (() => void)[] = [
                 ...diff.update.map(line => () => {
@@ -197,6 +198,7 @@ export function useOpeningDraftWrites(screen: OpeningScreen, baseline: { current
     }
 
     const postEntry = async (entryId: string) => {
+        assertRevisionSeen(entriesCollection.get(entryId)?.revision, baseline.current)
         const sent = baseline.current + 1
         await performMutations(function* () {
             yield entriesCollection.update(entryId, d => {

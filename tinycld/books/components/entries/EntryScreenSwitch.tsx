@@ -1,5 +1,7 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
+import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { useStore } from '@tinycld/core/lib/pocketbase'
 import { router, useIsFocused } from 'expo-router'
 import { useState } from 'react'
 import { View } from 'react-native'
@@ -134,7 +136,19 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
     // A reload drops the held draft, so the next render takes the stored one, and the
     // new key mounts a new form on it: the old form's typed values go with it.
     const [reloads, setReloads] = useState(0)
-    const reload = () => {
+    const [entriesCollection, linesCollection] = useStore(
+        'books_journal_entries',
+        'books_journal_lines'
+    )
+    // The store can be behind the server (a realtime message that did not arrive), and a
+    // form built from it would be refused again, so the rows are read again first. A
+    // failed read still loads what the store holds.
+    const reload = async () => {
+        try {
+            await Promise.all([entriesCollection.reload(), linesCollection.reload()])
+        } catch (error) {
+            log.error('books.entry', error)
+        }
         setHeld(null)
         setReloads(count => count + 1)
     }
@@ -167,6 +181,9 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
             />
         )
     }
+    // The form is gone, and what it was built from is older than its own saves: the next
+    // form takes the stored draft and its revision.
+    if (held) setHeld(null)
     if (detail.viewState === 'loading') return <LoadingState />
     if (detail.viewState === 'error') return <EntryLoadError onRetry={detail.retry} />
     if (detail.viewState === 'not-found') {
