@@ -45,6 +45,12 @@ An admin can set a **Default message to customer** in Settings → Sales. Each n
 
 Books refuses to post a sales receipt whose total is zero, whose customer is inactive, or whose Deposit to is not an active bank or Undeposited funds account. A refusal about one field shows under that field (the inactive customer under Customer, the Deposit to refusal under Deposit to, or at the top of the form when Deposit to is not shown). Any other refusal, such as the zero total, shows at the top of the form.
 
+## When someone else changed the draft
+
+If another person saves a change to a draft sales receipt while you have changes of your own in it, Books refuses your next Save draft or Post and shows "This sales receipt changed after you opened it." Nothing is saved, and what you typed stays on the screen. To see their changes, choose Load the current sales receipt. This replaces what you typed, so copy anything you want to keep first. Review the sales receipt, then save or post again.
+
+While you have no unsaved change, the form shows the other person's changes as they save them.
+
 ## Edit, void and copy
 
 A posted sales receipt shows the payment in one line, for example "Check · 43567 · deposited to 1200 Undeposited funds".

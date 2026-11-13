@@ -55,6 +55,12 @@ The total cannot be below zero. To give money back to a customer, use a credit m
 
 Books refuses to post into a closed period, an invoice whose customer is inactive, and an invoice whose total is zero. The message shows on the form; the draft that you saved stays.
 
+## When someone else changed the draft
+
+If another person saves a change to a draft invoice while you have changes of your own in it, Books refuses your next Save draft or Post and shows "This invoice changed after you opened it." Nothing is saved, and what you typed stays on the screen. To see their changes, choose Load the current invoice. This replaces what you typed, so copy anything you want to keep first. Review the invoice, then save or post again.
+
+While you have no unsaved change, the form shows the other person's changes as they save them.
+
 ## Edit and void a posted invoice
 
 To change a posted invoice, open it and choose Edit. The form opens as "Edit 1004" with a notice. The original stays posted until you post. When you post, the edit replaces the original under the same number, and the original becomes Void, with a link to the new one.
