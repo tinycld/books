@@ -10,6 +10,7 @@ import {
     field,
     isBundleItemsUrl,
     isRecordUrl,
+    makeProductInactiveElsewhere,
     openBooks,
     openNewProduct,
     openProduct,
@@ -28,8 +29,8 @@ import {
 //
 // Each test creates its items and bundle through the form with `uniqueName` and edits no
 // seeded row. The `Item <n>` root refusal of an edit is tests/use-record-save-rows.test.tsx
-// (case g) and tests/record-save.test.ts. A refusal is a 400 answered through `page.route`,
-// which drives the UI's write and seeds nothing.
+// (case g) and tests/record-save.test.ts. The refused item is the server's own refusal:
+// another tab makes the item's product inactive after the row chose it.
 //
 // Not covered here: read-only users cannot be driven (no read-only Books member is seeded).
 // A user who leaves the new form before an item is refused is not moved to the saved
@@ -211,47 +212,36 @@ test.describe('products-services: bundles', () => {
         await openBooks(page, DESKTOP)
         const item = uniqueName(`Part ${viewportName(page)}`)
         const bundle = `${item} kit`
+        const retired = `${item} retired`
         await createProduct(page, { type: 'service', name: item })
+        await createProduct(page, { type: 'service', name: retired })
 
         // A product may be on two rows.
         await openNewProduct(page, 'bundle')
         await field(page, 'name').fill(bundle)
         await addBundleRow(page, item, '1')
         await addBundleRow(page, item, '2')
+        await addBundleRow(page, retired, '3')
 
-        let posts = 0
-        await page.route(
-            url => isBundleItemsUrl(url),
-            route => {
-                if (route.request().method() !== 'POST') return route.continue()
-                posts += 1
-                if (posts !== 2) return route.continue()
-                return route.fulfill({
-                    status: 400,
-                    contentType: 'application/json',
-                    body: JSON.stringify({
-                        code: 400,
-                        message: 'A bundle holds at most 50 items.',
-                        data: {},
-                    }),
-                })
-            }
-        )
+        // Another tab makes the third row's product inactive after the row chose it (the
+        // picker offers no inactive product), so the server refuses that item
+        // (server/products.go msgItemInactive).
+        const elsewhere = await makeProductInactiveElsewhere(page, retired)
+        await elsewhere.close()
         await page.getByTestId('product-save').click()
 
         await expect(
             refusalToast(
                 page,
-                'The bundle was saved, but an item was not: A bundle holds at most 50 items.'
+                `The bundle was saved, but an item was not: “${retired}” is inactive.`
             )
         ).toBeVisible()
         await expect(page).toHaveURL(SAVED_PRODUCT_URL)
         await expect(page.getByTestId('product-title')).toHaveText('Edit bundle')
         await expect(field(page, 'name')).toHaveValue(bundle)
-        await expect.poll(() => bundleRowNames(page)).toEqual([item])
+        await expect.poll(() => bundleRowNames(page)).toEqual([item, item])
         await expect(discardDialog(page).title).toHaveCount(0)
 
-        await page.unrouteAll({ behavior: 'wait' })
         await page.getByTestId('product-cancel').click()
         await expect(page.getByTestId('products-list')).toBeVisible()
         await searchProducts(page, bundle)
