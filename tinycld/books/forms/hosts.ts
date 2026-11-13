@@ -2,7 +2,13 @@ import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
 import { DOCUMENT_NOTE_LABELS } from '../lib/document-notes'
-import { INVOICE_KIND, SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
+import {
+    PURCHASE_ACCOUNT_LINE_COLUMNS,
+    PURCHASE_ACCOUNT_ROW_KINDS,
+    PURCHASE_ITEM_LINE_COLUMNS,
+    PURCHASE_ITEM_ROW_KINDS,
+} from '../lib/purchase-line-columns'
+import { INVOICE_KIND, MEMO_HINT, SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
@@ -174,6 +180,27 @@ const ESTIMATE_LAYOUT = {
         accepted_date: { width: 'third' },
         message: { description: 'Shown on the estimate and its PDF.' },
         memo: { description: 'Only your team sees this.' },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
+export const BILL_HOST_KEY = 'books:bill'
+
+// The default Bill form (spec §3.3): one page. Vendor and Mailing address share the
+// first row of the header band; Terms, Bill date, Due date and Vendor's bill no. share
+// the second, a quarter each (core draws a quarter as a half below 640 px). Custom
+// fields follow Vendor's bill no.; the account lines, the product lines and the
+// internal memo follow. A bill has no message.
+const BILL_LAYOUT = {
+    pages: [{ key: 'main', title: 'Bill' }],
+    fields: {
+        vendor: { width: 'half' },
+        mailing_address: { width: 'half' },
+        terms: { width: 'quarter' },
+        date: { width: 'quarter' },
+        due_date: { width: 'quarter' },
+        ref_no: { width: 'quarter', description: "The number on the vendor's bill" },
+        memo: { description: MEMO_HINT },
     },
     rules: [],
 } satisfies FormHostDefInput['layout']
@@ -1080,6 +1107,137 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'lines',
         layout: ESTIMATE_LAYOUT,
+    },
+    {
+        key: BILL_HOST_KEY,
+        label: 'Bill',
+        collection: 'books_bills',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column.
+        columns: [
+            'id',
+            'vendor',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'due_date',
+            'terms',
+            'mailing_address',
+            'ref_no',
+            'memo',
+            'subtotal',
+            'total',
+            'currency',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'vendor',
+                label: 'Vendor',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'VendorField',
+                chrome: 'cell',
+            },
+            {
+                key: 'mailing_address',
+                label: 'Mailing address',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'MailingAddressField',
+                chrome: 'cell',
+            },
+            {
+                key: 'terms',
+                label: 'Terms',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DocumentTermsField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Bill date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'due_date',
+                label: 'Due date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                component: 'DueDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'ref_no',
+                label: "Vendor's bill no.",
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'VendorRefField',
+                chrome: 'cell',
+            },
+            // Not required, unlike the sales `lines`: the Bill lines setting hides one
+            // table, and a required built-in cannot be hidden. The bill's schema holds
+            // the post's line-count rule. The server's line guard finds a line's row
+            // kind in either table.
+            {
+                key: 'account_lines',
+                label: 'Account details',
+                kind: 'table',
+                storage: 'rows',
+                required: false,
+                columns: [...PURCHASE_ACCOUNT_LINE_COLUMNS],
+                rowKinds: [...PURCHASE_ACCOUNT_ROW_KINDS],
+                rowShortcuts: true,
+                insertShortcuts: { below: 'Alt+Enter' },
+            },
+            {
+                key: 'item_lines',
+                label: 'Product and service details',
+                kind: 'table',
+                storage: 'rows',
+                required: false,
+                columns: [...PURCHASE_ITEM_LINE_COLUMNS],
+                rowKinds: [...PURCHASE_ITEM_ROW_KINDS],
+                rowShortcuts: true,
+                insertShortcuts: { below: 'Alt+p' },
+            },
+            {
+                key: 'memo',
+                label: DOCUMENT_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'account_lines',
+        layout: BILL_LAYOUT,
     },
 ]
 

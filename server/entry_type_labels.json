@@ -9,7 +9,8 @@
     "docTypes": {
         "transfer": "Transfer",
         "invoice": "Invoice",
-        "sales_receipt": "Sales receipt"
+        "sales_receipt": "Sales receipt",
+        "bill": "Bill"
     },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

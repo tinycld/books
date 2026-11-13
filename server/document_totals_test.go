@@ -112,6 +112,40 @@ func TestDocumentTotals_Vectors(t *testing.T) {
 	}
 }
 
+// A bill's account line carries its typed amount, which may be negative, and
+// adds it to the subtotal as an item adds Qty x Rate; with no tax the total is
+// the subtotal.
+func TestDocumentTotals_AccountLinesAddTheirTypedAmount(t *testing.T) {
+	got := documentTotals([]documentLine{
+		{Kind: "account", Amount: 18745},
+		{Kind: "account", Amount: -3890},
+		{Kind: lineKindItem, Quantity: 3, Rate: 12140},
+		{Kind: lineKindItem, Quantity: 12, Rate: 310},
+	}, nil, nil)
+
+	wantAmounts := []int64{18745, -3890, 36420, 3720}
+	for i, want := range wantAmounts {
+		if !got.HasAmount[i] || got.Amounts[i] != want {
+			t.Errorf("line %d amount = %d (has %v), want %d", i+1, got.Amounts[i], got.HasAmount[i], want)
+		}
+	}
+	if got.Subtotal != 54995 || got.TaxTotal != 0 || got.Total != 54995 || len(got.TaxLines) != 0 {
+		t.Errorf("subtotal %d tax %d total %d tax lines %v, want 54995, 0, 54995 and none",
+			got.Subtotal, got.TaxTotal, got.Total, got.TaxLines)
+	}
+	if got.TooLarge || len(got.PercentTargetErrors) != 0 {
+		t.Errorf("too large %v, percent target errors %v, want neither", got.TooLarge, got.PercentTargetErrors)
+	}
+
+	negative := documentTotals([]documentLine{
+		{Kind: "account", Amount: 1000},
+		{Kind: "account", Amount: -1001},
+	}, nil, nil)
+	if negative.Subtotal != -1 || negative.Total != -1 {
+		t.Errorf("subtotal %d total %d, want -1 each: a negative account line counts in full", negative.Subtotal, negative.Total)
+	}
+}
+
 // The two products round half away from zero and stay exact past int64.
 func TestDocumentTotals_LineAndPercentAmounts(t *testing.T) {
 	for _, tc := range []struct {

@@ -10,8 +10,9 @@ import {
     SALES_RECEIPT_MESSAGES,
 } from './document-texts'
 
-// The memo's hint on a kind that posts: the memo goes on the journal entry.
-const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
+// The memo's hint on a kind that posts: the memo goes on the journal entry. The bill's
+// forms host (forms/hosts.ts) seeds it too.
+export const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
 
 export type SalesDocKey = 'invoice' | 'sales_receipt' | 'estimate'
 

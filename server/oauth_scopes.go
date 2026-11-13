@@ -12,7 +12,8 @@ const (
 // scope only decides whether a token may use a collection at all.
 //
 // The ledger, the customers, the vendors, the products (with their bundle
-// rows), the sales tax agencies, rates and groups, the bank connections, their
+// rows), the sales and purchase documents with their lines, the sales tax
+// agencies, rates and groups, the bank connections, their
 // files and the imports of those files are read-write; a file's parsed rows and
 // the bank transactions, which only the server writes, are read-only. Everything that
 // decides who may do what (the settings with the close date, numbering,
@@ -53,6 +54,8 @@ func oauthPackage() oauth.Package {
 			"books_sales_receipt_tax_lines": ro,
 			"books_estimates":               rw,
 			"books_estimate_lines":          rw,
+			"books_bills":                   rw,
+			"books_bill_lines":              rw,
 			"books_account_balances":        ro,
 			"books_settings":                ro,
 			"books_doc_sequences":           ro,

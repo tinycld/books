@@ -5,7 +5,8 @@ import (
 	"math/big"
 )
 
-// Line amounts and totals of a sales document (an invoice), the server mirror
+// Line amounts and totals of a document of the shared layer (an invoice, a
+// bill), the server mirror
 // of tinycld/books/lib/document-lines.ts. testdata/document_totals.json is run
 // by both sides so the two stay equal.
 //
@@ -15,13 +16,16 @@ import (
 // math/big and rounded half away from zero: 10^8 hundredths x 10^15 cents
 // passes int64 before the division.
 
-// documentLine is one line as the math reads it.
+// documentLine is one line as the math reads it. Amount is read only on an
+// account line, whose amount is typed (a bill's); every other kind's amount
+// is computed.
 type documentLine struct {
 	Kind       string
 	Quantity   float64
 	Rate       int64
 	PercentPpm int64
 	Taxable    bool
+	Amount     int64
 }
 
 // documentTaxLine is the tax of one component of the header rate.
@@ -55,6 +59,7 @@ const (
 	lineKindDescription = "description"
 	lineKindSubtotal    = "subtotal"
 	lineKindPercent     = "percent"
+	lineKindAccount     = "account"
 )
 
 var (
@@ -115,9 +120,10 @@ func percentAmount(ppm, base int64) (int64, bool) {
 	return toInt64(percentAmountBig(ppm, big.NewInt(base)))
 }
 
-// lineAmounts gives each line's amount: an item is Qty x Rate; a subtotal
-// sums the item and percent amounts since the previous subtotal; a percent
-// line takes its percent of the item or subtotal right above it.
+// lineAmounts gives each line's amount: an item is Qty x Rate; an account
+// line is its typed amount (negative allowed); a subtotal sums the item,
+// account and percent amounts since the previous subtotal; a percent line
+// takes its percent of the item or subtotal right above it.
 func lineAmounts(lines []documentLine) ([]*big.Int, []int) {
 	amounts := make([]*big.Int, len(lines))
 	targetErrors := []int{}
@@ -126,6 +132,9 @@ func lineAmounts(lines []documentLine) ([]*big.Int, []int) {
 		switch line.Kind {
 		case lineKindItem:
 			amounts[i] = lineAmountBig(line.Quantity, line.Rate)
+			sinceSubtotal.Add(sinceSubtotal, amounts[i])
+		case lineKindAccount:
+			amounts[i] = big.NewInt(line.Amount)
 			sinceSubtotal.Add(sinceSubtotal, amounts[i])
 		case lineKindSubtotal:
 			amounts[i] = new(big.Int).Set(sinceSubtotal)
@@ -167,7 +176,7 @@ func documentTotals(lines []documentLine, componentPpms []int64, componentIDs []
 		if new(big.Int).Abs(amount).Cmp(maxLine) > 0 {
 			result.TooLarge = true
 		}
-		if lines[i].Kind != lineKindItem && lines[i].Kind != lineKindPercent {
+		if lines[i].Kind != lineKindItem && lines[i].Kind != lineKindPercent && lines[i].Kind != lineKindAccount {
 			continue
 		}
 		subtotal.Add(subtotal, amount)
