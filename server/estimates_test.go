@@ -162,11 +162,17 @@ func requireEstimateNumber(t testing.TB, app core.App, id, number string, sequen
 // estimate. The mark is cleared before the function returns.
 func closeEstimate(t testing.TB, app core.App, id string) {
 	t.Helper()
-	done := markConverting(app, id)
-	defer done()
-	r := reload(t, app, "books_estimates", id)
-	r.Set("status", "closed")
-	if err := app.Save(r); err != nil {
+	err := app.RunInTransaction(func(tx core.App) error {
+		done := markConverting(tx, id)
+		defer done()
+		r, err := tx.FindRecordById("books_estimates", id)
+		if err != nil {
+			return err
+		}
+		r.Set("status", "closed")
+		return tx.Save(r)
+	})
+	if err != nil {
 		t.Fatalf("close the estimate under the converting mark: %v", err)
 	}
 	if got := reload(t, app, "books_estimates", id).GetString("status"); got != "closed" {
@@ -374,11 +380,16 @@ func TestEstimate_DeleteRefusedWhileADraftInvoiceNamesIt(t *testing.T) {
 	ce.convert(t, est, nil)
 	// No person can reopen a closed estimate; the test forces it with a Go save
 	// under the converting mark, so only the naming draft invoice can refuse.
-	done := markConverting(ce.app, est.Id)
-	forced := reload(t, ce.app, "books_estimates", est.Id)
-	forced.Set("status", statusRejected)
-	err := ce.app.Save(forced)
-	done()
+	err := ce.app.RunInTransaction(func(tx core.App) error {
+		done := markConverting(tx, est.Id)
+		defer done()
+		forced, err := tx.FindRecordById("books_estimates", est.Id)
+		if err != nil {
+			return err
+		}
+		forced.Set("status", statusRejected)
+		return tx.Save(forced)
+	})
 	if err != nil {
 		t.Fatalf("force the estimate to rejected: %v", err)
 	}

@@ -189,20 +189,14 @@ func clearAcceptance(r *core.Record) {
 	}
 }
 
-// The app store key of an estimate Books is closing or reopening while it
-// converts it to an invoice, or undoes that.
-func convertingKey(estimateID string) string {
-	return "books.estimate.converting." + estimateID
+// markConverting marks estimateID as written by Books' conversion to an
+// invoice, or the undoing of one, so the estimate guard lets its status move
+// to or from closed; the returned func clears the mark, which belongs to the
+// converting transaction (txmarks.go).
+func markConverting(tx core.App, estimateID string) func() {
+	return setTxMark(tx, docMark(estimateKind, "converting"), estimateID)
 }
 
-// markConverting marks estimateID as written by Books' conversion, so the
-// estimate guard lets its status move to or from closed; the returned func
-// clears the mark. The app store is shared by an app and its transactions.
-func markConverting(app core.App, estimateID string) func() {
-	app.Store().Set(convertingKey(estimateID), true)
-	return func() { app.Store().Remove(convertingKey(estimateID)) }
-}
-
-func isConverting(app core.App, estimateID string) bool {
-	return app.Store().Has(convertingKey(estimateID))
+func isConverting(tx core.App, estimateID string) bool {
+	return hasTxMark(tx, docMark(estimateKind, "converting"), estimateID)
 }

@@ -750,8 +750,14 @@ func TestInvoiceLine_RestatingAllowsOnlyTheAmount(t *testing.T) {
 	ie := newInvoiceEnv(t)
 	inv := ie.mkInvoice(t, nil)
 	line := mkInvoiceLine(t, ie.app, inv, 0, item(ie.service, 1, 45000, false))
-	done := markRestating(ie.app, invoiceKind, inv.Id)
-	defer done()
+	// The mark belongs to a transaction, so each write runs in one that holds it.
+	whileRestating := func(fields map[string]any) error {
+		return ie.app.RunInTransaction(func(tx core.App) error {
+			done := markRestating(tx, invoiceKind, inv.Id)
+			defer done()
+			return setFields(t, tx, "books_invoice_lines", line.Id, fields)
+		})
+	}
 
 	changes := map[string]map[string]any{
 		"quantity":            {"quantity": 2},
@@ -762,7 +768,7 @@ func TestInvoiceLine_RestatingAllowsOnlyTheAmount(t *testing.T) {
 	}
 	for name, fields := range changes {
 		t.Run(name, func(t *testing.T) {
-			err := setFields(t, ie.app, "books_invoice_lines", line.Id, fields)
+			err := whileRestating(fields)
 			if apiErr := apiErrorOf(t, err); apiErr.Status != http.StatusBadRequest {
 				t.Errorf("status = %d, want 400", apiErr.Status)
 			}
@@ -776,7 +782,7 @@ func TestInvoiceLine_RestatingAllowsOnlyTheAmount(t *testing.T) {
 	}
 
 	t.Run("amount only", func(t *testing.T) {
-		if err := setFields(t, ie.app, "books_invoice_lines", line.Id, map[string]any{"amount": 12345}); err != nil {
+		if err := whileRestating(map[string]any{"amount": 12345}); err != nil {
 			t.Fatalf("an amount-only write while restating was refused: %v", err)
 		}
 		if got := reload(t, ie.app, "books_invoice_lines", line.Id).GetInt("amount"); got != 12345 {
