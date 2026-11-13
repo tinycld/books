@@ -175,6 +175,20 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await expect(customer).toContainText(HARBORVIEW)
         await expect(page.getByTestId('form-input-date')).toBeFocused()
 
+        // The Bill to band's links are Tab stops right after Customer, in the order they
+        // draw; the pick above passed over them to the next field (human, revise 1).
+        const editAddress = page.getByTestId('sales-receipt-edit-address')
+        const editCustomer = page.getByTestId('sales-receipt-edit-customer')
+        await page.keyboard.press('Shift+Tab')
+        await expect(editCustomer).toBeFocused()
+        await page.keyboard.press('Shift+Tab')
+        await expect(editAddress).toBeFocused()
+        await page.keyboard.press('Shift+Tab')
+        await expect(customer).toBeFocused()
+        await tabTo(page, editAddress)
+        await tabTo(page, editCustomer)
+        await tabTo(page, page.getByTestId('form-input-date'))
+
         await tabTo(page, page.getByTestId('form-input-date-open'))
         await tabTo(page, page.getByTestId('form-input-tax_rate'))
         await tabTo(page, page.getByTestId('form-input-payment_method'))
@@ -213,6 +227,15 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await expect(page.getByTestId('sales-receipt-title')).toHaveText('New sales receipt')
         await expect(customer).toBeFocused()
         await expect(page.getByTestId('form-input-memo')).toHaveValue('')
+
+        // With no customer only Edit address is offered; Space on it reveals the address
+        // and Email inputs.
+        await expect(editCustomer).toHaveCount(0)
+        await tabTo(page, editAddress)
+        await page.keyboard.press('Space')
+        await expect(page.getByTestId('form-input-bill_to-line1')).toBeVisible()
+        await expect(page.getByTestId('form-input-email')).toBeVisible()
+        await expect(editAddress).toHaveCount(0)
 
         // Escape leaves the clean form; the search palette opens the posted receipt.
         await page.keyboard.press('Escape')
@@ -260,6 +283,8 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/new\\?replaces=${id}$`))
         await expect(page.getByTestId('sales-receipt-title')).toHaveText(`Edit ${number}`)
         await expect(page.getByTestId('form-input-customer')).toBeFocused()
+        await tabTo(page, page.getByTestId('sales-receipt-edit-address'))
+        await tabTo(page, page.getByTestId('sales-receipt-edit-customer'))
         await tabTo(page, page.getByTestId('form-input-date'))
         await tabTo(page, page.getByTestId('form-input-date-open'))
         await tabTo(page, page.getByTestId('form-input-tax_rate'))

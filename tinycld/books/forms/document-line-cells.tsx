@@ -199,12 +199,13 @@ function useProductPick(props: BuiltinFieldProps, noteBundle: NoteBundle) {
         try {
             const product =
                 held ??
-                (await queryOnce(q =>
-                    q
-                        .from({ p: productsCollection })
-                        .where(({ p }) => eq(p.id, id))
-                        .findOne()
-                ))
+                (await queryOnce({
+                    query: q =>
+                        q
+                            .from({ p: productsCollection })
+                            .where(({ p }) => eq(p.id, id))
+                            .findOne(),
+                }))
             if (!product) throw new Error(`product ${id} not found`)
             if (product.type === 'bundle' && table.rowKind === 'item') {
                 await pickBundle(table, id)

@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
-import { openRegister, revealRegisterItem } from './account-register-helpers'
+import { DESKTOP, openRegister, revealRegisterItem } from './account-register-helpers'
 import {
     lineCellTestId,
     localToday,
@@ -115,7 +115,16 @@ test.describe('sales-receipt-form: form and read view', () => {
         page,
     }) => {
         await openBooks(page)
+        await page.setViewportSize(DESKTOP)
         await openNewSalesReceipt(page)
+
+        // Reference no.'s hint draws under its input, so at 1280 the input lines up with
+        // the Payment method trigger in the same row (human, revise 1).
+        const topOf = async (testId: string) =>
+            (await page.getByTestId(testId).boundingBox())?.y ?? Number.NaN
+        const referenceDrop = async () =>
+            (await topOf('form-input-reference_no')) - (await topOf('form-input-payment_method'))
+        await expect.poll(referenceDrop).toBe(0)
 
         // An exempt customer shows the hint, and its pick turns the line's taxable off.
         await pickReceiptCustomer(page, NORTHWIND)

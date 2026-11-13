@@ -20,27 +20,29 @@ export function useBundleLines() {
         'books_products'
     )
     return async (bundleId: string): Promise<BundleItemFill[]> => {
-        const items = await queryOnce(q =>
-            q
-                .from({ item: bundleItemsCollection })
-                .where(({ item }) => eq(item.bundle, bundleId))
-                .orderBy(({ item }) => item.position, 'asc')
-                .select(({ item }) => ({ product: item.product, quantity: item.quantity }))
-        )
+        const items = await queryOnce({
+            query: q =>
+                q
+                    .from({ item: bundleItemsCollection })
+                    .where(({ item }) => eq(item.bundle, bundleId))
+                    .orderBy(({ item }) => item.position, 'asc')
+                    .select(({ item }) => ({ product: item.product, quantity: item.quantity })),
+        })
         const ids = [...new Set(items.map(item => item.product))]
         if (ids.length === 0) return []
-        const products = await queryOnce(q =>
-            q
-                .from({ p: productsCollection })
-                .where(({ p }) => inArray(p.id, ids))
-                .select(({ p }) => ({
-                    id: p.id,
-                    inactive: p.inactive,
-                    sales_description: p.sales_description,
-                    price: p.price,
-                    taxable: p.taxable,
-                }))
-        )
+        const products = await queryOnce({
+            query: q =>
+                q
+                    .from({ p: productsCollection })
+                    .where(({ p }) => inArray(p.id, ids))
+                    .select(({ p }) => ({
+                        id: p.id,
+                        inactive: p.inactive,
+                        sales_description: p.sales_description,
+                        price: p.price,
+                        taxable: p.taxable,
+                    })),
+        })
         const activeById = new Map(
             products.filter(product => !product.inactive).map(product => [product.id, product])
         )
