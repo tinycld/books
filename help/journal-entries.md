@@ -27,6 +27,10 @@ To post an entry, choose Post. The entry gets its number (for example JE-1046) a
 
 To post and start the next entry at once, choose Post & new. On a phone, it is in the More menu.
 
+## When someone else changed the draft
+
+If another person saves a change to a draft while you have it open, Books refuses your next Save draft or Post and shows "This entry changed after you opened it." Nothing is saved, and what you typed stays on the screen. To see their changes, choose Load the current entry. This replaces what you typed, so copy anything you want to keep first. Review the entry, then save or post again.
+
 ## Set an auto-reverse date
 
 To have Books reverse an entry on a later day, type a date in Auto-reverse on. The date must be after the entry date. If the books are closed through a date, the auto-reverse date must also be after that close date. When that day comes, Books posts the reversing entry. The posted entry shows the date it will reverse.

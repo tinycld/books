@@ -29,4 +29,8 @@ If you choose Save draft, the posted balances stay until you post the draft. Cho
 
 In Journal Entries, Edit on this entry opens Opening balances in edit mode, the same as Edit balances.
 
+## When someone else changed the draft
+
+If another person saves a change to the opening balances draft while you have it open, Books refuses your next Save draft or Post and tells you that the opening balances changed. Nothing is saved. Open Opening balances again to see their figures, review them, then save or post.
+
 To see the entry in an account, open the [account register](help://books:account-register). The Type column shows Opening balances.
