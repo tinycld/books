@@ -381,6 +381,7 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 // (the tax-rates contract): a later change to a rate never changes what a
 // posted document charged.
 func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult, taxes []componentTax) error {
+	defer markSnapshotting(tx, kind, doc.Id)()
 	col, err := tx.FindCachedCollectionByNameOrId(kind.TaxLinesCollection)
 	if err != nil {
 		return err
