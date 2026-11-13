@@ -26,7 +26,7 @@ interface EntryFormProps {
     saved?: readonly EntryFormLine[]
     // The saved draft's revision when `initial` was taken, and how to load it again.
     revision?: number
-    onReload?: () => void
+    onReload?: () => Promise<void>
     replaces?: string
     journalNumber?: string
     header(totals: LineTotals): React.ReactNode

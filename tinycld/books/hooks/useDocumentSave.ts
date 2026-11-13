@@ -47,6 +47,8 @@ function saveTexts(kind: SalesDocumentKind) {
         logContext: `books.${kind.key}`,
         notSavedTitle: `${kind.noun} not saved`,
         clientSaveFailed: `Books could not save ${thisNoun}. Try again.`,
+        // The root error of a reload whose read of the stored document failed.
+        reloadFailed: `Books could not load ${thisNoun}. Check your connection, then try again.`,
         // The form's own refusal of a stale save carries the notice's text.
         conflict: documentConflictText(kind.noun, kind.lifecycle),
     }
@@ -307,8 +309,9 @@ type DocumentSaveOptions = {
     // The writer key of the screen mount this form belongs to (useDocumentScreen): a
     // refused post files its written draft under it.
     writer?: string
-    // Loads the stored document again in place of what is typed here (DocumentScreen).
-    onReload?: () => void
+    // Reads the stored document again and mounts a new form on it, in place of what is
+    // typed here (DocumentScreen). It rejects, and mounts nothing, when the read fails.
+    onReload?: () => Promise<void>
 }
 
 const ACCEPTANCE_KEYS = ['accepted_by', 'accepted_date'] as const
@@ -737,13 +740,23 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // Load the current document in place of what is typed here. A new form whose draft
     // is written opens that draft's own route, which reads it from the server; a stored
     // document's screen reads its rows again and mounts a new form (options.onReload).
-    const reload = () => {
-        setConflict(false)
+    // When that read fails, a new form would show the rows the store already holds in
+    // place of what is typed here. So this form stays as it is, with the notice and its
+    // action, and the root error says the document could not be loaded.
+    const reload = async () => {
+        state.form.clearErrors('root')
         if (written) {
+            setConflict(false)
             router.replace(savedHref(written.id, SAVE_DRAFT))
             return
         }
-        options.onReload?.()
+        try {
+            await options.onReload?.()
+            setConflict(false)
+        } catch (error) {
+            log.error(texts.logContext, error, { operation: 'reload' })
+            state.form.setError('root.server', { type: 'client', message: texts.reloadFailed })
+        }
     }
 
     return {

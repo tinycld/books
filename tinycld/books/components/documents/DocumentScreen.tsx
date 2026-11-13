@@ -1,4 +1,3 @@
-import { log } from '@tinycld/core/lib/logger'
 import { useState } from 'react'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
@@ -23,7 +22,8 @@ interface ScreenStateProps {
     tab: DocumentTab
     // Counts the reloads of this screen: each one mounts a new form.
     reloads: number
-    onReload: () => void
+    // Rejects, and mounts no new form, when the stored document cannot be read.
+    onReload: () => Promise<void>
 }
 
 function ScreenState({ data, tab, reloads, onReload }: ScreenStateProps) {
@@ -83,17 +83,11 @@ export function DocumentScreen({
     const [reloads, setReloads] = useState(0)
     // The store can be behind the server (a realtime message that did not arrive), and a
     // form built from it would be refused again, so the rows are read again first. A
-    // failed read still loads what the store holds.
-    const reload = async () => {
-        try {
-            await reloadRows()
-        } catch (error) {
-            log.error(`books.${documentKind.doc.key}`, error)
-        }
+    // failed read rejects before the count moves: the form stays, with what is typed in
+    // it, and shows the failure (useDocumentSave `reload`).
+    const onReload = async () => {
+        await reloadRows()
         setReloads(count => count + 1)
-    }
-    const onReload = () => {
-        void reload()
     }
     return (
         <DocumentKindContext.Provider value={documentKind}>

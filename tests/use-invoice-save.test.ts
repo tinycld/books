@@ -95,6 +95,8 @@ const INACTIVE_CUSTOMER_TEXT = `${HARBORVIEW.display_name} is inactive. Choose a
 const LINE_2_TEXT =
     'Line 2: Wireless access point is inactive. Choose an active product or service.'
 const DUE_DATE_TEXT = `${INVOICE_MESSAGES.dueBeforeDate}.`
+const RELOAD_FAILED_TEXT =
+    'Books could not load this invoice. Check your connection, then try again.'
 const TAX_TEXT = 'Tax rate Denver combined is inactive. Choose an active tax rate.'
 
 function itemLine(id: string, product: string): TableRow {
@@ -511,6 +513,10 @@ describe('useDocumentSave: a stored draft', () => {
 
     type StoredProbeProps = { record: DocumentRecord; stored: Stored; seen: ProbeProps['seen'] }
 
+    // The screen's reload (DocumentScreen): it reads the rows again, then mounts a new
+    // form. A test sets how the read ends.
+    const rowsRead = { reload: async () => {} }
+
     function StoredProbe({ record, stored, seen }: StoredProbeProps) {
         const state = useDocumentForm(INVOICE_DOCUMENT, {
             record,
@@ -519,7 +525,7 @@ describe('useDocumentSave: a stored draft', () => {
             currency: 'USD',
             taxRows: stored.taxRows,
         })
-        const save = useDocumentSave(state)
+        const save = useDocumentSave(state, { onReload: () => rowsRead.reload() })
         seen.current = { form: state.form as unknown as Form, isReady: state.isReady, save }
         return createElement(View, { ref: save.surfaceRef })
     }
@@ -527,6 +533,7 @@ describe('useDocumentSave: a stored draft', () => {
     // `storedRevision` is the revision the store row holds; the form's record starts at
     // DRAFT's (5). They differ when another session's save reached the store.
     async function openStored(storedRevision = DRAFT.revision, stored = EVERY_KIND) {
+        rowsRead.reload = async () => {}
         invoices = guardedStore<BooksInvoices>('books_invoices', [
             { ...DRAFT, revision: storedRevision },
         ])
@@ -615,6 +622,36 @@ describe('useDocumentSave: a stored draft', () => {
 
         await waitFor(() => expect(invoices.get(DRAFT.id)?.revision).toBe(7))
         expect(enteredWrites()).toEqual([firstLineId, DRAFT.id])
+        expect(probe.current().save.isConflict).toBe(false)
+    })
+
+    // A new form on rows that could not be read again would show the stale ones in place
+    // of what was typed, so a failed reload leaves the form as it is and says so.
+    it('keeps the notice and what was typed, and says so, when the reload cannot read the invoice', async () => {
+        const probe = await openStored(6)
+        changeFirstQuantity(probe, 9)
+        await act(async () => {
+            await probe.current().save.saveDraft()
+        })
+        await waitFor(() => expect(probe.current().save.isConflict).toBe(true))
+
+        rowsRead.reload = () => Promise.reject(messageRefusal('The read was refused.'))
+        await act(async () => {
+            await probe.current().save.reload()
+        })
+
+        expect(rootMessage(probe.current().form)).toBe(RELOAD_FAILED_TEXT)
+        expect(probe.current().save.isConflict).toBe(true)
+        const rows = probe.current().form.getValues('lines') as TableRow[]
+        expect(rows[0].quantity).toBe(9)
+        expect(logged.error.mock.calls.map(call => call[0])).toContain('books.invoice')
+
+        // The read works again: the message and the notice go.
+        rowsRead.reload = async () => {}
+        await act(async () => {
+            await probe.current().save.reload()
+        })
+        expect(rootMessage(probe.current().form)).toBeUndefined()
         expect(probe.current().save.isConflict).toBe(false)
     })
 
