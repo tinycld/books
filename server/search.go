@@ -13,7 +13,7 @@ import (
 )
 
 // searchSource contributes accounts, journal entries, customers, vendors,
-// products and invoices to core's federated /api/search. Each kind is read from its FTS5
+// products, invoices and sales receipts to core's federated /api/search. Each kind is read from its FTS5
 // index (server/search_index.go). Rows are shaped here so the palette and the
 // CLI show the same thing; the client adapter
 // (tinycld/books/search-adapter.ts) only navigates.
@@ -74,12 +74,16 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	invoices, invoiceTotal, err := searchInvoices(ctx, app, q.Include, q.Exclude, window)
+	invoices, invoiceTotal, err := searchSalesDocs(ctx, app, invoiceSearch, q.Include, q.Exclude, window)
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products, invoices)
-	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal
+	receipts, receiptTotal, err := searchSalesDocs(ctx, app, salesReceiptSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts)
+	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -325,7 +329,7 @@ func searchProducts(ctx context.Context, app core.App, match string, window int)
 	return rows, total, nil
 }
 
-type invoiceHit struct {
+type salesDocHit struct {
 	ID           string `db:"id"`
 	Number       string `db:"number"`
 	Memo         string `db:"memo"`
@@ -334,22 +338,40 @@ type invoiceHit struct {
 	CustomerName string `db:"customer_name"`
 }
 
-// invoiceTermMatch is true when one query word matches an invoice's own index
-// row (number, memo, message) or its customer's (display name, company,
-// email). Reading the customer's row at query time lets a renamed customer
-// find its invoices with no reindex.
-const invoiceTermMatch = `(c.id IN (SELECT record_id FROM ` + invoicesIndex + ` WHERE ` + invoicesIndex + ` MATCH {:%[1]s})
+// salesDocSearch is one kind of sales document as a search source: its
+// table, its FTS5 index, its doc type (for the title's nouns) and its row id
+// prefix and kind (what the client adapter opens).
+type salesDocSearch struct {
+	table, index, docType, kind string
+}
+
+var invoiceSearch = salesDocSearch{
+	table: "books_invoices", index: invoicesIndex, docType: docTypeInvoice, kind: "invoice",
+}
+
+var salesReceiptSearch = salesDocSearch{
+	table: "books_sales_receipts", index: salesReceiptsIndex, docType: docTypeSalesReceipt, kind: "sales_receipt",
+}
+
+// salesDocTermMatch is true when one query word matches a document's own
+// index row (number, memo, message; a sales receipt's reference no. too) or
+// its customer's (display name, company, email). Reading the customer's row at
+// query time lets a renamed customer find its documents with no reindex. %[1]s
+// is the bound word, %[2]s the document's index.
+const salesDocTermMatch = `(c.id IN (SELECT record_id FROM %[2]s WHERE %[2]s MATCH {:%[1]s})
 	OR c.customer IN (SELECT record_id FROM ` + customersIndex + ` WHERE ` + customersIndex + ` MATCH {:%[1]s}))`
 
-// invoicesFrom builds the FROM and WHERE of an invoice search. The words are
+// from builds the FROM and WHERE of a sales document search. The words are
 // matched one by one and ANDed, so "Harborview 1003" finds invoice 1003 of
 // Harborview although its number and the customer's name are in two index
 // rows; each word is a prefix term, as in every other source. An excluded
-// word drops an invoice when it matches either row. Drafts are included:
-// search is how a person reopens a draft (spec Q13). A void invoice stays
-// findable, as a void entry does. Only the bound words vary; every
-// identifier is a constant of this file.
-func invoicesFrom(include, exclude []string) (string, dbx.Params) {
+// word drops a document when it matches either row. Drafts are included:
+// search is how a person reopens a draft (spec Q13). A void document stays
+// findable, as a void entry does. The customer is a LEFT JOIN: a sales
+// receipt may have none (an invoice always has one, so its rows are the same
+// as an inner join's). Only the bound words vary; every identifier is a
+// constant of this file.
+func (s salesDocSearch) from(include, exclude []string) (string, dbx.Params) {
 	params := dbx.Params{}
 	var conds []string
 	add := func(prefix string, words []string, negate bool) {
@@ -360,7 +382,7 @@ func invoicesFrom(include, exclude []string) (string, dbx.Params) {
 			}
 			name := fmt.Sprintf("%s%d", prefix, len(params))
 			params[name] = term
-			cond := fmt.Sprintf(invoiceTermMatch, name)
+			cond := fmt.Sprintf(salesDocTermMatch, name, s.index)
 			if negate {
 				cond = "NOT " + cond
 			}
@@ -369,7 +391,7 @@ func invoicesFrom(include, exclude []string) (string, dbx.Params) {
 	}
 	add("t", queryWords(include), false)
 	add("x", queryWords(exclude), true)
-	from := ` FROM books_invoices c JOIN books_customers cu ON cu.id = c.customer WHERE ` + strings.Join(conds, " AND ")
+	from := ` FROM ` + s.table + ` c LEFT JOIN books_customers cu ON cu.id = c.customer WHERE ` + strings.Join(conds, " AND ")
 	return from, params
 }
 
@@ -379,32 +401,37 @@ func queryWords(parts []string) []string {
 	return strings.Fields(strings.Join(parts, " "))
 }
 
-// searchInvoices counts every invoice hit and returns the first window of
-// them, newest first, as entries are ordered. The caller has checked that the
+// searchSalesDocs counts every hit of one sales document kind and returns the
+// first window of them, newest first, as entries are ordered. The title is
+// "Invoice 1003 · Customer" / "Draft sales receipt · Customer", with no
+// "· Customer" when the document has none. The caller has checked that the
 // include words leave FTS5 a term, so the WHERE is never empty.
-func searchInvoices(ctx context.Context, app core.App, include, exclude []string, window int) ([]search.Row, int, error) {
-	from, params := invoicesFrom(include, exclude)
+func searchSalesDocs(ctx context.Context, app core.App, s salesDocSearch, include, exclude []string, window int) ([]search.Row, int, error) {
+	from, params := s.from(include, exclude)
 	var total int
 	if err := app.DB().NewQuery("SELECT COUNT(*)" + from).WithContext(ctx).
 		Bind(params).Row(&total); err != nil {
-		return nil, 0, fmt.Errorf("books: count books_invoices hits: %w", err)
+		return nil, 0, fmt.Errorf("books: count %s hits: %w", s.table, err)
 	}
 	params["window"] = window
-	var hits []invoiceHit
-	if err := app.DB().NewQuery("SELECT c.id, c.number, c.memo, c.date, c.status, cu.display_name AS customer_name" +
+	var hits []salesDocHit
+	if err := app.DB().NewQuery("SELECT c.id, c.number, c.memo, c.date, c.status, COALESCE(cu.display_name, '') AS customer_name" +
 		from + " ORDER BY c.date DESC, c.id LIMIT {:window}").
 		WithContext(ctx).Bind(params).All(&hits); err != nil {
-		return nil, 0, fmt.Errorf("books: search books_invoices: %w", err)
+		return nil, 0, fmt.Errorf("books: search %s: %w", s.table, err)
 	}
 	rows := make([]search.Row, 0, len(hits))
 	for _, h := range hits {
-		title := entryHitTitle(entryHit{Number: h.Number, Status: h.Status, DocType: docTypeInvoice})
+		title := entryHitTitle(entryHit{Number: h.Number, Status: h.Status, DocType: s.docType})
+		if h.CustomerName != "" {
+			title += " · " + h.CustomerName
+		}
 		rows = append(rows, search.Row{
-			ID:       "invoice:" + h.ID,
-			Title:    title + " · " + h.CustomerName,
+			ID:       s.kind + ":" + h.ID,
+			Title:    title,
 			Subtitle: h.Memo,
 			Meta:     h.Date,
-			Fields:   map[string]any{"kind": "invoice", "status": h.Status},
+			Fields:   map[string]any{"kind": s.kind, "status": h.Status},
 		})
 	}
 	return rows, total, nil

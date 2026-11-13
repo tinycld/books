@@ -308,7 +308,24 @@ test.describe('invoice-form: lines', () => {
         await expect(customer).toContainText('Harborview')
         await expect(page.getByTestId('form-input-terms')).toBeFocused()
 
-        // Tab order through the header: Bill to, Email and the totals are skipped. Each
+        // The pick passed over the Bill to band's links; they are Tab stops right after
+        // Customer, in the order they draw (human, revise 1).
+        const editAddress = page.getByTestId('invoice-edit-address')
+        const editCustomer = page.getByTestId('invoice-edit-customer')
+        await page.keyboard.press('Shift+Tab')
+        await expect(editCustomer).toBeFocused()
+        await page.keyboard.press('Shift+Tab')
+        await expect(editAddress).toBeFocused()
+        await page.keyboard.press('Shift+Tab')
+        await expect(customer).toBeFocused()
+        await page.keyboard.press('Tab')
+        await expect(editAddress).toBeFocused()
+        await page.keyboard.press('Tab')
+        await expect(editCustomer).toBeFocused()
+        await page.keyboard.press('Tab')
+        await expect(page.getByTestId('form-input-terms')).toBeFocused()
+
+        // Tab order through the header: the address text, Email and the totals are skipped. Each
         // date field's calendar button stays a Tab stop right after its own input, so the
         // calendar is reachable from the keyboard (spec §3.1).
         await page.keyboard.press('Tab')
@@ -430,6 +447,22 @@ test.describe('invoice-form: lines', () => {
         ]) {
             await expect(lines.getByText(label, { exact: true })).toBeVisible()
         }
+
+        // Enter on a focused Edit customer opens the customer; Back returns to the
+        // unsaved invoice with its lines.
+        await page.keyboard.press('Escape')
+        await expect(list).toHaveCount(0)
+        await customer.focus()
+        await page.keyboard.press('Tab')
+        await page.keyboard.press('Tab')
+        await expect(editCustomer).toBeFocused()
+        await page.keyboard.press('Enter')
+        await expect(page).toHaveURL(/\/books\/customers\/(?!new$)[^/?#]+$/)
+        await expect(page.getByTestId('form-input-display_name')).toHaveValue(seededCustomer())
+        await page.goBack()
+        await expect(page).toHaveURL(NEW_INVOICE_URL)
+        await expect(customer).toContainText('Harborview')
+        await expect(lineRows(page)).toHaveCount(4)
     })
 
     test('the row menu works on phone cards', async ({ page }) => {

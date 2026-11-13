@@ -179,7 +179,7 @@ func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 
 func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	app := newBooksApp(t)
-	want := []string{"journal", "transfer", "invoice"}
+	want := []string{"journal", "transfer", "invoice", "sales_receipt"}
 	for _, name := range []string{"books_journal_entries", "books_doc_sequences"} {
 		col, err := app.FindCollectionByNameOrId(name)
 		if err != nil {

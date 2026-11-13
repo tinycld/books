@@ -24,6 +24,8 @@ export const COMPANY_SETTINGS = {
     email: 'books@hartwell.example',
     website: 'https://www.hartwell.example',
     threshold_1099: 200000,
+    sales_deposit_account: '',
+    default_customer_message: '',
     created: STAMP,
     updated: STAMP,
 } satisfies BooksSettings

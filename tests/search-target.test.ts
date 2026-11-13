@@ -51,6 +51,13 @@ describe('searchTarget', () => {
         })
     })
 
+    it('routes a sales receipt hit to the sales receipt screen', () => {
+        expect(searchTarget('sales_receipt:abc')).toEqual({
+            path: 'books/sales-receipts/[id]',
+            id: 'abc',
+        })
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('quote:1')).toBeNull()
         expect(searchTarget('invoice:')).toBeNull()

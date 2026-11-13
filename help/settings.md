@@ -1,7 +1,7 @@
 ---
 title: Settings
-summary: Company details, the close date and overrides, document numbering, 1099s, and who can open Books.
-tags: [settings, close date, override, numbering, 1099s, access]
+summary: Company details, the close date and overrides, sales deposits and the default message, document numbering, 1099s, and who can open Books.
+tags: [settings, close date, override, sales, default message, numbering, 1099s, access]
 order: 20
 ---
 
@@ -16,6 +16,15 @@ To change company details, open Settings and choose Company. Enter the legal bus
 ## Fiscal year
 
 To change the month the fiscal year starts, open Settings, choose Accounting, pick the month and press Save.
+
+## Sales
+
+To set how sales receipts deposit and the message new documents start with, open Settings and choose Sales. Everyone with Books access sees the section; only a Books admin can change it. The section has two cards, each with its own Save button:
+
+- Sales receipts: **Sales deposited to**. With Ask (the default), each sales receipt shows Deposit to and you pick the account there. Choose a bank account or an Undeposited funds account to hide Deposit to and deposit every sale to that account. While an account is chosen, Books does not let you make it inactive, delete it, or change it to a type that cannot take deposits.
+- Invoices and sales receipts: **Default message to customer**, at most 4000 characters. New invoices and sales receipts start with this message, and you can change it on each one. A change does not touch documents that you already made.
+
+For more, see [Sales receipts](help://books:sales-receipts).
 
 ## Numbering
 

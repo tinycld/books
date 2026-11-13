@@ -1,14 +1,14 @@
 import type { TableRowWrite, TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { describe, expect, it } from 'vitest'
+import { DOCUMENT_LINE_MAPPER } from '../tinycld/books/lib/document-line-columns'
+import { documentLineWriteSteps } from '../tinycld/books/lib/document-line-order'
 import {
     type DocumentLineInput,
     type DocumentTax,
     documentTotals,
     MAX_DOCUMENT_LINES,
 } from '../tinycld/books/lib/document-lines'
-import { invoiceLineWriteSteps } from '../tinycld/books/lib/invoice-line-order'
-import { INVOICE_LINE_MAPPER } from '../tinycld/books/lib/invoice-lines'
 import { maxStoredAmount } from '../tinycld/books/lib/money-text'
 
 // A stored invoice line, as the server holds it between two writes.
@@ -61,7 +61,7 @@ const description = (id: string): TableRow => ({
 
 // The stored line a row write leaves on the server.
 function storedOf(row: TableRow, position: number): Stored {
-    const record = INVOICE_LINE_MAPPER.toRecord(row, position)
+    const record = DOCUMENT_LINE_MAPPER.toRecord(row, position)
     return {
         id: row.id,
         kind: record.kind,
@@ -73,8 +73,8 @@ function storedOf(row: TableRow, position: number): Stored {
     }
 }
 
-// What the server refuses about a whole stored invoice (server/invoices.go
-// checkInvoiceTotals and the line count), read through documentTotals. Lines are in
+// What the server refuses about a whole stored invoice (server/sales_documents.go
+// checkSalesDocTotals and the line count), read through documentTotals. Lines are in
 // the server's order: position, then id.
 function refusalOf(store: ReadonlyMap<string, Stored>): string | null {
     if (store.size > MAX_DOCUMENT_LINES) return 'more than 250 lines'
@@ -134,7 +134,7 @@ function server(initial: readonly Stored[]) {
 // Runs the module's order against a fresh fake server.
 function runOrdered(stored: readonly Stored[], plan: TableWritePlan) {
     const fake = server(stored)
-    const steps = invoiceLineWriteSteps({ storedLines: stored, plan, tax: TAX, ops: fake.ops })
+    const steps = documentLineWriteSteps({ storedLines: stored, plan, tax: TAX, ops: fake.ops })
     const ran = steps.map(step => step.run())
     return { ...fake, ran }
 }
@@ -290,7 +290,7 @@ describe('invoiceLineWriteSteps', () => {
         const b = item('b', 1, '20.00')
         const stored = storedRows([a, b])
         const fake = server(stored)
-        const steps = invoiceLineWriteSteps({
+        const steps = documentLineWriteSteps({
             storedLines: stored,
             plan: {
                 insert: [{ row: item('c', 1, '5.00'), position: 1 }],

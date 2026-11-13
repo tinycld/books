@@ -99,7 +99,7 @@ test.describe('invoice-form: post and read', () => {
         // Revise 1 item 4: the read view names the two notes as the form does.
         const messageDetail = page.getByTestId('invoice-detail-message')
         await expect(
-            messageDetail.getByText('Message to customer (prints on invoice)', { exact: true })
+            messageDetail.getByText('Message to customer (printed)', { exact: true })
         ).toBeVisible()
         await expect(messageDetail.getByText(message, { exact: true })).toBeVisible()
         const memoDetail = page.getByTestId('invoice-detail-memo')

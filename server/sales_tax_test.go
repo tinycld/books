@@ -691,12 +691,16 @@ func TestTaxRate_InactiveRefusals(t *testing.T) {
 }
 
 // Later units append their document tax columns; the list starts with the
-// groups' rates, then the invoice's header rate and its tax lines' components.
+// groups' rates, then each sales document's header rate and its tax lines'
+// components (invoice, sales receipt).
 func TestTaxRateReferences_StartWithGroupComponents(t *testing.T) {
-	if len(taxRateReferences) != 3 {
-		t.Fatalf("taxRateReferences has %d entries, want 3", len(taxRateReferences))
+	if len(taxRateReferences) != 5 {
+		t.Fatalf("taxRateReferences has %d entries, want 5", len(taxRateReferences))
 	}
-	for _, want := range [][2]string{{"books_invoices", "tax_rate"}, {"books_invoice_tax_lines", "component"}} {
+	for _, want := range [][2]string{
+		{"books_invoices", "tax_rate"}, {"books_invoice_tax_lines", "component"},
+		{"books_sales_receipts", "tax_rate"}, {"books_sales_receipt_tax_lines", "component"},
+	} {
 		found := false
 		for _, ref := range taxRateReferences[1:] {
 			if ref.collection == want[0] && ref.field == want[1] && !ref.multiple && ref.message != nil {
@@ -757,5 +761,33 @@ func TestTaxRate_DeleteRefusedWhileOnInvoices(t *testing.T) {
 		if err := deleteTaxRate(t, app, unused); err != nil {
 			t.Fatalf("delete a rate on no invoice: %v", err)
 		}
+	})
+}
+
+// Spec §3.10: a rate on a sales receipt, or a component rate named only by a
+// posted sales receipt's tax line, cannot be deleted.
+func TestTaxRate_DeleteRefusedWhileOnSalesReceipts(t *testing.T) {
+	const wantOnReceipts = "This tax rate is on sales receipts. Make it inactive instead."
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	undeposited := mkNumberedAccount(t, app, "Undeposited funds", "1200", "other_current_asset", "undeposited_funds")
+
+	t.Run("a rate on a draft sales receipt", func(t *testing.T) {
+		boulder := mkTaxRate(t, app, "Boulder city", 38600, agency)
+		mkReceiptRow(t, app, undeposited, map[string]any{"tax_rate": boulder.Id})
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, boulder), wantOnReceipts)
+		requireStillThere(t, app, "books_tax_rates", boulder)
+	})
+
+	t.Run("a component named only by a posted sales receipt's tax line", func(t *testing.T) {
+		header := mkTaxRate(t, app, "Aurora city", 37500, agency)
+		component := mkTaxRate(t, app, "Old county", 5000, agency)
+		r := mkReceiptRow(t, app, undeposited, map[string]any{"status": "posted", "number": "1001", "tax_rate": header.Id})
+		saveRecord(t, app, "books_sales_receipt_tax_lines", map[string]any{
+			"sales_receipt": r.Id, "rate": header.Id, "component": component.Id, "agency": agency.Id,
+			"rate_ppm": 5000, "taxable_amount": 10000, "amount": 50, "position": 0,
+		})
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, component), wantOnReceipts)
+		requireStillThere(t, app, "books_tax_rates", component)
 	})
 }

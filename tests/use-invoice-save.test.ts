@@ -10,13 +10,15 @@ import { createElement, type Provider } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { View } from 'react-native'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { INVOICE_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
 import hosts, { INVOICE_HOST_KEY } from '../tinycld/books/forms/hosts'
-import { useInvoiceForm } from '../tinycld/books/hooks/useInvoiceForm'
-import { postAndNewHref, useInvoiceSave } from '../tinycld/books/hooks/useInvoiceSave'
+import { useDocumentForm } from '../tinycld/books/hooks/useDocumentForm'
+import { postAndNewHref, useDocumentSave } from '../tinycld/books/hooks/useDocumentSave'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
-import { INVOICE_MESSAGES } from '../tinycld/books/lib/invoice-messages'
+import { INVOICE_MESSAGES } from '../tinycld/books/lib/document-messages'
 import { PRODUCT_IDS } from '../tinycld/books/lib/products-services-fixture'
-import { useInvoiceSaveStore } from '../tinycld/books/stores/invoice-save-store'
+import { INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import { useDocumentSaveStore } from '../tinycld/books/stores/document-save-store'
 import type { BooksInvoiceLines, BooksInvoices } from '../tinycld/books/types'
 import {
     enteredWrites,
@@ -105,7 +107,7 @@ type Form = UseFormReturn<Record<string, unknown>>
 type Seen = {
     form: Form
     isReady: boolean
-    save: ReturnType<typeof useInvoiceSave>
+    save: ReturnType<typeof useDocumentSave>
 }
 
 type ProbeProps = {
@@ -117,14 +119,14 @@ type ProbeProps = {
 // The new invoice form as the screen builds it (`?customer` gives it a customer), and its
 // save. The surface view is what the save's presence check reads.
 function Probe({ customer, seen }: ProbeProps) {
-    const state = useInvoiceForm({
-        invoice: undefined,
+    const state = useDocumentForm(INVOICE_DOCUMENT, {
+        record: undefined,
         lines: [],
         customer,
         currency: 'USD',
         taxRows: [],
     })
-    const save = useInvoiceSave(state)
+    const save = useDocumentSave(state)
     seen.current = { form: state.form as unknown as Form, isReady: state.isReady, save }
     return createElement(View, { ref: save.surfaceRef })
 }
@@ -224,7 +226,7 @@ beforeEach(() => {
     seedFormRecords([invoiceHost])
     invoices = guardedStore<BooksInvoices>('books_invoices', [])
     lines = guardedStore<BooksInvoiceLines>('books_invoice_lines', [])
-    useInvoiceSaveStore.setState({ heldId: null })
+    useDocumentSaveStore.setState({ heldId: null })
     vi.mocked(router.replace).mockClear()
 })
 
@@ -267,7 +269,7 @@ describe('useInvoiceSave post: write order and hold', () => {
                 heldAtChange.push({
                     key: String(change.key),
                     status: change.value?.status,
-                    heldId: useInvoiceSaveStore.getState().heldId,
+                    heldId: useDocumentSaveStore.getState().heldId,
                 })
             }
         })
@@ -279,16 +281,16 @@ describe('useInvoiceSave post: write order and hold', () => {
         expect(heldAtChange[0]).toEqual({ key: id, status: 'draft', heldId: id })
         steps.next()
         await waitFor(() => expect(enteredWrites()).toHaveLength(2))
-        expect(useInvoiceSaveStore.getState().heldId).toBe(id)
+        expect(useDocumentSaveStore.getState().heldId).toBe(id)
         steps.next()
         await waitFor(() => expect(enteredWrites()).toHaveLength(3))
-        expect(useInvoiceSaveStore.getState().heldId).toBe(id)
+        expect(useDocumentSaveStore.getState().heldId).toBe(id)
         const posted = heldAtChange.find(c => c.status === 'posted')
         expect(posted).toEqual({ key: id, status: 'posted', heldId: id })
         steps.next()
         steps.stop()
 
-        await waitFor(() => expect(useInvoiceSaveStore.getState().heldId).toBeNull())
+        await waitFor(() => expect(useDocumentSaveStore.getState().heldId).toBeNull())
         expect(invoices.get(id)?.status).toBe('posted')
         subscription.unsubscribe()
     })
@@ -304,7 +306,7 @@ describe('useInvoiceSave post: write order and hold', () => {
         )
         expect(enteredWrites()).toEqual([])
         expect(invoices.toArray).toEqual([])
-        expect(useInvoiceSaveStore.getState().heldId).toBeNull()
+        expect(useDocumentSaveStore.getState().heldId).toBeNull()
     })
 })
 
@@ -362,7 +364,7 @@ describe('useInvoiceSave post: a refused status write', () => {
             expect(lines.toArray.map(l => l.id)).toEqual(refusal.rows.map(r => r.id))
             if (refusal.field !== 'root') expect(rootMessage(form)).toBeUndefined()
             if (refusal.field !== 'customer') expect(messageAt(form, 'customer')).toBeUndefined()
-            expect(useInvoiceSaveStore.getState().heldId).toBeNull()
+            expect(useDocumentSaveStore.getState().heldId).toBeNull()
         })
     }
 
@@ -400,7 +402,9 @@ describe('useInvoiceSave post & new', () => {
         expect(String(href)).toMatch(
             new RegExp(`/books/invoices/new\\?fresh=[^&]+&customer=${HARBORVIEW.id}$`)
         )
-        expect(withoutNonce(href)).toBe(withoutNonce(appHref(postAndNewHref(HARBORVIEW.id))))
+        expect(withoutNonce(href)).toBe(
+            withoutNonce(appHref(postAndNewHref(INVOICE_KIND, HARBORVIEW.id)))
+        )
         expect(invoices.get(insertedInvoiceId())?.status).toBe('posted')
     })
 
@@ -414,6 +418,8 @@ describe('useInvoiceSave post & new', () => {
         const href = lastReplace()
         expect(String(href)).toMatch(/\/books\/invoices\/new\?fresh=[^&]+$/)
         expect(String(href)).not.toContain('customer')
-        expect(withoutNonce(href)).toBe(withoutNonce(appHref(postAndNewHref(undefined))))
+        expect(withoutNonce(href)).toBe(
+            withoutNonce(appHref(postAndNewHref(INVOICE_KIND, undefined)))
+        )
     })
 })

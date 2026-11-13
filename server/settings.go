@@ -1,6 +1,8 @@
 package books
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -65,6 +67,15 @@ func registerSettingsGuard(app core.App) {
 					return err
 				}
 			}
+			// Checked only when it changes, as the close date: an account set
+			// earlier that a direct write made inactive does not block an edit
+			// of another setting.
+			depositAccount := e.Record.GetString("sales_deposit_account")
+			if depositAccount != stored.GetString("sales_deposit_account") {
+				if err := checkSalesDepositSetting(tx, depositAccount); err != nil {
+					return err
+				}
+			}
 			completing = !stored.GetBool("setup_completed") && e.Record.GetBool("setup_completed")
 			return nil
 		}, func(tx core.App) error {
@@ -81,6 +92,30 @@ func registerSettingsGuard(app core.App) {
 	app.OnRecordDelete("books_settings").BindFunc(func(e *core.RecordEvent) error {
 		return refuse("Books settings cannot be deleted.")
 	})
+}
+
+// msgSalesDepositSetting refuses a "Sales deposited to" account that a sale
+// cannot be deposited to, keyed to sales_deposit_account.
+const msgSalesDepositSetting = "Choose Ask or an active bank or Undeposited funds account"
+
+// checkSalesDepositSetting validates a new "Sales deposited to": empty (Ask),
+// or an account that exists and passes isDepositAccount. It runs before
+// PocketBase's own relation check, so a missing account gets this text too.
+func checkSalesDepositSetting(tx core.App, id string) error {
+	if id == "" {
+		return nil
+	}
+	account, err := tx.FindRecordById("books_accounts", id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return refuseField("sales_deposit_account", msgSalesDepositSetting)
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the sales deposit account: %w", err)
+	}
+	if !isDepositAccount(account) {
+		return refuseField("sales_deposit_account", msgSalesDepositSetting)
+	}
+	return nil
 }
 
 // checkCloseDate validates a new close date. Empty means no period is closed.

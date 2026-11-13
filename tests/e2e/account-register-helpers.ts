@@ -53,17 +53,19 @@ async function revealInactive(page: Page) {
 // Opens the Chart of Accounts: from a register through its back link, on a
 // phone through the Lists card, on desktop through the Books sidebar.
 export async function openChart(page: Page) {
-    const back = page.getByTestId('register-back')
+    // Only the visible screen's links count: the stack keeps screens a later one was
+    // pushed over mounted but hidden, each with its own back link.
+    const back = page.getByTestId('register-back').filter({ visible: true })
     const landing = isPhone(page)
         ? page.getByTestId('books-list-card-accounts')
         : page.getByTestId('books-nav-accounting-toggle')
     // A fresh page restores the last route (lastPackageHref), which can be an entry screen
     // that has neither a register back link nor the hub card on a phone.
-    const entryBack = page.getByTestId('entry-back')
+    const entryBack = page.getByTestId('entry-back').filter({ visible: true })
     await entryBack.or(back).or(landing).first().waitFor({ state: 'attached' })
     if (await entryBack.isVisible()) {
         await entryBack.click()
-        const list = page.getByTestId('entries-screen')
+        const list = page.getByTestId('entries-screen').filter({ visible: true })
         await back.or(landing).or(list).first().waitFor({ state: 'attached' })
         // On a phone the entries list has no way up to the Lists hub, and the tab bar restores
         // the last route, so route to the hub in-app (no page load) the way the not-found spec does.

@@ -3,6 +3,7 @@ package books
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -135,16 +136,18 @@ func checkNewEntry(r *core.Record) error {
 	if r.GetString("doc_type") == docTypeTransfer && r.GetString("origin") == originOpeningBalance {
 		return refuse("An opening balance entry cannot be a transfer.")
 	}
-	// An invoice's entry comes from posting the invoice (origin document) or
-	// reverses such an entry; posting checks that a reversal has the doc type
-	// of the entry it reverses. A manual one would take an invoice number.
-	if r.GetString("doc_type") == docTypeInvoice && !isInvoiceEntryOrigin(r.GetString("origin")) {
-		return refuse("An invoice entry comes only from posting its invoice.")
+	// A sales document's entry comes from posting the document (origin
+	// document) or reverses such an entry; posting checks that a reversal has
+	// the doc type of the entry it reverses. A manual one would take a number
+	// from the document's sequence.
+	docType := r.GetString("doc_type")
+	if documentDocTypes[docType] && !isDocumentEntryOrigin(r.GetString("origin")) {
+		return refuse("%s", documentEntryFromPostText(docType))
 	}
-	// A document's entry is an invoice's (the one document type that posts so
-	// far) and names it; no other entry names a document.
+	// A document's entry is a sales document's and names it; no other entry
+	// names a document.
 	if r.GetString("origin") == originDocument {
-		if r.GetString("doc_type") != docTypeInvoice || r.GetString("document") == "" {
+		if !documentDocTypes[docType] || r.GetString("document") == "" {
 			return refuse(msgDocumentEntryNeedsLink)
 		}
 	} else if r.GetString("document") != "" {
@@ -162,7 +165,7 @@ const (
 	msgDocumentEntryByBooks   = "Books writes a document's journal entry when the document posts."
 	msgDocumentEntryStatus    = "%s is posted and voided from its %s."
 	msgDocumentEntryLinked    = "%s is changed from its %s: use Edit or Void there."
-	msgDocumentEntryNeedsLink = "A document's journal entry names its invoice."
+	msgDocumentEntryNeedsLink = "A document's journal entry names its document."
 	msgDocumentOnlyOnDocument = "Only a document's journal entry names a document."
 )
 
@@ -194,12 +197,26 @@ func refuseDocumentLink(app core.App, r *core.Record) error {
 	return nil
 }
 
-func isInvoiceEntryOrigin(origin string) bool {
+func isDocumentEntryOrigin(origin string) bool {
 	switch origin {
 	case originDocument, originReversal, originAutoReversal, originVoidReversal:
 		return true
 	}
 	return false
+}
+
+// documentEntryFromPostText refuses an entry of a document's doc type that
+// does not come from posting it: "An invoice entry comes only from posting its
+// invoice." The noun is entryNouns', lowercased; its article follows its first
+// letter.
+func documentEntryFromPostText(docType string) string {
+	noun, _, _ := entryNouns(docType)
+	noun = strings.ToLower(noun)
+	article := "A"
+	if strings.ContainsRune("aeiou", rune(noun[0])) {
+		article = "An"
+	}
+	return fmt.Sprintf("%s %s entry comes only from posting its %s.", article, noun, noun)
 }
 
 // checkLinkedEntries refuses a reversal or a correction of a draft. The entry

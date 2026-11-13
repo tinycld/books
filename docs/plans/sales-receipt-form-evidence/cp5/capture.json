@@ -1,0 +1,212 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "settings-ask",
+            "widths": [390],
+            "url": "/a/books/settings/sales",
+            "ready": "books-settings-sales-deposit",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [{ "waitFor": "Ask" }, { "pause": 500 }]
+        },
+        {
+            "name": "./settings-ask",
+            "widths": [1280],
+            "url": "/a/books/settings/sales",
+            "ready": "books-settings-sales-deposit",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [{ "waitFor": "Ask" }, { "pause": 500 }]
+        },
+        {
+            "name": "setup-sales-deposit",
+            "widths": [1280],
+            "schemes": [],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "actions": [{ "call": "setSalesDepositedTo", "value": "1200 Undeposited funds" }]
+        },
+        {
+            "name": "setup-default-message",
+            "widths": [1280],
+            "schemes": [],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "actions": [
+                {
+                    "call": "setDefaultMessage",
+                    "value": "Thank you for your business! Keep this receipt: returns are accepted within 30 days."
+                }
+            ]
+        },
+        {
+            "name": "./settings-set",
+            "widths": [1280],
+            "url": "/a/books/settings/sales",
+            "ready": "books-settings-sales-deposit",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [{ "waitFor": "1200 Undeposited funds" }, { "pause": 500 }]
+        },
+        {
+            "name": "settings-set",
+            "widths": [390],
+            "url": "/a/books/settings/sales",
+            "ready": "books-settings-sales-deposit",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [{ "waitFor": "1200 Undeposited funds" }, { "pause": 500 }]
+        },
+        {
+            "name": "settings-reader",
+            "widths": [390],
+            "url": "/a/books/settings/sales",
+            "ready": "books-settings-sales-deposit-readonly",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 800,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [{ "waitFor": "1200 Undeposited funds" }, { "pause": 500 }]
+        },
+        {
+            "name": "./settings-reader",
+            "widths": [1280],
+            "url": "/a/books/settings/sales",
+            "ready": "books-settings-sales-deposit-readonly",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 800,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [{ "waitFor": "1200 Undeposited funds" }, { "pause": 500 }]
+        },
+        {
+            "name": "settings-list",
+            "widths": [390],
+            "url": "/a/books/settings",
+            "ready": "books-settings-section-sales",
+            "hideLabels": ["New"],
+            "height": 844,
+            "actions": [
+                { "waitFor": "Sales deposited to 1200 Undeposited funds · Default message set" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "set-account",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1900,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed sales receipt posted" },
+                { "clickText": "Seed sales receipt posted" },
+                { "waitFor": "sales-receipt-read-only" },
+                { "click": "sales-receipt-read-copy" },
+                { "waitFor": "sales-receipt-form" },
+                { "waitFor": "New sales receipt" },
+                { "waitForHidden": "sales-receipt-deposit-to" },
+                { "fill": "form-input-reference_no", "value": "43567" },
+                { "click": "sales-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "set-account-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 4000,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed sales receipt posted" },
+                { "clickText": "Seed sales receipt posted" },
+                { "waitFor": "sales-receipt-read-only" },
+                { "click": "sales-receipt-read-more" },
+                { "click": "sales-receipt-read-copy" },
+                { "waitFor": "sales-receipt-form" },
+                { "waitFor": "New sales receipt" },
+                { "waitForHidden": "sales-receipt-deposit-to" },
+                { "fill": "form-input-reference_no", "value": "43567" },
+                { "click": "sales-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "errors-hidden",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1100,
+            "writes": {
+                "collection": "books_sales_receipts",
+                "answers": [400],
+                "includeCreate": true,
+                "message": "Failed to create record.",
+                "data": {
+                    "deposit_to": {
+                        "code": "validation_invalid",
+                        "message": "Choose an active bank or Undeposited funds account."
+                    }
+                }
+            },
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed sales receipt posted" },
+                { "clickText": "Seed sales receipt posted" },
+                { "waitFor": "sales-receipt-read-only" },
+                { "click": "sales-receipt-read-copy" },
+                { "waitFor": "sales-receipt-form" },
+                { "waitFor": "New sales receipt" },
+                { "waitForHidden": "sales-receipt-deposit-to" },
+                { "fill": "form-input-reference_no", "value": "43567" },
+                { "pause": 300 },
+                { "click": "sales-receipt-post" },
+                { "waitFor": "sales-receipt-error-summary" },
+                { "click": "sales-receipt-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "restore-sales-settings",
+            "widths": [1280],
+            "schemes": [],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "restoreSales": true
+        }
+    ]
+}

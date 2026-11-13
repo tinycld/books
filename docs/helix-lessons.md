@@ -41,4 +41,9 @@
 - A numeric line cell (Qty, Rate, Percent) selects its whole value on focus, by Tab or by a jump after a pick, so typing replaces it. — invoice-form, human, eval
 - Give a short header field (Tax) a width that fits its content beside its row neighbours; never half the row. — invoice-form, human, eval
 - On web, select an input's text at once in its focus handler; react-native-web's selectTextOnFocus selects later and eats the first keys typed. — invoice-form, retro, p2-invoice
+- A field's hint draws below its input, so inputs in one row line up whether or not a field has a hint. — sales-receipt-form, human, eval
+- A link button inside a form (Edit address, Edit customer) is a Tab stop after the field it edits; it needs no shortcut. — sales-receipt-form, human, eval
+- Before a capture or e2e step clicks by label, read the name from the aria snapshot or the testID in the source; never guess it. — sales-receipt-form, retro, p2-sales-receipt
+- To take a Pressable out of the web Tab order, use `tabIndex={-1}`; RN-web ignores `focusable={false}` and sets tabIndex 0. — sales-receipt-form, retro, p2-sales-receipt
+- A Books Back that pops when its target is right below and replaces otherwise uses the `useBackToChart` stack-state pattern; the expo-router unit stub has no `dismissTo`. — sales-receipt-form, retro, p2-sales-receipt
 - A report's `display.oneLine` gate is measured for its own columns at 390; never copy another report's display block. — profit-and-loss, retro, p5-profit-and-loss

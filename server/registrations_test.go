@@ -24,11 +24,13 @@ import (
 // from the ledger; a bank file's parsed rows are written by the upload hook, and
 // the import row that made the transactions is audited. A writer changes a
 // transaction's status, so the transactions are audited, not server-only. An
-// invoice's tax lines are its posting snapshot, written with the audited invoice.
+// invoice's or a sales receipt's tax lines are its posting snapshot, written with
+// the audited document.
 var serverOnly = map[string]bool{
-	"books_account_balances":   true,
-	"books_bank_file_contents": true,
-	"books_invoice_tax_lines":  true,
+	"books_account_balances":        true,
+	"books_bank_file_contents":      true,
+	"books_invoice_tax_lines":       true,
+	"books_sales_receipt_tax_lines": true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
@@ -497,6 +499,49 @@ func TestRegister_ServesTheSamplePDF(t *testing.T) {
 	}.run(t, app)
 }
 
+// The sales_receipt kind prints a books_sales_receipts record at
+// /api/books/pdf/sales_receipt/<id> under the receipt's view rule: a reader
+// downloads sales-receipt-<n>.pdf; a receipt the view rule hides is not found.
+func TestPDFRoute_SalesReceiptFollowsTheReceiptViewRule(t *testing.T) {
+	postedReceipt := func(t *testing.T) (*receiptEnv, *core.Record) {
+		t.Helper()
+		re := newReceiptEnv(t)
+		r := re.mkReceipt(t, map[string]any{"payment_method": "check", "reference_no": "43567"})
+		mkReceiptLine(t, re.app, r, 0, item(re.service, 1, 45000, false))
+		return re, mustPostReceipt(t, re.app, r.Id, re.users.bookkeeper.Id)
+	}
+	t.Run("a reader downloads sales-receipt-<n>.pdf", func(t *testing.T) {
+		re, posted := postedReceipt(t)
+		apiReq{
+			method:  http.MethodGet,
+			url:     "/api/books/pdf/sales_receipt/" + posted.Id,
+			token:   tokenFor(t, re.users.readOnly),
+			want:    http.StatusOK,
+			content: []string{"%PDF-"},
+			before:  bindPDFRoutes,
+			response: func(t testing.TB, res *http.Response) {
+				want := `attachment; filename="sales-receipt-` + posted.GetString("number") + `.pdf"`
+				if got := res.Header.Get("Content-Disposition"); got != want {
+					t.Errorf("Content-Disposition = %q, want %q", got, want)
+				}
+			},
+		}.run(t, re.app)
+	})
+	t.Run("a receipt the view rule hides is not found", func(t *testing.T) {
+		re, posted := postedReceipt(t)
+		col, err := re.app.FindCollectionByNameOrId("books_sales_receipts")
+		if err != nil {
+			t.Fatalf("find: %v", err)
+		}
+		rule := `id = "never"`
+		col.ViewRule = &rule
+		if err := re.app.Save(col); err != nil {
+			t.Fatalf("save rule: %v", err)
+		}
+		pdfReq(t, re.app, "/api/books/pdf/sales_receipt/"+posted.Id, tokenFor(t, re.users.readOnly), http.StatusNotFound)
+	})
+}
+
 func TestOAuth_CoversEveryBooksCollection(t *testing.T) {
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
@@ -754,7 +799,8 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 
 	parts := newBooksApp(t)
 	registerLedger(parts)
-	registerInvoiceGuards(parts)
+	registerSalesDocGuards(parts, invoiceKind)
+	registerSalesDocGuards(parts, salesReceiptKind)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)

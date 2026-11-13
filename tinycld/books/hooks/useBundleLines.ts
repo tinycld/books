@@ -1,11 +1,11 @@
 import { eq, inArray, queryOnce } from '@tanstack/db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import type { BundleItemFill } from '../lib/invoice-fills'
+import type { BundleItemFill } from '../lib/document-fills'
 
-export type { BundleItemFill } from '../lib/invoice-fills'
+export type { BundleItemFill } from '../lib/document-fills'
 
 /**
- * Reads a bundle's items once, at the pick that expands it on an invoice line: the
+ * Reads a bundle's items once, at the pick that expands it on a sales document line: the
  * bundle's `books_bundle_items` in position order, then their products by id. Items whose
  * product is inactive or gone are left out, so a bundle whose items are all inactive
  * gives `[]`. Two one-shot reads, each from its own collection by a known key, so neither
@@ -20,27 +20,29 @@ export function useBundleLines() {
         'books_products'
     )
     return async (bundleId: string): Promise<BundleItemFill[]> => {
-        const items = await queryOnce(q =>
-            q
-                .from({ item: bundleItemsCollection })
-                .where(({ item }) => eq(item.bundle, bundleId))
-                .orderBy(({ item }) => item.position, 'asc')
-                .select(({ item }) => ({ product: item.product, quantity: item.quantity }))
-        )
+        const items = await queryOnce({
+            query: q =>
+                q
+                    .from({ item: bundleItemsCollection })
+                    .where(({ item }) => eq(item.bundle, bundleId))
+                    .orderBy(({ item }) => item.position, 'asc')
+                    .select(({ item }) => ({ product: item.product, quantity: item.quantity })),
+        })
         const ids = [...new Set(items.map(item => item.product))]
         if (ids.length === 0) return []
-        const products = await queryOnce(q =>
-            q
-                .from({ p: productsCollection })
-                .where(({ p }) => inArray(p.id, ids))
-                .select(({ p }) => ({
-                    id: p.id,
-                    inactive: p.inactive,
-                    sales_description: p.sales_description,
-                    price: p.price,
-                    taxable: p.taxable,
-                }))
-        )
+        const products = await queryOnce({
+            query: q =>
+                q
+                    .from({ p: productsCollection })
+                    .where(({ p }) => inArray(p.id, ids))
+                    .select(({ p }) => ({
+                        id: p.id,
+                        inactive: p.inactive,
+                        sales_description: p.sales_description,
+                        price: p.price,
+                        taxable: p.taxable,
+                    })),
+        })
         const activeById = new Map(
             products.filter(product => !product.inactive).map(product => [product.id, product])
         )

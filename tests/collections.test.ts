@@ -25,6 +25,9 @@ const NAMES = [
     'books_invoices',
     'books_invoice_lines',
     'books_invoice_tax_lines',
+    'books_sales_receipts',
+    'books_sales_receipt_lines',
+    'books_sales_receipt_tax_lines',
 ]
 
 function register() {

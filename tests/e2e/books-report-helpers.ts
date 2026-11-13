@@ -119,7 +119,7 @@ const MOBILE_MAX_WIDTH = 767
 // MobileDrawer opens from a pan that starts in the 20px strip at the left edge;
 // react-native-gesture-handler listens for the mouse on web, so a drag drives it
 // (tests/e2e/mobile-drawer.spec.ts).
-async function openBooksMenu(page: Page): Promise<void> {
+export async function openBooksMenu(page: Page): Promise<void> {
     // ActivePkgSync closes the drawer on every route change, so the swipe waits for
     // the Books index redirect to settle and for the drawer's mount.
     await expect(page).toHaveURL(/\/a\/books\/\w/)

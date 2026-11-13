@@ -564,12 +564,20 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             docTypes: DOC_TYPE_LABELS,
             reversalOrigins: Array.from(reversalOrigins ?? []),
         }).toEqual(server)
-        expect(DOC_TYPE_LABELS).toEqual({ transfer: 'Transfer', invoice: 'Invoice' })
+        expect(DOC_TYPE_LABELS).toEqual({
+            transfer: 'Transfer',
+            invoice: 'Invoice',
+            sales_receipt: 'Sales receipt',
+        })
     })
 
     it('labels a non-reversal entry by its doc type from the table', () => {
         const docTypes = Object.entries(server.docTypes ?? {})
-        expect(docTypes.map(([docType]) => docType).sort()).toEqual(['invoice', 'transfer'])
+        expect(docTypes.map(([docType]) => docType).sort()).toEqual([
+            'invoice',
+            'sales_receipt',
+            'transfer',
+        ])
         for (const [docType, label] of docTypes) {
             expect(entryTypeLabel('manual', '', docType), docType).toBe(label)
         }

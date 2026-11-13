@@ -5,7 +5,7 @@
 // AUTHORIZATION. The rules decide who may act, by Books level (books_access,
 // 2100000000): every member with read access lists and views invoices and
 // their lines, a writer creates and edits drafts, moves a posted invoice to
-// void, and deletes drafts. The Go hooks in server/invoices.go decide whether
+// void, and deletes drafts. The Go hooks in server/sales_documents.go decide whether
 // the write is valid: the customer and the tax rate exist and are active when
 // the write sets or changes them, both days are real days and the due date is
 // not before the invoice date, an invoice holds at most 250 lines, each line
@@ -34,7 +34,7 @@
 // calendar day with no time zone.
 //
 // SORT KEY. sort_key is the invoice date, then the number padded, then the id
-// (server/invoices.go). Only the Go guard sets it, on every create and update;
+// (server/sales_documents.go). Only the Go guard sets it, on every create and update;
 // it is hidden, so a non-superuser never sees it in an API response.
 //
 // TAX LINES are the posting snapshot of the tax (the tax-rates contract): one

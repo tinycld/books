@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { entryActions } from '../tinycld/books/lib/entry-actions'
 import { entryEditHref, entryHref } from '../tinycld/books/lib/entry-route'
 import type { BooksJournalEntries } from '../tinycld/books/types'
 
@@ -46,5 +47,33 @@ describe('entryEditHref', () => {
         expect(entryEditHref(entry('invoice', 'document', 'invc1'))).toBe(
             'books/invoices/new?replaces=invc1'
         )
+    })
+})
+
+// A sales receipt's entry (spec §3.10): it opens on its receipt, is edited as a
+// correction of it, and is never reversed by itself.
+describe('a sales receipt entry', () => {
+    it('opens on its sales receipt', () => {
+        expect(entryHref(entry('sales_receipt', 'document', 'r1'))).toBe('books/sales-receipts/r1')
+    })
+
+    it('edits as a correction of its sales receipt', () => {
+        expect(entryEditHref(entry('sales_receipt', 'document', 'r1'))).toBe(
+            'books/sales-receipts/new?replaces=r1'
+        )
+    })
+
+    it('opens its void reversal as an entry', () => {
+        expect(entryHref(entry('sales_receipt', 'void_reversal'))).toBe('books/entries/a')
+    })
+
+    it('offers Open and Edit, and no Reverse', () => {
+        const actions = entryActions(
+            { status: 'posted', origin: 'document', doc_type: 'sales_receipt', isReversed: false },
+            { canWrite: true }
+        )
+        expect(actions).toContain('open')
+        expect(actions).toContain('edit')
+        expect(actions).not.toContain('reverse')
     })
 })

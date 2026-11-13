@@ -423,7 +423,7 @@ test.describe('invoice-form: draft invoice', () => {
                 deleted += 1
             }
         })
-        // The server's own refusal of a line (server/invoices.go msgLineProductInactive):
+        // The server's own refusal of a line (server/sales_documents.go msgLineProductInactive):
         // no seeded product is inactive, so the line create answers it here.
         const refusal = `Line 1: ${product.name} is inactive. Choose an active product or service.`
         const refusalText = `${product.name} is inactive. Choose an active product or service.`
