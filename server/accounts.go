@@ -31,6 +31,14 @@ const (
 	msgSecondRetainedEarnings = "This chart already has a Retained earnings account."
 )
 
+// Refusals of an active account below an inactive parent. The chart hides an
+// inactive account and everything under it, so an active account there would
+// take postings and not be seen.
+const (
+	msgAccountParentInactive    = "The parent account is inactive. Choose an active parent account."
+	msgAccountParentActiveFirst = "Make the parent account active first."
+)
+
 const detailRetainedEarnings = "retained_earnings"
 
 // Account refusals while sales are deposited to the account: the account
@@ -64,6 +72,9 @@ func registerAccountGuard(app core.App) {
 			if err := validateAccount(tx, e.Record); err != nil {
 				return err
 			}
+			if err := checkActiveParent(tx, nil, e.Record); err != nil {
+				return err
+			}
 			return stampFullName(tx, e.Record)
 		})
 	})
@@ -76,6 +87,9 @@ func registerAccountGuard(app core.App) {
 				return err
 			}
 			if err := validateAccount(tx, e.Record); err != nil {
+				return err
+			}
+			if err := checkActiveParent(tx, stored, e.Record); err != nil {
 				return err
 			}
 			if err := checkAccountChange(tx, stored, e.Record); err != nil {
@@ -304,6 +318,39 @@ func validateParent(app core.App, r *core.Record) error {
 		return refuse("Accounts can be nested at most %d levels deep.", maxAccountDepth)
 	}
 	return nil
+}
+
+// checkActiveParent refuses the write that puts an active account below an
+// inactive parent: a create, a move, or Make active. With the rule that a
+// parent with active sub-accounts cannot become inactive (checkAccountChange),
+// every ancestor of an active account is active. Only the write that makes the
+// state is refused: an account that is already there (a row older than the
+// rule) still accepts a rename, and restampChildren still saves it. stored is
+// the row before an update, nil on a create.
+func checkActiveParent(app core.App, stored, r *core.Record) error {
+	parentID := r.GetString("parent")
+	if parentID == "" || r.GetBool("inactive") {
+		return nil
+	}
+	if stored != nil && !stored.GetBool("inactive") && stored.GetString("parent") == parentID {
+		return nil
+	}
+	parent, err := app.FindRecordById("books_accounts", parentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		// validateParent refuses a parent that does not exist.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the parent account: %w", err)
+	}
+	if !parent.GetBool("inactive") {
+		return nil
+	}
+	// Make active keeps the parent the account had, so the fix is the parent.
+	if stored != nil && stored.GetString("parent") == parentID {
+		return refuse(msgAccountParentActiveFirst)
+	}
+	return refuse(msgAccountParentInactive)
 }
 
 // subtreeHeight is how many levels of sub-accounts sit below id.
