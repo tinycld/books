@@ -104,6 +104,14 @@ function isoDay(date: Date): string {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+// A request that posts a draft must state the revision it saw (server/revision.go). The seed
+// reads it just before the post: nothing else writes while it runs.
+async function postSeedDraft(pb: PocketBase, entryId: string, userId: string): Promise<void> {
+    const entries = pb.collection('books_journal_entries')
+    const { revision } = await entries.getOne<{ revision: number }>(entryId, { fields: 'revision' })
+    await entries.update(entryId, { status: 'posted', posted_by: userId, revision: revision + 1 })
+}
+
 // The first day of the latest month on or before today whose month number is the fiscal start.
 function fiscalYearStart(today: Date, startMonth: number): string {
     const year = today.getMonth() + 1 >= startMonth ? today.getFullYear() : today.getFullYear() - 1
@@ -150,9 +158,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
             })
         }
         if (entry.post) {
-            await pb
-                .collection('books_journal_entries')
-                .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+            await postSeedDraft(pb, created.id, ctx.user.id)
         }
     }
     await seedRegisterEntries(pb, ctx, ids)
@@ -525,9 +531,7 @@ async function postEntry(
             position,
         })
     }
-    await pb
-        .collection('books_journal_entries')
-        .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+    await postSeedDraft(pb, created.id, ctx.user.id)
     return created.id
 }
 
@@ -629,9 +633,7 @@ async function seedJournalEntries(pb: PocketBase, ctx: SeedContext, ids: Map<str
             })
         }
         if (seedEntry.state === 'draft') continue
-        await pb
-            .collection('books_journal_entries')
-            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+        await postSeedDraft(pb, created.id, ctx.user.id)
         if (seedEntry.state === 'reversed') {
             // The server writes the mirrored lines when the reversal posts.
             const reversal = await pb.collection('books_journal_entries').create({
@@ -643,9 +645,7 @@ async function seedJournalEntries(pb: PocketBase, ctx: SeedContext, ids: Map<str
                 reverses: created.id,
                 created_by: ctx.user.id,
             })
-            await pb
-                .collection('books_journal_entries')
-                .update(reversal.id, { status: 'posted', posted_by: ctx.user.id })
+            await postSeedDraft(pb, reversal.id, ctx.user.id)
         }
         if (seedEntry.state === 'voided') {
             await pb.collection('books_journal_entries').update(created.id, { status: 'void' })
@@ -694,9 +694,7 @@ async function seedPartyEntries(
                 position,
             })
         }
-        await pb
-            .collection('books_journal_entries')
-            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+        await postSeedDraft(pb, created.id, ctx.user.id)
     }
 }
 
@@ -738,9 +736,7 @@ async function seedTransfer(pb: PocketBase, ctx: SeedContext, accountIds: Map<st
             .collection('books_journal_lines')
             .create({ entry: created.id, account, debit, credit, position })
     }
-    await pb
-        .collection('books_journal_entries')
-        .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+    await postSeedDraft(pb, created.id, ctx.user.id)
 }
 
 // Through the REST create, so the server's upload hook validates and stamps the file the

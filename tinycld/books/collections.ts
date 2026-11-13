@@ -129,6 +129,7 @@ export function registerCollections(
             'number',
             'sequence',
             'total',
+            'revision',
             'posted_at',
             'posted_by',
             'voided_at',
