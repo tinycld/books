@@ -1,10 +1,11 @@
 import { expect, type Page, type Request, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { accountItem, openChart, openRegister } from './account-register-helpers'
+import { accountItem, createAccount, openChart, openRegister } from './account-register-helpers'
 import {
     BATCH_WRITE,
     type BatchOperation,
     batchOperations,
+    makeAccountInactiveElsewhere,
     refuseBatchOperation,
 } from './journal-entries-helpers'
 import {
@@ -28,6 +29,7 @@ import {
     PHONE,
     readDefaultDate,
 } from './opening-balances-helpers'
+import { uniqueName } from './record-form-helpers'
 
 // All opening-balances e2e live in this one file: the feature has one entry per
 // database and tests in one file run in file order in one worker.
@@ -1185,37 +1187,35 @@ test.describe('opening-balances: post and posted view', () => {
     test('(2) a refused post shows the message, stays on the form and keeps the saved draft', async ({
         page,
     }) => {
-        const ids = await begin(page, DESKTOP)
-        await page.route(`${ENTRY_WRITES}/*`, async route => {
-            const request = route.request()
-            if (request.method() !== 'PATCH' || request.postDataJSON()?.status !== 'posted') {
-                await route.continue()
-                return
-            }
-            await route.fulfill({
-                status: 400,
-                body: JSON.stringify({
-                    message: 'Books are closed through Mar 31, 2025.',
-                    data: {},
-                }),
-            })
-        })
-        await type(page, ids['Office Equipment'], '5,000')
+        // The server's own refusal: the draft holds an amount for an account the test
+        // created, and another tab makes that account inactive before Post (the grid keeps
+        // an inactive account that has a saved line). The server refuses a post that uses
+        // an inactive account (server/posting.go validateLines).
+        await start(page, DESKTOP)
+        await discardExistingDraft(page)
+        const name = uniqueName('Opening refused post')
+        await createAccount(page, name, { type: 'Bank', detailType: 'Savings' })
+        const id = (await idsFromChart(page, [name]))[name]
+        await openFromChart(page)
+        const writes = trackWrites(page)
+        await type(page, id, '5,000')
+        await saveAndSettle(page, writes)
+        await expect(page.getByTestId('opening-status-badge')).toHaveText('Draft')
+        await makeAccountInactiveElsewhere(page, name)
         await postButton(page).click()
 
         const summary = page.getByTestId('opening-error-summary')
         await expect(summary).toBeVisible()
-        await expect(summary).toContainText('Books are closed through Mar 31, 2025.')
+        await expect(summary).toContainText(new RegExp(`Line \\d+: account ${name} is inactive\\.`))
         await expect(screenOf(page)).toBeVisible()
         await expect(postButton(page)).toHaveText('Post')
         await expect(postButton(page)).toBeEnabled()
-        await expectAmount(page, ids['Office Equipment'], '5,000.00')
+        await expectAmount(page, id, '5,000.00')
         await expect(page.getByTestId('opening-status-badge')).toHaveText('Draft')
-        await page.unrouteAll({ behavior: 'wait' })
 
         await reopen(page)
         await expect(page.getByTestId('opening-status-badge')).toHaveText('Draft')
-        await expectAmount(page, ids['Office Equipment'], '5,000.00')
+        await expectAmount(page, id, '5,000.00')
         await discardExistingDraft(page)
     })
 
