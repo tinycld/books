@@ -360,7 +360,11 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         await page.getByTestId('void-confirm').click()
         await held.firstHeld
 
-        await leaveAndReturn(page)
+        // A push keeps the list mounted. A list that mounts again would load again, and the
+        // store holds new rows of a collection until its write in flight settles.
+        await pushAwayFromList(page)
+        await goBackToList(page)
+        await expect(page.getByTestId('void-dialog')).toHaveCount(0)
         await expect(page.getByTestId(`entries-row-menu-${second.id}`)).toBeVisible()
         await chooseFromMenu(page, second.id, 'reverse')
         await expect(page.getByTestId('reverse-dialog')).toBeVisible()
