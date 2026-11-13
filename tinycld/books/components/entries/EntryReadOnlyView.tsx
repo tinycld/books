@@ -3,9 +3,19 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useClockTick } from '../../hooks/useClockTick'
 import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
 import { useReadOnlyActions } from '../../hooks/useReadOnlyActions'
-import { entryNumberText, entryTypeText, reversalSummary, stampText } from '../../lib/entry-display'
+import {
+    autoReversalOverdueAt,
+    autoReversalState,
+    autoReversalText,
+    entryNumberText,
+    entryTypeText,
+    reversedByText,
+    settledReversal,
+    stampText,
+} from '../../lib/entry-display'
 import { sumLines } from '../../lib/entry-lines'
 import { entryHref } from '../../lib/entry-route'
 import { formatDay } from '../../lib/register-range'
@@ -23,18 +33,21 @@ function Detail({
     id,
     label,
     valueId,
+    isAlert = false,
     children,
 }: {
     id: string
     label: string
     valueId?: string
+    isAlert?: boolean
     children: ReactNode
 }) {
+    const valueTone = isAlert ? 'text-danger' : 'text-foreground'
     return (
         <Text testID={`entry-detail-${id}`} className="text-xs text-muted-foreground">
             {label}
             {'\n'}
-            <Text testID={valueId} className="text-sm text-foreground">
+            <Text testID={valueId} className={`text-sm ${valueTone}`}>
                 {children}
             </Text>
         </Text>
@@ -83,8 +96,9 @@ function linkedHref(id: string, record: LinkedEntry | undefined): string {
 }
 
 function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
-    const { entry, reversesEntry, reversedBy, replacesEntry } = detail
-    const { linkText } = reversalSummary(reversedBy, entry.auto_reverse_on)
+    const { entry, reversesEntry, replacesEntry } = detail
+    const { posted } = settledReversal(detail.reversals)
+    const linkText = reversedByText(posted)
     const links: ReactNode[] = []
     if (entry.reverses) {
         links.push(
@@ -96,12 +110,12 @@ function LinkRows({ detail }: { detail: ReadyEntryDetail }) {
             />
         )
     }
-    if (reversedBy && linkText) {
+    if (posted && linkText) {
         links.push(
             <EntryLink
                 key="reversed-by"
                 id="entry-link-reversed-by"
-                href={entryHref(reversedBy)}
+                href={entryHref(posted)}
                 text={linkText}
             />
         )
@@ -131,8 +145,11 @@ function TypeDetail({ entry }: { entry: ReadyEntryDetail['entry'] }) {
 
 function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
     const { entry } = detail
-    const autoReverseText =
-        reversalSummary(detail.reversedBy, entry.auto_reverse_on).autoReverseText ?? 'None'
+    // The clock re-renders the view at the moment a scheduled reversal becomes overdue.
+    const overdueAt = autoReversalOverdueAt(entry)
+    const now = useClockTick(overdueAt === null ? [] : [overdueAt])
+    const state = autoReversalState(entry, detail.reversals, now)
+    const autoReverseText = autoReversalText(state, entry, settledReversal(detail.reversals).posted)
     return (
         <View className="gap-3">
             <View className="flex-row flex-wrap gap-x-6 gap-y-3">
@@ -140,7 +157,12 @@ function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
                 <Detail id="date" label="Date">
                     {formatDay(entry.date)}
                 </Detail>
-                <Detail id="auto-reverse" label="Auto-reverse on" valueId="entry-auto-reverse">
+                <Detail
+                    id="auto-reverse"
+                    label="Auto-reverse on"
+                    valueId="entry-auto-reverse"
+                    isAlert={state === 'overdue'}
+                >
                     {autoReverseText}
                 </Detail>
                 <Stamp
