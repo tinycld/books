@@ -7,6 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"github.com/pocketbase/pocketbase/tools/security"
 )
 
 func docRevision(t testing.TB, app core.App, collection, id string) int {
@@ -241,4 +242,230 @@ func TestDocRevision_AnEstimateLineAndAStatusChangeEachAddOne(t *testing.T) {
 	if got := docRevision(t, ce.app, "books_estimates", est.Id); got != 3 {
 		t.Fatalf("revision after a status change = %d, want 3", got)
 	}
+}
+
+// The refusal texts as the client gets them, written out here so a change of
+// wording fails this file too.
+const (
+	wantInvoiceConflict  = "This invoice changed after you opened it. Load it again, then review it before you save or post."
+	wantReceiptConflict  = "This sales receipt changed after you opened it. Load it again, then review it before you save or post."
+	wantEstimateConflict = "This estimate changed after you opened it. Load it again, then review it before you save."
+)
+
+func patchDoc(t *testing.T, app *tests.TestApp, user *core.Record, collection, id, body string, want int, content ...string) {
+	t.Helper()
+	apiReq{
+		method: http.MethodPatch, url: "/api/collections/" + collection + "/records/" + id,
+		token: tokenFor(t, user), body: body, want: want, content: content,
+	}.run(t, app)
+}
+
+func TestDocRequestRevision_ACurrentPostPasses(t *testing.T) {
+	pe := newPostingEnv(t)
+	inv, _ := pe.oneLineInvoice(t)
+	saw := docRevision(t, pe.app, "books_invoices", inv.Id)
+	patchDoc(t, pe.app, pe.users.bookkeeper, "books_invoices", inv.Id,
+		fmt.Sprintf(`{"status":"posted","revision":%d}`, saw+1), http.StatusOK, `"status":"posted"`)
+	if got := docRevision(t, pe.app, "books_invoices", inv.Id); got != saw+1 {
+		t.Fatalf("revision = %d, want %d", got, saw+1)
+	}
+	requireNoDrift(t, pe.app)
+}
+
+func TestDocRequestRevision_AStalePostIsRefused(t *testing.T) {
+	pe := newPostingEnv(t)
+	inv, line := pe.oneLineInvoice(t)
+	stale := fmt.Sprintf(`{"status":"posted","revision":%d}`, docRevision(t, pe.app, "books_invoices", inv.Id)+1)
+	// Another editor doubles the quantity.
+	if err := setFields(t, pe.app, "books_invoice_lines", line.Id, map[string]any{"quantity": 2}); err != nil {
+		t.Fatal(err)
+	}
+	patchDoc(t, pe.app, pe.users.bookkeeper, "books_invoices", inv.Id, stale, http.StatusConflict, wantInvoiceConflict)
+	if got := reload(t, pe.app, "books_invoices", inv.Id).GetString("status"); got != statusDraft {
+		t.Fatalf("status = %q: a stale post must not post", got)
+	}
+}
+
+// One revision behind, and only the header is sent: the stated value equals
+// the stored one. It is still stale.
+func TestDocRequestRevision_OneBehindIsRefused(t *testing.T) {
+	pe := newPostingEnv(t)
+	inv, _ := pe.oneLineInvoice(t)
+	stale := fmt.Sprintf(`{"status":"posted","revision":%d}`, docRevision(t, pe.app, "books_invoices", inv.Id)+1)
+	if err := setFields(t, pe.app, "books_invoices", inv.Id, map[string]any{"memo": "another editor's memo"}); err != nil {
+		t.Fatal(err)
+	}
+	patchDoc(t, pe.app, pe.users.bookkeeper, "books_invoices", inv.Id, stale, http.StatusConflict, wantInvoiceConflict)
+}
+
+func TestDocRequestRevision_ADraftUpdateWithNoRevisionIsRefused(t *testing.T) {
+	t.Run("invoice", func(t *testing.T) {
+		pe := newPostingEnv(t)
+		inv, _ := pe.oneLineInvoice(t)
+		patchDoc(t, pe.app, pe.users.bookkeeper, "books_invoices", inv.Id,
+			`{"memo":"no revision stated"}`, http.StatusConflict, wantInvoiceConflict)
+	})
+	t.Run("sales receipt", func(t *testing.T) {
+		re := newReceiptEnv(t)
+		rec := re.mkReceipt(t, nil)
+		patchDoc(t, re.app, re.users.bookkeeper, "books_sales_receipts", rec.Id,
+			`{"memo":"no revision stated"}`, http.StatusConflict, wantReceiptConflict)
+	})
+	t.Run("estimate", func(t *testing.T) {
+		ce := newConversionEnv(t)
+		est := ce.mkEstimate(t, nil)
+		patchDoc(t, ce.app, ce.users.bookkeeper, "books_estimates", est.Id,
+			`{"memo":"no revision stated"}`, http.StatusConflict, wantEstimateConflict)
+	})
+}
+
+// A number field accepts "revision+": 1, which always resolves to the stored
+// value plus one. That states nothing about what the caller saw.
+func TestDocRequestRevision_AModifierIsNotAStatement(t *testing.T) {
+	pe := newPostingEnv(t)
+	inv, _ := pe.oneLineInvoice(t)
+	patchDoc(t, pe.app, pe.users.bookkeeper, "books_invoices", inv.Id,
+		`{"status":"posted","revision+":1}`, http.StatusConflict, wantInvoiceConflict)
+	if got := reload(t, pe.app, "books_invoices", inv.Id).GetString("status"); got != statusDraft {
+		t.Fatalf("status = %q: the invoice must not post", got)
+	}
+}
+
+func TestDocRequestRevision_AVoidNeedsNoneAndCannotMoveIt(t *testing.T) {
+	t.Run("a void with no revision passes", func(t *testing.T) {
+		pe := newPostingEnv(t)
+		inv, _ := pe.oneLineInvoice(t)
+		mustPostInvoice(t, pe.app, inv.Id, pe.users.bookkeeper.Id)
+		patchDoc(t, pe.app, pe.users.bookkeeper, "books_invoices", inv.Id, `{"status":"void"}`, http.StatusOK, `"status":"void"`)
+	})
+	t.Run("a void that sends a revision is refused", func(t *testing.T) {
+		pe := newPostingEnv(t)
+		inv, _ := pe.oneLineInvoice(t)
+		mustPostInvoice(t, pe.app, inv.Id, pe.users.bookkeeper.Id)
+		patchDoc(t, pe.app, pe.users.bookkeeper, "books_invoices", inv.Id,
+			`{"status":"void","revision":99}`, http.StatusBadRequest, "A posted or void invoice cannot be changed.")
+	})
+}
+
+func TestDocRequestRevision_AnEstimateSave(t *testing.T) {
+	t.Run("a current save with a status change passes", func(t *testing.T) {
+		ce := newConversionEnv(t)
+		est := ce.mkEstimate(t, nil)
+		saw := docRevision(t, ce.app, "books_estimates", est.Id)
+		patchDoc(t, ce.app, ce.users.bookkeeper, "books_estimates", est.Id,
+			fmt.Sprintf(`{"status":"rejected","memo":"declined by phone","revision":%d}`, saw+1),
+			http.StatusOK, `"status":"rejected"`)
+		if got := docRevision(t, ce.app, "books_estimates", est.Id); got != saw+1 {
+			t.Fatalf("revision = %d, want %d", got, saw+1)
+		}
+	})
+	t.Run("a stale save is refused and changes nothing", func(t *testing.T) {
+		ce := newConversionEnv(t)
+		est := ce.mkEstimate(t, nil)
+		saw := docRevision(t, ce.app, "books_estimates", est.Id)
+		// Another editor adds a line.
+		mkEstimateLine(t, ce.app, est, 1, item(ce.service, 1, 100, false))
+		patchDoc(t, ce.app, ce.users.bookkeeper, "books_estimates", est.Id,
+			fmt.Sprintf(`{"status":"accepted","accepted_date":"2026-11-05","revision":%d}`, saw+1),
+			http.StatusConflict, wantEstimateConflict)
+		if got := reload(t, ce.app, "books_estimates", est.Id).GetString("status"); got != statusPending {
+			t.Fatalf("status = %q, want pending", got)
+		}
+	})
+}
+
+// The shape the client sends for a saved draft: line operations first, then
+// one header update that states the revision and posts.
+func TestDocRequestRevision_ABatchOfLinesThenThePost(t *testing.T) {
+	pe := newPostingEnv(t)
+	enableBatch(t, pe.app)
+	inv, line := pe.oneLineInvoice(t)
+	saw := docRevision(t, pe.app, "books_invoices", inv.Id)
+
+	ops := []string{
+		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_invoice_lines/records/%s","body":{"quantity":2}}`, line.Id),
+		fmt.Sprintf(`{"method":"POST","url":"/api/collections/books_invoice_lines/records","body":{"invoice":%q,"position":1,"kind":"item","product":%q,"quantity":1,"rate":1000,"taxable":false}}`, inv.Id, pe.service.Id),
+		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_invoices/records/%s","body":{"memo":"reviewed","status":"posted","revision":%d}}`, inv.Id, saw+1),
+	}
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, pe.users.bookkeeper),
+		body: batchBody(ops...), want: http.StatusOK, content: []string{`"status":"posted"`},
+	}.run(t, pe.app)
+
+	posted := reload(t, pe.app, "books_invoices", inv.Id)
+	if posted.GetInt("total") != 91000 || posted.GetInt("revision") != saw+1 {
+		t.Fatalf("total/revision = %d/%d, want 91000/%d", posted.GetInt("total"), posted.GetInt("revision"), saw+1)
+	}
+	requireNoDrift(t, pe.app)
+}
+
+// A stale batch changes nothing: the line writes roll back with the refusal.
+func TestDocRequestRevision_AStaleBatchChangesNothing(t *testing.T) {
+	pe := newPostingEnv(t)
+	enableBatch(t, pe.app)
+	inv, line := pe.oneLineInvoice(t)
+	saw := docRevision(t, pe.app, "books_invoices", inv.Id)
+	mkInvoiceLine(t, pe.app, inv, 1, item(pe.service, 1, 500, false)) // another editor
+
+	ops := []string{
+		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_invoice_lines/records/%s","body":{"quantity":9}}`, line.Id),
+		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_invoices/records/%s","body":{"memo":"stale","revision":%d}}`, inv.Id, saw+1),
+	}
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, pe.users.bookkeeper),
+		body: batchBody(ops...), want: http.StatusBadRequest, content: []string{wantInvoiceConflict},
+	}.run(t, pe.app)
+
+	if got := reload(t, pe.app, "books_invoice_lines", line.Id).GetFloat("quantity"); got != 1 {
+		t.Fatalf("quantity = %v: the stale batch's line write was kept", got)
+	}
+	if got := docRevision(t, pe.app, "books_invoices", inv.Id); got != saw+1 {
+		t.Fatalf("revision = %d, want %d (the other editor's one change)", got, saw+1)
+	}
+}
+
+// The shape the client sends for a new document: the header, then its lines,
+// in one batch. The lines are part of the create: the revision stays 1.
+func TestDocRequestRevision_ANewDocumentBatchLeavesRevisionOne(t *testing.T) {
+	pe := newPostingEnv(t)
+	enableBatch(t, pe.app)
+	id := security.RandomStringWithAlphabet(15, "abcdefghijklmnopqrstuvwxyz0123456789")
+	line := func(position, rate int) string {
+		return fmt.Sprintf(`{"method":"POST","url":"/api/collections/books_invoice_lines/records","body":{"invoice":%q,"position":%d,"kind":"item","product":%q,"quantity":1,"rate":%d,"taxable":false}}`,
+			id, position, pe.service.Id, rate)
+	}
+	ops := []string{
+		fmt.Sprintf(`{"method":"POST","url":"/api/collections/books_invoices/records","body":{"id":%q,"customer":%q,"status":"draft","date":"2026-11-04","due_date":"2026-12-04"}}`, id, pe.customer.Id),
+		line(0, 45000),
+		line(1, 1000),
+	}
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, pe.users.bookkeeper),
+		body: batchBody(ops...), want: http.StatusOK, content: []string{id},
+	}.run(t, pe.app)
+
+	if got := docRevision(t, pe.app, "books_invoices", id); got != 1 {
+		t.Fatalf("revision = %d, want 1", got)
+	}
+	requireInvoiceTotals(t, pe.app, id, 46000, 0, 46000)
+}
+
+// A batch that saves an estimate: a line, then the header with its status.
+func TestDocRequestRevision_AnEstimateBatch(t *testing.T) {
+	ce := newConversionEnv(t)
+	enableBatch(t, ce.app)
+	est := ce.mkEstimate(t, nil)
+	saw := docRevision(t, ce.app, "books_estimates", est.Id)
+	ops := []string{
+		fmt.Sprintf(`{"method":"POST","url":"/api/collections/books_estimate_lines/records","body":{"estimate":%q,"position":1,"kind":"item","product":%q,"quantity":1,"rate":1000,"taxable":false}}`, est.Id, ce.service.Id),
+		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_estimates/records/%s","body":{"status":"accepted","accepted_date":"2026-11-05","revision":%d}}`, est.Id, saw+1),
+	}
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, ce.users.bookkeeper),
+		body: batchBody(ops...), want: http.StatusOK, content: []string{`"status":"accepted"`},
+	}.run(t, ce.app)
+	if got := docRevision(t, ce.app, "books_estimates", est.Id); got != saw+1 {
+		t.Fatalf("revision = %d, want %d", got, saw+1)
+	}
+	requireEstimateTotals(t, ce.app, est.Id, 46000, 0, 46000)
 }
