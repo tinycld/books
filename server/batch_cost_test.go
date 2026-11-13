@@ -74,7 +74,7 @@ func TestBatchCost_Create1000LineDraft(t *testing.T) {
 	}
 
 	took := timedRun(t, env.app, apiReq{
-		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, env.users.byLevel(LevelBookkeeper)),
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, env.users.bookkeeper),
 		body: batchBody(ops...), want: http.StatusOK, content: []string{entryID},
 	})
 	t.Logf("create of a 1,000-line draft in one batch: %s", took)
@@ -95,8 +95,8 @@ func TestBatchCost_Post1000LineDraft(t *testing.T) {
 
 	took := timedRun(t, env.app, apiReq{
 		method: http.MethodPatch, url: "/api/collections/books_journal_entries/records/" + entry.Id,
-		token: tokenFor(t, env.users.byLevel(LevelBookkeeper)),
-		body:  `{"status":"posted"}`, want: http.StatusOK, content: []string{`"status":"posted"`},
+		token: tokenFor(t, env.users.bookkeeper),
+		body:  postBody(t, env.app, entry.Id), want: http.StatusOK, content: []string{`"status":"posted"`},
 	})
 	t.Logf("post of a 1,000-line draft: %s", took)
 	if took > costBound {
