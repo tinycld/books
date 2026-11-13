@@ -1,3 +1,5 @@
+import { log } from '@tinycld/core/lib/logger'
+import { useState } from 'react'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
@@ -16,7 +18,15 @@ function ReadState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab }
     return <DocumentReadView data={data} record={data.record} tab={tab} />
 }
 
-function ScreenState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab }) {
+interface ScreenStateProps {
+    data: DocumentScreenData
+    tab: DocumentTab
+    // Counts the reloads of this screen: each one mounts a new form.
+    reloads: number
+    onReload: () => void
+}
+
+function ScreenState({ data, tab, reloads, onReload }: ScreenStateProps) {
     const { messages, testId } = useDocumentKind().doc
     const ids = {
         notFound: `${testId}-not-found`,
@@ -42,7 +52,14 @@ function ScreenState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab
         case 'read':
             return <ReadState data={data} tab={tab} />
         case 'form':
-            return <DocumentForm key={data.formKey} data={data} tab={tab} />
+            return (
+                <DocumentForm
+                    key={`${data.formKey}:${reloads}`}
+                    data={data}
+                    tab={tab}
+                    onReload={onReload}
+                />
+            )
     }
 }
 
@@ -50,8 +67,8 @@ function ScreenState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab
  * A sales document route's one screen: it loads the document of the kind (or nothing, on
  * a new form) and shows the state `documentScreenState` names, on the tab the `tab` param
  * names. The kind is provided once to every component under it. The form is keyed on its
- * form key, so a new route (another id, or a fresh `new`) mounts a fresh form; a tab
- * change keeps it.
+ * form key and the screen's reload count, so a new route (another id, or a fresh `new`)
+ * and a reload each mount a fresh form; a tab change keeps it.
  */
 export function DocumentScreen({
     document: documentKind,
@@ -60,9 +77,27 @@ export function DocumentScreen({
 }: DocumentScreenInput & { document: DocumentKind; tab?: string }) {
     const data = useDocumentScreen(documentKind, input)
     const tab = documentTabOf(tabParam)
+    const reloadRows = documentKind.data.useReload()
+    // A reload mounts a new form on the stored document: the old form's typed values go
+    // with it. Local to this screen: no other component reads it.
+    const [reloads, setReloads] = useState(0)
+    // The store can be behind the server (a realtime message that did not arrive), and a
+    // form built from it would be refused again, so the rows are read again first. A
+    // failed read still loads what the store holds.
+    const reload = async () => {
+        try {
+            await reloadRows()
+        } catch (error) {
+            log.error(`books.${documentKind.doc.key}`, error)
+        }
+        setReloads(count => count + 1)
+    }
+    const onReload = () => {
+        void reload()
+    }
     return (
         <DocumentKindContext.Provider value={documentKind}>
-            <ScreenState data={data} tab={tab} />
+            <ScreenState data={data} tab={tab} reloads={reloads} onReload={onReload} />
         </DocumentKindContext.Provider>
     )
 }
