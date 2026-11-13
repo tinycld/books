@@ -9,6 +9,7 @@ import {
     entryNumberText,
     entryTotalText,
     entryTypeText,
+    OVERDUE_MARK_TEXT,
     reversesText,
 } from '../../lib/entry-display'
 import { formatDay } from '../../lib/register-range'
@@ -36,6 +37,21 @@ export interface EntryItemProps {
     currency: string
     onOpenEntry: (entryId: string) => void
     rowMenu?: (entryId: string) => ReactNode
+    // The entry's automatic reversal did not post (autoReversalState).
+    isOverdue: boolean
+}
+
+export function OverdueMark({ entryId, isVisible }: { entryId: string; isVisible: boolean }) {
+    if (!isVisible) return null
+    return (
+        <Text
+            testID={`entries-overdue-${entryId}`}
+            numberOfLines={1}
+            className="text-xs text-danger"
+        >
+            {OVERDUE_MARK_TEXT}
+        </Text>
+    )
 }
 
 // A reversal names the entry it reverses; that entry is read from the store, one per visible row.
@@ -84,7 +100,7 @@ export function RowMenuSlot({
     )
 }
 
-export function EntryRow({ entry, currency, onOpenEntry, rowMenu }: EntryItemProps) {
+export function EntryRow({ entry, currency, onOpenEntry, rowMenu, isOverdue }: EntryItemProps) {
     const cellId = (column: string) => `entries-cell-${column}-${entry.id}`
     return (
         <Pressable
@@ -112,6 +128,7 @@ export function EntryRow({ entry, currency, onOpenEntry, rowMenu }: EntryItemPro
                     entryId={entry.reverses}
                     className="text-xs text-muted-foreground"
                 />
+                <OverdueMark entryId={entry.id} isVisible={isOverdue} />
             </View>
             <View testID={cellId('memo')} className="min-w-0" style={ENTRY_COLUMNS.memo}>
                 <Text numberOfLines={1} className="text-sm text-foreground">

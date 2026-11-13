@@ -173,6 +173,22 @@ describe('the state of an automatic reversal', () => {
         )
         expect(autoReversalOverdueAt({ auto_reverse_on: 'soon', posted_at: '' })).toBeNull()
     })
+
+    // A row this session just created has no server-stamped field yet (entryTotalText).
+    it('reads a row with no stamped fields without failing', () => {
+        expect(autoReversalOverdueAt({})).toBeNull()
+        expect(autoReversalOverdueAt({ auto_reverse_on: '2026-06-01' })).toBe(
+            ms('2026-06-01T00:05:00Z')
+        )
+        expect(autoReversalState({ status: 'draft' }, [], ms('2026-07-01T00:00:00Z'))).toBe('none')
+        expect(
+            autoReversalState(
+                { status: 'posted', auto_reverse_on: '2026-06-01' },
+                [],
+                ms('2026-07-01T00:00:00Z')
+            )
+        ).toBe('overdue')
+    })
 })
 
 describe('the text of an automatic reversal', () => {
