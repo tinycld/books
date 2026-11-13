@@ -200,19 +200,25 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 			return nil
 		})
 	})
-	if kind.Lifecycle != lifecyclePosting {
-		return
-	}
-	// Stamp who posted or voided, on the transition only, as entries do: the
-	// update rule refuses these fields in a person's body. A quote has neither.
+	// A request that updates a document a person can edit (a draft, a quote
+	// that is not closed) states the revision it saw (revision.go). A posting
+	// kind also stamps who posted or voided, on the transition only, as
+	// entries do: the update rule refuses these fields in a person's body. A
+	// quote has neither.
 	app.OnRecordUpdateRequest(kind.Collection).BindFunc(func(e *core.RecordRequestEvent) error {
 		from, to := e.Record.Original().GetString("status"), e.Record.GetString("status")
-		switch {
-		case from == to:
-		case to == statusPosted:
-			stampActor(e.Record, "posted_by", e.Auth)
-		case to == statusVoid:
-			stampActor(e.Record, "voided_by", e.Auth)
+		done, err := checkRequestRevision(e, kind.isEditableStatus(from), kind.Msgs.RevisionConflict)
+		if err != nil {
+			return err
+		}
+		defer done()
+		if kind.Lifecycle == lifecyclePosting && from != to {
+			switch to {
+			case statusPosted:
+				stampActor(e.Record, "posted_by", e.Auth)
+			case statusVoid:
+				stampActor(e.Record, "voided_by", e.Auth)
+			}
 		}
 		return e.Next()
 	})
