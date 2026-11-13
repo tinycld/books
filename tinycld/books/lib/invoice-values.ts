@@ -1,16 +1,17 @@
 // The invoice form's own start values: a new form's, a copy's and a correction's. The
 // shared values (lines, totals) are in lib/document-values.ts.
 
-import type { BooksInvoices } from '../types'
+import type { BooksEstimates, BooksInvoices } from '../types'
 import { type CustomerFill, customerFills, type TaxRateFill } from './document-fills'
 import type { DocumentLineRow } from './document-line-columns'
 import { type DocumentFormValuesBase, emptyItemLine, linesWithNewIds } from './document-values'
 
 // The `books:invoice` host's built-in values: the shared ones and the invoice's Terms and
-// Due date.
+// Due date. `estimate` names the estimate an invoice from an estimate is made from.
 export type InvoiceFormValues = DocumentFormValuesBase & {
     terms: BooksInvoices['terms']
     due_date: string
+    estimate?: string
 }
 
 // A new form: dated and due today with one empty Item line and the default message
@@ -51,6 +52,7 @@ type SourceInvoice = Pick<
     | 'tax_rate'
     | 'message'
     | 'memo'
+    | 'estimate'
 >
 
 // Read view "Copy" (`?copy=<id>`): a new draft for the same customer with the same
@@ -79,8 +81,45 @@ export function copyInvoiceValues(
     }
 }
 
+type SourceEstimate = Pick<
+    BooksEstimates,
+    'id' | 'customer' | 'bill_to' | 'email' | 'tax_rate' | 'message'
+>
+
+// Convert to invoice (`?estimate=<id>`): the estimate's customer, Bill to, Email, Tax and
+// every line (new ids, in order), with `message` (the estimate's); dated today, with
+// Terms and the due date from the customer as on a new invoice; no memo and no custom
+// field values (the estimate's are its own form's). It names the estimate it is made
+// from, so its first save closes that estimate.
+export function invoiceValuesFromEstimate(
+    estimate: SourceEstimate,
+    lines: readonly DocumentLineRow[],
+    today: string,
+    customer: CustomerFill,
+    message: string
+): InvoiceFormValues {
+    // The tax stays the estimate's, so no rate list is needed for the fill.
+    const fills = customerFills(customer, [], today, null)
+    return {
+        customer: estimate.customer,
+        bill_to: estimate.bill_to,
+        email: estimate.email,
+        terms: fills.terms ?? '',
+        date: today,
+        due_date: fills.due_date ?? today,
+        tax_rate: estimate.tax_rate,
+        lines: linesWithNewIds(lines),
+        message,
+        memo: '',
+        fields: {},
+        estimate: estimate.id,
+    }
+}
+
 // Read view "Edit" (`?replaces=<id>`): a correction keeps every value of the posted
-// invoice, with new line ids, and names the invoice it replaces.
+// invoice, with new line ids, and names the invoice it replaces. It keeps the estimate
+// the invoice was made from (the server refuses a correction that drops it), so posting
+// it moves that estimate to the correction.
 export function invoiceCorrectionValues(
     invoice: SourceInvoice,
     lines: readonly DocumentLineRow[]
@@ -97,5 +136,6 @@ export function invoiceCorrectionValues(
         message: invoice.message,
         memo: invoice.memo,
         replaces: invoice.id,
+        estimate: invoice.estimate,
     }
 }

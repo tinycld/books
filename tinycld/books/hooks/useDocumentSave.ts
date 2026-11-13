@@ -25,6 +25,7 @@ import {
 import { type DocumentTab, documentHref, documentNewHref } from '../lib/document-routes'
 import { documentTaxOf } from '../lib/document-tax'
 import { documentLinesForSave } from '../lib/document-values'
+import { acceptanceShown } from '../lib/estimate-status'
 import { type HiddenFields, hiddenRefusalKeys, refusalMessage } from '../lib/record-refusals'
 import {
     columnsOrThrow,
@@ -34,7 +35,7 @@ import {
     startFailed,
 } from '../lib/record-save'
 import { messageOnlyRefusal } from '../lib/refusal'
-import type { SalesDocumentKind } from '../lib/sales-document-kinds'
+import { INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
 import { createTablePlans } from '../lib/table-writes'
 import { useDocumentSaveStore } from '../stores/document-save-store'
 import type { DocumentWrites } from './document-data'
@@ -209,11 +210,21 @@ function lineWritesOf(state: DocumentFormState, writes: DocumentWrites) {
 // the draft (row and lines) was fully written, so a refused post leaves a draft behind.
 type Progress = { inserted: boolean; rowLabel: string | null; undone: boolean; drafted: boolean }
 
-// What a save does after the draft is written: Save draft stops there; Post sets the
-// status; Post & new then opens a fresh form.
-type SaveMode = { post: boolean; andNew: boolean }
+// What a save does after the document is written: Save draft (and a quote's Save) stops
+// there; Post sets the status; `andNew` then opens a fresh form (Post & new, Save & new);
+// `close` leaves the form (a quote's Save & close); `convert` opens the invoice form made
+// from the saved quote (Convert to invoice).
+type SaveMode = { post: boolean; andNew: boolean; close: boolean; convert: boolean }
 
-const SAVE_DRAFT: SaveMode = { post: false, andNew: false }
+const SAVE_DRAFT: SaveMode = { post: false, andNew: false, close: false, convert: false }
+
+// A quote's saves: no draft and no post, so each writes the document and then stays,
+// leaves, opens a fresh form, or opens the invoice form made from it.
+export type QuoteSaveMode = { close: boolean; andNew: boolean; convert: boolean }
+
+function quoteMode({ close, andNew, convert }: QuoteSaveMode): SaveMode {
+    return { post: false, close, andNew, convert }
+}
 
 function newProgress(inserted: boolean): Progress {
     return { inserted, rowLabel: null, undone: false, drafted: false }
@@ -260,7 +271,17 @@ type DocumentSaveOptions = {
     // The definition the screen renders when it is not the form's own (a copy with
     // built-ins hidden): a refusal of a field it hides joins the summary.
     definition?: FormDefinition
+    // Where a quote's Save & close goes: the screen's way back (DocumentForm's Cancel).
+    leave?: () => void
+    // The writer key of the screen mount this form belongs to (useDocumentScreen): a
+    // refused post files its written draft under it.
+    writer?: string
 }
+
+const ACCEPTANCE_KEYS = ['accepted_by', 'accepted_date'] as const
+
+// The keys of the estimate's cross-field rules (lib/document-schema.ts estimateIssues).
+const QUOTE_RULE_KEYS = ['expiration_date', 'accepted_date'] as const
 
 // Whether a field the form shows holds an error now. Read through `getFieldState`, which
 // reads the form's current errors, not the last render's (lesson 17): this runs right
@@ -271,7 +292,8 @@ function hasFieldErrors(state: DocumentFormState): boolean {
 }
 
 /**
- * Save draft, Post and Post & new on a sales document form.
+ * Save draft, Post and Post & new on a posting kind's form; Save, Save & close, Save &
+ * new and Convert to invoice on a quote's.
  *
  * - A new document inserts its row, then its lines one at a time; a refused line deletes
  *   the new document again and the form stays new, with the refusal under that line.
@@ -284,6 +306,13 @@ function hasFieldErrors(state: DocumentFormState): boolean {
  *   draft written and shows the refusal on the form; a new form then updates that draft.
  *   A post from `new` opens the read view; on a saved draft the screen shows it once the
  *   post is confirmed. Post & new opens a fresh form.
+ * - A quote (an estimate) has no draft and no post: Save writes the document (a create
+ *   replaces the route with the document's own) and stays; Save & close writes it and
+ *   leaves (`options.leave`), also when nothing changed; Save & new writes it and opens a
+ *   fresh form; Convert writes it when it has changes and opens the invoice form made
+ *   from it (`?estimate`). The save store holds the document through every quote write, so the
+ *   optimistic row never swaps the form. Accepted by and Accepted date, hidden while
+ *   Status is not Accepted, are saved empty then.
  *
  * The empty trailing Item line is dropped before the form validates (spec: dropped at
  * save); Post validates with the `post` mode of the record schema, which adds its rule.
@@ -335,16 +364,27 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
 
     // Where the form goes after a save: Post & new to a fresh form; a save from `new` to
     // the document's own route; a saved draft stays (a post shows its read view there).
+    // Convert on `new` first replaces the route with the saved quote's, then pushes the
+    // invoice form, so Back and the invoice's Cancel return to the saved quote.
     const navigateAfter = (id: string, mode: SaveMode) => {
         if (!isPresent()) return
-        if (mode.andNew) router.replace(orgHref(postAndNewHref(kind, state.openedWithCustomer)))
-        else if (state.isNew) router.replace(savedHref(id, mode))
+        if (mode.convert) {
+            if (state.isNew) router.replace(savedHref(id, mode))
+            router.push(orgHref(documentNewHref(INVOICE_KIND, { estimate: id })))
+        } else if (mode.close) options.leave?.()
+        else if (mode.andNew) {
+            router.replace(orgHref(postAndNewHref(kind, state.openedWithCustomer)))
+        } else if (state.isNew) router.replace(savedHref(id, mode))
     }
 
     // The new form's values are now stored: they become its baseline, and its next save
-    // updates this document.
+    // updates this document. The store files it under this screen mount's writer key: on
+    // an invoice made from an estimate, this draft closed the estimate, and that mount's
+    // screen keeps this form for it (useDocumentScreen) instead of the cannot-convert
+    // notice, so the refusal stays here. A later mount of the route has another key.
     const markWritten = (id: string, rows: TableRow[]) => {
         setWritten({ id, rows })
+        if (options.writer) useDocumentSaveStore.getState().wrote(options.writer, id)
         state.create.form.reset(state.create.form.getValues())
     }
 
@@ -470,18 +510,39 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         state.form.setValue('deposit_to', fallback, { shouldDirty: true })
     }
 
-    // A post holds the document before its first write (set synchronously, so the very
-    // render the optimistic write triggers sees it); the mutation releases it.
-    const holdFor = (id: string, mode: SaveMode) => {
-        if (mode.post) useDocumentSaveStore.getState().hold(id)
+    // An estimate saved with Pending, Accepted or Rejected as Status: Accepted by and
+    // Accepted date are hidden off Accepted, so they are saved empty (the server clears
+    // them as well). Set here, at the save, so the hidden values never change on their own.
+    const clearHiddenAcceptance = () => {
+        if (kind.lifecycle !== 'quote') return
+        const status = state.form.getValues('status')
+        if (acceptanceShown(typeof status === 'string' ? status : '')) return
+        for (const key of ACCEPTANCE_KEYS) {
+            if (state.form.getValues(key) !== '') {
+                state.form.setValue(key, '', { shouldDirty: true })
+            }
+        }
     }
+
+    // A post, every quote save, and the first save of an invoice made from an estimate
+    // hold the document before its first write (set synchronously, so the very render the
+    // optimistic write triggers sees it); the mutation releases it. The last: that save
+    // closes the estimate, and the closed estimate's update would swap the form for the
+    // cannot-convert notice before the save could leave it.
+    const holdFor = (id: string, mode: SaveMode) => {
+        const isHeld = mode.post || kind.lifecycle === 'quote' || state.estimate !== ''
+        if (isHeld) useDocumentSaveStore.getState().hold(id)
+    }
+
+    // The estimate a new invoice names is no field of the form: the insert writes it.
+    const estimateColumn = state.estimate === '' ? {} : { estimate: state.estimate }
 
     const startCreate = async (mode: SaveMode) => {
         const split = await state.create.submit()
         if (!split) return false
         const columns = {
             ...documentKind.emptyColumns,
-            ...columnsOrThrow(documentKind.columnsFrom, split.columns),
+            ...columnsOrThrow(documentKind.columnsFrom, { ...split.columns, ...estimateColumn }),
         }
         const id = newRecordId()
         holdFor(id, mode)
@@ -519,11 +580,28 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         return true
     }
 
+    // Core's edit patch validates only the dirty keys, but a quote's rules read keys the
+    // user may not have touched: Accepted date stays required while Status is Accepted
+    // (a cleared date can equal the stored empty one), and a new estimate date can fall
+    // after a stored Expiration date. Run after the patch, which builds the schema of the
+    // current values, so every save checks both and shows the errors with the others.
+    const quoteRulesHold = () => {
+        if (kind.lifecycle !== 'quote') return Promise.resolve(true)
+        return state.form.trigger([...QUOTE_RULE_KEYS])
+    }
+
     const startUpdate = async (id: string, mode: SaveMode) => {
         const result = await state.edit.patch()
-        if (!result) return false
-        // Nothing changed: a draft save has nothing to write; a post sets only the status.
-        if (!mode.post && Object.keys(result.written).length === 0) return false
+        const rulesHold = await quoteRulesHold()
+        if (!result || !rulesHold) return false
+        // Nothing changed: a draft save has nothing to write; a post sets only the status;
+        // a quote's Save & close, Save & new or Convert still goes on, as a save that wrote
+        // nothing did not fail.
+        if (!mode.post && Object.keys(result.written).length === 0) {
+            if (!mode.close && !mode.andNew && !mode.convert) return false
+            navigateAfter(id, mode)
+            return true
+        }
         holdFor(id, mode)
         update.mutate({
             id,
@@ -551,6 +629,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         try {
             dropEmptyLine()
             fillDepositFallback()
+            clearHiddenAcceptance()
             // Post validates with its own rule added (at least one Item line); the
             // record schema reads the mode when it runs.
             if (mode.post) state.saveMode.current = 'post'
@@ -573,7 +652,21 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
 
     return {
         saveDraft: () => runLocked(lock, () => start(SAVE_DRAFT)),
-        post: (andNew: boolean) => runLocked(lock, () => start({ post: true, andNew })),
+        post: (andNew: boolean) =>
+            runLocked(lock, () => start({ post: true, andNew, close: false, convert: false })),
+        // A quote's saves (DocumentSaveBar).
+        save: () =>
+            runLocked(lock, () =>
+                start(quoteMode({ close: false, andNew: false, convert: false }))
+            ),
+        saveAndClose: () =>
+            runLocked(lock, () => start(quoteMode({ close: true, andNew: false, convert: false }))),
+        saveAndNew: () =>
+            runLocked(lock, () => start(quoteMode({ close: false, andNew: true, convert: false }))),
+        // Convert to invoice: writes the quote when the form has changes (a new one
+        // always), then opens the invoice form made from it; a refused save stays here.
+        convert: () =>
+            runLocked(lock, () => start(quoteMode({ close: false, andNew: false, convert: true }))),
         isSaving: insert.isPending || update.isPending,
         writtenId: written?.id ?? null,
         surfaceRef,

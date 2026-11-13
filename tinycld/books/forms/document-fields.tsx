@@ -18,6 +18,7 @@ import {
     Text,
     View,
 } from 'react-native'
+import { DocumentSourceLink } from '../components/documents/DocumentSourceLink'
 import { useDocumentFormScope } from '../components/documents/document-form-context'
 import { AddressField } from '../components/forms/AddressField'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
@@ -32,6 +33,7 @@ import {
 } from '../lib/document-fills'
 import { NO_CUSTOMER_TEXT } from '../lib/document-texts'
 import type { PaymentTermKey } from '../lib/payment-terms'
+import { ESTIMATE_KIND } from '../lib/sales-document-kinds'
 import { useDocumentBandStore } from '../stores/document-band-store'
 import { EmailField } from './contact-fields'
 import { TaxRateField } from './tax-fields'
@@ -192,6 +194,45 @@ function CustomerExemptHint({ isVisible, testID }: { isVisible: boolean; testID:
     )
 }
 
+// The customer's name on an invoice made from an estimate, whose customer cannot change:
+// '…' while the form's customer loads; its load error and Retry draw under it.
+function readOnlyCustomerText(scope: ReturnType<typeof useDocumentFormScope>): string {
+    if (scope.customer) {
+        const suffix = scope.customer.inactive ? ' (inactive)' : ''
+        return `${scope.customer.display_name}${suffix}`
+    }
+    return scope.isCustomerLoading ? '…' : ''
+}
+
+/**
+ * Customer on an invoice made from an estimate (`isReadOnly` mode): the customer's name
+ * as text, not a Tab stop, with the "From estimate <n>" link under it, which opens the
+ * estimate and is the band's Tab stop after Customer. The number is the screen's read
+ * (scope.estimateNumber), so the link waits on no query of its own.
+ */
+function ReadOnlyCustomer() {
+    const scope = useDocumentFormScope()
+    const { kind } = scope
+    const name = readOnlyCustomerText(scope)
+    const retry = scope.customerLoadFailed ? scope.retryCustomer : undefined
+    const label = `From estimate ${scope.estimateNumber}`
+    const ids = { name: `${kind.testId}-customer-read-only`, link: `${kind.testId}-from-estimate` }
+    return (
+        <View className="gap-1">
+            <Text testID={ids.name} className="py-2 text-sm text-foreground">
+                {name}
+            </Text>
+            <DocumentSourceLink
+                label={label}
+                kind={ESTIMATE_KIND}
+                id={scope.estimateId}
+                testID={ids.link}
+            />
+            <CustomerLoadError isVisible={scope.customerLoadFailed} onRetry={retry} />
+        </View>
+    )
+}
+
 /**
  * Customer: a picker over active customers ("Parent: Child" for a sub-customer). A
  * stored customer that is now inactive shows by name. Picking one fills Bill to, Email,
@@ -199,9 +240,16 @@ function CustomerExemptHint({ isVisible, testID }: { isVisible: boolean; testID:
  * or when the exemption changes, and moves focus on to the next field. A kind whose
  * customer is optional (a sales receipt) offers "No customer" first, which clears Bill
  * to and Email and sets the default rate. An exempt customer shows "Tax exempt" under
- * the picker. Focused once at open, on web only.
+ * the picker. Focused once at open, on web only. On an invoice that names an estimate
+ * the customer is read only (ReadOnlyCustomer).
  */
-export function CustomerField({ fieldKey, label, value, onChange, disabled }: BuiltinFieldProps) {
+export function CustomerField(props: BuiltinFieldProps) {
+    const { estimateId } = useDocumentFormScope()
+    if (estimateId !== '') return <ReadOnlyCustomer />
+    return <CustomerPickerField {...props} />
+}
+
+function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: BuiltinFieldProps) {
     const id = textOf(value)
     const scope = useDocumentFormScope()
     const picker = useSearchPicker()
@@ -411,9 +459,19 @@ interface DayFieldProps {
     value: unknown
     disabled: boolean
     onChange: (value: string) => void
+    // Focused once at mount (core DateField's rule).
+    autoFocus?: boolean
 }
 
-function DayField({ fieldKey, label, value, disabled, onChange }: DayFieldProps) {
+// A document's day built-in on core DateField; the estimate's day fields reuse it.
+export function DayField({
+    fieldKey,
+    label,
+    value,
+    disabled,
+    onChange,
+    autoFocus = false,
+}: DayFieldProps) {
     const onDateChange = (next: string | null) => onChange(next ?? '')
     return (
         <DateField
@@ -422,20 +480,25 @@ function DayField({ fieldKey, label, value, disabled, onChange }: DayFieldProps)
             withTime={false}
             disabled={disabled}
             accessibilityLabel={label}
+            autoFocus={autoFocus}
             testID={`form-input-${fieldKey}`}
         />
     )
 }
 
-// Invoice date: a change also sets Due date from the terms, when there are terms.
+// Invoice date: a change also sets Due date from the terms, when there are terms. On an
+// invoice that names an estimate the Customer is text, not an input, so the date takes
+// the form's first focus (web only, as Customer's).
 export function DocumentDateField(props: BuiltinFieldProps) {
     const { getValues, setValue } = useFormContext<FormValues>()
+    const { estimateId } = useDocumentFormScope()
+    const isFirstField = estimateId !== '' && Platform.OS === 'web'
     const onChange = (next: string) => {
         props.onChange(next)
         const due = dueDateFor(next, termsOf(getValues('terms')))
         if (due !== null) setValue('due_date', due, DIRTY)
     }
-    return <DayField {...props} onChange={onChange} />
+    return <DayField {...props} onChange={onChange} autoFocus={isFirstField} />
 }
 
 // Due date: a typed date is kept, and so are the terms.

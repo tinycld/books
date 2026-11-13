@@ -62,7 +62,7 @@ function SalesReadOnly({ settings, deposit, onRetry }: CardsProps) {
                 />
                 <DepositLoadError isVisible={deposit.isError} onRetry={onRetry} />
             </SectionCard>
-            <SectionCard title="Invoices and sales receipts">
+            <SectionCard title="Invoices, estimates and sales receipts">
                 <ReadOnlyRow
                     label="Default message to customer"
                     value={messageText}
@@ -83,7 +83,7 @@ function SalesForms({ settings, deposit, onRetry }: CardsProps) {
                     <DepositLoadError isVisible={deposit.isError} onRetry={onRetry} />
                 </View>
             </SectionCard>
-            <SectionCard title="Invoices and sales receipts">
+            <SectionCard title="Invoices, estimates and sales receipts">
                 <DefaultMessageForm settings={settings} />
             </SectionCard>
         </View>

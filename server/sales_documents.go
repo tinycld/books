@@ -16,14 +16,27 @@ import (
 	"tinycld.org/core/forms"
 )
 
-// salesDocKind is one kind of sales document (an invoice, a sales receipt):
-// the collections it writes, the forms host of its lines, its doc type, its
-// refusal texts and the parts of its guards and posting that differ by kind.
-// Every guard and the posting below take a kind; invoiceKind (invoices.go) and
-// salesReceiptKind (sales_receipts.go) are the two kinds.
+// The lifecycles of a sales document kind (the client's DocumentLifecycle,
+// lib/sales-document-kinds.ts). A posting document is a draft, then posted,
+// then void; a quote is pending, accepted or rejected while the customer
+// decides, and closed once an invoice is made from it. A quote never posts.
+const (
+	lifecyclePosting = "posting"
+	lifecycleQuote   = "quote"
+)
+
+// salesDocKind is one kind of sales document (an invoice, a sales receipt, an
+// estimate): the collections it writes, the forms host of its lines, its doc
+// type, its lifecycle, its refusal texts and the parts of its guards and
+// posting that differ by kind. Every guard and the posting below take a kind;
+// invoiceKind (invoices.go), salesReceiptKind (sales_receipts.go) and
+// estimateKind (estimates.go) are the kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
+	// Lifecycle is lifecyclePosting or lifecycleQuote: which statuses a person
+	// edits, and whether the document posts.
+	Lifecycle string
 	// Collection, LinesCollection and TaxLinesCollection are the header, line
 	// and posted tax line collections; ParentField is the field of a line and
 	// of a tax line that names its document.
@@ -41,15 +54,43 @@ type salesDocKind struct {
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
+	// AfterCreate runs after a create's write, in its transaction, so a
+	// failure rolls the create back (an invoice closes the estimate it is made
+	// from); nil is no step.
+	AfterCreate func(tx core.App, r *core.Record) error
+	// CheckDelete runs inside a delete's transaction before the status check
+	// (an estimate an invoice names is refused); nil is no check.
+	CheckDelete func(tx core.App, stored *core.Record) error
+	// Withdraw runs when a posting document stops standing: its draft is
+	// deleted, or it is voided (an invoice reopens its estimate). It does not
+	// run when a correction's post replaces the document (Replace does); nil
+	// is no step.
+	Withdraw func(tx core.App, doc *core.Record) error
+	// Replace runs when a correction's post sets its original void (an
+	// invoice moves its estimate to the correction); nil is no step.
+	Replace func(tx core.App, original, correction *core.Record) error
 	// BeforePost runs in the posting transaction before the lines are read;
-	// nil is no step.
+	// nil is no step, and a quote has none.
 	BeforePost func(tx core.App, doc *core.Record) error
-	// DebitAccount is the account the posting debits for the total.
+	// DebitAccount is the account the posting debits for the total; nil for a
+	// quote, which never posts.
 	DebitAccount func(tx core.App, doc *core.Record) (string, error)
 }
 
+// isEditableStatus reports whether a person may change a document in status
+// and its lines: a posting document only while it is a draft, a quote until
+// it is closed.
+func (k salesDocKind) isEditableStatus(status string) bool {
+	if k.Lifecycle == lifecycleQuote {
+		return status != statusClosed
+	}
+	return status == statusDraft
+}
+
 // salesDocMessages are the refusal texts that name the kind ("invoice",
-// "sales receipt"). The texts every kind shares are constants.
+// "sales receipt", "estimate"). The texts every kind shares are constants. On
+// a quote, NotDraft, DeleteNotDraft and LineNotDraft are the texts of a closed
+// document; ZeroTotal, PostedFromForm and EditMissing are posting texts.
 type salesDocMessages struct {
 	TotalNegative, TotalTooLarge, TooManyLines, ZeroTotal, PostedFromForm, NotDraft, DeleteNotDraft,
 	LineStays, LineNotDraft, LineRestating, LineUnknownKind, EditMissing, CustomerOnDocs string
@@ -88,9 +129,9 @@ const maxDocumentLines = 250
 // allows. Every line create, update and delete then restates the document
 // (each line's amount and the three totals) in the same transaction.
 func registerSalesDocGuards(app core.App, kind salesDocKind) {
-	bindSerializedGuard(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
+	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDoc(tx, kind, stored, r)
-	})
+	}, kind.AfterCreate)
 	bindSerializedGuard(app, kind.LinesCollection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDocLine(tx, kind, stored, r)
 	})
@@ -123,10 +164,14 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	})
 	// The cascade deletes the lines one by one; none of them is checked or
 	// restates a document that is going away. The status is read from the
-	// stored row inside serialized: a post that commits after the caller
-	// loaded the record must not let its delete cascade a posted document. The
-	// mark is set only after that re-read passes, so a refused delete never
-	// lets a line write skip its guard while it runs.
+	// stored row inside serialized: a post (or a conversion) that commits after
+	// the caller loaded the record must not let its delete cascade a posted
+	// document (or a closed estimate). The mark is set only after that re-read
+	// passes, so a refused delete never lets a line write skip its guard while
+	// it runs. The kind's CheckDelete and Withdraw run in the same
+	// transaction, before the row goes: Withdraw clears the links that name
+	// it (an estimate's invoice), so PocketBase's unlink of the deleted row
+	// never writes to a closed estimate or a posted invoice.
 	app.OnRecordDelete(kind.Collection).BindFunc(func(e *core.RecordEvent) error {
 		done := func() {}
 		defer func() { done() }()
@@ -135,15 +180,28 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 			if err != nil {
 				return err
 			}
-			if stored.GetString("status") != statusDraft {
+			if kind.CheckDelete != nil {
+				if err := kind.CheckDelete(tx, stored); err != nil {
+					return err
+				}
+			}
+			if !kind.isEditableStatus(stored.GetString("status")) {
 				return refuse("%s", kind.Msgs.DeleteNotDraft)
+			}
+			if kind.Withdraw != nil {
+				if err := kind.Withdraw(tx, stored); err != nil {
+					return err
+				}
 			}
 			done = markDeleting(tx, kind, e.Record.Id)
 			return nil
 		})
 	})
+	if kind.Lifecycle != lifecyclePosting {
+		return
+	}
 	// Stamp who posted or voided, on the transition only, as entries do: the
-	// update rule refuses these fields in a person's body.
+	// update rule refuses these fields in a person's body. A quote has neither.
 	app.OnRecordUpdateRequest(kind.Collection).BindFunc(func(e *core.RecordRequestEvent) error {
 		from, to := e.Record.Original().GetString("status"), e.Record.GetString("status")
 		switch {
@@ -205,11 +263,19 @@ func refuseNamedField(field, format string, args ...any) error {
 	return err
 }
 
-// validateSalesDoc guards a document write. A create is a draft: it stamps the
-// id and the currency and runs the draft guards. An update follows the
-// document's lifecycle (transitionSalesDoc). stored is the record before an
-// update, nil on a create.
+// validateSalesDoc guards a document write. A quote's create and update follow
+// the quote lifecycle (createQuote, transitionQuote in estimates.go). A
+// posting document's create is a draft: it stamps the id and the currency and
+// runs the draft guards; its update follows the posting lifecycle
+// (transitionSalesDoc). stored is the record before an update, nil on a
+// create.
 func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) error {
+	if kind.Lifecycle == lifecycleQuote {
+		if stored != nil {
+			return transitionQuote(tx, kind, stored, r)
+		}
+		return createQuote(tx, kind, r)
+	}
 	if stored != nil {
 		return transitionSalesDoc(tx, kind, stored, r, time.Now())
 	}
@@ -481,7 +547,8 @@ func setSalesDocTotals(r *core.Record, totals documentTotalsResult) {
 	r.Set("total", totals.Total)
 }
 
-// validateSalesDocLine checks one line write of a draft: the line stays on its
+// validateSalesDocLine checks one line write of an editable document (a draft,
+// a quote that is not closed): the line stays on its
 // document, the document holds at most maxDocumentLines lines, the line's kind
 // has its own cells and no others, a product the write chooses is active and
 // not a bundle, and the document's lines with this write still have a target
@@ -511,7 +578,7 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 	if err != nil {
 		return fmt.Errorf("books: read the line's document: %w", err)
 	}
-	if doc.GetString("status") != statusDraft {
+	if !kind.isEditableStatus(doc.GetString("status")) {
 		return refuse("%s", kind.Msgs.LineNotDraft)
 	}
 	if stored == nil {
@@ -666,14 +733,15 @@ func checkLineProduct(tx core.App, stored, r *core.Record, n int) error {
 	return nil
 }
 
-// checkSalesDocLineDelete allows a draft's line to go when the lines left
-// still have a target for every percent line and totals Books can store.
+// checkSalesDocLineDelete allows a line of an editable document (a draft, a
+// quote that is not closed) to go when the lines left still have a target for
+// every percent line and totals Books can store.
 func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) error {
 	doc, err := tx.FindRecordById(kind.Collection, line.GetString(kind.ParentField))
 	if err != nil {
 		return fmt.Errorf("books: read the line's document: %w", err)
 	}
-	if doc.GetString("status") != statusDraft {
+	if !kind.isEditableStatus(doc.GetString("status")) {
 		return refuse("%s", kind.Msgs.LineNotDraft)
 	}
 	stored, err := salesDocLines(tx, kind, doc.Id)

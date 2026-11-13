@@ -21,7 +21,7 @@ export const RATE_INVALID = 'Enter a rate from 0 to 100 with at most four decima
 export const NO_LIABILITY_ACCOUNT = 'Your chart has no sales tax liability account.'
 
 export const DEFAULT_HELP =
-    'Invoices and sales receipts start with this tax unless the customer has its own default.'
+    'Invoices, estimates and sales receipts start with this tax unless the customer has its own default.'
 
 export const EMPTY_QUESTION = 'Which agencies do you collect sales tax for?'
 

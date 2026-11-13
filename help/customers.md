@@ -51,7 +51,7 @@ To delete a customer, open the menu on its row and choose Delete, then choose De
 
 A customer with sub-customers cannot be deleted. If all of its sub-customers are inactive, the dialog lets you make the customer inactive. If one or more sub-customers are active, make them inactive first. If you delete the customer that is open with changes that are not saved, the dialog tells you that those changes will be lost.
 
-A customer that is on an invoice or a [sales receipt](help://books:sales-receipts), draft or posted, cannot be deleted. Make it inactive instead.
+A customer that is on an invoice or a [sales receipt](help://books:sales-receipts), draft or posted, or on an [estimate](help://books:estimates), cannot be deleted. Make it inactive instead.
 
 ## Sales tax
 

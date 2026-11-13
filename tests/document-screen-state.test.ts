@@ -7,6 +7,7 @@ type Input = Parameters<typeof documentScreenState>[0]
 
 // A writer on a loaded draft.
 const DRAFT: Input = {
+    lifecycle: 'posting',
     isReady: true,
     isError: false,
     canWrite: true,
@@ -76,6 +77,20 @@ describe('documentScreenState', () => {
     it('a correction of a posted invoice is the form', () => {
         expect(documentScreenState({ ...NEW, replacesStatus: 'posted' })).toBe('form')
     })
+
+    // Convert to invoice (spec §3.7): `books/invoices/new?estimate=<id>`. `estimateStatus`
+    // is the estimate's status, null when it does not exist. Only a pending or accepted
+    // estimate converts; a rejected or closed one shows the cannot-convert notice.
+    it('an invoice from an estimate is the form only while the estimate is pending or accepted', () => {
+        expect(documentScreenState({ ...NEW, estimateStatus: 'pending' })).toBe('form')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'accepted' })).toBe('form')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'rejected' })).toBe('cannot-convert')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'closed' })).toBe('cannot-convert')
+        expect(documentScreenState({ ...NEW, estimateStatus: null })).toBe('not-found')
+        expect(documentScreenState({ ...NEW, estimateStatus: 'pending', canWrite: false })).toBe(
+            'no-access'
+        )
+    })
 })
 
 // The sales receipt's states (spec §3.9) and the texts its screen shows for them.
@@ -108,5 +123,44 @@ describe('documentScreenState for a sales receipt', () => {
 
     it('is loading while the reads are not ready', () => {
         expect(documentScreenState({ ...NEW, isReady: false })).toBe('loading')
+    })
+})
+
+// The quote lifecycle (spec §3.1): the form opens for a writer on pending, accepted and
+// rejected estimates; a closed estimate opens in the read view for everyone; a reader
+// sees every estimate in the read view and gets no-access at new.
+describe('documentScreenState for a quote', () => {
+    const PENDING: Input = { ...DRAFT, lifecycle: 'quote', status: 'pending' }
+    const NEW_QUOTE: Input = { ...PENDING, isNew: true, status: null }
+
+    it.each([
+        'pending',
+        'accepted',
+        'rejected',
+    ] as const)('a writer on a %s estimate gets the form', status => {
+        expect(documentScreenState({ ...PENDING, status })).toBe('form')
+    })
+
+    it('a writer on a closed estimate gets the read view', () => {
+        expect(documentScreenState({ ...PENDING, status: 'closed' })).toBe('read')
+    })
+
+    it('a reader on a pending estimate gets the read view', () => {
+        expect(documentScreenState({ ...PENDING, canWrite: false })).toBe('read')
+    })
+
+    it('a reader at new gets no-access, a writer the form', () => {
+        expect(documentScreenState({ ...NEW_QUOTE, canWrite: false })).toBe('no-access')
+        expect(documentScreenState(NEW_QUOTE)).toBe('form')
+    })
+
+    // The first save's optimistic row would swap the new form before the server answers.
+    it('a new estimate held through its save stays the form', () => {
+        expect(documentScreenState({ ...NEW_QUOTE, isHeld: true })).toBe('form')
+        expect(documentScreenState({ ...PENDING, isHeld: true })).toBe('form')
+    })
+
+    it('an id with no row is not-found', () => {
+        expect(documentScreenState({ ...PENDING, status: null })).toBe('not-found')
     })
 })

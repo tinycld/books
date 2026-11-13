@@ -2,19 +2,28 @@ import { type Shortcut, useRegisterShortcuts, useShortcutScope } from '@tinycld/
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useId, useMemo, useRef } from 'react'
 import { DOCUMENT_PDF_KEY } from '../lib/document-actions'
-import { FORM_KEYS } from '../lib/entry-shortcuts'
+import { FORM_KEYS, QUOTE_FORM_KEYS } from '../lib/entry-shortcuts'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 
 interface DocumentShortcutsInput {
-    // The kind's shortcut group and the prefix of the key ids.
-    kind: Pick<SalesDocumentKind, 'key' | 'shortcutGroup'>
+    // The kind's shortcut group, the prefix of the key ids, and its lifecycle (which bar
+    // the form draws).
+    kind: Pick<SalesDocumentKind, 'key' | 'shortcutGroup' | 'lifecycle' | 'noun'>
     isSaving: boolean
-    // The form is a saved draft the user may delete.
-    canDeleteDraft: boolean
-    deleteDraft: () => void
-    // On a phone, Post & new is a row of More, not a bar button.
+    // The form's Delete is offered: a saved posting draft (Delete draft), or a saved
+    // quote that is not closed (Delete estimate).
+    canDelete: boolean
+    deleteRecord: () => void
+    // On a phone, Post & new (a quote's Save, Save & new, Convert and Delete) is a row of
+    // More, not a bar button.
     isPhone: boolean
     postAndNew: () => void
+    // A quote's Save and Save & new.
+    save: () => void
+    saveAndNew: () => void
+    // A quote's Convert to invoice, and whether it is offered now.
+    canConvert: boolean
+    convert: () => void
     // A saved draft and no download running: the Download PDF row takes a press.
     canDownloadPdf: boolean
     downloadPdf: () => void
@@ -22,25 +31,164 @@ interface DocumentShortcutsInput {
 
 type KeyState = {
     isSaving: boolean
-    canDeleteDraft: boolean
+    canDelete: boolean
+    canConvert: boolean
     canDownloadPdf: boolean
     writesAvailable: boolean
+}
+
+type KeyRuns = Pick<
+    DocumentShortcutsInput,
+    'deleteRecord' | 'postAndNew' | 'save' | 'saveAndNew' | 'convert' | 'downloadPdf'
+>
+
+interface KeyListInput {
+    idOf: (name: string) => string
+    group: string
+    // The kind's noun ("Estimate"), which names its Delete.
+    noun: string
+    isPhone: boolean
+    // Whether a quote's Convert and Delete are offered now: their keys are registered only
+    // then, as the ⇧? list ignores `when`.
+    canConvert: boolean
+    canDelete: boolean
+    state: { current: KeyState }
+    run: { current: KeyRuns }
+}
+
+// A More row's key: it fires while the row would take a press (and, for a row shown only
+// sometimes, while `isOffered` says it is shown).
+function writeKey(
+    { idOf, group, state }: KeyListInput,
+    name: string,
+    keys: string,
+    description: string,
+    run: () => void,
+    isOffered: (current: KeyState) => boolean = () => true
+): Shortcut {
+    return {
+        id: idOf(name),
+        keys,
+        scope: 'compose',
+        description,
+        group,
+        allowInInputs: true,
+        when: () => {
+            const current = state.current
+            return current.writesAvailable && !current.isSaving && isOffered(current)
+        },
+        run,
+    }
+}
+
+// ⌘S while the bar's (or the More row's) save cannot take it: offline, or a save runs.
+function idleSaveKey(
+    { idOf, group, state }: KeyListInput,
+    keys: string,
+    description: string
+): Shortcut {
+    return {
+        id: idOf('saveIdle'),
+        keys,
+        scope: 'compose',
+        description,
+        group,
+        allowInInputs: true,
+        when: () => state.current.isSaving || !state.current.writesAvailable,
+        run: () => {},
+    }
+}
+
+function downloadPdfKey({ idOf, group, state, run }: KeyListInput): Shortcut {
+    return {
+        id: idOf('downloadPdf'),
+        keys: DOCUMENT_PDF_KEY,
+        scope: 'compose',
+        description: 'Download PDF',
+        group,
+        allowInInputs: true,
+        run: () => {
+            if (state.current.canDownloadPdf) run.current.downloadPdf()
+        },
+    }
+}
+
+function postingKeys(input: KeyListInput): Shortcut[] {
+    const { run, isPhone } = input
+    const deleteDraft = writeKey(
+        input,
+        'deleteDraft',
+        FORM_KEYS.deleteDraft,
+        'Delete draft',
+        () => run.current.deleteRecord(),
+        current => current.canDelete
+    )
+    const keys = [
+        deleteDraft,
+        idleSaveKey(input, FORM_KEYS.saveDraft, 'Save draft'),
+        downloadPdfKey(input),
+    ]
+    if (!isPhone) return keys
+    const postAndNew = writeKey(input, 'postAndNew', FORM_KEYS.postAndNew, 'Post & new', () =>
+        run.current.postAndNew()
+    )
+    return [...keys, postAndNew]
+}
+
+function quoteKeys(input: KeyListInput): Shortcut[] {
+    const { run, isPhone, canConvert, canDelete } = input
+    const keys = [idleSaveKey(input, QUOTE_FORM_KEYS.save, 'Save'), downloadPdfKey(input)]
+    if (!isPhone) return keys
+    const save = writeKey(input, 'save', QUOTE_FORM_KEYS.save, 'Save', () => run.current.save())
+    const saveAndNew = writeKey(input, 'saveAndNew', QUOTE_FORM_KEYS.saveAndNew, 'Save & new', () =>
+        run.current.saveAndNew()
+    )
+    const phoneKeys = [...keys, save, saveAndNew]
+    const convert = writeKey(
+        input,
+        'convert',
+        QUOTE_FORM_KEYS.convert,
+        'Convert to invoice',
+        () => run.current.convert(),
+        current => current.canConvert
+    )
+    const remove = writeKey(
+        input,
+        'deleteRecord',
+        QUOTE_FORM_KEYS.deleteRecord,
+        `Delete ${input.noun.toLowerCase()}`,
+        () => run.current.deleteRecord(),
+        current => current.canDelete
+    )
+    if (canConvert) phoneKeys.push(convert)
+    if (canDelete) phoneKeys.push(remove)
+    return phoneKeys
 }
 
 /**
  * A sales document form's keys that have no button of their own, in the form's `compose`
  * scope: core dialogs and sheets push a `modal` scope above it, so none fires while one
- * is open, and Escape closes only the top layer. Cancel (Esc), Save draft (⌘S), Post (⌘↵)
- * and, on a wide screen, Post & new (⌘⇧↵) are ShortcutButtons on the bar.
+ * is open, and Escape closes only the top layer. The bar's buttons hold their own keys
+ * (DocumentActionBar, DocumentSaveBar); a key is never held by a button and here both.
  *
+ * Posting kinds (Cancel Esc, Save draft ⌘S, Post ⌘↵ and, on a wide screen, Post & new ⌘⇧↵
+ * are bar buttons):
  * - ⌘⌫ Delete draft: the row sits in More on every width, so the key is registered here
  *   and does what the row does.
- * - ⌘⇧↵ Post & new on a phone, where its row sits in More: registered only there, so the
- *   wide bar's button and this key never both hold it.
- * - ⌘S while the Save draft button cannot take it (offline, or a save runs): the button's
- *   own key is idle then, and the browser's Save Page would open. This one takes the key
- *   and does nothing. The ⇧? list shows Save draft for both registrations, as it groups
- *   by keys and does not read `when`.
+ * - ⌘⇧↵ Post & new on a phone, where its row sits in More: registered only there.
+ *
+ * A quote (Cancel Esc and Save & close ⌘↵ are bar buttons on every width; Save ⌘S and
+ * Save & new ⌘⇧↵ on a wide screen):
+ * - ⌘S Save, ⌘⇧↵ Save & new, ⌥I Convert to invoice and ⌘⌫ Delete on a phone, where
+ *   their rows sit in More: registered only there, ⌥I and ⌘⌫ only while their rows are
+ *   offered (`canConvert`, `canDelete`). On a wide screen the Convert and
+ *   Delete buttons hold ⌥I and ⌘⌫, while they are offered.
+ *
+ * Both:
+ * - ⌘S while the save that holds it cannot take it (offline, or a save runs): that key is
+ *   idle then, and the browser's Save Page would open. This one takes the key and does
+ *   nothing. The ⇧? list shows the save for both registrations, as it groups by keys and
+ *   does not read `when`.
  * - ⌘P Download PDF: the row sits in More. The key is always taken, so the browser's
  *   Print never opens; it downloads only when the row would take a press.
  *
@@ -50,88 +198,46 @@ type KeyState = {
 export function useDocumentShortcuts({
     kind,
     isSaving,
-    canDeleteDraft,
-    deleteDraft,
+    canDelete,
+    deleteRecord,
     isPhone,
     postAndNew,
+    save,
+    saveAndNew,
+    canConvert,
+    convert,
     canDownloadPdf,
     downloadPdf,
 }: DocumentShortcutsInput) {
     const scopeOwner = useShortcutScope('compose')
     const instance = useId()
     const writes = useWritesAvailable()
-    const stateRef = useRef<KeyState>({
+    const keyState: KeyState = {
         isSaving,
-        canDeleteDraft,
-        canDownloadPdf,
-        writesAvailable: writes.available,
-    })
-    stateRef.current = {
-        isSaving,
-        canDeleteDraft,
+        canDelete,
+        canConvert,
         canDownloadPdf,
         writesAvailable: writes.available,
     }
-    const runRef = useRef({ deleteDraft, postAndNew, downloadPdf })
-    runRef.current = { deleteDraft, postAndNew, downloadPdf }
-    const { key: kindKey, shortcutGroup: group } = kind
+    const stateRef = useRef<KeyState>(keyState)
+    stateRef.current = keyState
+    const runs: KeyRuns = { deleteRecord, postAndNew, save, saveAndNew, convert, downloadPdf }
+    const runRef = useRef<KeyRuns>(runs)
+    runRef.current = runs
+    const { key: kindKey, shortcutGroup: group, lifecycle, noun } = kind
     const shortcuts = useMemo<Shortcut[]>(() => {
-        const idOf = (name: string) => `books.${kindKey}.form.${instance}.${name}`
-        const keys: Shortcut[] = [
-            {
-                id: idOf('deleteDraft'),
-                keys: FORM_KEYS.deleteDraft,
-                scope: 'compose',
-                description: 'Delete draft',
-                group,
-                allowInInputs: true,
-                when: () => {
-                    const state = stateRef.current
-                    return state.canDeleteDraft && state.writesAvailable && !state.isSaving
-                },
-                run: () => runRef.current.deleteDraft(),
-            },
-            {
-                id: idOf('saveDraftIdle'),
-                keys: FORM_KEYS.saveDraft,
-                scope: 'compose',
-                description: 'Save draft',
-                group,
-                allowInInputs: true,
-                when: () => {
-                    const state = stateRef.current
-                    return state.isSaving || !state.writesAvailable
-                },
-                run: () => {},
-            },
-            {
-                id: idOf('downloadPdf'),
-                keys: DOCUMENT_PDF_KEY,
-                scope: 'compose',
-                description: 'Download PDF',
-                group,
-                allowInInputs: true,
-                run: () => {
-                    if (stateRef.current.canDownloadPdf) runRef.current.downloadPdf()
-                },
-            },
-        ]
-        if (!isPhone) return keys
-        const postAndNewKey: Shortcut = {
-            id: idOf('postAndNew'),
-            keys: FORM_KEYS.postAndNew,
-            scope: 'compose',
-            description: 'Post & new',
+        const input: KeyListInput = {
+            idOf: name => `books.${kindKey}.form.${instance}.${name}`,
             group,
-            allowInInputs: true,
-            when: () => {
-                const state = stateRef.current
-                return state.writesAvailable && !state.isSaving
-            },
-            run: () => runRef.current.postAndNew(),
+            noun,
+            isPhone,
+            canConvert,
+            canDelete,
+            state: stateRef,
+            run: runRef,
         }
-        return [...keys, postAndNewKey]
-    }, [instance, isPhone, kindKey, group])
+        return lifecycle === 'quote' ? quoteKeys(input) : postingKeys(input)
+    }, [instance, isPhone, kindKey, group, noun, lifecycle, canConvert, canDelete])
     useRegisterShortcuts(shortcuts, scopeOwner)
     return { scopeOwner }
 }

@@ -3,7 +3,8 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { useMemo } from 'react'
+import { newRecordId } from 'pbtsdb/core'
+import { useEffect, useMemo, useState } from 'react'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { documentScreenState } from '../lib/document-screen-state'
 import { defaultMessageFor } from '../lib/document-values'
@@ -19,6 +20,33 @@ export type { DocumentScreenInput } from './document-data'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
+// The customer a new form starts with: a copy's source customer, the estimate's on an
+// invoice made from one, else `?customer`.
+function newCustomerIdOf(
+    input: DocumentScreenInput,
+    sourceCustomer: string | undefined,
+    estimateCustomer: string | undefined
+): string | undefined {
+    if (input.copy) return sourceCustomer
+    if (input.estimate) return estimateCustomer
+    return input.customer
+}
+
+// A new route's form key: each start mounts its own form.
+function newFormKey(input: DocumentScreenInput): string {
+    const { fresh, replaces, copy, estimate } = input
+    return `new:${fresh ?? ''}:${replaces ?? ''}:${copy ?? ''}:${estimate ?? ''}`
+}
+
+// A key of its own per screen mount (useId is not: it repeats for a remount at the same
+// place in the tree). The draft its form writes is filed under it, and forgotten when
+// the mount goes.
+function useScreenWriter(): string {
+    const [writer] = useState(newRecordId)
+    useEffect(() => () => useDocumentSaveStore.getState().forget(writer), [writer])
+    return writer
+}
+
 // A disabled query reports ready, so the id is checked as well as `isEnabled`.
 function readyOrIdle(id: string, query: { isEnabled: boolean; isReady: boolean }) {
     return !id || (query.isEnabled && query.isReady)
@@ -28,7 +56,8 @@ function readyOrIdle(id: string, query: { isEnabled: boolean; isReady: boolean }
  * A sales document route's data: access, the Books currency, the kind's reads (the
  * document with the people who posted and voided it, its lines in order with their
  * products, the document a correction replaces or a copy starts from with its lines on a
- * new form, the posted tax lines of the read view), the form's customer and the tax
+ * new form, the estimate a new invoice is made from with its lines, the posted tax lines
+ * of the read view), the form's customer and the tax
  * rates; the screen state they add up to, and one Retry that recovers exactly the reads
  * that failed.
  */
@@ -43,13 +72,20 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     // A new form's save holds the id it inserts, which the route does not name yet: any
     // hold is this form's (one document form is mounted at a time).
     const isHeld = heldId !== null && (isNew || heldId === id)
+    const writer = useScreenWriter()
+    const writtenId = useDocumentSaveStore(s => s.written[writer])
     const reads = documentKind.data.useScreenReads({ ...input, isHeld })
     const record = reads.record.data
     const source = reads.source.data
-    // The form's customer: the draft's own, `?customer` on a new form, or a copy's
-    // source customer (a copy fills the header from its current record). A live query,
-    // not useRecord, so a refused read shows as an error with Retry.
-    const newCustomerId = input.copy ? source?.customer : input.customer
+    // The estimate a new invoice is made from (`?estimate`), or the one a correction's
+    // posted invoice was made from (its number names it); undefined otherwise.
+    const estimateSource = reads.estimateSource.data
+    const isFromEstimate = isNew && Boolean(input.estimate)
+    // The form's customer: the draft's own, `?customer` on a new form, a copy's source
+    // customer (a copy fills the header from its current record), or the estimate's on an
+    // invoice made from one. A live query, not useRecord, so a refused read shows as an
+    // error with Retry.
+    const newCustomerId = newCustomerIdOf(input, source?.customer, estimateSource?.customer)
     const customerId = (isNew ? newCustomerId : record?.customer) ?? ''
     const customerQuery = useLiveQuery({
         query: q => {
@@ -66,6 +102,8 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         reads.lines,
         reads.source,
         reads.sourceLines,
+        reads.estimateSource,
+        reads.estimateSourceLines,
         reads.taxLines,
         reads.formStart,
     ]
@@ -88,25 +126,46 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     // source saved without a customer (a walk-in sales receipt) is copied without one.
     const hasCopyCustomer = !source?.customer || copyCustomer !== undefined
     const copyStatus = hasCopyCustomer ? sourceStatus : null
+    // An estimate that does not exist, or whose customer cannot be read, has no values
+    // to start an invoice from: not found.
+    const estimateStatus =
+        estimateSource && copyCustomer !== undefined ? estimateSource.status : null
+    // This mount's own form wrote its draft and its post was refused: that draft closed
+    // the estimate, which now names it. The form stays, as through a hold, with the
+    // refusal on it; its next save updates that draft. Another mount of the route (Back,
+    // then Forward) wrote nothing, so it shows the cannot-convert notice.
+    const ownsEstimate =
+        isFromEstimate && writtenId !== undefined && estimateSource?.invoice === writtenId
     const state = documentScreenState({
+        lifecycle: documentKind.doc.lifecycle,
         isReady,
         isError,
         canWrite: access.canWrite,
         isNew,
         status,
-        isHeld,
+        isHeld: isHeld || ownsEstimate,
         replacesStatus: isNew && input.replaces ? sourceStatus : undefined,
         copyStatus: isNew && input.copy ? copyStatus : undefined,
+        estimateStatus: isFromEstimate ? estimateStatus : undefined,
     })
     const sourceLines = reads.sourceLines.data
+    const estimateLines = reads.estimateSourceLines.data
     const { values } = documentKind
     // What a new form or a copy starts from besides the document, and the kind's schema
     // rule for its Deposit to (none for an invoice).
     const { start, deposit } = reads.formStart.data
-    // A new form's values when it corrects or copies a document. Memoised on the reads,
-    // so the line ids stay the same between renders (the form seeds from them once).
+    // A new form's values when it corrects or copies a document, or is made from an
+    // estimate. Memoised on the reads, so the line ids stay the same between renders (the
+    // form seeds from them once).
     const startValues = useMemo(() => {
-        if (!isNew || !source || !reads.sourceLines.isReady) return undefined
+        if (!isNew) return undefined
+        if (isFromEstimate) {
+            if (!estimateSource || !copyCustomer || !values.fromEstimate) return undefined
+            const today = todayIso()
+            const { message } = estimateSource
+            return values.fromEstimate(estimateSource, estimateLines, today, copyCustomer, message)
+        }
+        if (!source || !reads.sourceLines.isReady) return undefined
         if (input.replaces) return values.correction(source, sourceLines)
         if (input.copy && hasCopyCustomer) {
             return values.copy(source, sourceLines, todayIso(), copyCustomer ?? null, start)
@@ -114,6 +173,9 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         return undefined
     }, [
         isNew,
+        isFromEstimate,
+        estimateSource,
+        estimateLines,
         source,
         sourceLines,
         reads.sourceLines.isReady,
@@ -172,13 +234,16 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         errorText,
         replacesNumber,
         taxLines: reads.taxLines.data,
+        estimateSource,
         retry,
         canWrite: access.canWrite,
         currency: settings.settings?.currency ?? 'USD',
         // A new blank form's message (new, Post & new, `?customer`). The form reads it once
         // at mount, so a changed setting never touches an open form.
         defaultMessage: defaultMessageFor(settings.settings),
-        formKey: id || `new:${input.fresh ?? ''}:${input.replaces ?? ''}:${input.copy ?? ''}`,
+        formKey: id || newFormKey(input),
+        // This screen mount's key: its form files the draft it writes under it.
+        writer,
         taxOptions,
     }
 }

@@ -840,3 +840,29 @@ func TestCustomer_DeleteRefusedWhileOnSalesReceipts(t *testing.T) {
 		reload(t, re.app, "books_customers", cust.Id)
 	})
 }
+
+// Spec §3.11: a customer on any estimate cannot be deleted. The estimate check
+// comes after the invoice and receipt ones.
+func TestCustomer_DeleteRefusedWhileOnEstimates(t *testing.T) {
+	wantOnEstimates := func(name string) string { return name + " is on estimates. Make it inactive instead." }
+	wantOnInvoices := func(name string) string { return name + " is on invoices. Make it inactive instead." }
+
+	t.Run("on an estimate", func(t *testing.T) {
+		app := newGuardedApp(t)
+		cust := mkCustomer(t, app, "Old Mill Bakery", "")
+		mkEstimateRow(t, app, cust, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnEstimates("Old Mill Bakery"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on an invoice and an estimate gets the invoice text", func(t *testing.T) {
+		app := newGuardedApp(t)
+		cust := mkCustomer(t, app, "Alvarez Family", "")
+		mkEstimateRow(t, app, cust, nil)
+		mkInvoiceRow(t, app, cust, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnInvoices("Alvarez Family"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+}

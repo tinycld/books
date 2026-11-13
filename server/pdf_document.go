@@ -35,6 +35,7 @@ type pdfDocument struct {
 	Number        string     // printed after "No."; "" prints no number
 	Currency      string     // ISO code of every amount
 	Dates         []pdfDate  // in print order: "Date", "Due"
+	Expiration    string     // YYYY-MM-DD, printed as "Expiration date" under the dates when set; only an estimate sets it
 	Payment       string     // printed under the dates when set: "Check · 43567"; the invoice leaves it empty
 	Company       pdfCompany // the seller, from books_settings
 	Parties       []pdfParty // "Bill to", "Ship to"
@@ -78,6 +79,9 @@ type pdfAmount struct {
 	Cents int64
 }
 
+// expirationLabel prints pdfDocument.Expiration.
+const expirationLabel = "Expiration date"
+
 // maxPDFNumberLen matches the longest short text Books stores (a phone number).
 const maxPDFNumberLen = 40
 
@@ -103,6 +107,11 @@ func (d pdfDocument) validate() error {
 	for _, date := range d.Dates {
 		if _, err := parseDay(date.Day); err != nil {
 			return fmt.Errorf("books: pdf: %s: %w", date.Label, err)
+		}
+	}
+	if d.Expiration != "" {
+		if _, err := parseDay(d.Expiration); err != nil {
+			return fmt.Errorf("books: pdf: %s: %w", expirationLabel, err)
 		}
 	}
 	amounts := []int64{d.SubtotalCents, d.BigAmount.Cents}
@@ -169,6 +178,9 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	v := pdfView{Title: doc.Title, Number: doc.Number, Payment: strings.TrimSpace(doc.Payment), Brand: brandOf(org)}
 	for _, d := range doc.Dates {
 		v.Dates = append(v.Dates, pdfText{Label: d.Label, Text: formatDay(d.Day)})
+	}
+	if doc.Expiration != "" {
+		v.Dates = append(v.Dates, pdfText{Label: expirationLabel, Text: formatDay(doc.Expiration)})
 	}
 	v.Company = pdfBlock{
 		Name:  strings.TrimSpace(doc.Company.Name),
