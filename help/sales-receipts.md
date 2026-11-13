@@ -47,7 +47,9 @@ Books refuses to post a sales receipt whose total is zero, whose customer is ina
 
 ## When someone else changed the draft
 
-If another person saves a change to a draft sales receipt while you have changes of your own in it, Books refuses your next Save draft or Post and shows "This sales receipt changed after you opened it." Nothing is saved, and what you typed stays on the screen. To see their changes, choose Load the current sales receipt. This replaces what you typed, so copy anything you want to keep first. Review the sales receipt, then save or post again.
+If another person saves a change to a draft sales receipt while you have changes of your own in it, Books refuses your next Save draft or Post and shows "This sales receipt changed after you opened it." Nothing is posted, and what you typed stays on the screen. A refused Save draft saves nothing. A refused Post usually saves nothing. But when you post a new sales receipt, or change the tax rate and the lines in one post, Books can save your changes as a draft before it refuses the post. That draft stays saved.
+
+To see their changes, choose Load the current sales receipt. This replaces what you typed, so copy anything you want to keep first. Review the sales receipt, then save or post again. If Books cannot load the sales receipt, it tells you and keeps what you typed. Choose Load the current sales receipt again.
 
 While you have no unsaved change, the form shows the other person's changes as they save them.
 

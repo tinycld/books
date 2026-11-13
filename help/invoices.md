@@ -57,7 +57,9 @@ Books refuses to post into a closed period, an invoice whose customer is inactiv
 
 ## When someone else changed the draft
 
-If another person saves a change to a draft invoice while you have changes of your own in it, Books refuses your next Save draft or Post and shows "This invoice changed after you opened it." Nothing is saved, and what you typed stays on the screen. To see their changes, choose Load the current invoice. This replaces what you typed, so copy anything you want to keep first. Review the invoice, then save or post again.
+If another person saves a change to a draft invoice while you have changes of your own in it, Books refuses your next Save draft or Post and shows "This invoice changed after you opened it." Nothing is posted, and what you typed stays on the screen. A refused Save draft saves nothing. A refused Post usually saves nothing. But when you post a new invoice, or change the tax rate and the lines in one post, Books can save your changes as a draft before it refuses the post. That draft stays saved.
+
+To see their changes, choose Load the current invoice. This replaces what you typed, so copy anything you want to keep first. Review the invoice, then save or post again. If Books cannot load the invoice, it tells you and keeps what you typed. Choose Load the current invoice again.
 
 While you have no unsaved change, the form shows the other person's changes as they save them.
 

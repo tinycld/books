@@ -29,7 +29,9 @@ To post and start the next entry at once, choose Post & new. On a phone, it is i
 
 ## When someone else changed the draft
 
-If another person saves a change to a draft while you have it open, Books refuses your next Save draft or Post and shows "This entry changed after you opened it." Nothing is saved, and what you typed stays on the screen. To see their changes, choose Load the current entry. This replaces what you typed, so copy anything you want to keep first. Review the entry, then save or post again.
+If another person saves a change to a draft while you have it open, Books refuses your next Save draft or Post and shows "This entry changed after you opened it." Nothing is posted, and what you typed stays on the screen. A refused Save draft saves nothing, and a refused Post of a saved draft saves nothing. But when you post a new entry, Books saves it as a draft before it posts it. If Books then refuses the post, that draft stays saved.
+
+To see their changes, choose Load the current entry. This replaces what you typed, so copy anything you want to keep first. Review the entry, then save or post again. If Books cannot load the entry, it tells you and keeps what you typed. Choose Load the current entry again.
 
 ## Set an auto-reverse date
 
