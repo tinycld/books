@@ -41,11 +41,11 @@ func TestDraftBase_OneBaseForATransactionAndNoneAfterIt(t *testing.T) {
 	var info *core.TxAppInfo
 	err := env.app.RunInTransaction(func(tx core.App) error {
 		info = tx.TxInfo()
-		if base, first := draftBase(tx, "entry1", 4); base != 4 || !first {
+		if base, first := draftBase(tx, "books_journal_entries", "entry1", 4); base != 4 || !first {
 			t.Fatalf("first touch = %d/%v, want 4/true", base, first)
 		}
 		// The stored value moved inside the transaction; the base does not.
-		if base, first := draftBase(tx, "entry1", 5); base != 4 || first {
+		if base, first := draftBase(tx, "books_journal_entries", "entry1", 5); base != 4 || first {
 			t.Fatalf("second touch = %d/%v, want 4/false", base, first)
 		}
 		return rollback
@@ -53,8 +53,24 @@ func TestDraftBase_OneBaseForATransactionAndNoneAfterIt(t *testing.T) {
 	if !errors.Is(err, rollback) {
 		t.Fatal(err)
 	}
-	if _, kept := draftTouches.Load(touchKey{info, "entry1"}); kept {
+	if _, kept := draftTouches.Load(touchKey{info, "books_journal_entries", "entry1"}); kept {
 		t.Fatal("the base outlived its transaction")
+	}
+}
+
+// An id is unique only in its collection: two records of two collections with
+// one id each have their own base.
+func TestDraftBase_IsByCollection(t *testing.T) {
+	env := newLedgerEnv(t)
+	err := env.app.RunInTransaction(func(tx core.App) error {
+		draftBase(tx, "books_invoices", "sameid", 4)
+		if base, first := draftBase(tx, "books_estimates", "sameid", 9); base != 9 || !first {
+			t.Fatalf("the estimate's first touch = %d/%v, want 9/true", base, first)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
