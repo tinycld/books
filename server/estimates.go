@@ -148,6 +148,9 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 	if r.GetString("status") == statusClosed {
 		return refuse("%s", msgEstimateClosesFromInvoice)
 	}
+	if err := checkNewSalesDoc(kind, r); err != nil {
+		return err
+	}
 	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
@@ -192,6 +195,12 @@ func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) err
 	// Books' own save of the totals after a line write (restateSalesDoc).
 	if isOwnWrite(tx, kind.Collection, stored.Id) {
 		return nil
+	}
+	// The conversion writes the estimate's invoice under its mark.
+	if !converting {
+		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+			return err
+		}
 	}
 	clearAcceptance(r)
 	return checkDraftSalesDoc(tx, kind, stored, r)

@@ -139,6 +139,9 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	bindSerializedGuard(app, kind.LinesCollection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDocLine(tx, kind, stored, r)
 	})
+	if kind.TaxLinesCollection != "" {
+		bindTaxLineGuards(app, kind)
+	}
 	// Bound after the line guard, so it runs inside the guard's transaction
 	// (e.App is the transaction there) and after the write it wraps.
 	restateAfter := func(e *core.RecordEvent) error {
@@ -300,6 +303,9 @@ func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) er
 	case statusPosted, statusVoid:
 		return refuse("%s", kind.Msgs.PostedFromForm)
 	}
+	if err := checkNewSalesDoc(kind, r); err != nil {
+		return err
+	}
 	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
@@ -314,6 +320,90 @@ func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) er
 func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
 	r.Set("revision", 1)
 	markCreated(tx, kind.Collection, r.Id)
+}
+
+// The header fields only Books writes, on the kinds that have them (an
+// estimate has no entry and no post). The rules pin them for a person; the
+// checks below hold for Go and a superuser too, as checkNewEntry and
+// transitionEntry do for a journal entry.
+//
+// salesDocNewBooksFields must be empty on a new document. number and sequence
+// are in the list only for a posting kind: a quote takes them from its
+// sequence at create and replaces whatever the record carries.
+//
+// salesDocKeptBooksFields cannot change while a person edits the document.
+// posted_by is not in it: a Go caller names the poster with the post, as for
+// an entry. replaces is fixed at create: an invoice's estimate is checked
+// against it only then (checkInvoiceEstimate).
+var (
+	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "invoice"}
+	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "invoice"}
+)
+
+func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
+	names := salesDocNewBooksFields
+	if kind.Lifecycle == lifecyclePosting {
+		names = append([]string{"number", "sequence"}, names...)
+	}
+	var set []string
+	for _, name := range names {
+		if r.Collection().Fields.GetByName(name) == nil {
+			continue
+		}
+		// A number field reads "0" and an unset date "" when empty.
+		if v := r.GetString(name); v != "" && v != "0" {
+			set = append(set, name)
+		}
+	}
+	return refuseServerFields(set)
+}
+
+func checkSalesDocBooksFieldsKept(stored, r *core.Record) error {
+	var changed []string
+	for _, name := range salesDocKeptBooksFields {
+		if r.Collection().Fields.GetByName(name) == nil {
+			continue
+		}
+		if stored.GetString(name) != r.GetString(name) {
+			changed = append(changed, name)
+		}
+	}
+	return refuseServerFields(changed)
+}
+
+// msgTaxLineByBooks refuses a write of a posted document's tax lines.
+const msgTaxLineByBooks = "Books writes a document's tax lines when the document posts."
+
+// markSnapshotting marks docID while writeTaxSnapshot writes its tax lines;
+// the returned func clears the mark, which belongs to the posting transaction.
+func markSnapshotting(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "snapshotting"), docID)
+}
+
+func isSnapshotting(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "snapshotting"), docID)
+}
+
+// bindTaxLineGuards keeps the tax lines the posting snapshot: only the post
+// creates them, nothing changes one, and one goes only with its document's
+// delete. Their rules are null, so no person reaches these hooks; they hold
+// for Go. e.App is the caller's app: the post's and the cascade's transaction.
+func bindTaxLineGuards(app core.App, kind salesDocKind) {
+	app.OnRecordCreate(kind.TaxLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		if !isSnapshotting(e.App, kind, e.Record.GetString(kind.ParentField)) {
+			return refuse(msgTaxLineByBooks)
+		}
+		return e.Next()
+	})
+	app.OnRecordUpdate(kind.TaxLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		return refuse(msgTaxLineByBooks)
+	})
+	app.OnRecordDelete(kind.TaxLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		if !isDeleting(e.App, kind, e.Record.GetString(kind.ParentField)) {
+			return refuse(msgTaxLineByBooks)
+		}
+		return e.Next()
+	})
 }
 
 // salesDocUnlinks are a document's links PocketBase clears on its own when the
@@ -346,9 +436,15 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 		if isOwnWrite(tx, kind.Collection, stored.Id) {
 			return nil
 		}
+		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+			return err
+		}
 		return checkDraftSalesDoc(tx, kind, stored, r)
 	case from == statusDraft && to == statusPosted:
 		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
+			return err
+		}
+		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
 			return err
 		}
 		if err := checkDraftSalesDoc(tx, kind, stored, r); err != nil {
