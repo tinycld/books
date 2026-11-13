@@ -220,6 +220,11 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         // them (lib/document-line-order.ts).
         storedLines: lines,
         taxRows: input.taxRows,
+        // The stored document's revision and tax rate as the row holds them now (0 and ''
+        // on a new form). The save takes its baseline from the first, and orders its line
+        // writes against the second: the server holds it while the lines are written.
+        revision: record?.revision ?? 0,
+        storedTaxRate: record?.tax_rate ?? '',
         saveMode,
         isReady: chosen.isReady && ui !== null,
         isDirty: Object.keys(dirtyFields).length > 0,
