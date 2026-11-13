@@ -1,6 +1,12 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page, type Request, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { accountItem, openChart, openRegister } from './account-register-helpers'
+import {
+    BATCH_WRITE,
+    type BatchOperation,
+    batchOperations,
+    refuseBatchOperation,
+} from './journal-entries-helpers'
 import {
     confirmDiscard,
     DESKTOP,
@@ -155,9 +161,12 @@ test.describe('opening-balances: states and date', () => {
         const empty = page.getByTestId('opening-empty')
         await expect(empty).toContainText('No accounts to enter balances for')
         await empty.getByText('Go to Chart of Accounts').click()
-        // The empty-accounts route is still active, so the Chart of Accounts
-        // screen shows its own empty state instead of the toolbar.
-        await expect(page.getByTestId('accounts-empty')).toBeVisible()
+        // The empty-accounts route is still active, so the Chart of Accounts screen shows
+        // its own empty state. The route answers reads only: an account that another
+        // worker creates meanwhile still arrives through realtime, and the chart then
+        // shows its toolbar and that account. Either one is the chart.
+        const chart = page.getByTestId('accounts-empty').or(page.getByTestId('account-search'))
+        await expect(chart.first()).toBeVisible()
         await expect(page.getByTestId('opening-empty')).toBeHidden()
         await page.unrouteAll({ behavior: 'ignoreErrors' })
     })
@@ -290,6 +299,8 @@ test.describe('opening-balances: account grid and amounts', () => {
 
         const screen = screenOf(page)
         for (const name of GRID_NAMES) {
+            // The grid mounts only the accounts near its scroll position.
+            await reach(page, ids[name])
             await expect(amount(page, ids[name])).toBeVisible()
         }
         for (const name of excluded) {
@@ -532,16 +543,58 @@ test.describe('opening-balances: preview and totals', () => {
 // stored balancing line (test 6). The re-opened form and preview are empty
 // either way; the line diff itself is unit-tested in checkpoint 1.
 
+// A save is one batch request: the entry (its insert first for a new draft, its update
+// last for a saved one) and its line writes, all saved or none. Only the Opening Balance
+// Equity account insert, the post (a PATCH of the entry) and the discard (a DELETE of
+// the entry) are requests of their own. A refused save is forced by answering the batch
+// as PocketBase answers one whose operation is refused; such a test covers how the form
+// shows the refusal, not the server's rule.
+
 const ENTRY_WRITES = '**/api/collections/books_journal_entries/records'
-const LINE_WRITES = '**/api/collections/books_journal_lines/records'
 const ACCOUNT_WRITES = '**/api/collections/books_accounts/records'
+
+function isWrite(request: Request) {
+    if (request.method() === 'GET') return false
+    const { pathname } = new URL(request.url())
+    return pathname.includes('/api/collections/books_') || pathname.endsWith('/api/batch')
+}
 
 function trackWrites(page: Page) {
     let count = 0
     page.on('request', request => {
-        if (request.method() !== 'GET' && request.url().includes('/api/collections/books_')) {
-            count += 1
+        if (isWrite(request)) count += 1
+    })
+    return { count: () => count }
+}
+
+// The place of the entry write in a save's batch, or -1.
+function entryWrite(operations: BatchOperation[]) {
+    return operations.findIndex(operation => operation.url.includes('/books_journal_entries/'))
+}
+
+// The place of the insert of the entry in the batch of a first save, or -1.
+function entryInsert(operations: BatchOperation[]) {
+    const index = entryWrite(operations)
+    return operations[index]?.method === 'POST' ? index : -1
+}
+
+// Refuses the operation `pick` finds in a save's batch with `response`, the operation's
+// own PocketBase error body; a batch without it and every other request pass. `count`
+// is the number of batches refused.
+async function refuseSaveOperation(
+    page: Page,
+    pick: (operations: BatchOperation[]) => number,
+    response: { message: string; data: object }
+) {
+    let count = 0
+    await page.route(BATCH_WRITE, async route => {
+        const index = pick(batchOperations(route.request()))
+        if (index < 0) {
+            await route.continue()
+            return
         }
+        count += 1
+        await refuseBatchOperation(route, index, { status: 400, ...response })
     })
     return { count: () => count }
 }
@@ -630,27 +683,43 @@ test.describe('opening-balances: save draft and discard', () => {
         await discardExistingDraft(page)
     })
 
-    test('(2) a refused line insert leaves a draft without lines that a normal save repairs', async ({
+    test('(2) a refused line shows under its amount and the save changes nothing; the next save saves all', async ({
         page,
     }) => {
         const ids = await begin(page, DESKTOP)
         const writes = trackWrites(page)
-        await refusePosts(page, LINE_WRITES, { message: 'Lines refused', data: {} })
-        await type(page, ids['Office Equipment'], '5,000')
+        const officeEquipment = ids['Office Equipment']
+        const refused = await refuseSaveOperation(
+            page,
+            operations =>
+                operations.findIndex(
+                    operation =>
+                        operation.url.includes('/books_journal_lines/') &&
+                        operation.body?.account === officeEquipment
+                ),
+            { message: 'Lines refused', data: {} }
+        )
+        await type(page, officeEquipment, '5,000')
         await type(page, ids['Company Card'], '1,200')
 
         await saveAndSettle(page, writes)
         // A refusal of a typed account's line belongs under that account's amount.
-        await reach(page, ids['Office Equipment'])
-        const lineError = page.getByTestId(`opening-amount-error-${ids['Office Equipment']}`)
+        await reach(page, officeEquipment)
+        const lineError = page.getByTestId(`opening-amount-error-${officeEquipment}`)
         await expect(lineError).toBeVisible()
         await expect(lineError).toContainText('Lines refused')
         await expect(page.getByTestId('opening-error-summary')).toBeHidden()
+        expect(refused.count()).toBe(1)
+        // The typed amounts stay on the form.
+        await expectAmount(page, officeEquipment, '5,000.00')
+        await expectAmount(page, ids['Company Card'], '1,200.00')
         await page.unrouteAll({ behavior: 'wait' })
 
+        // The batch is saved whole or not at all: no draft and no line exists.
         await reopen(page)
-        await expect(discardTrigger(page)).toBeVisible()
-        await expectAmount(page, ids['Office Equipment'], '')
+        await expect(discardTrigger(page)).toHaveCount(0)
+        await expect(page.getByTestId('opening-status-badge')).toHaveCount(0)
+        await expectAmount(page, officeEquipment, '')
         await expectAmount(page, ids['Company Card'], '')
 
         await type(page, ids['Office Equipment'], '5,000')
@@ -667,7 +736,7 @@ test.describe('opening-balances: save draft and discard', () => {
     test('(3) a refused date shows the server message under the date field', async ({ page }) => {
         const ids = await begin(page, DESKTOP)
         const writes = trackWrites(page)
-        await refusePosts(page, ENTRY_WRITES, {
+        await refuseSaveOperation(page, entryInsert, {
             message: 'Validation failed',
             data: { date: { code: 'validation_invalid', message: 'Pick another date' } },
         })
@@ -679,7 +748,7 @@ test.describe('opening-balances: save draft and discard', () => {
         const message = screenOf(page).getByText('Pick another date').first()
         await expect(message).toBeVisible()
         await expect(screenOf(page)).toBeVisible()
-        // The refused entry write rolls its optimistic draft back; wait for
+        // The refused batch rolls its optimistic draft back; wait for
         // that so the cleanup below does not race it.
         await expect(discardTrigger(page)).toHaveCount(0)
         await page.unrouteAll({ behavior: 'wait' })
@@ -691,27 +760,23 @@ test.describe('opening-balances: save draft and discard', () => {
     }) => {
         const ids = await begin(page, DESKTOP)
         const writes = trackWrites(page)
-        // Two typed amounts make two typed lines; the balancing line is written
-        // last, so it is the third line POST.
-        let linePosts = 0
-        await page.route(LINE_WRITES, async route => {
-            if (route.request().method() !== 'POST') {
-                await route.continue()
-                return
+        // Two typed amounts make two typed lines; the balancing line is the one line
+        // insert of the batch for neither typed account.
+        const typed = [ids['Office Equipment'], ids['Company Card']]
+        const refused = await refuseSaveOperation(
+            page,
+            operations =>
+                operations.findIndex(
+                    operation =>
+                        operation.url.includes('/books_journal_lines/') &&
+                        typeof operation.body?.account === 'string' &&
+                        !typed.includes(operation.body.account)
+                ),
+            {
+                message: 'Line refused',
+                data: { account: { code: 'validation_invalid', message: 'Bad account' } },
             }
-            linePosts += 1
-            if (linePosts < 3) {
-                await route.continue()
-                return
-            }
-            await route.fulfill({
-                status: 400,
-                body: JSON.stringify({
-                    message: 'Line refused',
-                    data: { account: { code: 'validation_invalid', message: 'Bad account' } },
-                }),
-            })
-        })
+        )
         await type(page, ids['Office Equipment'], '5,000')
         await type(page, ids['Company Card'], '1,200')
 
@@ -728,7 +793,7 @@ test.describe('opening-balances: save draft and discard', () => {
         await expect(page.getByTestId(`opening-amount-error-${ids['Company Card']}`)).toHaveCount(0)
         await expectAmount(page, ids['Office Equipment'], '5,000.00')
         await expectAmount(page, ids['Company Card'], '1,200.00')
-        expect(linePosts).toBe(3)
+        expect(refused.count()).toBe(1)
         await page.unrouteAll({ behavior: 'wait' })
         await discardExistingDraft(page)
     })
@@ -736,7 +801,7 @@ test.describe('opening-balances: save draft and discard', () => {
     test('(3b) a refused memo shows the server message under the memo field', async ({ page }) => {
         const ids = await begin(page, DESKTOP)
         const writes = trackWrites(page)
-        await refusePosts(page, ENTRY_WRITES, {
+        await refuseSaveOperation(page, entryInsert, {
             message: 'Validation failed',
             data: { memo: { code: 'validation_invalid', message: 'Memo refused' } },
         })
@@ -792,13 +857,14 @@ test.describe('opening-balances: save draft and discard', () => {
     }) => {
         const ids = await begin(page, DESKTOP)
         const writes = trackWrites(page)
+        // Counts and holds the batch that inserts the entry: the first save.
         let entryPosts = 0
         let release: () => void = () => {}
         const held = new Promise<void>(resolve => {
             release = resolve
         })
-        await page.route(ENTRY_WRITES, async route => {
-            if (route.request().method() !== 'POST') {
+        await page.route(BATCH_WRITE, async route => {
+            if (entryInsert(batchOperations(route.request())) < 0) {
                 await route.continue()
                 return
             }
@@ -989,13 +1055,11 @@ test.describe('opening-balances: save draft and discard', () => {
         await expect(saveButton(page)).toBeVisible()
         await expect(saveButton(page)).toBeDisabled()
 
-        // Counted from the moment of the press; a POST to the entries
-        // collection is the first request a save would send.
+        // Counted from the moment of the press; the batch that inserts the entry
+        // is the request a save would send.
         let entryPosts = 0
         page.on('request', request => {
-            if (request.method() === 'POST' && request.url().includes('/books_journal_entries')) {
-                entryPosts += 1
-            }
+            if (entryInsert(batchOperations(request)) >= 0) entryPosts += 1
         })
         await saveButton(page).click({ force: true })
         await amount(page, ids['Office Equipment']).focus()
@@ -1392,22 +1456,28 @@ test.describe('opening-balances: replace a posted entry', () => {
             await openReplaceForm(page, ids, seeded)
             await type(page, ids['Office Equipment'], typed)
 
-            // Hold the draft POST so the write stays in flight: Back must not be
-            // usable meanwhile. The draft row is inserted optimistically, which
-            // moves the screen out of the replace state, so Back is either
-            // already gone or disabled; it is never enabled. Releasing the
-            // route completes the post.
+            // Hold the batch that inserts the draft so the write stays in flight:
+            // Back must not be usable meanwhile. The draft row is inserted
+            // optimistically, which moves the screen out of the replace state, so
+            // Back is either already gone or disabled; it is never enabled.
+            // Releasing the route completes the post.
             let release: () => void = () => {}
+            let arrived: () => void = () => {}
             const held = new Promise<void>(resolve => {
                 release = resolve
             })
-            await page.route(ENTRY_WRITES, async route => {
-                if (route.request().method() === 'POST') {
+            const inFlight = new Promise<void>(resolve => {
+                arrived = resolve
+            })
+            await page.route(BATCH_WRITE, async route => {
+                if (entryInsert(batchOperations(route.request())) >= 0) {
+                    arrived()
                     await held
                 }
                 await route.continue()
             })
             await postButton(page).click()
+            await inFlight
             await expect(saveButton(page)).toHaveText('Saving...')
             const back = page.getByTestId('opening-edit-back')
             await expect

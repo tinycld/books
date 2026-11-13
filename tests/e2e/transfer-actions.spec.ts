@@ -1,7 +1,7 @@
-import { expect, type Locator, type Page, type Request, type Route, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { createAccount, makeAccountInactive, openChart } from './account-register-helpers'
-import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { openEntriesList, refuseEntryWrite, searchEntries } from './journal-entries-helpers'
 import {
     chooseTransferAccount,
     createPostedTransfer,
@@ -27,31 +27,19 @@ import {
 // nothing is posted before mid-2026 (books-settings.spec.ts holds close date 2026-06-30 for a
 // few seconds). No balance, fiscal month or close date is assumed.
 //
-// The close-date refusal is forced: the posting PATCH is answered with a 400, because a
-// spec may not set a close date on the shared DB. That step covers how the form shows a
-// summary refusal and keeps the draft, not the server's close-date rule. The inactive-account
-// refusal is the real server's.
+// The close-date refusal is forced: the post of a saved draft is one batch (its line writes,
+// then the entry with the status), and that batch is answered as PocketBase answers one whose
+// entry write is refused, because a spec may not set a close date on the shared DB. That step
+// covers how the form shows a summary refusal and keeps the draft, not the server's close-date
+// rule. The inactive-account refusal is the real server's.
 //
 // The void runs at phone size only: there Void sits in the `entry-more` menu, not in the
 // wide bar. A reader's view (no actions) is not driven: the e2e book has no non-writer
 // Books user.
 
-const ENTRY_RECORDS = '**/api/collections/books_journal_entries/records/*'
 const ENTRY_ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
 const CLOSED =
     'The books are closed through 2026-06-30. Ask a Books admin for a close-date override to post on 2026-11-04.'
-
-function isStatusPost(request: Request) {
-    return request.method() === 'PATCH' && (request.postData() ?? '').includes('"status":"posted"')
-}
-
-function refuse(route: Route, message: string) {
-    return route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({ message, data: {} }),
-    })
-}
 
 // The in-app move a link with no button makes (no page load).
 async function pushPath(page: Page, path: string) {
@@ -117,9 +105,7 @@ test.describe('transfer: actions', () => {
         await expect(page).toHaveURL(draftUrl)
         await expect(page.getByTestId('transfer-to')).toHaveText(name)
 
-        await page.route(ENTRY_RECORDS, route =>
-            isStatusPost(route.request()) ? refuse(route, CLOSED) : route.continue()
-        )
+        await refuseEntryWrite(page, 'post', CLOSED)
         await page.getByTestId('transfer-post').click()
         await expect(page.getByTestId('transfer-error-summary')).toContainText(CLOSED)
         await expect(page.getByTestId('transfer-title')).toHaveText('Draft transfer')

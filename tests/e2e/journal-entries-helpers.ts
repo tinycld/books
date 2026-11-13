@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, type Request } from '@playwright/test'
+import { expect, type Locator, type Page, type Request, type Route } from '@playwright/test'
 import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 
 // Shared by the journal-entries e2e specs. Entries are made by driving the form,
@@ -189,6 +189,76 @@ export async function holdRequests(
         return route.continue()
     })
     return { firstHeld, count: () => count, release }
+}
+
+// A save of a draft, a post of a saved draft and a delete of a draft are each one batch
+// request: the line writes and the entry write, all saved or none. Only the post of a new
+// entry is a separate request, a PATCH of the entry record.
+export const BATCH_WRITE = '**/api/batch'
+
+export type BatchOperation = { method: string; url: string; body?: Record<string, unknown> }
+
+// The operations of a batch request, in the order the server runs them; none for any
+// other request.
+export function batchOperations(request: Request): BatchOperation[] {
+    if (request.method() !== 'POST' || !new URL(request.url()).pathname.endsWith('/api/batch')) {
+        return []
+    }
+    const body: { requests?: BatchOperation[] } | null = request.postDataJSON()
+    return body?.requests ?? []
+}
+
+export type EntryWrite = 'save' | 'post' | 'delete'
+
+function isEntryWrite(operation: BatchOperation, kind: EntryWrite) {
+    if (!operation.url.includes('/books_journal_entries/')) return false
+    if (kind === 'delete') return operation.method === 'DELETE'
+    if (operation.method === 'DELETE') return false
+    const posts = operation.body?.status === 'posted'
+    return kind === 'post' ? posts : !posts
+}
+
+// The place of the entry write in a batch of this kind: a draft save (the entry insert or
+// its update, with no post), a post of a saved draft, or a draft delete. -1 for a request
+// that is not such a batch.
+export function entryWriteIndex(request: Request, kind: EntryWrite): number {
+    return batchOperations(request).findIndex(operation => isEntryWrite(operation, kind))
+}
+
+export function isBatchOf(kind: EntryWrite) {
+    return (request: Request) => entryWriteIndex(request, kind) >= 0
+}
+
+// Answers a batch as PocketBase does when its operation `index` is refused: a 400 whose
+// body carries that operation's own error body. Nothing of the batch is saved.
+export function refuseBatchOperation(route: Route, index: number, response: object) {
+    return route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({
+            status: 400,
+            message: 'Batch transaction failed.',
+            data: {
+                requests: {
+                    [index]: {
+                        code: 'batch_request_failed',
+                        message: 'Batch request failed.',
+                        response,
+                    },
+                },
+            },
+        }),
+    })
+}
+
+// Refuses the entry write of every batch of this kind with a message-only 400; every
+// other request passes.
+export async function refuseEntryWrite(page: Page, kind: EntryWrite, message: string) {
+    await page.route(BATCH_WRITE, route => {
+        const index = entryWriteIndex(route.request(), kind)
+        if (index < 0) return route.continue()
+        return refuseBatchOperation(route, index, { status: 400, message, data: {} })
+    })
 }
 
 // Two frames let a navigation queued in a request continuation run before a negative check.

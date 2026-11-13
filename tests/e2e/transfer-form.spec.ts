@@ -27,7 +27,10 @@ import {
 // phone size. It does not cover `transfer-no-access`: the e2e book has no non-writer Books
 // user, so the screen's single `canWrite` gate is not drivable here.
 
+// A new transfer is saved in one batch (the entry and its two lines); a write of the
+// entry alone would go to its collection.
 const ENTRY_CREATE = '/api/collections/books_journal_entries/records'
+const BATCH = '/api/batch'
 
 function localToday(page: Page): Promise<string> {
     return page.evaluate(() => {
@@ -170,7 +173,9 @@ test.describe('transfer: form', () => {
         await startTransfers(page, DESKTOP)
         let creates = 0
         page.on('request', request => {
-            if (request.method() === 'POST' && request.url().includes(ENTRY_CREATE)) creates += 1
+            if (request.method() !== 'POST') return
+            const { pathname } = new URL(request.url())
+            if (pathname.endsWith(ENTRY_CREATE) || pathname.endsWith(BATCH)) creates += 1
         })
         await openNewTransfer(page)
         const form = page.getByTestId('transfer-form')
