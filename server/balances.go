@@ -150,7 +150,8 @@ type LineDrift struct {
 
 // verifyLines reports every line whose posted flag or date disagrees with its
 // entry: a line of a posted or void entry that is not stamped or carries
-// another date, and a line of a draft that is stamped or carries a date.
+// another date, a line of a draft that is stamped or carries a date, and a
+// line whose entry row is gone (its EntryStatus and EntryDate are empty).
 // verifyBalances cannot see these: it sums by the entry's status and date,
 // while every report and register selects lines by the line's own stamp. The
 // line guard (checkLineStamp) lets only a post write the stamp, so a row here
@@ -158,17 +159,31 @@ type LineDrift struct {
 func verifyLines(app core.App) ([]LineDrift, error) {
 	drifts := []LineDrift{}
 	err := app.DB().NewQuery(`
-		SELECT l.id AS line, l.entry AS entry, e.status AS entry_status,
-		       l.posted AS posted, l.date AS date, e.date AS entry_date
+		SELECT l.id AS line, l.entry AS entry, COALESCE(e.status, '') AS entry_status,
+		       l.posted AS posted, l.date AS date, COALESCE(e.date, '') AS entry_date
 		FROM books_journal_lines l
-		JOIN books_journal_entries e ON e.id = l.entry
-		WHERE (e.status IN ('posted', 'void') AND (l.posted = 0 OR l.date != e.date))
+		LEFT JOIN books_journal_entries e ON e.id = l.entry
+		WHERE e.id IS NULL
+		   OR (e.status IN ('posted', 'void') AND (l.posted = 0 OR l.date != e.date))
 		   OR (e.status = 'draft' AND (l.posted = 1 OR l.date != ''))
 		ORDER BY l.entry, l.position, l.id`).All(&drifts)
 	if err != nil {
 		return nil, fmt.Errorf("books: compare the lines with their entries: %w", err)
 	}
 	return drifts, nil
+}
+
+// maxLineDriftsReported bounds the lines the rebuild route lists: a large
+// drift (a bad import past the hooks) must not make one response of every line.
+const maxLineDriftsReported = 100
+
+// lineDriftReport is what the rebuild route answers: the first
+// maxLineDriftsReported drifts and the count of all of them.
+func lineDriftReport(drifts []LineDrift) (listed []LineDrift, count int) {
+	if len(drifts) > maxLineDriftsReported {
+		return drifts[:maxLineDriftsReported], len(drifts)
+	}
+	return drifts, len(drifts)
 }
 
 // rebuildBalances makes every month row equal the ledger, in one transaction,
@@ -245,6 +260,7 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		if len(lineDrifts) > 0 {
 			log.ErrorContext(re.Request.Context(), "journal lines disagree with their entries", "count", len(lineDrifts))
 		}
-		return re.JSON(http.StatusOK, map[string]any{"fixed": fixed, "lineDrifts": lineDrifts})
+		listed, count := lineDriftReport(lineDrifts)
+		return re.JSON(http.StatusOK, map[string]any{"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count})
 	})
 }

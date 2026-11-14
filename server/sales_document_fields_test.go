@@ -33,6 +33,12 @@ func TestDocFields_ANewDraftCannotCarryABooksField(t *testing.T) {
 		re := newReceiptEnv(t)
 		_, err := re.newReceipt(map[string]any{"number": "9001"})
 		requireRefused(t, err, wantBooksFields+"number")
+		// "0" is the empty value of a number field only. The number is text.
+		_, err = re.newReceipt(map[string]any{"number": "0"})
+		requireRefused(t, err, wantBooksFields+"number")
+		if _, err := re.newReceipt(map[string]any{"sequence": 0}); err != nil {
+			t.Fatalf("a new receipt with the empty sequence 0: %v", err)
+		}
 	})
 	t.Run("estimate", func(t *testing.T) {
 		ee := newEstimateEnv(t)
@@ -99,8 +105,9 @@ func TestDocFields_ASuperuserRequestAndABatchAreRefused(t *testing.T) {
 	}
 }
 
-// Books' own writes still pass: a post sets the number and the entry, a void
-// and a correction set their stamps, an invoice from an estimate closes it.
+// Books' own write still passes: a post sets the number and the entry. A void,
+// a correction and a conversion have their own tests (invoice_posting_test.go,
+// estimate_conversion_test.go).
 func TestDocFields_BooksOwnWritesStillPass(t *testing.T) {
 	pe := newPostingEnv(t)
 	inv := pe.everyKindInvoice(t, nil)

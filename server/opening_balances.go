@@ -44,13 +44,26 @@ func checkOpeningLines(tx core.App, entry *core.Record, lines []*core.Record) er
 	if entry.GetString("origin") != originOpeningBalance {
 		return nil
 	}
+	// One read for all the accounts: an opening entry can hold 1,000 lines.
+	ids := make([]string, len(lines))
+	for i, line := range lines {
+		ids[i] = line.GetString("account")
+	}
+	found, err := tx.FindRecordsByIds("books_accounts", ids)
+	if err != nil {
+		return fmt.Errorf("books: read the accounts of the opening entry: %w", err)
+	}
+	accounts := make(map[string]*core.Record, len(found))
+	for _, account := range found {
+		accounts[account.Id] = account
+	}
 	seen := make(map[string]bool, len(lines))
 	for i, line := range lines {
 		n := i + 1
 		accountID := line.GetString("account")
-		account, err := tx.FindRecordById("books_accounts", accountID)
-		if err != nil {
-			return fmt.Errorf("books: read the account of line %d: %w", n, err)
+		account, ok := accounts[accountID]
+		if !ok {
+			return fmt.Errorf("books: line %d names an account that does not exist", n)
 		}
 		name := account.GetString("name")
 		if seen[accountID] {
