@@ -92,6 +92,17 @@ export function salesDepositValues(row: BooksSettings): SalesDepositValues {
     return { sales_deposit_account: row.sales_deposit_account ?? '' }
 }
 
+// "Bill lines" (bill form spec §3.11): the bill line tables a new bill shows.
+export const purchaseLinesSchema = z.object({
+    purchase_lines: z.enum(['both', 'accounts', 'products']),
+})
+
+export type PurchaseLinesValues = z.infer<typeof purchaseLinesSchema>
+
+export function purchaseLinesValues(row: BooksSettings): PurchaseLinesValues {
+    return { purchase_lines: row.purchase_lines }
+}
+
 // The books_settings `default_customer_message` max, in code points as the server counts
 // it (an emoji is one).
 const MAX_DEFAULT_MESSAGE = 4000

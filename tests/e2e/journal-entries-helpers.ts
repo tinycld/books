@@ -159,13 +159,34 @@ export async function createDraftEntry(page: Page, entry: EntryInput): Promise<v
 }
 
 // A second page of this session (another tab), in Books at the first page's viewport size.
-export async function openOtherBooksPage(page: Page): Promise<Page> {
+// The post-login redirect lands on the first installed package: when that is not Books,
+// the Books rail link reopens this session's last Books route, which is the screen the
+// first page has open (a form, a record). A caller whose next helper starts from the Lists
+// hub, its own list or its own record names that list's routes in `startsOn`: the page
+// then leaves any other screen for the hub (leaveForListsHub), at the desktop size that
+// shows the sidebar, before it takes the first page's size.
+export async function openOtherBooksPage(page: Page, startsOn?: readonly string[]): Promise<Page> {
     const other = await page.context().newPage()
     await login(other)
     await navigateToPackage(other, 'books')
+    if (startsOn) await leaveForListsHub(other, startsOn)
     const size = page.viewportSize()
     if (size) await other.setViewportSize(size)
     return other
+}
+
+// Takes a page that openOtherBooksPage reopened on another Books screen (not the Lists hub
+// and not one of `segments`, the routes of the list a helper opens next) to the Lists hub,
+// through the desktop sidebar. On the hub or on those routes it does nothing: the open
+// helpers start there, and a nav press over them would stack a second screen.
+async function leaveForListsHub(page: Page, segments: readonly string[]) {
+    const own = segments.join('|')
+    const startsHere = new RegExp(`/books(/lists|/(${own})(/[^/]*)?)?/?$`)
+    if (startsHere.test(new URL(page.url()).pathname)) return
+    await page.getByTestId('books-nav-lists').click()
+    await expect(
+        page.getByTestId('books-list-card-accounts').filter({ visible: true })
+    ).toBeVisible()
 }
 
 // Makes an account inactive from another tab, so a form open on `page` keeps the account
@@ -183,7 +204,7 @@ export async function makeAccountInactiveElsewhere(page: Page, accountName: stri
 // server refuses to delete a customer or vendor that a journal line names. `release`
 // deletes that draft, so the delete is allowed again.
 export async function nameOnDraftLine(page: Page, partyName: string) {
-    const other = await openOtherBooksPage(page)
+    const other = await openOtherBooksPage(page, ['entries'])
     await openNewEntry(other)
     await other.getByTestId('entry-memo').fill(`Names ${partyName}`)
     await fillLine(other, 0, {

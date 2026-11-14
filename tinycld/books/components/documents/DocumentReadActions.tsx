@@ -84,16 +84,22 @@ function useMoreKeys(kind: KeyKind, items: DocumentReadItem[], scopeOwner: Scope
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 
-// ⌘P is always taken while the read view holds the keys, so the browser's Print never
-// opens: while Download PDF is busy its own key is idle, and this one takes it and does
-// nothing.
-function usePdfKeyWhileBusy(kind: KeyKind, items: DocumentReadItem[], scopeOwner: ScopeOwner) {
+// ⌘P is always taken while the read view of a kind with a PDF holds the keys, so the
+// browser's Print never opens: while Download PDF is busy its own key is idle, and this
+// one takes it and does nothing. A kind without a PDF registers no ⌘P.
+function usePdfKeyWhileBusy(
+    kind: KeyKind & Pick<SalesDocumentKind, 'features'>,
+    items: DocumentReadItem[],
+    scopeOwner: ScopeOwner
+) {
     const instance = useId()
     const isBusyRef = useRef(false)
     isBusyRef.current = items.some(item => item.action === 'pdf' && item.isDisabled)
     const { key: kindKey, shortcutGroup: group } = kind
-    const shortcuts = useMemo<Shortcut[]>(
-        () => [
+    const hasPdf = kind.features.pdf
+    const shortcuts = useMemo<Shortcut[]>(() => {
+        if (!hasPdf) return []
+        return [
             {
                 id: `books.${kindKey}.read.${instance}.pdfBusy`,
                 keys: DOCUMENT_PDF_KEY,
@@ -103,9 +109,8 @@ function usePdfKeyWhileBusy(kind: KeyKind, items: DocumentReadItem[], scopeOwner
                 when: () => isBusyRef.current,
                 run: () => {},
             },
-        ],
-        [instance, kindKey, group]
-    )
+        ]
+    }, [instance, kindKey, group, hasPdf])
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 

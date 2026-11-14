@@ -1,15 +1,18 @@
-import { eq, inArray, queryOnce } from '@tanstack/db'
+import { eq, inArray, or, queryOnce } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
 import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { TextInput } from '@tinycld/core/ui/form'
 import { DateField } from '@tinycld/core/ui/forms/fields/DateField'
 import { router } from 'expo-router'
 import { useCallback, useRef, useState } from 'react'
-import { useFormContext, useWatch } from 'react-hook-form'
+import { useFormContext, useFormState, useWatch } from 'react-hook-form'
 import {
     type KeyDownEvent,
     Platform,
@@ -22,8 +25,16 @@ import { DocumentSourceLink } from '../components/documents/DocumentSourceLink'
 import { useDocumentFormScope } from '../components/documents/document-form-context'
 import { AddressField } from '../components/forms/AddressField'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
+import { customerPartyOf } from '../hooks/document-data'
 import { useDocumentCustomerOptions } from '../hooks/useDocumentCustomerOptions'
 import { type CustomerAddress, formatAddressLines } from '../lib/address'
+import {
+    isBillAccountListed,
+    VENDOR_PICKER_EMPTY_TEXT,
+    vendorPickerOptions,
+} from '../lib/bill-pickers'
+import { vendorBillFills } from '../lib/bill-values'
+import { PICKER_LIMIT } from '../lib/customer-tree'
 import { dueDateFor } from '../lib/document-dates'
 import {
     clearedCustomerFills,
@@ -31,11 +42,12 @@ import {
     defaultTaxRateId,
     lineTaxableDefaults,
 } from '../lib/document-fills'
-import { NO_CUSTOMER_TEXT } from '../lib/document-texts'
+import { EMPTY_ADDRESS_TEXT, NO_CUSTOMER_TEXT, VENDOR_REF_HINT } from '../lib/document-texts'
 import type { PaymentTermKey } from '../lib/payment-terms'
-import { ESTIMATE_KIND } from '../lib/sales-document-kinds'
+import { DOCUMENT_PARTIES, type DocumentParty, ESTIMATE_KIND } from '../lib/sales-document-kinds'
 import { useDocumentBandStore } from '../stores/document-band-store'
 import { EmailField } from './contact-fields'
+import { isTableRow } from './document-line-cells'
 import { TaxRateField } from './tax-fields'
 import { PaymentTermsField } from './vendor-fields'
 
@@ -100,7 +112,8 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
                         .findOne(),
             })
             if (!customer) throw new Error(`customer ${id} not found`)
-            const previousExempt = value === '' ? null : (scope.customer?.tax_exempt ?? null)
+            const previousExempt =
+                value === '' ? null : (customerPartyOf(scope.party ?? null)?.tax_exempt ?? null)
             const fills = customerFills(
                 customer,
                 scope.taxRows,
@@ -130,10 +143,16 @@ function useCustomerPick(value: string, onChange: (value: unknown) => void) {
     return { pick, pickFailed }
 }
 
-function customerTriggerLabel(value: string, scope: ReturnType<typeof useDocumentFormScope>) {
-    if (!value) return scope.kind.customerRequired ? 'Choose a customer' : NO_CUSTOMER_TEXT
-    if (scope.customer) return scope.customer.display_name
-    return scope.isCustomerLoading ? '…' : 'Unknown customer'
+// The party's noun in the picker's texts: "customer", "vendor".
+function partyNounOf(party: DocumentParty): string {
+    return party.label.toLowerCase()
+}
+
+function partyTriggerLabel(value: string, scope: ReturnType<typeof useDocumentFormScope>) {
+    const noun = partyNounOf(DOCUMENT_PARTIES[scope.kind.party])
+    if (!value) return scope.kind.customerRequired ? `Choose a ${noun}` : NO_CUSTOMER_TEXT
+    if (scope.party) return scope.party.display_name
+    return scope.isPartyLoading ? '…' : `Unknown ${noun}`
 }
 
 const TAP = { minHeight: 44 }
@@ -146,7 +165,7 @@ function CustomerLoadError({ isVisible, onRetry }: { isVisible: boolean; onRetry
             <ButtonText>Retry</ButtonText>
         </Button>
     ) : null
-    const testID = `${kind.testId}-customer-load-error`
+    const testID = `${kind.testId}-${DOCUMENT_PARTIES[kind.party].field}-load-error`
     return (
         <View
             accessibilityRole="alert"
@@ -184,6 +203,22 @@ function focusNextField(from: PressableInstance | null, formTestId: string) {
     fields[at + 1]?.focus()
 }
 
+/**
+ * The party picker's focus, the one place for both party fields: on web the trigger takes
+ * focus once, when it first attaches (SearchPicker `autoFocus`). A screen that comes back
+ * into view (Back over a pushed screen) is the same mounted form, so focus does not move
+ * then. Native moves no focus (a focused field raises the soft keyboard).
+ */
+function usePartyFocus(formTestId: string) {
+    const trigger = useRef<PressableInstance | null>(null)
+    const triggerRef = useCallback((node: PressableInstance | null) => {
+        trigger.current = node
+    }, [])
+    const autoFocus = Platform.OS === 'web'
+    const focusNext = () => focusNextField(trigger.current, formTestId)
+    return { autoFocus, triggerRef, focusNext }
+}
+
 // The muted hint under the picker for a customer marked tax exempt.
 function CustomerExemptHint({ isVisible, testID }: { isVisible: boolean; testID: string }) {
     if (!isVisible) return null
@@ -197,11 +232,11 @@ function CustomerExemptHint({ isVisible, testID }: { isVisible: boolean; testID:
 // The customer's name on an invoice made from an estimate, whose customer cannot change:
 // '…' while the form's customer loads; its load error and Retry draw under it.
 function readOnlyCustomerText(scope: ReturnType<typeof useDocumentFormScope>): string {
-    if (scope.customer) {
-        const suffix = scope.customer.inactive ? ' (inactive)' : ''
-        return `${scope.customer.display_name}${suffix}`
+    if (scope.party) {
+        const suffix = scope.party.inactive ? ' (inactive)' : ''
+        return `${scope.party.display_name}${suffix}`
     }
-    return scope.isCustomerLoading ? '…' : ''
+    return scope.isPartyLoading ? '…' : ''
 }
 
 /**
@@ -214,7 +249,7 @@ function ReadOnlyCustomer() {
     const scope = useDocumentFormScope()
     const { kind } = scope
     const name = readOnlyCustomerText(scope)
-    const retry = scope.customerLoadFailed ? scope.retryCustomer : undefined
+    const retry = scope.partyLoadFailed ? scope.retryParty : undefined
     const label = `From estimate ${scope.estimateNumber}`
     const ids = { name: `${kind.testId}-customer-read-only`, link: `${kind.testId}-from-estimate` }
     return (
@@ -228,7 +263,7 @@ function ReadOnlyCustomer() {
                 id={scope.estimateId}
                 testID={ids.link}
             />
-            <CustomerLoadError isVisible={scope.customerLoadFailed} onRetry={retry} />
+            <CustomerLoadError isVisible={scope.partyLoadFailed} onRetry={retry} />
         </View>
     )
 }
@@ -249,27 +284,30 @@ export function CustomerField(props: BuiltinFieldProps) {
     return <CustomerPickerField {...props} />
 }
 
-function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: BuiltinFieldProps) {
+// The party picker. Its label is the form definition's (an admin may relabel the locked
+// built-in); its field, test ids and noun texts come from the kind's party
+// (DOCUMENT_PARTIES). The options query, the pick's fills and the tax-exempt hint are the
+// customer's: only the sales kinds draw this picker (a bill's is VendorField).
+function CustomerPickerField({ value, onChange, disabled, label }: BuiltinFieldProps) {
     const id = textOf(value)
     const scope = useDocumentFormScope()
+    const party = DOCUMENT_PARTIES[scope.kind.party]
+    const fieldKey = party.field
+    const noun = partyNounOf(party)
     const picker = useSearchPicker()
-    const trigger = useRef<PressableInstance | null>(null)
-    const triggerRef = useCallback((node: PressableInstance | null) => {
-        trigger.current = node
-    }, [])
-    const onPicked = () => focusNextField(trigger.current, `${scope.kind.testId}-form`)
+    const focus = usePartyFocus(`${scope.kind.testId}-form`)
     const options = useDocumentCustomerOptions(picker.debouncedTerm, picker.isOpen)
     const { pick, pickFailed } = useCustomerPick(id, onChange)
-    const triggerLabel = customerTriggerLabel(id, scope)
-    const triggerSuffix = scope.customer?.inactive ? '(inactive)' : undefined
+    const triggerLabel = partyTriggerLabel(id, scope)
+    const triggerSuffix = scope.party?.inactive ? '(inactive)' : undefined
     const onPick = (next: string) => {
         void pick(next)
     }
-    const retry = scope.customerLoadFailed ? scope.retryCustomer : undefined
+    const retry = scope.partyLoadFailed ? scope.retryParty : undefined
     const noneOption = scope.kind.customerRequired
         ? undefined
         : { label: NO_CUSTOMER_TEXT, testID: `form-input-${fieldKey}-none` }
-    const isExempt = id !== '' && scope.customer?.tax_exempt === true
+    const isExempt = id !== '' && customerPartyOf(scope.party ?? null)?.tax_exempt === true
     return (
         <View>
             <SearchPicker
@@ -281,7 +319,7 @@ function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: Bui
                 triggerAccessibilityLabel={`${label}: ${id ? triggerLabel : 'none'}`}
                 triggerTestId={`form-input-${fieldKey}`}
                 disabled={disabled}
-                searchPlaceholder="Search customers"
+                searchPlaceholder={`Search ${noun}s`}
                 searchTestId={`form-input-${fieldKey}-search`}
                 options={options.options}
                 optionTestIdPrefix={`form-input-${fieldKey}-option`}
@@ -291,16 +329,176 @@ function CustomerPickerField({ fieldKey, label, value, onChange, disabled }: Bui
                 isLoading={options.isLoading}
                 loadFailed={options.loadFailed}
                 onRetry={options.retry}
-                emptyText="No customers match"
-                autoFocus={Platform.OS === 'web'}
-                triggerRef={triggerRef}
-                onPicked={onPicked}
+                emptyText={`No ${noun}s match`}
+                autoFocus={focus.autoFocus}
+                triggerRef={focus.triggerRef}
+                onPicked={focus.focusNext}
             />
             <CustomerExemptHint
                 isVisible={isExempt}
                 testID={`${scope.kind.testId}-customer-exempt`}
             />
-            <CustomerLoadError isVisible={pickFailed || scope.customerLoadFailed} onRetry={retry} />
+            <CustomerLoadError isVisible={pickFailed || scope.partyLoadFailed} onRetry={retry} />
+        </View>
+    )
+}
+
+/**
+ * A bill's Vendor picker options: active vendors by name, the stored vendor too when it
+ * is now inactive (a correction keeps its original's vendor; vendorPickerOptions marks
+ * it), searched on the client on the name. The query runs only while the picker is open;
+ * the server limit applies only while not searching, so a limit never cuts matches.
+ */
+function useVendorOptions(term: string, isOpen: boolean, storedId: string) {
+    const [vendorsCollection] = useStore('books_vendors')
+    const isSearching = term.trim() !== ''
+    const query = useLiveQuery({
+        query: q => {
+            if (!isOpen) return null
+            const base = q
+                .from({ v: vendorsCollection })
+                .where(({ v }) => or(eq(v.inactive, false), eq(v.id, storedId)))
+                .orderBy(({ v }) => v.display_name)
+                .select(({ v }) => ({
+                    id: v.id,
+                    display_name: v.display_name,
+                    inactive: v.inactive,
+                }))
+            return isSearching ? base : base.limit(PICKER_LIMIT)
+        },
+        queryKey: ['books.document.vendors', isOpen, isSearching, storedId],
+    })
+    const loadFailed = query.isError
+    const isLoading = isOpen && !loadFailed && query.isLoading
+    const needle = term.trim().toLowerCase()
+    const matching = (query.data ?? []).filter(vendor =>
+        vendor.display_name.toLowerCase().includes(needle)
+    )
+    const options = vendorPickerOptions(matching, storedId)
+    const emptyText = isSearching ? 'No vendors match' : VENDOR_PICKER_EMPTY_TEXT
+    const retry = () => {
+        void recoverLiveQueries({
+            queries: [query.collection],
+            sources: [vendorsCollection],
+            onError: err => log.error('books.document.vendors', err),
+        })
+    }
+    return { options, isLoading, loadFailed, retry, emptyText }
+}
+
+function rowsOf(value: unknown): TableRow[] {
+    if (!Array.isArray(value)) return []
+    const list: unknown[] = value
+    return list.filter(isTableRow)
+}
+
+/**
+ * A vendor pick reads the vendor, and its default expense account when it has one, then
+ * fills Mailing address, Terms and Due date, and the first account line's empty Account
+ * when the Account picker lists that account (vendorBillFills). A read that fails leaves
+ * the form as it was and shows the load error with Retry under the picker.
+ */
+function useVendorPick(value: string, onChange: (value: unknown) => void) {
+    const [vendorsCollection, accountsCollection] = useStore('books_vendors', 'books_accounts')
+    const { getValues, setValue } = useFormContext<FormValues>()
+    const { kind } = useDocumentFormScope()
+    // The last pick's read failed: local UI state that only this field shows.
+    const [pickFailed, setPickFailed] = useState(false)
+    // The Account picker's own rule (isBillAccountListed, as billAccountOptions).
+    const isListedAccount = async (id: string) => {
+        if (id === '') return false
+        const account = await queryOnce({
+            query: q =>
+                q
+                    .from({ a: accountsCollection })
+                    .where(({ a }) => eq(a.id, id))
+                    .findOne(),
+        })
+        return isBillAccountListed(account)
+    }
+    const pick = async (id: string) => {
+        if (id === value || id === '') return
+        setPickFailed(false)
+        try {
+            const vendor = await queryOnce({
+                query: q =>
+                    q
+                        .from({ v: vendorsCollection })
+                        .where(({ v }) => eq(v.id, id))
+                        .findOne(),
+            })
+            if (!vendor) throw new Error(`vendor ${id} not found`)
+            const accountIsListed = await isListedAccount(vendor.expense_account)
+            const fills = vendorBillFills(vendor, accountIsListed, {
+                date: textOf(getValues('date')),
+                account_lines: rowsOf(getValues('account_lines')),
+            })
+            onChange(id)
+            setValue('mailing_address', fills.mailing_address, DIRTY)
+            setValue('terms', fills.terms, DIRTY)
+            setValue('due_date', fills.due_date, DIRTY)
+            if (fills.account_lines) setValue('account_lines', fills.account_lines, DIRTY)
+        } catch (error) {
+            log.warn(`books.${kind.key}`, 'vendor pick could not read the vendor', {
+                vendor: id,
+                error: String(error),
+            })
+            setPickFailed(true)
+        }
+    }
+    return { pick, pickFailed }
+}
+
+/**
+ * Vendor on a bill: a picker over active vendors by name. A stored vendor that is now
+ * inactive shows by name with "(inactive)". Picking one fills the band (useVendorPick)
+ * and moves focus on to Terms (the band's links are no field controls). Focused once at
+ * open (usePartyFocus), on web only; native opens it by tap.
+ */
+export function VendorField({ value, onChange, disabled, label }: BuiltinFieldProps) {
+    const id = textOf(value)
+    const scope = useDocumentFormScope()
+    const party = DOCUMENT_PARTIES[scope.kind.party]
+    const fieldKey = party.field
+    const picker = useSearchPicker()
+    const focus = usePartyFocus(`${scope.kind.testId}-form`)
+    const options = useVendorOptions(picker.debouncedTerm, picker.isOpen, id)
+    const { pick, pickFailed } = useVendorPick(id, onChange)
+    const triggerLabel = partyTriggerLabel(id, scope)
+    const triggerSuffix = scope.party?.inactive ? '(inactive)' : undefined
+    const onPick = (next: string) => {
+        void pick(next)
+    }
+    const retry = scope.partyLoadFailed ? scope.retryParty : undefined
+    const testID = `${scope.kind.testId}-${fieldKey}`
+    const accessibilityLabel = `${label}: ${id ? triggerLabel : 'none'}`
+    const showsLoadError = pickFailed || scope.partyLoadFailed
+    return (
+        <View testID={testID}>
+            <SearchPicker
+                picker={picker}
+                title={label}
+                triggerLabel={triggerLabel}
+                isPlaceholder={!id}
+                triggerSuffix={triggerSuffix}
+                triggerAccessibilityLabel={accessibilityLabel}
+                triggerTestId={`form-input-${fieldKey}`}
+                disabled={disabled}
+                searchPlaceholder="Search vendors"
+                searchTestId={`form-input-${fieldKey}-search`}
+                options={options.options}
+                optionTestIdPrefix={`form-input-${fieldKey}-option`}
+                value={id}
+                onChange={onPick}
+                isLoading={options.isLoading}
+                loadFailed={options.loadFailed}
+                onRetry={options.retry}
+                emptyText={options.emptyText}
+                autoFocus={focus.autoFocus}
+                triggerRef={focus.triggerRef}
+                onPicked={focus.focusNext}
+            />
+            <CustomerLoadError isVisible={showsLoadError} onRetry={retry} />
         </View>
     )
 }
@@ -357,8 +555,15 @@ function addressOf(value: unknown): CustomerAddress | null {
     return value && typeof value === 'object' ? (value as CustomerAddress) : null
 }
 
-function BillToBody(props: BuiltinFieldProps & { isEditing: boolean; showsNoCustomer: boolean }) {
-    const { isEditing, showsNoCustomer, fieldKey, value, onChange, disabled } = props
+interface BillToBodyProps extends BuiltinFieldProps {
+    isEditing: boolean
+    showsNoCustomer: boolean
+    // Muted text for a picked party with no address ('' draws nothing).
+    emptyText: string
+}
+
+function BillToBody(props: BillToBodyProps) {
+    const { isEditing, showsNoCustomer, emptyText, fieldKey, value, onChange, disabled } = props
     if (isEditing) {
         return (
             <AddressField
@@ -374,35 +579,49 @@ function BillToBody(props: BuiltinFieldProps & { isEditing: boolean; showsNoCust
     if (lines.length === 0 && showsNoCustomer) {
         return <Text className="text-sm text-muted-foreground">{NO_CUSTOMER_TEXT}</Text>
     }
+    if (lines.length === 0 && emptyText !== '') {
+        return <Text className="text-sm text-muted-foreground">{emptyText}</Text>
+    }
     return <AddressLines lines={lines} />
 }
 
 /**
- * Bill to: the snapshot of the customer's billing address as text, with "Edit address"
- * (reveals the address inputs and the Email input in the band) and "Edit customer"
- * (pushes the customer's own form, so Back returns to the unsaved document). With no
- * customer on a kind where it is optional, a muted "No customer" until an address is
- * typed; "Edit address" still works.
+ * The party's address (a sales document's Bill to): the snapshot of the party's address
+ * as text, with "Edit address" (reveals the address inputs and the Email input in the
+ * band) and the party's edit link ("Edit customer"), which pushes the party's own form,
+ * so Back returns to the unsaved document. The party, its field, its route and its words
+ * come from the kind's party (DOCUMENT_PARTIES). With no party on a kind where it is
+ * optional, a muted "No customer" until an address is typed; "Edit address" still works.
+ * A picked party with no address shows the party's empty text (EMPTY_ADDRESS_TEXT: a
+ * bill's "No mailing address"; an invoice's Bill to stays blank).
  */
 export function BillToField(props: BuiltinFieldProps) {
     const { bandKey, kind } = useDocumentFormScope()
+    const party = DOCUMENT_PARTIES[kind.party]
     const editingFor = useDocumentBandStore(s => s.editingFor)
     const edit = useDocumentBandStore(s => s.edit)
     const orgHref = useOrgHref()
-    const customerId = textOf(useWatch<FormValues>({ name: 'customer' }))
+    const partyId = textOf(useWatch<FormValues>({ name: party.field }))
     const isEditing = isEditingBand(bandKey, editingFor)
-    // A kind whose customer is optional says so while the form names none.
-    const showsNoCustomer = !kind.customerRequired && customerId === ''
+    // A kind whose party is optional says so while the form names none.
+    const showsNoCustomer = !kind.customerRequired && partyId === ''
+    // Only a picked party's missing address is said; with none picked the field is blank.
+    const emptyText = partyId === '' ? '' : EMPTY_ADDRESS_TEXT[kind.party]
     const onEditAddress = () => edit(bandKey)
-    const onEditCustomer = () => router.push(orgHref(`books/customers/${customerId}`))
+    const onEditParty = () => router.push(orgHref(`${party.routeBase}/${partyId}`))
     const ids = {
-        billTo: `${kind.testId}-bill-to`,
+        address: `${kind.testId}-${party.addressField.replaceAll('_', '-')}`,
         editAddress: `${kind.testId}-edit-address`,
-        editCustomer: `${kind.testId}-edit-customer`,
+        editParty: `${kind.testId}-edit-${party.field}`,
     }
     return (
-        <View testID={ids.billTo} className="gap-1">
-            <BillToBody {...props} isEditing={isEditing} showsNoCustomer={showsNoCustomer} />
+        <View testID={ids.address} className="gap-1">
+            <BillToBody
+                {...props}
+                isEditing={isEditing}
+                showsNoCustomer={showsNoCustomer}
+                emptyText={emptyText}
+            />
             <View className="flex-row flex-wrap gap-x-4">
                 <LinkButton
                     label="Edit address"
@@ -411,12 +630,73 @@ export function BillToField(props: BuiltinFieldProps) {
                     isVisible={!isEditing && !props.disabled}
                 />
                 <LinkButton
-                    label="Edit customer"
-                    onPress={onEditCustomer}
-                    testID={ids.editCustomer}
-                    isVisible={customerId !== ''}
+                    label={party.editLabel}
+                    onPress={onEditParty}
+                    testID={ids.editParty}
+                    isVisible={partyId !== ''}
                 />
             </View>
+        </View>
+    )
+}
+
+/**
+ * Mailing address on a bill: the vendor's address as a text snapshot, with "Edit address"
+ * revealing the address inputs and "Edit vendor" pushing the vendor's form. The party
+ * address field (BillToField) draws it: its field, test ids (`bill-mailing-address`,
+ * `bill-edit-vendor`) and words follow the kind's party.
+ */
+export function MailingAddressField(props: BuiltinFieldProps) {
+    return <BillToField {...props} />
+}
+
+// The hint's line under the input, in the classes of core's cell description; on an error
+// the cell's error line (under it) takes its place.
+function RefHintLine({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <Text className="text-muted-foreground text-xs mt-1">{VENDOR_REF_HINT}</Text>
+}
+
+// No bottom margin of its own: the field cell has it.
+const REF_INPUT_WRAPPER = { className: 'gap-1.5' }
+
+// The definition fields whose host component draws the field's hint itself, so the
+// document form drops their stored description: core's cell draws a description and an
+// error together, and a refused Vendor's bill no. shows its error in the hint's place.
+export const SELF_HINTED_FIELDS: ReadonlySet<string> = new Set(['ref_no'])
+
+/**
+ * Vendor's bill no.: optional text in core's labelled cell (`chrome: 'cell'`). The cell
+ * draws the label and, under the input, the field's error (`form-field-ref_no-error`).
+ * This component draws the input, bound to the document form's own field so a client rule
+ * and a server refusal (setError on `ref_no`) give it core's error border, and the hint
+ * "The number on the vendor's bill" while the field has no error. The document form drops
+ * the definition's description of this field (SELF_HINTED_FIELDS), so the hint shows once.
+ * The 40-character bound is the bill schema's, counted on the trimmed text in code points
+ * as the server counts it, so the input sets no maxLength (which counts untrimmed UTF-16
+ * units) that could disagree with it.
+ */
+export function VendorRefField({ fieldKey, label, disabled }: BuiltinFieldProps) {
+    const { control } = useFormContext<FormValues>()
+    const { errors } = useFormState({ control, name: fieldKey })
+    const hasError = errors[fieldKey] !== undefined
+    const { kind } = useDocumentFormScope()
+    const testID = `${kind.testId}-${fieldKey.replaceAll('_', '-')}`
+    return (
+        <View testID={testID}>
+            <TextInput
+                name={fieldKey}
+                control={control}
+                hideError
+                wrapperProps={REF_INPUT_WRAPPER}
+                testID={`form-input-${fieldKey}`}
+                accessibilityLabel={label}
+                keyboardType="default"
+                autoCapitalize="none"
+                autoComplete="off"
+                editable={!disabled}
+            />
+            <RefHintLine isVisible={!hasError} />
         </View>
     )
 }
