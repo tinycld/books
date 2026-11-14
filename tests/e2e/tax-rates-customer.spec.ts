@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import {
     afterNextFrames,
     customerHelpers,
+    customerPageUrl,
     customerSurface,
     DESKTOP,
     field,
@@ -114,13 +115,14 @@ test.describe('tax-rates: customer tax fields', () => {
         await expect(reasonCell).toContainText(REASON_REQUIRED)
         await expect(page).toHaveURL(NEW_URL)
 
-        // With a reason, the save creates the customer and leaves the new form.
+        // With a reason, the save creates the customer and opens its page.
         await page.getByTestId('form-input-exemption_reason').click()
         await page.getByTestId('form-input-exemption_reason-resale').click()
         await expect(selectItems(page, 'exemption_reason')).toHaveCount(0)
         await expect(page.getByTestId('form-input-exemption_reason')).toContainText('Resale')
         await save.click()
-        await expect(page).toHaveURL(/\/books\/customers$/)
+        await expect(page).toHaveURL(customerPageUrl)
+        await expect(page.getByTestId('customer-title')).toHaveText(name)
 
         await openCustomer(page, name)
         await expect(exemptSwitch(page)).toBeChecked()

@@ -3,6 +3,7 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     boxOf,
     customerIdOf,
+    customerPath,
     customersBase,
     DESKTOP,
     field,
@@ -30,7 +31,8 @@ import {
 // covers the title rule. The native keyboards (email, phone, URL) and the iOS swipe back
 // and Android hardware back are native-only and are not run; the web input types are
 // asserted instead. Admin custom fields are covered by tests/customer-host.test.ts
-// (`insertCustomBefore`) and by core's forms tests. The panel surface is checkpoint 6.
+// (`insertCustomBefore`) and by core's forms tests. An existing customer opens on its
+// customer page; its form is the page's Details tab (tests/e2e/customer-pages-page.spec.ts).
 // That an all-empty billing address leaves the form clean has no visible effect until
 // Save and the leave guard exist (checkpoint 5).
 
@@ -444,9 +446,11 @@ test.describe('customer-form: customer page and form', () => {
             await searchCustomers(page, HARBORVIEW)
             const harborviewId = await customerIdOf(page, HARBORVIEW)
             await openCustomer(page, HARBORVIEW)
-            await expect(page).toHaveURL(new RegExp(`/books/customers/${harborviewId}$`))
-            await expect(title).toHaveText('Edit customer')
+            await expect(page).toHaveURL(customerPath(harborviewId))
+            await expect(title).toHaveText(HARBORVIEW)
             await expect(field(page, 'display_name')).toHaveValue(HARBORVIEW)
+            // Notes live on the Notes tab only; the Details form never shows them.
+            await expect(page.getByTestId('form-field-notes')).toHaveCount(0)
             await expect(page.getByTestId('form-input-billing_address-line1')).toHaveValue(
                 '1450 Waterfront Avenue'
             )
@@ -474,7 +478,7 @@ test.describe('customer-form: customer page and form', () => {
             await searchCustomers(page, ASPEN)
             const aspenId = await customerIdOf(page, ASPEN)
             await openCustomer(page, ASPEN)
-            await expect(title).toHaveText('Edit customer')
+            await expect(title).toHaveText(ASPEN)
             await expect
                 .poll(() =>
                     parent.evaluate(
@@ -500,11 +504,15 @@ test.describe('customer-form: customer page and form', () => {
             await back.click()
             await expectListShown(page)
 
-            // (10) A reload of a customer's URL keeps it on the page.
+            // (10) A reload of a customer's URL keeps it on the page, on the Details tab.
             await openCustomer(page, ASPEN)
             await page.reload()
             await expect(surface).toBeVisible()
-            await expect(title).toHaveText('Edit customer')
+            await expect(title).toHaveText(ASPEN)
+            await expect(page.getByTestId('customer-tab-details')).toHaveAttribute(
+                'aria-selected',
+                'true'
+            )
             await expect(field(page, 'display_name')).toHaveValue(ASPEN)
             await back.click()
             await expectListShown(page)

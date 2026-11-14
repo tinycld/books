@@ -13,6 +13,7 @@ import {
 } from '../../lib/customer-actions'
 import { CUSTOMER_INDENT, customerListCopy } from '../../lib/customer-display'
 import { CUSTOMERS_PATH } from '../../lib/customer-route'
+import type { ListLayout } from '../../lib/detail-surface'
 import { partyTitle } from '../../lib/party-list'
 import { useCustomerFormStore } from '../../stores/customer-form-store'
 import { PartyList } from '../party/PartyList'
@@ -25,8 +26,9 @@ const customerItemsFor = (customer: CustomerRecord, canWrite: boolean) =>
     customerMenuItems({ isTopLevel: customer.parent === '', inactive: customer.inactive }, canWrite)
 
 // The Customers list. The open customer (`openId`, from the URL) is marked on the
-// panel surface, where the list stays in view beside it.
-export function CustomersList({ openId }: { openId: string }) {
+// panel surface, where the list stays in view beside it; beside a customer page it shows
+// the names only (`layout`).
+export function CustomersList({ openId, layout }: { openId: string; layout: ListLayout }) {
     const navigation = useCustomerNavigation()
     const { canWrite } = useBooksAccess()
     // The one actions instance lives here, so the list's banner and the Delete customer
@@ -85,6 +87,7 @@ export function CustomersList({ openId }: { openId: string }) {
             isLoadError={loadError !== null}
             onDismissBanner={menus.dismissRefusal}
             dialog={dialog}
+            layout={layout}
         />
     )
 }

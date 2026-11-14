@@ -18,6 +18,7 @@ export default function ProductsLayout() {
             list={<ProductsList openId={openId} />}
             isDetailOpen={open.kind !== 'none'}
             detailScreens={PRODUCT_DETAIL_SCREENS}
+            detailWidth="panel"
         />
     )
 }

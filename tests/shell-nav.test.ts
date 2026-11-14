@@ -150,6 +150,7 @@ describe('registries', () => {
             href: 'books/invoices/new',
             column: 'customers',
             available: true,
+            takesCustomer: true,
         })
     })
 
@@ -162,6 +163,7 @@ describe('registries', () => {
             href: 'books/sales-receipts/new',
             column: 'customers',
             available: true,
+            takesCustomer: true,
         })
     })
 
@@ -176,7 +178,21 @@ describe('registries', () => {
             href: 'books/estimates/new',
             column: 'customers',
             available: true,
+            takesCustomer: true,
         })
+    })
+
+    // Customer pages §3.3: the customer page's New transaction menu lists the actions
+    // that take a customer.
+    it('flags exactly Invoice, Estimate and Sales receipt as taking a customer', () => {
+        expect(NEW_ACTIONS.filter(a => a.takesCustomer).map(a => a.id)).toEqual([
+            'invoice',
+            'estimate',
+            'sales_receipt',
+        ])
+        for (const other of NEW_ACTIONS.filter(a => !a.takesCustomer)) {
+            expect(other).not.toHaveProperty('takesCustomer')
+        }
     })
 
     it('LIST_ENTRIES has an available Accounts entry', () => {

@@ -3,6 +3,7 @@ import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
+import { CUSTOMER_PAGE_CONTACTS } from './lib/customer-page-fixture'
 import {
     CONVERTED_INVOICE,
     CONVERTED_INVOICE_LINES,
@@ -202,6 +203,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedInvoices(pb, ctx, customerIds)
     await seedSalesReceipts(pb, ctx, accountIds, customerIds)
     await seedEstimates(pb, customerIds)
+    await seedPartyContacts(pb, customerIds)
     await seedBills(pb, ctx, accountIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
@@ -568,6 +570,29 @@ export async function seedEstimates(
         createdIds.set(id, created.id)
     }
     await seedConvertedInvoice(pb, customerIds, createdIds)
+}
+
+// Creates the customer page's contacts (CUSTOMER_PAGE_CONTACTS) as the contact dialog
+// does, with server-assigned ids. `customerIds` maps a customer-form fixture id to the
+// created customer's id. Saving a primary contact clears the flag on its customer's
+// other contacts, so the primaries are created last and stay primary.
+export async function seedPartyContacts(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const primariesLast = [
+        ...CUSTOMER_PAGE_CONTACTS.filter(c => !c.is_primary),
+        ...CUSTOMER_PAGE_CONTACTS.filter(c => c.is_primary),
+    ]
+    for (const { id, created: _created, updated: _updated, ...row } of primariesLast) {
+        const customer = customerIds.get(row.customer)
+        if (customer === undefined) {
+            throw new Error(
+                `seed: contact ${id} names customer ${row.customer}, which was not created`
+            )
+        }
+        await pb.collection('books_party_contacts').create({ ...row, customer })
+    }
 }
 
 // Saves CONVERTED_INVOICE as a draft that names its estimate, then its lines, as the

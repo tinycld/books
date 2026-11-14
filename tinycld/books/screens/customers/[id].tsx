@@ -1,23 +1,24 @@
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { useLocalSearchParams } from 'expo-router'
-import { CustomerChild } from '../../components/customers/CustomerChild'
+import { CustomerPage } from '../../components/customers/page/CustomerPage'
 import { RecordByIdScreen } from '../../components/RecordByIdScreen'
 import { useCustomerNavigation } from '../../hooks/useCustomerNavigation'
 import { useCustomerFormStore } from '../../stores/customer-form-store'
 import { useDeletingRecord } from '../../stores/record-form-store'
 import type { BooksCustomers } from '../../types'
 
-/** One customer — `/a/books/customers/<id>` — over the list (page) or beside it (panel). */
+/**
+ * One customer's page — `/a/books/customers/<id>` — over the list, or beside a column of
+ * its names on a very wide window.
+ */
 export default function CustomerScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
     const [customersCollection] = useStore('books_customers')
     const { record, isLoading } = useRecord(customersCollection, id)
     const deletingRecord = useDeletingRecord(useCustomerFormStore, id)
     const navigation = useCustomerNavigation()
-    const renderCustomer = (shown: BooksCustomers) => (
-        <CustomerChild target={{ mode: 'edit', record: shown }} />
-    )
+    const renderCustomer = (shown: BooksCustomers) => <CustomerPage record={shown} />
     return (
         <RecordByIdScreen
             record={record ?? deletingRecord}

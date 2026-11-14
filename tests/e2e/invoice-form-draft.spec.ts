@@ -241,7 +241,7 @@ test.describe('invoice-form: draft invoice', () => {
 
         // Edit customer pushes the customer form; Back returns to the draft.
         await page.getByTestId('invoice-edit-customer').click()
-        await expect(page).toHaveURL(/\/books\/customers\/(?!new$)[^/?#]+$/)
+        await expect(page).toHaveURL(/\/books\/customers\/(?!new$)[^/?#]+(\?tab=details)?$/)
         await expect(page.getByTestId('form-input-display_name')).toHaveValue(customer.name)
         await page.goBack()
         await expect(page).toHaveURL(draftUrl)

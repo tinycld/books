@@ -54,6 +54,44 @@ func TestOAuth_SalesReceiptsAreScopedAsInvoices(t *testing.T) {
 	}
 }
 
+// Spec §4 (customer pages): a token reads and writes a customer's contact
+// people, and only reads the balances view, which has no write path.
+func TestOAuth_PartyContactsAndBalances(t *testing.T) {
+	collections := oauthPackage().Collections
+	want := map[string]oauth.Access{
+		"books_party_contacts": {Read: []string{scopeRead}, Write: []string{scopeWrite}},
+		"books_party_balances": {Read: []string{scopeRead}},
+	}
+	for c, access := range want {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	contacts := "/api/collections/books_party_contacts/records"
+	if !oauth.ScopeForRoute(http.MethodGet, contacts).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", contacts)
+	}
+	if !oauth.ScopeForRoute(http.MethodPost, contacts).SatisfiedBy([]string{scopeWrite}) {
+		t.Errorf("POST %s: books:write must write", contacts)
+	}
+	if oauth.ScopeForRoute(http.MethodPost, contacts).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("POST %s: books:read alone must not write", contacts)
+	}
+	balances := "/api/collections/books_party_balances/records"
+	if !oauth.ScopeForRoute(http.MethodGet, balances).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", balances)
+	}
+}
+
 // Spec §3.10: the Books scopes read and write the bills and their lines, as
 // the invoice's.
 func TestOAuth_BillsAreReadWrite(t *testing.T) {

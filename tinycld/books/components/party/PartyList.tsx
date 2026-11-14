@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import type { RecordListState } from '../../hooks/useRecordList'
+import { type ListLayout, RECORD_LIST_WIDTH } from '../../lib/detail-surface'
 import {
     PARTY_COLUMNS,
+    PARTY_NAME_ONLY_CELL,
+    PARTY_NAME_ROW_HEIGHT,
     PARTY_ROW_HEIGHT,
     PARTY_TABLE_MIN_WIDTH,
     type PartyListCopy,
@@ -36,6 +39,8 @@ export type PartyListProps<T extends PartyRecord> = {
     isLoadError: boolean
     onDismissBanner(): void
     dialog: ReactNode
+    // 'names' beside a record-width page: the name column alone, so nothing scrolls sideways.
+    layout: ListLayout
 }
 
 const partyKey = (row: PartyListRow<PartyRecord>) => row.party.id
@@ -43,7 +48,14 @@ const partyKey = (row: PartyListRow<PartyRecord>) => row.party.id
 const partyHeightOf = (row: PartyListRow<PartyRecord>, fontScale: number) =>
     partyCardHeight(row.party, fontScale)
 
-function PartyTableHeader({ testID }: { testID: string }) {
+function PartyTableHeader({ testID, isNameOnly }: { testID: string; isNameOnly: boolean }) {
+    if (isNameOnly) {
+        return (
+            <ListHeaderRow testID={testID}>
+                <ListHeaderCell label="Name" style={PARTY_NAME_ONLY_CELL} />
+            </ListHeaderRow>
+        )
+    }
     return (
         <ListHeaderRow testID={testID}>
             <ListHeaderCell label="Name" style={PARTY_COLUMNS.name} />
@@ -58,12 +70,17 @@ function PartyTableHeader({ testID }: { testID: string }) {
 // the panel surface, where the list stays in view beside it.
 export function PartyList<T extends PartyRecord>(props: PartyListProps<T>) {
     const { listPrefix, recordPrefix, copy, list, canWrite, openId, indentPx } = props
+    const isNameOnly = props.layout === 'names'
+    const tableMinWidth = isNameOnly ? RECORD_LIST_WIDTH : PARTY_TABLE_MIN_WIDTH
+    const rowHeight = isNameOnly ? PARTY_NAME_ROW_HEIGHT : PARTY_ROW_HEIGHT
+    // A name-only row draws no menu, so it asks for none.
+    const menuOf = (party: T) => (isNameOnly ? null : props.menuFor(party))
     const renderTable = (selectedId: string) => (
         <ListTable<PartyListRow<T>>
             testID={`${listPrefix}-table`}
-            minWidth={PARTY_TABLE_MIN_WIDTH}
-            rowHeight={PARTY_ROW_HEIGHT}
-            header={<PartyTableHeader testID={`${listPrefix}-header`} />}
+            minWidth={tableMinWidth}
+            rowHeight={rowHeight}
+            header={<PartyTableHeader testID={`${listPrefix}-header`} isNameOnly={isNameOnly} />}
             rows={list.rows}
             keyOf={partyKey}
             onNearEnd={list.onNearEnd}
@@ -74,7 +91,8 @@ export function PartyList<T extends PartyRecord>(props: PartyListProps<T>) {
                     indentPx={indentPx}
                     onOpen={props.onOpen}
                     isSelected={row.party.id === selectedId}
-                    menu={props.menuFor(row.party)}
+                    menu={menuOf(row.party)}
+                    isNameOnly={isNameOnly}
                 />
             )}
         />

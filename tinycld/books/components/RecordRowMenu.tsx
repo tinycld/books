@@ -2,8 +2,8 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { usePopoverContext } from '@tinycld/core/ui/popover'
 import { EllipsisVertical } from 'lucide-react-native'
-import type { ReactNode } from 'react'
-import { Pressable } from 'react-native'
+import { type ReactNode, useRef } from 'react'
+import { Platform, Pressable, type ViewInstance } from 'react-native'
 import { RECORD_MENU_WRITES } from '../lib/record-menu'
 
 interface RecordRowMenuProps<I extends string> {
@@ -25,7 +25,7 @@ interface RecordRowMenuProps<I extends string> {
 // On a phone the menu is a sheet that slides out for a moment after it closes. Its items
 // leave at once, so a closed menu's actions are never in the accessibility tree or the
 // page next to the items of the next row's menu.
-function WhileOpen({ children }: { children: ReactNode }) {
+export function WhileOpen({ children }: { children: ReactNode }) {
     const { isOpen } = usePopoverContext()
     if (!isOpen) return null
     return <>{children}</>
@@ -45,6 +45,16 @@ export function RecordRowMenu<I extends string>({
     writes = RECORD_MENU_WRITES,
 }: RecordRowMenuProps<I>) {
     const color = useThemeColor('muted-foreground')
+    const triggerRef = useRef<ViewInstance>(null)
+    // On web the focus goes back to the trigger before the item runs. The chosen row
+    // leaves the page as the menu closes, so a dialog the item opens would otherwise find
+    // the focus on the page body, and hand it back there when it closes. Native skips it:
+    // there `focus()` is not a no-op (it sends the view a focus command), and the page
+    // body fallback it guards against is a browser behavior.
+    const select = (item: I) => {
+        if (Platform.OS === 'web') triggerRef.current?.focus()
+        onSelect(item)
+    }
     const menuItems = items.map(item => (
         <Menu.Item
             key={item}
@@ -52,7 +62,7 @@ export function RecordRowMenu<I extends string>({
             label={labels[item]}
             isDestructive={item === 'delete'}
             isDisabled={isWriting && writes.has(item)}
-            onSelect={() => onSelect(item)}
+            onSelect={() => select(item)}
         />
     ))
     return (
@@ -62,6 +72,7 @@ export function RecordRowMenu<I extends string>({
             sheetSide="bottom"
             trigger={
                 <Pressable
+                    ref={triggerRef}
                     testID={triggerTestId}
                     accessibilityRole="button"
                     accessibilityLabel={triggerLabel}

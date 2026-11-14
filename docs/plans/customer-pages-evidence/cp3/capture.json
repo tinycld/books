@@ -1,0 +1,120 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "transactions",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280, 1600],
+            "height": 1000,
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-details" },
+                { "waitFor": "customer-balance-open" }
+            ]
+        },
+        {
+            "name": "credit",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_party_balances",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_party_balances",
+                        "collectionName": "books_party_balances",
+                        "id": "$urlId",
+                        "customer": "$urlId",
+                        "balance": -12000
+                    }
+                ]
+            },
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-details" },
+                { "waitFor": "Credit" }
+            ]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_party_balances", "status": 400 },
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-details" },
+                { "waitFor": "customer-balance-error" }
+            ]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1600],
+            "actions": [
+                { "fill": "customers-search", "value": "St. Jude Community" },
+                {
+                    "clickText": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "click": "customer-tab-details" },
+                { "waitFor": "customer-balance-open" }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_party_balances", "hold": true },
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-details" },
+                { "waitFor": "customer-balance-open" }
+            ]
+        },
+        {
+            "name": "new-menu",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-details" },
+                { "click": "customer-new-transaction" },
+                { "waitFor": "customer-new-sales-receipt" }
+            ]
+        },
+        {
+            "name": "new-menu-phone",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390],
+            "stable": "customer-new-sales-receipt",
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-details" },
+                { "click": "customer-new-transaction" },
+                { "waitFor": "customer-new-sales-receipt" }
+            ]
+        },
+        {
+            "name": "empty-inactive-sub",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "actions": [
+                { "click": "customers-show-inactive" },
+                { "fill": "customers-search", "value": "Boise" },
+                { "clickText": "Northwind Boise (closed)" },
+                { "click": "customer-tab-details" },
+                { "waitFor": "customer-new-transaction-hint" },
+                { "pause": 800 }
+            ]
+        }
+    ]
+}

@@ -457,7 +457,7 @@ test.describe('invoice-form: lines', () => {
         await page.keyboard.press('Tab')
         await expect(editCustomer).toBeFocused()
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(/\/books\/customers\/(?!new$)[^/?#]+$/)
+        await expect(page).toHaveURL(/\/books\/customers\/(?!new$)[^/?#]+(\?tab=details)?$/)
         await expect(page.getByTestId('form-input-display_name')).toHaveValue(seededCustomer())
         await page.goBack()
         await expect(page).toHaveURL(NEW_INVOICE_URL)

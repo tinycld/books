@@ -1,3 +1,4 @@
+import { liveViewOptions } from '@tinycld/core/lib/change-signal'
 import type { CoreStores } from '@tinycld/core/lib/pocketbase'
 import type { Schema } from '@tinycld/core/types/pbSchema'
 import type { createCollection } from 'pbtsdb/core'
@@ -365,6 +366,23 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // A view, never written: the server signals its topic when a journal line or
+    // an account changes (server/party_balances.go), so an open page follows a
+    // post or a void with no reload.
+    const books_party_balances = newCollection('books_party_balances', {
+        ...onDemand,
+        ...liveViewOptions('books_party_balances'),
+        collectionOptions: indexed,
+    })
+
+    // No relations: the customer page reads one customer's contacts with its
+    // own query. The server clears is_primary on a party's other contacts.
+    const books_party_contacts = newCollection('books_party_contacts', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_bank_connections,
@@ -396,5 +414,7 @@ export function registerCollections(
         books_estimate_lines,
         books_bills,
         books_bill_lines,
+        books_party_balances,
+        books_party_contacts,
     }
 }
