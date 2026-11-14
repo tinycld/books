@@ -470,11 +470,17 @@ func (s taxChangeSave) post(revision int) apiReq {
 // batch with the header first, stating the revision, then the line writes;
 // then the post as its own request, stating the next revision.
 func TestDocRequestRevision_AHeaderFirstBatchThenThePost(t *testing.T) {
-	t.Run("with the header last, the line is refused under the stored tax", func(t *testing.T) {
+	// A batch is checked on the lines it leaves (sales_document_deferral.go),
+	// so the refusal under the stored tax is the single request's.
+	t.Run("as a single request, the line is refused under the stored tax", func(t *testing.T) {
 		s := newTaxChangeSave(t)
-		batch := s.batch(s.add, s.header)
-		batch.want = http.StatusBadRequest
-		batch.run(t, s.pe.app)
+		add := apiReq{
+			method: http.MethodPost, url: "/api/collections/books_invoice_lines/records", token: s.token,
+			body: fmt.Sprintf(`{"invoice":%q,"position":1,"kind":"item","product":%q,"quantity":1,"rate":-9500,"taxable":true}`,
+				s.inv.Id, s.pe.service.Id),
+			want: http.StatusBadRequest, content: []string{wantTotalNegative},
+		}
+		add.run(t, s.pe.app)
 		if got := docRevision(t, s.pe.app, "books_invoices", s.inv.Id); got != s.saw {
 			t.Fatalf("revision = %d, want %d: the refused batch changed it", got, s.saw)
 		}
