@@ -4,7 +4,7 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { type FieldErrors, useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TextInputInstance, ViewInstance } from 'react-native'
 import {
     amountsFromLines,
@@ -100,11 +100,25 @@ export function useOpeningBalancesForm(screen: OpeningScreen) {
     // An override that ends while the form is open ends here too: the hook re-renders at
     // its expiry, and the next validation uses the schema of that render.
     const { override } = useMyCloseOverride()
+    const hasOverride = override !== undefined
     const form = useForm<OpeningFormValues>({
         mode: 'onChange',
-        resolver: zodResolver(openingFormSchema(closeDate, override !== undefined)),
+        resolver: zodResolver(openingFormSchema(closeDate, hasOverride)),
         defaultValues: defaultValues(screen, fiscalStartMonth),
     })
+    // The form validates a field only when it changes, so a date the person already
+    // typed keeps the answer of the old schema when an override starts or ends: a
+    // "closed" error that is no longer true, or no error for a date that is now closed.
+    // The effect validates that date again. It sets no state of its own; an untouched
+    // date is left alone, as at load.
+    const { trigger, getFieldState } = form
+    const checkedWithOverride = useRef(hasOverride)
+    useEffect(() => {
+        if (checkedWithOverride.current === hasOverride) return
+        checkedWithOverride.current = hasOverride
+        const date = getFieldState('date')
+        if (date.isDirty || date.invalid) void trigger('date')
+    }, [hasOverride, trigger, getFieldState])
     const { setError, getValues, handleSubmit, reset, clearErrors } = form
     const { isDirty, errors } = form.formState
     // Amount errors show beside their input in the grid; the summary carries the rest.
