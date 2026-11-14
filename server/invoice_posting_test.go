@@ -344,6 +344,49 @@ func TestInvoicePost_RefusesInactiveCustomer(t *testing.T) {
 	requireInvoiceNotPosted(t, pe.app, inv.Id, 1001)
 }
 
+// A product keeps an income account that became inactive after it was saved,
+// so the post is where it is refused. The refusal names the invoice's own
+// line, the one the person sees: the journal entry's line for that account
+// has another number (here 3, after A/R and Services 4000), and the journal
+// line guard's text ("Line 3: account Consulting is inactive.") would point
+// at an invoice line that does not exist.
+func TestInvoicePost_RefusesAnInactiveIncomeAccountOnTheInvoiceLine(t *testing.T) {
+	pe := newPostingEnv(t)
+	consulting := mkNumberedAccount(t, pe.app, "Consulting", "", "income", "service_income")
+	advice, err := newProduct(pe.app, map[string]any{"type": "service", "name": "Advice", "income_account": consulting.Id})
+	if err != nil {
+		t.Fatalf("save the advice product: %v", err)
+	}
+	inv := pe.mkInvoice(t, nil)
+	mkInvoiceLine(t, pe.app, inv, 0, item(pe.service, 1, 45000, false))
+	mkInvoiceLine(t, pe.app, inv, 1, item(advice, 1, 30000, false))
+	if err := setFields(t, pe.app, "books_accounts", consulting.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make the income account inactive: %v", err)
+	}
+
+	err = postInvoiceAs(pe.app, inv.Id, pe.users.bookkeeper.Id)
+	requireRefusalText(t, err, "Line 2: the income account of Advice is inactive. Choose an active one on the product or service.")
+	requireInvoiceNotPosted(t, pe.app, inv.Id, 1001)
+}
+
+// An inactive income account whose lines add up to zero gets no journal line,
+// so it does not stop the post.
+func TestInvoicePost_AnInactiveIncomeAccountWithNoAmountPosts(t *testing.T) {
+	pe := newPostingEnv(t)
+	consulting := mkNumberedAccount(t, pe.app, "Consulting", "", "income", "service_income")
+	advice, err := newProduct(pe.app, map[string]any{"type": "service", "name": "Advice", "income_account": consulting.Id})
+	if err != nil {
+		t.Fatalf("save the advice product: %v", err)
+	}
+	inv := pe.mkInvoice(t, nil)
+	mkInvoiceLine(t, pe.app, inv, 0, item(pe.service, 1, 45000, false))
+	mkInvoiceLine(t, pe.app, inv, 1, item(advice, 1, 0, false))
+	if err := setFields(t, pe.app, "books_accounts", consulting.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make the income account inactive: %v", err)
+	}
+	mustPostInvoice(t, pe.app, inv.Id, pe.users.bookkeeper.Id)
+}
+
 func TestInvoicePost_RefusesZeroTotal(t *testing.T) {
 	pe := newPostingEnv(t)
 	inv := pe.mkInvoice(t, nil)

@@ -69,3 +69,17 @@ export function formatMoney(cents: number, currency: string): string {
 export function amountText(cents: number, currency: string): string {
     return cents === 0 ? '' : formatMoney(cents, currency)
 }
+
+// A balance that is not exact is null (lib/account-tree.ts ownBalance): one of
+// its sums, or their net, is past the range where a number holds every cent.
+// It is shown as this text in the error tone, never as a number that can be
+// wrong by cents.
+export const TOO_LARGE_TEXT = 'Too large'
+
+export function balanceText(balance: number | null, currency: string): string {
+    return balance === null ? TOO_LARGE_TEXT : formatMoney(balance, currency)
+}
+
+export function balanceTone(balance: number | null): string {
+    return balance === null ? 'text-danger' : 'text-foreground'
+}

@@ -1,7 +1,6 @@
 import type { BooksJournalEntries, BooksJournalLines } from '../types'
-import { ownBalance } from './account-tree'
+import { addExact, ownBalance } from './account-tree'
 import { type LinePartyRow, linePartyName } from './line-party-options'
-import { maxStoredAmount } from './money'
 import type { RegisterRange } from './register-range'
 
 // `document` lets the drawer's Open of a document's entry open the document
@@ -187,16 +186,14 @@ export function buildRegister<L extends RegisterSourceLine>(input: {
     const { accountType, priorTotals, range, order } = input
     const sorted = input.lines.filter(l => l.posted).sort(compareLines)
 
-    const prior = ownBalance(accountType, priorTotals.debit, priorTotals.credit)
-    let running: number | null = Math.abs(prior) > maxStoredAmount ? null : prior
-    let openingBalance: number | null = running
+    // null: the prior sums, or a running balance, are past the exact range (ownBalance).
+    let running = ownBalance(accountType, priorTotals.debit, priorTotals.credit)
+    let openingBalance = running
     const rows: RegisterLine<L>[] = []
 
     for (const line of sorted) {
         if (line.date > range.end) continue
-        const signed = ownBalance(accountType, line.debit, line.credit)
-        const next: number | null = running === null ? null : running + signed
-        running = next !== null && Math.abs(next) > maxStoredAmount ? null : next
+        running = addExact(running, ownBalance(accountType, line.debit, line.credit))
         if (line.date < range.start) {
             openingBalance = running
             continue
@@ -212,10 +209,6 @@ export function buildRegister<L extends RegisterSourceLine>(input: {
         endingBalance,
         showOpeningRow: openingBalance !== 0 || rows.length > 0,
     }
-}
-
-export function balanceTone(balance: number | null): string {
-    return balance === null ? 'text-danger' : 'text-foreground'
 }
 
 export function entryNumberLabel(number: string): string {

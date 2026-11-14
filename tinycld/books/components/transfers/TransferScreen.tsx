@@ -50,6 +50,7 @@ export function TransferScreen({ entryId }: { entryId: string }) {
                 memo: detail.entry.memo,
             },
             savedIds: detail.ids,
+            revision: detail.entry.revision,
             replacesNumber: detail.replacesNumber,
         })
     }

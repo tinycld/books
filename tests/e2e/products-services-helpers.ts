@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test'
+import { openOtherBooksPage } from './journal-entries-helpers'
 import { exactText, type RecordKind, recordFormHelpers } from './record-form-helpers'
 
 // Shared by the products-services e2e specs: the product bindings of
@@ -135,11 +136,16 @@ export async function createProduct(
         price?: string
         cost?: string
         expenseAccount?: string
+        // The income account's label in the select; the form's default when not given.
+        incomeAccount?: string
     }
 ) {
     await openNewProduct(page, values.type)
     await field(page, 'name').fill(values.name)
     if (values.sku !== undefined) await field(page, 'sku').fill(values.sku)
+    if (values.incomeAccount !== undefined) {
+        await pickOption(page, 'income_account', values.incomeAccount)
+    }
     if (values.price !== undefined) {
         await field(page, 'price').fill(values.price)
         await field(page, 'price').press('Tab')
@@ -155,6 +161,34 @@ export async function createProduct(
     await page.getByTestId('product-save').click()
     await expectSavedToList(page)
     await expect(productSurface(page)).toBeHidden()
+}
+
+// Makes a product inactive from another tab, so a form open on `page` keeps the product
+// it already chose: no product picker offers an inactive product, so this is the one way a
+// person makes the server refuse a line or a bundle item that names one. `makeActive`
+// makes the product active again from that tab and closes it.
+export async function makeProductInactiveElsewhere(page: Page, name: string) {
+    const other = await openOtherBooksPage(page, ['products'])
+    await openProductsList(other)
+    await searchProducts(other, name)
+    const id = await productIdOf(other, name)
+    const toggle = async () => {
+        const stored = patchAnswered(other, id)
+        await chooseFromMenu(other, id, 'toggle-inactive')
+        expect((await stored).status()).toBe(200)
+    }
+    await toggle()
+    await expect(productEntry(other, name)).toHaveCount(0)
+    return {
+        makeActive: async () => {
+            await other.getByTestId('products-show-inactive').click()
+            await expect(inactiveLabel(productEntry(other, name))).toBeVisible()
+            await toggle()
+            await expect(inactiveLabel(productEntry(other, name))).toHaveCount(0)
+            await other.close()
+        },
+        close: () => other.close(),
+    }
 }
 
 // The bundle table's rows, in screen order (the grid on desktop, the cards on a phone).

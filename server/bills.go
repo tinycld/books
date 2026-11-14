@@ -44,6 +44,7 @@ const (
 	msgBillProductInactive     = "Product line %d: %s is inactive. Choose an active product or service."
 	msgBillProductNotPurchased = "Product line %d: %s is not purchased. Turn on “I purchase this” for it first."
 	msgBillAccountAmountZero   = "Account line %d: Enter an amount other than 0."
+	msgBillRevisionConflict    = "This bill changed after you opened it. Load it again, then review it before you save or post."
 )
 
 // Go-only refusal texts of the bill.
@@ -69,6 +70,10 @@ const billDraftName = "a draft bill"
 // (BILL_ACCOUNT_TYPES).
 var billAccountTypes = map[string]bool{"expense": true, "other_expense": true, "cost_of_goods_sold": true}
 
+// billLineRowLabels names a bill's line by its kind, numbered among the lines
+// of that kind (salesDocKind.LineRowLabels).
+var billLineRowLabels = map[string]string{lineKindAccount: "Account line", lineKindItem: "Product line"}
+
 // billKind is the bill as a purchase document of the shared layer: its party
 // is the vendor, its lines are account lines and product lines, it has no
 // sales tax, and posting credits Accounts payable (which posting creates when
@@ -83,26 +88,27 @@ var billKind = salesDocKind{
 	ParentField:        "bill",
 	HostKey:            billHostKey,
 	LineTables:         []string{billAccountLinesKey, billItemLinesKey},
-	LineRowLabels:      map[string]string{lineKindAccount: "Account line", lineKindItem: "Product line"},
+	LineRowLabels:      billLineRowLabels,
 	Party:              partyVendor,
 	PartyCollection:    "books_vendors",
 	AddressField:       "mailing_address",
 	CustomerRequired:   true,
 	HasTax:             false,
 	Msgs: salesDocMessages{
-		TotalNegative:   msgBillTotalNegative,
-		TotalTooLarge:   msgBillTotalTooLarge,
-		TooManyLines:    msgBillTooManyLines,
-		ZeroTotal:       msgBillZeroTotal,
-		PostedFromForm:  msgBillPostedFromForm,
-		NotDraft:        msgBillNotDraft,
-		DeleteNotDraft:  msgBillDeleteNotDraft,
-		LineStays:       msgBillLineStays,
-		LineNotDraft:    msgBillLineNotDraft,
-		LineRestating:   msgBillLineRestating,
-		LineUnknownKind: msgBillLineUnknownKind,
-		EditMissing:     msgBillEditMissing,
-		PartyInactive:   msgVendorInactive,
+		TotalNegative:    msgBillTotalNegative,
+		TotalTooLarge:    msgBillTotalTooLarge,
+		TooManyLines:     msgBillTooManyLines,
+		ZeroTotal:        msgBillZeroTotal,
+		PostedFromForm:   msgBillPostedFromForm,
+		NotDraft:         msgBillNotDraft,
+		DeleteNotDraft:   msgBillDeleteNotDraft,
+		LineStays:        msgBillLineStays,
+		LineNotDraft:     msgBillLineNotDraft,
+		LineRestating:    msgBillLineRestating,
+		LineUnknownKind:  msgBillLineUnknownKind,
+		EditMissing:      msgBillEditMissing,
+		PartyInactive:    msgVendorInactive,
+		RevisionConflict: msgBillRevisionConflict,
 	},
 	CheckHeader: checkBillHeader,
 	BeforePost:  checkBillLinesToPost,
@@ -240,8 +246,13 @@ func checkBillLinesToPost(tx core.App, doc *core.Record) error {
 // line's product's expense account, read now, so a change after the line was
 // saved is the one posted), a sum below zero a credit and a zero sum no line,
 // in chart order.
+//
+// A product line's expense account that is inactive is refused by the first
+// product line that charges it, as incomeByAccount does for a sales kind; an
+// account line's inactive account is refused before (checkBillLinesToPost).
 func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
 	sums := map[string]int64{}
+	firstLine := map[string]documentLineRef{}
 	for i, line := range lines {
 		if !totals.HasAmount[i] {
 			continue
@@ -261,12 +272,20 @@ func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsRe
 			if account == "" {
 				return nil, fmt.Errorf("books: %s on bill line %d has no expense account", product.GetString("name"), i+1)
 			}
+			if _, seen := firstLine[account]; !seen {
+				firstLine[account] = documentLineRef{
+					n:       i + 1,
+					label:   lineRowLabel(salesDocKind{LineRowLabels: billLineRowLabels}, lines, line),
+					product: product.GetString("name"),
+					msg:     msgLineExpenseAccountInactive,
+				}
+			}
 		default:
 			continue
 		}
 		sums[account] += totals.Amounts[i]
 	}
-	return accountSums(tx, sums, func(id string, amount int64) postingLine {
+	return accountSums(tx, sums, firstLine, func(id string, amount int64) postingLine {
 		return signedLine(id, -amount)
 	})
 }

@@ -1,11 +1,13 @@
-import { expect, type Page, type Request, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import {
     ACCOUNT_LABELS,
+    BATCH_WRITE,
     createDraftEntry,
     DESKTOP,
     holdRequests,
+    isBatchOf,
     openEntriesList,
     searchEntries,
     settleFrames,
@@ -14,13 +16,9 @@ import { uniqueName } from './record-form-helpers'
 
 // The leave-without-asking rule after a held save, and Books reopened at an entry.
 // The seeded draft is only opened; every other draft is made through the new-entry form.
+// The held save is the one batch request a draft save sends.
 
-const ENTRY_RECORDS = '**/api/collections/books_journal_entries/records/*'
 const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
-
-function isDraftSave(request: Request) {
-    return request.method() === 'PATCH' && !(request.postData() ?? '').includes('"status":"posted"')
-}
 
 async function start(page: Page) {
     await login(page)
@@ -55,7 +53,7 @@ test.describe('journal-entries: leaving after a held save', () => {
         await start(page)
         const memo = uniqueName('Held save leave')
         await makeDraft(page, memo)
-        const held = await holdRequests(page, ENTRY_RECORDS, isDraftSave)
+        const held = await holdRequests(page, BATCH_WRITE, isBatchOf('save'))
 
         await page.getByTestId('entry-memo').fill(`${memo} edited`)
         await page.getByTestId('entry-save-draft').click()

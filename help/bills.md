@@ -40,9 +40,17 @@ Under the lines, Books shows the Account lines and Products and services subtota
 - Cancel leaves the form. If you changed something, Books asks "Discard changes?" first.
 - To remove a saved draft, choose More and then Delete draft, at every screen width. This cannot be undone.
 
-Books refuses to post into a closed period, a bill whose vendor is inactive, a line whose account or product is inactive, a product without "I purchase this", and a bill whose total is zero. The message shows on the form; the draft that you saved stays.
+Books refuses to post into a closed period, a bill whose vendor is inactive, a line whose account or product is inactive, a product without "I purchase this", a product whose expense account is inactive, and a bill whose total is zero. The message shows on the form; the draft that you saved stays.
 
 If another bill of the same vendor already has the same vendor's bill no., Books refuses the save and shows which bill has it, for example "Pacific Power already has bill no. 88412 (Bill 1003)." A void bill does not count, and an empty bill no. is never a duplicate.
+
+## When someone else changed the draft
+
+If another person saves a change to a draft bill while you have changes of your own in it, Books refuses your next Save draft or Post and shows "This bill changed after you opened it." Nothing is posted, and what you typed stays on the screen. A refused Save draft saves nothing. A refused Post usually saves nothing. But when you post a new bill, Books saves it as a draft before it posts, so a refused post leaves that draft saved.
+
+To see their changes, choose Load the current bill. This replaces what you typed, so copy anything you want to keep first. Review the bill, then save or post again. If Books cannot load the bill, it tells you and keeps what you typed. Choose Load the current bill again.
+
+While you have no unsaved change, the form shows the other person's changes as they save them.
 
 ## Edit, void and copy a posted bill
 

@@ -3,6 +3,7 @@ package books
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -842,5 +843,117 @@ func TestAccount_DeleteRefusedWhileOnBillAccountLines(t *testing.T) {
 	}
 	if n, err := app.CountRecords("books_bill_lines", dbx.HashExp{"bill": wrapped.Id}); err != nil || n != 1 {
 		t.Errorf("%d lines on the Pallet wrap bill after the delete (err %v), want its product line kept", n, err)
+	}
+}
+
+// An active account is never below an inactive parent: the chart hides an
+// inactive account with everything under it.
+
+func inactiveParent(t *testing.T, app core.App) *core.Record {
+	t.Helper()
+	parent := mkAccount(t, app, "Old utilities", "expense", "utilities")
+	if err := setFields(t, app, "books_accounts", parent.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make the parent inactive: %v", err)
+	}
+	return parent
+}
+
+func TestAccountActiveParent_CreateUnderAnInactiveParent(t *testing.T) {
+	app := newGuardedApp(t)
+	parent := inactiveParent(t, app)
+	_, err := newAccount(app, map[string]any{"name": "Power", "type": "expense", "detail_type": "utilities", "parent": parent.Id})
+	requireRefused(t, err, msgAccountParentInactive)
+	// An inactive account may be there.
+	if _, err := newAccount(app, map[string]any{
+		"name": "Old power", "type": "expense", "detail_type": "utilities", "parent": parent.Id, "inactive": true,
+	}); err != nil {
+		t.Fatalf("an inactive sub-account of an inactive parent: %v", err)
+	}
+}
+
+func TestAccountActiveParent_MoveUnderAnInactiveParent(t *testing.T) {
+	app := newGuardedApp(t)
+	parent := inactiveParent(t, app)
+	power := mkAccount(t, app, "Power", "expense", "utilities")
+	requireRefused(t, setFields(t, app, "books_accounts", power.Id, map[string]any{"parent": parent.Id}), msgAccountParentInactive)
+	if got := reload(t, app, "books_accounts", power.Id).GetString("parent"); got != "" {
+		t.Fatalf("parent = %q, want none", got)
+	}
+}
+
+func TestAccountActiveParent_MakeActiveNeedsAnActiveParent(t *testing.T) {
+	app := newGuardedApp(t)
+	parent := mkAccount(t, app, "Utilities", "expense", "utilities")
+	child, err := newAccount(app, map[string]any{"name": "Power", "type": "expense", "detail_type": "utilities", "parent": parent.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{child.Id, parent.Id} {
+		if err := setFields(t, app, "books_accounts", id, map[string]any{"inactive": true}); err != nil {
+			t.Fatalf("make %s inactive: %v", id, err)
+		}
+	}
+	requireRefused(t, setFields(t, app, "books_accounts", child.Id, map[string]any{"inactive": false}), msgAccountParentActiveFirst)
+	if err := setFields(t, app, "books_accounts", parent.Id, map[string]any{"inactive": false}); err != nil {
+		t.Fatalf("make the parent active: %v", err)
+	}
+	if err := setFields(t, app, "books_accounts", child.Id, map[string]any{"inactive": false}); err != nil {
+		t.Fatalf("make the child active under an active parent: %v", err)
+	}
+}
+
+// Rows written before the rule (or past the hooks) can hold the state. Only
+// the write that makes it is refused: a rename saves, and a rename of the
+// parent still gives the child its new path.
+func TestAccountActiveParent_AnExistingStateDoesNotBlockARename(t *testing.T) {
+	app := newGuardedApp(t)
+	parent := mkAccount(t, app, "Utilities", "expense", "utilities")
+	child, err := newAccount(app, map[string]any{"name": "Power", "type": "expense", "detail_type": "utilities", "parent": parent.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Raw SQL on purpose: the guard refuses a parent with an active sub-account.
+	if _, err := app.DB().NewQuery("UPDATE books_accounts SET inactive = 1 WHERE id = {:id}").
+		Bind(dbx.Params{"id": parent.Id}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if err := setFields(t, app, "books_accounts", child.Id, map[string]any{"name": "Electricity"}); err != nil {
+		t.Fatalf("rename the child: %v", err)
+	}
+	if err := setFields(t, app, "books_accounts", parent.Id, map[string]any{"name": "Old utilities"}); err != nil {
+		t.Fatalf("rename the parent: %v", err)
+	}
+	if got := reload(t, app, "books_accounts", child.Id).GetString("full_name"); got != "Old utilities:Electricity" {
+		t.Fatalf("full_name = %q", got)
+	}
+}
+
+// One batch: the child goes inactive, the parent goes inactive, the child
+// comes back. The third operation reads the parent the second one wrote.
+func TestAccountActiveParent_ABatchCannotGoAroundIt(t *testing.T) {
+	app := newGuardedApp(t)
+	enableBatch(t, app)
+	users := newLevelUsers(t, app)
+	parent := mkAccount(t, app, "Utilities", "expense", "utilities")
+	child, err := newAccount(app, map[string]any{"name": "Power", "type": "expense", "detail_type": "utilities", "parent": parent.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	patch := func(id, body string) string {
+		return fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_accounts/records/%s","body":%s}`, id, body)
+	}
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, users.bookkeeper),
+		body: batchBody(
+			patch(child.Id, `{"inactive":true}`),
+			patch(parent.Id, `{"inactive":true}`),
+			patch(child.Id, `{"inactive":false}`),
+		),
+		want: http.StatusBadRequest, content: []string{msgAccountParentActiveFirst},
+	}.run(t, app)
+	for _, id := range []string{parent.Id, child.Id} {
+		if reload(t, app, "books_accounts", id).GetBool("inactive") {
+			t.Fatalf("account %s is inactive: the refused batch changed it", id)
+		}
 	}
 }

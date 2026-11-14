@@ -65,6 +65,7 @@ function entry(seed: EntrySeed): BooksJournalEntries {
         doc_type: 'journal',
         status,
         origin: 'manual',
+        revision: 1,
         sequence: Number(seed.number.replace(/\D/g, '')) || 0,
         total: 0,
         currency: 'USD',

@@ -7,6 +7,7 @@ import {
     customerInactiveText,
     documentRefusalTarget,
     INVOICE_MESSAGES,
+    labelledLineRefusal,
     SALES_RECEIPT_MESSAGES,
 } from '../tinycld/books/lib/document-messages'
 import { BILL_MESSAGES, ESTIMATE_MESSAGES } from '../tinycld/books/lib/document-texts'
@@ -341,6 +342,38 @@ describe('invoiceRefusalTarget', () => {
                 'An invoice with a total of zero cannot be posted. Add an amount or keep it as a draft.'
             )
         ).toBe('root')
+    })
+})
+
+describe('labelledLineRefusal', () => {
+    it('puts the write’s label in front of a text with no line number', () => {
+        expect(labelledLineRefusal('Line 2', 'An invoice can have at most 250 lines.')).toBe(
+            'Line 2: An invoice can have at most 250 lines.'
+        )
+    })
+
+    it('keeps the server’s own line number', () => {
+        const text = `Line 3: ${INVOICE_MESSAGES.percentTarget}.`
+        expect(labelledLineRefusal('Line 1', text)).toBe(text)
+    })
+
+    // The server checks a batch's totals one time and refuses on the batch's first line
+    // write, which is not the line that made the total (server/sales_document_deferral.go).
+    it.each([
+        INVOICE_MESSAGES,
+        SALES_RECEIPT_MESSAGES,
+        ESTIMATE_MESSAGES,
+    ])('gives a totals text of a kind no line label', messages => {
+        for (const text of [messages.totalNegative, messages.totalTooLarge]) {
+            expect(labelledLineRefusal('Line 1', text)).toBe(text)
+            expect(documentRefusalTarget(labelledLineRefusal('Line 1', text), INVOICE_KIND)).toBe(
+                'root'
+            )
+        }
+    })
+
+    it('leaves a text with no write label as it is', () => {
+        expect(labelledLineRefusal(null, 'Any text.')).toBe('Any text.')
     })
 })
 

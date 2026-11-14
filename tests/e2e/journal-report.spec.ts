@@ -161,7 +161,8 @@ function scrollList(page: Page, where: 'top' | 'down'): Promise<boolean> {
 }
 
 // Every row of the report, top to end, in ONE page.evaluate: scroll a screen, wait two
-// frames, read the mounted rows as glSnapshot does, repeat. Each row is kept with its place
+// frames, read the rows in view (their text and cells as glSnapshot reads them), repeat.
+// Each row is kept with its place
 // in the list's content (its offset from the list's top plus the scroll), and the rows are
 // returned in that order. A live re-run can land between two screens (other workers post
 // on GL_DAY_1 / GL_DAY_2): a kept row that shows other text or cells or moved, a new row in
@@ -207,14 +208,19 @@ function journalRows(page: Page): Promise<GlSnapshot> {
                 cells.set(id, row)
             }
             const out: Read[] = []
-            const mounted = [
-                ...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? []),
-            ].map(element => ({
-                id: (element.getAttribute('data-testid') ?? '').slice('report-row-'.length),
-                label: (element as HTMLElement).innerText.trim(),
-                at: Math.round(element.getBoundingClientRect().top - origin),
-            }))
-            for (const { id, label, at } of mounted) {
+            // Only the rows in view are read. The list keeps rows mounted away from its
+            // view (the rows of the place it was scrolled to before a re-run, the Total
+            // among them), so a mounted row does not say the rows before it were drawn.
+            const view = list.getBoundingClientRect()
+            const inView = [...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? [])]
+                .map(element => ({ element, rect: element.getBoundingClientRect() }))
+                .filter(({ rect }) => rect.bottom > view.top && rect.top < view.bottom)
+                .map(({ element, rect }) => ({
+                    id: (element.getAttribute('data-testid') ?? '').slice('report-row-'.length),
+                    label: (element as HTMLElement).innerText.trim(),
+                    at: Math.round(rect.top - origin),
+                }))
+            for (const { id, label, at } of inView) {
                 const kind = kindOf(id)
                 if (kind) out.push({ id, kind, label, cells: cells.get(id) ?? {}, at })
             }
@@ -319,13 +325,21 @@ async function pressBlockHeading(page: Page, heading: string) {
         `the block ${heading}`
     )
     const id = blockHead(snapshot, heading)?.id ?? ''
-    const sticky = page.getByTestId(`report-sticky-row-${id}`)
-    if (await sticky.isVisible()) return sticky.click()
     await scrollList(page, 'top')
     const row = page.getByTestId(`report-row-${id}`)
     for (let step = 0; step < 80 && !(await row.count()); step++) await scrollList(page, 'down')
-    await row.evaluate(element => element.scrollIntoView({ block: 'center' }))
-    if (await sticky.isVisible()) return sticky.click()
+    // The sticky copy is pressed only when it is what lies over the row's middle. That a
+    // copy is drawn does not say so: the next heading pushes the copy of the block above
+    // the view out under the heading row, where a press cannot reach it.
+    const isCovered = await row.evaluate(async (element, stickyId) => {
+        element.scrollIntoView({ block: 'center' })
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const box = element.getBoundingClientRect()
+        const onTop = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        const copy = onTop?.closest('[data-testid^="report-sticky-row-"]')
+        return copy?.getAttribute('data-testid') === stickyId
+    }, `report-sticky-row-${id}`)
+    if (isCovered) return page.getByTestId(`report-sticky-row-${id}`).click()
     await row.click()
 }
 

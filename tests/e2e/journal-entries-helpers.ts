@@ -1,5 +1,6 @@
-import { expect, type Locator, type Page, type Request } from '@playwright/test'
-import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
+import { expect, type Locator, type Page, type Request, type Route } from '@playwright/test'
+import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { DESKTOP, isPhone, makeAccountInactive, openChart, PHONE } from './account-register-helpers'
 
 // Shared by the journal-entries e2e specs. Entries are made by driving the form,
 // never by raw PocketBase writes. `createPostedEntry` and `createDraftEntry`
@@ -157,6 +158,75 @@ export async function createDraftEntry(page: Page, entry: EntryInput): Promise<v
     await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
 }
 
+// A second page of this session (another tab), in Books at the first page's viewport size.
+// The post-login redirect lands on the first installed package: when that is not Books,
+// the Books rail link reopens this session's last Books route, which is the screen the
+// first page has open (a form, a record). A caller whose next helper starts from the Lists
+// hub, its own list or its own record names that list's routes in `startsOn`: the page
+// then leaves any other screen for the hub (leaveForListsHub), at the desktop size that
+// shows the sidebar, before it takes the first page's size.
+export async function openOtherBooksPage(page: Page, startsOn?: readonly string[]): Promise<Page> {
+    const other = await page.context().newPage()
+    await login(other)
+    await navigateToPackage(other, 'books')
+    if (startsOn) await leaveForListsHub(other, startsOn)
+    const size = page.viewportSize()
+    if (size) await other.setViewportSize(size)
+    return other
+}
+
+// Takes a page that openOtherBooksPage reopened on another Books screen (not the Lists hub
+// and not one of `segments`, the routes of the list a helper opens next) to the Lists hub,
+// through the desktop sidebar. On the hub or on those routes it does nothing: the open
+// helpers start there, and a nav press over them would stack a second screen.
+async function leaveForListsHub(page: Page, segments: readonly string[]) {
+    const own = segments.join('|')
+    const startsHere = new RegExp(`/books(/lists|/(${own})(/[^/]*)?)?/?$`)
+    if (startsHere.test(new URL(page.url()).pathname)) return
+    await page.getByTestId('books-nav-lists').click()
+    await expect(
+        page.getByTestId('books-list-card-accounts').filter({ visible: true })
+    ).toBeVisible()
+}
+
+// Makes an account inactive from another tab, so a form open on `page` keeps the account
+// it already chose. The server then refuses a post that uses it: "Line n: account <name>
+// is inactive." The account picker never offers an inactive account, so this is the one
+// way a person reaches that rule.
+export async function makeAccountInactiveElsewhere(page: Page, accountName: string) {
+    const other = await openOtherBooksPage(page)
+    await openChart(other)
+    await makeAccountInactive(other, accountName)
+    await other.close()
+}
+
+// Puts a customer or vendor on a line of a draft journal entry, from another tab. The
+// server refuses to delete a customer or vendor that a journal line names. `release`
+// deletes that draft, so the delete is allowed again.
+export async function nameOnDraftLine(page: Page, partyName: string) {
+    const other = await openOtherBooksPage(page, ['entries'])
+    await openNewEntry(other)
+    await other.getByTestId('entry-memo').fill(`Names ${partyName}`)
+    await fillLine(other, 0, {
+        account: ACCOUNT_LABELS.checking,
+        debit: '1.00',
+        name: partyName,
+    })
+    await fillLine(other, 1, { account: ACCOUNT_LABELS.equity, credit: '1.00' })
+    await other.getByTestId('entry-save-draft').click()
+    await expect(other.getByTestId('entry-title')).toHaveText('Journal entry')
+    await expect(other.getByTestId('entry-badge')).toHaveText('Draft')
+    return {
+        release: async () => {
+            await other.getByTestId('entry-header-more').click()
+            await other.getByRole('menuitem', { name: 'Delete draft', exact: true }).click()
+            await other.getByTestId('delete-draft-confirm').click()
+            await expect(other.getByTestId('entries-screen')).toBeVisible()
+            await other.close()
+        },
+    }
+}
+
 export type HeldRequests = {
     // Resolves once the first matching request is held.
     firstHeld: Promise<void>
@@ -189,6 +259,76 @@ export async function holdRequests(
         return route.continue()
     })
     return { firstHeld, count: () => count, release }
+}
+
+// A save of a draft, a post of a saved draft and a delete of a draft are each one batch
+// request: the line writes and the entry write, all saved or none. Only the post of a new
+// entry is a separate request, a PATCH of the entry record.
+export const BATCH_WRITE = '**/api/batch'
+
+export type BatchOperation = { method: string; url: string; body?: Record<string, unknown> }
+
+// The operations of a batch request, in the order the server runs them; none for any
+// other request.
+export function batchOperations(request: Request): BatchOperation[] {
+    if (request.method() !== 'POST' || !new URL(request.url()).pathname.endsWith('/api/batch')) {
+        return []
+    }
+    const body: { requests?: BatchOperation[] } | null = request.postDataJSON()
+    return body?.requests ?? []
+}
+
+export type EntryWrite = 'save' | 'post' | 'delete'
+
+function isEntryWrite(operation: BatchOperation, kind: EntryWrite) {
+    if (!operation.url.includes('/books_journal_entries/')) return false
+    if (kind === 'delete') return operation.method === 'DELETE'
+    if (operation.method === 'DELETE') return false
+    const posts = operation.body?.status === 'posted'
+    return kind === 'post' ? posts : !posts
+}
+
+// The place of the entry write in a batch of this kind: a draft save (the entry insert or
+// its update, with no post), a post of a saved draft, or a draft delete. -1 for a request
+// that is not such a batch.
+export function entryWriteIndex(request: Request, kind: EntryWrite): number {
+    return batchOperations(request).findIndex(operation => isEntryWrite(operation, kind))
+}
+
+export function isBatchOf(kind: EntryWrite) {
+    return (request: Request) => entryWriteIndex(request, kind) >= 0
+}
+
+// Answers a batch as PocketBase does when its operation `index` is refused: a 400 whose
+// body carries that operation's own error body. Nothing of the batch is saved.
+export function refuseBatchOperation(route: Route, index: number, response: object) {
+    return route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({
+            status: 400,
+            message: 'Batch transaction failed.',
+            data: {
+                requests: {
+                    [index]: {
+                        code: 'batch_request_failed',
+                        message: 'Batch request failed.',
+                        response,
+                    },
+                },
+            },
+        }),
+    })
+}
+
+// Refuses the entry write of every batch of this kind with a message-only 400; every
+// other request passes.
+export async function refuseEntryWrite(page: Page, kind: EntryWrite, message: string) {
+    await page.route(BATCH_WRITE, route => {
+        const index = entryWriteIndex(route.request(), kind)
+        if (index < 0) return route.continue()
+        return refuseBatchOperation(route, index, { status: 400, message, data: {} })
+    })
 }
 
 // Two frames let a navigation queued in a request continuation run before a negative check.

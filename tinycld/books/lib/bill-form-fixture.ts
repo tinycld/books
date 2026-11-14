@@ -77,6 +77,7 @@ function bill(seed: BillSeed): BillRecord {
         memo: '',
         subtotal: 0,
         total: 0,
+        revision: 1,
         currency: BILL_CURRENCY,
         entry: '',
         replaces: '',

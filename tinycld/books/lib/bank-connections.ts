@@ -5,7 +5,7 @@ import { UploadError } from '@tinycld/core/file-viewer/upload-file'
 import { z } from '@tinycld/core/ui/form'
 import type { BooksAccounts, BooksBankFiles } from '../types'
 import { ownBalance } from './account-tree'
-import { formatMoney } from './money'
+import { balanceText } from './money'
 import { formatDay } from './register-range'
 
 export const BANK_ACCOUNT_TYPES = [
@@ -148,12 +148,14 @@ export function waitingText(count: number): string {
     return `${count} files waiting`
 }
 
+// isAlert is the error tone: a negative balance, or one that is not exact
+// (lib/account-tree.ts ownBalance), which prints as "Too large".
 export function cardBalance(
     row: { accountType: string; debitTotal: number; creditTotal: number },
     currency: string
-): { text: string; isNegative: boolean } {
+): { text: string; isAlert: boolean } {
     const balance = ownBalance(row.accountType, row.debitTotal, row.creditTotal)
-    return { text: formatMoney(balance, currency), isNegative: balance < 0 }
+    return { text: balanceText(balance, currency), isAlert: balance === null || balance < 0 }
 }
 
 // The UTC day of `created`, the same day the server's duplicate message writes.

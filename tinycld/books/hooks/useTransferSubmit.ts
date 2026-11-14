@@ -21,6 +21,8 @@ interface TransferSubmitProps {
     // A saved draft and the ids of its two lines; a new transfer has neither.
     entryId?: string | null
     savedIds?: TransferLineIds
+    // The revision of the draft the form's values were taken from; 0 for a new transfer.
+    revision?: number
     // The posted transfer a new draft replaces.
     replaces?: string
     onSaved(id: string, outcome: SaveOutcome): void
@@ -38,6 +40,7 @@ export function useTransferSubmit({
     currency,
     entryId = null,
     savedIds,
+    revision = 0,
     replaces,
     onSaved,
     onCancel,
@@ -53,6 +56,7 @@ export function useTransferSubmit({
     const submittedValues = useRef<TransferFormValues | null>(null)
     const { saveDraft, post, isPending } = useEntrySave({
         entryId,
+        revision,
         // A saved draft's two stored lines, so a line the user did not change is not
         // written again.
         saved: savedIds ? transferLines(transferForm.initial, savedIds) : [],

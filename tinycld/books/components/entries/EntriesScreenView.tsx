@@ -74,6 +74,7 @@ function CardList({ model }: { model: EntriesScreenModel }) {
                 currency={model.currency}
                 onOpenEntry={model.onOpenEntry}
                 rowMenu={rowMenu}
+                isOverdue={model.isOverdue(entry.id)}
             />
         ))
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -108,6 +109,7 @@ function ListBody({ isVisible, model }: { isVisible: boolean; model: EntriesScre
                 onOpenEntry={model.onOpenEntry}
                 onNearEnd={model.onNearEnd}
                 rowMenu={rowMenuFor(model)}
+                isOverdue={model.isOverdue}
             />
         </View>
     )

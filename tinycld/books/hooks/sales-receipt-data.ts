@@ -2,7 +2,6 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import type { TableRowWrite } from '@tinycld/core/lib/forms/table-rows'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { evictRows } from '@tinycld/core/lib/server-rows'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
@@ -34,8 +33,6 @@ import {
 import { customerPartyRead } from './party-read'
 import { useBooksSettings } from './useBooksSettings'
 import { useDepositAccounts } from './useDepositAccounts'
-
-const LOG_CONTEXT = 'books.salesReceipt'
 
 type SalesReceiptInsertColumns = typeof EMPTY_SALES_RECEIPT_COLUMNS
 
@@ -264,12 +261,20 @@ function useSalesReceiptWrites(): DocumentWrites {
             return receiptsCollection.update(id, draft => {
                 Object.assign(draft, columns)
                 if (Object.keys(input.fields).length > 0) draft.fields = input.fields
+                draft.revision = input.revision
+                if (input.post) draft.status = 'posted'
             })
         },
-        setStatus: (id, status) =>
+        postRecord: (id, revision) =>
             receiptsCollection.update(id, draft => {
-                draft.status = status
+                draft.status = 'posted'
+                draft.revision = revision
             }),
+        voidRecord: id =>
+            receiptsCollection.update(id, draft => {
+                draft.status = 'void'
+            }),
+        storedRevision: id => receiptsCollection.get(id)?.revision,
         deleteRecord: id => receiptsCollection.delete(id),
         lineOps: (receiptId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
@@ -288,7 +293,6 @@ function useSalesReceiptWrites(): DocumentWrites {
                 remove: lineId => linesCollection.delete(lineId),
             }
         },
-        evictLines: ids => evictRows(linesCollection, ids, LOG_CONTEXT),
     }
 }
 
@@ -299,10 +303,21 @@ function useSalesReceiptVersion(id: string | undefined): string {
     return record?.updated ?? ''
 }
 
+function useSalesReceiptReload(): () => Promise<void> {
+    const [receiptsCollection, linesCollection] = useStore(
+        'books_sales_receipts',
+        'books_sales_receipt_lines'
+    )
+    return async () => {
+        await Promise.all([receiptsCollection.reload(), linesCollection.reload()])
+    }
+}
+
 // The sales receipt kind's data source: every `useStore` of a sales receipt collection.
 export const SALES_RECEIPT_DATA: DocumentDataSource = {
     useScreenReads: useSalesReceiptScreenReads,
     useParty: customerPartyRead(`books.${SALES_RECEIPT_KIND.key}`),
     useWrites: useSalesReceiptWrites,
     useVersion: useSalesReceiptVersion,
+    useReload: useSalesReceiptReload,
 }

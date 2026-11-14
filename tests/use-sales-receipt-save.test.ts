@@ -8,7 +8,7 @@ import * as expoRouter from 'expo-router'
 import { createElement, type Provider } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { View } from 'react-native'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SALES_RECEIPT_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
 import hosts, { SALES_RECEIPT_HOST_KEY } from '../tinycld/books/forms/hosts'
 import type { DocumentStart } from '../tinycld/books/hooks/document-data'
@@ -33,6 +33,11 @@ import { silenceLog } from './silence-log'
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
+})
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
 })
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
@@ -64,6 +69,13 @@ formHosts.push(
         },
     ])
 )
+
+// The form is ready only after the host UI module is loaded. Load it before the first
+// test: with the whole suite running, the first load can take longer than waitFor waits,
+// and that time is not part of what a test measures.
+beforeAll(async () => {
+    await import('../tinycld/books/forms/ui')
+})
 
 const UNDEPOSITED = DEPOSIT_ACCOUNT_IDS.undeposited
 // PocketBase adds a final period to the server's text.
@@ -176,7 +188,7 @@ describe('useDocumentSave post on a sales receipt: a refused Deposit to', () => 
     for (const refusal of REFUSALS) {
         it(`${refusal.shape}, with Deposit to hidden, goes to the summary`, async () => {
             const current = await openNew(true)
-            // The receipt insert, its line, then the status write.
+            // The batch (the receipt and its line), then the status write.
             refuseNthWrite(3, refusal.error())
 
             await act(async () => {

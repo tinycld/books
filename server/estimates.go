@@ -52,6 +52,8 @@ const (
 	msgEstimateLineClosed        = "The lines of a closed estimate cannot change."
 	msgEstimateLineRestating     = "Only a line's amount changes while Books restates its estimate."
 	msgEstimateLineUnknownKind   = "Line %d: an estimate line is an item, description, subtotal or percent line."
+	// An estimate has no post: the text names the one write a person makes.
+	msgEstimateRevisionConflict = "This estimate changed after you opened it. Load it again, then review it before you save."
 )
 
 // estimateKind is the estimate as a sales document of the quote lifecycle: it
@@ -72,17 +74,18 @@ var estimateKind = salesDocKind{
 	CustomerRequired:   true,
 	HasTax:             true,
 	Msgs: salesDocMessages{
-		TotalNegative:   msgEstimateTotalNegative,
-		TotalTooLarge:   msgEstimateTotalTooLarge,
-		TooManyLines:    msgEstimateTooManyLines,
-		NotDraft:        msgEstimateClosedUnchanged,
-		DeleteNotDraft:  msgEstimateClosedNoDelete,
-		LineStays:       msgEstimateLineStays,
-		LineNotDraft:    msgEstimateLineClosed,
-		LineRestating:   msgEstimateLineRestating,
-		LineUnknownKind: msgEstimateLineUnknownKind,
-		CustomerOnDocs:  msgCustomerOnEstimates,
-		PartyInactive:   msgCustomerInactive,
+		TotalNegative:    msgEstimateTotalNegative,
+		TotalTooLarge:    msgEstimateTotalTooLarge,
+		TooManyLines:     msgEstimateTooManyLines,
+		NotDraft:         msgEstimateClosedUnchanged,
+		DeleteNotDraft:   msgEstimateClosedNoDelete,
+		LineStays:        msgEstimateLineStays,
+		LineNotDraft:     msgEstimateLineClosed,
+		LineRestating:    msgEstimateLineRestating,
+		LineUnknownKind:  msgEstimateLineUnknownKind,
+		CustomerOnDocs:   msgCustomerOnEstimates,
+		RevisionConflict: msgEstimateRevisionConflict,
+		PartyInactive:    msgCustomerInactive,
 	},
 	CheckHeader:  checkEstimateHeader,
 	CheckDelete:  checkEstimateDelete,
@@ -118,12 +121,12 @@ func checkEstimateDelete(tx core.App, stored *core.Record) error {
 func checkEstimateHeader(_ core.App, _, r *core.Record) error {
 	date, err := parseDay(r.GetString("date"))
 	if err != nil {
-		return refuseField("date", msgDocumentDay)
+		return refuseDocumentDay("date", err)
 	}
 	if expiration := r.GetString("expiration_date"); expiration != "" {
 		day, err := parseDay(expiration)
 		if err != nil {
-			return refuseField("expiration_date", msgDocumentDay)
+			return refuseDocumentDay("expiration_date", err)
 		}
 		if day.Before(date) {
 			return refuseField("expiration_date", msgExpirationBeforeDate)
@@ -137,7 +140,7 @@ func checkEstimateHeader(_ core.App, _, r *core.Record) error {
 		return refuseField("accepted_date", msgAcceptedDateRequired)
 	}
 	if _, err := parseDay(accepted); err != nil {
-		return refuseField("accepted_date", msgDocumentDay)
+		return refuseDocumentDay("accepted_date", err)
 	}
 	return nil
 }
@@ -152,6 +155,9 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 	if r.GetString("status") == statusClosed {
 		return refuse("%s", msgEstimateClosesFromInvoice)
 	}
+	if err := checkNewSalesDoc(kind, r); err != nil {
+		return err
+	}
 	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
@@ -161,6 +167,7 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 	}
 	r.Set("sequence", sequence)
 	r.Set("number", number)
+	startRevision(tx, kind, r)
 	clearAcceptance(r)
 	return checkDraftSalesDoc(tx, kind, nil, r)
 }
@@ -168,7 +175,9 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 // transitionQuote guards a quote's update. A closed quote does not change
 // (except PocketBase unlinking a deleted form) and no update closes one, both
 // unless Books is converting it (markConverting). Otherwise the status moves
-// freely among pending, accepted and rejected, and the header guards run.
+// freely among pending, accepted and rejected, and the header guards run. A
+// write to an estimate that is not closed takes the transaction's one revision
+// increase (revision.go).
 func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	converting := isConverting(tx, r.Id)
 	if stored.GetString("status") == statusClosed && !converting {
@@ -180,6 +189,25 @@ func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) err
 	}
 	if r.GetString("status") == statusClosed && !converting {
 		return refuse("%s", msgEstimateClosesFromInvoice)
+	}
+	// A write to an estimate a person can edit takes the transaction's one
+	// increase: a save, a line's restatement, and the close an invoice's create
+	// makes. The reopen of a closed estimate changes one nobody edits, as a
+	// void does, and adds none.
+	if kind.isEditableStatus(stored.GetString("status")) {
+		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
+			return err
+		}
+	}
+	// Books' own save of the totals after a line write (restateSalesDoc).
+	if isOwnWrite(tx, kind.Collection, stored.Id) {
+		return nil
+	}
+	// The conversion writes the estimate's invoice under its mark.
+	if !converting {
+		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+			return err
+		}
 	}
 	clearAcceptance(r)
 	return checkDraftSalesDoc(tx, kind, stored, r)
@@ -196,20 +224,14 @@ func clearAcceptance(r *core.Record) {
 	}
 }
 
-// The app store key of an estimate Books is closing or reopening while it
-// converts it to an invoice, or undoes that.
-func convertingKey(estimateID string) string {
-	return "books.estimate.converting." + estimateID
+// markConverting marks estimateID as written by Books' conversion to an
+// invoice, or the undoing of one, so the estimate guard lets its status move
+// to or from closed; the returned func clears the mark, which belongs to the
+// converting transaction (txmarks.go).
+func markConverting(tx core.App, estimateID string) func() {
+	return setTxMark(tx, docMark(estimateKind, "converting"), estimateID)
 }
 
-// markConverting marks estimateID as written by Books' conversion, so the
-// estimate guard lets its status move to or from closed; the returned func
-// clears the mark. The app store is shared by an app and its transactions.
-func markConverting(app core.App, estimateID string) func() {
-	app.Store().Set(convertingKey(estimateID), true)
-	return func() { app.Store().Remove(convertingKey(estimateID)) }
-}
-
-func isConverting(app core.App, estimateID string) bool {
-	return app.Store().Has(convertingKey(estimateID))
+func isConverting(tx core.App, estimateID string) bool {
+	return hasTxMark(tx, docMark(estimateKind, "converting"), estimateID)
 }

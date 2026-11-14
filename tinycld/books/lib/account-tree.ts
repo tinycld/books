@@ -28,16 +28,30 @@ export type TreeNode<T extends TreeAccount> = {
     account: T
     children: TreeNode<T>[]
     depth: number
-    ownBalance: number
-    rollupBalance: number
+    ownBalance: number | null
+    rollupBalance: number | null
 }
 
-export function ownBalance(type: string, debitTotal: number, creditTotal: number): number {
+// The account's posted balance, normal side positive, or null when it is not
+// exact. The sums come from a live query that adds month rows as floats
+// (lib/accounts-query.ts, lib/register-query.ts, lib/bank-connections-query.ts):
+// past 2^53 - 1 a float no longer holds every cent, so a sum there, or a net
+// there, is not a number Books can show. Two such sums can net to a small
+// number that looks right and is not.
+export function ownBalance(type: string, debitTotal: number, creditTotal: number): number | null {
     // An unknown type stays debit-normal so its balance is still shown rather than dropped.
     const def = accountTypeDef(type)
     if (!def) warnOnce(`type:${type}`, 'books.accounts', 'unknown account type', { key: type })
-    const normal = def?.normal
-    return normal === 'credit' ? creditTotal - debitTotal : debitTotal - creditTotal
+    if (!Number.isSafeInteger(debitTotal) || !Number.isSafeInteger(creditTotal)) return null
+    const net = def?.normal === 'credit' ? creditTotal - debitTotal : debitTotal - creditTotal
+    return Number.isSafeInteger(net) ? net : null
+}
+
+// The sum of two balances, or null when either is not exact or the sum is not.
+export function addExact(a: number | null, b: number | null): number | null {
+    if (a === null || b === null) return null
+    const sum = a + b
+    return Number.isSafeInteger(sum) ? sum : null
 }
 
 // Exported so a live query can order by chart order with these exact compares
@@ -86,11 +100,14 @@ function comparator(sort: SortState) {
     return (a: TreeAccount, b: TreeAccount) => sign * columnCompare(key, a, b) || compareId(a, b)
 }
 
-function sameTypeDescendantsTotal<T extends TreeAccount>(node: TreeNode<T>, type: string): number {
-    let total = 0
+function sameTypeDescendantsTotal<T extends TreeAccount>(
+    node: TreeNode<T>,
+    type: string
+): number | null {
+    let total: number | null = 0
     for (const child of node.children) {
-        if (child.account.type === type) total += child.ownBalance
-        total += sameTypeDescendantsTotal(child, type)
+        if (child.account.type === type) total = addExact(total, child.ownBalance)
+        total = addExact(total, sameTypeDescendantsTotal(child, type))
     }
     return total
 }
@@ -158,7 +175,7 @@ export function buildAccountTree<T extends TreeAccount>(
             .map(child => toNode(child, depth + 1))
         const own = ownBalance(account.type, account.debit_total, account.credit_total)
         const node: TreeNode<T> = { account, children, depth, ownBalance: own, rollupBalance: own }
-        node.rollupBalance = own + sameTypeDescendantsTotal(node, account.type)
+        node.rollupBalance = addExact(own, sameTypeDescendantsTotal(node, account.type))
         return node
     }
     return roots
@@ -179,7 +196,7 @@ export type VisibleRow<T extends TreeAccount> = {
     node: TreeNode<T>
     hasChildren: boolean
     isCollapsed: boolean
-    balance: number
+    balance: number | null
     showsRollup: boolean
 }
 
@@ -192,13 +209,18 @@ export function flattenAccountTree<T extends TreeAccount>(
     const matches = (account: T) =>
         account.name.toLowerCase().includes(query) || account.number.toLowerCase().includes(query)
 
-    const isExcluded = (account: T) => {
-        if (account.inactive && !filters.showInactive) return true
-        return filters.group !== '' && accountTypeDef(account.type)?.group !== filters.group
-    }
+    const isOtherGroup = (account: T) =>
+        filters.group !== '' && accountTypeDef(account.type)?.group !== filters.group
 
+    // With Show inactive off, an inactive account is in the list only as the path to
+    // an account under it that is listed: hiding it would hide an active account,
+    // which still takes postings. It is never listed for itself, so a search that
+    // matches only it shows nothing. The server refuses an active account below an
+    // inactive one now (server/accounts.go checkActiveParent), but a row older than
+    // the rule can hold that state. The row shows its Inactive label as any inactive row.
     const isKept = (node: TreeNode<T>): boolean => {
-        if (isExcluded(node.account)) return false
+        if (isOtherGroup(node.account)) return false
+        if (node.account.inactive && !filters.showInactive) return node.children.some(isKept)
         if (query === '') return true
         return matches(node.account) || node.children.some(isKept)
     }
@@ -211,11 +233,9 @@ export function flattenAccountTree<T extends TreeAccount>(
     const displayedBalance = (node: TreeNode<T>) =>
         collapsedState(node) ? node.rollupBalance : node.ownBalance
 
-    // A non-finite balance would make the comparator return NaN and break the sort.
-    const sortableBalance = (node: TreeNode<T>) => {
-        const balance = displayedBalance(node)
-        return Number.isFinite(balance) ? balance : 0
-    }
+    // A balance that is not exact has no place in the order; it sorts as zero, so the
+    // comparator always returns a number.
+    const sortableBalance = (node: TreeNode<T>) => displayedBalance(node) ?? 0
 
     const sortSiblings = (siblings: TreeNode<T>[]) => {
         const { sort } = filters
@@ -284,8 +304,14 @@ export function parentChoices<T extends TreeAccount>(
     }
     for (const root of tree) visit(root, false)
 
+    // A new account is active. An active account gets no inactive parent
+    // (server/accounts.go checkActiveParent); an inactive one may have any.
+    const editing = accounts.find(account => account.id === opts.editingId)
+    const needsActiveParent = !(editing?.inactive ?? false)
+
     return accounts.filter(candidate => {
         if (candidate.type !== opts.type || excluded.has(candidate.id)) return false
+        if (needsActiveParent && candidate.inactive) return false
         const depth = depthById.get(candidate.id)
         return depth !== undefined && depth + 1 + height <= maxAccountDepth
     })

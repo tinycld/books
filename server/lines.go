@@ -109,21 +109,54 @@ func registerLineHooks(app core.App) {
 	})
 }
 
+// Refusals of a write to a field of a line that only Books writes.
+const (
+	msgLineStampByBooks  = "Books sets a line's posted flag and date when it posts the entry."
+	msgLineCurrencyFixed = "A line's currency cannot change."
+)
+
+// checkLineStamp keeps a line's posting stamp and currency Books' own. The
+// posted flag and the date say that the line is in the ledger and on which
+// day; every report and register selects lines by them, and the month rows
+// are written from the entry, so a stamp that disagrees with the entry shows
+// in one and not the other. Only stampPosted writes them, under its mark. The
+// update rule pins these fields for a person; this holds for Go and a
+// superuser too. stored is the line before an update, nil on a create (a new
+// line starts unstamped; its currency is stampCurrency's).
+func checkLineStamp(tx core.App, stored, line *core.Record) error {
+	if stored != nil && stored.GetString("currency") != line.GetString("currency") {
+		return refuse(msgLineCurrencyFixed)
+	}
+	wasPosted, wasDate := false, ""
+	if stored != nil {
+		wasPosted, wasDate = stored.GetBool("posted"), stored.GetString("date")
+	}
+	if line.GetBool("posted") == wasPosted && line.GetString("date") == wasDate {
+		return nil
+	}
+	if isPosting(tx, line.GetString("entry")) {
+		return nil
+	}
+	return refuse(msgLineStampByBooks)
+}
+
 // serializedLine is serialized for a line write: after the write succeeds, in
-// the same transaction, the entry's draft total is restated so the list can
-// show it without reading the lines.
-func serializedLine(e *core.RecordEvent, check func(tx core.App) error) error {
+// the same transaction, the entry's draft total and revision follow it.
+// check returns how much the write changes the entry's debits: a new line's
+// debit, an update's new debit less the stored one, a delete's debit negated.
+func serializedLine(e *core.RecordEvent, check func(tx core.App) (debitChange int, err error)) error {
 	original := e.App
 	defer func() { e.App = original }()
 	return original.RunInTransaction(func(tx core.App) error {
 		e.App = tx
-		if err := check(tx); err != nil {
+		debitChange, err := check(tx)
+		if err != nil {
 			return err
 		}
 		if err := e.Next(); err != nil {
 			return err
 		}
-		return restateDraftTotal(tx, e.Record)
+		return touchDraft(tx, e.Record, debitChange)
 	})
 }
 
@@ -146,11 +179,13 @@ func draftDebitSum(app core.App, entryID string) (int, error) {
 	return sum, nil
 }
 
-// restateDraftTotal writes entries.total after a line write. It does nothing
-// when the entry is gone (cascade delete), is not a draft, or is a reversal,
-// and when the line is being stamped by a post: Books owns those totals and
-// stamps them itself at post.
-func restateDraftTotal(tx core.App, line *core.Record) error {
+// touchDraft records a line write on its entry, in the same transaction: the
+// entry's draft total is restated so the list can show it without reading the
+// lines, and the entry's revision takes the transaction's one increase. It
+// does nothing when the entry is gone (cascade delete), is not a draft, or is
+// a reversal, and when the line is being stamped by a post: Books owns those
+// totals and stamps them itself at post.
+func touchDraft(tx core.App, line *core.Record, debitChange int) error {
 	if line.GetBool("posted") {
 		return nil
 	}
@@ -164,15 +199,31 @@ func restateDraftTotal(tx core.App, line *core.Record) error {
 	if entry.GetString("status") != statusDraft || entry.GetString("reverses") != "" {
 		return nil
 	}
-	sum, err := draftDebitSum(tx, entry.Id)
+	sum, err := draftTotalAfter(tx, entry, debitChange)
 	if err != nil {
 		return err
 	}
-	if entry.GetInt("total") == sum {
+	base, first := draftBase(tx, "books_journal_entries", entry.Id, entry.GetInt("revision"))
+	if !first && entry.GetInt("total") == sum {
 		return nil
 	}
 	entry.Set("total", sum)
+	entry.Set("revision", base+1)
+	defer ownWrite(tx, "books_journal_entries", entry.Id)()
 	return tx.Save(entry)
+}
+
+// draftTotalAfter is the entry's draft total after a line write that changed
+// its debits by debitChange: the stored total plus the change, with no read
+// of the other lines. A save of N lines would otherwise read N*N rows. A
+// total at the storage cap is not the real sum, so the lines are summed then,
+// and also when the change would reach the cap.
+func draftTotalAfter(tx core.App, entry *core.Record, debitChange int) (int, error) {
+	stored := entry.GetInt("total")
+	if next := stored + debitChange; stored < maxStoredAmount && next >= 0 && next < maxStoredAmount {
+		return next, nil
+	}
+	return draftDebitSum(tx, entry.Id)
 }
 
 // withoutRestatedTotal removes total from a draft's changed fields and sets it

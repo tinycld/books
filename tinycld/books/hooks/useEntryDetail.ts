@@ -137,6 +137,9 @@ export function useEntryDetail(entryId: string) {
     const detail = {
         lines,
         accountNames,
+        // Every row that reverses this entry, of any status: the state of an automatic
+        // reversal reads them all (autoReversalState, lib/entry-display.ts).
+        reversals,
         // A posted reversal is the one that counts; a draft or void one may sit beside it.
         reversedBy: reversals.find(row => row.status === 'posted') ?? reversals[0],
         replacedBy: linked.find(row => row.replaces === entryId),
