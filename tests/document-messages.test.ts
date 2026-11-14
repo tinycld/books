@@ -240,7 +240,8 @@ describe('server/estimate_conversion.go', () => {
 })
 
 // The bill's texts the client and the server both show (plan, Decisions: Messages), whose
-// Go constants live in server/bills.go. `%s` and `%d` are compared as written.
+// Go constants live in server/bills.go, and the line texts it shares with the expense in
+// server/purchase_lines.go. `%s` and `%d` are compared as written.
 const BILL_SHARED = [
     'A bill total cannot be below zero. Use a vendor credit.',
     'A bill total must be more than zero to post.',
@@ -266,7 +267,10 @@ const BILL_CLIENT_ONLY = {
 } as const
 
 function billServerSource() {
-    return readFileSync(join(__dirname, '..', 'server', 'bills.go'), 'utf8')
+    const server = join(__dirname, '..', 'server')
+    return ['bills.go', 'purchase_lines.go']
+        .map(file => readFileSync(join(server, file), 'utf8'))
+        .join('\n')
 }
 
 // A client text and its server twin differ only by the final period PocketBase adds.

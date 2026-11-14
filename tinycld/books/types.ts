@@ -25,6 +25,8 @@ export type {
     BooksEstimatePublic,
     BooksEstimateResponses,
     BooksEstimates,
+    BooksExpenseLines,
+    BooksExpenses,
     BooksInvoiceLines,
     BooksInvoices,
     BooksInvoiceTaxLines,
