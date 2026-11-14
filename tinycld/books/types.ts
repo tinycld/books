@@ -30,6 +30,8 @@ export type {
     BooksInvoiceTaxLines,
     BooksJournalEntries,
     BooksJournalLines,
+    BooksPartyBalances,
+    BooksPartyContacts,
     BooksProducts,
     BooksSalesReceiptLines,
     BooksSalesReceipts,

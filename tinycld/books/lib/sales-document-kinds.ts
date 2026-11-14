@@ -37,6 +37,9 @@ export type DocumentParty = {
     // The "Edit <party>" link, and the party's own routes without the org prefix.
     editLabel: string
     routeBase: string
+    // The search params of the edit link. A customer's page opens on its Details tab,
+    // where the customer is edited; a vendor's route is its form.
+    editParams?: { tab: 'details' }
     // The refusal of an inactive party; `%s` is its name.
     inactiveText: string
 }
@@ -49,6 +52,7 @@ export const DOCUMENT_PARTIES: Record<DocumentPartyKey, DocumentParty> = {
         addressLabel: 'Bill to',
         editLabel: 'Edit customer',
         routeBase: 'books/customers',
+        editParams: { tab: 'details' },
         inactiveText: '%s is inactive. Choose an active customer.',
     },
     vendor: {

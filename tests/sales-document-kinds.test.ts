@@ -39,6 +39,7 @@ describe('DOCUMENT_PARTIES', () => {
         })
     })
 
+    // Customer pages: "Edit customer" opens the customer's page on its Details tab.
     it("keeps the invoice's words for the customer", () => {
         expect(DOCUMENT_PARTIES.customer).toEqual({
             field: 'customer',
@@ -47,6 +48,7 @@ describe('DOCUMENT_PARTIES', () => {
             addressLabel: 'Bill to',
             editLabel: 'Edit customer',
             routeBase: 'books/customers',
+            editParams: { tab: 'details' },
             inactiveText: '%s is inactive. Choose an active customer.',
         })
     })

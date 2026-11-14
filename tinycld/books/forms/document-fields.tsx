@@ -588,8 +588,8 @@ function BillToBody(props: BillToBodyProps) {
 /**
  * The party's address (a sales document's Bill to): the snapshot of the party's address
  * as text, with "Edit address" (reveals the address inputs and the Email input in the
- * band) and the party's edit link ("Edit customer"), which pushes the party's own form,
- * so Back returns to the unsaved document. The party, its field, its route and its words
+ * band) and the party's edit link ("Edit customer"), which pushes the party's own form
+ * (a customer's page on its Details tab), so Back returns to the unsaved document. The party, its field, its route and its words
  * come from the kind's party (DOCUMENT_PARTIES). With no party on a kind where it is
  * optional, a muted "No customer" until an address is typed; "Edit address" still works.
  * A picked party with no address shows the party's empty text (EMPTY_ADDRESS_TEXT: a
@@ -608,7 +608,8 @@ export function BillToField(props: BuiltinFieldProps) {
     // Only a picked party's missing address is said; with none picked the field is blank.
     const emptyText = partyId === '' ? '' : EMPTY_ADDRESS_TEXT[kind.party]
     const onEditAddress = () => edit(bandKey)
-    const onEditParty = () => router.push(orgHref(`${party.routeBase}/${partyId}`))
+    const onEditParty = () =>
+        router.push(orgHref(`${party.routeBase}/${partyId}`, party.editParams))
     const ids = {
         address: `${kind.testId}-${party.addressField.replaceAll('_', '-')}`,
         editAddress: `${kind.testId}-edit-address`,

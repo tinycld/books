@@ -8,6 +8,7 @@ import {
     customerEntry,
     customerHelpers,
     customerIdOf,
+    customerPath,
     customerSurface,
     DESKTOP,
     discardDialog,
@@ -98,8 +99,8 @@ async function openWithKey(page: Page, open: Locator, id: string, name: string, 
     await expect(open).toBeFocused()
     await page.keyboard.press(key)
     await expect(customerSurface(page)).toBeVisible()
-    await expect(page).toHaveURL(new RegExp(`/books/customers/${id}$`))
-    await expect(field(page, 'display_name')).toHaveValue(name)
+    await expect(page).toHaveURL(customerPath(id))
+    await expect(page.getByTestId('customer-title')).toHaveText(name)
     await page.getByTestId('customer-back').click()
     await expectListShown(page)
     await searchCustomers(page, name)
@@ -122,6 +123,7 @@ test.describe('customer-form: inactive and delete', () => {
             // (1) A parent, then its sub-customer from the parent's row menu.
             await openCustomersList(page)
             await createCustomer(page, { name: parentName })
+            await openCustomersList(page)
             await searchCustomers(page, prefix)
             const parentId = await customerIdOf(page, parentName)
             // The row (or card) opens through a button named for the customer; the menu is
@@ -342,11 +344,13 @@ async function deleteOpenCustomerElsewhere(page: Page, prefix: string) {
     const discard = discardDialog(page)
     const openName = `${prefix} open`
     await createCustomer(page, { name: openName })
+    await openCustomersList(page)
     await searchCustomers(page, openName)
     await openButton(page, openName).click()
     await expect(customerSurface(page)).toBeVisible()
-    await expect(field(page, 'display_name')).toHaveValue(openName)
-    await field(page, 'notes').fill(`${prefix} typed notes`)
+    await expect(page.getByTestId('customer-title')).toHaveText(openName)
+    await page.getByTestId('customer-tab-notes').click()
+    await page.getByTestId('customer-notes-input').fill(`${prefix} typed notes`)
 
     const other = await page.context().newPage()
     await login(other)
