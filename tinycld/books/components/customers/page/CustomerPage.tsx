@@ -10,6 +10,7 @@ import { ListBanner } from '../../ListBanner'
 import { DiscardDialog } from '../../RecordChild'
 import { RecordSurface } from '../../RecordSurface'
 import { CustomerBalance } from './CustomerBalance'
+import { CustomerContactsTab } from './CustomerContactsTab'
 import { CustomerDetailsTab } from './CustomerDetailsTab'
 import { CustomerNotesTab } from './CustomerNotesTab'
 import { CustomerPageHeader } from './CustomerPageHeader'
@@ -37,6 +38,15 @@ function TabBody({ tab, record, page, surface, rowClassName, gutterClass }: TabB
                 canWrite={page.canWrite}
                 newTransactionDisabled={page.controls.newTransactionDisabled}
                 onNewTransaction={openNewMenu}
+                gutterClass={gutterClass}
+            />
+        )
+    }
+    if (tab === 'contacts') {
+        return (
+            <CustomerContactsTab
+                customerId={record.id}
+                canWrite={page.canWrite}
                 gutterClass={gutterClass}
             />
         )
