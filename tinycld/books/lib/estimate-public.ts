@@ -17,7 +17,24 @@ export const PUBLIC_TEXTS = {
     totalLabel: 'Estimate total',
     downloadPdf: 'Download PDF',
     loadingTitle: 'Estimate',
+    accept: 'Accept',
+    decline: 'Decline',
+    nameLabel: 'Your name',
+    acceptConfirm: 'Accept estimate',
+    accepting: 'Accepting…',
+    reasonLabel: 'Reason (optional)',
+    declineConfirm: 'Decline estimate',
+    declining: 'Declining…',
+    back: 'Back',
 } as const
+
+export function decideTextOf(business: string): string {
+    return `To move forward, select Accept and ${business} will reach out with next steps.`
+}
+
+export function declineQuestionOf(business: string): string {
+    return `Decline this estimate? ${business} will see that you declined.`
+}
 
 // Expiry stops only a pending estimate; the day of expiry itself still decides. Days are
 // ISO strings, so they compare as text.

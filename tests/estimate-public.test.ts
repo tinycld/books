@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
     businessNameOf,
     contactOf,
+    decideTextOf,
+    declineQuestionOf,
     outcomeTextOf,
     publicDatesOf,
     publicHeadingOf,
@@ -108,6 +110,22 @@ describe('contactOf', () => {
             email: 'books@hartwell.example',
             phone: '+1 214 555 1234',
         })
+    })
+})
+
+describe('decideTextOf', () => {
+    it('invites the customer to accept, naming the business', () => {
+        expect(decideTextOf(BUSINESS)).toBe(
+            'To move forward, select Accept and Hartwell Supply Co. will reach out with next steps.'
+        )
+    })
+})
+
+describe('declineQuestionOf', () => {
+    it('asks to confirm the decline, naming the business', () => {
+        expect(declineQuestionOf(BUSINESS)).toBe(
+            'Decline this estimate? Hartwell Supply Co. will see that you declined.'
+        )
     })
 })
 
