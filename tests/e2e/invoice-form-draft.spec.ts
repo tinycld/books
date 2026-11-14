@@ -557,6 +557,53 @@ test.describe('invoice-form: draft invoice', () => {
             .toBe(true)
     })
 
+    // The save sends its line updates by position. Moving the note above the item puts the
+    // percent line under a note for one write; the server checks only the lines the batch
+    // leaves (server/sales_document_deferral.go).
+    test('a saved draft keeps a percent line under its item when a note moves above them', async ({
+        page,
+    }) => {
+        const cell = (rowId: string, column: string) =>
+            page.getByTestId(lineCellTestId(rowId, column))
+        await openBooks(page)
+        await saveInvoiceDraft(page, {
+            customer: seededCustomer().name,
+            product: seededProduct().name,
+            memo: uniqueMemo('Invoice line move'),
+        })
+        const item = await lineRowId(page, 0)
+        await page.getByTestId(`form-table-lines-menu-${item}`).focus()
+        await page.getByTestId('form-table-lines-add-more').click()
+        await page.getByTestId('form-table-lines-add-percent').click()
+        await expect(lineRows(page)).toHaveCount(2)
+        const percent = await pickLineProduct(page, 1, 'Discount')
+        await cell(percent, 'percent').fill('10')
+        await cell(percent, 'percent').focus()
+        await page.keyboard.press('Alt+t')
+        await expect(lineRows(page)).toHaveCount(3)
+        const note = await lineRowId(page, 2)
+        await cell(note, 'description').fill('Delivered to the annex')
+
+        const created = batchAnswered(page, 'books_invoice_lines', 'POST', 200)
+        await page.getByTestId('invoice-save-draft').click()
+        await created
+        const amount = await cell(percent, 'amount').innerText()
+        expect(amount).toContain(money(Math.round(seededProduct().price / 10)))
+
+        await cell(note, 'description').focus()
+        await page.keyboard.press('ControlOrMeta+Alt+ArrowUp')
+        await page.keyboard.press('ControlOrMeta+Alt+ArrowUp')
+        await expect.poll(() => lineRowId(page, 0)).toBe(note)
+
+        const moved = batchAnswered(page, 'books_invoice_lines', 'PATCH', 200)
+        await page.getByTestId('invoice-save-draft').click()
+        await moved
+        await expect.poll(() => lineRowId(page, 1)).toBe(item)
+        await expect.poll(() => lineRowId(page, 2)).toBe(percent)
+        await expect(cell(percent, 'amount')).toHaveText(amount)
+        await expect(page.getByTestId('invoice-lines')).not.toContainText('A percent line applies')
+    })
+
     test('a load failure shows Retry and Retry loads the draft', async ({ context }) => {
         const product = seededProduct()
         const memo = uniqueMemo('Invoice draft retry')
