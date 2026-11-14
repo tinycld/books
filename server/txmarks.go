@@ -40,3 +40,12 @@ func hasTxMark(tx core.App, name, id string) bool {
 	_, ok := txMarks.Load(txMarkKey{info, name, id})
 	return ok
 }
+
+// clearTxMark removes a mark whose clearing func the caller did not keep.
+func clearTxMark(tx core.App, name, id string) {
+	info := tx.TxInfo()
+	if info == nil {
+		return
+	}
+	txMarks.Delete(txMarkKey{info, name, id})
+}

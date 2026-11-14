@@ -142,6 +142,7 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	if kind.TaxLinesCollection != "" {
 		bindTaxLineGuards(app, kind)
 	}
+	bindSalesDocDeferral(app, kind)
 	// Bound after the line guard, so it runs inside the guard's transaction
 	// (e.App is the transaction there) and after the write it wraps.
 	restateAfter := func(e *core.RecordEvent) error {
@@ -150,6 +151,11 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 		}
 		docID := e.Record.GetString(kind.ParentField)
 		if isRestating(e.App, kind, docID) {
+			return nil
+		}
+		// The owner of the batch restates the document one time (sales_document_deferral.go).
+		if isDeferring(e.App, kind, docID) {
+			markDirty(e.App, kind, docID)
 			return nil
 		}
 		_, err := restateSalesDoc(e.App, kind, docID)
@@ -165,6 +171,10 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 		return serializedThen(e,
 			func(tx core.App) error { return checkSalesDocLineDelete(tx, kind, e.Record) },
 			func(tx core.App) error {
+				if isDeferring(tx, kind, docID) {
+					markDirty(tx, kind, docID)
+					return nil
+				}
 				_, err := restateSalesDoc(tx, kind, docID)
 				return err
 			})
@@ -615,6 +625,17 @@ func lineInputs(lines []*core.Record) []documentLine {
 	return out
 }
 
+// ownLineAmount is the amount of a line that depends on no other line: an
+// item's quantity times its rate. A percent or subtotal line's amount comes
+// from the lines before it, so the restatement writes it; until then it is 0.
+func ownLineAmount(r *core.Record) int64 {
+	totals := documentTotals(lineInputs([]*core.Record{r}), nil, nil)
+	if r.GetString("kind") != lineKindItem || !totals.HasAmount[0] {
+		return 0
+	}
+	return totals.Amounts[0]
+}
+
 // salesDocTotals runs documentTotals over lines with the document's header
 // tax: a rate is its own one component, a group its components in the group's
 // order.
@@ -731,6 +752,22 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		if n >= maxDocumentLines {
 			return refuse("%s", kind.Msgs.TooManyLines)
 		}
+	}
+
+	// In a batch the owner checks the document one time, after the last write
+	// (sales_document_deferral.go): this write checks its own line only and
+	// reads no other line. The line number is the line's position (the client
+	// writes positions with no gap).
+	if isDeferring(tx, kind, docID) {
+		n := r.GetInt("position") + 1
+		if err := checkLineCells(tx, kind, r, n); err != nil {
+			return err
+		}
+		if err := checkLineProduct(tx, stored, r, n); err != nil {
+			return err
+		}
+		r.Set("amount", ownLineAmount(r))
+		return nil
 	}
 
 	others, err := salesDocLines(tx, kind, docID)
@@ -884,6 +921,10 @@ func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) 
 	}
 	if !kind.isEditableStatus(doc.GetString("status")) {
 		return refuse("%s", kind.Msgs.LineNotDraft)
+	}
+	// The owner checks the lines the batch leaves (sales_document_deferral.go).
+	if isDeferring(tx, kind, doc.Id) {
+		return nil
 	}
 	stored, err := salesDocLines(tx, kind, doc.Id)
 	if err != nil {
