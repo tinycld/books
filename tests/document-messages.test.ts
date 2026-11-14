@@ -295,15 +295,13 @@ describe('labelledLineRefusal', () => {
     // The server checks a batch's totals one time and refuses on the batch's first line
     // write, which is not the line that made the total (server/sales_document_deferral.go).
     it.each([
-        INVOICE_MESSAGES,
-        SALES_RECEIPT_MESSAGES,
-        ESTIMATE_MESSAGES,
-    ])('gives a totals text of a kind no line label', messages => {
+        { messages: INVOICE_MESSAGES, kind: INVOICE_KIND },
+        { messages: SALES_RECEIPT_MESSAGES, kind: SALES_RECEIPT_KIND },
+        { messages: ESTIMATE_MESSAGES, kind: ESTIMATE_KIND },
+    ])('gives a totals text of the $kind.key kind no line label', ({ messages, kind }) => {
         for (const text of [messages.totalNegative, messages.totalTooLarge]) {
             expect(labelledLineRefusal('Line 1', text)).toBe(text)
-            expect(documentRefusalTarget(labelledLineRefusal('Line 1', text), INVOICE_KIND)).toBe(
-                'root'
-            )
+            expect(documentRefusalTarget(labelledLineRefusal('Line 1', text), kind)).toBe('root')
         }
     })
 
