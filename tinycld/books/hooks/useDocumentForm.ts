@@ -216,15 +216,9 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         // The `?customer` a new form was opened with: Post & new keeps only that one. A
         // copy's or a correction's customer comes from its source, not from the route.
         openedWithCustomer: isNew && !input.startValues ? input.customer?.id : undefined,
-        // The lines as stored and the tax rows: the save orders its line writes against
-        // them (lib/document-line-order.ts).
-        storedLines: lines,
-        taxRows: input.taxRows,
-        // The stored document's revision and tax rate as the row holds them now (0 and ''
-        // on a new form). The save takes its baseline from the first, and orders its line
-        // writes against the second: the server holds it while the lines are written.
+        // The stored document's revision as the row holds it now (0 on a new form): the
+        // save takes its baseline from it.
         revision: record?.revision ?? 0,
-        storedTaxRate: record?.tax_rate ?? '',
         saveMode,
         isReady: chosen.isReady && ui !== null,
         isDirty: Object.keys(dirtyFields).length > 0,
