@@ -11,6 +11,8 @@ To enter opening balances, open [Chart of Accounts](help://books:chart-of-accoun
 2. Type what each account held on that day. Only accounts with an amount are written to the entry.
 3. Choose Save draft to keep your work and come back later. Choose Post when the figures are right.
 
+If the books are closed through a date, the starting date must be after it. If a Books admin gave you a close-date override, you can use a date in the closed period while the override is active.
+
 ## How the entry balances
 
 Books balances the entry with the account Opening Balance Equity. Books creates that account the first time you save, if it does not exist. You do not need to add it first.

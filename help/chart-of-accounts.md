@@ -13,6 +13,8 @@ The Chart of Accounts lists every account your books use. To open it, choose Cha
 
 Each account shows its number, name, type, detail type and balance. A sub-account sits under its parent. To fold a parent, press the arrow next to it. A folded parent shows "incl. sub-accounts" and its balance includes the balances of all accounts under it.
 
+If a balance reads "Too large", the account's totals are larger than Books can show to the cent. The entries are not changed. The same text shows on the Banking page, in a transfer and in an account register.
+
 To find an account, type part of its name or number in the search box. To narrow the list to one kind of account, use the group chips. To re-sort, press the Name, Type or Balance heading. Press it again to reverse the order. Inactive accounts are hidden until you turn on Show inactive.
 
 To see the transactions of one account, open its menu and choose View register. See [Account register](help://books:account-register).

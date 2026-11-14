@@ -35,7 +35,14 @@ To see their changes, choose Load the current entry. This replaces what you type
 
 ## Set an auto-reverse date
 
-To have Books reverse an entry on a later day, type a date in Auto-reverse on. The date must be after the entry date. If the books are closed through a date, the auto-reverse date must also be after that close date. When that day comes, Books posts the reversing entry. The posted entry shows the date it will reverse.
+To have Books reverse an entry on a later day, type a date in Auto-reverse on. The date must be after the entry date. If the books are closed through a date, the auto-reverse date must also be after that close date. When that day comes, Books posts the reversing entry.
+
+A posted entry shows the state of its reversal in Auto-reverse on:
+
+- **Will reverse on** a date: Books has not reversed the entry yet. Books posts reversals each hour, so a reversal can post up to one hour after its day starts (the day starts at midnight UTC).
+- **Reversed on** a date, with the number of the reversing entry.
+- **The automatic reversal did not post**: its day came and Books did not post the reversal. The journal list marks the entry with "Reversal overdue". To correct it, reverse the entry yourself or void it.
+- **Not reversed**, when someone voided the reversing entry. Books does not reverse the entry again.
 
 Nobody posts an automatic reversal, so the entry shows no poster. The audit log records it as created by the system, with the entry it reverses.
 
