@@ -22,6 +22,7 @@ interface TransferFormProps {
     // A saved draft and its two line ids; a new transfer has neither.
     entryId?: string | null
     savedIds?: TransferLineIds
+    revision?: number
     // The posted transfer this form corrects, and its number for the header.
     replaces?: string
     replacesNumber?: string
@@ -55,6 +56,7 @@ export function TransferForm({
     accounts,
     entryId,
     savedIds,
+    revision,
     replaces,
     replacesNumber,
     title,
@@ -70,6 +72,7 @@ export function TransferForm({
         currency,
         entryId,
         savedIds,
+        revision,
         replaces,
         onSaved,
         onCancel,

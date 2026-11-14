@@ -318,11 +318,11 @@ describe('flattenAccountTree', () => {
         expect(ids).toContain('acct_exp_0008')
     })
 
-    it('drops the whole subtree under an inactive parent when showInactive is false', () => {
+    it('drops an inactive parent with its inactive subtree when showInactive is false', () => {
         const tree = buildAccountTree(
             [
                 acct({ id: 'off', inactive: true }),
-                acct({ id: 'kid', parent: 'off' }),
+                acct({ id: 'kid', parent: 'off', inactive: true }),
                 acct({ id: 'on' }),
             ],
             defaultSort
@@ -331,6 +331,44 @@ describe('flattenAccountTree', () => {
         expect(hidden.map(r => r.node.account.id)).toEqual(['on'])
         const shown = flattenAccountTree(tree, allFilters({ showInactive: true }))
         expect(shown.map(r => r.node.account.id).sort()).toEqual(['kid', 'off', 'on'])
+    })
+
+    // The server refuses this state now, but a row older than the rule can hold it.
+    it('keeps an active account visible below an inactive ancestor, and shows the ancestor as inactive', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'off', inactive: true }),
+                acct({ id: 'mid', parent: 'off', inactive: true }),
+                acct({ id: 'kid', parent: 'mid' }),
+                acct({ id: 'gone', parent: 'off', inactive: true }),
+                acct({ id: 'on' }),
+            ],
+            defaultSort
+        )
+        const rows = flattenAccountTree(tree, allFilters({ showInactive: false }))
+        expect(rows.map(r => r.node.account.id)).toEqual(['off', 'mid', 'kid', 'on'])
+        expect(rows[0].node.account.inactive).toBe(true)
+        expect(rows[1].node.account.inactive).toBe(true)
+    })
+
+    // The inactive ancestor is in the list only as the path to an active account.
+    it('does not list an inactive ancestor alone when only it matches the search', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'off', name: 'Retired group', inactive: true }),
+                acct({ id: 'kid', name: 'Power', parent: 'off' }),
+            ],
+            defaultSort
+        )
+        const hidden = flattenAccountTree(
+            tree,
+            allFilters({ showInactive: false, query: 'retired' })
+        )
+        expect(hidden.map(r => r.node.account.id)).toEqual([])
+        const path = flattenAccountTree(tree, allFilters({ showInactive: false, query: 'power' }))
+        expect(path.map(r => r.node.account.id)).toEqual(['off', 'kid'])
+        const shown = flattenAccountTree(tree, allFilters({ showInactive: true, query: 'retired' }))
+        expect(shown.map(r => r.node.account.id)).toEqual(['off'])
     })
 
     it('lists the fixture in tree order with nothing filtered', () => {
@@ -353,6 +391,31 @@ describe('parentIds', () => {
 
 describe('parentChoices', () => {
     const ids = (list: TreeAccount[]) => list.map(a => a.id).sort()
+
+    it('leaves out inactive accounts for a new account and for an active account', () => {
+        const accounts = [
+            acct({ id: 'live' }),
+            acct({ id: 'retired', inactive: true }),
+            acct({ id: 'me' }),
+        ]
+        expect(ids(parentChoices(accounts, { type: 'bank', editingId: '' }))).toEqual([
+            'live',
+            'me',
+        ])
+        expect(ids(parentChoices(accounts, { type: 'bank', editingId: 'me' }))).toEqual(['live'])
+    })
+
+    it('offers inactive accounts to an inactive account', () => {
+        const accounts = [
+            acct({ id: 'live' }),
+            acct({ id: 'retired', inactive: true }),
+            acct({ id: 'me', inactive: true }),
+        ]
+        expect(ids(parentChoices(accounts, { type: 'bank', editingId: 'me' }))).toEqual([
+            'live',
+            'retired',
+        ])
+    })
 
     it('excludes the editing account and its descendants', () => {
         const choices = parentChoices(fixtureAccounts, {
@@ -957,5 +1020,63 @@ describe('unknown account type and the group filter', () => {
 
     it('shows it when no group filter is active', () => {
         expect(flat('').slice().sort()).toEqual(['odd', 'ok'])
+    })
+})
+
+describe('a balance that is not exact', () => {
+    const PAST = 2 ** 53
+
+    it('is null when a sum is past the exact range, even when the net is exact', () => {
+        expect(ownBalance('bank', PAST, 0)).toBeNull()
+        expect(ownBalance('bank', 0, PAST)).toBeNull()
+        // 2^53 less 2^53 is 0, but neither sum is known to the cent.
+        expect(ownBalance('bank', PAST, PAST)).toBeNull()
+        expect(ownBalance('bank', Number.NaN, 0)).toBeNull()
+    })
+
+    it('is the net for sums inside the range, at the limit too', () => {
+        expect(ownBalance('bank', Number.MAX_SAFE_INTEGER, 0)).toBe(Number.MAX_SAFE_INTEGER)
+        expect(ownBalance('credit_card', 100, 350)).toBe(250)
+    })
+
+    it('keeps a parent’s own balance and makes its roll-up null when a sub-account is not exact', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'top', debit_total: 500 }),
+                acct({ id: 'kid', parent: 'top', debit_total: PAST }),
+                acct({ id: 'other', debit_total: 700 }),
+            ],
+            defaultSort
+        )
+        const top = tree.find(node => node.account.id === 'top')
+        expect(top?.ownBalance).toBe(500)
+        expect(top?.rollupBalance).toBeNull()
+        expect(top?.children[0].ownBalance).toBeNull()
+        expect(tree.find(node => node.account.id === 'other')?.rollupBalance).toBe(700)
+    })
+
+    it('makes a roll-up null when the sum of exact balances passes the range', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'top', debit_total: Number.MAX_SAFE_INTEGER }),
+                acct({ id: 'kid', parent: 'top', debit_total: 1 }),
+            ],
+            defaultSort
+        )
+        expect(tree[0].ownBalance).toBe(Number.MAX_SAFE_INTEGER)
+        expect(tree[0].rollupBalance).toBeNull()
+    })
+
+    it('shows the row and sorts by balance with a null balance in the list', () => {
+        const tree = buildAccountTree(
+            [acct({ id: 'big', debit_total: PAST }), acct({ id: 'small', debit_total: 5 })],
+            defaultSort
+        )
+        const rows = flattenAccountTree(
+            tree,
+            allFilters({ sort: { key: 'balance', direction: 'desc' } })
+        )
+        expect(rows.map(r => r.node.account.id).sort()).toEqual(['big', 'small'])
+        expect(rows.find(r => r.node.account.id === 'big')?.balance).toBeNull()
     })
 })

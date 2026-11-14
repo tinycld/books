@@ -9,7 +9,14 @@ import { ownBalance } from './account-tree'
 import { type EntryFormLine, TOO_LARGE_TEXT } from './entry-lines'
 import { parseLineRefusal } from './entry-messages'
 import type { EntryFormValues } from './entry-schema'
-import { amountText, formatMoney, isWellFormedMoney, maxLineAmount, parseMoney } from './money'
+import {
+    amountText,
+    balanceText,
+    formatMoney,
+    isWellFormedMoney,
+    maxLineAmount,
+    parseMoney,
+} from './money'
 import { isIsoDay } from './register-range'
 
 export const TRANSFER_ACCOUNT_TYPES = [
@@ -195,7 +202,7 @@ export function transferAccountBalance(row: {
     type: string
     debit_total: number
     credit_total: number
-}): number {
+}): number | null {
     return ownBalance(row.type, row.debit_total, row.credit_total)
 }
 
@@ -232,9 +239,10 @@ export function replaceTargetState(input: {
     return isPostedTransfer ? 'ready' : 'cannot-edit'
 }
 
+// isAlert is the error tone: a negative balance, or one that is not exact (null).
 export function transferBalanceLine(
-    cents: number,
+    cents: number | null,
     currency: string
-): { text: string; isNegative: boolean } {
-    return { text: `Balance ${formatMoney(cents, currency)}`, isNegative: cents < 0 }
+): { text: string; isAlert: boolean } {
+    return { text: `Balance ${balanceText(cents, currency)}`, isAlert: cents === null || cents < 0 }
 }

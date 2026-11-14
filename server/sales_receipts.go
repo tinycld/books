@@ -25,15 +25,16 @@ const (
 
 // Go-only refusal texts of the sales receipt.
 const (
-	msgReceiptZeroTotal       = "A sales receipt with a total of zero cannot be posted. Add an amount or keep it as a draft."
-	msgReceiptPostedFromForm  = "A draft sales receipt is posted from the sales receipt form."
-	msgReceiptNotDraft        = "A posted or void sales receipt cannot be changed."
-	msgReceiptDeleteNotDraft  = "Only a draft sales receipt can be deleted."
-	msgReceiptLineStays       = "A line stays on its sales receipt."
-	msgReceiptLineNotDraft    = "Only the lines of a draft sales receipt can change."
-	msgReceiptLineRestating   = "Only a line's amount changes while Books restates its sales receipt."
-	msgReceiptLineUnknownKind = "Line %d: a sales receipt line is an item, description, subtotal or percent line."
-	msgReceiptEditMissing     = "The sales receipt being edited does not exist."
+	msgReceiptZeroTotal        = "A sales receipt with a total of zero cannot be posted. Add an amount or keep it as a draft."
+	msgReceiptPostedFromForm   = "A draft sales receipt is posted from the sales receipt form."
+	msgReceiptNotDraft         = "A posted or void sales receipt cannot be changed."
+	msgReceiptDeleteNotDraft   = "Only a draft sales receipt can be deleted."
+	msgReceiptLineStays        = "A line stays on its sales receipt."
+	msgReceiptLineNotDraft     = "Only the lines of a draft sales receipt can change."
+	msgReceiptLineRestating    = "Only a line's amount changes while Books restates its sales receipt."
+	msgReceiptLineUnknownKind  = "Line %d: a sales receipt line is an item, description, subtotal or percent line."
+	msgReceiptEditMissing      = "The sales receipt being edited does not exist."
+	msgReceiptRevisionConflict = "This sales receipt changed after you opened it. Load it again, then review it before you save or post."
 )
 
 // docTypeSalesReceipt is the doc type of a sales receipt's sequence and of the
@@ -53,19 +54,20 @@ var salesReceiptKind = salesDocKind{
 	HostKey:            salesReceiptHostKey,
 	CustomerRequired:   false,
 	Msgs: salesDocMessages{
-		TotalNegative:   msgReceiptTotalNegative,
-		TotalTooLarge:   msgReceiptTotalTooLarge,
-		TooManyLines:    msgReceiptTooManyLines,
-		ZeroTotal:       msgReceiptZeroTotal,
-		PostedFromForm:  msgReceiptPostedFromForm,
-		NotDraft:        msgReceiptNotDraft,
-		DeleteNotDraft:  msgReceiptDeleteNotDraft,
-		LineStays:       msgReceiptLineStays,
-		LineNotDraft:    msgReceiptLineNotDraft,
-		LineRestating:   msgReceiptLineRestating,
-		LineUnknownKind: msgReceiptLineUnknownKind,
-		EditMissing:     msgReceiptEditMissing,
-		CustomerOnDocs:  msgCustomerOnSalesReceipts,
+		TotalNegative:    msgReceiptTotalNegative,
+		TotalTooLarge:    msgReceiptTotalTooLarge,
+		TooManyLines:     msgReceiptTooManyLines,
+		ZeroTotal:        msgReceiptZeroTotal,
+		PostedFromForm:   msgReceiptPostedFromForm,
+		NotDraft:         msgReceiptNotDraft,
+		DeleteNotDraft:   msgReceiptDeleteNotDraft,
+		LineStays:        msgReceiptLineStays,
+		LineNotDraft:     msgReceiptLineNotDraft,
+		LineRestating:    msgReceiptLineRestating,
+		LineUnknownKind:  msgReceiptLineUnknownKind,
+		EditMissing:      msgReceiptEditMissing,
+		CustomerOnDocs:   msgCustomerOnSalesReceipts,
+		RevisionConflict: msgReceiptRevisionConflict,
 	},
 	CheckHeader:  checkSalesReceiptHeader,
 	BeforePost:   checkReceiptDepositToPost,
@@ -78,7 +80,7 @@ var salesReceiptKind = salesDocKind{
 // held by the schema (at most 40 characters; a PAYMENT_METHODS key).
 func checkSalesReceiptHeader(tx core.App, stored, r *core.Record) error {
 	if _, err := parseDay(r.GetString("date")); err != nil {
-		return refuseField("date", msgDocumentDay)
+		return refuseDocumentDay("date", err)
 	}
 	return checkReceiptDeposit(tx, stored, r)
 }

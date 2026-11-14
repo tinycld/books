@@ -27,9 +27,24 @@ To post an entry, choose Post. The entry gets its number (for example JE-1046) a
 
 To post and start the next entry at once, choose Post & new. On a phone, it is in the More menu.
 
+## When someone else changed the draft
+
+If another person saves a change to a draft while you have it open, Books refuses your next Save draft or Post and shows "This entry changed after you opened it." Nothing is posted, and what you typed stays on the screen. A refused Save draft saves nothing, and a refused Post of a saved draft saves nothing. But when you post a new entry, Books saves it as a draft before it posts it. If Books then refuses the post, that draft stays saved.
+
+To see their changes, choose Load the current entry. This replaces what you typed, so copy anything you want to keep first. Review the entry, then save or post again. If Books cannot load the entry, it tells you and keeps what you typed. Choose Load the current entry again.
+
 ## Set an auto-reverse date
 
-To have Books reverse an entry on a later day, type a date in Auto-reverse on. The date must be after the entry date. If the books are closed through a date, the auto-reverse date must also be after that close date. When that day comes, Books posts the reversing entry. The posted entry shows the date it will reverse.
+To have Books reverse an entry on a later day, type a date in Auto-reverse on. The date must be after the entry date. If the books are closed through a date, the auto-reverse date must also be after that close date. When that day comes, Books posts the reversing entry.
+
+A posted entry shows the state of its reversal in Auto-reverse on:
+
+- **Will reverse on** a date: Books has not reversed the entry yet. Books posts reversals each hour. A reversal posts when its day starts (midnight UTC). If you post the entry after that, the reversal posts at the next full hour.
+- **Reversed on** a date, with the number of the reversing entry.
+- **The automatic reversal did not post**: its day came and Books did not post the reversal. The journal list marks the entry with "Reversal overdue". To correct it, reverse the entry yourself or void it.
+- **Not reversed**, with the number of the reversing entry that someone voided. Books does not reverse the entry again.
+
+Nobody posts an automatic reversal, so the entry shows no poster. The audit log records it as created by the system, with the entry it reverses.
 
 ## Edit a posted entry
 

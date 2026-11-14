@@ -130,6 +130,7 @@ function receipt(seed: ReceiptSeed): SalesReceiptRecord {
         subtotal: 0,
         tax_total: 0,
         total: 0,
+        revision: 1,
         currency: SALES_RECEIPT_CURRENCY,
         entry: '',
         replaces: '',

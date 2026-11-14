@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
+    autoReversalOverdueAt,
+    autoReversalState,
+    autoReversalText,
     entryNumberText,
     entryStatusText,
     entryTotalText,
     entryTypeText,
     formatDateTime,
-    reversalSummary,
+    OVERDUE_MARK_TEXT,
+    reversedByText,
     reversesText,
+    settledReversal,
     stampText,
 } from '../tinycld/books/lib/entry-display'
 import { DOC_TYPE_LABELS } from '../tinycld/books/lib/register'
@@ -103,53 +108,160 @@ describe('stampText', () => {
     })
 })
 
-describe('reversalSummary', () => {
-    const posted = { id: 'r1', number: 'JE-1051', status: 'posted', date: '2026-11-01' }
+describe('the state of an automatic reversal', () => {
+    const ms = (iso: string) => Date.parse(iso)
+    // Posted on May 31; reverses on June 1.
+    const entry = {
+        status: 'posted',
+        auto_reverse_on: '2026-06-01',
+        posted_at: '2026-05-31 15:20:00.000Z',
+    }
+    const posted = { id: 'r1', number: 'JE-1051', status: 'posted', date: '2026-06-01' }
+    const voided = { ...posted, status: 'void' }
+    const draft = { ...posted, status: 'draft' }
 
-    it('has nothing for an entry with no reversal and no auto-reverse date', () => {
-        expect(reversalSummary(undefined, '')).toEqual({
-            linkText: undefined,
-            autoReverseText: undefined,
-        })
+    it('is none with no date, for a draft, and for a void entry', () => {
+        const now = ms('2026-07-01T00:00:00Z')
+        expect(autoReversalState({ ...entry, auto_reverse_on: '' }, [], now)).toBe('none')
+        expect(autoReversalState({ ...entry, status: 'draft' }, [], now)).toBe('none')
+        expect(autoReversalState({ ...entry, status: 'void' }, [posted], now)).toBe('none')
     })
 
-    it('links a posted reversal', () => {
-        expect(reversalSummary(posted, '').linkText).toBe('Reversed by JE-1051')
-    })
-
-    it('reads "Reversed on <date> by JE-n" when auto-reverse is set and the reversal is posted', () => {
-        expect(reversalSummary(posted, '2026-11-01')).toEqual({
-            linkText: 'Reversed by JE-1051',
-            autoReverseText: 'Reversed on Nov 1, 2026 by JE-1051',
-        })
-    })
-
-    it('reads "Will reverse on <date>" when auto-reverse is set and nothing is reversed', () => {
-        expect(reversalSummary(undefined, '2026-11-01')).toEqual({
-            linkText: undefined,
-            autoReverseText: 'Will reverse on Nov 1, 2026',
-        })
-    })
-
-    // The server counts only a posted reversal (postedReversalQuery); a draft has no number.
-    it('ignores a draft reversal', () => {
-        const draft = { id: 'r2', number: '', status: 'draft', date: '2026-11-01' }
-        expect(reversalSummary(draft, '2026-11-01')).toEqual({
-            linkText: undefined,
-            autoReverseText: 'Will reverse on Nov 1, 2026',
-        })
-    })
-
-    // A voided reversal leaves the original reversible again.
-    it('ignores a void reversal', () => {
-        const voided = { ...posted, status: 'void' }
-        expect(reversalSummary(voided, '')).toEqual({
-            linkText: undefined,
-            autoReverseText: undefined,
-        })
-        expect(reversalSummary(voided, '2026-11-01').autoReverseText).toBe(
-            'Will reverse on Nov 1, 2026'
+    it('is reversed when a posted reversal exists, whatever the clock says', () => {
+        expect(autoReversalState(entry, [draft, posted], ms('2026-05-31T16:00:00Z'))).toBe(
+            'reversed'
         )
+        expect(autoReversalState(entry, [voided, posted], ms('2026-07-01T00:00:00Z'))).toBe(
+            'reversed'
+        )
+    })
+
+    it('is canceled when the reversal was voided: the server does not reverse again', () => {
+        expect(autoReversalState(entry, [voided], ms('2026-05-31T16:00:00Z'))).toBe('canceled')
+        expect(autoReversalState(entry, [voided], ms('2026-07-01T00:00:00Z'))).toBe('canceled')
+    })
+
+    it('is scheduled before the date, and a draft reversal settles nothing', () => {
+        expect(autoReversalState(entry, [], ms('2026-05-31T23:59:59Z'))).toBe('scheduled')
+        expect(autoReversalState(entry, [draft], ms('2026-05-31T23:59:59Z'))).toBe('scheduled')
+    })
+
+    it('becomes overdue 5 minutes after the first sweep that could post it', () => {
+        // The day starts at 00:00 UTC, and a sweep runs then.
+        expect(autoReversalOverdueAt(entry)).toBe(ms('2026-06-01T00:05:00Z'))
+        expect(autoReversalState(entry, [], ms('2026-06-01T00:04:59Z'))).toBe('scheduled')
+        expect(autoReversalState(entry, [], ms('2026-06-01T00:05:00Z'))).toBe('overdue')
+        expect(autoReversalState(entry, [draft], ms('2026-06-03T00:00:00Z'))).toBe('overdue')
+    })
+
+    it('uses the UTC day, not the local day', () => {
+        // 23:30 on May 31 in New York is 03:30 UTC on June 1.
+        expect(autoReversalState(entry, [], ms('2026-05-31T23:30:00-04:00'))).toBe('overdue')
+    })
+
+    it('waits for the sweep after the post when the entry is posted after its day began', () => {
+        const late = { ...entry, posted_at: '2026-06-03 10:20:00.000Z' }
+        expect(autoReversalOverdueAt(late)).toBe(ms('2026-06-03T11:05:00Z'))
+        expect(autoReversalState(late, [], ms('2026-06-03T10:21:00Z'))).toBe('scheduled')
+        expect(autoReversalState(late, [], ms('2026-06-03T11:05:00Z'))).toBe('overdue')
+    })
+
+    // The sweep of 10:00 can run before a post at 10:00:00.000, so the next one counts.
+    it('waits for the next sweep when the entry is posted exactly on a full hour', () => {
+        const onTheHour = { ...entry, posted_at: '2026-06-03 10:00:00.000Z' }
+        expect(autoReversalOverdueAt(onTheHour)).toBe(ms('2026-06-03T11:05:00Z'))
+    })
+
+    it('has no overdue time without a date, and reads a bad stamp as the start of the day', () => {
+        expect(autoReversalOverdueAt({ auto_reverse_on: '', posted_at: '' })).toBeNull()
+        expect(autoReversalOverdueAt({ auto_reverse_on: '2026-06-01', posted_at: '' })).toBe(
+            ms('2026-06-01T00:05:00Z')
+        )
+        expect(autoReversalOverdueAt({ auto_reverse_on: 'soon', posted_at: '' })).toBeNull()
+    })
+
+    // A row this session just created has no server-stamped field yet (entryTotalText).
+    it('reads a row with no stamped fields without failing', () => {
+        expect(autoReversalOverdueAt({})).toBeNull()
+        expect(autoReversalOverdueAt({ auto_reverse_on: '2026-06-01' })).toBe(
+            ms('2026-06-01T00:05:00Z')
+        )
+        expect(autoReversalState({ status: 'draft' }, [], ms('2026-07-01T00:00:00Z'))).toBe('none')
+        expect(
+            autoReversalState(
+                { status: 'posted', auto_reverse_on: '2026-06-01' },
+                [],
+                ms('2026-07-01T00:00:00Z')
+            )
+        ).toBe('overdue')
+    })
+})
+
+describe('the text of an automatic reversal', () => {
+    const entry = { status: 'posted', auto_reverse_on: '2026-11-01' }
+    const posted = { number: 'JE-1051', date: '2026-11-01' }
+
+    it('is None with no date', () => {
+        expect(autoReversalText('none', { status: 'posted', auto_reverse_on: '' }, {})).toBe('None')
+    })
+
+    it('says Will reverse on only for a scheduled reversal', () => {
+        expect(autoReversalText('scheduled', entry, {})).toBe('Will reverse on Nov 1, 2026')
+        for (const state of ['none', 'reversed', 'canceled', 'overdue'] as const) {
+            expect(autoReversalText(state, entry, { posted })).not.toContain('Will reverse')
+        }
+    })
+
+    it('names the reversal that posted', () => {
+        expect(autoReversalText('reversed', entry, { posted })).toBe(
+            'Reversed on Nov 1, 2026 by JE-1051'
+        )
+    })
+
+    it('tells the person what to do for an overdue reversal', () => {
+        expect(autoReversalText('overdue', entry, {})).toBe(
+            'The automatic reversal of Nov 1, 2026 did not post. Reverse or void this entry.'
+        )
+    })
+
+    // The voided reversal can be one a person made on another day, so the text names
+    // the reversing entry, not the auto-reverse date.
+    it('names the voided reversing entry, and says it is not made again', () => {
+        expect(autoReversalText('canceled', entry, { voided: { number: 'JE-1040' } })).toBe(
+            'Not reversed. The reversing entry JE-1040 was voided, and Books does not reverse this entry again.'
+        )
+        expect(autoReversalText('canceled', entry, {})).toBe(
+            'Not reversed. The reversing entry was voided, and Books does not reverse this entry again.'
+        )
+    })
+
+    it('explains a date on a draft and on a void entry', () => {
+        expect(autoReversalText('none', { ...entry, status: 'draft' }, {})).toBe(
+            'Nov 1, 2026, after the entry is posted'
+        )
+        expect(autoReversalText('none', { ...entry, status: 'void' }, {})).toBe(
+            'Nov 1, 2026. The entry is void, so Books does not reverse it.'
+        )
+    })
+})
+
+describe('settledReversal and reversedByText', () => {
+    const posted = { id: 'r1', number: 'JE-1051', status: 'posted', date: '2026-11-01' }
+    const voided = { id: 'r0', number: 'JE-1040', status: 'void', date: '2026-10-01' }
+    const draft = { id: 'r2', number: '', status: 'draft', date: '2026-11-02' }
+
+    it('picks the posted and the void reversal, never a draft', () => {
+        expect(settledReversal([draft, voided, posted])).toEqual({ posted, voided })
+        expect(settledReversal([draft])).toEqual({ posted: undefined, voided: undefined })
+    })
+
+    it('links only a posted reversal', () => {
+        expect(reversedByText(posted)).toBe('Reversed by JE-1051')
+        expect(reversedByText(undefined)).toBeUndefined()
+    })
+
+    it('has a short mark for the journal list', () => {
+        expect(OVERDUE_MARK_TEXT).toBe('Reversal overdue')
     })
 })
 

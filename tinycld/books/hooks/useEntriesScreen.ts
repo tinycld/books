@@ -3,11 +3,13 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { entriesFilterActive, entriesViewState } from '../lib/entries-query'
 import { type EntryActionId, entryActions, voidsFromDocument } from '../lib/entry-actions'
+import { autoReversalOverdueAt, autoReversalState } from '../lib/entry-display'
 import { entryEditHref, entryHref } from '../lib/entry-route'
 import { newEntryVisible } from '../lib/register-state'
 import { isNewActionAvailable } from '../lib/shell-nav'
 import { useEntriesUiStore } from '../stores/entries-ui-store'
 import { useBooksAccess } from './useBooksAccess'
+import { useClockTick } from './useClockTick'
 import { useEntriesQuery } from './useEntriesQuery'
 import { useReversedIds } from './useReversedIds'
 
@@ -29,6 +31,19 @@ export function useEntriesScreen() {
     const entries = query.entries ?? []
     const reversed = useReversedIds(entries.map(entry => entry.id))
     const entriesById = new Map(entries.map(entry => [entry.id, entry]))
+    // The clock re-renders the list at the moment the next scheduled reversal becomes overdue.
+    const overdueTimes = entries.flatMap(entry => {
+        const at = autoReversalOverdueAt(entry)
+        return at === null ? [] : [at]
+    })
+    const now = useClockTick(overdueTimes)
+    // Unknown until the reversal rows of the entry have answered: a reversed entry must
+    // not flash the mark.
+    const isOverdue = (entryId: string) => {
+        const entry = entriesById.get(entryId)
+        if (!entry || !reversed.isKnown(entryId)) return false
+        return autoReversalState(entry, reversed.reversalsOf(entryId), now) === 'overdue'
+    }
     // A row not in the map (it left the window between render and press) opens on the
     // journal entry screen, which shows an entry of any type.
     const onOpenEntry = (entryId: string) =>
@@ -95,6 +110,7 @@ export function useEntriesScreen() {
         onOpenEntry,
         entriesById,
         menuActions,
+        isOverdue,
         onMenuAction,
         // A full page means more rows may exist; a short one has loaded everything the filter asks for.
         onNearEnd: () => {

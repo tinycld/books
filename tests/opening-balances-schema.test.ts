@@ -93,3 +93,31 @@ describe('openingFormSchema memo', () => {
         expect(issues('', { memo: 'm'.repeat(4001) }).map(issue => issue.path)).toContain('memo')
     })
 })
+
+describe('openingFormSchema with a close-date override', () => {
+    const closed = { ...valid, date: '2025-03-31' }
+
+    it('refuses a date on or before the close date with no override', () => {
+        expect(openingFormSchema('2025-03-31').safeParse(closed).success).toBe(false)
+        expect(openingFormSchema('2025-03-31', false).safeParse(closed).success).toBe(false)
+    })
+
+    it('accepts that date while the person has an active override', () => {
+        expect(openingFormSchema('2025-03-31', true).safeParse(closed).success).toBe(true)
+        expect(
+            openingFormSchema('2025-03-31', true).safeParse({ ...valid, date: '2024-12-31' })
+                .success
+        ).toBe(true)
+    })
+
+    it('still refuses a date that does not exist, and a bad amount, with an override', () => {
+        expect(
+            openingFormSchema('2025-03-31', true).safeParse({ ...valid, date: '2025-02-30' })
+                .success
+        ).toBe(false)
+        expect(
+            openingFormSchema('2025-03-31', true).safeParse({ ...valid, amounts: { a1: 'abc' } })
+                .success
+        ).toBe(false)
+    })
+})

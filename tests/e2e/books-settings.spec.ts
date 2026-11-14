@@ -9,6 +9,8 @@ import {
     TEST_USER_EMAIL,
     TEST_USER_NAME,
 } from '@tinycld/core/e2e-helpers'
+import { openOtherBooksPage } from './journal-entries-helpers'
+import { openOpeningBalances } from './opening-balances-helpers'
 
 // The e2e database is shared, so every test sets its own values through the UI and puts back
 // what it changed. Nothing here reads or writes PocketBase directly.
@@ -195,6 +197,18 @@ async function runRestores(steps: Array<() => Promise<void>>) {
     if (failed) throw first
 }
 
+// Leaves the page on the opening balances form, with its date field shown. A book whose
+// opening entry is posted shows the posted view first; Edit balances opens the form, and
+// nothing is written until a save.
+async function openOpeningForm(page: Page) {
+    await openOpeningBalances(page)
+    const date = page.getByTestId('opening-date')
+    const edit = page.getByRole('button', { name: 'Edit balances' })
+    await expect(date.or(edit).first()).toBeVisible()
+    if (!(await date.isVisible())) await edit.click()
+    await expect(date).toBeVisible()
+}
+
 test.describe('books-settings: Settings screens', () => {
     test('Company: validates email and legal name, saves, keeps values, and restores', async ({
         page,
@@ -373,6 +387,62 @@ test.describe('books-settings: Settings screens', () => {
             await expect(past.getByRole('button', { name: 'Revoke' })).toHaveCount(0)
         } finally {
             await runRestores([
+                async () => {
+                    if (hasCloseDate) await clearCloseDate(page)
+                },
+            ])
+        }
+    })
+
+    // The opening form with a close-date override (GL-09). One viewport: the rule is the
+    // form's schema, the same at every size. The form validates as the person types, so
+    // the test saves nothing in the opening form.
+    // What this does not cover: the post. A posted opening entry is permanent in the
+    // shared database; the server's check of a post with an override has Go tests.
+    test('Opening balances: a closed date is refused without an override, accepted with one, and refused again when it ends', async ({
+        page,
+    }) => {
+        const closeDate = '2026-06-30'
+        const closedText = 'Books are closed through Jun 30, 2026. Pick a later date.'
+        const reason = 'E2E opening balances override'
+        await openAccounting(page)
+        let hasCloseDate = false
+        let hasOverride = false
+        // The opening form stays open in a second tab while this tab changes the
+        // override, as when an admin grants one to a person who is at the form.
+        let formTab: Page | undefined
+
+        try {
+            hasCloseDate = true
+            await setCloseDate(page, closeDate)
+
+            formTab = await openOtherBooksPage(page)
+            await openOpeningForm(formTab)
+            const date = formTab.getByTestId('opening-date')
+            const closed = formTab.getByText(closedText)
+            await date.fill(closeDate)
+            await expect(closed.first()).toBeVisible()
+
+            hasOverride = true
+            await grantOverride(page, TEST_USER_NAME, reason)
+            await expect(overrideRow(page, reason)).toBeVisible()
+            // The form checks the date again when the override starts: the error
+            // leaves with no edit and no reload.
+            await expect(closed).toHaveCount(0)
+            await expect(date).toHaveValue(closeDate)
+
+            // And again when it ends.
+            await revokeOverride(page, reason)
+            hasOverride = false
+            await expect(closed.first()).toBeVisible()
+        } finally {
+            await runRestores([
+                async () => {
+                    await formTab?.close()
+                },
+                async () => {
+                    if (hasOverride) await revokeOverride(page, reason)
+                },
                 async () => {
                     if (hasCloseDate) await clearCloseDate(page)
                 },

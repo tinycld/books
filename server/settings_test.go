@@ -20,14 +20,31 @@ func newGuardedApp(t *testing.T) *tests.TestApp {
 }
 
 func TestParseDay(t *testing.T) {
-	for _, ok := range []string{"2024-02-29", "2026-12-31"} {
+	for _, ok := range []string{"2024-02-29", "2026-12-31", "1900-01-01", "1900-02-28", "9999-12-31"} {
 		if _, err := parseDay(ok); err != nil {
 			t.Errorf("%s: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"2026-02-30", "2025-02-29", "2026-13-01", "26-01-01", ""} {
-		if _, err := parseDay(bad); err == nil {
+	for _, bad := range []string{"2026-02-30", "2025-02-29", "2026-13-01", "26-01-01", "", "1900-02-29"} {
+		_, err := parseDay(bad)
+		if err == nil {
 			t.Errorf("%q was accepted", bad)
+		}
+		if isDayTooEarly(err) {
+			t.Errorf("%q: the refusal says too early, want not a date", bad)
+		}
+	}
+	// The client refuses the same years (FIRST_YEAR, lib/register-range.ts).
+	for _, early := range []string{"0000-01-01", "0099-01-01", "0100-01-01", "1899-12-31"} {
+		_, err := parseDay(early)
+		if !isDayTooEarly(err) {
+			t.Errorf("%q: err = %v, want the too-early refusal", early, err)
+		}
+		if err != nil && !strings.Contains(err.Error(), "is before 1900") {
+			t.Errorf("%q: text = %q", early, err.Error())
+		}
+		if _, err := parseCalendarDay(early); err != nil {
+			t.Errorf("parseCalendarDay(%q) = %v: printing has no lower bound", early, err)
 		}
 	}
 	if periodOf("2026-05-31") != "2026-05" {
@@ -377,4 +394,56 @@ func TestSetupCompletionEnsuresRetainedEarnings(t *testing.T) {
 			t.Errorf("%d retained-earnings accounts after a business name edit, want 0", n)
 		}
 	})
+}
+
+// The review's reproduction: a Go write changed the currency after a USD entry
+// posted, and every report then showed the old amounts with the new label.
+func TestSettings_TheCurrencyCannotChange(t *testing.T) {
+	env := newLedgerEnv(t)
+	mustPost(t, env.app, env.sale(t, "2026-05-10", 100).Id, "")
+	s := reload(t, env.app, "books_settings", settingsID)
+	s.Set("currency", "EUR")
+	requireRefused(t, env.app.Save(s), msgCurrencyFixed)
+	if got := reload(t, env.app, "books_settings", settingsID).GetString("currency"); got != "USD" {
+		t.Fatalf("currency = %q, want USD", got)
+	}
+	// Another setting still saves.
+	saveSettings(t, env.app, map[string]any{"business_name": "Northwind"})
+}
+
+// A superuser's request skips the update rule that pins the field, so only
+// the hook can refuse it.
+func TestSettings_ASuperuserRequestCannotChangeTheCurrency(t *testing.T) {
+	app := newGuardedApp(t)
+	apiReq{
+		method: http.MethodPatch, url: "/api/collections/books_settings/records/" + settingsID,
+		token: tokenFor(t, mkSuperuser(t, app)), body: `{"currency":"EUR"}`,
+		want: http.StatusBadRequest, content: []string{msgCurrencyFixed},
+	}.run(t, app)
+}
+
+func TestSettings_ABatchCannotChangeTheCurrency(t *testing.T) {
+	app := newGuardedApp(t)
+	enableBatch(t, app)
+	op := `{"method":"PATCH","url":"/api/collections/books_settings/records/` + settingsID + `","body":{"currency":"EUR","business_name":"Northwind"}}`
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, mkSuperuser(t, app)),
+		body: batchBody(op), want: http.StatusBadRequest, content: []string{msgCurrencyFixed},
+		after: func(t testing.TB, app *tests.TestApp) {
+			s := reload(t, app, "books_settings", settingsID)
+			if s.GetString("currency") != "USD" || s.GetString("business_name") != "" {
+				t.Fatalf("settings = %v", s.PublicExport())
+			}
+		},
+	}.run(t, app)
+}
+
+func TestSequence_TheDocumentTypeCannotChange(t *testing.T) {
+	app := newGuardedApp(t)
+	requireRefused(t, setFields(t, app, "books_doc_sequences", "booksseqjournal", map[string]any{"doc_type": "transfer"}),
+		msgSequenceDocTypeFixed)
+	// The prefix and a later number still save.
+	if err := setFields(t, app, "books_doc_sequences", "booksseqjournal", map[string]any{"prefix": "JE-", "next_number": 5}); err != nil {
+		t.Fatal(err)
+	}
 }

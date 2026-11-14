@@ -146,6 +146,7 @@ function transfer(seed: EntrySeed): BooksJournalEntries {
         doc_type: 'transfer',
         status,
         origin: 'manual',
+        revision: 1,
         sequence: Number(seed.number.replace(/\D/g, '')) || 0,
         currency: TRANSFER_CURRENCY,
         auto_reverse_on: '',

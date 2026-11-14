@@ -20,12 +20,12 @@ import {
     openCustomersList,
     openMenu,
     PHONE,
-    recordUrl,
     searchCustomers,
     textLeft,
     uniqueName,
     viewportName,
 } from './customer-form-helpers'
+import { nameOnDraftLine } from './journal-entries-helpers'
 
 // The row menu (Edit, Add sub-customer, Make inactive or Make active, Delete) on rows and
 // cards, Make inactive refused while a sub-customer is active, the Delete customer dialog
@@ -37,17 +37,19 @@ import {
 //
 // Not covered here: a read-only user (no row menu) cannot be driven, because the seed has
 // no read-only Books member; `customerMenuItems` in tests/customer-actions.test.ts covers
-// that rule. A refusal for a customer used on a transaction does not exist yet (later
-// units add it), so step (7) answers the DELETE with a 400 through `page.route`, which
-// writes nothing. A failed sub-customer check cannot be made to happen on a live server,
-// so step (8) answers that one load with a 400 through `page.route`.
+// that rule. The refused delete of step (7) is the server's own: another tab puts the
+// customer on a line of a draft journal entry, and the server refuses to delete a customer
+// a journal line names; that tab then deletes the draft and the delete goes through. A
+// failed sub-customer check cannot be made to happen on a live server, so step (8) answers
+// that one load with a 400 through `page.route`.
 
 const SIZES = [
     ['desktop', DESKTOP],
     ['phone', PHONE],
 ] as const
 
-const REFUSAL = 'This customer is used on an invoice.'
+// server/lines.go msgPartyOnLines.
+const onLinesRefusal = (name: string) => `${name} is on journal lines. Make it inactive instead.`
 const ACTIVE_SUB_REFUSAL = 'This customer has 1 active sub-customer.'
 const CANNOT_UNDO = 'This cannot be undone.'
 const NOT_FOUND = "This customer doesn't exist or was removed"
@@ -68,8 +70,6 @@ async function failSubCustomerCheck(page: Page, id: string) {
     await page.route(CUSTOMER_RECORDS, handler)
     return handler
 }
-
-const refuseDelete = (page: Page, id: string) => customerHelpers.refuseDelete(page, id, REFUSAL)
 
 // The shared dialog plus Make inactive, a button only the customer dialog has.
 const deleteDialog = (page: Page) => ({
@@ -194,6 +194,10 @@ test.describe('customer-form: inactive and delete', () => {
             await closeMenu(page)
             await expectListShown(page)
 
+            // For step (7): a draft journal entry names the sub-customer while it is still
+            // active (the Name picker offers no inactive customer).
+            const namedOnDraft = await nameOnDraftLine(page, subName)
+
             // (3) Make inactive is refused while a sub-customer is active; the banner says why.
             await chooseFromMenu(page, parentId, 'toggle-inactive')
             await expect(banner).toContainText(ACTIVE_SUB_REFUSAL)
@@ -301,17 +305,18 @@ test.describe('customer-form: inactive and delete', () => {
                 await page.context().setOffline(false)
             }
 
-            // (7) A customer with no sub-customers: a refused delete keeps it, then it goes.
+            // (7) A customer with no sub-customers: the server refuses the delete while a
+            // journal line names it and the customer stays; once the other tab deletes that
+            // draft entry, it goes.
             dialog = await openDeleteDialog(page, subId)
             await expect(dialog.confirm).toHaveText('Delete')
             await expect(dialog.body).toContainText(CANNOT_UNDO)
             await expect(dialog.makeInactive).toHaveCount(0)
-            await refuseDelete(page, subId)
             await dialog.confirm.click()
-            await expect(dialog.body).toContainText(REFUSAL)
+            await expect(dialog.body).toContainText(onLinesRefusal(subName))
             await expect(dialog.root).toBeVisible()
             await expect(subEntry).toBeVisible()
-            await page.unroute(recordUrl(subId))
+            await namedOnDraft.release()
             await dialog.confirm.click()
             await expect(dialog.root).toBeHidden()
             await expect(subEntry).toHaveCount(0)

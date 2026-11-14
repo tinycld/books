@@ -1,8 +1,8 @@
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { Pressable, Text, View } from 'react-native'
-import { amountText, formatMoney } from '../../lib/money'
-import { balanceTone, type RegisterLine } from '../../lib/register'
+import { amountText, balanceText, balanceTone } from '../../lib/money'
+import type { RegisterLine } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
 
 // Header and rows share these. Memo then Account take the free space; the amount columns never
@@ -17,10 +17,6 @@ export const BALANCE_CELL_STYLE = { width: 116, flexShrink: 0 }
 export const ROW_HEIGHT = 44
 
 export const ROW_CLASS = 'flex-row items-center gap-2 border-b border-border px-4'
-
-export function balanceText(balance: number | null, currency: string) {
-    return balance === null ? 'Too large' : formatMoney(balance, currency)
-}
 
 function VoidLabel({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null

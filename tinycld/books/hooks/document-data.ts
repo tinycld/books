@@ -37,7 +37,7 @@ export type DocumentScreenInput = {
 
 // The columns every kind's header row has, as the generated invoice type names them,
 // with any kind's status. The posting columns (`entry` … `replaced_by`) are '' on a kind
-// that never posts.
+// that never posts. `revision` is what a save states it saw (lib/revision.ts).
 type SharedColumns = { status: DocumentStatus } & Pick<
     BooksInvoices,
     | 'id'
@@ -52,6 +52,7 @@ type SharedColumns = { status: DocumentStatus } & Pick<
     | 'subtotal'
     | 'tax_total'
     | 'total'
+    | 'revision'
     | 'currency'
     | 'entry'
     | 'posted_at'
@@ -168,16 +169,30 @@ export type DocumentWrites = {
         form: string
         fields: Record<string, unknown>
     }): DocumentTransaction
+    // The one header write of a saved document's save: its changed columns, the revision
+    // the save states (the value the form saw, plus one; the server refuses any other
+    // with a 409) and, for a post made in the save, `status: 'posted'`.
     updateRecord(
         id: string,
-        input: { columns: Record<string, unknown>; fields: Record<string, unknown> }
+        input: {
+            columns: Record<string, unknown>
+            fields: Record<string, unknown>
+            revision: number
+            post: boolean
+        }
     ): DocumentTransaction
-    setStatus(id: string, status: 'posted' | 'void'): DocumentTransaction
+    // The post of a draft that a batch just wrote, as its own request after the batch.
+    postRecord(id: string, revision: number): DocumentTransaction
+    // A posted document has no draft to go stale: a void states no revision.
+    voidRecord(id: string): DocumentTransaction
+    // The revision the store row holds now, read one time at a save (never rendered from);
+    // undefined when the store holds no such row. The save compares it with the revision
+    // the form saw (assertRevisionSeen, lib/revision.ts).
+    storedRevision(id: string): number | undefined
+    // One request: the server deletes the lines with the row, in one transaction.
     deleteRecord(id: string): DocumentTransaction
     // A line insert sets the parent field.
     lineOps(parentId: string): TableWriteOps<DocumentTransaction>
-    // Takes line rows out of the store at once (a new document deleted after a refusal).
-    evictLines(ids: string[]): void
 }
 
 export type DocumentDataSource = {
@@ -186,6 +201,10 @@ export type DocumentDataSource = {
     // The stored document's `updated`, read from its own row ('' with no id): every write
     // moves it, so the PDF view fetches again.
     useVersion(id: string | undefined): string
+    // Reads the document's row and lines again from the server. The store can be behind
+    // it (a realtime message that did not arrive), and a form built from the store alone
+    // would be refused again.
+    useReload(): () => Promise<void>
 }
 
 export const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }

@@ -13,6 +13,11 @@
 // and replaces are fixed once the entry exists; a transfer is an entry with
 // doc_type 'transfer' and two lines (server/transfers.go).
 //
+// REVISION counts the transactions that changed a draft. Books sets it on a
+// create, so the create rule pins it. An update of a draft must state the
+// revision it saw, so the update rule cannot pin it; Go checks the value
+// (server/revision.go).
+//
 // DOCUMENT ENTRIES. An entry with origin 'document' is the posting of a sales
 // or purchase document (doc_type 'invoice' or 'sales_receipt'); document is
 // that document's id. Only the document's Go hooks create, post and void such
@@ -192,6 +197,7 @@ migrate(
                     { name: 'sequence', type: 'number', onlyInt: true, min: 0 },
                     { name: 'memo', type: 'text', max: 4000 },
                     { name: 'total', type: 'number', onlyInt: true, min: 0 },
+                    { name: 'revision', type: 'number', onlyInt: true, min: 0 },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
                     { name: 'auto_reverse_on', type: 'text', max: 10, pattern: OPTIONAL_DAY },
                     { name: 'posted_at', type: 'date' },
@@ -326,7 +332,7 @@ migrate(
             books_journal_entries: {
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && @request.body.status = "draft" && (@request.body.origin = "manual" || @request.body.origin = "reversal" || @request.body.origin = "opening_balance") && @request.body.doc_type != "invoice" && ${unset(...ENTRY_SERVER_FIELDS)}`,
+                createRule: `${WRITE} && @request.body.status = "draft" && (@request.body.origin = "manual" || @request.body.origin = "reversal" || @request.body.origin = "opening_balance") && @request.body.doc_type != "invoice" && ${unset(...ENTRY_SERVER_FIELDS, 'revision')}`,
                 updateRule: `${WRITE} && ${unset(...ENTRY_SERVER_FIELDS, 'origin', 'doc_type', 'reverses', 'replaces')} && (status = "draft" || (status = "posted" && @request.body.status = "void"))`,
                 deleteRule: `${WRITE} && status = "draft"`,
             },

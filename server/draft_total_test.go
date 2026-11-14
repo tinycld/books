@@ -1,6 +1,10 @@
 package books
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/pocketbase/pocketbase/core"
+)
 
 func draftTotal(t testing.TB, env *ledgerEnv, id string) int {
 	t.Helper()
@@ -216,5 +220,99 @@ func TestDraftTotal_DeletingADraftCascadesItsLines(t *testing.T) {
 	}
 	if len(lines) != 0 {
 		t.Fatalf("%d lines left after deleting the draft", len(lines))
+	}
+}
+
+func TestDraftTotal_FollowsEachKindOfLineWrite(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := env.sale(t, "2026-05-10", 100)
+	total := func() int { return reload(t, env.app, "books_journal_entries", entry.Id).GetInt("total") }
+
+	line := addLine(t, env.app, entry.Id, env.rent, 40, 0)
+	if total() != 140 {
+		t.Fatalf("after a create: total = %d, want 140", total())
+	}
+	line.Set("debit", 15)
+	if err := env.app.Save(line); err != nil {
+		t.Fatal(err)
+	}
+	if total() != 115 {
+		t.Fatalf("after a debit change: total = %d, want 115", total())
+	}
+	// To the credit side: its debit leaves the sum.
+	line.Set("debit", 0)
+	line.Set("credit", 15)
+	if err := env.app.Save(line); err != nil {
+		t.Fatal(err)
+	}
+	if total() != 100 {
+		t.Fatalf("after a move to the credit side: total = %d, want 100", total())
+	}
+	debit := addLine(t, env.app, entry.Id, env.rent, 8, 0)
+	if err := env.app.Delete(debit); err != nil {
+		t.Fatal(err)
+	}
+	if total() != 100 {
+		t.Fatalf("after the delete of a debit line: total = %d, want 100", total())
+	}
+}
+
+// At the storage cap the difference cannot be trusted: the stored total is
+// not the real sum. The full sum is read then, and the total comes back
+// below the cap when the large lines go.
+func TestDraftTotal_RecoversFromTheStorageCap(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := env.sale(t, "2026-05-10", 100)
+	total := func() int { return reload(t, env.app, "books_journal_entries", entry.Id).GetInt("total") }
+
+	var big []*core.Record
+	for i := 0; i < 10; i++ { // 10 x 10^15 is past 2^53-1
+		big = append(big, addLine(t, env.app, entry.Id, env.rent, maxAmount, 0))
+	}
+	if total() != maxStoredAmount {
+		t.Fatalf("total = %d, want the cap %d", total(), maxStoredAmount)
+	}
+	for _, line := range big {
+		if err := env.app.Delete(line); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if total() != 100 {
+		t.Fatalf("total after the large lines are gone = %d, want 100", total())
+	}
+}
+
+// A delete request loads its line before the transaction. Two deletes of one
+// line, or a delete of a line another editor just changed, must take the
+// line's STORED debit off the total, and nothing when the line is gone.
+func TestDraftTotal_ADeleteUsesTheStoredLine(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := env.sale(t, "2026-05-10", 100)
+	total := func() int { return reload(t, env.app, "books_journal_entries", entry.Id).GetInt("total") }
+	line := addLine(t, env.app, entry.Id, env.rent, 50, 0)
+
+	first := reload(t, env.app, "books_journal_lines", line.Id)
+	second := reload(t, env.app, "books_journal_lines", line.Id)
+	stale := reload(t, env.app, "books_journal_lines", line.Id)
+
+	// Another editor raises the line to 80 after `stale` was loaded.
+	line.Set("debit", 80)
+	if err := env.app.Save(line); err != nil {
+		t.Fatal(err)
+	}
+	if total() != 180 {
+		t.Fatalf("total = %d, want 180", total())
+	}
+	if err := env.app.Delete(stale); err != nil {
+		t.Fatal(err)
+	}
+	if total() != 100 {
+		t.Fatalf("after the delete of a line loaded before its change: total = %d, want 100", total())
+	}
+	// The line is gone; deleting it again from older copies changes nothing.
+	_ = env.app.Delete(first)
+	_ = env.app.Delete(second)
+	if total() != 100 {
+		t.Fatalf("after two more deletes of the same line: total = %d, want 100", total())
 	}
 }

@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { nameOnDraftLine } from './journal-entries-helpers'
 import {
     accentOf,
     backgroundOf,
@@ -22,7 +23,6 @@ import {
     stacked,
     uniqueName,
     vendorEntry,
-    vendorHelpers,
     vendorIdOf,
     viewportName,
     WIDE,
@@ -34,8 +34,9 @@ import {
 // without losing anything; the open vendor can be deleted from its row menu beside the
 // panel. Every vendor this spec opens for editing or deletes it creates with a unique
 // name; it reads the seeded Coastal Coffee Roasters and Willamette Valley Commercial
-// Cleaning and Janitorial Services Cooperative and edits neither. A delete refusal is a
-// 400 answered through `page.route` (no "in use" refusal exists yet), which writes nothing.
+// Cleaning and Janitorial Services Cooperative and edits neither. The delete refusal is
+// the server's own: another tab puts the vendor on a line of a draft journal entry, and
+// deletes that draft before the delete that goes through.
 //
 // Not covered here: there is no phone run, because the panel surface does not exist below
 // a 1360 px window. The phone flows it touches (Back, Escape, the Discard changes?
@@ -48,7 +49,6 @@ const PANEL_WIDTH = 480
 const COASTAL = 'Coastal Coffee Roasters'
 const WILLAMETTE = 'Willamette Valley Commercial Cleaning and Janitorial Services Cooperative'
 const UNSAVED_DELETE_WARNING = 'Unsaved changes to this vendor will be lost.'
-const DELETE_REFUSAL = 'This vendor is used on a bill.'
 
 // The four half-width pairs of the default layout.
 const PAIRS = [
@@ -394,17 +394,14 @@ test.describe('vendor-form: side panel', () => {
             await expect(deleteDialog).toBeVisible()
             await expect(deleteBody).toContainText(UNSAVED_DELETE_WARNING)
         }
-        await page.route(vendorHelpers.recordUrl(idD), route => {
-            if (route.request().method() !== 'DELETE') return route.continue()
-            return route.fulfill({
-                status: 400,
-                contentType: 'application/json',
-                body: JSON.stringify({ code: 400, message: DELETE_REFUSAL, data: {} }),
-            })
-        })
+        // Another tab puts D on a line of a draft journal entry, so the server refuses
+        // the delete (server/lines.go msgPartyOnLines).
+        const namedOnDraft = await nameOnDraftLine(page, nameD)
         await openDeleteFromRow()
         await deleteConfirm.click()
-        await expect(deleteBody).toContainText(DELETE_REFUSAL)
+        await expect(deleteBody).toContainText(
+            `${nameD} is on journal lines. Make it inactive instead.`
+        )
         await expect(page.getByTestId('vendor-not-found')).toHaveCount(0)
         await expect(panel).toBeVisible()
         await expect(field(page, 'display_name')).toHaveValue(nameD)
@@ -415,7 +412,8 @@ test.describe('vendor-form: side panel', () => {
         await expect(deleteDialog).toBeHidden()
         await expect(panel).toBeVisible()
         await expect(field(page, 'notes')).toHaveValue(typedNotes)
-        await page.unroute(vendorHelpers.recordUrl(idD))
+        // The other tab deletes the draft entry; no line names D now.
+        await namedOnDraft.release()
 
         await openDeleteFromRow()
         await deleteConfirm.click()

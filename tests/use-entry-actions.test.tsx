@@ -23,6 +23,11 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
 })
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
+})
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 silenceLog()
@@ -38,6 +43,7 @@ function entryRow(id: string): BooksJournalEntries {
         doc_type: 'journal',
         status: 'draft',
         origin: 'manual',
+        revision: 1,
         number: '',
         sequence: 0,
         date: '2026-10-12',
@@ -152,15 +158,15 @@ describe('useEntryActions.deleteDraft', () => {
         expect(entryIds()).toEqual([])
     })
 
-    it('keeps the entry and stays on the screen when the entry delete is refused, and a retry completes', async () => {
+    // The delete is one batch: a refusal leaves the draft whole.
+    it('keeps the entry and all its lines when the delete is refused, and a retry completes', async () => {
         const message = 'Books are closed through 2026-09-30.'
         const hook = await render('je_a')
-        // The three line deletes pass; the entry delete is refused.
-        refuseAfterMore(3, messageRefusal(message))
+        refuseAfterMore(0, messageRefusal(message))
         await act(async () => {
             await expect(hook.result.current.deleteDraft()).rejects.toThrow(message)
         })
-        expect(lineIds()).toEqual(['b1'])
+        expect(lineIds()).toEqual(['a1', 'a2', 'a3', 'b1'])
         expect(entryIds()).toEqual(['je_a', 'je_b'])
         expect(leftTheScreen()).toBe(false)
 
@@ -169,21 +175,10 @@ describe('useEntryActions.deleteDraft', () => {
         await act(async () => {
             await hook.result.current.deleteDraft()
         })
-        expect(enteredWrites().slice(before)).toEqual(['je_a'])
+        expect(enteredWrites().slice(before)).toEqual(['a1', 'a2', 'a3', 'je_a'])
+        expect(lineIds()).toEqual(['b1'])
         expect(entryIds()).toEqual(['je_b'])
         expect(leftTheScreen()).toBe(true)
-    })
-
-    it('stops at the first refused line delete and leaves the entry', async () => {
-        const message = 'Line is locked.'
-        const hook = await render('je_a')
-        refuseAfterMore(1, messageRefusal(message))
-        await act(async () => {
-            await expect(hook.result.current.deleteDraft()).rejects.toThrow(message)
-        })
-        expect(entryIds()).toContain('je_a')
-        expect(lineIds().filter(id => id.startsWith('a'))).toHaveLength(2)
-        expect(enteredWrites()).not.toContain('je_a')
     })
 
     it('deletes every line when called before the lines query has delivered its rows', async () => {

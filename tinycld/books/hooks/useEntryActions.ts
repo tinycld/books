@@ -2,7 +2,7 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { errorToString } from '@tinycld/core/lib/errors'
 import { log } from '@tinycld/core/lib/logger'
-import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
+import { atomic, performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { router } from 'expo-router'
@@ -21,12 +21,13 @@ export function useEntryActions(entryId: string) {
         queryKey: ['books.entry.actions.lines', entryId],
     })
 
-    // One write at a time: a refusal part way stops there, and a retry deletes what is left.
+    // One batch: a refused delete leaves the draft and all its lines.
     const deleteDraftMutation = useMutation({
-        mutationFn: function* () {
-            for (const line of lines) yield linesCollection.delete(line.id)
-            yield entriesCollection.delete(entryId)
-        },
+        mutationFn: () =>
+            atomic(() => {
+                for (const line of lines) linesCollection.delete(line.id)
+                entriesCollection.delete(entryId)
+            }),
     })
 
     // The reversal's lines are written by the server when the post succeeds. A refused post
@@ -49,8 +50,10 @@ export function useEntryActions(entryId: string) {
             })
             try {
                 await performMutations(function* () {
+                    // A new draft is at revision 1; the post states that it saw it.
                     yield entriesCollection.update(id, draft => {
                         draft.status = 'posted'
+                        draft.revision = 2
                     })
                 })
             } catch (error) {

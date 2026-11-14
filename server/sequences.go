@@ -7,6 +7,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+// msgSequenceDocTypeFixed refuses a change of a sequence's document type: the
+// highest issued number is read by type, so the guard below would then
+// compare with another type's numbers.
+const msgSequenceDocTypeFixed = "A number sequence keeps its document type."
+
 // registerSequenceGuard lets an admin move a document type's next number
 // forward but never back over numbers already issued: that would hand a
 // second document a number the books already used.
@@ -15,6 +20,13 @@ func registerSequenceGuard(app core.App) {
 	// would otherwise be overwritten by this save's older next number.
 	app.OnRecordUpdate("books_doc_sequences").BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
+			stored, err := tx.FindRecordById("books_doc_sequences", e.Record.Id)
+			if err != nil {
+				return fmt.Errorf("books: read the number sequence: %w", err)
+			}
+			if stored.GetString("doc_type") != e.Record.GetString("doc_type") {
+				return refuse(msgSequenceDocTypeFixed)
+			}
 			highest, err := highestSequence(tx, e.Record.GetString("doc_type"))
 			if err != nil {
 				return err

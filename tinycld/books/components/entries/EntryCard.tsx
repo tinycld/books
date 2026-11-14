@@ -2,12 +2,12 @@ import { Pressable, Text, View } from 'react-native'
 import { entryNumberText, entryTotalText, entryTypeText } from '../../lib/entry-display'
 import { formatDay } from '../../lib/register-range'
 import { spaceOpens } from '../accounts/AccountRow'
-import { type EntryItemProps, ReversesNumber, RowMenuSlot } from './EntryRow'
+import { type EntryItemProps, OverdueMark, ReversesNumber, RowMenuSlot } from './EntryRow'
 import { EntryStatusBadge } from './EntryStatusBadge'
 
 export const ENTRY_CARD_HEIGHT = 96
 
-export function EntryCard({ entry, currency, onOpenEntry, rowMenu }: EntryItemProps) {
+export function EntryCard({ entry, currency, onOpenEntry, rowMenu, isOverdue }: EntryItemProps) {
     // A reversal card has the extra "Reverses JE-n" line; a one-line memo keeps it inside the fixed height.
     const memoLines = entry.reverses ? 1 : 2
     return (
@@ -31,6 +31,8 @@ export function EntryCard({ entry, currency, onOpenEntry, rowMenu }: EntryItemPr
                     <Text numberOfLines={1} className="shrink text-xs text-muted-foreground">
                         {entryNumberText(entry)}
                     </Text>
+                    {/* On the first line: the card has a fixed height and no room for a new one. */}
+                    <OverdueMark entryId={entry.id} isVisible={isOverdue} />
                 </View>
                 <Text numberOfLines={memoLines} className="text-sm font-medium text-foreground">
                     {entry.memo}

@@ -3,7 +3,7 @@ import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
 import { planTableWrites, type TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
-import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
+import { atomic, performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify/dispatcher'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router, useNavigation } from 'expo-router'
@@ -11,12 +11,13 @@ import { newRecordId } from 'pbtsdb/core'
 import { type RefObject, useRef, useState } from 'react'
 import type { ErrorOption } from 'react-hook-form'
 import type { ViewInstance } from 'react-native'
+import { refusedRecordId } from '../lib/batch-refusal'
 import {
     DOCUMENT_LINE_COLUMNS,
     DOCUMENT_LINE_MAPPER,
     DOCUMENT_ROW_KINDS,
 } from '../lib/document-line-columns'
-import { documentLineWriteSteps } from '../lib/document-line-order'
+import { documentLineWriteSteps, documentSavePlan } from '../lib/document-line-order'
 import {
     type DocumentRefusalTarget,
     documentRefusalTarget,
@@ -27,18 +28,13 @@ import { documentTaxOf } from '../lib/document-tax'
 import { documentLinesForSave } from '../lib/document-values'
 import { acceptanceShown } from '../lib/estimate-status'
 import { type HiddenFields, hiddenRefusalKeys, refusalMessage } from '../lib/record-refusals'
-import {
-    columnsOrThrow,
-    hasRecordChanges,
-    type RefusalForm,
-    runLocked,
-    startFailed,
-} from '../lib/record-save'
+import { columnsOrThrow, type RefusalForm, runLocked, startFailed } from '../lib/record-save'
 import { messageOnlyRefusal } from '../lib/refusal'
+import { assertRevisionSeen, documentConflictText, isRevisionConflict } from '../lib/revision'
 import { INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
 import { createTablePlans } from '../lib/table-writes'
 import { useDocumentSaveStore } from '../stores/document-save-store'
-import type { DocumentWrites } from './document-data'
+import type { DocumentTransaction, DocumentWrites } from './document-data'
 import type { DocumentFormState } from './useDocumentForm'
 
 const LINE_COLUMNS = { lines: DOCUMENT_LINE_COLUMNS }
@@ -51,6 +47,10 @@ function saveTexts(kind: SalesDocumentKind) {
         logContext: `books.${kind.key}`,
         notSavedTitle: `${kind.noun} not saved`,
         clientSaveFailed: `Books could not save ${thisNoun}. Try again.`,
+        // The root error of a reload whose read of the stored document failed.
+        reloadFailed: `Books could not load ${thisNoun}. Check your connection, then try again.`,
+        // The form's own refusal of a stale save carries the notice's text.
+        conflict: documentConflictText(kind.noun, kind.lifecycle),
     }
 }
 
@@ -181,7 +181,7 @@ function usePresence(surfaceRef: RefObject<ViewInstance | null>) {
     return () => surfaceRef.current !== null && navigation.isFocused()
 }
 
-type StoredLines = Parameters<typeof documentLineWriteSteps>[0]['storedLines']
+type StoredLines = Parameters<typeof documentSavePlan>[0]['storedLines']
 
 // The lines as a save stores them, for the next save's line plan.
 function storedLinesOf(rows: readonly TableRow[]): StoredLines {
@@ -191,24 +191,83 @@ function storedLinesOf(rows: readonly TableRow[]): StoredLines {
     }))
 }
 
-// The line writes of a save, in an order the server accepts one write at a time
-// (documentLineWriteSteps), against the lines as stored and the header tax being saved.
-function lineWritesOf(state: DocumentFormState, writes: DocumentWrites) {
-    return (documentId: string, plan: TableWritePlan | undefined, storedLines: StoredLines) => {
-        const taxRate = state.form.getValues('tax_rate')
-        const { tax } = documentTaxOf(state.taxRows, typeof taxRate === 'string' ? taxRate : '')
-        const ops = writes.lineOps(documentId)
-        return documentLineWriteSteps({ storedLines, plan, tax, ops }).map(step => ({
-            label: step.itemNumber === null ? null : `Line ${step.itemNumber}`,
-            run: step.run,
-        }))
+// A line write of a save: its row, the "Line n" label of a refusal of it (a removed row
+// has none), and the write.
+type LineWrite = { rowId: string; label: string | null; run: () => DocumentTransaction }
+
+// The line writes of a saved document's save, and whether its header write goes first.
+type SavePlan = { headerFirst: boolean; lines: LineWrite[] }
+
+function lineWriteOf(step: {
+    rowId: string
+    itemNumber: number | null
+    run: () => DocumentTransaction
+}): LineWrite {
+    return {
+        rowId: step.rowId,
+        label: step.itemNumber === null ? null : `Line ${step.itemNumber}`,
+        run: step.run,
     }
 }
 
-// How far a save got: whether the document row was inserted, the line being written,
-// whether an inserted document was deleted again after a line was refused, and whether
-// the draft (row and lines) was fully written, so a refused post leaves a draft behind.
-type Progress = { inserted: boolean; rowLabel: string | null; undone: boolean; drafted: boolean }
+// The header tax of a tax rate id, as the totals read it.
+function taxOf(state: DocumentFormState, taxRateId: string) {
+    return documentTaxOf(state.taxRows, taxRateId).tax
+}
+
+// The tax rate the form holds now.
+function formTaxRate(state: DocumentFormState): string {
+    const value = state.form.getValues('tax_rate')
+    return typeof value === 'string' ? value : ''
+}
+
+// A new document's line writes: its header is inserted first with the form's tax, so the
+// order is planned against that tax (documentLineWriteSteps).
+function createLinesOf(state: DocumentFormState, writes: DocumentWrites) {
+    return (documentId: string, plan: TableWritePlan | undefined): LineWrite[] =>
+        documentLineWriteSteps({
+            storedLines: [],
+            plan,
+            tax: taxOf(state, formTaxRate(state)),
+            ops: writes.lineOps(documentId),
+        }).map(lineWriteOf)
+}
+
+// A saved document's save plan: its line writes in an order the server accepts with the
+// tax it stores while they are written, and the place of the header write
+// (documentSavePlan).
+function savePlanOf(state: DocumentFormState, writes: DocumentWrites) {
+    return (
+        documentId: string,
+        plan: TableWritePlan | undefined,
+        stored: { lines: StoredLines; taxRate: string }
+    ): SavePlan => {
+        const ordered = documentSavePlan({
+            storedLines: stored.lines,
+            plan,
+            storedTax: taxOf(state, stored.taxRate),
+            nextTax: taxOf(state, formTaxRate(state)),
+            ops: writes.lineOps(documentId),
+        })
+        return { headerFirst: ordered.headerFirst, lines: ordered.steps.map(lineWriteOf) }
+    }
+}
+
+// The "Line n" label of the line whose write a refused batch names; null for the header's
+// write, a removed line's, and a failure that names no operation.
+function rowLabelOf(error: unknown, lines: readonly LineWrite[]): string | null {
+    const id = refusedRecordId(error)
+    if (id === null) return null
+    return lines.find(line => line.rowId === id)?.label ?? null
+}
+
+// A create leaves the document at revision 1: its lines, written in the same batch, are
+// part of the create (server/revision.go).
+const NEW_REVISION = 1
+
+// How far a save got: whether the draft (row and lines) is written, so a refused post
+// leaves a draft behind, and the revision the document then has.
+type Progress = { drafted: boolean; revision: number }
 
 // What a save does after the document is written: Save draft (and a quote's Save) stops
 // there; Post sets the status; `andNew` then opens a fresh form (Post & new, Save & new);
@@ -226,40 +285,14 @@ function quoteMode({ close, andNew, convert }: QuoteSaveMode): SaveMode {
     return { post: false, close, andNew, convert }
 }
 
-function newProgress(inserted: boolean): Progress {
-    return { inserted, rowLabel: null, undone: false, drafted: false }
-}
-
-// A new document whose line was refused is deleted again (its stored lines go with it,
-// by the relation's cascade), so the new form stays the only copy and a second Save
-// inserts it once. The line rows the save wrote leave the store at once, as the form will
-// insert them again with the same ids. False when the delete fails: the draft then stays.
-function undoInsertOf(writes: DocumentWrites, texts: SaveTexts) {
-    return async (id: string, plan: TableWritePlan | undefined) => {
-        try {
-            await performMutations(function* () {
-                yield writes.deleteRecord(id)
-            })
-        } catch (error) {
-            log.warn(
-                texts.logContext,
-                'a new document whose line was refused could not be deleted',
-                {
-                    document: id,
-                    error: String(error),
-                }
-            )
-            return false
-        }
-        const lineIds = plan?.insert.map(write => write.row.id) ?? []
-        if (lineIds.length > 0) writes.evictLines(lineIds)
-        return true
-    }
+function newProgress(): Progress {
+    return { drafted: false, revision: 0 }
 }
 
 // The draft a new form wrote before its post was refused: the form stays on `new` with
 // the refusal, and its next save updates this document instead of inserting another.
-type Written = { id: string; rows: TableRow[] }
+// `revision` is what that save states it saw; `taxRate` is the tax the draft stores.
+type Written = { id: string; rows: TableRow[]; revision: number; taxRate: string }
 
 type DocumentSaveOptions = {
     // The tab a draft saved from `new` opens on (default the form): a save from the PDF
@@ -276,6 +309,9 @@ type DocumentSaveOptions = {
     // The writer key of the screen mount this form belongs to (useDocumentScreen): a
     // refused post files its written draft under it.
     writer?: string
+    // Reads the stored document again and mounts a new form on it, in place of what is
+    // typed here (DocumentScreen). It rejects, and mounts nothing, when the read fails.
+    onReload?: () => Promise<void>
 }
 
 const ACCEPTANCE_KEYS = ['accepted_by', 'accepted_date'] as const
@@ -295,24 +331,39 @@ function hasFieldErrors(state: DocumentFormState): boolean {
  * Save draft, Post and Post & new on a posting kind's form; Save, Save & close, Save &
  * new and Convert to invoice on a quote's.
  *
- * - A new document inserts its row, then its lines one at a time; a refused line deletes
- *   the new document again and the form stays new, with the refusal under that line.
- *   Save draft then replaces the route with the draft's own, on the tab it was saved
- *   from.
- * - A saved draft writes its dirty columns and its line plan and stays.
- * - Post writes the draft as above, then sets `status: 'posted'`. The save store holds
- *   the document from before the first write until the post settles, so the optimistic
- *   status does not swap the form for the read view. A refused status write leaves the
- *   draft written and shows the refusal on the form; a new form then updates that draft.
- *   A post from `new` opens the read view; on a saved draft the screen shows it once the
- *   post is confirmed. Post & new opens a fresh form.
+ * Every save is all or none, and states the revision the form saw (lib/revision.ts):
+ *
+ * - A new document is one batch: its row, then its lines. A refused batch stores nothing
+ *   and the form stays new, with a line's refusal under that line. Save draft then
+ *   replaces the route with the draft's own, on the tab it was saved from.
+ * - A saved document is one batch: its line writes, then ONE header write with the dirty
+ *   columns, `revision` (the baseline plus one) and, for a post, `status: 'posted'`. The
+ *   batch sends one operation for the header at the place of its first mutation, and a
+ *   post reads the lines, so the header is mutated once, last. When the save changes the
+ *   tax rate and the lines hold only with the new tax, the header goes first, and a post
+ *   is then its own request after the batch.
+ * - A new document's post cannot join its create (the create must be a draft), so it is
+ *   the create batch, then one request with `revision: 2` and `status: 'posted'`. A
+ *   refused post leaves the draft written and shows the refusal on the form; the form
+ *   then updates that draft.
+ * - The baseline is the revision of the row the form's values were taken from. The form
+ *   follows the row while it has no unsaved change, so the baseline follows it too; it is
+ *   fixed from the first unsaved change, and after a save it is the value sent. A row that
+ *   moved under unsaved changes is a conflict before anything is sent: the update would
+ *   set a revision the row already has, send no header write, and the line writes would
+ *   go with no statement. A 409 from the server is the same conflict. Either shows the
+ *   notice (`isConflict`); what is typed stays until the person chooses `reload`.
+ * - The save store holds the document from before the first write until a post settles,
+ *   so the optimistic status does not swap the form for the read view. A post from `new`
+ *   opens the read view; on a saved draft the screen shows it once the post is confirmed.
+ *   Post & new opens a fresh form.
  * - A quote (an estimate) has no draft and no post: Save writes the document (a create
  *   replaces the route with the document's own) and stays; Save & close writes it and
  *   leaves (`options.leave`), also when nothing changed; Save & new writes it and opens a
  *   fresh form; Convert writes it when it has changes and opens the invoice form made
- *   from it (`?estimate`). The save store holds the document through every quote write, so the
- *   optimistic row never swaps the form. Accepted by and Accepted date, hidden while
- *   Status is not Accepted, are saved empty then.
+ *   from it (`?estimate`). The save store holds the document through every quote write,
+ *   so the optimistic row never swaps the form. Accepted by and Accepted date, hidden
+ *   while Status is not Accepted, are saved empty then.
  *
  * The empty trailing Item line is dropped before the form validates (spec: dropped at
  * save); Post validates with the `post` mode of the record schema, which adds its rule.
@@ -325,13 +376,22 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const orgHref = useOrgHref()
     const surfaceRef = useRef<ViewInstance>(null)
     const isPresent = usePresence(surfaceRef)
-    const lineWrites = lineWritesOf(state, writes)
-    const undoInsert = undoInsertOf(writes, texts)
+    const createLines = createLinesOf(state, writes)
+    const savePlan = savePlanOf(state, writes)
     const lock = useRef(false)
     // The draft a new form wrote. State, not a ref: its id also titles the form (the
     // kind's draft title) and offers Delete draft, and the next save is pressed after the
     // render this sets, so it reads the written draft.
     const [written, setWritten] = useState<Written | null>(null)
+    // Another session changed the document after this form took its values. A state of
+    // the screen, not a field error: what the person typed is valid and stays as it is.
+    const [isConflict, setConflict] = useState(false)
+    // The revision of the row the form's values were taken from. The form follows the row
+    // while it has no unsaved change, so the baseline does too; from the first unsaved
+    // change it stays, whatever the row does. Never the live value at submit: realtime
+    // moves that, and a save would then state a revision the person did not see.
+    const baseline = useRef(state.revision)
+    if (!state.isDirty) baseline.current = state.revision
     const onError = state.isNew ? state.create.onError : state.edit.onError
 
     // The one place that tells the screen a save left an error under a field.
@@ -342,6 +402,10 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const refuse = (refused: Refused) => {
         if (!isPresent()) {
             showClosedRefusal(texts, onError, refused)
+            return
+        }
+        if (isRevisionConflict(refused.error)) {
+            setConflict(true)
             return
         }
         showRefusal(state, onError, refused, hiddenFieldsOf(state, options.definition))
@@ -355,12 +419,6 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         orgHref(documentHref(kind, id, mode.post ? 'edit' : options.tab))
 
     const release = (id: string) => useDocumentSaveStore.getState().release(id)
-
-    const setPosted = (id: string, progress: Progress) => {
-        // The status write is no line's: its refusal gets no "Line n" label.
-        progress.rowLabel = null
-        return writes.setStatus(id, 'posted')
-    }
 
     // Where the form goes after a save: Post & new to a fresh form; a save from `new` to
     // the document's own route; a saved draft stays (a post shows its read view there).
@@ -382,9 +440,9 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // an invoice made from an estimate, this draft closed the estimate, and that mount's
     // screen keeps this form for it (useDocumentScreen) instead of the cannot-convert
     // notice, so the refusal stays here. A later mount of the route has another key.
-    const markWritten = (id: string, rows: TableRow[]) => {
-        setWritten({ id, rows })
-        if (options.writer) useDocumentSaveStore.getState().wrote(options.writer, id)
+    const markWritten = (draft: Written) => {
+        setWritten(draft)
+        if (options.writer) useDocumentSaveStore.getState().wrote(options.writer, draft.id)
         state.create.form.reset(state.create.form.getValues())
     }
 
@@ -395,61 +453,47 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             replaces: string
             formId: string
             fields: Record<string, unknown>
-            plans: Record<string, TableWritePlan>
+            lines: LineWrite[]
             rows: TableRow[]
+            taxRate: string
             mode: SaveMode
             progress: Progress
         }) => {
-            await performMutations(function* () {
-                yield writes.insertRecord({
+            await atomic(() => {
+                writes.insertRecord({
                     id: input.id,
                     columns: input.columns,
                     replaces: input.replaces,
                     form: input.formId,
                     fields: input.fields,
                 })
+                for (const line of input.lines) line.run()
             })
-            input.progress.inserted = true
-            try {
-                await performMutations(function* () {
-                    for (const write of lineWrites(input.id, input.plans.lines, [])) {
-                        input.progress.rowLabel = write.label
-                        yield write.run()
-                    }
-                })
-            } catch (error) {
-                input.progress.undone = await undoInsert(input.id, input.plans.lines)
-                throw error
-            }
             input.progress.drafted = true
+            input.progress.revision = NEW_REVISION
             if (!input.mode.post) return
+            // The create must be a draft, so the post is its own request after the batch.
+            assertRevisionSeen(writes.storedRevision(input.id), NEW_REVISION, texts.conflict)
             await performMutations(function* () {
-                yield setPosted(input.id, input.progress)
+                yield writes.postRecord(input.id, NEW_REVISION + 1)
             })
         },
         onSuccess: (_data, { id, mode }) => {
             state.create.form.reset(state.create.form.getValues())
             navigateAfter(id, mode)
         },
-        onError: (error, { id, rows, mode, progress }) => {
+        onError: (error, { id, rows, taxRate, lines, progress }) => {
             // The draft is written and its post was refused: it stays, and the refusal
-            // shows on this form, whose next save updates it.
+            // shows on this form, whose next save updates it. The post is no line's
+            // write, so its refusal gets no "Line n" label.
             if (progress.drafted) {
-                markWritten(id, rows)
-                refuse({ error, rowLabel: progress.rowLabel })
+                markWritten({ id, rows, revision: progress.revision, taxRate })
+                refuse({ error, rowLabel: null })
                 return
             }
-            // A line was refused and the draft could not be taken back: its own route
-            // shows what was written, and the refusal becomes a toast, since a second
-            // Save on this new form would insert the document again.
-            if (progress.inserted && !progress.undone) {
-                showClosedRefusal(texts, onError, { error, rowLabel: progress.rowLabel })
-                if (isPresent()) router.replace(savedHref(id, mode))
-                return
-            }
-            // Nothing is stored: the new form stays with the refusal where it belongs,
-            // and the next Save inserts the document once.
-            refuse({ error, rowLabel: progress.rowLabel })
+            // The batch was refused and nothing is stored: the new form stays with the
+            // refusal where it belongs, and the next Save inserts the document once.
+            refuse({ error, rowLabel: rowLabelOf(error, lines) })
         },
         onSettled: (_data, _error, { id }) => {
             lock.current = false
@@ -458,34 +502,62 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     })
 
     const update = useMutation({
-        mutationFn: function* (input: {
+        mutationFn: async (input: {
             id: string
             patch: Record<string, unknown>
             fields: Record<string, unknown>
-            plans: Record<string, TableWritePlan>
-            storedLines: StoredLines
-            // Makes the written values the form's baseline.
-            onDrafted: () => void
+            save: SavePlan
+            // The revision this save states it saw.
+            saw: number
+            // Makes the written values, at this revision, the form's baseline.
+            onDrafted: (revision: number) => void
             mode: SaveMode
             progress: Progress
-        }) {
-            if (hasRecordChanges(input.patch, input.fields)) {
-                yield writes.updateRecord(input.id, { columns: input.patch, fields: input.fields })
-            }
-            for (const write of lineWrites(input.id, input.plans.lines, input.storedLines)) {
-                input.progress.rowLabel = write.label
-                yield write.run()
-            }
+        }) => {
+            // The store row moved past the revision this form saw (another session's
+            // save reached the store). Its revision can be the very value this save would
+            // send: the header update would then change nothing and send nothing, and
+            // the line writes would go with no revision stated, which the server cannot
+            // refuse. So the form refuses here, before anything is sent.
+            assertRevisionSeen(writes.storedRevision(input.id), input.saw, texts.conflict)
+            const sent = input.saw + 1
+            const postsInBatch = input.mode.post && !input.save.headerFirst
+            const writeHeader = (post: boolean) =>
+                writes.updateRecord(input.id, {
+                    columns: input.patch,
+                    fields: input.fields,
+                    revision: sent,
+                    post,
+                })
+            await atomic(() => {
+                if (input.save.headerFirst) writeHeader(false)
+                for (const line of input.save.lines) line.run()
+                // Last, and once: the batch sends one operation for the header, at the
+                // place of its first mutation, and the server reads the lines when it posts.
+                if (!input.save.headerFirst) writeHeader(postsInBatch)
+            })
             input.progress.drafted = true
-            if (input.mode.post) yield setPosted(input.id, input.progress)
+            input.progress.revision = sent
+            if (!input.mode.post || postsInBatch) return
+            // The header went first (a tax rate change the lines need), so the post could
+            // not join it: it is its own request, as a new document's is.
+            assertRevisionSeen(writes.storedRevision(input.id), sent, texts.conflict)
+            await performMutations(function* () {
+                yield writes.postRecord(input.id, sent + 1)
+            })
+            input.progress.revision = sent + 1
         },
-        onSuccess: (_data, { id, onDrafted, mode }) => {
-            onDrafted()
+        onSuccess: (_data, { id, onDrafted, mode, progress }) => {
+            onDrafted(progress.revision)
             navigateAfter(id, mode)
         },
-        onError: (error, { onDrafted, progress }) => {
-            if (progress.drafted) onDrafted()
-            refuse({ error, rowLabel: progress.rowLabel })
+        onError: (error, { onDrafted, save, progress }) => {
+            if (progress.drafted) {
+                onDrafted(progress.revision)
+                refuse({ error, rowLabel: null })
+                return
+            }
+            refuse({ error, rowLabel: rowLabelOf(error, save.lines) })
         },
         onSettled: (_data, _error, { id }) => {
             lock.current = false
@@ -545,6 +617,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             ...columnsOrThrow(documentKind.columnsFrom, { ...split.columns, ...estimateColumn }),
         }
         const id = newRecordId()
+        const plans = createTablePlans(split.tables, LINE_COLUMNS)
         holdFor(id, mode)
         insert.mutate({
             id,
@@ -552,30 +625,35 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             replaces: state.replaces,
             formId: state.create.formId,
             fields: split.fields,
-            plans: createTablePlans(split.tables, LINE_COLUMNS),
+            lines: createLines(id, plans.lines),
             rows: split.tables.lines ?? [],
+            taxRate: formTaxRate(state),
             mode,
-            progress: newProgress(false),
+            progress: newProgress(),
         })
         return true
     }
 
     // A new form whose draft is already written (a refused post): every column and the
-    // lines against the ones it wrote.
+    // lines against the ones it wrote, stating the revision that draft has.
     const startWrittenUpdate = async (draft: Written, mode: SaveMode) => {
         const split = await state.create.submit()
         if (!split) return false
         const rows = split.tables.lines ?? []
+        const taxRate = formTaxRate(state)
         holdFor(draft.id, mode)
         update.mutate({
             id: draft.id,
             patch: columnsOrThrow(documentKind.columnsFrom, split.columns),
             fields: split.fields,
-            plans: { lines: planTableWrites(draft.rows, rows, DOCUMENT_LINE_COLUMNS) },
-            storedLines: storedLinesOf(draft.rows),
-            onDrafted: () => markWritten(draft.id, rows),
+            save: savePlan(draft.id, planTableWrites(draft.rows, rows, DOCUMENT_LINE_COLUMNS), {
+                lines: storedLinesOf(draft.rows),
+                taxRate: draft.taxRate,
+            }),
+            saw: draft.revision,
+            onDrafted: revision => markWritten({ id: draft.id, rows, revision, taxRate }),
             mode,
-            progress: newProgress(true),
+            progress: newProgress(),
         })
         return true
     }
@@ -607,11 +685,19 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             id,
             patch: columnsOrThrow(documentKind.columnsFrom, result.columns),
             fields: result.fields,
-            plans: result.tableWrites,
-            storedLines: state.storedLines,
-            onDrafted: () => state.edit.markSaved(result.written),
+            save: savePlan(id, result.tableWrites.lines, {
+                lines: state.storedLines,
+                taxRate: state.storedTaxRate,
+            }),
+            saw: baseline.current,
+            onDrafted: revision => {
+                // After a save the baseline is the value sent; a key the person typed in
+                // during the write stays dirty, so the baseline stays here too.
+                baseline.current = revision
+                state.edit.markSaved(result.written)
+            },
             mode,
-            progress: newProgress(true),
+            progress: newProgress(),
         })
         return true
     }
@@ -626,6 +712,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const start = async (mode: SaveMode) => {
         // A new answer from the server replaces the last one.
         state.form.clearErrors('root')
+        setConflict(false)
         try {
             dropEmptyLine()
             fillDepositFallback()
@@ -650,6 +737,28 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         }
     }
 
+    // Load the current document in place of what is typed here. A new form whose draft
+    // is written opens that draft's own route, which reads it from the server; a stored
+    // document's screen reads its rows again and mounts a new form (options.onReload).
+    // When that read fails, a new form would show the rows the store already holds in
+    // place of what is typed here. So this form stays as it is, with the notice and its
+    // action, and the root error says the document could not be loaded.
+    const reload = async () => {
+        state.form.clearErrors('root')
+        if (written) {
+            setConflict(false)
+            router.replace(savedHref(written.id, SAVE_DRAFT))
+            return
+        }
+        try {
+            await options.onReload?.()
+            setConflict(false)
+        } catch (error) {
+            log.error(texts.logContext, error, { operation: 'reload' })
+            state.form.setError('root.server', { type: 'client', message: texts.reloadFailed })
+        }
+    }
+
     return {
         saveDraft: () => runLocked(lock, () => start(SAVE_DRAFT)),
         post: (andNew: boolean) =>
@@ -668,6 +777,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         convert: () =>
             runLocked(lock, () => start(quoteMode({ close: false, andNew: false, convert: true }))),
         isSaving: insert.isPending || update.isPending,
+        isConflict,
+        reload,
         writtenId: written?.id ?? null,
         surfaceRef,
     }

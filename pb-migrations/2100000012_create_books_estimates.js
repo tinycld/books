@@ -84,7 +84,7 @@ migrate(
                 type: 'base',
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && @request.body.status != "closed" && ${unset(...ESTIMATE_SERVER_FIELDS)}`,
+                createRule: `${WRITE} && @request.body.status != "closed" && ${unset(...ESTIMATE_SERVER_FIELDS, 'revision')}`,
                 updateRule: `${WRITE} && ${unset(...ESTIMATE_SERVER_FIELDS)} && status != "closed" && @request.body.status != "closed"`,
                 deleteRule: `${WRITE} && status != "closed"`,
                 fields: [
@@ -123,6 +123,9 @@ migrate(
                     { name: 'subtotal', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'tax_total', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    // As on the invoice (2100000010). An estimate has no draft: a
+                    // request that updates one that is not closed states the value.
+                    { name: 'revision', type: 'number', onlyInt: true, min: 0 },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
                     {
                         name: 'invoice',

@@ -36,9 +36,11 @@ import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/d
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
 import { todayIso } from '../../lib/register-range'
+import { documentConflictText } from '../../lib/revision'
 import { rootErrorOnly } from '../../lib/root-errors'
 import type { SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
+import { ConflictNotice } from '../ConflictNotice'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
@@ -439,6 +441,9 @@ function useDraftPdf(kind: SalesDocumentKind, draftId: string | undefined, isSav
 interface DocumentFormProps {
     data: DocumentScreenData
     tab: DocumentTab
+    // Reads the stored document again and mounts a new form on it (DocumentScreen); it
+    // rejects when the read fails.
+    onReload: () => Promise<void>
 }
 
 /**
@@ -448,7 +453,7 @@ interface DocumentFormProps {
  * view tab, the saved document's PDF above the same bar. Keyed on its
  * form key by the screen, so a new route mounts a fresh form; a tab change keeps it.
  */
-export function DocumentForm({ data, tab }: DocumentFormProps) {
+export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
     const documentKind = useDocumentKind()
     const { doc: kind } = documentKind
     const state = useDocumentForm(documentKind, {
@@ -475,6 +480,7 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
         onFieldErrors: revealErrors,
         leave,
         writer: data.writer,
+        onReload,
     })
     const writes = documentKind.data.useWrites()
     const formCustomer = useFormCustomer(form, `books.${kind.key}`)
@@ -599,9 +605,12 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
     const ids = {
         form: `${kind.testId}-form`,
         errorSummary: `${kind.testId}-error-summary`,
+        conflict: `${kind.testId}-conflict`,
         lines: `${kind.testId}-lines`,
         linesForm: `${kind.testId}-lines-form`,
     }
+    const conflictText = documentConflictText(kind.noun, kind.lifecycle)
+    const conflictAction = `Load the current ${kind.noun.toLowerCase()}`
 
     return (
         <DocumentFormContext.Provider value={scope}>
@@ -632,6 +641,13 @@ export function DocumentForm({ data, tab }: DocumentFormProps) {
                                     scopeOwner={shortcuts.scopeOwner}
                                 />
                                 <ErrorSummary form={form} testID={ids.errorSummary} />
+                                <ConflictNotice
+                                    isVisible={save.isConflict}
+                                    text={conflictText}
+                                    actionLabel={conflictAction}
+                                    testID={ids.conflict}
+                                    onReload={save.reload}
+                                />
                                 <TabPanel isVisible={isEditTab}>
                                     <DocumentBand
                                         state={state}

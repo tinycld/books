@@ -16,6 +16,8 @@ export type HeldTransferDraft = {
     currency: string
     initial: TransferFormValues
     savedIds: TransferLineIds
+    // The draft's revision when `initial` was taken: what a save states it saw.
+    revision: number
     // Set on a saved correction draft: the number of the posted transfer it replaces.
     replacesNumber?: string
 }
@@ -64,6 +66,7 @@ export function TransferDraftScreen({
                     accounts={accounts}
                     entryId={held.entryId}
                     savedIds={held.savedIds}
+                    revision={held.revision}
                     replacesNumber={held.replacesNumber}
                     title={title}
                     isHeaderVisible={flipped === null}

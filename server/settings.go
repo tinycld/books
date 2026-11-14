@@ -47,6 +47,12 @@ func stampCurrency(app core.App, r *core.Record) error {
 	return nil
 }
 
+// msgCurrencyFixed refuses a change of the books currency. Every amount in
+// the books is in it, and no row is converted, so a change would show every
+// existing amount under the wrong currency. The update rule pins the field
+// for a person; this holds for Go and a superuser too.
+const msgCurrencyFixed = "The currency of the books cannot change."
+
 func registerSettingsGuard(app core.App) {
 	// The close date is checked only when it changes, so an edit of another
 	// setting is never refused over the close date.
@@ -60,6 +66,9 @@ func registerSettingsGuard(app core.App) {
 			stored, err := tx.FindRecordById("books_settings", e.Record.Id)
 			if err != nil {
 				return fmt.Errorf("read settings: %w", err)
+			}
+			if e.Record.GetString("currency") != stored.GetString("currency") {
+				return refuse(msgCurrencyFixed)
 			}
 			closeDate := e.Record.GetString("close_date")
 			if closeDate != stored.GetString("close_date") {
