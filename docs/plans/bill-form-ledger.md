@@ -145,6 +145,7 @@
 - revise 1 · core `core/reports/components/ReportTable.tsx` (`HeadingText` draws `breakAfterColons`): `headingWidths` takes a heading's min from `longestWordWidth`, which now ends a word after ':', so the drawn heading must break there too or it is clipped (implementer D1; reviewers A and B agree).
 - revise 1 · core `core/help/reports.md` (l.164, 169): the help says a ':' ends a word in a wrapping column and the ':' stays on the first line (reviewer B finding 2).
 - revise 1 · books `docs/plans/bill-form-evidence/revise1/` (capture.json + 6 shots): the gate-2 evidence of the core change.
+- revise 2 · `tinycld/books/components/documents/document-kind-context.ts` (no default kind, type-only import, throw outside a provider) and the new tests `tests/document-imports.test.ts`, `tests/document-kind-context.test.tsx`: the human's correction (eval revise 2) named them; no checkpoint's Files block did.
 
 ## Phase notes
 - phase 1 / design gate (human, 2026-11-13):
@@ -282,6 +283,17 @@
   - fix round 1: implementer FIXED 1 of 1 (help text). Gate 1 again: core check pass (4037); text only, no e2e, no shot changed.
   - fix review: round 1 (`review-diff.mjs … --fix --repo … --files revise1-core.md`, 1 file, 0 conformance lines): clean. Rounds: 1.
   - reviewer-caught deferrals: none.
+  - lesson line added to `docs/helix-lessons.md`.
+- eval round 2: revised → revise 2 (human correction, 2026-11-13, `revise-2.md`): Metro require cycle `document-kind-context.ts` → `document-kinds.ts` → `PurchaseReadLines.tsx` → `document-kind-context.ts`. Approved fix: the context has no default kind; type-only import; `useDocumentKind()` throws outside a provider. Fix sha = the commit that holds this line (`fix(books): no default document kind, no require cycle`). Findings `revise2-fix.md` (2 items), round 2 `revise2-fix2.md` (1 item).
+  - test writer: new `tests/document-imports.test.ts` (no value-import cycle in `components/documents/`; `import type` excluded; red with 7 cycles, all through `document-kind-context.ts -> document-kinds.ts`), new `tests/document-kind-context.test.tsx` (the hook throws outside a provider; red: it fell back to the invoice). Red for the right reason: yes. No e2e console check: no e2e helper collects console messages (none built, per the correction).
+  - implementer round 1: FIXED 1 of 1 (`document-kind-context.ts`: `createContext<DocumentKind | null>(null)`, `import type`, throw with "useDocumentKind must be used inside a DocumentKindContext.Provider"). Providers confirmed: `DocumentScreen` on every app route, the scratch route's own provider. Test disputes: none. Self-declared differences: none.
+  - gate 1: tests unedited: yes · `packages:generate` ok · check pass (255 files, 5093 tests) · e2e one file per command: `bill-form` 11, `invoice-form-draft` 7, `estimate-form` 5, `sales-receipt-form` 4 — all passed.
+  - gate 2: n/a (no visual change; no shot changed).
+  - fix review round 1: 1 BLOCK accepted (cause: platform) — `MoreItems` (`DocumentActionBar.tsx`) called `useDocumentKind()` inside core `Menu` content; on native the overlay host renders outside the consumer's tree (core `ui/overlay/host.tsx` l.243-247), so tapping More on a document form or a phone read view would throw on iOS/Android; web (React portal) and e2e stayed green. Fixed in round 2: `DocumentMoreMenu` reads the kind inside the provider and passes the row test-id prefix to `MoreItems` (row ids unchanged); the implementer swept every other `useDocumentKind()` call: none inside overlay content.
+  - gate 1 again: tests unedited: yes · check pass (5093) · e2e `bill-form` 11, `invoice-form-draft` 7, `estimate-form` 5, `sales-receipt-form` 4 — all passed.
+  - fix review round 2: clean (sweep verified independently). Rounds: 2.
+  - deferrals: none · rebuttals: none · design notes: none · out-of-plan changes: 3 files (Out-of-plan changes, "revise 2").
+  - native: the BLOCK was found by reading source; native not executed.
   - lesson line added to `docs/helix-lessons.md`.
 - human comments and what changed
 - native: not executed in this run
