@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { type DocumentStatus, statusBadgeOf } from '../../lib/document-lifecycle'
+import { type DocumentStatus, quoteStatusOf, statusBadgeOf } from '../../lib/document-lifecycle'
 import { formatDay } from '../../lib/register-range'
 import { INVOICE_KIND } from '../../lib/sales-document-kinds'
 import type { BooksInvoices } from '../../types'
@@ -8,17 +9,21 @@ import { DocumentDetail } from './DocumentDetail'
 import { DocumentSourceLink } from './DocumentSourceLink'
 import { useDocumentKind } from './document-kind-context'
 import type { DocumentReadBandRowProps, DocumentReadDetailsProps } from './document-kinds'
+import { EstimateDeclineNote } from './EstimateDeclineNote'
 
-// The status as a badge under its label, as the title draws it.
-function StatusDetail({ status }: { status: DocumentStatus }) {
+// The status as a badge under its label, as the title draws it; anything under the
+// badge (the customer's decline note) comes in as `children`. It is never wider than the
+// details row, as `DocumentDetail`, so a long decline reason wraps inside the card.
+function StatusDetail({ status, children }: { status: DocumentStatus; children?: ReactNode }) {
     const { doc } = useDocumentKind()
     const badge = statusBadgeOf(doc.lifecycle, status)
     if (!badge) return null
     const testID = `${doc.testId}-detail-status`
     return (
-        <View testID={testID} className="items-start gap-0.5">
+        <View testID={testID} className="min-w-0 max-w-full items-start gap-0.5">
             <Text className="text-xs text-muted-foreground">Status</Text>
             <StatusBadge label={badge.label} tone={badge.tone} />
+            {children}
         </View>
     )
 }
@@ -40,11 +45,19 @@ export function EstimateReadDetails({ record, children }: DocumentReadDetailsPro
     if (fields.kind !== 'estimate') return children
     const expiration = fields.expiration_date ? formatDay(fields.expiration_date) : ''
     const acceptedDate = fields.accepted_date ? formatDay(fields.accepted_date) : ''
+    const estimateStatus = quoteStatusOf(record.status)
     return (
         <>
             {children}
             <DocumentDetail field="expiration" label="Expiration date" value={expiration} />
-            <StatusDetail status={record.status} />
+            <StatusDetail status={record.status}>
+                <EstimateDeclineNote
+                    estimateId={record.id}
+                    status={estimateStatus}
+                    testID="estimate-read-decline-note"
+                    className="mt-1 max-w-[420px]"
+                />
+            </StatusDetail>
             <DocumentDetail field="accepted-by" label="Accepted by" value={fields.accepted_by} />
             <DocumentDetail field="accepted-date" label="Accepted date" value={acceptedDate} />
         </>

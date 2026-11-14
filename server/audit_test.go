@@ -5,7 +5,11 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+
+	"tinycld.org/core/audit"
 )
 
 // startReceiptsAt moves the sales receipt sequence forward, so the next
@@ -76,6 +80,70 @@ func TestAudit_LabelsAnEstimateAndItsLines(t *testing.T) {
 	if got, want := lines.ExtractLabel(reload(t, ee.app, "books_estimate_lines", line.Id)), "Estimate 1001: line 2"; got != want {
 		t.Errorf("estimate line label = %q, want %q", got, want)
 	}
+}
+
+// A customer's answer through the link is audited, named by its estimate and
+// its decision ("Estimate 1001: declined").
+func TestAudit_LabelsAnEstimateResponse(t *testing.T) {
+	pe := newPublicEnv(t)
+	responses, ok := auditedCollections(pe.app)["books_estimate_responses"]
+	if !ok {
+		t.Fatal("books_estimate_responses is not audited")
+	}
+	declined := mustSaveResponse(t, pe.app, pe.a.Id, "declined", "", "Too early")
+	accepted := mustSaveResponse(t, pe.app, pe.b.Id, "accepted", "Dana Whitfield", "")
+	for _, tc := range []struct {
+		r    *core.Record
+		want string
+	}{
+		{reload(t, pe.app, "books_estimate_responses", declined.Id), "Estimate 1001: declined"},
+		{reload(t, pe.app, "books_estimate_responses", accepted.Id), "Estimate 1002: accepted"},
+	} {
+		if got := responses.ExtractLabel(tc.r); got != tc.want {
+			t.Errorf("audit label = %q, want %q", got, tc.want)
+		}
+		if got := estimateResponseLabel(pe.app, tc.r); got != tc.want {
+			t.Errorf("estimateResponseLabel = %q, want %q", got, tc.want)
+		}
+	}
+}
+
+// The public token is a credential: a change of it is logged redacted, and a
+// deleted estimate's snapshot does not hold it.
+func TestAudit_RedactsTheEstimatePublicToken(t *testing.T) {
+	ee := newEstimateEnv(t)
+	config, ok := auditedCollections(ee.app)["books_estimates"]
+	if !ok {
+		t.Fatal("books_estimates is not audited")
+	}
+	est := ee.mkEstimate(t, nil)
+	stored := reload(t, ee.app, "books_estimates", est.Id)
+	token := stored.GetString("public_token")
+	if token == "" {
+		t.Fatal("the estimate has no public token")
+	}
+	changed := stored.Clone()
+	changed.Set("public_token", publicUnknownToken)
+	changes := audit.ComputeDiff(stored, changed, config.Redact...)
+	if !reflect.DeepEqual(changes["public_token"], redactedChange) {
+		t.Errorf("changes.public_token = %#v, want %#v", changes["public_token"], redactedChange)
+	}
+
+	registerAudit(&pocketbase.PocketBase{App: ee.app})
+	apiReq{
+		method: http.MethodDelete,
+		url:    "/api/collections/books_estimates/records/" + est.Id,
+		token:  tokenFor(t, ee.users.bookkeeper),
+		want:   http.StatusNoContent,
+		after: func(t testing.TB, app *tests.TestApp) {
+			row := awaitAuditRow(t, app, "books_estimates", "deleted", est.Id)
+			snapshot := auditJSONField(t, row, "snapshot")
+			if snapshot["public_token"] != audit.RedactedValue {
+				t.Errorf("snapshot.public_token = %#v, want %q", snapshot["public_token"], audit.RedactedValue)
+			}
+			requireNoLeak(t, row, token)
+		},
+	}.run(t, ee.app)
 }
 
 // Spec §3.10: a bill's audit row is "Bill 1003", or "Draft bill" while it has

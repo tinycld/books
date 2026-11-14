@@ -28,6 +28,7 @@
 - A link button inside a form (Edit address, Edit customer) is a Tab stop after the field it edits; it needs no shortcut. — sales-receipt-form, human, eval
 - To take a Pressable out of the web Tab order, use `tabIndex={-1}`; RN-web ignores `focusable={false}` and sets tabIndex 0. — sales-receipt-form, retro, p2-sales-receipt
 - A report's `display.oneLine` gate is measured for its own columns at 390; never copy another report's display block. — profit-and-loss, retro, p5-profit-and-loss
+- At 390 a report's toolbar actions (Customize) sit under More; a phone capture or e2e opens More first. — profit-and-loss, retro, p5-profit-and-loss
 - A wrapping report column's least width is its longest word, and core ends a word after ':' (a sub-account path "Parent:Child" breaks after the colon); phone report tests run at 375 as well as 390 (CI's 390 viewport leaves a 375 px row). — bill-form, human, eval revise 1
 - A React context has no default value that needs a value import (it makes require cycles; `tests/document-imports.test.ts` guards `components/documents/`); its hook throws outside the provider. Read context outside core Menu/Dialog/Sheet content and pass props in: on native the overlay host drops the consumer's contexts. — bill-form, human + fix review, eval revise 2
 - A Go line check that reads row-kind cells must match the TS host's required cells; add a Go test case per required cell of each host row kind (the e2e seed is otherwise the first place they meet). — bill-form, retro, p3-bill
@@ -35,3 +36,4 @@
 - A capture manifest reaches a seeded record through the UI or a seeded lookup, never by a fixture id (seed.ts assigns ids); before an action opens a row, check the list's default filters (inactive rows are hidden). — customer-pages, retro, p2-customer-pages
 - The Lists tab keeps its pushed stack across tab switches: after Save and new or a Products visit, return to the hub (goBack / the helper) before `openList`. — customer-pages, retro, p2-customer-pages
 - A form with `resetOptions` must pass explicit options to a Discard: `reset(values, { keepDirtyValues: false })`; a bare `reset()` keeps dirty values. — customer-pages, retro, p2-customer-pages
+- A `max-w-[…]` class does not cap a child inside a ScrollView content container; use `style={{ maxWidth }}`. — estimate-public-link, retro, p2-estimate-public-link
