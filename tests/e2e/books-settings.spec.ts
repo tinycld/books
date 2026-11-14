@@ -600,15 +600,22 @@ test.describe('books-settings: Settings screens', () => {
     }) => {
         await openSettings(page)
         // The section list in screen order, in the wide rail and in the phone list: Sales
-        // sits between Accounting and Numbering (presence and order only; its summary
-        // follows "Sales deposited to", which sales-receipt-form-settings.spec.ts changes).
+        // and Purchases sit between Accounting and Numbering (presence and order only; their
+        // summaries follow settings that sales-receipt-form-settings.spec.ts and
+        // bill-form.spec.ts change).
         const sectionOrder = () =>
             page
                 .locator('[data-testid^="books-settings-section-"]:visible')
                 .evaluateAll(els => els.map(el => el.getAttribute('data-testid')))
-        const order = ['company', 'accounting', 'sales', 'numbering', 'form-1099', 'access'].map(
-            section => `books-settings-section-${section}`
-        )
+        const order = [
+            'company',
+            'accounting',
+            'sales',
+            'purchases',
+            'numbering',
+            'form-1099',
+            'access',
+        ].map(section => `books-settings-section-${section}`)
         await expect.poll(sectionOrder).toEqual(order)
         const historyLength = () => page.evaluate(() => window.history.length)
         const before = await historyLength()

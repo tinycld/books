@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, type Request, test } from '@playwright
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { BILL_REFUSALS } from '../../tinycld/books/lib/bill-form-fixture'
 import { formatDay } from '../../tinycld/books/lib/register-range'
-import { PHONE } from './account-register-helpers'
+import { DESKTOP, PHONE } from './account-register-helpers'
 import {
     accountLineRows,
     BILL_URL,
@@ -12,16 +12,21 @@ import {
     billNumberOf,
     itemLineRows,
     NEW_BILL_URL,
+    openBillBySearch,
     openNewBill,
+    openPurchasesSettings,
     pickBillLineProduct,
     pickBillVendor,
     pickLineAccount,
     postBill,
     reopenByBack,
+    SETTINGS_ROW_PATH,
     searchToBill,
+    setBillLines,
 } from './bill-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
 
 // The bill form and its read view (spec §3.1–§3.12), checkpoint 3. Every bill is made by
 // driving the form with a unique memo (and a unique vendor's bill no. where the number
@@ -47,6 +52,8 @@ const PACIFIC_POWER = 'Pacific Power'
 const OFFICE_SUPPLY_LINE1 = '4120 Commerce Boulevard'
 const ACCESS_POINT = 'Wireless access point'
 const ACCESS_POINT_DESCRIPTION = 'Wi-Fi 6E access point, ceiling mount, PoE powered.'
+const PATCH_CABLE = 'Cat6 patch cable, 10 ft'
+const ITEM_HEADING = 'Product and service details'
 // The delete dialog's title and body are separate elements.
 const DELETE_TITLE = 'Delete this draft bill?'
 const DELETE_BODY = "This can't be undone."
@@ -943,5 +950,201 @@ test.describe('bill-form: phone', () => {
         await page.getByTestId('delete-draft-confirm').click()
         await expect(page).not.toHaveURL(draftUrl)
         await expect(page.getByTestId('bill-form')).toHaveCount(0)
+    })
+})
+
+// Settings → Purchases → Bill lines (spec §3.11), checkpoint 5. The setting is the shared
+// books_settings row: only this file changes it, its tests run in order on one worker,
+// and each test stores "Accounts and products" again before it ends. The restore runs in
+// `afterEach`, not a `finally`: a step that waits out the test timeout closes the page
+// before a `finally` runs, so the restore then fails and hides the first error; an
+// `afterEach` gets its own time on the still open page.
+const SAVE_REFUSAL = 'Books could not save this setting.'
+
+// Every line row of a table anywhere on the page, so a table that is not drawn counts 0.
+function anyLineRows(page: Page, table: 'account_lines' | 'item_lines') {
+    return page.locator(`[data-testid^="form-table-${table}-row-"]`)
+}
+
+async function restoreBillLines(page: Page) {
+    await page.unrouteAll({ behavior: 'wait' })
+    await page.setViewportSize(DESKTOP)
+    await setBillLines(page, 'Accounts and products')
+}
+
+test.describe('bill-form: bill lines setting', () => {
+    test.afterEach(async ({ page }) => {
+        await restoreBillLines(page)
+    })
+
+    test("Accounts only hides the product table but keeps a bill's product lines", async ({
+        page,
+    }) => {
+        const memo = uniqueMemo('Bill lines accounts only')
+        await openBooks(page)
+        // Under the default: a posted bill with one product line (Pacific Power's
+        // default account is inactive, so account line 1 stays empty and is dropped).
+        await openNewBill(page)
+        await pickBillVendor(page, PACIFIC_POWER)
+        await page.getByTestId('form-table-item_lines-add').click()
+        const productLine = await pickBillLineProduct(page, 0, PATCH_CABLE)
+        const item = cellOf(page, 'item_lines', productLine)
+        await expect(item('rate')).toHaveValue('3.10')
+        await item('quantity').fill('5')
+        await page.getByTestId('form-input-memo').fill(memo)
+        const number = await postBill(page)
+        const originalId = billIdFromUrl(page)
+        await expect(page.getByTestId('bill-read-only')).toContainText(PATCH_CABLE)
+
+        // A refused save shows the server's text and keeps the chosen value.
+        await openPurchasesSettings(page)
+        const select = visibleTestId(page, 'books-settings-bill-lines')
+        const save = visibleTestId(page, 'books-settings-bill-lines-save')
+        await expect(select).toContainText('Accounts and products')
+        await page.route(`**${SETTINGS_ROW_PATH}*`, route =>
+            route.request().method() === 'PATCH'
+                ? route.fulfill({
+                      status: 400,
+                      contentType: 'application/json',
+                      body: JSON.stringify({ message: SAVE_REFUSAL, data: {} }),
+                  })
+                : route.fallback()
+        )
+        await select.click()
+        const accountsOnly = page.getByRole('menuitem', { name: 'Accounts only', exact: true })
+        await accountsOnly.click()
+        await expect(accountsOnly).toHaveCount(0)
+        await save.click()
+        await expect(visibleTestId(page, 'books-settings-bill-lines-error')).toContainText(
+            SAVE_REFUSAL
+        )
+        await expect(select).toContainText('Accounts only')
+
+        // Saved once the server answers.
+        await page.unrouteAll({ behavior: 'wait' })
+        const stored = page.waitForResponse(
+            response =>
+                response.request().method() === 'PATCH' &&
+                new URL(response.url()).pathname === SETTINGS_ROW_PATH
+        )
+        await save.click()
+        expect((await stored).status()).toBe(200)
+        await expect(save).toBeDisabled()
+        await expect(visibleTestId(page, 'books-settings-bill-lines-error')).toHaveCount(0)
+
+        // The section list (the phone rows; the wide rail draws no summaries).
+        await page.setViewportSize(PHONE)
+        await visibleTestId(page, 'books-settings-back').click()
+        await expect(visibleTestId(page, 'books-settings-section-purchases')).toContainText(
+            'Bill lines: Accounts only'
+        )
+        await page.setViewportSize(DESKTOP)
+        await leaveSettings(page)
+
+        // New → Bill: Account details with one empty account line, no product table.
+        await openNewBill(page)
+        await expect(page.getByTestId('bill-account-lines-heading')).toHaveText('Account details')
+        await expect(accountLineRows(page)).toHaveCount(1)
+        const line1 = await billLineRowId(page, 'account_lines', 0)
+        await expect(cellOf(page, 'account_lines', line1)('amount')).toHaveValue('')
+        await expect(page.getByTestId('bill-item-lines-heading')).toHaveCount(0)
+        await expect(
+            page.getByTestId('bill-form').getByText(ITEM_HEADING, { exact: true })
+        ).toHaveCount(0)
+        await expect(page.getByTestId('form-table-item_lines-add')).toHaveCount(0)
+
+        // ⌥P adds nothing: the product table registers no keys while it is not shown.
+        const rowMenu = page.getByTestId(`form-table-account_lines-menu-${line1}`)
+        await rowMenu.focus()
+        await expect(rowMenu).toBeFocused()
+        await page.keyboard.press('Alt+p')
+        await expect(anyLineRows(page, 'item_lines')).toHaveCount(0)
+        await expect(page.getByTestId('bill-item-lines-heading')).toHaveCount(0)
+        await expect(accountLineRows(page)).toHaveCount(1)
+
+        // Tab from the row menu: Add account line, then Memo (no product table stops).
+        const addAccount = page.getByTestId('form-table-account_lines-add')
+        await tabTo(page, addAccount)
+        await expect(addAccount).toContainText('Add account line')
+        await tabTo(page, page.getByTestId('form-input-memo'))
+        await page.getByTestId('bill-cancel').click()
+        await expect(page).not.toHaveURL(NEW_BILL_URL)
+
+        // The read view shows every table that has lines, whatever the setting.
+        await openBillBySearch(page, memo)
+        const readView = page.getByTestId('bill-read-only')
+        await expect(readView).toBeVisible()
+        await expect(readView).toContainText(ITEM_HEADING)
+        await expect(readView).toContainText(PATCH_CABLE)
+
+        // E: the correction still shows the product table with its line.
+        await page.keyboard.press('e')
+        await expect(page).toHaveURL(new RegExp(`/books/bills/new\\?replaces=${originalId}$`))
+        await expect(page.getByTestId('bill-title')).toHaveText(`Edit ${number}`)
+        await expect(page.getByTestId('bill-item-lines-heading')).toHaveText(ITEM_HEADING)
+        await expect(itemLineRows(page)).toHaveCount(1)
+        const correctionLine = await billLineRowId(page, 'item_lines', 0)
+        await expect(cellOf(page, 'item_lines', correctionLine)('product')).toContainText(
+            PATCH_CABLE
+        )
+
+        // Once shown in a form session a table stays shown, even after its last line is
+        // removed and the first save replaces the route with the new draft's id.
+        await page.getByTestId(`form-table-item_lines-menu-${correctionLine}`).click()
+        await page.getByRole('menuitem', { name: /^Remove/ }).click()
+        await expect(itemLineRows(page)).toHaveCount(0)
+        await expect(page.getByTestId('bill-item-lines-heading')).toHaveText(ITEM_HEADING)
+        await page.getByTestId('bill-save-draft').click()
+        await expect(page).toHaveURL(BILL_URL)
+        await expect(page.getByTestId('bill-form')).toBeVisible()
+        await expect(page.getByTestId('bill-item-lines-heading')).toHaveText(ITEM_HEADING)
+        await expect(page.getByTestId('form-table-item_lines-add')).toContainText(
+            'Add product line'
+        )
+    })
+
+    test('Products only starts with a product line', async ({ page }) => {
+        const memo = uniqueMemo('Bill lines products only')
+        await openBooks(page)
+        await setBillLines(page, 'Products only')
+        await leaveSettings(page)
+
+        // New → Bill: one empty product line and no account table.
+        await openNewBill(page)
+        await expect(page.getByTestId('bill-item-lines-heading')).toHaveText(ITEM_HEADING)
+        await expect(itemLineRows(page)).toHaveCount(1)
+        await expect(page.getByTestId('bill-account-lines-heading')).toHaveCount(0)
+        await expect(page.getByTestId('form-table-account_lines-add')).toHaveCount(0)
+        await expect(anyLineRows(page, 'account_lines')).toHaveCount(0)
+
+        // Summit's default expense account has no line to fill.
+        await pickBillVendor(page, SUMMIT)
+        await expect(anyLineRows(page, 'account_lines')).toHaveCount(0)
+        await expect(page.getByTestId('bill-account-lines')).toHaveCount(0)
+
+        // Enter in Rate adds product line 2 and focuses its Product picker.
+        const productLine = await pickBillLineProduct(page, 0, ACCESS_POINT)
+        const item = cellOf(page, 'item_lines', productLine)
+        await item('quantity').fill('2')
+        await item('rate').click()
+        await expect(item('rate')).toHaveValue('121.40')
+        await page.keyboard.press('Enter')
+        await expect(itemLineRows(page)).toHaveCount(2)
+        const product2 = await billLineRowId(page, 'item_lines', 1)
+        const search2 = page.getByTestId(
+            `${billCellTestId('item_lines', product2, 'product')}-search`
+        )
+        await expect(search2).toBeFocused()
+        await page.keyboard.press('Escape')
+        await expect(search2).toHaveCount(0)
+
+        // Post; the empty product line 2 is dropped.
+        await page.getByTestId('form-input-memo').fill(memo)
+        await postBill(page)
+        const readView = page.getByTestId('bill-read-only')
+        await expect(readView).toContainText(ACCESS_POINT)
+        await expect(readView).not.toContainText('Account details')
+        await expect(page.getByTestId('bill-total')).toContainText(money(24_280))
+        await expect(page.getByTestId('bill-balance-due')).toContainText(money(24_280))
     })
 })

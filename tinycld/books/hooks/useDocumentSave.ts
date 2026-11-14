@@ -410,6 +410,15 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
 
     const release = (id: string) => useDocumentSaveStore.getState().release(id)
 
+    // A new form's save replaces the route with the saved document's, which mounts its
+    // form again. A draft lands on that form: it starts from the tables this form session
+    // shows (useDocumentForm), so a table whose last line was removed stays shown. A post
+    // lands on the read view, which has no form to start.
+    const replaceWithSaved = (id: string, mode: SaveMode, isDraft = !mode.post) => {
+        if (isDraft) useDocumentSaveStore.getState().keepShownTables(id, state.shownTables)
+        router.replace(savedHref(id, mode))
+    }
+
     const setPosted = (id: string, progress: Progress) => {
         // The status write is no line's: its refusal gets no "Line n" label.
         progress.rowLabel = null
@@ -423,12 +432,12 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const navigateAfter = (id: string, mode: SaveMode) => {
         if (!isPresent()) return
         if (mode.convert) {
-            if (state.isNew) router.replace(savedHref(id, mode))
+            if (state.isNew) replaceWithSaved(id, mode)
             router.push(orgHref(documentNewHref(INVOICE_KIND, { estimate: id })))
         } else if (mode.close) options.leave?.()
         else if (mode.andNew) {
             router.replace(orgHref(postAndNewHref(kind, state.openedWithParty)))
-        } else if (state.isNew) router.replace(savedHref(id, mode))
+        } else if (state.isNew) replaceWithSaved(id, mode)
     }
 
     // The new form's values are now stored: they become its baseline, and its next save
@@ -498,7 +507,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             // Save on this new form would insert the document again.
             if (progress.inserted && !progress.undone) {
                 showClosedRefusal(texts, onError, { error, rowLabel: progress.rowLabel })
-                if (isPresent()) router.replace(savedHref(id, mode))
+                // Its post never ran: the route shows the draft's form.
+                if (isPresent()) replaceWithSaved(id, mode, true)
                 return
             }
             // Nothing is stored: the new form stays with the refusal where it belongs,
