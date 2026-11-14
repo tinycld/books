@@ -21,6 +21,7 @@ import type {
     BooksBills,
     BooksCustomers,
     BooksEstimates,
+    BooksExpenses,
     BooksInvoices,
     BooksInvoiceTaxLines,
     BooksProducts,
@@ -95,11 +96,16 @@ type BillKindFields = { kind: 'bill' } & Pick<
     BooksBills,
     'vendor' | 'terms' | 'due_date' | 'ref_no' | 'mailing_address'
 >
+export type ExpenseKindFields = { kind: 'expense' } & Pick<
+    BooksExpenses,
+    'vendor' | 'paid_from' | 'payment_method' | 'reference_no'
+>
 export type DocumentKindFields =
     | InvoiceKindFields
     | SalesReceiptKindFields
     | EstimateKindFields
     | BillKindFields
+    | ExpenseKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -119,6 +125,10 @@ export type DocumentRecord = SharedColumns & {
               invoiceRow: Pick<BooksInvoices, 'number' | 'status'> | undefined
           })
         | (BillKindFields & { vendorRow: Pick<BooksVendors, 'display_name'> | undefined })
+        | (ExpenseKindFields & {
+              vendorRow: Pick<BooksVendors, 'display_name'> | undefined
+              paidFromRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
+          })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
     taxRateRow: Pick<BooksTaxRates, 'name'> | undefined
@@ -169,12 +179,19 @@ export function copyNeedsPartyRow(
 // chosen; for a bill, the Bill lines setting (which tables a new form shows) and, on a new
 // form opened with `?vendor`, whether the Account picker lists that vendor's default
 // expense account (only then does the first account line start with it; undefined
-// without `?vendor`).
+// without `?vendor`); for an expense, the same and the ids of the active bank and credit
+// card accounts (a copy keeps its source's Paid from only when it is one of them).
 export type DocumentStart =
     | { kind: 'invoice' }
     | { kind: 'sales_receipt'; deposit: CopyDeposit }
     | { kind: 'estimate' }
     | { kind: 'bill'; purchaseLines: PurchaseLines; vendorAccountListed?: boolean }
+    | {
+          kind: 'expense'
+          purchaseLines: PurchaseLines
+          vendorAccountListed?: boolean
+          activePaidFromIds: ReadonlySet<string>
+      }
 
 // What a kind's form starts from besides the document: its start input and the Deposit
 // to rule of its schema (none for an invoice).

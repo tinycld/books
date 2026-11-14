@@ -9,6 +9,7 @@ import {
     BILL_MESSAGES,
     type DocumentMessages,
     ESTIMATE_MESSAGES,
+    EXPENSE_MESSAGES,
     INVOICE_MESSAGES,
     SALES_RECEIPT_MESSAGES,
 } from './document-texts'
@@ -17,7 +18,7 @@ import {
 // forms host (forms/hosts.ts) seeds it too.
 export const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
 
-export type SalesDocKey = 'invoice' | 'sales_receipt' | 'estimate' | 'bill'
+export type SalesDocKey = 'invoice' | 'sales_receipt' | 'estimate' | 'bill' | 'expense'
 
 // How a kind's statuses run (lib/document-lifecycle.ts): `posting` (draft → posted →
 // void) or `quote` (pending / accepted / rejected → closed, never posted).
@@ -273,5 +274,39 @@ export const BILL_KIND: SalesDocumentKind & { messages: typeof BILL_MESSAGES } =
     party: 'vendor',
     lineTables: PURCHASE_LINE_TABLES,
     features: { tax: false, message: false, email: false, pdf: false, partyAddress: true },
+    keepsEmptyLinesOnRefusal: true,
+}
+
+// An expense (expense spec §3.1): money already paid from a bank or credit card account,
+// optionally to a vendor. The bill's two line tables; no tax, message, email, PDF or
+// party address. Its messages keep their own type, so a reader of an expense-only text
+// (duplicateCheckNo) needs no fallback.
+export const EXPENSE_KIND: SalesDocumentKind & { messages: typeof EXPENSE_MESSAGES } = {
+    key: 'expense',
+    lifecycle: 'posting',
+    hostKey: 'books:expense',
+    testId: 'expense',
+    routeBase: 'books/expenses',
+    noun: 'Expense',
+    thisNoun: 'This expense',
+    draftTitle: 'Draft expense',
+    newTitle: 'New expense',
+    shortcutGroup: 'Expense',
+    // The total is what was paid; no row follows Total.
+    figure: { label: 'Amount paid', testId: 'amount-paid' },
+    lastTotal: null,
+    // "No vendor" is a valid choice.
+    customerRequired: false,
+    // An expense has no message; the field is never drawn.
+    noteHints: { message: '', memo: MEMO_HINT },
+    messages: EXPENSE_MESSAGES,
+    // Never called: an expense has no PDF (`features.pdf`); kept so the type holds.
+    pdfStem: number => (number ? `expense-${number}` : 'draft-expense'),
+    // The second band row: Payment method and Ref no.
+    bandSplitAt: 'payment_method',
+    helpTopic: 'books:expenses',
+    party: 'vendor',
+    lineTables: PURCHASE_LINE_TABLES,
+    features: { tax: false, message: false, email: false, pdf: false, partyAddress: false },
     keepsEmptyLinesOnRefusal: true,
 }

@@ -6,6 +6,7 @@ import {
     BILL_KIND,
     DOCUMENT_PARTIES,
     ESTIMATE_KIND,
+    EXPENSE_KIND,
     INVOICE_KIND,
     PURCHASE_LINE_TABLES,
     SALES_LINE_TABLES,
@@ -170,6 +171,42 @@ describe('ESTIMATE_KIND', () => {
 
     it('names its PDF by its number', () => {
         expect(ESTIMATE_KIND.pdfStem('1001')).toBe('estimate-1001')
+    })
+})
+
+// The expense kind (expense spec §3.1-§3.5; plan Decisions "TS names").
+describe('EXPENSE_KIND', () => {
+    it('has an optional vendor and the purchase line tables', () => {
+        expect(EXPENSE_KIND.key).toBe('expense')
+        expect(EXPENSE_KIND.party).toBe('vendor')
+        expect(EXPENSE_KIND.customerRequired).toBe(false)
+        expect(EXPENSE_KIND.lineTables).toBe(PURCHASE_LINE_TABLES)
+    })
+
+    it('has no tax, message, email, PDF or party address', () => {
+        expect(EXPENSE_KIND.features).toEqual({
+            tax: false,
+            message: false,
+            email: false,
+            pdf: false,
+            partyAddress: false,
+        })
+    })
+
+    it('shows Amount paid as the big figure and draws no last totals row', () => {
+        expect(EXPENSE_KIND.figure).toEqual({ label: 'Amount paid', testId: 'amount-paid' })
+        expect(EXPENSE_KIND.lastTotal).toBeNull()
+    })
+
+    it('posts, splits the band at Payment method and groups its keys under "Expense"', () => {
+        expect(EXPENSE_KIND.lifecycle).toBe('posting')
+        expect(EXPENSE_KIND.bandSplitAt).toBe('payment_method')
+        expect(EXPENSE_KIND.shortcutGroup).toBe('Expense')
+    })
+
+    it('keeps empty lines on a refused save and opens its own help topic', () => {
+        expect(EXPENSE_KIND.keepsEmptyLinesOnRefusal).toBe(true)
+        expect(EXPENSE_KIND.helpTopic).toBe('books:expenses')
     })
 })
 

@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { BILL_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
+import {
+    BILL_DOCUMENT,
+    EXPENSE_DOCUMENT,
+} from '../tinycld/books/components/documents/document-kinds'
 import type { DocumentScreenInput } from '../tinycld/books/hooks/document-data'
 import { useDocumentScreen } from '../tinycld/books/hooks/useDocumentScreen'
 import { SETTINGS } from '../tinycld/books/lib/account-register-fixture'
@@ -10,16 +13,30 @@ import { bigFigureText, SALES_RECEIPT_MESSAGES } from '../tinycld/books/lib/docu
 import { documentScreenState } from '../tinycld/books/lib/document-screen-state'
 import { shownDocumentTotals } from '../tinycld/books/lib/document-tax'
 import { lineTableSubtotals } from '../tinycld/books/lib/document-values'
+import { EXPENSE_IDS, EXPENSE_LINES, EXPENSES } from '../tinycld/books/lib/expense-form-fixture'
 import { maxStoredAmount } from '../tinycld/books/lib/money-text'
-import { BILL_KIND, SALES_RECEIPT_KIND } from '../tinycld/books/lib/sales-document-kinds'
-import { VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
+import {
+    BILL_KIND,
+    EXPENSE_KIND,
+    SALES_RECEIPT_KIND,
+} from '../tinycld/books/lib/sales-document-kinds'
+import { VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 import type {
     BooksBillLines,
     BooksBills,
+    BooksExpenseLines,
+    BooksExpenses,
     BooksProducts,
+    BooksSettings,
     BooksVendors,
 } from '../tinycld/books/types'
-import { onDemandStore, seedBooks, settingsStore } from './accounts-form-harness'
+import {
+    accountsStore,
+    onDemandStore,
+    releaseAccountsRead,
+    seedBooks,
+    settingsStore,
+} from './accounts-form-harness'
 import { expectLiveQueryError } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
@@ -427,5 +444,301 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
         act(() => hook.result.current.retry())
         await waitFor(() => expect(hook.result.current.state).toBe('form'))
         expect(hook.result.current.start).toEqual({ kind: 'bill', purchaseLines: 'both' })
+    })
+})
+
+// The expense's states (expense spec §3.9) and the texts its screen shows for them.
+describe('documentScreenState for an expense', () => {
+    // Read inside each test, so a missing kind fails those tests and not the file.
+    const texts = () => EXPENSE_KIND.messages
+
+    it('a non-writer at books/expenses/new gets no-access with the expense text', () => {
+        expect(documentScreenState({ ...NEW, canWrite: false })).toBe('no-access')
+        expect(texts().noAccess).toBe('You need bookkeeper access to create expenses')
+    })
+
+    it('an id with no row is not-found with the expense text', () => {
+        expect(documentScreenState({ ...DRAFT, status: null })).toBe('not-found')
+        expect(texts().notFound).toBe('This expense does not exist')
+    })
+
+    it('a correction of a draft cannot be edited, with the expense text', () => {
+        expect(documentScreenState({ ...NEW, replacesStatus: 'draft' })).toBe('cannot-edit')
+        expect(texts().cannotEdit).toBe('This expense cannot be edited')
+    })
+
+    it('a failed load is the error with the expense text', () => {
+        expect(documentScreenState({ ...DRAFT, isError: true })).toBe('error')
+        expect(texts().loadFailed).toBe('Books could not load this expense.')
+    })
+
+    it('posts: the expense kind has the posting lifecycle', () => {
+        expect(EXPENSE_KIND.lifecycle).toBe('posting')
+        expect(EXPENSE_DOCUMENT.doc).toBe(EXPENSE_KIND)
+    })
+})
+
+// The big figure (Amount paid) over the expense's two tables, summed by the shared helper.
+describe('the expense big figure', () => {
+    const account = (amount: string) => ({ id: `a${amount}`, kind: 'account', amount })
+
+    const figureOf = (values: Record<string, unknown>) =>
+        bigFigureText(shownDocumentTotals(values, null, 'USD', EXPENSE_KIND.lineTables), 'USD')
+
+    it('is a dash while an account amount does not parse', () => {
+        const values = { account_lines: [account('125.00'), account('12..5')], item_lines: [] }
+        expect(figureOf(values)).toBe('—')
+    })
+
+    it('is Too large when the expense total is over the stored-amount limit', () => {
+        const lines = Array.from({ length: 10 }, () => account('10,000,000,000,000.00'))
+        const values = { account_lines: lines, item_lines: [] as unknown[] }
+        const subtotals = lineTableSubtotals(values, EXPENSE_KIND.lineTables)
+        const total = subtotals.reduce((sum, row) => sum + row.cents, 0)
+        expect(total).toBeGreaterThan(maxStoredAmount)
+        expect(figureOf(values)).toBe('Too large')
+    })
+
+    it('is the sum of both tables as money', () => {
+        const values = {
+            account_lines: [account('125.00'), account('-25.00')],
+            item_lines: [
+                { id: 'p1', kind: 'item', product: 'prodwifiap00001', quantity: 2, rate: '121.40' },
+            ],
+        }
+        expect(figureOf(values)).toBe('$342.80')
+    })
+})
+
+// The expense screen's reads over the harness's real collections (expense spec §3.9):
+// each failing read is the error state, and Retry recovers exactly it; a read still
+// loading is the loading state. Paid from reads the harness chart's accounts with their
+// balances (`usePaidFromAccounts`), so a fixture expense's Paid from is mapped onto that
+// chart by number.
+describe('useDocumentScreen(EXPENSE_DOCUMENT)', () => {
+    const lineAccountId = (number: string) => `acc-${number}`
+    const PAID_FROM_IDS: Record<string, string> = {
+        '1000': 'acct_bank_0001',
+        '2100': 'acct_cc_00001',
+    }
+    const paidFromId = (number: string) => {
+        const id = PAID_FROM_IDS[number]
+        if (!id) throw new Error(`no harness account for ${number}`)
+        return id
+    }
+
+    const EXPENSE_ROWS: BooksExpenses[] = EXPENSES.map(({ paid_from_number, ...row }) => ({
+        ...row,
+        paid_from: paidFromId(paid_from_number),
+    }))
+    const LINE_ROWS: BooksExpenseLines[] = EXPENSE_LINES.map(({ account_number, ...line }) => ({
+        ...line,
+        account: account_number ? lineAccountId(account_number) : '',
+    }))
+    const VENDOR_ROWS: BooksVendors[] = VENDORS.map(({ expense_account_number, ...vendor }) => ({
+        ...vendor,
+        expense_account: expense_account_number ? lineAccountId(expense_account_number) : '',
+        name_key: '',
+        sort_key: '',
+    }))
+    const NO_PRODUCTS: BooksProducts[] = []
+
+    type Refusals = {
+        expense?: string
+        lines?: string
+        vendor?: string
+    }
+
+    function seed(
+        opts: { level?: 'read_only' | 'bookkeeper' } & Refusals & {
+                settingsFailsOnce?: boolean
+                settingsNeverReady?: boolean
+                accountsFailsOnce?: boolean
+                accountsNeverReady?: boolean
+                holdAccountsRead?: boolean
+                purchaseLines?: BooksSettings['purchase_lines']
+            } = {}
+    ) {
+        const settings = { ...SETTINGS, purchase_lines: opts.purchaseLines ?? 'both' }
+        seedBooks({
+            level: opts.level,
+            settingsFailsOnce: opts.settingsFailsOnce,
+            settingsNeverReady: opts.settingsNeverReady,
+            accountsFailsOnce: opts.accountsFailsOnce,
+            accountsNeverReady: opts.accountsNeverReady,
+            holdAccountsRead: opts.holdAccountsRead,
+            ledger: { lines: [], entries: [], balances: [], settings: [settings] },
+        })
+        const expenses = onDemandStore<BooksExpenses>('books_expenses', EXPENSE_ROWS, opts.expense)
+        const lines = onDemandStore<BooksExpenseLines>(
+            'books_expense_lines',
+            LINE_ROWS,
+            opts.lines === undefined ? undefined : { field: 'expense', value: opts.lines }
+        )
+        const vendors = onDemandStore<BooksVendors>('books_vendors', VENDOR_ROWS, opts.vendor)
+        onDemandStore<BooksProducts>('books_products', NO_PRODUCTS)
+        return { expenses, lines, vendors }
+    }
+
+    function renderScreen(input: DocumentScreenInput) {
+        return renderHook(() => useDocumentScreen(EXPENSE_DOCUMENT, input))
+    }
+
+    const draftId = EXPENSE_IDS.draft
+    const postedId = EXPENSE_IDS.officeSupply
+    const correctedId = EXPENSE_IDS.pacificPower
+    const postedVendor = EXPENSES.find(row => row.id === postedId)?.vendor ?? ''
+
+    it('opens a writer’s draft in the form and a posted expense in the read view', async () => {
+        seed()
+        const draft = renderScreen({ id: draftId })
+        await waitFor(() => expect(draft.result.current.state).toBe('form'))
+        const posted = renderScreen({ id: postedId })
+        await waitFor(() => expect(posted.result.current.state).toBe('read'))
+    })
+
+    it('gives a non-writer at new the no-access state', async () => {
+        seed({ level: 'read_only' })
+        const hook = renderScreen({ id: null })
+        await waitFor(() => expect(hook.result.current.state).toBe('no-access'))
+    })
+
+    it('gives a missing id the not-found state', async () => {
+        seed()
+        const hook = renderScreen({ id: 'expmissing00001' })
+        await waitFor(() => expect(hook.result.current.state).toBe('not-found'))
+    })
+
+    it('gives ?replaces of a draft the cannot-edit state', async () => {
+        seed()
+        const hook = renderScreen({ id: null, replaces: draftId })
+        await waitFor(() => expect(hook.result.current.state).toBe('cannot-edit'))
+    })
+
+    // The first render is loading for every read, so each loading case waits until every
+    // OTHER read has settled (its data is on the hook) and then reads the state.
+    it('is not loading on a new expense once every read is ready', async () => {
+        seed()
+        const hook = renderScreen({ id: null })
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+    })
+
+    it('is loading while the settings read is not ready', async () => {
+        seed({ settingsNeverReady: true })
+        const hook = renderScreen({ id: null })
+        // Access, tax options and the Paid from accounts have all settled.
+        await waitFor(() => {
+            const screen = hook.result.current
+            const start = screen.start
+            expect(screen.canWrite).toBe(true)
+            expect(screen.taxOptions.isReady).toBe(true)
+            expect(start?.kind === 'expense' && start.activePaidFromIds.size > 0).toBe(true)
+        })
+        expect(hook.result.current.state).toBe('loading')
+    })
+
+    it('is loading while the Paid from accounts read is not ready', async () => {
+        seed({ holdAccountsRead: true, purchaseLines: 'accounts' })
+        const hook = renderScreen({ id: null })
+        // Access, tax options and the settings row (its Purchase lines) have all settled;
+        // only the held accounts read is pending.
+        await waitFor(() => {
+            const screen = hook.result.current
+            const start = screen.start
+            expect(screen.canWrite).toBe(true)
+            expect(screen.taxOptions.isReady).toBe(true)
+            expect(start?.kind === 'expense' && start.purchaseLines).toBe('accounts')
+        })
+        const start = hook.result.current.start
+        expect(start?.kind === 'expense' && start.activePaidFromIds.size).toBe(0)
+        expect(hook.result.current.state).toBe('loading')
+        act(() => releaseAccountsRead())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+    })
+
+    it('shows a refused read of the expense as the error, and Retry recovers it', async () => {
+        const { expenses } = seed({ expense: draftId })
+        expectLiveQueryError(expenses.id)
+        const hook = renderScreen({ id: draftId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        expect(hook.result.current.errorText).toBe('Books could not load this expense.')
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.record?.id).toBe(draftId)
+    })
+
+    it('shows a refused read of the expense’s lines as the error, and Retry recovers it', async () => {
+        const { lines } = seed({ lines: draftId })
+        expectLiveQueryError(lines.id)
+        const hook = renderScreen({ id: draftId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.lines?.map(line => line.id)).toEqual(
+            LINE_ROWS.filter(line => line.expense === draftId).map(line => line.id)
+        )
+    })
+
+    it('shows a refused read of the ?vendor vendor as the error, and Retry recovers it', async () => {
+        const { vendors } = seed({ vendor: VENDOR_IDS.summit })
+        expectLiveQueryError(vendors.id)
+        const hook = renderScreen({ id: null, vendor: VENDOR_IDS.summit })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.party?.id).toBe(VENDOR_IDS.summit)
+    })
+
+    it('shows a refused read of the ?copy source as the error, and Retry recovers it', async () => {
+        const { expenses } = seed({ expense: postedId })
+        expectLiveQueryError(expenses.id)
+        const hook = renderScreen({ id: null, copy: postedId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.startValues).toMatchObject({
+            vendor: postedVendor,
+            paid_from: paidFromId('2100'),
+            payment_method: 'credit_card',
+            reference_no: '',
+        })
+    })
+
+    it('shows a refused read of the ?replaces source as the error, and Retry recovers it', async () => {
+        const { expenses } = seed({ expense: correctedId })
+        expectLiveQueryError(expenses.id)
+        const hook = renderScreen({ id: null, replaces: correctedId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.startValues).toMatchObject({
+            replaces: correctedId,
+            paid_from: paidFromId('1000'),
+            reference_no: '1042',
+        })
+    })
+
+    it('shows a refused settings read as the error, and Retry recovers it', async () => {
+        seed({ settingsFailsOnce: true })
+        expectLiveQueryError(settingsStore().id)
+        const hook = renderScreen({ id: null })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.start).toMatchObject({ kind: 'expense', purchaseLines: 'both' })
+    })
+
+    it('shows a refused Paid from accounts read as the error, and Retry recovers it', async () => {
+        seed({ accountsFailsOnce: true })
+        expectLiveQueryError(accountsStore().id)
+        const hook = renderScreen({ id: null })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        const start = hook.result.current.start
+        if (start?.kind !== 'expense') throw new Error('not an expense start')
+        expect(start.activePaidFromIds.has(paidFromId('1000'))).toBe(true)
+        expect(start.activePaidFromIds.has(paidFromId('2100'))).toBe(true)
+        expect(start.activePaidFromIds.has('acct_ar_00001')).toBe(false)
     })
 })

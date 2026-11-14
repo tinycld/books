@@ -4,6 +4,7 @@ import { defaultDefinitionFor, hostDefSchema } from '@tinycld/core/lib/forms/hos
 import { describe, expect, it } from 'vitest'
 import { AMOUNT_COLUMN_WIDTH } from '../tinycld/books/forms/document-line-cells'
 import hosts, { BILL_HOST_KEY, EXPENSE_HOST_KEY } from '../tinycld/books/forms/hosts'
+import ui from '../tinycld/books/forms/ui'
 import { floored } from '../tinycld/books/lib/document-line-columns'
 import { EXPENSE_REF_HINT } from '../tinycld/books/lib/document-texts'
 import { MEMO_HINT } from '../tinycld/books/lib/sales-document-kinds'
@@ -92,11 +93,12 @@ describe('books:expense forms host', () => {
         expect(builtin('payment_method').component).toBe('RequiredPaymentMethodField')
     })
 
-    it('makes Ref no. a text of at most 40 characters with the check or card hint', () => {
+    it('makes Ref no. a text with the check or card hint and no host length bound', () => {
         const reference = builtin('reference_no')
         expect(reference.label).toBe('Ref no.')
         if (reference.kind !== 'text') throw new Error('Ref no. is not a text built-in')
-        expect(reference.maxLength).toBe(40)
+        // The 40 bound and its text live in lib/document-schema.ts (the migration bounds the column), so core adds no second "is too long" text.
+        expect(reference.maxLength).toBeUndefined()
         expect(EXPENSE_REF_HINT).toBe('Check number or card reference')
         const field = defaultDefinitionFor(expenseHost()).fields.find(f => f.key === 'reference_no')
         expect(field?.description).toBe('Check number or card reference')
@@ -157,5 +159,21 @@ describe('books:expense forms host', () => {
         const memo = defaultDefinitionFor(expenseHost()).fields.find(f => f.key === 'memo')
         expect(memo?.description).toBe(MEMO_HINT)
         expect(MEMO_HINT).toBe('Only your team sees this. Saved as the journal entry memo.')
+    })
+
+    it('names only components the forms UI module provides', () => {
+        const named = expenseHost().builtin.flatMap(b => [
+            ...(b.component ? [b.component] : []),
+            ...(b.columns ?? []).flatMap(c => (c.component ? [c.component] : [])),
+        ])
+        for (const name of [
+            'VendorField',
+            'PaymentAccountField',
+            'DocumentDateField',
+            'RequiredPaymentMethodField',
+        ]) {
+            expect(named, name).toContain(name)
+        }
+        for (const name of named) expect(ui.components[name], name).toBeDefined()
     })
 })

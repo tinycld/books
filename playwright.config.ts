@@ -14,7 +14,20 @@ import appConfig from '@tinycld/core/playwright-config'
 const WS_ROOT = path.resolve(import.meta.dirname, '..')
 const TEST_DIR = path.join(WS_ROOT, 'node_modules', '@tinycld', 'books', 'tests', 'e2e')
 
+// The Purchase lines setting is one value on the shared e2e database. The bill and the
+// expense tests that change it run first, in their own project, so no form test that
+// needs both line tables runs while another worker has the setting changed.
+const PURCHASE_LINES_SETTING = /: (bill|purchase) lines setting/
+
 export default defineConfig({
     ...appConfig,
     testDir: TEST_DIR,
+    projects: [
+        { name: 'purchase-lines-setting', grep: PURCHASE_LINES_SETTING },
+        {
+            name: 'books',
+            grepInvert: PURCHASE_LINES_SETTING,
+            dependencies: ['purchase-lines-setting'],
+        },
+    ],
 })

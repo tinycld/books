@@ -33,6 +33,7 @@ import {
 import { MoneyField } from './money-fields'
 import {
     DepositAccountField,
+    PaymentAccountField,
     PaymentMethodField,
     RequiredPaymentMethodField,
 } from './payment-fields'
@@ -87,6 +88,7 @@ const ui: FormHostUi = {
         PaymentMethodField,
         RequiredPaymentMethodField,
         DepositAccountField,
+        PaymentAccountField,
         EstimateStatusField,
         ExpirationDateField,
         AcceptedByField,
