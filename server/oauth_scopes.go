@@ -62,6 +62,8 @@ func oauthPackage() oauth.Package {
 			"books_estimate_responses":      rw,
 			"books_bills":                   rw,
 			"books_bill_lines":              rw,
+			"books_expenses":                rw,
+			"books_expense_lines":           rw,
 			"books_party_contacts":          rw,
 			"books_party_balances":          ro,
 			"books_account_balances":        ro,

@@ -568,6 +568,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             invoice: 'Invoice',
             sales_receipt: 'Sales receipt',
             bill: 'Bill',
+            expense: 'Expense',
         })
     })
 
@@ -575,6 +576,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
         const docTypes = Object.entries(server.docTypes ?? {})
         expect(docTypes.map(([docType]) => docType).sort()).toEqual([
             'bill',
+            'expense',
             'invoice',
             'sales_receipt',
             'transfer',

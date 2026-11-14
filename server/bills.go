@@ -10,13 +10,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// The bill's forms host (tinycld/books/forms/hosts.ts) and its two line
-// tables: account lines (row kind account, a typed amount) and product lines
-// (row kind item, Qty x Rate).
+// The bill's forms host (tinycld/books/forms/hosts.ts) and its lines
+// collection; its two line tables are the purchase tables of
+// server/purchase_lines.go.
 const (
 	billHostKey         = "books:bill"
-	billAccountLinesKey = "account_lines"
-	billItemLinesKey    = "item_lines"
 	billLinesCollection = "books_bill_lines"
 )
 
@@ -25,60 +23,44 @@ const (
 const docTypeBill = "bill"
 
 // Refusal texts of the bill guards. This group is shown by the client too,
-// with the same words (BILL_MESSAGES, lib/document-texts.ts). PocketBase adds
-// a final period to a text without one; these have theirs. The first %s of a
-// party or line text is a name people typed, which refuseNamed and
-// refuseNamedField keep as written. msgBillProductInactive repeats the words
-// of the shared msgLineProductInactive, which the line guard refuses with, so
-// this list holds every text the bill's client shows.
+// with the same words (BILL_MESSAGES, lib/document-texts.ts), with the line
+// texts of server/purchase_lines.go. PocketBase adds a final period to a text
+// without one; these have theirs. The first %s of a party text is a name
+// people typed, which refuseNamedField keeps as written.
 const (
-	msgBillTotalNegative       = "A bill total cannot be below zero. Use a vendor credit."
-	msgBillZeroTotal           = "A bill total must be more than zero to post."
-	msgBillTotalTooLarge       = "The bill total is more than Books can store."
-	msgBillTooManyLines        = "A bill holds at most 250 lines."
-	msgVendorInactive          = "%s is inactive. Choose an active vendor."
-	msgBillDueBeforeDate       = "Due date can't be before the bill date."
-	msgBillDuplicateRef        = "%s already has bill no. %s (%s)."
-	msgBillAccountInactive     = "Account line %d: %s is inactive. Choose an active account."
-	msgBillAccountNotExpense   = "Account line %d: %s is not an expense account. Choose an expense or cost of goods account."
-	msgBillProductInactive     = "Product line %d: %s is inactive. Choose an active product or service."
-	msgBillProductNotPurchased = "Product line %d: %s is not purchased. Turn on “I purchase this” for it first."
-	msgBillAccountAmountZero   = "Account line %d: Enter an amount other than 0."
-	msgBillRevisionConflict    = "This bill changed after you opened it. Load it again, then review it before you save or post."
+	msgBillTotalNegative    = "A bill total cannot be below zero. Use a vendor credit."
+	msgBillZeroTotal        = "A bill total must be more than zero to post."
+	msgBillTotalTooLarge    = "The bill total is more than Books can store."
+	msgBillTooManyLines     = "A bill holds at most 250 lines."
+	msgVendorInactive       = "%s is inactive. Choose an active vendor."
+	msgBillDueBeforeDate    = "Due date can't be before the bill date."
+	msgBillDuplicateRef     = "%s already has bill no. %s (%s)."
+	msgBillRevisionConflict = "This bill changed after you opened it. Load it again, then review it before you save or post."
 )
 
 // Go-only refusal texts of the bill.
 const (
-	msgBillPostedFromForm     = "A draft bill is posted from the bill form."
-	msgBillNotDraft           = "A posted or void bill cannot be changed."
-	msgBillDeleteNotDraft     = "Only a draft bill can be deleted."
-	msgBillLineStays          = "A line stays on its bill."
-	msgBillLineNotDraft       = "Only the lines of a draft bill can change."
-	msgBillLineRestating      = "Only a line's amount changes while Books restates its bill."
-	msgBillLineUnknownKind    = "Line %d: a bill line is an account line or a product line."
-	msgBillEditMissing        = "The bill being edited does not exist."
-	msgBillAccountLineCells   = "%s: An account line has no product, quantity or rate."
-	msgBillProductLineAccount = "%s: A product line has no account."
+	msgBillPostedFromForm  = "A draft bill is posted from the bill form."
+	msgBillNotDraft        = "A posted or void bill cannot be changed."
+	msgBillDeleteNotDraft  = "Only a draft bill can be deleted."
+	msgBillLineStays       = "A line stays on its bill."
+	msgBillLineNotDraft    = "Only the lines of a draft bill can change."
+	msgBillLineRestating   = "Only a line's amount changes while Books restates its bill."
+	msgBillLineUnknownKind = "Line %d: a bill line is an account line or a product line."
+	msgBillEditMissing     = "The bill being edited does not exist."
 )
 
 // billDraftName names, in a duplicate bill no. refusal, a bill that has no
 // number yet.
 const billDraftName = "a draft bill"
 
-// billAccountTypes are the account types an account line may charge: the
-// expense types. The client's Account picker lists the same types
-// (BILL_ACCOUNT_TYPES).
-var billAccountTypes = map[string]bool{"expense": true, "other_expense": true, "cost_of_goods_sold": true}
-
-// billLineRowLabels names a bill's line by its kind, numbered among the lines
-// of that kind (salesDocKind.LineRowLabels).
-var billLineRowLabels = map[string]string{lineKindAccount: "Account line", lineKindItem: "Product line"}
-
 // billKind is the bill as a purchase document of the shared layer: its party
 // is the vendor, its lines are account lines and product lines, it has no
 // sales tax, and posting credits Accounts payable (which posting creates when
 // the chart has none, ensurePayables) for the total and debits each line's
-// expense account (expenseByAccount).
+// expense account (expenseByAccount). Its BeforePost is set in init: it reads
+// the kind's own lines, and a field of billKind that names billKind is an
+// initialization cycle.
 var billKind = salesDocKind{
 	DocType:            docTypeBill,
 	Lifecycle:          lifecyclePosting,
@@ -87,8 +69,8 @@ var billKind = salesDocKind{
 	TaxLinesCollection: "",
 	ParentField:        "bill",
 	HostKey:            billHostKey,
-	LineTables:         []string{billAccountLinesKey, billItemLinesKey},
-	LineRowLabels:      billLineRowLabels,
+	LineTables:         []string{purchaseAccountLinesKey, purchaseItemLinesKey},
+	LineRowLabels:      purchaseLineRowLabels,
 	Party:              partyVendor,
 	PartyCollection:    "books_vendors",
 	AddressField:       "mailing_address",
@@ -111,7 +93,6 @@ var billKind = salesDocKind{
 		RevisionConflict: msgBillRevisionConflict,
 	},
 	CheckHeader: checkBillHeader,
-	BeforePost:  checkBillLinesToPost,
 	CreditAccount: func(tx core.App, _ *core.Record) (string, error) {
 		payable, err := ensurePayables(tx)
 		if err != nil {
@@ -120,6 +101,12 @@ var billKind = salesDocKind{
 		return payable.Id, nil
 	},
 	LineAccounts: expenseByAccount,
+}
+
+func init() {
+	billKind.BeforePost = func(tx core.App, doc *core.Record) error {
+		return checkPurchaseLinesToPost(tx, billKind, doc)
+	}
 }
 
 // checkBillHeader is the bill's own header guard on a draft write: the bill
@@ -177,115 +164,4 @@ func checkBillRef(tx core.App, r *core.Record) error {
 		other = noun + " " + n
 	}
 	return refuseNamedField("ref_no", msgBillDuplicateRef, vendor.GetString("display_name"), ref, other)
-}
-
-// checkBillAccountLine holds an account line, the nth of its bill's account
-// lines, to the rules of every save: an amount other than 0 (it may be
-// negative), and an account of an expense type. An inactive account passes
-// here and is refused at posting (checkBillLinesToPost); an account that does
-// not exist is the schema's refusal.
-func checkBillAccountLine(tx core.App, r *core.Record, n int) error {
-	if r.GetInt("amount") == 0 {
-		return refuse(msgBillAccountAmountZero, n)
-	}
-	account, err := tx.FindRecordById("books_accounts", r.GetString("account"))
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("books: read the account of account line %d: %w", n, err)
-	}
-	if !billAccountTypes[account.GetString("type")] {
-		return refuseNamed(msgBillAccountNotExpense, n, account.GetString("name"))
-	}
-	return nil
-}
-
-// checkBillLinesToPost refuses to post a bill whose account line names an
-// inactive account, or whose product line names an inactive product or one
-// that is not purchased. A line is numbered among the bill's lines of its
-// kind, in their order. The server accepts lines of both kinds on every bill:
-// it does not read the Bill lines setting.
-func checkBillLinesToPost(tx core.App, doc *core.Record) error {
-	lines, err := docLineRecords(tx, billLinesCollection, "bill", doc.Id)
-	if err != nil {
-		return err
-	}
-	counts := map[string]int{}
-	for _, line := range lines {
-		kind := line.GetString("kind")
-		counts[kind]++
-		n := counts[kind]
-		switch kind {
-		case lineKindAccount:
-			account, err := tx.FindRecordById("books_accounts", line.GetString("account"))
-			if err != nil {
-				return fmt.Errorf("books: read the account of account line %d: %w", n, err)
-			}
-			if account.GetBool("inactive") {
-				return refuseNamed(msgBillAccountInactive, n, account.GetString("name"))
-			}
-		case lineKindItem:
-			product, err := tx.FindRecordById("books_products", line.GetString("product"))
-			if err != nil {
-				return fmt.Errorf("books: read the product of product line %d: %w", n, err)
-			}
-			if product.GetBool("inactive") {
-				return refuseNamed(msgBillProductInactive, n, product.GetString("name"))
-			}
-			if !product.GetBool("purchases") {
-				return refuseNamed(msgBillProductNotPurchased, n, product.GetString("name"))
-			}
-		}
-	}
-	return nil
-}
-
-// expenseByAccount is the bill's LineAccounts: each account debited with the
-// sum of the amounts charged to it (an account line's account; a product
-// line's product's expense account, read now, so a change after the line was
-// saved is the one posted), a sum below zero a credit and a zero sum no line,
-// in chart order.
-//
-// A product line's expense account that is inactive is refused by the first
-// product line that charges it, as incomeByAccount does for a sales kind; an
-// account line's inactive account is refused before (checkBillLinesToPost).
-func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
-	sums := map[string]int64{}
-	firstLine := map[string]documentLineRef{}
-	for i, line := range lines {
-		if !totals.HasAmount[i] {
-			continue
-		}
-		var account string
-		switch line.GetString("kind") {
-		case lineKindAccount:
-			account = line.GetString("account")
-		case lineKindItem:
-			product, err := tx.FindRecordById("books_products", line.GetString("product"))
-			if err != nil {
-				return nil, fmt.Errorf("books: read the product of bill line %d: %w", i+1, err)
-			}
-			// A purchased product requires an expense account (products.go), and
-			// checkBillLinesToPost refuses one that is not purchased.
-			account = product.GetString("expense_account")
-			if account == "" {
-				return nil, fmt.Errorf("books: %s on bill line %d has no expense account", product.GetString("name"), i+1)
-			}
-			if _, seen := firstLine[account]; !seen {
-				firstLine[account] = documentLineRef{
-					n:       i + 1,
-					label:   lineRowLabel(salesDocKind{LineRowLabels: billLineRowLabels}, lines, line),
-					product: product.GetString("name"),
-					msg:     msgLineExpenseAccountInactive,
-				}
-			}
-		default:
-			continue
-		}
-		sums[account] += totals.Amounts[i]
-	}
-	return accountSums(tx, sums, firstLine, func(id string, amount int64) postingLine {
-		return signedLine(id, -amount)
-	})
 }

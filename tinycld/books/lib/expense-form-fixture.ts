@@ -7,23 +7,23 @@
 // Qty x Rate rounded half away from zero to cents, as the server writes it. An expense has
 // no tax, so `subtotal` and `total` are both the sum of every line of both tables.
 //
-// ExpenseRecord and ExpenseLineRecord are LOCAL mirrors of spec §4 (books_expenses,
-// books_expense_lines), because the collections do not exist yet. The migration
-// checkpoint (2100000017_create_books_expenses.js, or the next free number) must replace
-// both with the generated `BooksExpenses` / `BooksExpenseLines` from '../types' and check
-// the rows with `satisfies`, so a row that drifts from the schema fails tsc.
+// The record types are the generated `BooksExpenses` / `BooksExpenseLines`
+// (2100000017_create_books_expenses.js), and the rows are checked with `satisfies`, so a
+// row that drifts from the schema fails tsc.
 //
 // An expense names its Paid from account, and a line its account, by seed account number
 // (`paid_from_number`, `account_number`), as the bill fixture does: the relation id is
 // known only after the seed creates the accounts. The seed maps each number to the created
 // account's id.
 
+import type { BooksExpenseLines, BooksExpenses } from '../types'
 import { INVOICE_USER_IDS } from './invoice-form-fixture'
-import type { PaymentMethodKey } from './payment-methods'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
 import { BILL_ACCOUNT_TYPES } from './purchase-line-columns'
 import { SEED_ACCOUNTS, type SeedAccount } from './seed-accounts'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
+
+export { EXPENSE_REF_HINT } from './document-texts'
 
 export const EXPENSE_CURRENCY = 'USD'
 // "Today" for the reference captures, so default dates are stable.
@@ -31,58 +31,13 @@ export const EXPENSE_TODAY = '2026-11-14'
 
 const STAMP = '2026-11-14 09:00:00.000Z'
 
-export type ExpenseStatus = 'draft' | 'posted' | 'void'
-export type ExpenseLineKind = 'account' | 'item'
+export type ExpenseStatus = BooksExpenses['status']
+export type ExpenseLineKind = BooksExpenseLines['kind']
 
-// Spec §4 books_expenses. Replace with the generated BooksExpenses (see the header).
-export interface ExpenseRecord {
-    id: string
-    // Optional: '' is "No vendor".
-    vendor: string
-    paid_from: string
-    payment_method: PaymentMethodKey
-    // At most 40 characters: a check number or a card reference.
-    reference_no: string
-    status: ExpenseStatus
-    number: string
-    sequence: number
-    // The payment date.
-    date: string
-    memo: string
-    subtotal: number
-    total: number
-    currency: string
-    revision: number
-    entry: string
-    replaces: string
-    replaced_by: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    form: string
-    fields: Record<string, unknown> | null
-    sort_key: string
-    created: string
-    updated: string
-}
-
-// Spec §4 books_expense_lines (as books_bill_lines, parent `expense`). Replace with the
-// generated BooksExpenseLines (see the header).
-export interface ExpenseLineRecord {
-    id: string
-    expense: string
-    kind: ExpenseLineKind
-    account: string
-    product: string
-    description: string
-    quantity: number
-    rate: number
-    amount: number
-    position: number
-    created: string
-    updated: string
-}
+// vendor '' is "No vendor"; date is the payment date; reference_no (at most 40
+// characters) is a check number or a card reference.
+export type ExpenseRecord = BooksExpenses
+export type ExpenseLineRecord = BooksExpenseLines
 
 // `paid_from_number` and `account_number` are fixture columns the seed maps to
 // `paid_from` and `account`.
@@ -142,7 +97,7 @@ function expense(seed: ExpenseSeed): ExpenseFixtureRecord {
     }
 }
 
-export const EXPENSES: ExpenseFixtureRecord[] = [
+export const EXPENSES = [
     expense({
         id: IDS.draft,
         vendor: '',
@@ -207,7 +162,7 @@ export const EXPENSES: ExpenseFixtureRecord[] = [
         voided_by: EXPENSE_USER_IDS.omar,
         voided_at: '2026-10-03 09:25:00.000Z',
     }),
-]
+] satisfies ExpenseFixtureRecord[]
 
 // The expenses the seed writes (spec §4 seed), in this order: posting numbers them 1001,
 // 1002, 1003 in the seeded book; the void one is posted, then voided. The draft is saved
@@ -239,7 +194,7 @@ export const LONG_EXPENSE_DESCRIPTION =
 
 // Positions run per expense across both tables; each table keeps its own order by
 // position.
-export const EXPENSE_LINES: ExpenseLineFixtureRecord[] = [
+export const EXPENSE_LINES = [
     ...lines(IDS.draft, 'drft', [
         {
             kind: 'account',
@@ -289,7 +244,7 @@ export const EXPENSE_LINES: ExpenseLineFixtureRecord[] = [
             amount: 128_000,
         },
     ]),
-]
+] satisfies ExpenseLineFixtureRecord[]
 
 // The Paid from choices of the seeded book (spec §3.3): its active bank and credit card
 // accounts in chart order. A credit card account sets Payment method to Credit card, a
@@ -346,8 +301,6 @@ export const EXPENSE_DIALOGS = {
     },
     void: 'A reversing entry is posted in the original period. The number is kept.',
 } as const
-
-export const EXPENSE_REF_HINT = 'Check number or card reference'
 
 export const NO_EXPENSES: ExpenseFixtureRecord[] = []
 

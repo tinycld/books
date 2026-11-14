@@ -10,6 +10,9 @@ export const NO_CUSTOMER_TEXT = 'No customer'
 // and the text VendorRefField draws on the record.
 export const VENDOR_REF_HINT = "The number on the vendor's bill"
 
+// The hint under an expense's Ref no.: the layout's description (forms/hosts.ts).
+export const EXPENSE_REF_HINT = 'Check number or card reference'
+
 // The party address field's muted text when the picked party has no address, by party
 // (DocumentPartyKey). An invoice's Bill to draws nothing then; a bill's Mailing address
 // says so.
@@ -67,7 +70,8 @@ export type DocumentMessages = {
 }
 
 // The Amount cell of an account line (a bill's), the same on every kind that has one. The
-// server refuses 0 with "Account line <n>: Enter an amount other than 0." (server/bills.go).
+// server refuses 0 with "Account line <n>: Enter an amount other than 0."
+// (server/purchase_lines.go).
 export const ACCOUNT_AMOUNT_MESSAGES = {
     zero: 'Enter an amount other than 0',
     malformed: 'Enter an amount like 1,234.50',
@@ -149,7 +153,8 @@ export const SALES_RECEIPT_MESSAGES = {
 } as const satisfies DocumentMessages & { voidBody: string }
 
 // The bill's texts. The first group is shown by the client and refused by the server with
-// the same words (server/bills.go); tests/document-messages.test.ts fails when they drift.
+// the same words (server/bills.go, and the line texts in server/purchase_lines.go);
+// tests/document-messages.test.ts fails when they drift.
 // PocketBase adds a final period to a server text that has none, so the field rule
 // `dueBeforeDate` has none here. A bill's party is a vendor: the `customer…` keys of the
 // shared layer hold the vendor's texts. A bill has no percent lines, bundles or PDF; the
