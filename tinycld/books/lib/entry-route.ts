@@ -3,10 +3,12 @@ import type { BooksJournalEntries } from '../types'
 // Paths without the org prefix; callers pass them through `useOrgHref`.
 type RoutedEntry = Pick<BooksJournalEntries, 'id' | 'doc_type' | 'origin' | 'document'>
 
-// The screen of each sales document type, by the entry's doc_type.
+// The screen of each posting document type, by the entry's doc_type. An estimate
+// posts no entry, so it has none.
 const DOCUMENT_ROUTES = new Map<string, string>([
     ['invoice', 'books/invoices'],
     ['sales_receipt', 'books/sales-receipts'],
+    ['bill', 'books/bills'],
 ])
 
 // A document's entry (origin 'document') is posted from its document and opens there:
@@ -16,7 +18,7 @@ function documentRoute(entry: RoutedEntry): string | null {
     return DOCUMENT_ROUTES.get(entry.doc_type) ?? null
 }
 
-// A transfer's or a sales document's void reversal keeps its doc_type, yet no one made
+// A transfer's or a document's (invoice, sales receipt, bill) void reversal keeps its doc_type, yet no one made
 // it as that document: its own screen would show it with the sides swapped, so it opens
 // as an entry.
 export function entryHref(entry: RoutedEntry): string {
@@ -29,7 +31,7 @@ export function entryHref(entry: RoutedEntry): string {
 }
 
 // The server refuses a correction whose type or origin differs from the original's, so
-// each kind is edited in its own form. A sales document's entry is corrected by editing
+// each kind is edited in its own form. A document's entry is corrected by editing
 // the document, which posts the correction under the same number.
 export function entryEditHref(entry: RoutedEntry): string {
     const route = documentRoute(entry)

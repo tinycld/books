@@ -104,6 +104,58 @@ export async function postBill(page: Page): Promise<string> {
     return billNumberOf(page)
 }
 
+// A bill's search option title: "Draft bill · <Vendor>", or "Bill <n> · <Vendor>" ("Bill
+// <n> (void) · <Vendor>" for a void one). A bill always has a vendor.
+const BILL_OPTION_TITLE = /^(Draft bill|Bill \d+( \(void\))?) · \S.*$/
+
+function escapeRegExp(text: string) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// The palette's options whose title line is the whole title: "Bill 12 · …" never
+// matches "Bill 112 · …", and an option's subtitle never counts.
+function optionsTitled(page: Page, title: RegExp) {
+    return page.getByRole('option').filter({ has: page.getByText(title) })
+}
+
+// Opens core's search palette (`/`) and searches the term. Waits for the search answer.
+async function searchPalette(page: Page, term: string) {
+    await page.keyboard.press('/')
+    // The palette focuses its input a frame after it shows; keys typed before that frame
+    // are lost.
+    const input = page.getByRole('dialog', { name: 'Search' }).getByRole('textbox')
+    await expect(input).toBeFocused()
+    const searched = page.waitForResponse(
+        r =>
+            r.url().includes('/api/search') &&
+            r.status() === 200 &&
+            new URL(r.url()).searchParams.get('q') === term
+    )
+    await page.keyboard.type(term)
+    await searched
+}
+
+// Searches the term and picks the one option whose title is exactly `title`. Waits only
+// for the bill's route, not for it to load.
+export async function searchToBill(page: Page, term: string, title: string) {
+    await searchPalette(page, term)
+    const option = optionsTitled(page, new RegExp(`^${escapeRegExp(title)}$`))
+    await expect(option).toHaveCount(1)
+    await option.click()
+    await expect(page).toHaveURL(BILL_URL)
+}
+
+// Reopens a bill through core's search palette (`/`), by a term only one bill matches
+// (a unique memo): a draft in the form, a posted or void bill in the read view.
+export async function openBillBySearch(page: Page, term: string) {
+    await searchPalette(page, term)
+    const option = optionsTitled(page, BILL_OPTION_TITLE)
+    await expect(option).toHaveCount(1)
+    await option.click()
+    await expect(page).toHaveURL(BILL_URL)
+    await expect(page.getByTestId('bill-form').or(page.getByTestId('bill-read-only'))).toBeVisible()
+}
+
 // Desktop. Reopens the saved draft on screen without search: leaves through the sidebar's
 // Journal Entries item (not the form's back link, which leaves through the layer's own
 // route), then Back (a same-document popstate) returns to the draft's form.
