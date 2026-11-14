@@ -1,15 +1,18 @@
 // Synthetic data for the customer page (spec docs/specs/customer-pages-design.md): the
-// helix reference route reads it directly, and the checkpoint that creates
-// books_party_contacts wires CUSTOMER_PAGE_CONTACTS into seed.ts. Customers come from
-// customer-form-fixture.ts (fixture ids; the seed maps them to the server's ids).
+// helix reference route reads it directly, and seed.ts creates CUSTOMER_PAGE_CONTACTS
+// (seedPartyContacts). Customers come from customer-form-fixture.ts (fixture ids; the
+// seed maps them to the server's ids).
 //
-// The sales documents are typed with `satisfies` against the generated row types, so
-// tsc checks every column the page reads. The two collections this unit adds do not
-// exist yet: PartyBalanceRecord and PartyContactRecord mirror spec §4 and must be
-// replaced by the generated `BooksPartyBalances` / `BooksPartyContacts` (from
-// `../types`) in the checkpoint that adds their migrations.
+// Every row is typed with `satisfies` against the generated row types, so tsc checks
+// every column the page reads.
 
-import type { BooksEstimates, BooksInvoices, BooksSalesReceipts } from '../types'
+import type {
+    BooksEstimates,
+    BooksInvoices,
+    BooksPartyBalances,
+    BooksPartyContacts,
+    BooksSalesReceipts,
+} from '../types'
 import { CUSTOMER_IDS } from './customer-form-fixture'
 
 // The day the reference is drawn on: Overdue and Expired are computed against it.
@@ -17,28 +20,12 @@ export const CUSTOMER_PAGE_TODAY = '2026-11-13'
 
 const STAMP = '2026-11-01 09:00:00.000Z'
 
-// Replace with the generated BooksPartyBalances (spec §4: a view, row id = customer id,
-// balance in integer cents, debits minus credits, so a credit is negative).
-export interface PartyBalanceRecord {
-    id: string
-    customer: string
-    balance: number
-}
+// A view row (spec §4): row id = customer id, balance in integer cents, debits minus
+// credits, so a credit is negative.
+export type PartyBalanceRecord = BooksPartyBalances
 
-// Replace with the generated BooksPartyContacts (spec §4: exactly one of customer and
-// vendor is set).
-export interface PartyContactRecord {
-    id: string
-    customer: string
-    vendor: string
-    name: string
-    role: string
-    email: string
-    phone: string
-    is_primary: boolean
-    created: string
-    updated: string
-}
+// Exactly one of customer and vendor is set (spec §4).
+export type PartyContactRecord = BooksPartyContacts
 
 type InvoiceRow = Pick<
     BooksInvoices,
@@ -291,15 +278,15 @@ export const CUSTOMER_PAGE_SALES_RECEIPTS = [
 // Harborview 1,250,000 + 342,575 + 918,040 + 215,000 + 56,250 = 2,781,865 cents, of which
 // 1,189,290 is overdue. Alvarez has a credit (a negative balance). Northwind has no row,
 // so its Open is $0.00.
-export const CUSTOMER_PAGE_BALANCES: PartyBalanceRecord[] = [
+export const CUSTOMER_PAGE_BALANCES = [
     { id: HARBOR, customer: HARBOR, balance: 2_781_865 },
     { id: ST_JUDE, customer: ST_JUDE, balance: 12_480_000 },
     { id: ALVAREZ, customer: ALVAREZ, balance: -12_000 },
-]
+] satisfies BooksPartyBalances[]
 
 function contact(
-    seed: Pick<PartyContactRecord, 'id' | 'customer' | 'name'> & Partial<PartyContactRecord>
-): PartyContactRecord {
+    seed: Pick<BooksPartyContacts, 'id' | 'customer' | 'name'> & Partial<BooksPartyContacts>
+): BooksPartyContacts {
     return {
         vendor: '',
         role: '',
@@ -315,7 +302,7 @@ function contact(
 // Contacts for three seeded customers. Harborview has a primary, a long role and a long
 // email; Northwind has a primary only; Alvarez has one contact with a phone and no email.
 // Stored unordered: the page sorts primary first, then by name.
-export const CUSTOMER_PAGE_CONTACTS: PartyContactRecord[] = [
+export const CUSTOMER_PAGE_CONTACTS = [
     contact({
         id: 'cpcontact000002',
         customer: HARBOR,
@@ -356,7 +343,7 @@ export const CUSTOMER_PAGE_CONTACTS: PartyContactRecord[] = [
         role: 'Site contact',
         phone: '(415) 555-0187',
     }),
-]
+] satisfies BooksPartyContacts[]
 
 // The notes of the Notes tab's dirty state: an edit of Harborview's stored notes.
 export const CUSTOMER_PAGE_EDITED_NOTES =

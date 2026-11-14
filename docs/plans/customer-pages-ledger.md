@@ -32,12 +32,12 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · reviewer A NOTE: server/party_contacts.go — the update hook binds its own `serializedThen` because `bindSerializedGuardThen` (server/guards.go) runs its after-step on create only; this is a second pattern for a serialized guard with an update after-step. Optional: give `bindSerializedGuardThen` an update after-step, or name party_contacts.go in a guards.go comment.
+- cp 1 · reviewer A NOTE: server/party_contacts.go `clearOtherPrimaries` saves each cleared contact with `tx.Save`, which re-runs the contact guard (one extra `FindRecordById` per cleared row, nested transaction). Correct; a party has at most one other primary. No fix proposed.
+- cp 1 · reviewer A NOTE: server/party_contacts_test.go `TestPartyContacts_ReaderCannotCreate` asserts status 400 and a count of 0, not the response body; the body is valid (same shape as the writer tests), so the rule is the only cause. Optional: drop the redundant `FindCollectionByNameOrId` check in its `after`.
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- cp 1 · `tinycld/books/types.ts`: re-exports `BooksPartyBalances` and `BooksPartyContacts` from the generated schema. The fixture and `tests/customer-page-fixture.test.ts` import them from `../types`, which re-exports by name; tsc fails without it. Found by both reviewers; accepted. A later plan that adds a migration names `types.ts` in its Files block.
 
 ## Phase notes
 - phase 1: unattended; no corrections. Extractions, triage and `[?]` list in the staging intake.md, carried by the design packet.
@@ -58,6 +58,21 @@ and again at the end)
   - accepted, not e2e-tested (named in the plan's decisions and each spec header): read-only users (no seeded reader), a reversal moving Open (Go test covers it), the window growing by 50, phone tab strip scroll-into-view (gate 2), "This contact was removed", the `mailto:`/`tel:` targets.
   - Estimate "Expired" replaces the status label, as `lib/estimate-status.ts` defines it (the reviewer asked whether "plus" means both; the existing Books display is kept).
 - review mode switches: none
+
+## Checkpoint 1 — Party balances and contacts data
+- test writer: server/party_balances_test.go, server/party_contacts_test.go, tests/customer-page-fixture.test.ts (new); server/oauth_scopes_test.go, server/registrations_test.go, tests/collections.test.ts (changed); 22 tests. Red for the right reason: yes (Go: undefined `partyBalancesView` / `registerPartyBalances`, missing-behavior reds shown with a temporary stub; vitest: collection names missing). Exception: tests/customer-page-fixture.test.ts is red at tsc only (no `BooksPartyBalances` / `BooksPartyContacts` in `../types`); its four data assertions already hold on the phase-3 fixture, which is what they pin. `TestRegister_BindsEachPartOnce` cannot catch a missing `registerPartyBalances` (it binds no hooks); `TestRegister_RegistersThePartyBalancesView` covers that. untestable: none
+- implementer: both migrations, server/party_balances.go, server/party_contacts.go (one-party and party-exists guards, primary clearing in the same serialized transaction on create and update), register/ledger/audit/oauth wiring, two client collections, fixture on generated types with `satisfies`, `seedPartyContacts` after `seedEstimates` (primaries last); proved red by removing the `Register` call and the update after-step; DONE
+- test disputes: none
+- self-declared differences: (1) the contact guard binds its own create and update `serializedThen` hooks, because `bindSerializedGuardThen` runs `after` on create only (verified, server/guards.go); (2) clearing saves other contacts with `tx.Save` so realtime events reach clients; (3) both client collections carry `collectionOptions: indexed`, contacts `omitOnInsert: ['created','updated']`, as every Books collection; (4) contacts collection id `pbc_books_party_contacts`; (5) migration 15 Down removes the index by name; (6) seed sends `vendor: ''`; the seed is not run in this checkpoint (no e2e)
+- gate 1: tests unedited: yes · `packages:generate` ok · `tinycld-pkg check` pass (250 files / 4990 tests) · `go test ./...` ok · e2e: n/a (nothing renders; no customer-pages spec yet)
+- gate 2: n/a
+- gate 3 A (correctness): 0 BLOCK, 5 NOTE: types.ts out of plan (→ Out-of-plan changes); audit.go header comment line of ~115 columns → fixed by the loop (comment rewrap, file already in the checkpoint); three NOTEs → Design notes
+- gate 3 B (conformance): script lines: 0 · 1 finding: types.ts out of plan → accepted, kept, recorded under Out-of-plan changes
+- fix review: n/a (no accepted finding changed code; the only edit is the reviewer-A comment rewrap the loop applies to a NOTE)
+- gate 3 A notes: 3, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: see git log (feat(books): party balances view and party contacts data)
+- human: none (review mode C)
 
 ## Final review
 - eval:

@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 
+	"tinycld.org/core/changesignal"
 	"tinycld.org/core/oauth"
 	"tinycld.org/core/offboard"
 	"tinycld.org/core/quota"
@@ -56,6 +57,7 @@ func resetRegistries(t testing.TB) {
 	t.Cleanup(search.ResetSources)
 	t.Cleanup(offboard.ResetHandlersForTesting)
 	t.Cleanup(quota.ResetSourcesForTesting)
+	t.Cleanup(changesignal.ResetForTesting)
 }
 
 // newRegisteredApp is a migrated app wired by Register, as production wires
@@ -849,6 +851,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)
 	registerReportShares(parts)
+	registerPartyBalances()
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
