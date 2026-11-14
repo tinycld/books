@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { COMPANY_SETTINGS } from '../tinycld/books/lib/books-settings-fixture'
 import {
     closeDateSchema,
     closeDateValue,
@@ -7,6 +8,8 @@ import {
     fiscalYearSchema,
     isReopening,
     overrideSchema,
+    purchaseLinesSchema,
+    purchaseLinesValues,
     salesDepositSchema,
     sequenceSchema,
     sequenceUpdate,
@@ -239,6 +242,33 @@ describe('defaultMessageSchema', () => {
     it('refuses 4001 code points with the too-long text', () => {
         expect(messageIssues('a'.repeat(4001))).toEqual([TOO_LONG])
         expect(messageIssues('😀'.repeat(4001))).toEqual([TOO_LONG])
+    })
+})
+
+// Bill form spec §3.11: "Bill lines" is one of three values.
+describe('purchaseLinesSchema', () => {
+    const ok = (purchase_lines: string) => purchaseLinesSchema.safeParse({ purchase_lines }).success
+
+    it('accepts both, accounts and products', () => {
+        expect(ok('both')).toBe(true)
+        expect(ok('accounts')).toBe(true)
+        expect(ok('products')).toBe(true)
+    })
+
+    it('refuses any other value and an empty one', () => {
+        expect(ok('all')).toBe(false)
+        expect(ok('')).toBe(false)
+    })
+})
+
+describe('purchaseLinesValues', () => {
+    it("reads the row's purchase_lines", () => {
+        expect(purchaseLinesValues({ ...COMPANY_SETTINGS, purchase_lines: 'products' })).toEqual({
+            purchase_lines: 'products',
+        })
+        expect(purchaseLinesValues({ ...COMPANY_SETTINGS, purchase_lines: 'accounts' })).toEqual({
+            purchase_lines: 'accounts',
+        })
     })
 })
 

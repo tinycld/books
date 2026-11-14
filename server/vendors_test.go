@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -342,6 +343,35 @@ func TestVendor_DeleteIsAllowed(t *testing.T) {
 	if n, _ := app.CountRecords("books_vendors"); n != 0 {
 		t.Errorf("%d vendors after the delete, want 0", n)
 	}
+}
+
+// Spec §3.10: a vendor on any bill, draft or posted, cannot be deleted. The
+// bills check comes before the journal-lines one, so a vendor on a posted
+// bill (and so on its journal lines) gets the bills text.
+func TestVendor_DeleteRefusedWhileOnBills(t *testing.T) {
+	wantOnBills := func(name string) string { return name + " is on bills. Make it inactive instead." }
+
+	t.Run("on a draft bill", func(t *testing.T) {
+		be := newBillEnv(t)
+		bill := mkBill(t, be.app, be.officeSupply, nil)
+		mkBillLine(t, be.app, bill, 0, accountLine(be.designTools, 4000))
+		requireMessageOnlyRefusal(t, be.app.Delete(reload(t, be.app, "books_vendors", be.officeSupply.Id)),
+			wantOnBills("Office Supply World"))
+		reload(t, be.app, "books_vendors", be.officeSupply.Id)
+	})
+
+	t.Run("on a posted bill, so also on journal lines, gets the bills text", func(t *testing.T) {
+		be := newBillEnv(t)
+		bill := mkBill(t, be.app, be.summit, nil)
+		mkBillLine(t, be.app, bill, 0, accountLine(be.software, 12500))
+		posted := mustPostBill(t, be.app, bill.Id, be.users.bookkeeper.Id)
+		if n, err := be.app.CountRecords("books_journal_lines", dbx.HashExp{"entry": posted.GetString("entry"), "vendor": be.summit.Id}); err != nil || n == 0 {
+			t.Fatalf("%d journal lines of the posted bill name the vendor (err %v), want some", n, err)
+		}
+		requireMessageOnlyRefusal(t, be.app.Delete(reload(t, be.app, "books_vendors", be.summit.Id)),
+			wantOnBills("Summit IT Services"))
+		reload(t, be.app, "books_vendors", be.summit.Id)
+	})
 }
 
 func TestVendor_DeletingItsAccountClearsTheExpenseAccount(t *testing.T) {

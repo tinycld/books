@@ -7,8 +7,8 @@ import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 
 interface DocumentShortcutsInput {
     // The kind's shortcut group, the prefix of the key ids, and its lifecycle (which bar
-    // the form draws).
-    kind: Pick<SalesDocumentKind, 'key' | 'shortcutGroup' | 'lifecycle' | 'noun'>
+    // the form draws), and its features (⌘P only with a PDF).
+    kind: Pick<SalesDocumentKind, 'key' | 'shortcutGroup' | 'lifecycle' | 'noun' | 'features'>
     isSaving: boolean
     // The form's Delete is offered: a saved posting draft (Delete draft), or a saved
     // quote that is not closed (Delete estimate).
@@ -48,6 +48,8 @@ interface KeyListInput {
     // The kind's noun ("Estimate"), which names its Delete.
     noun: string
     isPhone: boolean
+    // The kind has a PDF: only then is ⌘P registered.
+    hasPdf: boolean
     // Whether a quote's Convert and Delete are offered now: their keys are registered only
     // then, as the ⇧? list ignores `when`.
     canConvert: boolean
@@ -99,8 +101,10 @@ function idleSaveKey(
     }
 }
 
-function downloadPdfKey({ idOf, group, state, run }: KeyListInput): Shortcut {
-    return {
+// ⌘P, as a list of none or one: a kind without a PDF leaves the key to the browser.
+function downloadPdfKeys({ idOf, group, state, run, hasPdf }: KeyListInput): Shortcut[] {
+    if (!hasPdf) return []
+    const key: Shortcut = {
         id: idOf('downloadPdf'),
         keys: DOCUMENT_PDF_KEY,
         scope: 'compose',
@@ -111,6 +115,7 @@ function downloadPdfKey({ idOf, group, state, run }: KeyListInput): Shortcut {
             if (state.current.canDownloadPdf) run.current.downloadPdf()
         },
     }
+    return [key]
 }
 
 function postingKeys(input: KeyListInput): Shortcut[] {
@@ -126,7 +131,7 @@ function postingKeys(input: KeyListInput): Shortcut[] {
     const keys = [
         deleteDraft,
         idleSaveKey(input, FORM_KEYS.saveDraft, 'Save draft'),
-        downloadPdfKey(input),
+        ...downloadPdfKeys(input),
     ]
     if (!isPhone) return keys
     const postAndNew = writeKey(input, 'postAndNew', FORM_KEYS.postAndNew, 'Post & new', () =>
@@ -137,7 +142,7 @@ function postingKeys(input: KeyListInput): Shortcut[] {
 
 function quoteKeys(input: KeyListInput): Shortcut[] {
     const { run, isPhone, canConvert, canDelete } = input
-    const keys = [idleSaveKey(input, QUOTE_FORM_KEYS.save, 'Save'), downloadPdfKey(input)]
+    const keys = [idleSaveKey(input, QUOTE_FORM_KEYS.save, 'Save'), ...downloadPdfKeys(input)]
     if (!isPhone) return keys
     const save = writeKey(input, 'save', QUOTE_FORM_KEYS.save, 'Save', () => run.current.save())
     const saveAndNew = writeKey(input, 'saveAndNew', QUOTE_FORM_KEYS.saveAndNew, 'Save & new', () =>
@@ -189,8 +194,9 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
  *   idle then, and the browser's Save Page would open. This one takes the key and does
  *   nothing. The ⇧? list shows the save for both registrations, as it groups by keys and
  *   does not read `when`.
- * - ⌘P Download PDF: the row sits in More. The key is always taken, so the browser's
- *   Print never opens; it downloads only when the row would take a press.
+ * - ⌘P Download PDF, on a kind with a PDF (`features.pdf`): the row sits in More. The
+ *   key is always taken, so the browser's Print never opens; it downloads only when the
+ *   row would take a press. A kind without a PDF registers no ⌘P.
  *
  * The state is read at press time through a ref, so a render never re-registers; the id
  * is per instance, so a form replacing another cannot unregister the new one's keys.
@@ -225,19 +231,21 @@ export function useDocumentShortcuts({
     const runRef = useRef<KeyRuns>(runs)
     runRef.current = runs
     const { key: kindKey, shortcutGroup: group, lifecycle, noun } = kind
+    const hasPdf = kind.features.pdf
     const shortcuts = useMemo<Shortcut[]>(() => {
         const input: KeyListInput = {
             idOf: name => `books.${kindKey}.form.${instance}.${name}`,
             group,
             noun,
             isPhone,
+            hasPdf,
             canConvert,
             canDelete,
             state: stateRef,
             run: runRef,
         }
         return lifecycle === 'quote' ? quoteKeys(input) : postingKeys(input)
-    }, [instance, isPhone, kindKey, group, noun, lifecycle, canConvert, canDelete])
+    }, [instance, isPhone, hasPdf, kindKey, group, noun, lifecycle, canConvert, canDelete])
     useRegisterShortcuts(shortcuts, scopeOwner)
     return { scopeOwner }
 }

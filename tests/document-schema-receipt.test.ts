@@ -284,7 +284,7 @@ function ReceiptProbe({ seen }: { seen: { current: Seen | null } }) {
     const state = useDocumentForm(SALES_RECEIPT_DOCUMENT, {
         record: undefined,
         lines: [],
-        customer: undefined,
+        party: undefined,
         currency: SALES_RECEIPT_CURRENCY,
         taxRows: [],
     })

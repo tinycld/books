@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -21,18 +22,37 @@ const (
 	msgTaxIDType              = "Choose whether the tax ID is an EIN or an SSN."
 )
 
+// msgVendorOnBills refuses deleting a vendor that a bill, draft or posted,
+// names. The bill's vendor is a required relation, so PocketBase would refuse
+// the delete with a generic reference error.
+const msgVendorOnBills = "%s is on bills. Make it inactive instead."
+
 // The vendor guard reads other vendors and the expense account inside
 // serialized, so no other write can commit between the check and the write
-// it allows. The delete guard counts the journal lines that name the vendor
-// inside serialized, so no line write can commit between the count and the
-// delete.
+// it allows. The delete guard counts the bills and the journal lines that
+// name the vendor inside serialized, so no bill or line write can commit
+// between the count and the delete.
 func registerVendorGuard(app core.App) {
 	bindSerializedGuard(app, "books_vendors", validateVendor)
 	app.OnRecordDelete("books_vendors").BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
-			return refusePartyOnLines(tx, "vendor", e.Record)
+			return checkVendorDelete(tx, e.Record)
 		})
 	})
+}
+
+// checkVendorDelete counts the vendor's bills before its journal lines: a
+// posted bill's entry names the vendor on every line, and the bills text says
+// what holds the vendor.
+func checkVendorDelete(tx core.App, vendor *core.Record) error {
+	bills, err := tx.CountRecords(billKind.Collection, dbx.HashExp{"vendor": vendor.Id})
+	if err != nil {
+		return fmt.Errorf("books: count the bills of vendor %s: %w", vendor.Id, err)
+	}
+	if bills > 0 {
+		return refuseNamed(msgVendorOnBills, vendor.GetString("display_name"))
+	}
+	return refusePartyOnLines(tx, "vendor", vendor)
 }
 
 // validateVendor stores the display name trimmed, then checks the address,

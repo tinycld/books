@@ -782,6 +782,70 @@ func TestAccount_DeleteRefusedWhileReceiptsDepositToIt(t *testing.T) {
 	}
 }
 
+// Spec §3.10: an account on a bill's account line, draft or posted, cannot be
+// deleted; the count is of bills, not of lines. A product line names no
+// account: an account that is only a product's expense account is held by the
+// product guard, with its own text.
+func TestAccount_DeleteRefusedWhileOnBillAccountLines(t *testing.T) {
+	be := newBillEnv(t)
+	app := be.app
+	utilities := mkNumberedAccount(t, app, "Utilities", "6300", "expense", "utilities")
+
+	deleteUtilities := func() error {
+		return app.Delete(reload(t, app, "books_accounts", utilities.Id))
+	}
+
+	// Two account lines of one draft bill count one bill.
+	first := mkBill(t, app, be.summit, nil)
+	mkBillLine(t, app, first, 0, accountLine(utilities, 8000))
+	mkBillLine(t, app, first, 1, accountLine(utilities, 2500))
+	requireMessageOnlyRefusal(t, deleteUtilities(),
+		"This account is on 1 bill and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", utilities.Id)
+
+	for _, vendor := range []*core.Record{be.officeSupply, be.summit} {
+		bill := mkBill(t, app, vendor, nil)
+		mkBillLine(t, app, bill, 0, accountLine(utilities, 1500))
+	}
+	requireMessageOnlyRefusal(t, deleteUtilities(),
+		"This account is on 3 bills and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", utilities.Id)
+
+	// Freight is only the expense account of a product on a bill's product line.
+	freight := mkNumberedAccount(t, app, "Freight", "6400", "cost_of_goods_sold", "freight_delivery")
+	wrap, err := newProduct(app, map[string]any{
+		"type": "non_inventory", "name": "Pallet wrap", "income_account": be.revenue.Id,
+		"purchases": true, "expense_account": freight.Id, "cost": 1200,
+	})
+	if err != nil {
+		t.Fatalf("save Pallet wrap: %v", err)
+	}
+	wrapped := mkBill(t, app, be.officeSupply, nil)
+	mkBillLine(t, app, wrapped, 0, productLine(wrap, 3, 1200))
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", freight.Id)),
+		"This account is used by 1 product or service and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", freight.Id)
+	// The product guard answers first, so ask the line guard itself: the
+	// product line names no account and holds no bill on Freight.
+	if err := refuseAccountOnLines(app, freight); err != nil {
+		t.Errorf("the line guard counts a product line by its product's expense account: %v", err)
+	}
+
+	// Once the product names another expense account, nothing holds Freight:
+	// the draft's product line does not count as a bill on Freight, and a
+	// draft has no journal lines, so the delete goes through.
+	shipping := mkNumberedAccount(t, app, "Shipping", "6410", "cost_of_goods_sold", "freight_delivery")
+	if err := setFields(t, app, "books_products", wrap.Id, map[string]any{"expense_account": shipping.Id}); err != nil {
+		t.Fatalf("move Pallet wrap to Shipping: %v", err)
+	}
+	if err := app.Delete(reload(t, app, "books_accounts", freight.Id)); err != nil {
+		t.Fatalf("deleting Freight, named by no product and no account line, was refused: %v", err)
+	}
+	if n, err := app.CountRecords("books_bill_lines", dbx.HashExp{"bill": wrapped.Id}); err != nil || n != 1 {
+		t.Errorf("%d lines on the Pallet wrap bill after the delete (err %v), want its product line kept", n, err)
+	}
+}
+
 // An active account is never below an inactive parent: the chart hides an
 // inactive account with everything under it.
 

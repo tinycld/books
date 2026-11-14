@@ -196,10 +196,12 @@ func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	app := newBooksApp(t)
 	// Estimates never post, so only the sequences know the estimate doc type.
-	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt"}
+	// The lists are compared sorted: where a new doc type lands in the select
+	// is not a rule.
+	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill"}
 	want := map[string][]string{
-		"books_journal_entries": entryTypes,
-		"books_doc_sequences":   append(slices.Clone(entryTypes), "estimate"),
+		"books_journal_entries": slices.Sorted(slices.Values(entryTypes)),
+		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate"))),
 	}
 	for _, name := range []string{"books_journal_entries", "books_doc_sequences"} {
 		want := want[name]
@@ -211,7 +213,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s.doc_type is not a select field", name)
 		}
-		if !slices.Equal(field.Values, want) {
+		if !slices.Equal(slices.Sorted(slices.Values(field.Values)), want) {
 			t.Fatalf("%s.doc_type values = %v, want %v", name, field.Values, want)
 		}
 	}
@@ -220,7 +222,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 func TestAllocateNumber_UnknownTypeFails(t *testing.T) {
 	app := newBooksApp(t)
 	err := app.RunInTransaction(func(tx core.App) error {
-		_, _, err := allocateNumber(tx, "bill")
+		_, _, err := allocateNumber(tx, "no_such_doc_type")
 		return err
 	})
 	if err == nil {

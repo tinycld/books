@@ -178,6 +178,122 @@ func TestDocumentEntry_RESTGuards(t *testing.T) {
 	}
 }
 
+// payablesAccounts lists the chart's Accounts payable accounts.
+func payablesAccounts(t testing.TB, app core.App) []*core.Record {
+	t.Helper()
+	rows, err := app.FindAllRecords("books_accounts", dbx.HashExp{"type": "accounts_payable"})
+	if err != nil {
+		t.Fatalf("read the Accounts payable accounts: %v", err)
+	}
+	return rows
+}
+
+// ensurePayablesIn runs ensurePayables in a transaction of app and returns the
+// account as stored after the commit.
+func ensurePayablesIn(t *testing.T, app core.App) *core.Record {
+	t.Helper()
+	var got *core.Record
+	if err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		got, err = ensurePayables(tx)
+		return err
+	}); err != nil {
+		t.Fatalf("ensurePayables: %v", err)
+	}
+	if got == nil {
+		t.Fatal("ensurePayables returned no account")
+	}
+	return reload(t, app, "books_accounts", got.Id)
+}
+
+// Spec §3.7: a bill credits the first active Accounts payable account in
+// chart order (by number, unnumbered last), skipping inactive ones, and
+// creates none while one exists.
+func TestEnsurePayables_ReturnsTheFirstActiveInChartOrder(t *testing.T) {
+	app := newGuardedApp(t)
+	later := mkNumberedAccount(t, app, "Trade payables", "2010", "accounts_payable", "accounts_payable")
+	first := mkNumberedAccount(t, app, "Accounts payable", "2005", "accounts_payable", "accounts_payable")
+	retired := mkNumberedAccount(t, app, "Old payables", "2001", "accounts_payable", "accounts_payable")
+	makeAccountInactive(t, app, retired)
+	mkAccount(t, app, "Unnumbered payables", "accounts_payable", "accounts_payable")
+
+	got := ensurePayablesIn(t, app)
+	if got.Id != first.Id {
+		t.Errorf("ensurePayables = %s %q, want 2005 Accounts payable (%s), not 2010 (%s) or the inactive 2001",
+			got.GetString("number"), got.GetString("name"), first.Id, later.Id)
+	}
+	if n := len(payablesAccounts(t, app)); n != 4 {
+		t.Errorf("%d Accounts payable accounts after the call, want the 4 that were there", n)
+	}
+}
+
+// With no active Accounts payable account, ensurePayables creates "Accounts
+// payable" (type and detail accounts_payable), numbered 2000 when no account
+// holds that number, inside the caller's transaction.
+func TestEnsurePayables_CreatesOneWhenTheChartHasNone(t *testing.T) {
+	requireCreated := func(t *testing.T, r *core.Record, name, number string) {
+		t.Helper()
+		if r.GetString("name") != name || r.GetString("type") != "accounts_payable" ||
+			r.GetString("detail_type") != "accounts_payable" || r.GetString("number") != number || r.GetBool("inactive") {
+			t.Errorf("created account = %q %q %q number %q inactive %v, want %s, accounts_payable, accounts_payable, number %q, active",
+				r.GetString("name"), r.GetString("type"), r.GetString("detail_type"), r.GetString("number"), r.GetBool("inactive"), name, number)
+		}
+	}
+
+	t.Run("numbered 2000 when free", func(t *testing.T) {
+		app := newGuardedApp(t)
+		requireCreated(t, ensurePayablesIn(t, app), "Accounts payable", "2000")
+		if n := len(payablesAccounts(t, app)); n != 1 {
+			t.Errorf("%d Accounts payable accounts, want the 1 created", n)
+		}
+	})
+
+	t.Run("unnumbered when 2000 is taken", func(t *testing.T) {
+		app := newGuardedApp(t)
+		mkNumberedAccount(t, app, "Accrued wages", "2000", "other_current_liability", "accrued_liabilities")
+		requireCreated(t, ensurePayablesIn(t, app), "Accounts payable", "")
+	})
+
+	t.Run("an inactive one is skipped and keeps its name", func(t *testing.T) {
+		app := newGuardedApp(t)
+		old := mkNumberedAccount(t, app, "Accounts payable", "2000", "accounts_payable", "accounts_payable")
+		makeAccountInactive(t, app, old)
+		got := ensurePayablesIn(t, app)
+		if got.Id == old.Id {
+			t.Fatal("ensurePayables returned the inactive Accounts payable account")
+		}
+		requireCreated(t, got, "Accounts payable 2", "")
+	})
+
+	t.Run("a rolled-back transaction leaves no account", func(t *testing.T) {
+		app := newGuardedApp(t)
+		before, err := app.CountRecords("books_accounts")
+		if err != nil {
+			t.Fatal(err)
+		}
+		rollback := errors.New("roll back")
+		err = app.RunInTransaction(func(tx core.App) error {
+			created, err := ensurePayables(tx)
+			if err != nil {
+				return err
+			}
+			if created == nil || created.Id == "" {
+				t.Error("ensurePayables created no account inside the transaction")
+			}
+			return rollback
+		})
+		if !errors.Is(err, rollback) {
+			t.Fatalf("transaction error = %v, want the rollback", err)
+		}
+		if after, _ := app.CountRecords("books_accounts"); after != before {
+			t.Errorf("%d accounts after the rollback, want %d", after, before)
+		}
+		if n := len(payablesAccounts(t, app)); n != 0 {
+			t.Errorf("%d Accounts payable accounts after the rollback, want 0", n)
+		}
+	})
+}
+
 // undepositedFundsAccounts lists the chart's Undeposited funds accounts.
 func undepositedFundsAccounts(t testing.TB, app core.App) []*core.Record {
 	t.Helper()

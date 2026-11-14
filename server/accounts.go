@@ -20,6 +20,51 @@ const (
 	msgAccountUsedByProducts   = "This account is used by %d products and services and cannot be deleted. Make it inactive instead."
 )
 
+// accountLineReference is a document line table whose rows name an account.
+// An account that any row names cannot be deleted: one or many says why,
+// given the count of distinct values of the distinct column among those rows
+// (many takes the count).
+type accountLineReference struct {
+	collection, field, distinct, one, many string
+}
+
+// accountLineReferences are the document line tables that hold an account.
+// Later purchase documents (expenses, vendor credits) append their line
+// tables here. A bill's product line names no account (its account is the
+// product's expense account, which the product guard holds).
+var accountLineReferences = []accountLineReference{
+	{
+		collection: billLinesCollection, field: "account", distinct: "bill",
+		one:  "This account is on 1 bill and cannot be deleted. Make it inactive instead.",
+		many: "This account is on %d bills and cannot be deleted. Make it inactive instead.",
+	},
+}
+
+// refuseAccountOnLines refuses deleting an account that a row of any
+// accountLineReferences table names, draft or posted. PocketBase would
+// otherwise clear the line's optional relation, and the draft would lose its
+// account silently.
+func refuseAccountOnLines(app core.App, r *core.Record) error {
+	for _, ref := range accountLineReferences {
+		var n int
+		err := app.DB().
+			Select("COUNT(DISTINCT [[" + ref.distinct + "]])").
+			From(ref.collection).
+			Where(dbx.HashExp{ref.field: r.Id}).
+			Row(&n)
+		if err != nil {
+			return fmt.Errorf("books: count the %s that hold the account: %w", ref.collection, err)
+		}
+		if n == 1 {
+			return refuse("%s", ref.one)
+		}
+		if n > 1 {
+			return refuse(ref.many, n)
+		}
+	}
+	return nil
+}
+
 // tinycld/books/lib/account-messages.ts copies this refusal;
 // tests/account-messages.test.ts fails when this wording drifts.
 const msgBoxNeedsExpenseType = "Only expense accounts can be reported on a 1099. Set this account to Not reported in Settings → 1099s first."
@@ -526,6 +571,9 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if agencies > 1 {
 		return refuse(msgAccountUsedByAgencies, agencies)
+	}
+	if err := refuseAccountOnLines(app, r); err != nil {
+		return err
 	}
 	// A receipt's deposit_to is a required relation, so PocketBase refuses the
 	// delete with a generic message; this one says what to do instead. Drafts

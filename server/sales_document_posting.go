@@ -16,12 +16,14 @@ const (
 	msgSalesDocCannotGo      = "%s cannot go from %s to %s."
 	msgSalesDocEditNotPosted = "%s is %s and cannot be edited."
 	msgSalesDocNoEntry       = "%s has no journal entry."
-	msgLineNoIncomeAccount   = "Line %d: %s has no income account. Choose one on the product or service."
-	// %d is the document's line and %s its product: the journal line guard
-	// would number the entry's own line, which the person never sees.
-	msgLineIncomeAccountInactive = "Line %d: the income account of %s is inactive. Choose an active one on the product or service."
-	msgTaxAgencyNoAccount        = "%s has no liability account. Choose one on the tax agency."
-	msgTaxComponentNoAgency      = "%s has no tax agency. Choose one on the tax rate."
+	msgLineNoIncomeAccount   = "%s: %s has no income account. Choose one on the product or service."
+	// The first %s is the document's line (lineRowLabel) and the second its
+	// product: the journal line guard would number the entry's own line, which
+	// the person never sees.
+	msgLineIncomeAccountInactive  = "%s: the income account of %s is inactive. Choose an active one on the product or service."
+	msgLineExpenseAccountInactive = "%s: the expense account of %s is inactive. Choose an active one on the product or service."
+	msgTaxAgencyNoAccount         = "%s has no liability account. Choose one on the tax agency."
+	msgTaxComponentNoAgency       = "%s has no tax agency. Choose one on the tax rate."
 )
 
 // markReplacing marks the posted document a correction is replacing, so its
@@ -48,19 +50,20 @@ func salesDocName(kind salesDocKind, r *core.Record) string {
 
 // postSalesDoc posts a draft document while its update moves it from draft to
 // posted, inside the update's transaction: any refusal rolls back every row
-// it wrote (an account the kind's debit creates, the tax lines, the entry, the
-// number). The header guards have already run on doc. It refuses an inactive
-// customer (a correction keeps its original's), runs the kind's BeforePost, a
-// stored line its kind does not allow and a zero total, writes the tax
-// snapshot, posts the journal entry through postDocument (the kind's debit
-// account for the total), and copies the entry's number. A correction voids
-// its original.
+// it wrote (an account the kind's debit or credit creates, the tax lines, the
+// entry, the number). The header guards have already run on doc. It refuses
+// an inactive party (a correction keeps its original's), runs the kind's
+// BeforePost, a stored line its kind does not allow and a zero total, writes
+// the tax snapshot of a kind with tax, posts the journal entry through
+// postDocument (the kind's debit or credit account for the total, its line
+// accounts on the other side, every line naming the party), and copies the
+// entry's number. A correction voids its original.
 func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
 	original, err := correctedSalesDoc(tx, kind, doc)
 	if err != nil {
 		return err
 	}
-	if err := checkPostCustomer(tx, kind, doc); err != nil {
+	if err := checkPostParty(tx, kind, doc); err != nil {
 		return err
 	}
 	if kind.BeforePost != nil {
@@ -75,11 +78,11 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	if err := checkStoredLines(tx, kind, lines); err != nil {
 		return err
 	}
-	totals, err := salesDocTotals(tx, doc, lineInputs(lines))
+	totals, err := salesDocTotals(tx, kind, doc, lineInputs(lines))
 	if err != nil {
 		return err
 	}
-	if err := checkSalesDocTotals(kind, totals); err != nil {
+	if err := checkSalesDocTotals(kind, lines, totals); err != nil {
 		return err
 	}
 	if totals.Total == 0 {
@@ -88,18 +91,23 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	if err := restateLineAmounts(tx, kind, doc.Id, lines, totals); err != nil {
 		return err
 	}
-	setSalesDocTotals(doc, totals)
+	setSalesDocTotals(kind, doc, totals)
 
-	taxes, err := componentTaxes(tx, totals)
-	if err != nil {
-		return err
+	var taxes []componentTax
+	if kind.HasTax {
+		taxes, err = componentTaxes(tx, totals)
+		if err != nil {
+			return err
+		}
 	}
 	postingLines, err := salesDocPostingLines(tx, kind, doc, lines, totals, taxes)
 	if err != nil {
 		return err
 	}
-	if err := writeTaxSnapshot(tx, kind, doc, totals, taxes); err != nil {
-		return err
+	if kind.HasTax {
+		if err := writeTaxSnapshot(tx, kind, doc, totals, taxes); err != nil {
+			return err
+		}
 	}
 	actor := doc.GetString("posted_by")
 	post := documentPost{
@@ -108,8 +116,13 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 		Date:       doc.GetString("date"),
 		Memo:       doc.GetString("memo"),
 		Actor:      actor,
-		Customer:   doc.GetString("customer"),
 		Lines:      postingLines,
+	}
+	switch kind.Party {
+	case partyCustomer:
+		post.Customer = doc.GetString(kind.Party)
+	case partyVendor:
+		post.Vendor = doc.GetString(kind.Party)
 	}
 	if original != nil {
 		post.Replaces = original.GetString("entry")
@@ -153,43 +166,43 @@ func correctedSalesDoc(tx core.App, kind salesDocKind, doc *core.Record) (*core.
 	return original, nil
 }
 
-// checkPostCustomer refuses to post for an inactive customer, under the
-// Customer field, before the journal line guard would refuse the entry's lines
-// with no field (Q23); an invoice made from an estimate with the estimate's
-// text. A correction keeps its original's customer. A document
-// with no customer (a sales receipt may have none) has nothing to check.
-func checkPostCustomer(tx core.App, kind salesDocKind, doc *core.Record) error {
-	id := doc.GetString("customer")
+// checkPostParty refuses to post for an inactive party (customer or vendor),
+// under its field, before the journal line guard would refuse the entry's
+// lines with no field (Q23); an invoice made from an estimate with the
+// estimate's text. A correction keeps its original's party. A document with no
+// party (a sales receipt may have no customer) has nothing to check.
+func checkPostParty(tx core.App, kind salesDocKind, doc *core.Record) error {
+	id := doc.GetString(kind.Party)
 	if id == "" {
 		return nil
 	}
-	customer, err := tx.FindRecordById("books_customers", id)
+	party, err := tx.FindRecordById(kind.PartyCollection, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		// The schema refuses a customer that does not exist.
+		// The schema refuses a party that does not exist.
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("books: read the document's customer: %w", err)
+		return fmt.Errorf("books: read the document's %s: %w", kind.Party, err)
 	}
-	if !customer.GetBool("inactive") {
+	if !party.GetBool("inactive") {
 		return nil
 	}
-	keeps, err := keepsCorrectedCustomer(tx, kind, doc, id)
+	keeps, err := keepsCorrectedParty(tx, kind, doc, id)
 	if err != nil || keeps {
 		return err
 	}
 	// An invoice made from an estimate cannot change its customer, so "Choose an
-	// active customer" would be a dead end there (plan decision E1).
+	// active customer" would be a dead end there (plan decision E1). Only an
+	// invoice has an estimate.
 	if doc.GetString("estimate") != "" {
-		return refuseNamedField("customer", msgEstimateCustomerInactive, customer.GetString("display_name"))
+		return refuseNamedField(kind.Party, msgEstimateCustomerInactive, party.GetString("display_name"))
 	}
-	return refuseNamedField("customer", msgCustomerInactive, customer.GetString("display_name"))
+	return refuseNamedField(kind.Party, kind.Msgs.PartyInactive, party.GetString("display_name"))
 }
 
-// keepsCorrectedCustomer reports whether doc corrects a document of the
-// customer id: the user did not choose that customer again, so it may be
-// inactive.
-func keepsCorrectedCustomer(tx core.App, kind salesDocKind, doc *core.Record, id string) (bool, error) {
+// keepsCorrectedParty reports whether doc corrects a document of the party id:
+// the user did not choose that party again, so it may be inactive.
+func keepsCorrectedParty(tx core.App, kind salesDocKind, doc *core.Record, id string) (bool, error) {
 	replaces := doc.GetString("replaces")
 	if replaces == "" {
 		return false, nil
@@ -201,21 +214,16 @@ func keepsCorrectedCustomer(tx core.App, kind salesDocKind, doc *core.Record, id
 	if err != nil {
 		return false, fmt.Errorf("books: read the document being edited: %w", err)
 	}
-	return original.GetString("customer") == id, nil
+	return original.GetString(kind.Party) == id, nil
 }
 
 // checkStoredLines holds every stored line to its kind with the line guard's
-// rules, so the entry is never built from a line the guard would refuse (one
-// written past it). A bundle on a line is refused too.
+// rules (a kind no line table holds is refused), so the entry is never built
+// from a line the guard would refuse (one written past it). A bundle on a
+// line is refused when the line accounts read its product.
 func checkStoredLines(tx core.App, kind salesDocKind, lines []*core.Record) error {
-	for i, line := range lines {
-		n := i + 1
-		switch line.GetString("kind") {
-		case lineKindItem, lineKindDescription, lineKindSubtotal, lineKindPercent:
-		default:
-			return refuse(kind.Msgs.LineUnknownKind, n)
-		}
-		if err := checkLineCells(tx, kind, line, n); err != nil {
+	for _, line := range lines {
+		if err := checkLineCells(tx, kind, line, lineRowPlace(kind, lines, line)); err != nil {
 			return err
 		}
 	}
@@ -269,24 +277,39 @@ func componentTaxes(tx core.App, totals documentTotalsResult) ([]componentTax, e
 	return out, nil
 }
 
-// salesDocPostingLines are the entry's lines: the kind's debit account (an
-// invoice's Accounts receivable, a sales receipt's Deposit to) debited for the
-// total; each income account credited with the sum of the item and percent
-// amounts of the products that name it (a sum below zero is a debit, a zero
-// sum no line), in account number order; each tax component credited to its
-// agency's liability account, in the rate's order (a zero tax no line).
+// salesDocPostingLines are the entry's lines: first the total, on the kind's
+// debit account (an invoice's Accounts receivable, a sales receipt's Deposit
+// to) or its credit account (a bill's Accounts payable); then the kind's line
+// accounts on the other side (incomeByAccount: each income account credited
+// with the sum of the item and percent amounts of the products that name it;
+// a bill's expenseByAccount), in chart order; then each tax component
+// credited to its agency's liability account, in the rate's order (a zero tax
+// no line).
 func salesDocPostingLines(tx core.App, kind salesDocKind, doc *core.Record, lines []*core.Record, totals documentTotalsResult, taxes []componentTax) ([]postingLine, error) {
-	debit, err := kind.DebitAccount(tx, doc)
-	if err != nil {
-		return nil, err
+	var out []postingLine
+	if kind.CreditAccount != nil {
+		credit, err := kind.CreditAccount(tx, doc)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, postingLine{Account: credit, Credit: totals.Total})
+	} else {
+		debit, err := kind.DebitAccount(tx, doc)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, postingLine{Account: debit, Debit: totals.Total})
 	}
-	out := []postingLine{{Account: debit, Debit: totals.Total}}
 
-	income, err := incomeByAccount(tx, lines, totals)
+	lineAccounts := kind.LineAccounts
+	if lineAccounts == nil {
+		lineAccounts = incomeByAccount
+	}
+	accounts, err := lineAccounts(tx, lines, totals)
 	if err != nil {
 		return nil, err
 	}
-	out = append(out, income...)
+	out = append(out, accounts...)
 	for _, t := range taxes {
 		if t.Amount != 0 {
 			out = append(out, signedLine(t.account, t.Amount))
@@ -303,17 +326,22 @@ func signedLine(account string, amount int64) postingLine {
 	return postingLine{Account: account, Credit: amount}
 }
 
-// documentLineRef is a document line as a refusal names it: its number and
-// its product's name.
+// documentLineRef is the first document line that charges an account, as a
+// refusal of that account names it: its place among the document's lines (for
+// order), its label, its product's name and the refusal's text.
 type documentLineRef struct {
-	n       int
-	product string
+	n              int
+	label, product string
+	msg            string
 }
 
-// incomeByAccount refuses a line whose product has no income account, and the
-// first line of an income account that is inactive and takes an amount (a
-// product keeps an account that became inactive after it was saved, so the
-// post is where it stops).
+// incomeByAccount is a sales kind's LineAccounts: each income account
+// credited with the sum of the item and percent amounts of the products that
+// name it (a sum below zero is a debit, a zero sum no line), in chart order.
+// Its lines are numbered across the document ("Line 3"). It refuses a line
+// whose product has no income account, and the first line of an income
+// account that is inactive and takes an amount (a product keeps an account
+// that became inactive after it was saved, so the post is where it stops).
 func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
 	sums := map[string]int64{}
 	firstLine := map[string]documentLineRef{}
@@ -325,27 +353,38 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 		if kind != lineKindItem && kind != lineKindPercent {
 			continue
 		}
+		label := fmt.Sprintf("Line %d", i+1)
 		product, err := tx.FindRecordById("books_products", line.GetString("product"))
 		if err != nil {
 			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, err)
 		}
 		if product.GetString("type") == "bundle" {
-			return nil, refuse(msgLineBundle, i+1)
+			return nil, refuse(msgLineBundle, label)
 		}
 		account := product.GetString("income_account")
 		if account == "" {
-			return nil, refuseNamed(msgLineNoIncomeAccount, i+1, product.GetString("name"))
+			return nil, refuseNamed(msgLineNoIncomeAccount, label, product.GetString("name"))
 		}
 		sums[account] += totals.Amounts[i]
 		if _, seen := firstLine[account]; !seen {
-			firstLine[account] = documentLineRef{n: i + 1, product: product.GetString("name")}
+			firstLine[account] = documentLineRef{
+				n: i + 1, label: label, product: product.GetString("name"), msg: msgLineIncomeAccountInactive,
+			}
 		}
 	}
-	type incomeAccount struct {
+	return accountSums(tx, sums, firstLine, signedLine)
+}
+
+// accountSums turns the sums per account into one line per account whose sum
+// is not zero, in chart order; line puts each sum on its side. An inactive
+// account with a sum is refused by the lowest line firstLine names for it; an
+// account firstLine does not name is left to the journal line guard.
+func accountSums(tx core.App, sums map[string]int64, firstLine map[string]documentLineRef, line func(id string, amount int64) postingLine) ([]postingLine, error) {
+	type summed struct {
 		id, number string
 		amount     int64
 	}
-	accounts := make([]incomeAccount, 0, len(sums))
+	accounts := make([]summed, 0, len(sums))
 	// The lowest line of an inactive account: the map's order is not the lines'.
 	var inactive *documentLineRef
 	for id, amount := range sums {
@@ -354,25 +393,25 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 		}
 		account, err := tx.FindRecordById("books_accounts", id)
 		if err != nil {
-			return nil, fmt.Errorf("books: read an income account of the document: %w", err)
+			return nil, fmt.Errorf("books: read an account of the document's lines: %w", err)
 		}
-		if account.GetBool("inactive") {
-			if ref := firstLine[id]; inactive == nil || ref.n < inactive.n {
+		if ref, named := firstLine[id]; named && account.GetBool("inactive") {
+			if inactive == nil || ref.n < inactive.n {
 				inactive = &ref
 			}
 			continue
 		}
-		accounts = append(accounts, incomeAccount{id: id, number: account.GetString("number"), amount: amount})
+		accounts = append(accounts, summed{id: id, number: account.GetString("number"), amount: amount})
 	}
 	if inactive != nil {
-		return nil, refuseNamed(msgLineIncomeAccountInactive, inactive.n, inactive.product)
+		return nil, refuseNamed(inactive.msg, inactive.label, inactive.product)
 	}
-	slices.SortFunc(accounts, func(a, b incomeAccount) int {
+	slices.SortFunc(accounts, func(a, b summed) int {
 		return compareChartOrder(a.number, a.id, b.number, b.id)
 	})
 	out := make([]postingLine, len(accounts))
 	for i, a := range accounts {
-		out[i] = signedLine(a.id, a.amount)
+		out[i] = line(a.id, a.amount)
 	}
 	return out, nil
 }
