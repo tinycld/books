@@ -7,6 +7,7 @@ import {
     pdfFileName,
     pdfPath,
     pdfRefusalMessage,
+    publicEstimatePdfPath,
 } from '../tinycld/books/lib/pdf-download'
 
 describe('pdfPath', () => {
@@ -21,6 +22,13 @@ describe('pdfPath', () => {
 
     it('encodes each segment', () => {
         expect(pdfPath('a/b', 'c d')).toBe('/api/books/pdf/a%2Fb/c%20d')
+    })
+})
+
+// The route itself is in tests/estimate-link.test.ts; here, the token is one URI segment.
+describe('publicEstimatePdfPath', () => {
+    it('encodes the token', () => {
+        expect(publicEstimatePdfPath('a/b c')).toBe('/api/books/public/estimates/a%2Fb%20c/pdf')
     })
 })
 

@@ -26,7 +26,7 @@ An estimate has no draft. The first save gives it the next estimate number. An a
 - **Save & new** saves it and opens a new, blank estimate.
 - **Cancel** leaves without saving. If you changed something, Books asks first.
 
-On a phone, the bar shows Cancel and Save & close. Save, Save & new, Convert to invoice, Delete estimate and Download PDF are under More.
+On a phone, the bar shows Cancel and Save & close. Save, Save & new, Convert to invoice, Copy customer link, Delete estimate and Download PDF are under More.
 
 A saved estimate stays open to changes: you can change any field and any line while it is Pending, Accepted or Rejected.
 
@@ -54,6 +54,26 @@ The badges beside the title show the saved status. A status you changed but did 
 To record that the customer accepted, set Status to Accepted. Two fields show: **Accepted by** (who accepted, at most 200 characters) and **Accepted date** (today when you pick Accepted; you must fill it in). Then save.
 
 When you change the status from Accepted to Pending or Rejected, Accepted by and Accepted date hide, and the save clears them.
+
+## Share an estimate with your customer
+
+Every estimate has its own customer link. The customer opens it in a web browser and accepts or declines the estimate, with no account and no sign-in.
+
+1. Open a saved estimate that is Pending, Accepted or Rejected, and choose **Copy customer link** (⌥L). On a phone, it is under More. Books copies the link and shows "Customer link copied." A new estimate has no link until you save it, and a closed estimate does not offer it.
+2. Send the link to your customer, for example in an email.
+
+The customer sees your business name, the estimate number with their name, the estimate total, the estimate date, the expiration date when set, and your message to the customer. **Download PDF** gives them the estimate as you print it. When your business email or phone is set in Settings, the page also shows them, so the customer can contact you.
+
+While the estimate is Pending and not expired, the page shows **Accept** and **Decline**:
+
+- **Accept**: the customer types their name and chooses Accept estimate. The estimate becomes Accepted, with their name in Accepted by and the day Books recorded their answer in Accepted date.
+- **Decline**: the customer can type a reason (it is optional) and chooses Decline estimate. The estimate becomes Rejected. Under Status, the form and the read view show "Declined by the customer on" with the date, and "Reason:" with what the customer typed.
+
+A customer can answer only while the estimate is Pending and not expired. After an answer, or when the estimate is Accepted, Rejected, Closed or expired, the page tells the customer the estimate's state and shows no buttons. To let the customer answer again, set the estimate back to Pending and save. If you set a declined estimate to Rejected again yourself, the customer's decline note shows again.
+
+If you have the estimate open with changes while the customer answers, your next save shows "This estimate changed after you opened it." Choose Load the current estimate to see the customer's answer.
+
+The link works until the estimate is deleted. You cannot turn it off or make a new one: to stop it, delete the estimate.
 
 ## Convert to invoice
 
@@ -88,6 +108,7 @@ On the estimate form:
 - ⌘S: Save
 - Esc: Cancel
 - ⌥I: Convert to invoice
+- ⌥L: Copy customer link (a saved estimate that is not closed)
 - ⌘⌫: Delete estimate (a saved estimate only)
 - ⌘P: Download PDF
 - ⌥1 and ⌥2: the Edit and PDF view tabs

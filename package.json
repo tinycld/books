@@ -10,6 +10,7 @@
         "./types": "./tinycld/books/types.ts",
         "./collections": "./tinycld/books/collections.ts",
         "./screens/*": "./tinycld/books/screens/*.tsx",
+        "./public-screens/*": "./tinycld/books/public-screens/*.tsx",
         "./seed": "./tinycld/books/seed.ts",
         "./search-adapter": "./tinycld/books/search-adapter.ts",
         "./sidebar": "./tinycld/books/sidebar.tsx",
@@ -27,6 +28,7 @@
         "check": "tinycld-pkg check"
     },
     "peerDependencies": {
+        "expo-clipboard": "~58.0.4",
         "expo-file-system": "~58.0.13",
         "expo-sharing": "~58.0.21"
     },

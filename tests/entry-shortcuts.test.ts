@@ -93,7 +93,8 @@ describe('FORM_KEYS and READ_KEYS', () => {
 })
 
 // The estimate form's keys (spec §3.2): ⌥I for Convert follows the line keys ⌥T / ⌥S
-// (⌘⇧I opens the browser's tools).
+// (⌘⇧I opens the browser's tools). ⌥L copies the customer link (estimate-public-link
+// spec §3.1), on the same modifier.
 describe('QUOTE_FORM_KEYS', () => {
     it('maps each quote action to its key', () => {
         expect(QUOTE_FORM_KEYS).toEqual({
@@ -103,6 +104,7 @@ describe('QUOTE_FORM_KEYS', () => {
             cancel: 'Escape',
             deleteRecord: '$mod+Backspace',
             convert: 'Alt+i',
+            copyLink: 'Alt+l',
         })
     })
 })

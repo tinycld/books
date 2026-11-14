@@ -25,6 +25,13 @@ export const ESTIMATE_TODAY = '2026-11-12'
 
 const STAMP = '2026-11-12 09:00:00.000Z'
 
+// A public token is 43 URL-safe characters (estimate public link spec §4.1). The
+// fixture's are readable on purpose; the server makes real ones from a random source,
+// and the seed never sends one.
+export function fixtureToken(tag: string): string {
+    return `pub_${tag}_`.padEnd(43, '0')
+}
+
 // Spec §3.3: the writer picks Pending, Accepted or Rejected; only the server sets Closed.
 export type EstimateStatus = BooksEstimates['status']
 
@@ -64,7 +71,7 @@ export const CONVERTED_INVOICE_ID = 'invcfromest1005'
 // Aspen Ridge Dental: a customer-form fixture row with no CUSTOMER_IDS key.
 const ASPEN_RIDGE = 'cust_aspen_0001'
 
-type EstimateSeed = Pick<EstimateRecord, 'id' | 'customer' | 'status' | 'date'> &
+type EstimateSeed = Pick<EstimateRecord, 'id' | 'customer' | 'status' | 'date' | 'public_token'> &
     Partial<EstimateRecord>
 
 function estimate(seed: EstimateSeed): EstimateRecord {
@@ -110,6 +117,7 @@ export const ESTIMATES = [
         status: 'pending',
         number: '1001',
         sequence: 1001,
+        public_token: fixtureToken('pending1001'),
         date: '2026-11-02',
         expiration_date: '2027-01-15',
         tax_rate: TAX_IDS.denverCombined,
@@ -125,6 +133,7 @@ export const ESTIMATES = [
         status: 'pending',
         number: '1002',
         sequence: 1002,
+        public_token: fixtureToken('expired1002'),
         date: '2026-10-01',
         expiration_date: '2026-10-31',
         tax_rate: TAX_IDS.denverCombined,
@@ -138,6 +147,7 @@ export const ESTIMATES = [
         status: 'accepted',
         number: '1003',
         sequence: 1003,
+        public_token: fixtureToken('accepted1003'),
         date: '2026-10-20',
         expiration_date: '2026-12-20',
         accepted_by: LONG_ACCEPTED_BY,
@@ -153,6 +163,7 @@ export const ESTIMATES = [
         status: 'rejected',
         number: '1004',
         sequence: 1004,
+        public_token: fixtureToken('rejected1004'),
         date: '2026-10-09',
         tax_rate: TAX_IDS.denverCombined,
         memo: 'Went with their hardware vendor',
@@ -169,6 +180,7 @@ export const ESTIMATES = [
         status: 'closed',
         number: '1005',
         sequence: 1005,
+        public_token: fixtureToken('closed1005'),
         date: '2026-10-28',
         expiration_date: '2026-11-27',
         accepted_by: 'Dr. Helen Okafor',

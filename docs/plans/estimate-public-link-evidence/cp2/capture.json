@@ -1,0 +1,109 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "pending",
+            "url": "/",
+            "public": { "estimate": "estm1001harbor1" },
+            "ready": "estimate-public",
+            "height": 1200
+        },
+        {
+            "name": "long",
+            "url": "/",
+            "public": { "fakeRow": "pendingLong" },
+            "ready": "estimate-public",
+            "height": 1400
+        },
+        {
+            "name": "bare",
+            "url": "/",
+            "public": { "fakeRow": "pendingBare" },
+            "ready": "estimate-public",
+            "widths": [390],
+            "height": 1000
+        },
+        {
+            "name": "accepted",
+            "url": "/",
+            "public": { "estimate": "estm1003alvarez" },
+            "ready": "estimate-public-accepted",
+            "height": 1000
+        },
+        {
+            "name": "declined",
+            "url": "/",
+            "public": { "estimate": "estm1004aspen01" },
+            "ready": "estimate-public-declined",
+            "height": 900
+        },
+        {
+            "name": "closed",
+            "url": "/",
+            "public": { "estimate": "estm1005stjude1" },
+            "ready": "estimate-public-closed",
+            "height": 1000
+        },
+        {
+            "name": "expired",
+            "url": "/",
+            "public": { "estimate": "estm1002nwind01" },
+            "ready": "estimate-public-expired",
+            "height": 1000
+        },
+        {
+            "name": "loading",
+            "url": "/",
+            "public": { "estimate": "estm1001harbor1", "hold": true },
+            "ready": "estimate-public-loading",
+            "height": 700
+        },
+        {
+            "name": "not-found",
+            "url": "/",
+            "public": { "unknown": true },
+            "ready": "estimate-public-not-found",
+            "height": 700
+        },
+        {
+            "name": "load-error",
+            "url": "/",
+            "public": { "estimate": "estm1001harbor1", "fakeStatus": 400 },
+            "ready": "estimate-public-error",
+            "height": 700
+        },
+        {
+            "name": "books-bar",
+            "url": "/a/books",
+            "estimateFixture": "estm1001harbor1",
+            "ready": "estimate-copy-link",
+            "widths": [1280],
+            "height": 900
+        },
+        {
+            "name": "books-bar-1024",
+            "url": "/a/books",
+            "estimateFixture": "estm1001harbor1",
+            "ready": "estimate-copy-link",
+            "widths": [1024],
+            "height": 900
+        },
+        {
+            "name": "books-bar-tablet",
+            "url": "/a/books",
+            "estimateFixture": "estm1001harbor1",
+            "ready": "estimate-copy-link",
+            "widths": [800],
+            "height": 900
+        },
+        {
+            "name": "books-more",
+            "url": "/a/books",
+            "estimateFixture": "estm1001harbor1",
+            "ready": "estimate-more",
+            "widths": [390],
+            "height": 844,
+            "actions": [{ "click": "estimate-more" }, { "waitFor": "Copy customer link" }]
+        }
+    ]
+}

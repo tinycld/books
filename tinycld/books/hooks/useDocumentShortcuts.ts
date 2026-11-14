@@ -24,6 +24,9 @@ interface DocumentShortcutsInput {
     // A quote's Convert to invoice, and whether it is offered now.
     canConvert: boolean
     convert: () => void
+    // A stored estimate's Copy customer link, and whether it is offered now.
+    canCopyLink: boolean
+    copyLink: () => void
     // A saved draft and no download running: the Download PDF row takes a press.
     canDownloadPdf: boolean
     downloadPdf: () => void
@@ -33,13 +36,14 @@ type KeyState = {
     isSaving: boolean
     canDelete: boolean
     canConvert: boolean
+    canCopyLink: boolean
     canDownloadPdf: boolean
     writesAvailable: boolean
 }
 
 type KeyRuns = Pick<
     DocumentShortcutsInput,
-    'deleteRecord' | 'postAndNew' | 'save' | 'saveAndNew' | 'convert' | 'downloadPdf'
+    'deleteRecord' | 'postAndNew' | 'save' | 'saveAndNew' | 'convert' | 'copyLink' | 'downloadPdf'
 >
 
 interface KeyListInput {
@@ -50,9 +54,10 @@ interface KeyListInput {
     isPhone: boolean
     // The kind has a PDF: only then is ⌘P registered.
     hasPdf: boolean
-    // Whether a quote's Convert and Delete are offered now: their keys are registered only
-    // then, as the ⇧? list ignores `when`.
+    // Whether a quote's Convert, Copy customer link and Delete are offered now: their keys
+    // are registered only then, as the ⇧? list ignores `when`.
     canConvert: boolean
+    canCopyLink: boolean
     canDelete: boolean
     state: { current: KeyState }
     run: { current: KeyRuns }
@@ -141,7 +146,7 @@ function postingKeys(input: KeyListInput): Shortcut[] {
 }
 
 function quoteKeys(input: KeyListInput): Shortcut[] {
-    const { run, isPhone, canConvert, canDelete } = input
+    const { run, isPhone, canConvert, canCopyLink, canDelete } = input
     const keys = [idleSaveKey(input, QUOTE_FORM_KEYS.save, 'Save'), ...downloadPdfKeys(input)]
     if (!isPhone) return keys
     const save = writeKey(input, 'save', QUOTE_FORM_KEYS.save, 'Save', () => run.current.save())
@@ -157,6 +162,14 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
         () => run.current.convert(),
         current => current.canConvert
     )
+    const copyLink = writeKey(
+        input,
+        'copyLink',
+        QUOTE_FORM_KEYS.copyLink,
+        'Copy customer link',
+        () => run.current.copyLink(),
+        current => current.canCopyLink
+    )
     const remove = writeKey(
         input,
         'deleteRecord',
@@ -166,6 +179,7 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
         current => current.canDelete
     )
     if (canConvert) phoneKeys.push(convert)
+    if (canCopyLink) phoneKeys.push(copyLink)
     if (canDelete) phoneKeys.push(remove)
     return phoneKeys
 }
@@ -184,10 +198,11 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
  *
  * A quote (Cancel Esc and Save & close ⌘↵ are bar buttons on every width; Save ⌘S and
  * Save & new ⌘⇧↵ on a wide screen):
- * - ⌘S Save, ⌘⇧↵ Save & new, ⌥I Convert to invoice and ⌘⌫ Delete on a phone, where
- *   their rows sit in More: registered only there, ⌥I and ⌘⌫ only while their rows are
- *   offered (`canConvert`, `canDelete`). On a wide screen the Convert and
- *   Delete buttons hold ⌥I and ⌘⌫, while they are offered.
+ * - ⌘S Save, ⌘⇧↵ Save & new, ⌥I Convert to invoice, ⌥L Copy customer link and ⌘⌫
+ *   Delete on a phone, where their rows sit in More: registered only there, ⌥I, ⌥L and
+ *   ⌘⌫ only while their rows are offered (`canConvert`, `canCopyLink`, `canDelete`). On
+ *   a wide screen the Convert, Copy customer link and Delete buttons hold ⌥I, ⌥L and
+ *   ⌘⌫, while they are offered.
  *
  * Both:
  * - ⌘S while the save that holds it cannot take it (offline, or a save runs): that key is
@@ -212,6 +227,8 @@ export function useDocumentShortcuts({
     saveAndNew,
     canConvert,
     convert,
+    canCopyLink,
+    copyLink,
     canDownloadPdf,
     downloadPdf,
 }: DocumentShortcutsInput) {
@@ -222,12 +239,21 @@ export function useDocumentShortcuts({
         isSaving,
         canDelete,
         canConvert,
+        canCopyLink,
         canDownloadPdf,
         writesAvailable: writes.available,
     }
     const stateRef = useRef<KeyState>(keyState)
     stateRef.current = keyState
-    const runs: KeyRuns = { deleteRecord, postAndNew, save, saveAndNew, convert, downloadPdf }
+    const runs: KeyRuns = {
+        deleteRecord,
+        postAndNew,
+        save,
+        saveAndNew,
+        convert,
+        copyLink,
+        downloadPdf,
+    }
     const runRef = useRef<KeyRuns>(runs)
     runRef.current = runs
     const { key: kindKey, shortcutGroup: group, lifecycle, noun } = kind
@@ -240,12 +266,24 @@ export function useDocumentShortcuts({
             isPhone,
             hasPdf,
             canConvert,
+            canCopyLink,
             canDelete,
             state: stateRef,
             run: runRef,
         }
         return lifecycle === 'quote' ? quoteKeys(input) : postingKeys(input)
-    }, [instance, isPhone, hasPdf, kindKey, group, noun, lifecycle, canConvert, canDelete])
+    }, [
+        instance,
+        isPhone,
+        hasPdf,
+        kindKey,
+        group,
+        noun,
+        lifecycle,
+        canConvert,
+        canCopyLink,
+        canDelete,
+    ])
     useRegisterShortcuts(shortcuts, scopeOwner)
     return { scopeOwner }
 }

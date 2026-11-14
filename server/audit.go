@@ -24,13 +24,16 @@ import (
 // books_bank_transactions is here because a person may move a transaction's status
 // between For review and Excluded; Go writes every other part of it.
 //
-// It takes the app because five labels read another row: an admin grant is
-// labeled by the user it grants, a line by its account, a bundle row by its
-// bundle and product, a bank connection by its account, and a bank import by its file.
+// It takes the app because these labels read another row: an admin grant is
+// labeled by the user it grants, a line by its account or its document, a
+// bundle row by its bundle and product, a bank connection by its account, a
+// bank import by its file, and a customer's response by its estimate.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
-// The labels read no redacted field, because core does not redact the label.
+// An estimate's public_token is redacted too: it is the credential of the
+// customer link, and a copy in the log would be a second key to it. The labels
+// read no redacted field, because core does not redact the label.
 func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
 		"books_accounts":        {ExtractLabel: auditAccountLabel},
@@ -48,9 +51,12 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_sales_receipt_lines": {
 			ExtractLabel: func(r *core.Record) string { return salesReceiptLineLabel(app, r) },
 		},
-		"books_estimates": {ExtractLabel: estimateLabel, Redact: []string{"sort_key"}},
+		"books_estimates": {ExtractLabel: estimateLabel, Redact: []string{"sort_key", "public_token"}},
 		"books_estimate_lines": {
 			ExtractLabel: func(r *core.Record) string { return estimateLineLabel(app, r) },
+		},
+		"books_estimate_responses": {
+			ExtractLabel: func(r *core.Record) string { return estimateResponseLabel(app, r) },
 		},
 		"books_bills": {ExtractLabel: billLabel, Redact: []string{"sort_key"}},
 		"books_bill_lines": {
