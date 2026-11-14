@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tests"
 	"github.com/pocketbase/pocketbase/tools/security"
 )
 
@@ -36,6 +38,26 @@ func costEnv(t *testing.T) *postingEnv {
 	return pe
 }
 
+// A time limit fails on a slow machine and says nothing about growth, so each
+// cost test also bounds the SQL statements of its batch. Measured 2026-11-13:
+// 1,779 for the create and 2,930 for the replace and post (about 10,400 while
+// each line write restated the document). Each bound is the measured value
+// plus 10 percent.
+const (
+	createStatementBound  = 1956
+	replaceStatementBound = 3223
+)
+
+// costedRun is timedRun with the count of every SQL statement the call ran.
+func costedRun(t *testing.T, app *tests.TestApp, r apiReq) (time.Duration, int) {
+	t.Helper()
+	var took time.Duration
+	statements := countStatements(t, app, func(string) bool { return true }, func() {
+		took = timedRun(t, app, r)
+	})
+	return took, statements
+}
+
 // A new document's save: the header and 250 lines in one batch.
 func TestDocBatchCost_Create250LineInvoice(t *testing.T) {
 	pe := costEnv(t)
@@ -46,13 +68,16 @@ func TestDocBatchCost_Create250LineInvoice(t *testing.T) {
 		ops = append(ops, invoiceLineCreateOp(id, pe.service, i, 100))
 	}
 
-	took := timedRun(t, pe.app, apiReq{
+	took, statements := costedRun(t, pe.app, apiReq{
 		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, pe.users.bookkeeper),
 		body: batchBody(ops...), want: http.StatusOK, content: []string{id},
 	})
-	t.Logf("create of a 250-line invoice in one batch: %s", took)
+	t.Logf("create of a 250-line invoice in one batch: %s, %d statements", took, statements)
 	if took > costBound {
 		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
+	}
+	if statements > createStatementBound {
+		t.Fatalf("%d statements, want at most %d: the work grows faster than the line count", statements, createStatementBound)
 	}
 	saved := reload(t, pe.app, "books_invoices", id)
 	if saved.GetInt("subtotal") != 25000 || saved.GetInt("revision") != 1 {
@@ -83,13 +108,16 @@ func TestDocBatchCost_ReplaceAndPost250Lines(t *testing.T) {
 	}
 	ops = append(ops, fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_invoices/records/%s","body":{"status":"posted","revision":%d}}`, inv.Id, saw+1))
 
-	took := timedRun(t, pe.app, apiReq{
+	took, statements := costedRun(t, pe.app, apiReq{
 		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, pe.users.bookkeeper),
 		body: batchBody(ops...), want: http.StatusOK, content: []string{`"status":"posted"`},
 	})
-	t.Logf("replace of 250 lines and the post in one batch: %s", took)
+	t.Logf("replace of 250 lines and the post in one batch: %s, %d statements", took, statements)
 	if took > costBound {
 		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
+	}
+	if statements > replaceStatementBound {
+		t.Fatalf("%d statements, want at most %d: the work grows faster than the line count", statements, replaceStatementBound)
 	}
 	posted := reload(t, pe.app, "books_invoices", inv.Id)
 	if posted.GetInt("subtotal") != 50000 || posted.GetInt("revision") != saw+1 {
