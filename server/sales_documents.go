@@ -132,7 +132,7 @@ const maxDocumentLines = 250
 // serialized, so no other write can commit between a check and the write it
 // allows. A line create, update or delete then restates the document (each
 // line's amount and the three totals) in the same transaction; in a batch the
-// document is restated one time, after the last line write
+// document is restated one time, after the batch's last write
 // (sales_document_deferral.go).
 func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
@@ -732,10 +732,12 @@ func setSalesDocTotals(r *core.Record, totals documentTotalsResult) {
 // not a bundle, and the document's lines with this write still have a target
 // for every percent line and totals Books can store. It sets the line's
 // amount. In a batch (the document is deferring, sales_document_deferral.go)
-// it checks the line's own cells, product and amount only, and the document's
-// owner checks the lines the batch leaves. While restateSalesDoc writes the document's lines, an update that
-// changes only the amount passes and any other update is refused. stored is
-// the record before an update, nil on a create.
+// it does not read the document's other lines: it checks the line's own
+// cells, product and amount, and the document's owner checks the percent
+// targets and the totals of the lines the batch leaves. While restateSalesDoc
+// writes the document's lines, an update that changes only the amount passes
+// and any other update is refused. stored is the record before an update, nil
+// on a create.
 func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	docID := r.GetString(kind.ParentField)
 	if stored != nil && stored.GetString(kind.ParentField) != docID {
