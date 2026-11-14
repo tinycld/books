@@ -12,19 +12,13 @@ import { type RefObject, useRef, useState } from 'react'
 import type { ErrorOption } from 'react-hook-form'
 import type { ViewInstance } from 'react-native'
 import { refusedRecordId } from '../lib/batch-refusal'
-import {
-    DOCUMENT_LINE_COLUMNS,
-    DOCUMENT_LINE_MAPPER,
-    DOCUMENT_ROW_KINDS,
-} from '../lib/document-line-columns'
-import { documentLineWriteSteps, documentSavePlan } from '../lib/document-line-order'
+import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
 import {
     type DocumentRefusalTarget,
     documentRefusalTarget,
     labelledLineRefusal,
 } from '../lib/document-messages'
 import { type DocumentTab, documentHref, documentNewHref } from '../lib/document-routes'
-import { documentTaxOf } from '../lib/document-tax'
 import { documentLinesForSave } from '../lib/document-values'
 import { acceptanceShown } from '../lib/estimate-status'
 import { type HiddenFields, hiddenRefusalKeys, refusalMessage } from '../lib/record-refusals'
@@ -32,7 +26,7 @@ import { columnsOrThrow, type RefusalForm, runLocked, startFailed } from '../lib
 import { messageOnlyRefusal } from '../lib/refusal'
 import { assertRevisionSeen, documentConflictText, isRevisionConflict } from '../lib/revision'
 import { INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
-import { createTablePlans } from '../lib/table-writes'
+import { createTablePlans, tableWriteSteps } from '../lib/table-writes'
 import { useDocumentSaveStore } from '../stores/document-save-store'
 import type { DocumentTransaction, DocumentWrites } from './document-data'
 import type { DocumentFormState } from './useDocumentForm'
@@ -181,22 +175,9 @@ function usePresence(surfaceRef: RefObject<ViewInstance | null>) {
     return () => surfaceRef.current !== null && navigation.isFocused()
 }
 
-type StoredLines = Parameters<typeof documentSavePlan>[0]['storedLines']
-
-// The lines as a save stores them, for the next save's line plan.
-function storedLinesOf(rows: readonly TableRow[]): StoredLines {
-    return rows.map((row, position) => ({
-        id: row.id,
-        ...DOCUMENT_LINE_MAPPER.toRecord(row, position),
-    }))
-}
-
 // A line write of a save: its row, the "Line n" label of a refusal of it (a removed row
 // has none), and the write.
 type LineWrite = { rowId: string; label: string | null; run: () => DocumentTransaction }
-
-// The line writes of a saved document's save, and whether its header write goes first.
-type SavePlan = { headerFirst: boolean; lines: LineWrite[] }
 
 function lineWriteOf(step: {
     rowId: string
@@ -210,47 +191,13 @@ function lineWriteOf(step: {
     }
 }
 
-// The header tax of a tax rate id, as the totals read it.
-function taxOf(state: DocumentFormState, taxRateId: string) {
-    return documentTaxOf(state.taxRows, taxRateId).tax
-}
-
-// The tax rate the form holds now.
-function formTaxRate(state: DocumentFormState): string {
-    const value = state.form.getValues('tax_rate')
-    return typeof value === 'string' ? value : ''
-}
-
-// A new document's line writes: its header is inserted first with the form's tax, so the
-// order is planned against that tax (documentLineWriteSteps).
-function createLinesOf(state: DocumentFormState, writes: DocumentWrites) {
+// The line writes of a save: removes, then updates and inserts by position
+// (tableWriteSteps). The server checks a batch on the lines it leaves
+// (server/sales_document_deferral.go), so no state in between has to be valid; the
+// removes go first because it counts the lines at each insert.
+function lineWritesOf(writes: DocumentWrites) {
     return (documentId: string, plan: TableWritePlan | undefined): LineWrite[] =>
-        documentLineWriteSteps({
-            storedLines: [],
-            plan,
-            tax: taxOf(state, formTaxRate(state)),
-            ops: writes.lineOps(documentId),
-        }).map(lineWriteOf)
-}
-
-// A saved document's save plan: its line writes in an order the server accepts with the
-// tax it stores while they are written, and the place of the header write
-// (documentSavePlan).
-function savePlanOf(state: DocumentFormState, writes: DocumentWrites) {
-    return (
-        documentId: string,
-        plan: TableWritePlan | undefined,
-        stored: { lines: StoredLines; taxRate: string }
-    ): SavePlan => {
-        const ordered = documentSavePlan({
-            storedLines: stored.lines,
-            plan,
-            storedTax: taxOf(state, stored.taxRate),
-            nextTax: taxOf(state, formTaxRate(state)),
-            ops: writes.lineOps(documentId),
-        })
-        return { headerFirst: ordered.headerFirst, lines: ordered.steps.map(lineWriteOf) }
-    }
+        tableWriteSteps(plan, writes.lineOps(documentId)).map(lineWriteOf)
 }
 
 // The "Line n" label of the line whose write a refused batch names; null for the header's
@@ -291,8 +238,8 @@ function newProgress(): Progress {
 
 // The draft a new form wrote before its post was refused: the form stays on `new` with
 // the refusal, and its next save updates this document instead of inserting another.
-// `revision` is what that save states it saw; `taxRate` is the tax the draft stores.
-type Written = { id: string; rows: TableRow[]; revision: number; taxRate: string }
+// `revision` is what that save states it saw.
+type Written = { id: string; rows: TableRow[]; revision: number }
 
 type DocumentSaveOptions = {
     // The tab a draft saved from `new` opens on (default the form): a save from the PDF
@@ -339,9 +286,9 @@ function hasFieldErrors(state: DocumentFormState): boolean {
  * - A saved document is one batch: its line writes, then ONE header write with the dirty
  *   columns, `revision` (the baseline plus one) and, for a post, `status: 'posted'`. The
  *   batch sends one operation for the header at the place of its first mutation, and a
- *   post reads the lines, so the header is mutated once, last. When the save changes the
- *   tax rate and the lines hold only with the new tax, the header goes first, and a post
- *   is then its own request after the batch.
+ *   post reads the lines, so the header is mutated once, last. The server checks the
+ *   lines the batch leaves with the tax the header write carries, so a save that changes
+ *   the tax rate needs no other order, and a post is always part of the batch.
  * - A new document's post cannot join its create (the create must be a draft), so it is
  *   the create batch, then one request with `revision: 2` and `status: 'posted'`. A
  *   refused post leaves the draft written and shows the refusal on the form; the form
@@ -376,8 +323,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const orgHref = useOrgHref()
     const surfaceRef = useRef<ViewInstance>(null)
     const isPresent = usePresence(surfaceRef)
-    const createLines = createLinesOf(state, writes)
-    const savePlan = savePlanOf(state, writes)
+    const lineWrites = lineWritesOf(writes)
     const lock = useRef(false)
     // The draft a new form wrote. State, not a ref: its id also titles the form (the
     // kind's draft title) and offers Delete draft, and the next save is pressed after the
@@ -455,7 +401,6 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             fields: Record<string, unknown>
             lines: LineWrite[]
             rows: TableRow[]
-            taxRate: string
             mode: SaveMode
             progress: Progress
         }) => {
@@ -482,12 +427,12 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             state.create.form.reset(state.create.form.getValues())
             navigateAfter(id, mode)
         },
-        onError: (error, { id, rows, taxRate, lines, progress }) => {
+        onError: (error, { id, rows, lines, progress }) => {
             // The draft is written and its post was refused: it stays, and the refusal
             // shows on this form, whose next save updates it. The post is no line's
             // write, so its refusal gets no "Line n" label.
             if (progress.drafted) {
-                markWritten({ id, rows, revision: progress.revision, taxRate })
+                markWritten({ id, rows, revision: progress.revision })
                 refuse({ error, rowLabel: null })
                 return
             }
@@ -506,7 +451,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             id: string
             patch: Record<string, unknown>
             fields: Record<string, unknown>
-            save: SavePlan
+            lines: LineWrite[]
             // The revision this save states it saw.
             saw: number
             // Makes the written values, at this revision, the form's baseline.
@@ -521,43 +466,26 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             // refuse. So the form refuses here, before anything is sent.
             assertRevisionSeen(writes.storedRevision(input.id), input.saw, texts.conflict)
             const sent = input.saw + 1
-            const postsInBatch = input.mode.post && !input.save.headerFirst
-            const writeHeader = (post: boolean) =>
+            await atomic(() => {
+                for (const line of input.lines) line.run()
+                // Last, and once: the batch sends one operation for the header, at the
+                // place of its first mutation. The server checks the lines the batch
+                // leaves with the tax this write carries, and reads them when it posts.
                 writes.updateRecord(input.id, {
                     columns: input.patch,
                     fields: input.fields,
                     revision: sent,
-                    post,
+                    post: input.mode.post,
                 })
-            await atomic(() => {
-                if (input.save.headerFirst) writeHeader(false)
-                for (const line of input.save.lines) line.run()
-                // Last, and once: the batch sends one operation for the header, at the
-                // place of its first mutation, and the server reads the lines when it posts.
-                if (!input.save.headerFirst) writeHeader(postsInBatch)
             })
-            input.progress.drafted = true
             input.progress.revision = sent
-            if (!input.mode.post || postsInBatch) return
-            // The header went first (a tax rate change the lines need), so the post could
-            // not join it: it is its own request, as a new document's is.
-            assertRevisionSeen(writes.storedRevision(input.id), sent, texts.conflict)
-            await performMutations(function* () {
-                yield writes.postRecord(input.id, sent + 1)
-            })
-            input.progress.revision = sent + 1
         },
         onSuccess: (_data, { id, onDrafted, mode, progress }) => {
             onDrafted(progress.revision)
             navigateAfter(id, mode)
         },
-        onError: (error, { onDrafted, save, progress }) => {
-            if (progress.drafted) {
-                onDrafted(progress.revision)
-                refuse({ error, rowLabel: null })
-                return
-            }
-            refuse({ error, rowLabel: rowLabelOf(error, save.lines) })
+        onError: (error, { lines }) => {
+            refuse({ error, rowLabel: rowLabelOf(error, lines) })
         },
         onSettled: (_data, _error, { id }) => {
             lock.current = false
@@ -625,9 +553,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             replaces: state.replaces,
             formId: state.create.formId,
             fields: split.fields,
-            lines: createLines(id, plans.lines),
+            lines: lineWrites(id, plans.lines),
             rows: split.tables.lines ?? [],
-            taxRate: formTaxRate(state),
             mode,
             progress: newProgress(),
         })
@@ -640,18 +567,14 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         const split = await state.create.submit()
         if (!split) return false
         const rows = split.tables.lines ?? []
-        const taxRate = formTaxRate(state)
         holdFor(draft.id, mode)
         update.mutate({
             id: draft.id,
             patch: columnsOrThrow(documentKind.columnsFrom, split.columns),
             fields: split.fields,
-            save: savePlan(draft.id, planTableWrites(draft.rows, rows, DOCUMENT_LINE_COLUMNS), {
-                lines: storedLinesOf(draft.rows),
-                taxRate: draft.taxRate,
-            }),
+            lines: lineWrites(draft.id, planTableWrites(draft.rows, rows, DOCUMENT_LINE_COLUMNS)),
             saw: draft.revision,
-            onDrafted: revision => markWritten({ id: draft.id, rows, revision, taxRate }),
+            onDrafted: revision => markWritten({ id: draft.id, rows, revision }),
             mode,
             progress: newProgress(),
         })
@@ -685,10 +608,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             id,
             patch: columnsOrThrow(documentKind.columnsFrom, result.columns),
             fields: result.fields,
-            save: savePlan(id, result.tableWrites.lines, {
-                lines: state.storedLines,
-                taxRate: state.storedTaxRate,
-            }),
+            lines: lineWrites(id, result.tableWrites.lines),
             saw: baseline.current,
             onDrafted: revision => {
                 // After a save the baseline is the value sent; a key the person typed in

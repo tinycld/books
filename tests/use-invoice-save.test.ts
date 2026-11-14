@@ -662,10 +662,10 @@ describe('useDocumentSave: a stored draft', () => {
         expect(probe.current().save.isConflict).toBe(false)
     })
 
-    // Decision D2. Stored: one line of 100.00, not taxable, under Denver combined. The
-    // save adds a taxable credit of -95.00 and removes the tax. With the stored tax the
-    // credit's own tax takes the total below zero, so no line order holds; with no tax
-    // the total is 5.00. The header (the tax change) then goes first.
+    // Stored: one line of 100.00, not taxable, under Denver combined. The save adds a
+    // taxable credit of -95.00 and removes the tax. The server checks a batch on the lines
+    // it leaves, with the tax its header write carries (server/sales_document_deferral.go),
+    // so the header goes last here as in every save.
     describe('a save that changes the tax rate the lines need', () => {
         const ONE_LINE: Stored = {
             lines: [
@@ -689,7 +689,7 @@ describe('useDocumentSave: a stored draft', () => {
                 form.setValue('lines', [...rows, CREDIT], { shouldDirty: true })
             })
 
-        it('saves the header first, with the next revision, then the line, in one batch', async () => {
+        it('saves the line, then the header with the next revision, in one batch', async () => {
             const probe = await openStored(DRAFT.revision, ONE_LINE)
             removeTaxAndAddCredit(probe)
 
@@ -699,57 +699,26 @@ describe('useDocumentSave: a stored draft', () => {
 
             await waitFor(() => expect(invoices.get(DRAFT.id)?.revision).toBe(6))
             await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
-            expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id])
+            expect(enteredWrites()).toEqual([CREDIT.id, DRAFT.id])
             expect(invoices.get(DRAFT.id)?.tax_rate).toBe('')
             expect(invoices.get(DRAFT.id)?.status).toBe('draft')
             expect(lines.toArray.map(l => l.id)).toEqual([ONE_LINE.lines[0].id, CREDIT.id])
             expect(probe.current().save.isConflict).toBe(false)
         })
 
-        it('posts with the header first in the batch (revision + 1), then the post alone (revision + 2)', async () => {
+        it('posts in the same batch: the line, then the header with status posted', async () => {
             const probe = await openStored(DRAFT.revision, ONE_LINE)
             removeTaxAndAddCredit(probe)
-            const steps = stepWrites()
 
             await post(probe)
-            // The batch: the header, then the line. It does not post.
-            await waitFor(() => expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id]))
+
+            await waitFor(() => expect(invoices.get(DRAFT.id)?.status).toBe('posted'))
+            await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
+            // One batch and no second request.
+            expect(enteredWrites()).toEqual([CREDIT.id, DRAFT.id])
             expect(invoices.get(DRAFT.id)?.revision).toBe(6)
             expect(invoices.get(DRAFT.id)?.tax_rate).toBe('')
-            expect(invoices.get(DRAFT.id)?.status).toBe('draft')
-            steps.next()
-            // The post, as its own request.
-            await waitFor(() => expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id, DRAFT.id]))
-            expect(invoices.get(DRAFT.id)?.revision).toBe(7)
-            expect(invoices.get(DRAFT.id)?.status).toBe('posted')
-            steps.stop()
-
-            await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
-            expect(invoices.get(DRAFT.id)?.revision).toBe(7)
-            expect(invoices.get(DRAFT.id)?.status).toBe('posted')
             expect(probe.current().save.isConflict).toBe(false)
-        })
-
-        // Another session's save reaches the store between the batch and the post.
-        it('refuses the post, with no request, when the draft moved after the batch', async () => {
-            const probe = await openStored(DRAFT.revision, ONE_LINE)
-            removeTaxAndAddCredit(probe)
-            afterNextBatch(() =>
-                arriveFromServer(() => {
-                    invoices.update(DRAFT.id, draft => {
-                        draft.revision = 7
-                    })
-                })
-            )
-
-            await post(probe)
-
-            await waitFor(() => expect(probe.current().save.isConflict).toBe(true))
-            await waitFor(() => expect(probe.current().save.isSaving).toBe(false))
-            // The batch only: no post entered.
-            expect(enteredWrites()).toEqual([DRAFT.id, CREDIT.id])
-            expect(invoices.get(DRAFT.id)?.status).toBe('draft')
-            expect(invoices.get(DRAFT.id)?.revision).toBe(7)
         })
     })
 })
