@@ -780,7 +780,12 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		if err := checkLineProduct(tx, stored, r, n); err != nil {
 			return err
 		}
-		r.Set("amount", ownLineAmount(r))
+		// The schema's max would refuse the amount first, with its own text.
+		amount := ownLineAmount(r)
+		if amount > maxAmount || amount < -maxAmount {
+			return refuse(msgLineTooLarge, n)
+		}
+		r.Set("amount", amount)
 		return nil
 	}
 

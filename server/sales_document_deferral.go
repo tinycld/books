@@ -14,8 +14,9 @@ import (
 // operation is done and nothing is committed. That hook owns the document's
 // restatement: it marks the document deferring, each line guard then checks
 // its own line only and marks the document dirty, and the owner settles the
-// document after e.Next(). A header write in the transaction settles first
-// (validateSalesDoc), because a post reads the line amounts.
+// document after e.Next(). A header write in the transaction writes the line
+// amounts itself (settleLinesWithHeader): the owner restates no document that
+// write posts or closes.
 //
 // A request that is not in a transaction (one REST write) and a write with no
 // request (Go) set no mark: the line guard reads the lines and the document is

@@ -143,6 +143,35 @@ test.describe('invoice-form: post and read', () => {
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
     })
 
+    // The server writes a percent line's amount one time, after the last line of the
+    // save's batch (server/sales_document_deferral.go), so the batch's own answer for that
+    // line carries 0. The read view must show the stored amount.
+    test('the read view shows the amount of a percent line after the post', async ({ page }) => {
+        const accessPoint = PRODUCTS.find(p => p.id === PRODUCT_IDS.accessPoint)
+        if (!accessPoint) throw new Error('no access point in the fixture')
+        const surcharge = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+        }).format(Math.round(accessPoint.price / 10) / 100)
+        await openBooks(page)
+        await fillNewInvoice(page, uniqueMemo('Invoice percent read'))
+        const item = await lineRowId(page, 0)
+        await page.getByTestId(`form-table-lines-menu-${item}`).focus()
+        await page.getByTestId('form-table-lines-add-more').click()
+        await page.getByTestId('form-table-lines-add-percent').click()
+        await expect(lineRows(page)).toHaveCount(2)
+        const percent = await lineRowId(page, 1)
+        await pickLineProduct(page, 1, 'Discount')
+        await page.getByTestId(lineCellTestId(percent, 'percent')).fill('10')
+        await expect(page.getByTestId(lineCellTestId(percent, 'amount'))).toContainText(surcharge)
+
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await expect(page).toHaveURL(INVOICE_URL)
+        await expect(page.getByTestId('invoice-read-only')).toBeVisible()
+        await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
+        await expect(page.getByTestId(`invoice-line-${percent}`)).toContainText(surcharge)
+    })
+
     test('a posted invoice is voided and copied from More', async ({ page }) => {
         const customer = seededCustomer()
         await openBooks(page)
