@@ -130,13 +130,14 @@ export async function createLinkedEstimate(
 export async function openPublicPage(
     browser: Browser,
     link: string,
-    options: { viewport?: { width: number; height: number } } = {}
+    options: { viewport?: { width: number; height: number }; initScript?: () => void } = {}
 ): Promise<{ page: Page; close: () => Promise<void> }> {
     const context = await browser.newContext({
         baseURL: new URL(link).origin,
         viewport: options.viewport ?? DESKTOP,
         reducedMotion: 'reduce',
     })
+    if (options.initScript) await context.addInitScript(options.initScript)
     const page = await context.newPage()
     await page.goto(link)
     return { page, close: () => context.close() }
@@ -180,4 +181,41 @@ export async function booksContact(page: Page): Promise<{ email: string; phone: 
 
 export function publicCard(page: Page): Locator {
     return page.getByTestId('estimate-public')
+}
+
+// On the customer's page: Accept, the name, Accept estimate. Does not wait for the
+// outcome; the caller asserts what the answer did.
+export async function acceptOnPage(page: Page, name: string) {
+    const accept = page.getByTestId('estimate-public-accept')
+    await expect(accept).toBeVisible()
+    await accept.click()
+    await expect(page.getByTestId('estimate-public-accept-step')).toBeVisible()
+    const input = page.getByTestId('estimate-public-name-input')
+    await input.fill(name)
+    await expect(input).toHaveValue(name)
+    await page.getByTestId('estimate-public-accept-confirm').click()
+}
+
+// On the customer's page: Decline, the reason, Decline estimate. Does not wait for the
+// outcome.
+export async function declineOnPage(page: Page, reason: string) {
+    const decline = page.getByTestId('estimate-public-decline')
+    await expect(decline).toBeVisible()
+    await decline.click()
+    await expect(page.getByTestId('estimate-public-decline-step')).toBeVisible()
+    const input = page.getByTestId('estimate-public-reason-input')
+    await input.fill(reason)
+    await expect(input).toHaveValue(reason)
+    await page.getByTestId('estimate-public-decline-confirm').click()
+}
+
+// In Books, on the saved estimate's form: Status `label`, saved, and the badge (which
+// follows the saved row) showing it.
+export async function setEstimateStatus(page: Page, label: 'Pending' | 'Accepted' | 'Rejected') {
+    await chooseSelect(page, 'status', label)
+    if (label === 'Accepted') {
+        await page.getByTestId('form-input-accepted_by').fill('Dana Whitfield')
+    }
+    await page.getByTestId('estimate-save').click()
+    await expect(page.getByTestId('estimate-badge')).toHaveText(label)
 }
