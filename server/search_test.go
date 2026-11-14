@@ -998,3 +998,88 @@ func TestSearch_FindsEstimates(t *testing.T) {
 	requireOnly([]string{"zebrafinch"}, "estimate:"+gala.Id)
 	requireOnly([]string{"orthodontics"}, "estimate:"+braces.Id)
 }
+
+func billRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "bill:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Spec §3.10: search finds bills, drafts included, by number, the vendor's
+// bill no., memo and the vendor's name. A row opens the bill (id bill:<id>,
+// kind bill) and is titled "Bill <n> · <Vendor>" or "Draft bill · <Vendor>".
+// A void bill stays findable, and a renamed vendor finds its bills with no
+// reindex.
+func TestSearch_FindsBills(t *testing.T) {
+	env := newSearchEnv(t)
+	registerSalesDocGuards(env.app, billKind)
+	bindHostsByKey(t, env.app, billKind.HostKey)
+	be := billEnvOn(t, env)
+	app, actor := env.app, env.users.bookkeeper.Id
+
+	postedDraft := mkBill(t, app, be.summit, map[string]any{"ref_no": "zr58214", "memo": "rack quokka cabling"})
+	mkBillLine(t, app, postedDraft, 0, accountLine(be.software, 12500))
+	posted := mustPostBill(t, app, postedDraft.Id, actor)
+	draft := mkBill(t, app, be.officeSupply, map[string]any{"memo": "toner zebrafinch reorder"})
+	mkBillLine(t, app, draft, 0, accountLine(be.designTools, 4000))
+	voidedDraft := mkBill(t, app, be.summit, map[string]any{"memo": "duplicate wombat charge"})
+	mkBillLine(t, app, voidedDraft, 0, accountLine(be.software, 3000))
+	mustPostBill(t, app, voidedDraft.Id, actor)
+	if err := voidBillAs(app, voidedDraft.Id, actor); err != nil {
+		t.Fatalf("void bill: %v", err)
+	}
+	voided := reload(t, app, "books_bills", voidedDraft.Id)
+
+	postedNumber, voidedNumber := posted.GetString("number"), voided.GetString("number")
+	if postedNumber == "" || voidedNumber == "" || voided.GetString("status") != statusVoid {
+		t.Fatalf("numbers %q and %q, voided status %q: want two numbered bills, one void",
+			postedNumber, voidedNumber, voided.GetString("status"))
+	}
+	titles := map[string]string{
+		"bill:" + posted.Id: "Bill " + postedNumber + " · Summit IT Services",
+		"bill:" + draft.Id:  "Draft bill · Office Supply World",
+		"bill:" + voided.Id: "Bill " + voidedNumber + " (void) · Summit IT Services",
+	}
+
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, env.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := billRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found bill rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "bill" {
+				t.Errorf("%q row %s title %q kind %v, want %q, bill", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"summit", postedNumber}, "bill:"+posted.Id)
+	requireOnly([]string{"summit"}, "bill:"+posted.Id, "bill:"+voided.Id)
+	requireOnly([]string{"office", "supply"}, "bill:"+draft.Id)
+	requireOnly([]string{"zr58214"}, "bill:"+posted.Id)
+	requireOnly([]string{"quokka"}, "bill:"+posted.Id)
+	requireOnly([]string{"zebrafinch"}, "bill:"+draft.Id)
+	requireOnly([]string{"wombat"}, "bill:"+voided.Id)
+
+	// A renamed vendor finds its bills by the new name, with the new name in
+	// the title; the old name finds none.
+	setField(t, app, be.summit, "display_name", "Tamsin Networks")
+	titles["bill:"+posted.Id] = "Bill " + postedNumber + " · Tamsin Networks"
+	titles["bill:"+voided.Id] = "Bill " + voidedNumber + " (void) · Tamsin Networks"
+	requireOnly([]string{"tamsin"}, "bill:"+posted.Id, "bill:"+voided.Id)
+	requireOnly([]string{"summit"})
+}

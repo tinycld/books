@@ -680,8 +680,10 @@ export function VendorRefField({ fieldKey, label, disabled }: BuiltinFieldProps)
     const { control } = useFormContext<FormValues>()
     const { errors } = useFormState({ control, name: fieldKey })
     const hasError = errors[fieldKey] !== undefined
+    const { kind } = useDocumentFormScope()
+    const testID = `${kind.testId}-${fieldKey.replaceAll('_', '-')}`
     return (
-        <View>
+        <View testID={testID}>
             <TextInput
                 name={fieldKey}
                 control={control}

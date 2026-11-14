@@ -18,8 +18,10 @@ import {
     pickLineAccount,
     postBill,
     reopenByBack,
+    searchToBill,
 } from './bill-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
+import { openEntriesList, searchEntries } from './journal-entries-helpers'
 
 // The bill form and its read view (spec §3.1–§3.12), checkpoint 3. Every bill is made by
 // driving the form with a unique memo (and a unique vendor's bill no. where the number
@@ -70,7 +72,33 @@ function uniqueRef(label: string): string {
     return `${label}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 }
 
+const VOID_BODY = 'A reversing entry is posted in the original period. The number is kept.'
+// The Journal Entries list's rows, without their row menu buttons.
+const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
+
 const DRAFT_URL_OF = (id: string) => new RegExp(`/books/bills/${id}$`)
+
+function entryIdFromUrl(page: Page): string {
+    const match = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
+    const id = match?.[1]
+    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
+    return id
+}
+
+// The entry read view's lines, in one snapshot: account label, debit, credit and name.
+function readEntryLines(page: Page) {
+    return page.getByTestId('entry-read-only').evaluate(root => {
+        const text = (id: string) =>
+            (root.querySelector(`[data-testid="${id}"]`)?.textContent ?? '').trim()
+        const count = root.querySelectorAll('[data-testid^="entry-line-account-"]').length
+        return Array.from({ length: count }, (_, i) => ({
+            account: text(`entry-line-account-${i}`),
+            debit: text(`entry-line-debit-${i}`),
+            credit: text(`entry-line-credit-${i}`),
+            name: text(`entry-line-party-${i}`),
+        }))
+    })
+}
 
 async function openBooks(page: Page) {
     await login(page)
@@ -615,9 +643,6 @@ test.describe('bill-form: form', () => {
         await expect(page.getByTestId('bill-total')).toContainText(money(21_000))
         const correctionId = billIdFromUrl(page)
 
-        // The original's Void badge and "Replaced by" line are checked in checkpoint 4,
-        // through Journal Entries → Open: Edit replaced the original's history entry.
-
         // C: a copy of the correction, dated today with no vendor's bill no.
         await page.keyboard.press('c')
         await expect(page).toHaveURL(new RegExp(`/books/bills/new\\?copy=${correctionId}$`))
@@ -628,6 +653,197 @@ test.describe('bill-form: form', () => {
         await expect(
             page.getByTestId(billCellTestId('account_lines', copyLine, 'amount'))
         ).toHaveValue('210.00')
+        await expect(page.getByTestId('form-input-memo')).toHaveValue(memo)
+        await expect(page.getByTestId('form-input-date')).toHaveValue(today)
+        await expect(page.getByTestId('form-input-ref_no')).toHaveValue('')
+
+        // The original is Void and names its correction. Edit replaced the original's
+        // history entry, so it is reached through Journal Entries → Open: the search keeps
+        // the rows of this memo (the original, its void reversal and the correction), and
+        // the original is the Void one typed "Bill".
+        await page.getByTestId('bill-cancel').click()
+        await expect(page).not.toHaveURL(NEW_BILL_URL)
+        await openEntriesList(page)
+        await searchEntries(page, memo)
+        const original = page
+            .locator(ROWS)
+            .filter({
+                has: page.locator('[data-testid^="entries-cell-type-"]', { hasText: /^Bill$/ }),
+            })
+            .filter({
+                has: page.locator('[data-testid^="entries-status-"]', { hasText: /^Void$/ }),
+            })
+        await expect(original).toHaveCount(1)
+        const entryId = ((await original.getAttribute('data-testid')) ?? '').replace(
+            /^entries-row-/,
+            ''
+        )
+        await page.getByTestId(`entries-row-menu-${entryId}`).click()
+        await page.getByTestId('entries-menu-open').click()
+        await expect(page).toHaveURL(DRAFT_URL_OF(originalId))
+        await expect(page.getByTestId('bill-badge')).toHaveText('Void')
+        await expect(page.getByTestId('bill-replaced-by')).toHaveText(
+            `Replaced by ${number} (edited)`
+        )
+    })
+})
+
+test.describe('bill-form: across Books', () => {
+    test('finds bills through search', async ({ page }) => {
+        const postedMemo = uniqueMemo('Bill search posted')
+        const draftMemo = uniqueMemo('Bill search draft')
+        const ref = uniqueRef('SRCH')
+        await openBooks(page)
+
+        await openNewBill(page)
+        await pickBillVendor(page, SUMMIT)
+        await page.getByTestId('form-input-ref_no').fill(ref)
+        const line1 = await billLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(billCellTestId('account_lines', line1, 'amount')).fill('72.00')
+        await page.getByTestId('form-input-memo').fill(postedMemo)
+        const number = await postBill(page)
+        const postedId = billIdFromUrl(page)
+
+        await openNewBill(page)
+        await pickBillVendor(page, SUMMIT)
+        const draftLine = await billLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(billCellTestId('account_lines', draftLine, 'amount')).fill('18.00')
+        await page.getByTestId('form-input-memo').fill(draftMemo)
+        await page.getByTestId('bill-save-draft').click()
+        await expect(page).toHaveURL(BILL_URL)
+        const draftForm = page.getByTestId('bill-form')
+        await expect(draftForm.getByTestId('bill-title')).toHaveText('Draft bill')
+        const draftId = billIdFromUrl(page)
+
+        // Out of the text fields, so `/` opens the search palette.
+        await draftForm.getByTestId('bill-title').click()
+        await searchToBill(page, ref, `Bill ${number} · ${SUMMIT}`)
+        await expect(page).toHaveURL(DRAFT_URL_OF(postedId))
+        // The draft's form stays mounted under the pushed read view: scope to the screen.
+        const readView = page.getByTestId('bill-read-only')
+        await expect(readView).toBeVisible()
+        await expect(readView.getByTestId('bill-title')).toHaveText(`Bill ${number}`)
+
+        await searchToBill(page, draftMemo, `Draft bill · ${SUMMIT}`)
+        await expect(page).toHaveURL(DRAFT_URL_OF(draftId))
+        const reopenedForm = page.getByTestId('bill-form').filter({ visible: true })
+        await expect(reopenedForm).toBeVisible()
+        await expect(reopenedForm.getByTestId('form-input-memo')).toHaveValue(draftMemo)
+    })
+
+    test("links a bill's journal entry back to the bill", async ({ page }) => {
+        const memo = uniqueMemo('Bill entry link')
+        await openBooks(page)
+        await openNewBill(page)
+        await pickBillVendor(page, SUMMIT)
+        const line1 = await billLineRowId(page, 'account_lines', 0)
+        const account1 = cellOf(page, 'account_lines', line1)
+        await expect(account1('account')).toContainText('6200 Software Subscriptions')
+        await account1('amount').fill('150.00')
+        await page.getByTestId('form-input-memo').fill(memo)
+        const number = await postBill(page)
+        const id = billIdFromUrl(page)
+
+        // J: the entry, typed Bill with the bill's number; it debits 6200 and credits
+        // Accounts payable, each line naming the vendor.
+        await page.keyboard.press('j')
+        await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
+        const entryId = entryIdFromUrl(page)
+        const entry = page.getByTestId('entry-read-only')
+        await expect(entry).toBeVisible()
+        await expect(entry.getByTestId('entry-detail-type')).toContainText('Bill')
+        await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
+        await expect
+            .poll(async () => {
+                const lines = await readEntryLines(page)
+                const expense = lines.find(l => l.account === '6200 Software Subscriptions')
+                const payable = lines.find(l => /Accounts payable$/.test(l.account))
+                return {
+                    count: lines.length,
+                    expenseDebit: expense?.debit,
+                    payableCredit: payable?.credit,
+                    names: [...new Set(lines.map(l => l.name))],
+                }
+            })
+            .toEqual({
+                count: 2,
+                expenseDebit: money(15_000),
+                payableCredit: money(15_000),
+                names: [SUMMIT],
+            })
+
+        // Journal Entries: Type and No.; the row menu offers Open and Edit, and no Reverse.
+        await openEntriesList(page)
+        await searchEntries(page, memo)
+        await expect(page.getByTestId(`entries-cell-type-${entryId}`)).toHaveText('Bill')
+        await expect(page.getByTestId(`entries-cell-number-${entryId}`)).toHaveText(number)
+        await page.getByTestId(`entries-row-menu-${entryId}`).click()
+        await expect(page.getByTestId('entries-menu-open')).toBeVisible()
+        await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
+        const editUrl = new RegExp(`/books/bills/new\\?replaces=${id}$`)
+        await page.getByTestId('entries-menu-edit').click()
+        await expect(page).toHaveURL(editUrl)
+        await expect(page.getByTestId('bill-title')).toHaveText(`Edit ${number}`)
+        await page.getByTestId('bill-cancel').click()
+        await expect(page).not.toHaveURL(editUrl)
+
+        await openEntriesList(page)
+        await searchEntries(page, memo)
+        await page.getByTestId(`entries-row-menu-${entryId}`).click()
+        await page.getByTestId('entries-menu-open').click()
+        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expect(page.getByTestId('bill-read-only')).toBeVisible()
+    })
+})
+
+test.describe('bill-form: phone read view', () => {
+    test('voids and copies a posted bill on a phone', async ({ page }) => {
+        const memo = uniqueMemo('Bill phone void')
+        const ref = uniqueRef('PH')
+        await openBooks(page)
+        await openNewBill(page)
+        const today = await localToday(page)
+        await pickBillVendor(page, SUMMIT)
+        await page.getByTestId('form-input-ref_no').fill(ref)
+        const line1 = await billLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(billCellTestId('account_lines', line1, 'amount')).fill('64.00')
+        await page.getByTestId('form-input-memo').fill(memo)
+        const number = await postBill(page)
+        const id = billIdFromUrl(page)
+        await page.setViewportSize(PHONE)
+
+        // The phone bar keeps Edit; More holds Void, Copy and View journal entry.
+        await expect(page.getByTestId('bill-read-edit')).toBeVisible()
+        await page.getByTestId('bill-read-more').click()
+        for (const action of ['read-void', 'read-copy', 'read-entry']) {
+            await expect(page.getByTestId(`bill-${action}`)).toBeVisible()
+        }
+        await page.getByTestId('bill-read-void').click()
+        const dialog = page.getByTestId('void-dialog')
+        await expect(dialog).toBeVisible()
+        await expect(dialog).toContainText(`Void bill ${number}?`)
+        await expect(dialog).toContainText(VOID_BODY)
+        await page.getByTestId('void-confirm').click()
+        await expect(dialog).toHaveCount(0)
+        await expect(page.getByTestId('bill-badge')).toHaveText('Void')
+        await expect(page.getByTestId('bill-voided-by')).toContainText('Voided by')
+
+        // A void bill offers Copy and View journal entry only, both in More.
+        await expect(page.getByTestId('bill-read-edit')).toHaveCount(0)
+        await page.getByTestId('bill-read-more').click()
+        await expect(page.getByTestId('bill-read-copy')).toBeVisible()
+        await expect(page.getByTestId('bill-read-entry')).toBeVisible()
+        await expect(page.getByTestId('bill-read-void')).toHaveCount(0)
+        await expect(page.getByTestId('bill-read-edit')).toHaveCount(0)
+
+        await page.getByTestId('bill-read-copy').click()
+        await expect(page).toHaveURL(new RegExp(`/books/bills/new\\?copy=${id}$`))
+        await expect(page.getByTestId('bill-title')).toHaveText('New bill')
+        await expect(page.getByTestId('form-input-vendor')).toContainText(SUMMIT)
+        const copyLine = await billLineRowId(page, 'account_lines', 0)
+        const copyCell = cellOf(page, 'account_lines', copyLine)
+        await expect(copyCell('account')).toContainText('6200 Software Subscriptions')
+        await expect(copyCell('amount')).toHaveValue('64.00')
         await expect(page.getByTestId('form-input-memo')).toHaveValue(memo)
         await expect(page.getByTestId('form-input-date')).toHaveValue(today)
         await expect(page.getByTestId('form-input-ref_no')).toHaveValue('')

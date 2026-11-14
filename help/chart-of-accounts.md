@@ -46,6 +46,7 @@ To delete an account, open the menu on its row and choose Delete. An account tha
 Books also refuses to delete an account in these cases, and tells you why:
 
 - A product or service uses the account as its income or expense account. Make the account inactive instead, or first choose another account on each product or service.
+- An account line of a draft bill uses the account. Make the account inactive instead. The dialog tells you how many bills use it. A posted or void bill has journal lines on the account, so for it the dialog tells you how many journal lines use the account.
 - A tax agency uses the account as its liability account. This is true for an active or an inactive agency. First choose another account for each agency that uses it.
 - The account is the Retained earnings account. Books needs exactly one, so rename it instead.
 

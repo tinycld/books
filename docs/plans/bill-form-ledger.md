@@ -26,6 +26,7 @@
   **tracked in:** this ledger, checkpoint 4 carry-over (`cp4-carryover.md` in the work folder)
   **found by:** implementer (dispatch 3, as test dispute (d))
   **checkpoint:** 3
+  **closed in checkpoint 4:** `lib/entry-route.ts` routes bills; "corrects a posted bill" reaches the original through Journal Entries → Open and checks `bill-badge` "Void" and `bill-replaced-by`.
 - **agreed:** checkpoint 3 Gates line: gate 2 reference `reader-*` shots, built at `/a/books/bills/<id>`
   **built:** the reader's read view exists (View journal entry only; `tests/document-actions.test.ts` bill cases pin the actions); no built `reader` shot in `docs/plans/bill-form-evidence/cp3/`
   **reason:** missing dependency
@@ -35,6 +36,7 @@
   **tracked in:** this ledger, `cp4-carryover.md` in the work folder
   **found by:** implementer (the gate-2 capture agent)
   **checkpoint:** 3
+  **closed in checkpoint 4:** `docs/plans/bill-form-evidence/cp4/reader-{390,1280}-{light,dark}.png`, reached through search (`/`) on the seeded Bill 1002 (account and product lines) under a faked read-only access row; judged by gate 2.
 
 ## Rebuttals
 - **finding:** reviewer A, checkpoint 2, NOTE 1: "`isTooLarge` is now also true when the subtotal or the total passes `maxStoredAmount`, and `useDocumentTotals` sends the Subtotal and the tax amount through `moneyOrTooLarge(…, tooLarge)`. Before this change, a document whose lines are each inside `maxLineAmount` but whose sum is past `maxStoredAmount` showed the Subtotal as a number and the big figure as "Too large". Now the Subtotal and Tax rows also show "Too large". … it conflicts with "the invoice … behave exactly as before"." — and reviewer B, checkpoint 2, finding 17 (the same change; "accept it as a declared difference in the ledger, or keep the sales display as it was").
@@ -81,6 +83,15 @@
 - cp 3 · fix review round 2 NOTE 3: on a bill the memo is "Memo" but its too-long text is still "The internal memo is too long".
 - cp 3 · fix review round 2 NOTE 4: `DocumentForm.tsx` l.207 imports `SELF_HINTED_FIELDS` from a field-component module; it could live in `lib/`.
 - cp 3 · fix review round 2 NOTE 5: read line amounts and totals align with each other ~13 px left of the reference's x=1212 (spec §7 asks only that they align).
+- cp 4 · critic N1 (void-1280): "Posted by" / "Voided by" sit under the totals block; the reference puts them under Memo, beside the totals (wide form of cp 3 N8).
+- cp 4 · critic N2 (void-1280, reader-1280): the rule above Total runs ~12 px past the amounts on the read view too (cp 3 N7 named the form only).
+- cp 4 · critic N3 (correction-1280): a "Cancel Esc" tooltip and hover state show on Cancel (the pointer rested there at capture); capture artifact.
+- cp 4 · critic N4 (reader-390): the shot is one 1100 px viewport; the totals, Memo and "Posted by" of the reader's phone view are below it and were not judged.
+- cp 4 · critic N5 (reader-1280): the product table's Description column is ~290 px with ~70 px unused before Qty; the long description wraps to 5 lines.
+- cp 4 · plan wording vs. build: the phone read view keeps Edit in the bar beside More, and More holds Void, Copy, View journal entry (shared layer `phoneButtonOf`, reference `posted-phone-390`); the checkpoint text said "More lists Edit, Void, Copy, View journal entry". The test asserts the build (reviewer A NOTE 4, reviewer B 2).
+- cp 4 · reviewer A NOTE 3: the bill line audit label is per table ("Bill 1003: Account line 2"), as settled in checkpoint 1 (B 7); the checkpoint 4 text still said "Bill 1003: line 2".
+- cp 4 · reviewer A NOTE 6: the 1280 reader shot is named `./reader` in `cp4/capture.json` (the convention cp 3 used for a second entry of the same shot).
+- cp 4 · account delete order: a posted or void bill's account gets the journal-lines refusal (checked first); the bills count shows only for draft bills (plan Do 3 order kept; help text says so, fix item 1).
 - cp 3 · capture limit: the built shots have product lines only (the capture spec has no action that types an account amount), and `errors` shows one real refusal; gate 2 did not judge account lines with data, the "Account lines" subtotal, the root summary or a line refusal.
 
 ## Out-of-plan changes
@@ -110,6 +121,8 @@
 - cp 3 · `hooks/useDocumentSave.ts`: empty trailing lines dropped from the written values only, so a client-refused Post keeps the form's lines (fix round 2 item 2).
 - cp 3 · `hooks/useDocumentReadActions.ts`, `lib/document-actions.ts`: the read actions take the kind's features (no PDF for a bill).
 - cp 3 · `lib/document-footer-layout.ts` (`footerSpansOf`; the sales value unchanged), `lib/document-line-order.ts` (percent and taxable optional), `lib/document-messages.ts` (bill refusal targets: vendor, due date, ref no.), `lib/document-schema.ts` (bill due date, `ref_no`, `PostLineRule.errorKey`, `rateNegative`), `lib/document-notes.ts` (the bill's memo label "Memo").
+- cp 4 · `tinycld/books/forms/document-fields.tsx`: `VendorRefField` draws the `bill-ref-no` wrapper id again (cp 3 fix review NOTE 1 / carry-over item 3; the brief's test-id list names it).
+- cp 4 · `help/chart-of-accounts.md`: named conditionally by the Files block ("if it lists what blocks an account delete"); it did, so it gained the bill bullet.
 
 ## Phase notes
 - phase 1 / design gate (human, 2026-11-13):
@@ -194,6 +207,24 @@
 - reviewer-caught deferrals: 2 not self-declared — `?vendor` account fill (A DEFERRAL 1 / B DEFERRAL 2, fixed now) and the plan's `MONEY_VALUE_SCHEMA` on cells (declared as a difference, not as a deferral). Recorded deferrals: 2 (the replaced original's e2e check; the `reader` shot), both missing dependencies in checkpoint 4.
 - carried to checkpoint 4: `cp4-carryover.md`; to checkpoint 5: `cp5-carryover.md` (work folder).
 - commit: the commit that holds this line (`feat(books): bill form and read view`).
+- human: none (review mode C).
+
+## Checkpoint 4 — Bills across Books
+- carried in from checkpoint 3 (`cp4-carryover.md`): the replaced original's e2e check (to the test writer), the `reader` shot (runner's capture), the `bill-ref-no` / `bill-vendor` ids (implementer) — all three closed; both checkpoint 3 deferrals closed (see Deferrals).
+- test writer: edited `server/search_test.go`, `server/search_index_test.go`, `server/vendors_test.go`, `server/products_test.go`, `server/accounts_test.go`, `server/audit_test.go`, `server/oauth_scopes_test.go`, `tests/search-target.test.ts`, `tests/entry-route.test.ts`, `tests/help-vendors.test.ts`, `tests/help-products-services.test.ts`, `tests/e2e/bill-helpers.ts`, `tests/e2e/bill-form.spec.ts`; 15 tests, 11 red for the right reason; 4 green by design (audit and OAuth built in checkpoint 1; the phone void/copy path built in checkpoint 3; the void-reversal and no-Reverse entry cases); carry-over item 1 red (Open went to `books/entries/<id>`); untestable: none. The phone test asserts Edit in the bar and Void, Copy, View journal entry in More (the reference and the layer; see Design notes).
+- implementer: one dispatch, DONE (search over both parties, `billsIndex`, entry route, three delete guards, help texts, `bill-ref-no`).
+- test disputes: 1 — "finds bills through search" l.722 `getByTestId('bill-title')` matched two nodes (the saved draft's form stays mounted under the pushed read view). Test wrong: the bullet asks only that search "lists `Bill <n> · Summit IT Services` and opens its read view", and memory p1-opening-balances says scope locators to the screen test id. A fresh test writer scoped the test's locators to their screens; re-staged; the test passed.
+- self-declared differences: `salesDocSearch` gained the party (`partyField`, `partyTable`, `partyIdx`; hit column `customer_name` → `party_name`) so one path serves both parties; `msgVendorOnBills` is a constant in `server/vendors.go` through `checkVendorDelete`; `refuseAccountOnLines` runs after the agency check and before the deposit and sub-account checks; help for products and services now names invoices, sales receipts and estimates too, vendors states the journal-lines rule; `entry-actions.ts` unchanged (it lists no doc types: Reverse is hidden for every `origin: document` entry).
+- gate 1: tests unedited: yes (the one change is the settled dispute) · `packages:generate` ok · `tinycld-pkg check` pass (252 files, 5048 tests) · `go test ./...` ok · e2e one file per command: `bill-form` 9, `journal-entries-list-table` 6, `vendor-form-actions` 2 — all passed.
+- gate 2: capture `docs/plans/bill-form-evidence/cp4/capture.json` (void 1280, correction 1280, reader 390 + 1280; void and correction now carry an account line). The runner added `fillSelector`, `press`, `type`, `clickOption` actions to the git-excluded capture spec. First capture: void and correction failed (the cell selector hit a wrapper) → selector narrowed to `input[…]` → captured. Invalid shots: none · blocking: none · notes: 5, listed under Design notes.
+- gate 3 A (correctness): BLOCK 1 (`help/chart-of-accounts.md` said a posted or void bill's account gets the bills count; the journal-lines check answers first) accepted+fixed (item 1, help text; plan order kept); NOTE 2 (product-expense-account sub-case cannot fail) accepted → item 3 (weak test); NOTE 5 (`searchToBill` substring option match; `openBillBySearch` matches every bill) accepted → item 4; NOTEs 3, 4, 6 to Design notes; out-of-plan NOTE recorded under Out-of-plan changes.
+- gate 3 B (conformance): script lines: 0 · 1 out-of-plan `document-fields.tsx` recorded under Out-of-plan changes; 2 undeclared phone-actions difference recorded under Design notes; 3 stale "· Customer" comment accepted+fixed (item 2); 4 `memo` parameter name accepted+fixed (item 4). DEFERRALS: none.
+- fix round 1: findings `cp4-fix.md` (4 items: help-text, other: comment artifact, weak-test ×2); implementer (items 1–2, FIXED 2 of 2) and test writer (items 3–4: `refuseAccountOnLines` called directly, red under a mutation that counts product lines by their product's expense account, plus the move-then-delete step; exact anchored option match, `term` parameter) in parallel. Gate 1 again: tests unedited yes · `packages:generate` ok · check pass (5048) · `go test ./...` ok · `bill-form` 9 passed. No shot changed.
+- fix review: round 1 (`review-diff.mjs … --fix`, 6 files, 0 conformance lines): clean. Rounds: 1.
+- gate 3 A notes: 3 (NOTEs 3, 4, 6), listed under Design notes.
+- reviewer-caught deferrals: none.
+- not in this commit: `docs/specs/bill-form-design.md` has an uncommitted edit made outside this checkpoint's agents (§3.6 action bar: Delete draft in More, "human, 2026-11-13"); left in the tree for the driver.
+- commit: the commit that holds this line (`feat(books): bills across Books`).
 - human: none (review mode C).
 
 ## Final review
