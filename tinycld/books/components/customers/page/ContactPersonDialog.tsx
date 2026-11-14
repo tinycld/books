@@ -6,18 +6,10 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
-import {
-    type Control,
-    FormErrorSummary,
-    TextInput,
-    useController,
-    useForm,
-    zodResolver,
-} from '@tinycld/core/ui/form'
-import { Switch } from '@tinycld/core/ui/switch'
+import { FormErrorSummary, TextInput, Toggle, useForm, zodResolver } from '@tinycld/core/ui/form'
 import { newRecordId } from 'pbtsdb/core'
 import { useRef } from 'react'
-import { type KeyDownEvent, Text, type TextInputInstance, View } from 'react-native'
+import { Text, type TextInputInstance, View } from 'react-native'
 import { type ContactPersonValues, contactPersonSchema } from '../../../lib/contact-person-schema'
 import { rootErrorOnly } from '../../../lib/root-errors'
 import type { BooksPartyContacts } from '../../../types'
@@ -30,6 +22,9 @@ interface ContactPersonDialogProps {
     isOpen: boolean
     onClose: () => void
 }
+
+// The field's test id is on the row that holds the label and the switch.
+const PRIMARY_WRAPPER_PROPS = { testID: 'contact-primary' }
 
 const EMPTY_CONTACT: ContactPersonValues = {
     name: '',
@@ -130,34 +125,6 @@ function useContactPersonDialog({ customerId, contact, onClose }: ContactPersonD
     }
 }
 
-// The Primary contact switch: core form Toggle's layout, plus Space to turn it on and off
-// from the keyboard. react-native-web's Pressable presses on Space only for a button
-// role, and core Switch has the switch role, so core Toggle does not answer Space. The
-// field's test id is on the row that holds the label and the switch.
-function PrimaryContactField({ control }: { control: Control<ContactPersonValues> }) {
-    const { field } = useController({ control, name: 'is_primary' })
-    const onKeyDown = (event: KeyDownEvent) => {
-        if (event.nativeEvent.key !== ' ' || event.target !== event.currentTarget) return
-        event.preventDefault()
-        field.onChange(!field.value)
-    }
-    return (
-        <View testID="contact-primary" className="mb-3 flex-row items-center justify-between gap-2">
-            <Text className="min-w-0 shrink text-sm font-semibold text-foreground">
-                Primary contact
-            </Text>
-            <Switch
-                value={field.value}
-                onValueChange={field.onChange}
-                onBlur={field.onBlur}
-                onKeyDown={onKeyDown}
-                accessibilityLabel="Primary contact"
-                testID="contact-primary-switch"
-            />
-        </View>
-    )
-}
-
 function RemovedNotice({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
     return (
@@ -232,7 +199,13 @@ export function ContactPersonDialog(props: ContactPersonDialogProps) {
                     keyboardType="phone-pad"
                     autoComplete="tel"
                 />
-                <PrimaryContactField control={control} />
+                <Toggle
+                    control={control}
+                    name="is_primary"
+                    label="Primary contact"
+                    testID="contact-primary-switch"
+                    wrapperProps={PRIMARY_WRAPPER_PROPS}
+                />
                 <FormErrorSummary
                     testID="contact-dialog-errors"
                     errors={rootErrors}
