@@ -98,8 +98,11 @@ export function autoReversalOverdueAt(entry: {
     const dayStart = Date.parse(`${entry.auto_reverse_on}T00:00:00Z`)
     if (Number.isNaN(dayStart)) return null
     const postedAt = new Date((entry.posted_at ?? '').replace(' ', 'T')).getTime()
-    const due = Number.isNaN(postedAt) ? dayStart : Math.max(dayStart, postedAt)
-    return Math.ceil(due / HOUR_MS) * HOUR_MS + SWEEP_GRACE_MS
+    // The day starts on a full hour, and the sweep of that hour posts the reversal. An
+    // entry posted later waits for the next full hour after the post: the sweep of the
+    // post's own hour can run before the post.
+    const sweepAt = postedAt > dayStart ? (Math.floor(postedAt / HOUR_MS) + 1) * HOUR_MS : dayStart
+    return sweepAt + SWEEP_GRACE_MS
 }
 
 export function autoReversalState(
@@ -127,18 +130,22 @@ export function settledReversal<R extends { status: string }>(
 
 // The value of the entry view's "Auto-reverse on". "Will reverse on" is only
 // for a scheduled reversal: it is a promise the other states do not keep.
+// `settled` is settledReversal's result. The voided reversal is named by its number, not
+// by the auto-reverse date: it can be one a person made on another day.
 export function autoReversalText(
     state: AutoReversalState,
     entry: { status: string; auto_reverse_on: string },
-    posted: { number: string; date: string } | undefined
+    settled: { posted?: { number: string; date: string }; voided?: { number: string } }
 ): string {
     if (!entry.auto_reverse_on) return 'None'
     const day = formatDay(entry.auto_reverse_on)
+    const { posted, voided } = settled
     if (state === 'reversed') {
         return posted ? `Reversed on ${formatDay(posted.date)} by ${posted.number}` : 'Reversed'
     }
     if (state === 'canceled') {
-        return `Not reversed. The reversal of ${day} was voided, and Books does not reverse this entry again.`
+        const name = voided ? `The reversing entry ${voided.number}` : 'The reversing entry'
+        return `Not reversed. ${name} was voided, and Books does not reverse this entry again.`
     }
     if (state === 'scheduled') return `Will reverse on ${day}`
     if (state === 'overdue') {

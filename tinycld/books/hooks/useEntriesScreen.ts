@@ -37,10 +37,11 @@ export function useEntriesScreen() {
         return at === null ? [] : [at]
     })
     const now = useClockTick(overdueTimes)
-    // Unknown until the reversal rows have answered: a reversed entry must not flash the mark.
+    // Unknown until the reversal rows of the entry have answered: a reversed entry must
+    // not flash the mark.
     const isOverdue = (entryId: string) => {
         const entry = entriesById.get(entryId)
-        if (!entry || !reversed.isReady) return false
+        if (!entry || !reversed.isKnown(entryId)) return false
         return autoReversalState(entry, reversed.reversalsOf(entryId), now) === 'overdue'
     }
     // A row not in the map (it left the window between render and press) opens on the

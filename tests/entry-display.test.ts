@@ -166,6 +166,12 @@ describe('the state of an automatic reversal', () => {
         expect(autoReversalState(late, [], ms('2026-06-03T11:05:00Z'))).toBe('overdue')
     })
 
+    // The sweep of 10:00 can run before a post at 10:00:00.000, so the next one counts.
+    it('waits for the next sweep when the entry is posted exactly on a full hour', () => {
+        const onTheHour = { ...entry, posted_at: '2026-06-03 10:00:00.000Z' }
+        expect(autoReversalOverdueAt(onTheHour)).toBe(ms('2026-06-03T11:05:00Z'))
+    })
+
     it('has no overdue time without a date, and reads a bad stamp as the start of the day', () => {
         expect(autoReversalOverdueAt({ auto_reverse_on: '', posted_at: '' })).toBeNull()
         expect(autoReversalOverdueAt({ auto_reverse_on: '2026-06-01', posted_at: '' })).toBe(
@@ -196,41 +202,44 @@ describe('the text of an automatic reversal', () => {
     const posted = { number: 'JE-1051', date: '2026-11-01' }
 
     it('is None with no date', () => {
-        expect(autoReversalText('none', { status: 'posted', auto_reverse_on: '' }, undefined)).toBe(
-            'None'
-        )
+        expect(autoReversalText('none', { status: 'posted', auto_reverse_on: '' }, {})).toBe('None')
     })
 
     it('says Will reverse on only for a scheduled reversal', () => {
-        expect(autoReversalText('scheduled', entry, undefined)).toBe('Will reverse on Nov 1, 2026')
+        expect(autoReversalText('scheduled', entry, {})).toBe('Will reverse on Nov 1, 2026')
         for (const state of ['none', 'reversed', 'canceled', 'overdue'] as const) {
-            expect(autoReversalText(state, entry, posted)).not.toContain('Will reverse')
+            expect(autoReversalText(state, entry, { posted })).not.toContain('Will reverse')
         }
     })
 
     it('names the reversal that posted', () => {
-        expect(autoReversalText('reversed', entry, posted)).toBe(
+        expect(autoReversalText('reversed', entry, { posted })).toBe(
             'Reversed on Nov 1, 2026 by JE-1051'
         )
     })
 
     it('tells the person what to do for an overdue reversal', () => {
-        expect(autoReversalText('overdue', entry, undefined)).toBe(
+        expect(autoReversalText('overdue', entry, {})).toBe(
             'The automatic reversal of Nov 1, 2026 did not post. Reverse or void this entry.'
         )
     })
 
-    it('says that a voided reversal is not made again', () => {
-        expect(autoReversalText('canceled', entry, undefined)).toBe(
-            'Not reversed. The reversal of Nov 1, 2026 was voided, and Books does not reverse this entry again.'
+    // The voided reversal can be one a person made on another day, so the text names
+    // the reversing entry, not the auto-reverse date.
+    it('names the voided reversing entry, and says it is not made again', () => {
+        expect(autoReversalText('canceled', entry, { voided: { number: 'JE-1040' } })).toBe(
+            'Not reversed. The reversing entry JE-1040 was voided, and Books does not reverse this entry again.'
+        )
+        expect(autoReversalText('canceled', entry, {})).toBe(
+            'Not reversed. The reversing entry was voided, and Books does not reverse this entry again.'
         )
     })
 
     it('explains a date on a draft and on a void entry', () => {
-        expect(autoReversalText('none', { ...entry, status: 'draft' }, undefined)).toBe(
+        expect(autoReversalText('none', { ...entry, status: 'draft' }, {})).toBe(
             'Nov 1, 2026, after the entry is posted'
         )
-        expect(autoReversalText('none', { ...entry, status: 'void' }, undefined)).toBe(
+        expect(autoReversalText('none', { ...entry, status: 'void' }, {})).toBe(
             'Nov 1, 2026. The entry is void, so Books does not reverse it.'
         )
     })
