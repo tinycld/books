@@ -49,18 +49,46 @@ func TestBillBatch_KeepsTypedAccountAmounts(t *testing.T) {
 }
 
 // A deferred line write names a bill's line by its table and its place among
-// that table's lines, as a single write does.
+// that table's lines, as a single write does. The client numbers each table's
+// lines from 0 with no gap (planTableWrites per table), so the product line and
+// the second account line both follow the first account line at their own
+// table's positions.
 func TestBillBatch_NamesTheLineByItsTable(t *testing.T) {
 	be := newBillBatchEnv(t)
 	bill := mkBill(t, be.app, be.officeSupply, nil)
 	ops := []string{
 		docLineCreateOp(t, billKind, bill.Id, 0, accountLine(be.designTools, 18745)),
-		docLineCreateOp(t, billKind, bill.Id, 1, productLine(be.accessPoint, 3, 12140)),
-		docLineCreateOp(t, billKind, bill.Id, 2, accountLine(be.designTools, 0)),
+		docLineCreateOp(t, billKind, bill.Id, 0, productLine(be.accessPoint, 3, 12140)),
+		docLineCreateOp(t, billKind, bill.Id, 1, accountLine(be.designTools, 0)),
 	}
 	batchAs(t, be.users.bookkeeper, http.StatusBadRequest,
 		[]string{fmt.Sprintf(msgBillAccountAmountZero, 2)}, ops...).run(t, be.app)
 	requireBillLineCount(t, be.app, bill, 0)
+}
+
+// A deferred line write names a moved line by the position it moves to, not
+// by the stored lines. The client sends a table's updates in row order, so
+// "Move up" on account line 2 first writes it at position 0 while account line
+// 1 is still stored at position 0. Counted over the stored lines, the moved
+// line ties line 1's position and sorts after it by id ("Account line 2"); its
+// table's row is 1.
+func TestBillBatch_NamesAMovedLineByItsNewPosition(t *testing.T) {
+	be := newBillBatchEnv(t)
+	bill := mkBill(t, be.app, be.officeSupply, nil)
+	first := accountLine(be.designTools, 18745)
+	first["id"] = "billlineaaaaaaa"
+	second := accountLine(be.designTools, 3890)
+	second["id"] = "billlinezzzzzzz"
+	mkBillLine(t, be.app, bill, 0, first)
+	mkBillLine(t, be.app, bill, 1, second)
+	ops := []string{
+		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_bill_lines/records/%s","body":{"position":0,"amount":0}}`, second["id"]),
+		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_bill_lines/records/%s","body":{"position":1}}`, first["id"]),
+	}
+	batchAs(t, be.users.bookkeeper, http.StatusBadRequest,
+		[]string{fmt.Sprintf(msgBillAccountAmountZero, 1)}, ops...).run(t, be.app)
+	requireBillLineCount(t, be.app, bill, 2)
+	requireBillTotal(t, be.app, bill.Id, 18745+3890)
 }
 
 // A save that states a revision the bill no longer has is refused with the
