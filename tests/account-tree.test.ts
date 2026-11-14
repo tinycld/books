@@ -351,6 +351,26 @@ describe('flattenAccountTree', () => {
         expect(rows[1].node.account.inactive).toBe(true)
     })
 
+    // The inactive ancestor is in the list only as the path to an active account.
+    it('does not list an inactive ancestor alone when only it matches the search', () => {
+        const tree = buildAccountTree(
+            [
+                acct({ id: 'off', name: 'Retired group', inactive: true }),
+                acct({ id: 'kid', name: 'Power', parent: 'off' }),
+            ],
+            defaultSort
+        )
+        const hidden = flattenAccountTree(
+            tree,
+            allFilters({ showInactive: false, query: 'retired' })
+        )
+        expect(hidden.map(r => r.node.account.id)).toEqual([])
+        const path = flattenAccountTree(tree, allFilters({ showInactive: false, query: 'power' }))
+        expect(path.map(r => r.node.account.id)).toEqual(['off', 'kid'])
+        const shown = flattenAccountTree(tree, allFilters({ showInactive: true, query: 'retired' }))
+        expect(shown.map(r => r.node.account.id)).toEqual(['off'])
+    })
+
     it('lists the fixture in tree order with nothing filtered', () => {
         const ids = visibleIds()
         expect(ids).toHaveLength(fixtureAccounts.length)

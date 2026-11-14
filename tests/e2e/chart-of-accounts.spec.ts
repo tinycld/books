@@ -36,25 +36,13 @@ async function openRowMenu(page: Page, name: string) {
     await row(page, name).locator('[data-testid^="account-menu-"]').click()
 }
 
-async function createAccount(page: Page, name: string, type: string, detailType: string) {
-    await page.getByTestId('account-new-toolbar').click()
-    const panel = page.getByTestId('account-panel')
-    await expect(panel).toBeVisible()
-    await page.getByLabel('Account name').fill(name)
-    await panel.getByTestId('account-type').click()
-    await page.getByRole('menuitem', { name: type, exact: true }).click()
-    await panel.getByTestId('account-detail-type').click()
-    await page.getByRole('menuitem', { name: detailType, exact: true }).click()
-    await panel.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(row(page, name)).toBeVisible()
-}
-
-async function createSubAccount(
+// `parent` is the name of the parent account; without it the account is top-level.
+async function createAccount(
     page: Page,
     name: string,
     type: string,
     detailType: string,
-    parent: string
+    parent?: string
 ) {
     await page.getByTestId('account-new-toolbar').click()
     const panel = page.getByTestId('account-panel')
@@ -64,8 +52,10 @@ async function createSubAccount(
     await page.getByRole('menuitem', { name: type, exact: true }).click()
     await panel.getByTestId('account-detail-type').click()
     await page.getByRole('menuitem', { name: detailType, exact: true }).click()
-    await panel.getByTestId('account-parent').click()
-    await page.getByRole('menuitem', { name: parent, exact: true }).click()
+    if (parent !== undefined) {
+        await panel.getByTestId('account-parent').click()
+        await page.getByRole('menuitem', { name: parent, exact: true }).click()
+    }
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(row(page, name)).toBeVisible()
 }
@@ -204,7 +194,7 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await openChartOfAccounts(page)
 
         await createAccount(page, parent, 'Expense', 'Office and general')
-        await createSubAccount(page, child, 'Expense', 'Office and general', parent)
+        await createAccount(page, child, 'Expense', 'Office and general', parent)
 
         // Sub-account first: a parent with an active sub-account stays active.
         await chooseRowAction(page, child, 'Make inactive')

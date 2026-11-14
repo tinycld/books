@@ -332,8 +332,9 @@ export function resolveRows(
         else if (inCycle.has(i)) reason = 'parent cycle'
         else if (parentError) reason = parentError
         else if (parentType !== '' && parentType !== row.typeKey) reason = 'parent type differs'
-        // server/accounts.go checkActiveParent refuses the insert.
-        else if (parentInactive && !row.inactive) reason = 'parent is inactive'
+        // server/accounts.go checkActiveParent refuses the insert. A row that exists
+        // already is skipped and inserts nothing, so it is not an error.
+        else if (parentInactive && !row.inactive && !match) reason = 'parent is inactive'
         else if (depth > maxAccountDepth) reason = `depth over ${maxAccountDepth}`
 
         const isError = reason !== null
