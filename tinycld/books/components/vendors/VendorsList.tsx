@@ -77,6 +77,7 @@ export function VendorsList({ openId }: { openId: string }) {
             isLoadError={loadError !== null}
             onDismissBanner={menus.dismissRefusal}
             dialog={dialog}
+            layout="table"
         />
     )
 }

@@ -23,10 +23,19 @@ interface RecordFormBodyProps {
     definition: FormDefinition
     surface: DetailSurface
     testIdPrefix: string
+    // The content column of each row; the surface's column by default.
+    rowClassName?: string
 }
 
 // The core renderer owns the scroll view; each row is the surface's content column.
-function RecordFormBody({ state, definition, surface, testIdPrefix }: RecordFormBodyProps) {
+export function RecordFormBody({
+    state,
+    definition,
+    surface,
+    testIdPrefix,
+    rowClassName,
+}: RecordFormBodyProps) {
+    const scroll = { rowClassName: rowClassName ?? formRowClassFor(surface) }
     return (
         <View className="flex-1 pt-4">
             <FormRenderer
@@ -40,7 +49,7 @@ function RecordFormBody({ state, definition, surface, testIdPrefix }: RecordForm
                 readOnly={state.readOnly}
                 schemaRef={state.schemaRef}
                 summary="root"
-                scroll={{ rowClassName: formRowClassFor(surface) }}
+                scroll={scroll}
                 testID={`${testIdPrefix}-form`}
             />
         </View>
@@ -148,28 +157,31 @@ function hasDirtyFields(dirtyFields: object | undefined, readOnly: boolean) {
  * warn that they will be lost. Edit mode only (a new record has no row to delete). The
  * form is an outside source here: the subscription sets no React state. On unmount it
  * clears the entry, and ends a delete of this record, whose screen goes away once the
- * delete lands.
+ * delete lands. `alsoDirty` is the record's other unsaved edits, outside `form` (the
+ * customer page's Notes field), so one entry tells whether either form holds edits.
  */
-function usePublishDirty<R extends { id: string }>(
+export function usePublishDirty<R extends { id: string }>(
     store: RecordFormStore<R>,
     form: RecordChildState['form'],
     editedId: string | null,
-    readOnly: boolean
+    readOnly: boolean,
+    alsoDirty = false
 ) {
     useEffect(() => {
         if (editedId === null) return
         const state = store.getState()
-        state.setDirtyRecord(editedId, hasDirtyFields(form.formState.dirtyFields, readOnly))
+        const isDirty = (dirtyFields: object | undefined) =>
+            alsoDirty || hasDirtyFields(dirtyFields, readOnly)
+        state.setDirtyRecord(editedId, isDirty(form.formState.dirtyFields))
         const unsubscribe = form.subscribe({
             formState: { dirtyFields: true },
-            callback: ({ dirtyFields }) =>
-                state.setDirtyRecord(editedId, hasDirtyFields(dirtyFields, readOnly)),
+            callback: ({ dirtyFields }) => state.setDirtyRecord(editedId, isDirty(dirtyFields)),
         })
         return () => {
             unsubscribe()
             store.getState().setDirtyRecord(editedId, false)
         }
-    }, [store, form, editedId, readOnly])
+    }, [store, form, editedId, readOnly, alsoDirty])
     // Apart from the subscription, so a change of access level mid-delete keeps the flag.
     useEffect(() => {
         if (editedId === null) return
@@ -181,11 +193,11 @@ function usePublishDirty<R extends { id: string }>(
 }
 
 // Asks before an unsaved form is left; Discard lets the held navigation go on.
-function DiscardDialog({
+export function DiscardDialog({
     guard,
     message,
 }: {
-    guard: ReturnType<typeof useLeaveGuard>
+    guard: Pick<ReturnType<typeof useLeaveGuard>, 'isConfirming' | 'cancel' | 'discard'>
     message: string
 }) {
     return (

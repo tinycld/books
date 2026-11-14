@@ -394,7 +394,9 @@ export function BillToField(props: BuiltinFieldProps) {
     // A kind whose customer is optional says so while the form names none.
     const showsNoCustomer = !kind.customerRequired && customerId === ''
     const onEditAddress = () => edit(bandKey)
-    const onEditCustomer = () => router.push(orgHref(`books/customers/${customerId}`))
+    // The customer's page opens on its Details tab, where the customer is edited.
+    const onEditCustomer = () =>
+        router.push(orgHref(`books/customers/${customerId}`, { tab: 'details' }))
     const ids = {
         billTo: `${kind.testId}-bill-to`,
         editAddress: `${kind.testId}-edit-address`,

@@ -1,12 +1,18 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
-import { useRegisterShortcuts, useShortcutScope } from '@tinycld/core/lib/shortcuts'
+import {
+    type ScopeOwner,
+    ScopeProvider,
+    type Shortcut,
+    useRegisterShortcuts,
+    useShortcutScope,
+} from '@tinycld/core/lib/shortcuts'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { X } from 'lucide-react-native'
 import { type ReactNode, type Ref, useId, useMemo, useRef } from 'react'
 import { Pressable, Text, View, type ViewInstance } from 'react-native'
 import { type DetailSurface, formRowClassFor } from '../lib/detail-surface'
 
-const noop = () => {}
+const NO_SHORTCUTS: Shortcut[] = []
 
 interface RecordSurfaceProps {
     surface: DetailSurface
@@ -19,39 +25,49 @@ interface RecordSurfaceProps {
     // Null draws no footer bar (loading, not found).
     footer: ReactNode
     children: ReactNode
-    // True while a save is in flight: the back button and Escape do nothing. Other ways
-    // out (the package rail, the tab bar, the search palette, another list row, the
-    // browser's or hardware back) still leave; the save routes its answer by whether the
-    // user still sees the form.
+    // True while leaving is not offered (a save in flight; unsaved edits on a page whose
+    // save bar owns Escape): the default header's back button is disabled and Escape is
+    // not registered. Other ways out (the package rail, the tab bar, the search palette,
+    // another list row, the browser's or hardware back) still leave; the save routes its
+    // answer by whether the user still sees the form.
     isLeaveDisabled?: boolean
     // Set on the root view, so the form can tell when the surface has closed.
     surfaceRef?: Ref<ViewInstance>
+    // Drawn instead of the default panel or page header.
+    header?: ReactNode
 }
 
 // Escape runs Cancel. The surface owns a `modal` scope, and every core layer (a menu, a
 // dialog) pushes its own above it, so an open layer takes Escape first and closes only
 // itself. The id is per instance: two record screens can be mounted for a moment
 // while one replaces the other, and a shared id would let the leaving one unregister
-// the new one's shortcut.
-function useEscapeToLeave(testIdPrefix: string, onLeave: () => void, isLeaveDisabled: boolean) {
+// the new one's shortcut. While leaving is disabled the key is not registered at all,
+// so another `modal` Escape inside the surface (a save bar's Cancel) is the only one:
+// the matcher fires the first eligible shortcut only.
+function useEscapeToLeave(
+    testIdPrefix: string,
+    onLeave: () => void,
+    isLeaveDisabled: boolean
+): ScopeOwner {
     const owner = useShortcutScope('modal')
     const instance = useId()
     const onLeaveRef = useRef(onLeave)
-    onLeaveRef.current = isLeaveDisabled ? noop : onLeave
-    const shortcuts = useMemo(
-        () => [
+    onLeaveRef.current = onLeave
+    const shortcuts = useMemo<Shortcut[]>(() => {
+        if (isLeaveDisabled) return NO_SHORTCUTS
+        return [
             {
                 id: `books.${testIdPrefix}.leave.${instance}`,
                 keys: 'Escape',
-                scope: 'modal' as const,
+                scope: 'modal',
                 description: `Close the ${testIdPrefix}`,
                 allowInInputs: true,
                 run: () => onLeaveRef.current(),
             },
-        ],
-        [testIdPrefix, instance]
-    )
+        ]
+    }, [testIdPrefix, instance, isLeaveDisabled])
     useRegisterShortcuts(shortcuts, owner)
+    return owner
 }
 
 type HeaderProps = Pick<
@@ -144,18 +160,21 @@ function SurfaceFooter({
     )
 }
 
-function SurfaceHeader(props: HeaderProps) {
+function SurfaceHeader({ header, ...props }: HeaderProps & { header: ReactNode }) {
+    if (header) return <>{header}</>
     if (props.surface === 'panel') return <PanelHeader {...props} />
     return <PageHeader {...props} />
 }
 
 /**
  * The chrome around an open record: a header (the title and a ✕ in the panel,
- * "‹ <list>" and the title on the page), the scrolling body (`children`), and a footer
- * that stays at the bottom. Only the header element differs between surfaces, so the body
- * and the form inside it stay mounted when the window crosses the panel width. The root
- * opts back into pointer events, which the child stack's container turns off on web so
- * the transparent index screen never takes the list's clicks.
+ * "‹ <list>" and the title on the page, or the caller's `header`), the scrolling body
+ * (`children`), and a footer that stays at the bottom. Only the header element differs
+ * between surfaces, so the body and the form inside it stay mounted when the window
+ * crosses the panel width. The root opts back into pointer events, which the child
+ * stack's container turns off on web so the transparent index screen never takes the
+ * list's clicks. The surface's `modal` scope is published to everything inside it
+ * (`useScopeOwner`), so the caller's own keys belong to the same scope as Escape.
  */
 export function RecordSurface({
     surface,
@@ -167,26 +186,30 @@ export function RecordSurface({
     children,
     isLeaveDisabled = false,
     surfaceRef,
+    header,
 }: RecordSurfaceProps) {
-    useEscapeToLeave(testIdPrefix, onLeave, isLeaveDisabled)
+    const owner = useEscapeToLeave(testIdPrefix, onLeave, isLeaveDisabled)
     return (
-        <View
-            ref={surfaceRef}
-            testID={`${testIdPrefix}-${surface}`}
-            pointerEvents="auto"
-            className="flex-1 bg-background"
-        >
-            <SurfaceHeader
-                surface={surface}
-                testIdPrefix={testIdPrefix}
-                backLabel={backLabel}
-                title={title}
-                onLeave={onLeave}
-                isLeaveDisabled={isLeaveDisabled}
-            />
-            <View className="flex-1">{children}</View>
-            <SurfaceFooter surface={surface} testIdPrefix={testIdPrefix} footer={footer} />
-        </View>
+        <ScopeProvider owner={owner}>
+            <View
+                ref={surfaceRef}
+                testID={`${testIdPrefix}-${surface}`}
+                pointerEvents="auto"
+                className="flex-1 bg-background"
+            >
+                <SurfaceHeader
+                    header={header}
+                    surface={surface}
+                    testIdPrefix={testIdPrefix}
+                    backLabel={backLabel}
+                    title={title}
+                    onLeave={onLeave}
+                    isLeaveDisabled={isLeaveDisabled}
+                />
+                <View className="flex-1">{children}</View>
+                <SurfaceFooter surface={surface} testIdPrefix={testIdPrefix} footer={footer} />
+            </View>
+        </ScopeProvider>
     )
 }
 

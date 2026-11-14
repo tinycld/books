@@ -17,8 +17,12 @@ import {
 
 type Actions = ReturnType<typeof useCustomerActions>
 
+// What the dialog reads of the customer: a list row and the customer page's record both
+// carry it.
+type DeletedCustomer = Pick<CustomerRecord, 'id' | 'display_name'>
+
 interface DeleteCustomerDialogProps {
-    customer: CustomerRecord | null
+    customer: DeletedCustomer | null
     actions: Actions
     // The customer is open beside the list with unsaved edits, which the delete drops.
     isOpenAndDirty: boolean
@@ -110,7 +114,7 @@ function DeleteCustomerBody({
     refusal,
     onClose,
     onDeleted,
-}: DeleteCustomerDialogProps & { customer: CustomerRecord }) {
+}: DeleteCustomerDialogProps & { customer: DeletedCustomer }) {
     const state = dialogStateFor(useSubCustomers(customer.id))
     const hasSubs = state === 'make-inactive' || state === 'close-only'
     const lines = linesOf([
