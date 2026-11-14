@@ -57,7 +57,7 @@ A writer records a bill a vendor sent — vendor, dates, terms, the vendor's bil
 
 ### 3.6 Saving
 - Validation: one zod schema for the kind through the forms engine (`FormHostUi.schemas`) and `zodResolver`; Save draft and Post use it. Post adds a line-count rule (a `superRefine` on the post variant) shown under the first shown table, its text by the shown tables: both — "Add at least one account or product line", Account details only — "Add at least one account line", Product and service details only — "Add at least one product line".
-- Action bar, sticky: wide — Cancel, Delete draft (saved drafts), Save draft, Post & new, Post (primary); phone — Cancel, Save draft, Post, More (Post & new, Delete draft). As the invoice's bar without Download PDF.
+- Action bar, sticky: wide — Cancel, Save draft, Post & new, Post (primary), More (Delete draft, on saved drafts), as the approved reference and the shared layer (human, 2026-11-13); phone — Cancel, Save draft, Post, More (Post & new, Delete draft). As the invoice's bar without Download PDF.
 - Save writes through `useMutation`: insert/update the `books_bills` row, then the line plan of each shown table (one `books_bill_lines` collection, `kind` account/item), then for Post `status: 'posted'`. The form is held through the write by the document save store. A post refused after the draft was written leaves the draft and shows the refusal.
 - After Post: replace with `books/bills/<id>` (read view). Post & new: replace with a fresh `books/bills/new` (keeps `?vendor` only when opened with it). Save draft stays at `books/bills/<id>`.
 - Cancel with edits opens the discard dialog; Delete draft opens the delete-draft dialog ("Delete this draft bill? This can't be undone.").
