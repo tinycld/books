@@ -55,6 +55,13 @@ function isQuoteStatus(status: DocumentStatus): status is BooksEstimates['status
     return Object.hasOwn(QUOTE_TONES, status)
 }
 
+// A document status as a quote's, or undefined for a status a quote does not have.
+export function quoteStatusOf(
+    status: DocumentStatus | undefined
+): BooksEstimates['status'] | undefined {
+    return status !== undefined && isQuoteStatus(status) ? status : undefined
+}
+
 // The badge of a status (spec §7): the posting kinds keep the words and tones of the
 // entry badges; a quote's are Pending info, Accepted success, Rejected destructive and
 // Closed muted. null for a status the lifecycle does not have.

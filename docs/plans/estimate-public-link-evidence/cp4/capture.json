@@ -1,0 +1,21 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "books-note",
+            "url": "/a/books",
+            "estimateFixture": "estm1006bluefn1",
+            "ready": "estimate-decline-note",
+            "height": 900,
+            "actions": [{ "scrollTo": "estimate-decline-note" }, { "pause": 300 }]
+        },
+        {
+            "name": "books-note-empty",
+            "url": "/a/books",
+            "estimateFixture": "estm1007cedar01",
+            "ready": "estimate-decline-note",
+            "widths": [1280],
+            "height": 800
+        }
+    ]
+}

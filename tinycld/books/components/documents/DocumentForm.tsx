@@ -30,7 +30,7 @@ import {
     DOCUMENT_FOOTER_ROW,
     DOCUMENT_FOOTER_SPANS,
 } from '../../lib/document-footer-layout'
-import { canDeleteStatus, type DocumentStatus } from '../../lib/document-lifecycle'
+import { canDeleteStatus, type DocumentStatus, quoteStatusOf } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
@@ -41,6 +41,7 @@ import { documentConflictText } from '../../lib/revision'
 import { rootErrorOnly } from '../../lib/root-errors'
 import type { SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
+import type { BooksEstimates } from '../../types'
 import { ConflictNotice } from '../ConflictNotice'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
@@ -64,6 +65,7 @@ import {
     type DocumentLinesView,
 } from './document-form-context'
 import { useDocumentKind } from './document-kind-context'
+import { EstimateDeclineNote } from './EstimateDeclineNote'
 
 type EngineForm = UseFormReturn<Record<string, unknown>>
 
@@ -243,22 +245,40 @@ function PartRenderer({ state, definition, testID }: RendererProps) {
 
 const BAND_CLASS = 'rounded-xl border border-border bg-surface-secondary p-4'
 
+// The stored estimate whose customer decline the band shows: its id and its SAVED status.
+type DeclineNoteTarget = { estimateId: string; status: BooksEstimates['status'] | undefined }
+
 interface BandProps {
     state: DocumentFormState
     first: FormDefinition
     second: FormDefinition
+    declineNote: DeclineNoteTarget | null
 }
 
 // The header band; a kind that splits it draws the fields from `bandSplitAt` on as a
-// second row inside it (`<test id>-payment`).
-function DocumentBand({ state, first, second }: BandProps) {
+// second row inside it (`<test id>-payment`). A stored quote's customer decline note
+// sits directly under that row.
+function DocumentBand({ state, first, second, declineNote }: BandProps) {
     const { testId } = state.kind
     const ids = { band: `${testId}-band`, form: `${testId}-band-form` }
     return (
         <View testID={ids.band} className={BAND_CLASS}>
             <PartRenderer state={state} definition={first} testID={ids.form} />
             <BandSecondRow state={state} definition={second} />
+            <BandDeclineNote target={declineNote} />
         </View>
+    )
+}
+
+function BandDeclineNote({ target }: { target: DeclineNoteTarget | null }) {
+    if (target === null) return null
+    return (
+        <EstimateDeclineNote
+            estimateId={target.estimateId}
+            status={target.status}
+            testID="estimate-decline-note"
+            className="mt-4"
+        />
     )
 }
 
@@ -618,6 +638,11 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         isQuote && data.record !== undefined
             ? { isOffered: customerLink.isOffered, onPress: customerLink.copy }
             : null
+    // The decline note follows the saved row, never the unsaved Status.
+    const declineNote =
+        isQuote && data.record !== undefined
+            ? { estimateId: data.record.id, status: quoteStatusOf(data.record.status) }
+            : null
     const deleteTexts = deleteDialogTexts(kind, data.record?.number ?? '')
     const ids = {
         form: `${kind.testId}-form`,
@@ -670,6 +695,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
                                         state={state}
                                         first={parts.band}
                                         second={parts.bandSecond}
+                                        declineNote={declineNote}
                                     />
                                     <View testID={ids.lines} onLayout={linesLayout.onLayout}>
                                         <DocumentLinesContext.Provider value={linesView}>
