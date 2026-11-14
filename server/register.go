@@ -4,6 +4,7 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
+	"tinycld.org/core/changesignal"
 	"tinycld.org/core/oauth"
 	"tinycld.org/core/quota"
 	"tinycld.org/core/reports"
@@ -26,6 +27,11 @@ func Register(app *pocketbase.PocketBase) {
 	registerSalesDocGuards(app, salesReceiptKind)
 	registerSalesDocGuards(app, estimateKind)
 	registerSalesDocGuards(app, billKind)
+	registerEstimateResponses(app)
+	// Declare the public view's source tables so CheckViews and the change
+	// signals for signed-in clients know them. The signed-out customer page
+	// gets no signal; it re-reads on foreground, network back or reload.
+	changesignal.RegisterView("books_estimate_public", "books_estimates", "books_customers", "books_settings")
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}

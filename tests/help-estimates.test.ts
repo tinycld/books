@@ -70,6 +70,21 @@ describe('help/estimates.md', () => {
         ).toBeDefined()
     })
 
+    // estimate-public-link spec §3.1, §3.5: the customer link end to end.
+    it('has a section on sharing an estimate with the customer', () => {
+        expect(body).toMatch(/^## Share an estimate with your customer$/m)
+        const section =
+            body.split(/^## Share an estimate with your customer$/m)[1]?.split(/^## /m)[0] ?? ''
+        for (const text of ['Copy customer link', '⌥L', 'Accept', 'Decline', 'Reason']) {
+            expect(section, text).toContain(text)
+        }
+        expect(section).toContain('until the estimate is deleted')
+        expect(
+            lineWith(/⌥L/, /Copy customer link/),
+            'a line with ⌥L and Copy customer link'
+        ).toBeDefined()
+    })
+
     it('links the invoices topic', () => {
         expect(body).toContain('(help://books:invoices)')
     })
