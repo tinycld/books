@@ -50,6 +50,7 @@ function estimateSourceOf<R extends BooksEstimates>(
             accepted_by: row.accepted_by,
             accepted_date: row.accepted_date,
             invoice: row.invoice,
+            public_token: row.public_token,
         },
     }
 }
