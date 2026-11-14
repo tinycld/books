@@ -10,7 +10,6 @@ import { type EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../lib/estimat
 import { columnsOrThrow } from '../lib/record-save'
 import { ESTIMATE_KIND } from '../lib/sales-document-kinds'
 import type { BooksEstimates } from '../types'
-import { customerPartyRead } from './customer-party'
 import {
     type DocumentDataSource,
     type DocumentKindFields,
@@ -23,8 +22,10 @@ import {
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
     NO_RECOVERY,
+    salesLineMapperOf,
     useHeldRecord,
 } from './document-data'
+import { customerPartyRead } from './party-read'
 
 const LOG_CONTEXT = 'books.estimate'
 
@@ -259,7 +260,8 @@ function useEstimateWrites(): DocumentWrites {
         },
         deleteRecord: id => estimatesCollection.delete(id),
         lineOps: (estimateId, mapper) => {
-            const lineRecord = (write: TableRowWrite) => mapper.toRecord(write.row, write.position)
+            const { toRecord } = salesLineMapperOf(mapper)
+            const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)
             return {
                 insert: write =>
                     linesCollection.insert({

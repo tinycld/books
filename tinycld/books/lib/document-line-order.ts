@@ -47,15 +47,13 @@ type PendingWrite = { table: string } & (
 export type DocumentTableWriteStep<T> = TableWriteStep<T> & { table: string }
 
 // A stored line of any line kind; `amount` is read only on an account line, whose amount
-// is typed.
+// is typed. A purchase line (a bill's) has no percent and no tax flag.
 function storedLineOf(
-    line: Pick<
-        DocumentLineRow,
-        'id' | 'quantity' | 'rate' | 'percent_ppm' | 'taxable' | 'position'
-    > & {
-        kind: DocumentLineKind
-        amount?: number
-    }
+    line: Pick<DocumentLineRow, 'id' | 'quantity' | 'rate' | 'position'> &
+        Partial<Pick<DocumentLineRow, 'percent_ppm' | 'taxable'>> & {
+            kind: DocumentLineKind
+            amount?: number
+        }
 ): StoredLine {
     return {
         id: line.id,

@@ -18,8 +18,9 @@ import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { searchPickerKeyAction } from '../lib/search-picker-keys'
 
 // `group` puts the option under a heading of that name; options of one group are
-// consecutive in the list the caller passes.
-export type SearchPickerOption = { id: string; label: string; group?: string }
+// consecutive in the list the caller passes. `indent` is a depth the menu item draws as
+// leading space (an account under its parent), never part of the label.
+export type SearchPickerOption = { id: string; label: string; group?: string; indent?: number }
 
 const NO_OPTIONS: readonly SearchPickerOption[] = []
 
@@ -317,6 +318,7 @@ function OptionItems({ options, optionTestIdPrefix, value, onChange }: OptionIte
         <Menu.Item
             key={option.id}
             label={option.label}
+            indent={option.indent}
             testID={`${optionTestIdPrefix}-${option.id}`}
             isSelected={option.id === value}
             onSelect={() => onChange(option.id)}

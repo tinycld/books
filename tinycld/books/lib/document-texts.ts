@@ -6,6 +6,18 @@
 // picker's clear choice, Bill to's empty text and the read view's Customer.
 export const NO_CUSTOMER_TEXT = 'No customer'
 
+// The hint under a bill's Vendor's bill no.: the layout's description (the design canvas)
+// and the text VendorRefField draws on the record.
+export const VENDOR_REF_HINT = "The number on the vendor's bill"
+
+// The party address field's muted text when the picked party has no address, by party
+// (DocumentPartyKey). An invoice's Bill to draws nothing then; a bill's Mailing address
+// says so.
+export const EMPTY_ADDRESS_TEXT: Record<'customer' | 'vendor', string> = {
+    customer: '',
+    vendor: 'No mailing address',
+}
+
 // The deposit and reference texts belong to the sales receipt only, so an invoice has
 // none of them. `customerOnInvoices` is the kind's "<name> is on <documents>" text.
 export type DocumentMessages = {
@@ -21,6 +33,9 @@ export type DocumentMessages = {
     quantityTooLarge: string
     rateMalformed: string
     rateTooLarge: string
+    // A kind whose rate is never below 0 (a bill's: a discount is a negative account
+    // line); a sales kind's rate may be negative and has none.
+    rateNegative?: string
     percentRange: string
     percentDecimals: string
     noAccess: string
@@ -132,6 +147,71 @@ export const SALES_RECEIPT_MESSAGES = {
     depositRequired: 'Choose where the money was deposited',
     referenceTooLong: 'Reference no. can be at most 40 characters',
 } as const satisfies DocumentMessages & { voidBody: string }
+
+// The bill's texts. The first group is shown by the client and refused by the server with
+// the same words (server/bills.go); tests/document-messages.test.ts fails when they drift.
+// PocketBase adds a final period to a server text that has none, so the field rule
+// `dueBeforeDate` has none here. A bill's party is a vendor: the `customer…` keys of the
+// shared layer hold the vendor's texts. A bill has no percent lines, bundles or PDF; the
+// type's texts for them are the invoice's and never show.
+export const BILL_MESSAGES = {
+    totalNegative: 'A bill total cannot be below zero. Use a vendor credit.',
+    totalZero: 'A bill total must be more than zero to post.',
+    totalTooLarge: 'The bill total is more than Books can store.',
+    tooManyLines: 'A bill holds at most 250 lines.',
+    customerInactive: '%s is inactive. Choose an active vendor.',
+    customerOnInvoices: '%s is on bills. Make it inactive instead.',
+    dueBeforeDate: "Due date can't be before the bill date",
+    // The first `%s` is the vendor's name, the second the bill no., the third the bill
+    // that has it: "Bill 1003", or "a draft bill" while it has no number.
+    duplicateRef: '%s already has bill no. %s (%s).',
+    accountInactive: 'Account line %d: %s is inactive. Choose an active account.',
+    accountNotExpense:
+        'Account line %d: %s is not an expense account. Choose an expense or cost of goods account.',
+    productInactive: 'Product line %d: %s is inactive. Choose an active product or service.',
+    productNotPurchased:
+        'Product line %d: %s is not purchased. Turn on “I purchase this” for it first.',
+    accountAmountZero: 'Account line %d: Enter an amount other than 0.',
+
+    // Client only.
+    percentTarget: INVOICE_MESSAGES.percentTarget,
+    needItemLine: 'Add at least one account or product line',
+    quantityNotPositive: INVOICE_MESSAGES.quantityNotPositive,
+    quantityDecimals: INVOICE_MESSAGES.quantityDecimals,
+    quantityTooLarge: INVOICE_MESSAGES.quantityTooLarge,
+    rateMalformed: INVOICE_MESSAGES.rateMalformed,
+    rateTooLarge: INVOICE_MESSAGES.rateTooLarge,
+    // books_bill_lines.rate has min 0 (2100000013_create_books_bills.js).
+    rateNegative: 'Enter a rate of 0 or more',
+    percentRange: INVOICE_MESSAGES.percentRange,
+    percentDecimals: INVOICE_MESSAGES.percentDecimals,
+    noAccess: 'You need bookkeeper access to create bills',
+    notFound: 'This bill does not exist',
+    cannotEdit: 'This bill cannot be edited',
+    loadFailed: 'Books could not load this bill.',
+    customerLoadFailed: 'Books could not load this vendor.',
+    bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
+    bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
+    pdfUnsaved: INVOICE_MESSAGES.pdfUnsaved,
+    pdfUnsavedSave: INVOICE_MESSAGES.pdfUnsavedSave,
+    pdfStale: INVOICE_MESSAGES.pdfStale,
+    voidBody: INVOICE_MESSAGES.voidBody,
+    refTooLong: "Vendor's bill no. can be at most 40 characters",
+    // The delete-draft confirm's title and body (the draft dialog's own action and ids).
+    deleteTitle: 'Delete this draft bill?',
+    deleteBody: "This can't be undone.",
+} as const satisfies DocumentMessages & {
+    totalZero: string
+    dueBeforeDate: string
+    duplicateRef: string
+    accountInactive: string
+    accountNotExpense: string
+    productInactive: string
+    productNotPurchased: string
+    accountAmountZero: string
+    voidBody: string
+    refTooLong: string
+}
 
 // The estimate's texts. The first group is shown by the client and refused by the server
 // with the same words (server/estimates.go); tests/document-messages.test.ts fails when

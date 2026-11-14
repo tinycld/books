@@ -7,9 +7,10 @@ import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { FormRenderer, NARROW_BELOW } from '@tinycld/core/ui/forms'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { useFocusEffect } from 'expo-router'
-import { useCallback, useId, useMemo, useState } from 'react'
-import { FormProvider, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { FormProvider, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
+import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
 import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
@@ -22,6 +23,9 @@ import {
     DOCUMENT_FOOTER_MENU_SPACER,
     DOCUMENT_FOOTER_ROW,
     DOCUMENT_FOOTER_SPANS,
+    type FooterSpan,
+    type FooterSpans,
+    footerSpansOf,
 } from '../../lib/document-footer-layout'
 import { canDeleteStatus, type DocumentStatus } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
@@ -71,6 +75,13 @@ type DefinitionFields = FormDefinition['fields']
 // put after it, up to the next table.
 type LineTablePart = { table: DocumentLineTable; definition: FormDefinition }
 
+// A field whose host component draws its hint (SELF_HINTED_FIELDS) loses the definition's
+// description, so core's cell does not draw the hint a second time.
+function withoutDrawnHint(field: DefinitionFields[number]) {
+    if (!SELF_HINTED_FIELDS.has(field.key)) return field
+    return { ...field, description: undefined }
+}
+
 // The definition around the line tables: the header band (every field before the first
 // line table, an admin's custom fields included; split in two rows at the kind's
 // `bandSplitAt` when it names a band field), the lines (every field from the first line
@@ -86,7 +97,7 @@ function splitDefinition(
         const pages = new Set(fields.map(field => field.page))
         return { ...definition, fields, pages: definition.pages.filter(p => pages.has(p.key)) }
     }
-    const fields = definition.fields
+    const fields = definition.fields.map(withoutDrawnHint)
     const tableAt = lineTables
         .map(table => ({ table, at: fields.findIndex(field => field.key === table.key) }))
         .filter(entry => entry.at >= 0)
@@ -292,12 +303,10 @@ function BandSecondRow({ state, definition }: Omit<RendererProps, 'testID'>) {
     )
 }
 
-// The section heading above a line table that has one, unless the definition hides the
-// table.
+// The section heading above a line table that has one.
 function LineTableHeading({ part, testID }: { part: LineTablePart; testID: string }) {
-    const { heading, key } = part.table
-    const tableField = part.definition.fields.find(field => field.key === key)
-    if (heading === null || tableField?.hidden) return null
+    const { heading } = part.table
+    if (heading === null) return null
     return (
         <Text testID={testID} className="text-sm font-semibold text-foreground">
             {heading}
@@ -305,15 +314,78 @@ function LineTableHeading({ part, testID }: { part: LineTablePart; testID: strin
     )
 }
 
+// No field has the line-count error's key, so a change to the lines never revalidates it
+// (as an invoice's `lines` error is): it is cleared when a line table's value changes,
+// the user adding or filling a line, until the next Post checks the lines again. A
+// subscription to the form's value events (as useAccountForm's root error), not a sync of
+// state.
+function useClearLineCountError(form: EngineForm, errorKey: string, tableKeys: string[]) {
+    const tableKey = tableKeys.join(',')
+    useEffect(() => {
+        const names = tableKey.split(',')
+        return form.subscribe({
+            name: names,
+            formState: { values: true },
+            callback: () => {
+                if (form.getFieldState(errorKey).error) form.clearErrors(errorKey)
+            },
+        })
+    }, [form, errorKey, tableKey])
+}
+
+// Post's line-count error, under the first shown table of a form with several tables
+// (DocumentFormState.lineCountError). Read through useFormState, so a submit that files or
+// clears it re-renders this line only.
+function LineCountError({
+    form,
+    errorKey,
+    tableKeys,
+    testID,
+}: {
+    form: EngineForm
+    errorKey: string
+    tableKeys: string[]
+    testID: string
+}) {
+    useClearLineCountError(form, errorKey, tableKeys)
+    const { errors } = useFormState({ control: form.control, name: errorKey })
+    const message = errors[errorKey]?.message
+    if (typeof message !== 'string' || message === '') return null
+    return (
+        <Text testID={testID} accessibilityRole="alert" className="text-xs text-destructive">
+            {message}
+        </Text>
+    )
+}
+
+function SectionLineCountError({ state, part }: { state: DocumentFormState; part: LineTablePart }) {
+    const rule = state.lineCountError
+    if (!rule || rule.tableKey !== part.table.key) return null
+    const testID = `${state.kind.testId}-line-error`
+    const tableKeys = state.kind.lineTables.map(table => table.key)
+    return (
+        <LineCountError
+            form={state.form as EngineForm}
+            errorKey={rule.errorKey}
+            tableKeys={tableKeys}
+            testID={testID}
+        />
+    )
+}
+
 // One line table of a kind with more than one, in its own wrapper
-// (`<test id>-<table key>`, underscores as dashes) under its heading.
+// (`<test id>-<table key>`, underscores as dashes) under its heading. A table the form
+// does not show (hidden in the definition) draws nothing, heading included.
 function LineTableSection({ state, part }: { state: DocumentFormState; part: LineTablePart }) {
+    const tableField = part.definition.fields.find(field => field.key === part.table.key)
+    if (tableField?.hidden) return null
     const base = `${state.kind.testId}-${part.table.key.replace(/_/g, '-')}`
     const ids = { section: base, heading: `${base}-heading`, form: `${base}-form` }
     return (
         <View testID={ids.section} className="gap-2">
             <LineTableHeading part={part} testID={ids.heading} />
             <PartRenderer state={state} definition={part.definition} testID={ids.form} />
+            <SectionLineCountError state={state} part={part} />
         </View>
     )
 }
@@ -359,6 +431,7 @@ const TOTALS_REACH_LEFT = { marginLeft: -TOTALS_REACH }
 function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     const { testId } = state.kind
     const ids = { footer: `${testId}-footer`, form: `${testId}-footer-form` }
+    const spans = footerSpansOfKind(state.document)
     const renderer = <PartRenderer state={state} definition={definition} testID={ids.form} />
     if (isStacked) {
         return (
@@ -370,18 +443,35 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
     }
     return (
         <View testID={ids.footer} style={DOCUMENT_FOOTER_ROW}>
-            <View style={DOCUMENT_FOOTER_SPANS.left}>
+            <View style={spans.left}>
                 <View style={NOTES_SPAN_END}>{renderer}</View>
             </View>
-            <View style={DOCUMENT_FOOTER_SPANS.totals}>
+            <View style={spans.totals}>
                 <View style={TOTALS_REACH_LEFT}>
                     <DocumentTotalsPanel totals={totals} />
                 </View>
             </View>
-            <View style={DOCUMENT_FOOTER_SPANS.right} />
+            <FooterRightSpan span={spans.right} />
             <View style={DOCUMENT_FOOTER_MENU_SPACER} />
         </View>
     )
+}
+
+// The footer's spans on the grid of the kind's last line table (the sales lines; a bill's
+// product table, whose Amount slot has the account table's size and place).
+function footerSpansOfKind(documentKind: DocumentKind): FooterSpans {
+    const tables = documentKind.doc.lineTables
+    const last = tables[tables.length - 1]
+    const spec = last ? documentKind.lineSpecs[last.key] : undefined
+    if (!spec) return DOCUMENT_FOOTER_SPANS
+    return footerSpansOf(spec.columns, spec.rowKinds)
+}
+
+// The slots after Amount (the sales lines' Taxable). A grid with none draws no span, so
+// the row has no extra gap before the menu box and the totals end where Amount ends.
+function FooterRightSpan({ span }: { span: FooterSpan }) {
+    if (span.flexGrow === 0) return null
+    return <View style={span} />
 }
 
 // A quote: its new title until the first save, then "Estimate 1001" by the
@@ -468,11 +558,17 @@ function canConvertOf(kind: SalesDocumentKind, canWrite: boolean, status: unknow
     return status === 'pending' || status === 'accepted'
 }
 
-// The delete confirm's words: a posting kind's draft defaults, or a quote kind's own
-// (kind.messages: "Delete estimate 1001?", its body and its action).
+// The delete confirm's words: a posting kind's draft defaults, or its own title and body
+// when it names them (a bill: "Delete this draft bill?"), keeping the draft dialog's action
+// and ids; or a quote kind's own (kind.messages: "Delete estimate 1001?", its body and its
+// action).
 function deleteDialogTexts(kind: SalesDocumentKind, number: string) {
     const { deleteTitle, deleteBody, deleteAction } = kind.messages
-    if (kind.lifecycle === 'posting' || !deleteTitle || !deleteBody || !deleteAction) return {}
+    if (kind.lifecycle === 'posting') {
+        if (!deleteTitle || !deleteBody) return {}
+        return { title: deleteTitle, body: deleteBody }
+    }
+    if (!deleteTitle || !deleteBody || !deleteAction) return {}
     return {
         title: deleteTitle.replace('%s', number),
         body: deleteBody,

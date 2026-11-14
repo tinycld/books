@@ -24,6 +24,7 @@ import {
     useDocumentLinesView,
 } from '../components/documents/document-form-context'
 import { ProductPicker } from '../components/products/ProductPicker'
+import { customerPartyOf } from '../hooks/document-data'
 import { useBundleLines } from '../hooks/useBundleLines'
 import { useSelectAllOnFocus } from '../hooks/useSelectAllOnFocus'
 import {
@@ -64,11 +65,13 @@ function textOf(value: unknown): string {
     return typeof value === 'string' ? value : ''
 }
 
-function cellTestId(fieldKey: string, table: TableCellContext | undefined, column: string) {
+// A line cell's test id and accessible name; the bill's cells (purchase-line-cells.tsx)
+// use them too.
+export function cellTestId(fieldKey: string, table: TableCellContext | undefined, column: string) {
     return `form-table-${fieldKey}-${table?.row.id ?? 'none'}-${column}`
 }
 
-function cellLabel(label: string, table: TableCellContext | undefined) {
+export function cellLabel(label: string, table: TableCellContext | undefined) {
     return `${label}, line ${(table?.rowIndex ?? 0) + 1}`
 }
 
@@ -97,13 +100,13 @@ function lineQuantityOf(row: TableRow): number {
     return typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 ? quantity : 1
 }
 
-function isTableRow(value: unknown): value is TableRow {
+export function isTableRow(value: unknown): value is TableRow {
     return typeof value === 'object' && value !== null && 'id' in value
 }
 
 // The row `id` as the form holds it now: a pick's reads are awaited, and the row can be
 // moved or removed meanwhile, so its index from the pick's render is not used after them.
-function currentRow(rows: unknown, id: string): TableRow | undefined {
+export function currentRow(rows: unknown, id: string): TableRow | undefined {
     if (!Array.isArray(rows)) return undefined
     const list: unknown[] = rows
     return list.filter(isTableRow).find(row => row.id === id)
@@ -126,7 +129,7 @@ function useBundlePick(fieldKey: string, noteBundle: NoteBundle) {
     const loadBundleLines = useBundleLines()
     const { getValues } = useFormContext()
     const { party, currency, kind } = useDocumentFormScope()
-    const isExempt = party?.tax_exempt ?? false
+    const isExempt = customerPartyOf(party ?? null)?.tax_exempt ?? false
     return async (table: TableCellContext, bundleId: string) => {
         const rowId = table.row.id
         table.onRowChange({ product: bundleId, rate: '', description: '' })
@@ -185,7 +188,7 @@ function useProductPick(props: BuiltinFieldProps, noteBundle: NoteBundle) {
     const { getValues } = useFormContext()
     const { fieldKey, table, onChange } = props
     const pickBundle = useBundlePick(fieldKey, noteBundle)
-    const isExempt = party?.tax_exempt ?? false
+    const isExempt = customerPartyOf(party ?? null)?.tax_exempt ?? false
     return async (id: string) => {
         if (!table) {
             onChange(id)
@@ -442,24 +445,27 @@ function rateSelection(focus: RateFocus, shown: string) {
 }
 
 /**
- * Rate: the typed money text is the value (cents are computed at write). While the cell
- * is not focused it shows a rate that parses in the money format, whatever text a pick
- * or the user left ("1250.00" shows "1,250.00"); a blur also stores that text. Enter on
- * the last line adds a line.
+ * A typed money cell (Rate; a bill's account line Amount): the typed money text is the
+ * value (cents are computed at write). While the cell is not focused it shows an amount
+ * that parses in the money format, whatever text a pick or the user left ("1250.00"
+ * shows "1,250.00", "-25" shows "-25.00"); a blur also stores that text. Enter on the
+ * last line adds a line when the column has `addOnSubmit`. The bounds (a rate is not
+ * negative, an account line amount is not 0) are the document schema's.
  *
  * A focus selects the whole value, so typing replaces it. A focus swaps the drawn text
  * ("1,250.00" → "1250.00"): on web the cell selects again after that render
  * (useSelectAllOnFocus); on native setting the text can drop the selection the focus
  * made, so the cell holds the whole text selected until the user types or leaves.
  */
-export function LineRateCell({
+export function MoneyTextCell({
     fieldKey,
     label,
     value,
     onChange,
     disabled,
     table,
-}: BuiltinFieldProps) {
+    column,
+}: BuiltinFieldProps & { column: string }) {
     const { currency } = useDocumentFormScope()
     const [focus, setFocus] = useState<RateFocus>('blurred')
     const text = textOf(value)
@@ -487,7 +493,7 @@ export function LineRateCell({
     return (
         <RNTextInput
             ref={table?.focusRef}
-            testID={cellTestId(fieldKey, table, 'rate')}
+            testID={cellTestId(fieldKey, table, column)}
             accessibilityLabel={cellLabel(label, table)}
             value={shown}
             selection={selection}
@@ -506,6 +512,11 @@ export function LineRateCell({
             style={iosInputCenteringStyle(16)}
         />
     )
+}
+
+// Rate: a typed money cell; Enter on the last line adds a line.
+export function LineRateCell(props: BuiltinFieldProps) {
+    return <MoneyTextCell {...props} column="rate" />
 }
 
 function TargetError({ isVisible }: { isVisible: boolean }) {

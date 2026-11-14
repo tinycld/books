@@ -10,7 +10,6 @@ import { type EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../lib/invoice-c
 import { columnsOrThrow } from '../lib/record-save'
 import { INVOICE_KIND } from '../lib/sales-document-kinds'
 import type { BooksInvoices } from '../types'
-import { customerPartyRead } from './customer-party'
 import {
     type DocumentDataSource,
     type DocumentKindFields,
@@ -21,9 +20,11 @@ import {
     documentRead,
     linkedReadIds,
     NO_RECOVERY,
+    salesLineMapperOf,
     useHeldRecord,
 } from './document-data'
 import { useEstimateSourceReads } from './estimate-data'
+import { customerPartyRead } from './party-read'
 
 const LOG_CONTEXT = 'books.invoice'
 
@@ -235,7 +236,8 @@ function useInvoiceWrites(): DocumentWrites {
             }),
         deleteRecord: id => invoicesCollection.delete(id),
         lineOps: (invoiceId, mapper) => {
-            const lineRecord = (write: TableRowWrite) => mapper.toRecord(write.row, write.position)
+            const { toRecord } = salesLineMapperOf(mapper)
+            const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)
             return {
                 insert: write =>
                     linesCollection.insert({

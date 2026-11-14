@@ -9,10 +9,11 @@ import {
     INVOICE_MESSAGES,
     SALES_RECEIPT_MESSAGES,
 } from '../tinycld/books/lib/document-messages'
-import { ESTIMATE_MESSAGES } from '../tinycld/books/lib/document-texts'
+import { BILL_MESSAGES, ESTIMATE_MESSAGES } from '../tinycld/books/lib/document-texts'
 import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
 import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
 import {
+    BILL_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
@@ -235,6 +236,70 @@ describe('server/estimate_conversion.go', () => {
             'This estimate cannot be converted to an invoice'
         )
     })
+})
+
+// The bill's texts the client and the server both show (plan, Decisions: Messages), whose
+// Go constants live in server/bills.go. `%s` and `%d` are compared as written.
+const BILL_SHARED = [
+    'A bill total cannot be below zero. Use a vendor credit.',
+    'A bill total must be more than zero to post.',
+    'The bill total is more than Books can store.',
+    'A bill holds at most 250 lines.',
+    '%s is inactive. Choose an active vendor.',
+    "Due date can't be before the bill date.",
+    '%s already has bill no. %s (%s).',
+    'Account line %d: %s is inactive. Choose an active account.',
+    'Account line %d: %s is not an expense account. Choose an expense or cost of goods account.',
+    'Product line %d: %s is inactive. Choose an active product or service.',
+    'Product line %d: %s is not purchased. Turn on “I purchase this” for it first.',
+    'Account line %d: Enter an amount other than 0.',
+] as const
+
+// The client shows a field rule without PocketBase's final period.
+const BILL_CLIENT_ONLY = {
+    noAccess: 'You need bookkeeper access to create bills',
+    notFound: 'This bill does not exist',
+    cannotEdit: 'This bill cannot be edited',
+    loadFailed: 'Books could not load this bill.',
+    voidBody: 'A reversing entry is posted in the original period. The number is kept.',
+} as const
+
+function billServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'bills.go'), 'utf8')
+}
+
+// A client text and its server twin differ only by the final period PocketBase adds.
+function withoutFinalPeriod(text: string) {
+    return text.replace(/\.$/, '')
+}
+
+describe('BILL_MESSAGES', () => {
+    it('is the bill kind’s texts', () => {
+        expect(BILL_MESSAGES).toBeDefined()
+        expect(BILL_KIND.messages).toBe(BILL_MESSAGES)
+    })
+
+    it('holds the client texts under their keys', () => {
+        expect(BILL_MESSAGES).toMatchObject(BILL_CLIENT_ONLY)
+    })
+
+    // Every BILL_MESSAGES text that names a server refusal is one of the shared texts, so a
+    // text changed on one side only fails here.
+    it('holds every shared text the server refuses with', () => {
+        const client = Object.values(BILL_MESSAGES).map(text => withoutFinalPeriod(String(text)))
+        for (const text of BILL_SHARED) expect(client, text).toContain(withoutFinalPeriod(text))
+    })
+})
+
+describe('server/bills.go', () => {
+    for (const text of BILL_SHARED) {
+        it(`holds "${text}" verbatim as a Go string`, () => {
+            const source = billServerSource()
+            const hasText =
+                source.includes(`"${text}"`) || source.includes(`"${withoutFinalPeriod(text)}"`)
+            expect(hasText, text).toBe(true)
+        })
+    }
 })
 
 // Server refusals carry PocketBase's final period.

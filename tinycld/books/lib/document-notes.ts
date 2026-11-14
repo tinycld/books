@@ -7,6 +7,16 @@ export const DOCUMENT_NOTE_LABELS = {
     memo: 'Internal memo (not printed)',
 } as const
 
+// A kind with no message to the customer (a bill prints nothing) has only the memo, so
+// its label needs no "not printed" to tell the two notes apart.
+export const MEMO_ONLY_LABEL = 'Memo'
+
+// The memo's label for a kind: the sales kinds' "Internal memo (not printed)" beside their
+// message, plain "Memo" on a kind without one.
+export function memoLabelFor(features: { message: boolean }): string {
+    return features.message ? DOCUMENT_NOTE_LABELS.memo : MEMO_ONLY_LABEL
+}
+
 export const DOCUMENT_NOTE_TOO_LONG = {
     message: 'The message to the customer is too long',
     memo: 'The internal memo is too long',
