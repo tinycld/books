@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/estimate-public-link-checkpoints.md
 - reference: docs/plans/estimate-public-link-reference/
 - evidence: docs/plans/estimate-public-link-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs)
 - capture manifest: docs/plans/estimate-public-link-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -157,6 +157,6 @@
 - human: n/a (review mode C)
 
 ## Final review
-- eval:
+- eval: approved (2026-11-14; human confirmed spec §4.3 Books-READ-only responses rule and the §3.5 rebuttal by approving; CI green at f96a29b)
 - human comments and what changed
 - native: not executed in this run

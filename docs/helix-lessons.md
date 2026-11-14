@@ -33,3 +33,4 @@
 - A React context has no default value that needs a value import (it makes require cycles; `tests/document-imports.test.ts` guards `components/documents/`); its hook throws outside the provider. Read context outside core Menu/Dialog/Sheet content and pass props in: on native the overlay host drops the consumer's contexts. — bill-form, human + fix review, eval revise 2
 - A Go line check that reads row-kind cells must match the TS host's required cells; add a Go test case per required cell of each host row kind (the e2e seed is otherwise the first place they meet). — bill-form, retro, p3-bill
 - Restore a setting an e2e test changes in `afterEach`, not in a `finally`: a timeout closes the page before the `finally` runs, and its error hides the real red. — bill-form, retro, p3-bill
+- A `max-w-[…]` class does not cap a child inside a ScrollView content container; use `style={{ maxWidth }}`. — estimate-public-link, retro, p2-estimate-public-link
