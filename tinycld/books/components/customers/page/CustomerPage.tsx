@@ -3,17 +3,19 @@ import { View } from 'react-native'
 import { type CustomerPageState, useCustomerPage } from '../../../hooks/useCustomerPage'
 import { useDetailSurface } from '../../../hooks/useDetailSurface'
 import { CUSTOMER_DISCARD_MESSAGE } from '../../../lib/customer-messages'
-import type { CustomerTab } from '../../../lib/customer-page-tabs'
+import { type CustomerTab, customerPageControls } from '../../../lib/customer-page-tabs'
 import type { DetailSurface } from '../../../lib/detail-surface'
 import type { BooksCustomers } from '../../../types'
 import { ListBanner } from '../../ListBanner'
 import { DiscardDialog } from '../../RecordChild'
 import { RecordSurface } from '../../RecordSurface'
+import { CustomerBalance } from './CustomerBalance'
 import { CustomerDetailsTab } from './CustomerDetailsTab'
 import { CustomerNotesTab } from './CustomerNotesTab'
 import { CustomerPageHeader } from './CustomerPageHeader'
 import { CustomerPageSaveBar } from './CustomerPageSaveBar'
 import { CustomerTabs } from './CustomerTabs'
+import { NewTransactionMenu } from './NewTransactionMenu'
 
 interface TabBodyProps {
     tab: CustomerTab
@@ -56,7 +58,31 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
     const { gutterClass, rowClassName } = columnsFor(isPhone)
     const page = useCustomerPage(record)
     const { navigation, actions } = page
-    const header = <CustomerPageHeader record={record} surface={surface} right={null} page={page} />
+    const controls = customerPageControls({
+        canWrite: page.canWrite,
+        inactive: record.inactive,
+        isTopLevel: record.parent === '',
+    })
+    const balance = <CustomerBalance customerId={record.id} />
+    const newTransaction = (
+        <NewTransactionMenu
+            customerId={record.id}
+            isVisible={controls.showNewTransaction}
+            isDisabled={controls.newTransactionDisabled}
+            isFullWidth={isPhone}
+            isOpen={page.newMenuOpen}
+            onOpenChange={page.setNewMenuOpen}
+        />
+    )
+    const header = (
+        <CustomerPageHeader
+            record={record}
+            surface={surface}
+            right={balance}
+            action={newTransaction}
+            page={page}
+        />
+    )
     const dismissBanner = () => actions.clearActionError()
     const save = () => void page.save()
     return (

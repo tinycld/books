@@ -3,7 +3,12 @@ import { useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import { usePublishDirty } from '../components/RecordChild'
 import { selectRecordTab } from '../components/RecordTabs'
-import { type CustomerTab, customerTabOf, DEFAULT_CUSTOMER_TAB } from '../lib/customer-page-tabs'
+import {
+    type CustomerTab,
+    customerPageControls,
+    customerTabOf,
+    DEFAULT_CUSTOMER_TAB,
+} from '../lib/customer-page-tabs'
 import { CUSTOMERS_PATH } from '../lib/customer-route'
 import { useCustomerFormStore } from '../stores/customer-form-store'
 import { useDeletingRecord } from '../stores/record-form-store'
@@ -120,6 +125,26 @@ export function useCustomerPage(record: BooksCustomers) {
         navigation.leave()
         return true
     }
+    // The New transaction menu, one state for the header's button and the Transactions
+    // tab's empty-state button. It is never open while the menu is disabled or hidden.
+    const controls = customerPageControls({
+        canWrite,
+        inactive: record.inactive,
+        isTopLevel: record.parent === '',
+    })
+    const isNewMenuOffered = controls.showNewTransaction && !controls.newTransactionDisabled
+    const [newMenuState, setNewMenuState] = useState(false)
+    // The customer turned inactive (here or in another session) while the menu was open:
+    // the stored state is cleared during render, so the menu does not open by itself when
+    // the customer is active again.
+    if (newMenuState && !isNewMenuOffered) setNewMenuState(false)
+    const newMenuOpen = newMenuState && isNewMenuOffered
+    const setNewMenuOpen = (open: boolean) => setNewMenuState(open && isNewMenuOffered)
+    const toggleInactive = () => {
+        setNewMenuOpen(false)
+        void actions.setInactive(record.id, !record.inactive)
+    }
+
     const actionRefusal = actions.actionError?.message ?? null
     const bannerMessage = isDeleteOpen ? null : actionRefusal
     const deleteRefusal = actions.actionError?.id === record.id ? actionRefusal : null
@@ -154,6 +179,9 @@ export function useCustomerPage(record: BooksCustomers) {
             refusal: deleteRefusal,
         },
         bannerMessage,
+        newMenuOpen,
+        setNewMenuOpen,
+        toggleInactive,
     }
 }
 

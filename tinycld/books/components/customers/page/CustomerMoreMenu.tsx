@@ -60,7 +60,6 @@ export function CustomerMoreMenu({ record, page, isPhone }: CustomerMoreMenuProp
     if (!controls.showMore) return null
     const isWriteDisabled = actions.isWorking || !writes.available
     const addSub = () => navigation.openNew(record.id)
-    const toggleInactive = () => void actions.setInactive(record.id, !record.inactive)
     const deleteTarget = deleteDialog.isOpen ? record : null
     const trigger = moreTrigger(isPhone, color)
     return (
@@ -72,7 +71,7 @@ export function CustomerMoreMenu({ record, page, isPhone }: CustomerMoreMenuProp
                         label={controls.inactiveLabel}
                         testID="customer-more-inactive"
                         isDisabled={isWriteDisabled}
-                        onSelect={toggleInactive}
+                        onSelect={page.toggleInactive}
                     />
                     <Menu.Separator />
                     <Menu.Item

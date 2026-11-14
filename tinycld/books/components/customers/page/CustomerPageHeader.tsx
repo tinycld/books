@@ -112,31 +112,43 @@ function Identity({ record, page }: { record: BooksCustomers; page: CustomerPage
 interface CustomerPageHeaderProps {
     record: BooksCustomers
     surface: DetailSurface
-    // The balance block and the actions, to the right on a wide window, under the
-    // address on a phone.
+    // The balance figures: to the right on a wide window, under the address on a phone.
     right: ReactNode
+    // The New transaction button: before More in the actions row on a wide window, full
+    // width under the figures on a phone.
+    action: ReactNode
     page: CustomerPageState
 }
 
 /**
- * Who the customer is and how to reach them. On the page surface a "‹ Customers" back
- * button sits above the name; beside the list (a very wide window) there is none. On a
- * phone the header stacks, with More as an icon at the top right.
+ * Who the customer is and how to reach them, and what they owe. On the page surface a
+ * "‹ Customers" back button sits above the name; beside the list (a very wide window)
+ * there is none. On a phone the header stacks: name and icons with More as an icon at
+ * the top right, company and address, the figures, then the full-width action.
  */
-export function CustomerPageHeader({ record, surface, right, page }: CustomerPageHeaderProps) {
+export function CustomerPageHeader({
+    record,
+    surface,
+    right,
+    action,
+    page,
+}: CustomerPageHeaderProps) {
     const isPhone = useBreakpoint() === 'mobile'
     const gutter = isPhone ? 'px-4' : 'px-6'
     const back = <BackLink isVisible={surface === 'page'} onPress={page.navigation.leave} />
     const more = <CustomerMoreMenu record={record} page={page} isPhone={isPhone} />
     if (isPhone) {
+        // More stays at the top right when a long name wraps to a second line.
+        const topRightMore = <View className="self-start">{more}</View>
         return (
             <View testID="customer-header" className={`gap-3 pb-4 pt-2 ${gutter}`}>
                 <View className="gap-1">
                     {back}
-                    <NameRow record={record} trailing={more} />
+                    <NameRow record={record} trailing={topRightMore} />
                     <Identity record={record} page={page} />
                 </View>
                 {right}
+                {action}
             </View>
         )
     }
@@ -150,7 +162,10 @@ export function CustomerPageHeader({ record, surface, right, page }: CustomerPag
                 </View>
                 <View className="items-end gap-4">
                     {right}
-                    {more}
+                    <View className="flex-row items-start gap-2">
+                        {action}
+                        {more}
+                    </View>
                 </View>
             </View>
         </View>
