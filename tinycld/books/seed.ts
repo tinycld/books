@@ -10,6 +10,11 @@ import {
     ESTIMATE_SEED_IDS,
     ESTIMATES,
 } from './lib/estimate-form-fixture'
+import {
+    DECLINE_ESTIMATE_LINES,
+    DECLINE_ESTIMATES,
+    DECLINE_RESPONSES,
+} from './lib/estimate-public-link-fixture'
 import { REVIEW_SEED_STATEMENT } from './lib/for-review-fixture'
 import {
     GENERAL_LEDGER_LONG_SECTION,
@@ -202,6 +207,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedInvoices(pb, ctx, customerIds)
     await seedSalesReceipts(pb, ctx, accountIds, customerIds)
     await seedEstimates(pb, customerIds)
+    await seedDeclinedEstimates(pb, customerIds)
     await seedBills(pb, ctx, accountIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
@@ -568,6 +574,68 @@ export async function seedEstimates(
         createdIds.set(id, created.id)
     }
     await seedConvertedInvoice(pb, customerIds, createdIds)
+}
+
+// The days a seeded declined estimate stays open before its customer's answer: the
+// response guard refuses an answer on an expired estimate, so the expiration date is
+// after the seed's today (the fixture's fixed date would make the seed fail later).
+const DECLINE_SEED_OPEN_DAYS = 90
+
+// Creates the DECLINE_ESTIMATES (1006 and 1007, right after seedEstimates' five) Pending
+// with their lines, then saves each one's DECLINE_RESPONSES row as the superuser, not
+// through a public request. The server's response guard runs on that create and sets the
+// estimate to Rejected, so the seeded state is the one a real decline makes. The server
+// gives each estimate its public token; the fixture's is never sent.
+export async function seedDeclinedEstimates(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const now = new Date()
+    const expirationDate = isoDay(
+        new Date(now.getFullYear(), now.getMonth(), now.getDate() + DECLINE_SEED_OPEN_DAYS)
+    )
+    for (const fixture of DECLINE_ESTIMATES) {
+        const customer = customerIds.get(fixture.customer)
+        if (customer === undefined) {
+            throw new Error(
+                `seed: declined estimate ${fixture.id} names customer ${fixture.customer}, which was not created`
+            )
+        }
+        const response = DECLINE_RESPONSES.find(row => row.estimate === fixture.id)
+        if (response === undefined) {
+            throw new Error(`seed: declined estimate ${fixture.id} has no DECLINE_RESPONSES row`)
+        }
+        const created = await pb.collection('books_estimates').create({
+            customer,
+            status: 'pending',
+            date: fixture.date,
+            expiration_date: expirationDate,
+            tax_rate: fixture.tax_rate,
+            message: fixture.message,
+            memo: fixture.memo,
+            bill_to: fixture.bill_to,
+            email: fixture.email,
+        })
+        for (const line of DECLINE_ESTIMATE_LINES.filter(row => row.estimate === fixture.id)) {
+            await pb.collection('books_estimate_lines').create({
+                estimate: created.id,
+                position: line.position,
+                kind: line.kind,
+                product: line.product,
+                description: line.description,
+                quantity: line.quantity,
+                rate: line.rate,
+                percent_ppm: line.percent_ppm,
+                taxable: line.taxable,
+            })
+        }
+        await pb.collection('books_estimate_responses').create({
+            estimate: created.id,
+            decision: response.decision,
+            name: response.name,
+            reason: response.reason,
+        })
+    }
 }
 
 // Saves CONVERTED_INVOICE as a draft that names its estimate, then its lines, as the

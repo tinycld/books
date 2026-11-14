@@ -1,0 +1,126 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "pending",
+            "url": "/",
+            "public": { "create": true },
+            "ready": "estimate-public-decide",
+            "height": 1200
+        },
+        {
+            "name": "accept",
+            "url": "/",
+            "public": { "create": true },
+            "ready": "estimate-public-accept",
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-accept" },
+                { "waitFor": "estimate-public-accept-step" }
+            ]
+        },
+        {
+            "name": "accept-error",
+            "url": "/",
+            "public": { "create": true },
+            "ready": "estimate-public-accept",
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-accept" },
+                { "waitFor": "estimate-public-accept-step" },
+                { "click": "estimate-public-accept-confirm" },
+                { "waitFor": "Enter your name." }
+            ]
+        },
+        {
+            "name": "accept-sending",
+            "url": "/",
+            "public": { "create": true, "respond": "hold" },
+            "ready": "estimate-public-accept",
+            "widths": [1280],
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-accept" },
+                { "fill": "estimate-public-name-input", "value": "Dana Whitfield" },
+                { "click": "estimate-public-accept-confirm" },
+                { "waitFor": "Accepting…" }
+            ]
+        },
+        {
+            "name": "accept-refused",
+            "url": "/",
+            "public": {
+                "create": true,
+                "respond": 400,
+                "message": "This estimate is no longer waiting for an answer."
+            },
+            "ready": "estimate-public-accept",
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-accept" },
+                { "fill": "estimate-public-name-input", "value": "Dana Whitfield" },
+                { "click": "estimate-public-accept-confirm" },
+                { "waitFor": "This estimate is no longer waiting for an answer." }
+            ]
+        },
+        {
+            "name": "decline",
+            "url": "/",
+            "public": { "create": true },
+            "ready": "estimate-public-decline",
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-decline" },
+                { "waitFor": "estimate-public-decline-step" }
+            ]
+        },
+        {
+            "name": "decline-typed",
+            "url": "/",
+            "public": { "create": true },
+            "ready": "estimate-public-decline",
+            "widths": [390],
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-decline" },
+                {
+                    "fill": "estimate-public-reason-input",
+                    "value": "We went with another bid this time.\nThanks for the quick quote."
+                }
+            ]
+        },
+        {
+            "name": "decline-sending",
+            "url": "/",
+            "public": { "create": true, "respond": "hold" },
+            "ready": "estimate-public-decline",
+            "widths": [1280],
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-decline" },
+                {
+                    "fill": "estimate-public-reason-input",
+                    "value": "We went with another bid this time."
+                },
+                { "click": "estimate-public-decline-confirm" },
+                { "waitFor": "Declining…" }
+            ]
+        },
+        {
+            "name": "decline-network",
+            "url": "/",
+            "public": { "create": true, "respond": "abort" },
+            "ready": "estimate-public-decline",
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-decline" },
+                {
+                    "fill": "estimate-public-reason-input",
+                    "value": "We went with another bid this time."
+                },
+                { "click": "estimate-public-decline-confirm" },
+                { "waitFor": "Could not send. Check your connection and try again." }
+            ]
+        }
+    ]
+}
