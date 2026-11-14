@@ -50,6 +50,8 @@ export const CUSTOMER_KIND: RecordKind = {
     newTitle: 'New customer',
     deleteTitle: 'Delete customer',
     discardMessage: 'This customer has changes that are not saved.',
+    afterSave: 'record',
+    formTab: 'customer-tab-details',
 }
 
 const customers = recordFormHelpers(CUSTOMER_KIND)
@@ -69,6 +71,13 @@ export const openCustomer = customers.open
 export const field = customers.field
 export const openNewCustomer = customers.openNew
 export const createCustomer = customers.create
+export const expectCustomerEditSaved = customers.expectEditSaved
+export const customerPageUrl = customers.recordPageUrl
+
+// One customer's page, with or without a query (`?tab=details`).
+export function customerPath(id: string) {
+    return new RegExp(`/books/customers/${id}(\\?[^#]*)?$`)
+}
 export const discardDialog = customers.discardDialog
 export const customersBase = customers.base
 export const holdRecordWrite = customers.holdRecordWrite

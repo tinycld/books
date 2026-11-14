@@ -118,6 +118,25 @@ describe('help/customers.md', () => {
         expect(body).toMatch(/\bown page\b/i)
     })
 
+    // Customer pages checkpoint 2: Save on a new customer opens its page, not the list.
+    it('says Save opens the new customer’s page', () => {
+        expect(body).toMatch(/(?=[^.\n]*\bSave\b)(?=[^.\n]*\bopens?\b)[^.\n]*customer['’]s page/)
+        expect(body).not.toMatch(/save the customer and go back to the list/i)
+    })
+
+    it('says a customer opens on its page, where Details and Notes are edited in place with Save in the bar at the bottom', () => {
+        expect(body).toMatch(/(?=[^.\n]*\bDetails\b)(?=[^.\n]*\bNotes\b)[^.\n]*\bin place\b/i)
+        expect(body).toMatch(/(?=[^.\n]*\bSave\b)[^.\n]*\bbar at the bottom\b/i)
+    })
+
+    it('says a very wide window shows the open page beside the list of names, and a new customer in a panel', () => {
+        expect(body).toMatch(
+            /(?=[^.\n]*very wide window)[^.\n]*page[^.\n]*beside the list of names/i
+        )
+        expect(body).toMatch(/(?=[^.\n]*\bnew customer\b)[^.\n]*\bpanel beside the list\b/i)
+        expect(body).not.toMatch(/the customer opens in a panel beside the list/i)
+    })
+
     // Each `(?=[^.\n]*X)` asks for X in the same sentence, in any order.
     it('says display names are unique among customers with the same parent, case ignored', () => {
         expect(body).toMatch(/(?=[^.\n]*same parent)[^.\n]*\b(unique|different)\b/i)

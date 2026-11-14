@@ -109,6 +109,8 @@ test.describe('general-ledger: journal entry Name', () => {
             await customerHelpers.openList(page)
             await createCustomer(page, { name: nameA })
             await createCustomer(page, { name: nameB })
+            // Save opens the new customer's page; the list is behind it.
+            await customerHelpers.openList(page)
             await customerHelpers.search(page, prefix)
             const aId = await customerHelpers.idOf(page, nameA)
             const bId = await customerHelpers.idOf(page, nameB)
