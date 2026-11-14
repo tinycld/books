@@ -15,9 +15,13 @@ const openingShape = z.object({
 
 export type OpeningFormValues = z.infer<typeof openingShape>
 
-export function openingFormSchema(closeDate: string) {
+// hasOverride: the person has an active close-date override (useMyCloseOverride), so the
+// server posts their entry into a closed period. The server stays the authority: an
+// override that ends before the post gives the server's refusal.
+export function openingFormSchema(closeDate: string, hasOverride = false) {
     return openingShape
         .superRefine((values, ctx) => {
+            if (hasOverride) return
             // ISO day strings compare in date order.
             if (closeDate === '' || !isIsoDay(values.date) || values.date > closeDate) return
             ctx.addIssue({

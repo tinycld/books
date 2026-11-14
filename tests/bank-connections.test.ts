@@ -338,13 +338,13 @@ describe('cardBalance', () => {
     it('shows the account own balance, normal side positive', () => {
         expect(
             cardBalance({ accountType: 'bank', debitTotal: 3_000_000, creditTotal: 581_945 }, 'USD')
-        ).toEqual({ text: '$24,180.55', isNegative: false })
+        ).toEqual({ text: '$24,180.55', isAlert: false })
         expect(
             cardBalance(
                 { accountType: 'credit_card', debitTotal: 171_000, creditTotal: 512_017 },
                 'USD'
             )
-        ).toEqual({ text: '$3,410.17', isNegative: false })
+        ).toEqual({ text: '$3,410.17', isAlert: false })
     })
 
     it('marks a balance below zero as negative', () => {
@@ -352,8 +352,14 @@ describe('cardBalance', () => {
             cardBalance({ accountType: 'bank', debitTotal: 100, creditTotal: 600 }, 'USD')
         ).toEqual({
             text: formatMoney(-500, 'USD'),
-            isNegative: true,
+            isAlert: true,
         })
+    })
+
+    it('shows Too large in the alert tone when a sum is past the exact range', () => {
+        expect(
+            cardBalance({ accountType: 'bank', debitTotal: 2 ** 53, creditTotal: 2 ** 53 }, 'USD')
+        ).toEqual({ text: 'Too large', isAlert: true })
     })
 })
 

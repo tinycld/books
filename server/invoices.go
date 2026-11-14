@@ -25,15 +25,16 @@ const (
 
 // Go-only refusal texts of the invoice.
 const (
-	msgZeroTotal             = "An invoice with a total of zero cannot be posted. Add an amount or keep it as a draft."
-	msgInvoicePostedFromForm = "A draft invoice is posted from the invoice form."
-	msgInvoiceNotDraft       = "A posted or void invoice cannot be changed."
-	msgInvoiceDeleteNotDraft = "Only a draft invoice can be deleted."
-	msgLineStaysOnInvoice    = "A line stays on its invoice."
-	msgLineInvoiceNotDraft   = "Only the lines of a draft invoice can change."
-	msgLineRestating         = "Only a line's amount changes while Books restates its invoice."
-	msgLineUnknownKind       = "Line %d: an invoice line is an item, description, subtotal or percent line."
-	msgInvoiceEditMissing    = "The invoice being edited does not exist."
+	msgZeroTotal               = "An invoice with a total of zero cannot be posted. Add an amount or keep it as a draft."
+	msgInvoicePostedFromForm   = "A draft invoice is posted from the invoice form."
+	msgInvoiceNotDraft         = "A posted or void invoice cannot be changed."
+	msgInvoiceDeleteNotDraft   = "Only a draft invoice can be deleted."
+	msgLineStaysOnInvoice      = "A line stays on its invoice."
+	msgLineInvoiceNotDraft     = "Only the lines of a draft invoice can change."
+	msgLineRestating           = "Only a line's amount changes while Books restates its invoice."
+	msgLineUnknownKind         = "Line %d: an invoice line is an item, description, subtotal or percent line."
+	msgInvoiceEditMissing      = "The invoice being edited does not exist."
+	msgInvoiceRevisionConflict = "This invoice changed after you opened it. Load it again, then review it before you save or post."
 )
 
 // docTypeInvoice is the doc type of an invoice's sequence and of the entry it
@@ -56,19 +57,20 @@ var invoiceKind = salesDocKind{
 	HostKey:            invoiceHostKey,
 	CustomerRequired:   true,
 	Msgs: salesDocMessages{
-		TotalNegative:   msgTotalNegative,
-		TotalTooLarge:   msgTotalTooLarge,
-		TooManyLines:    msgTooManyLines,
-		ZeroTotal:       msgZeroTotal,
-		PostedFromForm:  msgInvoicePostedFromForm,
-		NotDraft:        msgInvoiceNotDraft,
-		DeleteNotDraft:  msgInvoiceDeleteNotDraft,
-		LineStays:       msgLineStaysOnInvoice,
-		LineNotDraft:    msgLineInvoiceNotDraft,
-		LineRestating:   msgLineRestating,
-		LineUnknownKind: msgLineUnknownKind,
-		EditMissing:     msgInvoiceEditMissing,
-		CustomerOnDocs:  msgCustomerOnInvoices,
+		TotalNegative:    msgTotalNegative,
+		TotalTooLarge:    msgTotalTooLarge,
+		TooManyLines:     msgTooManyLines,
+		ZeroTotal:        msgZeroTotal,
+		PostedFromForm:   msgInvoicePostedFromForm,
+		NotDraft:         msgInvoiceNotDraft,
+		DeleteNotDraft:   msgInvoiceDeleteNotDraft,
+		LineStays:        msgLineStaysOnInvoice,
+		LineNotDraft:     msgLineInvoiceNotDraft,
+		LineRestating:    msgLineRestating,
+		LineUnknownKind:  msgLineUnknownKind,
+		EditMissing:      msgInvoiceEditMissing,
+		CustomerOnDocs:   msgCustomerOnInvoices,
+		RevisionConflict: msgInvoiceRevisionConflict,
 	},
 	CheckHeader: func(tx core.App, stored, r *core.Record) error {
 		if err := checkInvoiceDays(r); err != nil {
@@ -91,11 +93,11 @@ var invoiceKind = salesDocKind{
 func checkInvoiceDays(r *core.Record) error {
 	date, err := parseDay(r.GetString("date"))
 	if err != nil {
-		return refuseField("date", msgDocumentDay)
+		return refuseDocumentDay("date", err)
 	}
 	due, err := parseDay(r.GetString("due_date"))
 	if err != nil {
-		return refuseField("due_date", msgDocumentDay)
+		return refuseDocumentDay("due_date", err)
 	}
 	if due.Before(date) {
 		return refuseField("due_date", msgDueBeforeDate)

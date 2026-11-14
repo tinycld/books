@@ -22,6 +22,21 @@ export function newEntryDefaults(today: string): EntryFormValues {
 
 const dayRule = z.string().refine(isIsoDay, 'Enter a date as YYYY-MM-DD')
 
+// The server's limits of an entry's memo and a line's memo, in characters (PocketBase
+// counts runes). A longer text is stopped here: the server's own refusal of a line's memo
+// names the field `memo`, which is the entry's Memo on this form.
+const ENTRY_MEMO_MAX = 4000
+const LINE_MEMO_MAX = 1000
+export const ENTRY_MEMO_TOO_LONG = `A memo can have at most ${ENTRY_MEMO_MAX} characters`
+export const LINE_MEMO_TOO_LONG = `A line memo can have at most ${LINE_MEMO_MAX} characters`
+
+const entryMemoRule = z
+    .string()
+    .refine(text => Array.from(text).length <= ENTRY_MEMO_MAX, ENTRY_MEMO_TOO_LONG)
+const lineMemoRule = z
+    .string()
+    .refine(text => Array.from(text).length <= LINE_MEMO_MAX, LINE_MEMO_TOO_LONG)
+
 // The currency makes an amount typed in another currency invalid.
 function buildSchemas(currency?: string) {
     const lineSchema = z
@@ -30,7 +45,7 @@ function buildSchemas(currency?: string) {
             account: z.string(),
             debit: z.string(),
             credit: z.string(),
-            memo: z.string(),
+            memo: lineMemoRule,
             customer: z.string(),
             vendor: z.string(),
         })
@@ -82,7 +97,7 @@ function buildSchemas(currency?: string) {
     const saveDraftSchema = z
         .object({
             date: dayRule,
-            memo: z.string(),
+            memo: entryMemoRule,
             autoReverseOn: z.string(),
             lines: z
                 .array(lineSchema)
@@ -161,7 +176,7 @@ export function reverseSchema(entryDate: string) {
             date => !isIsoDay(date) || date >= entryDate,
             'The reversal cannot be dated before the entry'
         ),
-        memo: z.string(),
+        memo: entryMemoRule,
     })
 }
 

@@ -17,27 +17,23 @@ const (
 	msgSalesDocEditNotPosted = "%s is %s and cannot be edited."
 	msgSalesDocNoEntry       = "%s has no journal entry."
 	msgLineNoIncomeAccount   = "Line %d: %s has no income account. Choose one on the product or service."
-	msgTaxAgencyNoAccount    = "%s has no liability account. Choose one on the tax agency."
-	msgTaxComponentNoAgency  = "%s has no tax agency. Choose one on the tax rate."
+	// %d is the document's line and %s its product: the journal line guard
+	// would number the entry's own line, which the person never sees.
+	msgLineIncomeAccountInactive = "Line %d: the income account of %s is inactive. Choose an active one on the product or service."
+	msgTaxAgencyNoAccount        = "%s has no liability account. Choose one on the tax agency."
+	msgTaxComponentNoAgency      = "%s has no tax agency. Choose one on the tax rate."
 )
-
-// replacingKey marks, in the app store, a posted document whose correction is
-// posting ("books.invoice.replacing.<id>").
-func replacingKey(kind salesDocKind, docID string) string {
-	return "books." + kind.DocType + ".replacing." + docID
-}
 
 // markReplacing marks the posted document a correction is replacing, so its
 // own update hook lets Books set it void with replaced_by while its entry is
 // already voided by the correction's post (voidReplaced). The returned func
-// clears the mark; the app store is shared by an app and its transactions.
-func markReplacing(app core.App, kind salesDocKind, docID string) func() {
-	app.Store().Set(replacingKey(kind, docID), true)
-	return func() { app.Store().Remove(replacingKey(kind, docID)) }
+// clears the mark, which belongs to the posting transaction (txmarks.go).
+func markReplacing(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "replacing"), docID)
 }
 
-func isReplacing(app core.App, kind salesDocKind, docID string) bool {
-	return app.Store().Has(replacingKey(kind, docID))
+func isReplacing(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "replacing"), docID)
 }
 
 // salesDocName is how a refusal names a document: "Invoice 1001", "Sales
@@ -307,8 +303,20 @@ func signedLine(account string, amount int64) postingLine {
 	return postingLine{Account: account, Credit: amount}
 }
 
+// documentLineRef is a document line as a refusal names it: its number and
+// its product's name.
+type documentLineRef struct {
+	n       int
+	product string
+}
+
+// incomeByAccount refuses a line whose product has no income account, and the
+// first line of an income account that is inactive and takes an amount (a
+// product keeps an account that became inactive after it was saved, so the
+// post is where it stops).
 func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
 	sums := map[string]int64{}
+	firstLine := map[string]documentLineRef{}
 	for i, line := range lines {
 		if !totals.HasAmount[i] {
 			continue
@@ -329,12 +337,17 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 			return nil, refuseNamed(msgLineNoIncomeAccount, i+1, product.GetString("name"))
 		}
 		sums[account] += totals.Amounts[i]
+		if _, seen := firstLine[account]; !seen {
+			firstLine[account] = documentLineRef{n: i + 1, product: product.GetString("name")}
+		}
 	}
 	type incomeAccount struct {
 		id, number string
 		amount     int64
 	}
 	accounts := make([]incomeAccount, 0, len(sums))
+	// The lowest line of an inactive account: the map's order is not the lines'.
+	var inactive *documentLineRef
 	for id, amount := range sums {
 		if amount == 0 {
 			continue
@@ -343,7 +356,16 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 		if err != nil {
 			return nil, fmt.Errorf("books: read an income account of the document: %w", err)
 		}
+		if account.GetBool("inactive") {
+			if ref := firstLine[id]; inactive == nil || ref.n < inactive.n {
+				inactive = &ref
+			}
+			continue
+		}
 		accounts = append(accounts, incomeAccount{id: id, number: account.GetString("number"), amount: amount})
+	}
+	if inactive != nil {
+		return nil, refuseNamed(msgLineIncomeAccountInactive, inactive.n, inactive.product)
 	}
 	slices.SortFunc(accounts, func(a, b incomeAccount) int {
 		return compareChartOrder(a.number, a.id, b.number, b.id)
@@ -359,6 +381,7 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 // (the tax-rates contract): a later change to a rate never changes what a
 // posted document charged.
 func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult, taxes []componentTax) error {
+	defer markSnapshotting(tx, kind, doc.Id)()
 	col, err := tx.FindCachedCollectionByNameOrId(kind.TaxLinesCollection)
 	if err != nil {
 		return err

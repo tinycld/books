@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, type Request, type Route, test } from '@playwright/test'
+import { expect, type Locator, type Page, type Request, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { openRegister } from './account-register-helpers'
@@ -11,6 +11,7 @@ import {
     holdRequests,
     isPhone,
     openEntriesList,
+    openOtherBooksPage,
     PHONE,
     postedEntryNumber,
     searchEntries,
@@ -29,10 +30,10 @@ import { uniqueName } from './record-form-helpers'
 // Every test makes its own posted entry through the new-entry form with a unique memo.
 // It does not cover: a read-only user (no read-only Books member is seeded, so "read-only
 // users see none" is covered by `entryActions` in tests/entry-actions.test.ts); a
-// closed-period refusal (no input provokes one, so the dialog's refusal display is shown
-// with "already reversed" instead: Void on the seeded reversed original,
-// `ENTRIES_SEED.reversed`, is refused by the server and the entry stays Posted); the
-// Reverse delete-on-refusal path, which tests/use-entry-actions.test.tsx covers.
+// closed-period refusal (a spec may not set a close date on the shared DB, so the dialogs'
+// refusal display is shown with the server's "already reversed" refusals instead: Void on
+// the seeded reversed original, `ENTRIES_SEED.reversed`, and a Reverse of an entry that
+// another tab reversed while the dialog was open).
 
 const SIZES = [
     ['desktop', DESKTOP],
@@ -50,18 +51,9 @@ async function start(page: Page, size: { width: number; height: number }) {
 }
 
 const ENTRY_RECORDS = '**/api/collections/books_journal_entries/records/*'
-const REFUSAL = 'Books are closed through 2026-09-30.'
 
 function isStatusPost(request: Request) {
     return request.method() === 'PATCH' && (request.postData() ?? '').includes('"status":"posted"')
-}
-
-function refuse(route: Route, message: string) {
-    return route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({ message, data: {} }),
-    })
 }
 
 async function makePosted(page: Page, memo: string) {
@@ -500,16 +492,29 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await makePosted(page, memo)
         const originalId = entryIdOf(page)
         const number = await postedEntryNumber(page)
-        // No input makes the real server refuse a reverse here, so the posting PATCH is
-        // answered with a 400. This covers the dialog and the cleanup, not the server rule.
-        await page.route(ENTRY_RECORDS, route =>
-            isStatusPost(route.request()) ? refuse(route, REFUSAL) : route.continue()
-        )
 
         await chooseAction(page, 'Reverse')
         const dialog = page.getByTestId('reverse-dialog')
+        await expect(dialog).toBeVisible()
+
+        // While the dialog is open here, another tab reverses the entry (with its own memo).
+        // The server refuses a second reversal of an entry (server/reversal.go
+        // reversalTarget), so this dialog's Reverse is the server's own refusal.
+        const other = await openOtherBooksPage(page)
+        await openEntriesList(other)
+        await searchEntries(other, memo)
+        await listItems(other, memo).first().click()
+        await chooseAction(other, 'Reverse')
+        await other.getByTestId('reverse-memo').fill(`Other tab reversed ${number}`)
+        await other.getByTestId('reverse-confirm').click()
+        await waitForOtherEntry(other, originalId)
+        await expect(other.getByTestId('entry-badge')).toHaveText('Posted')
+        await other.close()
+
         await page.getByTestId('reverse-confirm').click()
-        await expect(dialog.getByTestId('entry-error-summary')).toContainText(REFUSAL)
+        await expect(dialog.getByTestId('entry-error-summary')).toContainText(
+            new RegExp(`${number} is already reversed by entry JE-\\d+\\.`)
+        )
         await expect(dialog).toBeVisible()
         expect(entryIdOf(page)).toBe(originalId)
 

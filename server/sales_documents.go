@@ -94,6 +94,9 @@ func (k salesDocKind) isEditableStatus(status string) bool {
 type salesDocMessages struct {
 	TotalNegative, TotalTooLarge, TooManyLines, ZeroTotal, PostedFromForm, NotDraft, DeleteNotDraft,
 	LineStays, LineNotDraft, LineRestating, LineUnknownKind, EditMissing, CustomerOnDocs string
+	// RevisionConflict refuses a save or a post of a document that changed after
+	// the caller loaded it (revision.go), with status 409.
+	RevisionConflict string
 }
 
 // The lines built-in of every sales document host, whose row kinds say which
@@ -104,6 +107,7 @@ const salesDocLinesKey = "lines"
 // its number; a product's name is kept as typed (refuseNamed).
 const (
 	msgDocumentDay             = "Enter a date that exists, in the form YYYY-MM-DD."
+	msgDocumentDayTooEarly     = "Enter a date in 1900 or later."
 	msgDocumentTaxRateInactive = "The tax rate is inactive. Choose an active rate."
 	msgLineAmountByBooks       = "Books computes a line's amount."
 	msgLineProductInactive     = "Line %d: %s is inactive. Choose an active product or service."
@@ -135,6 +139,10 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	bindSerializedGuard(app, kind.LinesCollection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDocLine(tx, kind, stored, r)
 	})
+	if kind.TaxLinesCollection != "" {
+		bindTaxLineGuards(app, kind)
+	}
+	bindSalesDocDeferral(app, kind)
 	// Bound after the line guard, so it runs inside the guard's transaction
 	// (e.App is the transaction there) and after the write it wraps.
 	restateAfter := func(e *core.RecordEvent) error {
@@ -143,6 +151,11 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 		}
 		docID := e.Record.GetString(kind.ParentField)
 		if isRestating(e.App, kind, docID) {
+			return nil
+		}
+		// The owner of the batch restates the document one time (sales_document_deferral.go).
+		if isDeferring(e.App, kind, docID) {
+			markDirty(e.App, kind, docID)
 			return nil
 		}
 		_, err := restateSalesDoc(e.App, kind, docID)
@@ -158,6 +171,10 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 		return serializedThen(e,
 			func(tx core.App) error { return checkSalesDocLineDelete(tx, kind, e.Record) },
 			func(tx core.App) error {
+				if isDeferring(tx, kind, docID) {
+					markDirty(tx, kind, docID)
+					return nil
+				}
 				_, err := restateSalesDoc(tx, kind, docID)
 				return err
 			})
@@ -197,55 +214,57 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 			return nil
 		})
 	})
-	if kind.Lifecycle != lifecyclePosting {
-		return
-	}
-	// Stamp who posted or voided, on the transition only, as entries do: the
-	// update rule refuses these fields in a person's body. A quote has neither.
+	// A request that updates a document a person can edit (a draft, a quote
+	// that is not closed) states the revision it saw (revision.go). A posting
+	// kind also stamps who posted or voided, on the transition only, as
+	// entries do: the update rule refuses these fields in a person's body. A
+	// quote has neither.
 	app.OnRecordUpdateRequest(kind.Collection).BindFunc(func(e *core.RecordRequestEvent) error {
 		from, to := e.Record.Original().GetString("status"), e.Record.GetString("status")
-		switch {
-		case from == to:
-		case to == statusPosted:
-			stampActor(e.Record, "posted_by", e.Auth)
-		case to == statusVoid:
-			stampActor(e.Record, "voided_by", e.Auth)
+		done, err := checkRequestRevision(e, kind.isEditableStatus(from), kind.Msgs.RevisionConflict)
+		if err != nil {
+			return err
+		}
+		defer done()
+		if kind.Lifecycle == lifecyclePosting && from != to {
+			switch to {
+			case statusPosted:
+				stampActor(e.Record, "posted_by", e.Auth)
+			case statusVoid:
+				stampActor(e.Record, "voided_by", e.Auth)
+			}
 		}
 		return e.Next()
 	})
 }
 
-// The app store keys of a document whose lines Books is writing itself: the
-// restatement of their amounts, or the cascade of the document's delete. They
-// are per doc type ("books.invoice.restating.<id>"), so the invoice's keys are
-// the ones it always had.
-func restatingKey(kind salesDocKind, docID string) string {
-	return "books." + kind.DocType + ".restating." + docID
-}
-
-func deletingKey(kind salesDocKind, docID string) string {
-	return "books." + kind.DocType + ".deleting." + docID
+// The marks of a document whose rows Books is writing itself: the restatement
+// of its lines' amounts, the cascade of its delete, the void a correction's
+// post makes. Each is per doc type and belongs to one transaction
+// (txmarks.go), so a write of another request never reads it.
+func docMark(kind salesDocKind, what string) string {
+	return kind.DocType + "." + what
 }
 
 // markRestating marks docID's lines as written by restateSalesDoc, so the line
-// guard lets their amounts change; the returned func clears the mark. The app
-// store is shared by an app and its transactions.
-func markRestating(app core.App, kind salesDocKind, docID string) func() {
-	app.Store().Set(restatingKey(kind, docID), true)
-	return func() { app.Store().Remove(restatingKey(kind, docID)) }
+// guard lets their amounts change; the returned func clears the mark.
+func markRestating(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "restating"), docID)
 }
 
-func isRestating(app core.App, kind salesDocKind, docID string) bool {
-	return app.Store().Has(restatingKey(kind, docID))
+func isRestating(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "restating"), docID)
 }
 
-func markDeleting(app core.App, kind salesDocKind, docID string) func() {
-	app.Store().Set(deletingKey(kind, docID), true)
-	return func() { app.Store().Remove(deletingKey(kind, docID)) }
+func markDeleting(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "deleting"), docID)
 }
 
-func isDeleting(app core.App, kind salesDocKind, docID string) bool {
-	return app.Store().Has(deletingKey(kind, docID))
+// isDeleting is read by a line delete before it opens its own transaction: the
+// cascade of a document's delete runs with that delete's transaction app and
+// reads the mark; a person's line delete runs with the base app and reads none.
+func isDeleting(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "deleting"), docID)
 }
 
 // refuseNamedField is refuseField for a message that starts with a name people
@@ -261,6 +280,16 @@ func refuseNamedField(field, format string, args ...any) error {
 		item["message"] = msg
 	}
 	return err
+}
+
+// refuseDocumentDay refuses a document's day that parseDay refused, under its
+// field: a year before 1900 has its own text, because "a date that exists"
+// would be false for it.
+func refuseDocumentDay(field string, err error) error {
+	if isDayTooEarly(err) {
+		return refuseField(field, msgDocumentDayTooEarly)
+	}
+	return refuseField(field, msgDocumentDay)
 }
 
 // validateSalesDoc guards a document write. A quote's create and update follow
@@ -284,10 +313,113 @@ func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) er
 	case statusPosted, statusVoid:
 		return refuse("%s", kind.Msgs.PostedFromForm)
 	}
+	if err := checkNewSalesDoc(kind, r); err != nil {
+		return err
+	}
 	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
+	startRevision(tx, kind, r)
 	return checkDraftSalesDoc(tx, kind, nil, r)
+}
+
+// startRevision gives a new document revision 1, whatever its record carries,
+// and records the create for its transaction, so the lines written with it are
+// part of the create (revision.go). The create rule refuses the field in a
+// person's body.
+func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
+	r.Set("revision", 1)
+	markCreated(tx, kind.Collection, r.Id)
+}
+
+// The header fields only Books writes, on the kinds that have them (an
+// estimate has no entry and no post). The rules pin them for a person; the
+// checks below hold for Go and a superuser too, as checkNewEntry and
+// transitionEntry do for a journal entry.
+//
+// salesDocNewBooksFields must be empty on a new document. number and sequence
+// are in the list only for a posting kind: a quote takes them from its
+// sequence at create and replaces whatever the record carries.
+//
+// salesDocKeptBooksFields cannot change while a person edits the document.
+// posted_by is not in it: a Go caller names the poster with the post, as for
+// an entry. replaces is fixed at create: an invoice's estimate is checked
+// against it only then (checkInvoiceEstimate).
+var (
+	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "invoice"}
+	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "invoice"}
+)
+
+func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
+	names := salesDocNewBooksFields
+	if kind.Lifecycle == lifecyclePosting {
+		names = append([]string{"number", "sequence"}, names...)
+	}
+	var set []string
+	for _, name := range names {
+		field := r.Collection().Fields.GetByName(name)
+		if field == nil {
+			continue
+		}
+		// An empty number field reads "0". Only there is "0" empty: the text
+		// field number can hold the text "0".
+		empty := ""
+		if field.Type() == core.FieldTypeNumber {
+			empty = "0"
+		}
+		if v := r.GetString(name); v != "" && v != empty {
+			set = append(set, name)
+		}
+	}
+	return refuseServerFields(set)
+}
+
+func checkSalesDocBooksFieldsKept(stored, r *core.Record) error {
+	var changed []string
+	for _, name := range salesDocKeptBooksFields {
+		if r.Collection().Fields.GetByName(name) == nil {
+			continue
+		}
+		if stored.GetString(name) != r.GetString(name) {
+			changed = append(changed, name)
+		}
+	}
+	return refuseServerFields(changed)
+}
+
+// msgTaxLineByBooks refuses a write of a posted document's tax lines.
+const msgTaxLineByBooks = "Books writes a document's tax lines when the document posts."
+
+// markSnapshotting marks docID while writeTaxSnapshot writes its tax lines;
+// the returned func clears the mark, which belongs to the posting transaction.
+func markSnapshotting(tx core.App, kind salesDocKind, docID string) func() {
+	return setTxMark(tx, docMark(kind, "snapshotting"), docID)
+}
+
+func isSnapshotting(tx core.App, kind salesDocKind, docID string) bool {
+	return hasTxMark(tx, docMark(kind, "snapshotting"), docID)
+}
+
+// bindTaxLineGuards keeps the tax lines the posting snapshot: only the post
+// creates them, nothing changes one, and one goes only with its document's
+// delete. Their rules are null, so no person reaches these hooks; they hold
+// for Go. e.App is the caller's app: the post's and the cascade's transaction.
+func bindTaxLineGuards(app core.App, kind salesDocKind) {
+	app.OnRecordCreate(kind.TaxLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		if !isSnapshotting(e.App, kind, e.Record.GetString(kind.ParentField)) {
+			return refuse(msgTaxLineByBooks)
+		}
+		return e.Next()
+	})
+	app.OnRecordUpdate(kind.TaxLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		return refuse(msgTaxLineByBooks)
+	})
+	app.OnRecordDelete(kind.TaxLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		if !isDeleting(e.App, kind, e.Record.GetString(kind.ParentField)) {
+			return refuse(msgTaxLineByBooks)
+		}
+		return e.Next()
+	})
 }
 
 // salesDocUnlinks are a document's links PocketBase clears on its own when the
@@ -310,8 +442,27 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 	from, to := stored.GetString("status"), r.GetString("status")
 	switch {
 	case from == statusDraft && to == statusDraft:
+		// Every draft write, a person's or Books' own save of the totals after
+		// a line write, takes the transaction's one increase.
+		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
+			return err
+		}
+		// Books' own save of the totals after a line write: restateSalesDoc
+		// computed them from the stored lines and changed no other field.
+		if isOwnWrite(tx, kind.Collection, stored.Id) {
+			return nil
+		}
+		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+			return err
+		}
 		return checkDraftSalesDoc(tx, kind, stored, r)
 	case from == statusDraft && to == statusPosted:
+		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
+			return err
+		}
+		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+			return err
+		}
 		if err := checkDraftSalesDoc(tx, kind, stored, r); err != nil {
 			return err
 		}
@@ -388,7 +539,21 @@ func checkDraftSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) 
 		return err
 	}
 	setSalesDocTotals(r, totals)
-	return nil
+	return settleLinesWithHeader(tx, kind, r.Id, lines, totals)
+}
+
+// settleLinesWithHeader writes the line amounts of a document that a deferred
+// line write of this transaction left dirty (sales_document_deferral.go),
+// while a header write computes the same totals. The owner then has nothing to
+// restate: it would save the header a second time, and it restates no document
+// this write closes (an estimate an invoice is made from). Line writes after
+// this one mark the document dirty again.
+func settleLinesWithHeader(tx core.App, kind salesDocKind, docID string, lines []*core.Record, totals documentTotalsResult) error {
+	if !isDirty(tx, kind, docID) {
+		return nil
+	}
+	clearDirty(tx, kind, docID)
+	return restateLineAmounts(tx, kind, docID, lines, totals)
 }
 
 // checkSalesDocCustomer refuses an inactive customer when the write chooses it;
@@ -472,6 +637,17 @@ func lineInputs(lines []*core.Record) []documentLine {
 		}
 	}
 	return out
+}
+
+// ownLineAmount is the amount of a line that depends on no other line: an
+// item's quantity times its rate. A percent or subtotal line's amount comes
+// from the lines before it, so the restatement writes it; until then it is 0.
+func ownLineAmount(r *core.Record) int64 {
+	totals := documentTotals(lineInputs([]*core.Record{r}), nil, nil)
+	if r.GetString("kind") != lineKindItem || !totals.HasAmount[0] {
+		return 0
+	}
+	return totals.Amounts[0]
 }
 
 // salesDocTotals runs documentTotals over lines with the document's header
@@ -590,6 +766,27 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		if n >= maxDocumentLines {
 			return refuse("%s", kind.Msgs.TooManyLines)
 		}
+	}
+
+	// In a batch the owner checks the document one time, after the last write
+	// (sales_document_deferral.go): this write checks its own line only and
+	// reads no other line. The line number is the line's position (the client
+	// writes positions with no gap).
+	if isDeferring(tx, kind, docID) {
+		n := r.GetInt("position") + 1
+		if err := checkLineCells(tx, kind, r, n); err != nil {
+			return err
+		}
+		if err := checkLineProduct(tx, stored, r, n); err != nil {
+			return err
+		}
+		// The schema's max would refuse the amount first, with its own text.
+		amount := ownLineAmount(r)
+		if amount > maxAmount || amount < -maxAmount {
+			return refuse(msgLineTooLarge, n)
+		}
+		r.Set("amount", amount)
+		return nil
 	}
 
 	others, err := salesDocLines(tx, kind, docID)
@@ -744,6 +941,10 @@ func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) 
 	if !kind.isEditableStatus(doc.GetString("status")) {
 		return refuse("%s", kind.Msgs.LineNotDraft)
 	}
+	// The owner checks the lines the batch leaves (sales_document_deferral.go).
+	if isDeferring(tx, kind, doc.Id) {
+		return nil
+	}
 	stored, err := salesDocLines(tx, kind, doc.Id)
 	if err != nil {
 		return err
@@ -759,7 +960,7 @@ func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) 
 // restateSalesDoc recomputes every line amount and the document's totals from
 // its stored lines and header tax, and saves each line whose amount changed
 // and the document. The line guard lets the amounts through while the
-// document is marked restating; the header guard sets the same totals again.
+// document is marked restating; the header guard lets Books' own save through.
 func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTotalsResult, error) {
 	doc, err := tx.FindRecordById(kind.Collection, docID)
 	if err != nil {
@@ -780,6 +981,8 @@ func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTota
 		return documentTotalsResult{}, err
 	}
 	setSalesDocTotals(doc, totals)
+	// The header guard would read the lines again to set these same totals.
+	defer ownWrite(tx, kind.Collection, doc.Id)()
 	if err := tx.Save(doc); err != nil {
 		return documentTotalsResult{}, err
 	}

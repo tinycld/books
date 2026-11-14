@@ -95,7 +95,7 @@ migrate(
                 type: 'base',
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && @request.body.status = "draft" && ${unset(...RECEIPT_SERVER_FIELDS)}`,
+                createRule: `${WRITE} && @request.body.status = "draft" && ${unset(...RECEIPT_SERVER_FIELDS, 'revision')}`,
                 updateRule: `${WRITE} && ${unset(...RECEIPT_SERVER_FIELDS)} && (status = "draft" || (status = "posted" && @request.body.status = "void"))`,
                 deleteRule: `${WRITE} && status = "draft"`,
                 fields: [
@@ -147,6 +147,8 @@ migrate(
                     { name: 'subtotal', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'tax_total', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    // As on the invoice (2100000010): the count a save or a post states.
+                    { name: 'revision', type: 'number', onlyInt: true, min: 0 },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
                     {
                         name: 'entry',

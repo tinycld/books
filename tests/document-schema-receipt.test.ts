@@ -9,7 +9,7 @@ import { ClientResponseError } from 'pocketbase'
 import { createElement, type Provider } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { View } from 'react-native'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ZodTypeAny } from 'zod'
 import { SALES_RECEIPT_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
 import hosts, { SALES_RECEIPT_HOST_KEY } from '../tinycld/books/forms/hosts'
@@ -41,6 +41,11 @@ import { silenceLog } from './silence-log'
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
+})
+vi.mock('@tinycld/core/lib/mutations', async importOriginal => {
+    const actual = await importOriginal<typeof import('@tinycld/core/lib/mutations')>()
+    const { atomicStub } = await import('./accounts-form-harness')
+    return { ...actual, atomic: atomicStub }
 })
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
@@ -220,6 +225,8 @@ describe('documentRefusalTarget(message, SALES_RECEIPT_KIND)', () => {
     it("sends the invoice's day and tax-rate texts to Sale date and Tax", () => {
         // server/sales_documents.go msgDocumentDay.
         expect(target('Enter a date that exists, in the form YYYY-MM-DD.')).toBe('date')
+        // server/sales_documents.go msgDocumentDayTooEarly.
+        expect(target('Enter a date in 1900 or later.')).toBe('date')
         expect(target('Tax rate Old is inactive. Choose an active rate.')).toBe('tax_rate')
     })
 
@@ -255,6 +262,13 @@ formHosts.push(
         },
     ])
 )
+
+// The form is ready only after the host UI module is loaded. Load it before the first
+// test: with the whole suite running, the first load can take longer than waitFor waits,
+// and that time is not part of what a test measures.
+beforeAll(async () => {
+    await import('../tinycld/books/forms/ui')
+})
 
 const REFERENCE_FIELD_TEXT = 'Must be less than 40 character(s).'
 
@@ -323,8 +337,9 @@ describe('a reference_no field refusal', () => {
                 shouldDirty: true,
             })
         })
+        // The save is one batch: the receipt and its line enter together.
         refuseNthWrite(
-            1,
+            2,
             new ClientResponseError({
                 url: 'http://127.0.0.1:7100/api/collections/books_sales_receipts/records',
                 status: 400,
@@ -350,7 +365,8 @@ describe('a reference_no field refusal', () => {
             expect(messageOf(form.getFieldState('reference_no').error)).toBe(REFERENCE_FIELD_TEXT)
         )
         await waitFor(() => expect(current().save.isSaving).toBe(false))
-        expect(enteredWrites()).toHaveLength(1)
+        // The refused batch is the only write: no delete follows it, and nothing is stored.
+        expect(enteredWrites()).toHaveLength(2)
         expect(receipts.toArray).toEqual([])
         expect(messageOf(form.getFieldState('root.server').error)).toBeUndefined()
         expect(messageOf(form.getFieldState('root').error)).toBeUndefined()

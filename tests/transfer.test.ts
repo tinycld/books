@@ -398,14 +398,21 @@ describe('transferBalanceLine', () => {
     it('shows a positive balance as normal', () => {
         expect(transferBalanceLine(120_100, 'USD')).toEqual({
             text: 'Balance $1,201.00',
-            isNegative: false,
+            isAlert: false,
         })
     })
 
     it('marks a negative balance', () => {
         expect(transferBalanceLine(-21_540, 'USD')).toEqual({
             text: 'Balance -$215.40',
-            isNegative: true,
+            isAlert: true,
+        })
+    })
+
+    it('prints a null balance as Too large in the alert tone', () => {
+        expect(transferBalanceLine(null, 'USD')).toEqual({
+            text: 'Balance Too large',
+            isAlert: true,
         })
     })
 })
@@ -495,7 +502,13 @@ describe('transferAccountBalance', () => {
             credit_total: 5_000,
         })
         expect(balance).toBe(-5_000)
-        expect(transferBalanceLine(balance, 'USD').isNegative).toBe(true)
+        expect(transferBalanceLine(balance, 'USD').isAlert).toBe(true)
+    })
+
+    it('is null when a sum is past the exact range', () => {
+        expect(
+            transferAccountBalance({ type: 'bank', debit_total: 2 ** 53, credit_total: 0 })
+        ).toBeNull()
     })
 
     it('gives a credit card its credits as a positive balance', () => {

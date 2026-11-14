@@ -72,6 +72,7 @@ export function useOpeningBalancesScreen(isEditing = false) {
                     status: entry.status,
                     number: entry.number,
                     replaces: entry.replaces,
+                    revision: entry.revision,
                     postedAt: entry.posted_at,
                     postedBy: materialize(
                         query

@@ -10,6 +10,7 @@ import type { EntryFormLine, LineTotals } from '../../lib/entry-lines'
 import type { EntryFormValues } from '../../lib/entry-schema'
 import { DiscardDialog } from './DiscardDialog'
 import { EntryActionBar } from './EntryActionBar'
+import { EntryConflictNotice } from './EntryConflictNotice'
 import { EntryEditableLineCard } from './EntryEditableLineCard'
 import { EntryEditableLineTable } from './EntryEditableLineTable'
 import { EntryHeaderFields } from './EntryHeaderFields'
@@ -23,6 +24,9 @@ interface EntryFormProps {
     // Set when editing a saved draft; `saved` is that draft's rows.
     entryId?: string | null
     saved?: readonly EntryFormLine[]
+    // The saved draft's revision when `initial` was taken, and how to load it again.
+    revision?: number
+    onReload?: () => Promise<void>
     replaces?: string
     journalNumber?: string
     header(totals: LineTotals): React.ReactNode
@@ -123,6 +127,8 @@ export function EntryForm({
     currency,
     entryId,
     saved,
+    revision,
+    onReload,
     replaces,
     journalNumber,
     header,
@@ -139,6 +145,8 @@ export function EntryForm({
         currency,
         entryId,
         saved,
+        revision,
+        onReload,
         replaces,
         onSaved,
         onCancel,
@@ -171,6 +179,7 @@ export function EntryForm({
             <EntryLeaveContext.Provider value={submit.cancel}>
                 <View testID="entry-screen" className="min-w-0 flex-1 bg-background">
                     {header(entryForm.totals)}
+                    <EntryConflictNotice isVisible={submit.isConflict} onReload={submit.reload} />
                     <EntryErrorSummary />
                     <ScrollView className="flex-1" contentContainerClassName="gap-4 py-4">
                         <View className="px-4">

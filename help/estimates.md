@@ -30,6 +30,12 @@ On a phone, the bar shows Cancel and Save & close. Save, Save & new, Convert to 
 
 A saved estimate stays open to changes: you can change any field and any line while it is Pending, Accepted or Rejected.
 
+## When someone else changed the estimate
+
+If another person saves a change to an estimate while you have changes of your own in it, Books refuses your next Save, Save & close, Save & new or Convert to invoice and shows "This estimate changed after you opened it." Nothing is saved, and what you typed stays on the screen. To see their changes, choose Load the current estimate. This replaces what you typed, so copy anything you want to keep first. Review the estimate, then save again. If Books cannot load the estimate, it tells you and keeps what you typed. Choose Load the current estimate again.
+
+While you have no unsaved change, the form shows the other person's changes as they save them.
+
 ## Statuses and Expired
 
 The second row of the form holds the status:

@@ -84,7 +84,7 @@ function existingIds(existing: readonly ExistingAccount[]) {
 // Existing accounts compared by content, so a new array with the same accounts is not a change.
 function existingSignature(existing: readonly ExistingAccount[]) {
     return existing
-        .map(a => [a.id, a.parent, a.name, a.number, a.type].join('\u0000'))
+        .map(a => [a.id, a.parent, a.name, a.number, a.type, String(a.inactive)].join('\u0000'))
         .join('\u0001')
 }
 

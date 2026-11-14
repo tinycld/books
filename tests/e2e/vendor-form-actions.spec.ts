@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { nameOnDraftLine } from './journal-entries-helpers'
 import {
     chooseFromMenu,
     closeMenu,
@@ -16,7 +17,6 @@ import {
     openMenu,
     openVendorsList,
     PHONE,
-    refuseDelete,
     searchVendors,
     uniqueName,
     vendorEntry,
@@ -38,17 +38,18 @@ import {
 // deleted elsewhere run the same code at both sizes, so they run on desktop only.
 //
 // Not covered here: a read-only user (no row menu) cannot be driven, because the seed has
-// no read-only Books member; `recordMenuItems` is unit-tested. A refusal for a vendor that
-// is in use does not exist yet (later units add it), so a refusal is a 400 answered
-// through `page.route`, which writes nothing. Enter, Space and Tab on the shared
-// `PartyRow` are driven by the customer actions spec.
+// no read-only Books member; `recordMenuItems` is unit-tested. The refused delete is the
+// server's own: another tab puts the vendor on a line of a draft journal entry, and the
+// server refuses to delete a vendor a journal line names. The refused Make inactive of
+// step (3) is a 400 answered through `page.route`, which writes nothing: no server rule
+// refuses to make a vendor inactive, so that step covers only the banner. Enter, Space
+// and Tab on the shared `PartyRow` are driven by the customer actions spec.
 
 const SIZES = [
     ['desktop', DESKTOP],
     ['phone', PHONE],
 ] as const
 
-const REFUSAL = 'This vendor is used on a bill.'
 const CHANGE_REFUSAL = 'Books cannot change this vendor right now.'
 const SERVER_UNREACHED = "Your change wasn't saved: the server could not be reached."
 const CANNOT_UNDO = 'This cannot be undone.'
@@ -191,13 +192,17 @@ test.describe('vendor-form: inactive and delete', () => {
             await expectListShown(page)
             await expect(entryP).toBeVisible()
 
+            // Another tab puts P on a line of a draft journal entry: the server refuses to
+            // delete a vendor a journal line names. That tab then deletes the draft.
+            const namedOnDraft = await nameOnDraftLine(page, nameP)
             dialog = await openDeleteDialog(page, pId)
-            await refuseDelete(page, pId, REFUSAL)
             await dialog.confirm.click()
-            await expect(dialog.body).toContainText(REFUSAL)
+            await expect(dialog.body).toContainText(
+                `${nameP} is on journal lines. Make it inactive instead.`
+            )
             await expect(dialog.root).toBeVisible()
             await expect(entryP).toBeVisible()
-            await page.unroute(vendorHelpers.recordUrl(pId))
+            await namedOnDraft.release()
             await dialog.confirm.click()
             await expect(dialog.root).toBeHidden()
             await expect(entryP).toHaveCount(0)

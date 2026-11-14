@@ -74,7 +74,7 @@ export function useDocumentReadActions(
     const [isVoidOpen, setVoidOpen] = useState(false)
     const voidDocument = useMutation({
         mutationFn: function* (id: string) {
-            yield writes.setStatus(id, 'void')
+            yield writes.voidRecord(id)
         },
         onSuccess: () => setVoidOpen(false),
     })

@@ -70,7 +70,7 @@ export function BankAccountCard({
     const typeLabel = accountTypeDef(row.accountType)?.label ?? ''
     const details = bankDetailsText(row) || 'No bank details'
     const balance = cardBalance(row, currency)
-    const balanceTone = balance.isNegative ? 'text-danger' : 'text-foreground'
+    const balanceTone = balance.isAlert ? 'text-danger' : 'text-foreground'
     const waitingTone = row.waitingCount > 0 ? 'text-foreground' : 'text-muted-foreground'
     const waiting = waitingText(row.waitingCount)
     const reviewTone = reviewCountTone(row.reviewCount)
@@ -119,7 +119,7 @@ export function BankAccountCard({
 function CompactAccountCard({ row, currency, isSelected, width, onSelect }: BankAccountCardProps) {
     const border = isSelected ? 'border-primary' : 'border-border'
     const balance = cardBalance(row, currency)
-    const balanceTone = balance.isNegative ? 'text-danger' : 'text-foreground'
+    const balanceTone = balance.isAlert ? 'text-danger' : 'text-foreground'
     const reviewTone = reviewCountTone(row.reviewCount)
     const review = reviewCountText(row.reviewCount)
     const label = connectionLabel(row.accountNumber, row.accountName)

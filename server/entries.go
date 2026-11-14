@@ -26,8 +26,10 @@ const (
 // draftEditable are the entry fields a person edits on a draft. Everything
 // else is set by Books (number, total, who and when) or fixed when the entry
 // is created (type, origin, the entry it reverses or replaces).
+// revision is not a person's field: settleRevision decides its one allowed
+// value.
 var draftEditable = map[string]bool{
-	"date": true, "memo": true, "auto_reverse_on": true, "status": true, "posted_by": true,
+	"date": true, "memo": true, "auto_reverse_on": true, "status": true, "posted_by": true, "revision": true,
 }
 
 func registerEntryHooks(app core.App) {
@@ -46,6 +48,11 @@ func registerEntryHooks(app core.App) {
 		return e.Next()
 	})
 	app.OnRecordUpdateRequest("books_journal_entries").BindFunc(func(e *core.RecordRequestEvent) error {
+		done, err := checkRequestRevision(e, e.Record.Original().GetString("status") == statusDraft, msgRevisionConflict)
+		if err != nil {
+			return err
+		}
+		defer done()
 		// Stamp only on a transition. A save that keeps an entry posted is not
 		// a post, and rewriting its poster would be a change to a posted entry.
 		if e.Record.Original().GetString("status") == e.Record.GetString("status") {
@@ -74,7 +81,12 @@ func registerEntryHooks(app core.App) {
 			if err := checkLinkedEntries(tx, e.Record); err != nil {
 				return err
 			}
-			return stampCurrency(tx, e.Record)
+			if err := stampCurrency(tx, e.Record); err != nil {
+				return err
+			}
+			e.Record.Set("revision", 1)
+			markCreated(tx, "books_journal_entries", e.Record.Id)
+			return nil
 		})
 	})
 	// Every entry update runs in one transaction. Posting writes the lines,
@@ -96,12 +108,13 @@ func registerEntryHooks(app core.App) {
 
 // postingFields are the fields Books fills when it posts or voids an entry.
 // total is also Books-owned on a draft: Books restates it on every draft line
-// write (see restateDraftTotal) and stamps it again at post.
+// write (see touchDraft) and stamps it again at post.
 // The create rule refuses them over REST; checkNewEntry refuses them for a Go
 // caller too, so a draft never starts with a number, a poster or an override.
 // created_by and currency are not here: Books stamps them on create.
+// revision is Books' too: a create starts it at 1 (see revision.go).
 var postingFields = []string{
-	"number", "sequence", "total", "posted_at", "posted_by", "voided_at", "voided_by", "close_override",
+	"number", "sequence", "total", "posted_at", "posted_by", "voided_at", "voided_by", "close_override", "revision",
 }
 
 func checkNewEntry(r *core.Record) error {
@@ -251,6 +264,13 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 	from, to := stored.GetString("status"), next.GetString("status")
 	switch {
 	case from == statusDraft && to == statusDraft:
+		// Books' own save of the total and the revision after a line write.
+		if isOwnWrite(tx, "books_journal_entries", stored.Id) {
+			return nil
+		}
+		if err := settleRevision(tx, stored, next, msgRevisionConflict); err != nil {
+			return err
+		}
 		changed, err := changesBeyondUnlinks(tx, stored, next, draftEditable, entryUserLinks)
 		if err != nil {
 			return err
@@ -261,6 +281,9 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 		}
 		return refuseServerFields(changed)
 	case from == statusDraft && to == statusPosted:
+		if err := settleRevision(tx, stored, next, msgRevisionConflict); err != nil {
+			return err
+		}
 		if err := checkDraftEdit(stored, next); err != nil {
 			return err
 		}

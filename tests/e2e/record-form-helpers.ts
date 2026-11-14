@@ -761,19 +761,6 @@ export function recordFormHelpers(kind: RecordKind) {
         return row.getByText('Inactive', { exact: true })
     }
 
-    // Answers only the DELETE of the record with the server's 400; every other request
-    // passes.
-    async function refuseDelete(page: Page, id: string, message: string) {
-        await page.route(recordUrl(id), route => {
-            if (route.request().method() !== 'DELETE') return route.continue()
-            return route.fulfill({
-                status: 400,
-                contentType: 'application/json',
-                body: JSON.stringify({ code: 400, message, data: {} }),
-            })
-        })
-    }
-
     return {
         entries,
         entry,
@@ -811,6 +798,5 @@ export function recordFormHelpers(kind: RecordKind) {
         deleteDialog,
         openDeleteDialog,
         inactiveLabel,
-        refuseDelete,
     }
 }

@@ -5,6 +5,7 @@
 import {
     BasicIndex,
     createCollection,
+    createTransaction,
     extractSimpleComparisons,
     localOnlyCollectionOptions,
     type OperationType,
@@ -91,6 +92,8 @@ const state = {
     requested: [] as string[],
     // Names of the seeded collections that received cleanup(), in order.
     cleanups: [] as string[],
+    // Runs one time, right after the next batch lands and before its caller goes on.
+    afterBatch: null as (() => Promise<void>) | null,
 }
 
 // The seeded collections that received cleanup() since the last seed, in order, so a retry
@@ -1028,6 +1031,7 @@ export function seedBooks(
     state.cleanups = []
     state.gate = null
     state.steps = null
+    state.afterBatch = null
     state.registry = recordCleanups({
         books_accounts: accountsCollectionFor(opts),
         books_account_balances: balancesCollectionFor(opts, opts.ledger?.balances ?? BALANCES),
@@ -1198,4 +1202,58 @@ export function messageRefusal(message: string) {
         status: 400,
         response: { message, data: {} },
     })
+}
+
+// The harness's `atomic` (core's batch): every mutation made in `fn` lands together,
+// or none. pbtsdb's own batch refuses a collection it did not build, so a hook test
+// mocks `@tinycld/core/lib/mutations` to serve `atomic` from here, as it serves
+// `useStore` from `useStoreStub`. The batch goes through the same handler as a single
+// write, so a test holds, counts or refuses it with the same controls; a refused batch
+// changes no row.
+export async function atomicStub(fn: () => void): Promise<void> {
+    const transaction = createTransaction({
+        autoCommit: false,
+        mutationFn: async ({ transaction: tx }) => {
+            await refuseSharedWrite({ transaction: tx })
+            const stores = new Set(tx.mutations.map(mutation => mutation.collection))
+            for (const store of stores) {
+                const utils = store.utils as { acceptMutations?: (t: typeof tx) => void }
+                utils.acceptMutations?.(tx)
+            }
+        },
+    })
+    try {
+        transaction.mutate(fn)
+    } catch (error) {
+        transaction.rollback()
+        throw error
+    }
+    await transaction.commit()
+    const afterBatch = state.afterBatch
+    state.afterBatch = null
+    await afterBatch?.()
+}
+
+// Runs `fn` one time, right after the next batch lands and before the code that awaits
+// the batch goes on: the only place a test can put a change between a save's batch and
+// the request the save sends after it.
+export function afterNextBatch(fn: () => Promise<void>) {
+    state.afterBatch = fn
+}
+
+// A change another session made, as realtime delivers it: `fn`'s mutations land in the
+// stores and no write handler sees them, so they are no write of the code under test.
+export async function arriveFromServer(fn: () => void): Promise<void> {
+    const transaction = createTransaction({
+        autoCommit: false,
+        mutationFn: async ({ transaction: tx }) => {
+            const stores = new Set(tx.mutations.map(mutation => mutation.collection))
+            for (const store of stores) {
+                const utils = store.utils as { acceptMutations?: (t: typeof tx) => void }
+                utils.acceptMutations?.(tx)
+            }
+        },
+    })
+    transaction.mutate(fn)
+    await transaction.commit()
 }

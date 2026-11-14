@@ -419,18 +419,43 @@ describe('diffLines', () => {
     })
 })
 
-describe('amountsFromLines with duplicate lines', () => {
-    it('takes the first line by position, as diffLines keeps it', () => {
+describe('amountsFromLines with more than one line on an account', () => {
+    it('sums every line of the account, and the next save keeps that sum on one line', () => {
         const lines: SavedLine[] = [
-            { id: 'l1', account: 'acct_bank_0002', debit: 5, credit: 0, position: 0 },
-            { id: 'l2', account: 'acct_bank_0002', debit: 7, credit: 0, position: 1 },
+            { id: 'l1', account: 'acct_bank_0002', debit: 10000, credit: 0, position: 0 },
+            { id: 'l2', account: 'acct_bank_0002', debit: 20000, credit: 0, position: 1 },
+            { id: 'l3', account: 'acct_obe_0001', debit: 0, credit: 30000, position: 2 },
         ]
         expect(amountsFromLines(chart, lines, 'acct_obe_0001')).toEqual({
-            acct_bank_0002: '0.05',
+            acct_bank_0002: '300.00',
         })
-        const diff = diffLines(lines, [{ account: 'acct_bank_0002', debit: 5, credit: 0 }])
+        const diff = diffLines(lines, [
+            { account: 'acct_bank_0002', debit: 30000, credit: 0 },
+            { account: 'acct_obe_0001', debit: 0, credit: 30000 },
+        ])
+        // The balancing line moves up to the position the removed line had.
+        expect(diff.update).toEqual([
+            { id: 'l1', debit: 30000, credit: 0, position: 0 },
+            { id: 'l3', debit: 0, credit: 30000, position: 1 },
+        ])
         expect(diff.remove).toEqual(['l2'])
-        expect(diff.update).toEqual([])
+        expect(diff.insert).toEqual([])
+    })
+
+    it('nets a debit and a credit on one account, by the account’s normal side', () => {
+        const lines: SavedLine[] = [
+            { id: 'l1', account: 'acct_ap_00001', debit: 0, credit: 900, position: 0 },
+            { id: 'l2', account: 'acct_ap_00001', debit: 400, credit: 0, position: 1 },
+        ]
+        expect(amountsFromLines(chart, lines, 'acct_obe_0001')).toEqual({ acct_ap_00001: '5.00' })
+    })
+
+    it('leaves out an account whose lines net to zero', () => {
+        const lines: SavedLine[] = [
+            { id: 'l1', account: 'acct_bank_0002', debit: 700, credit: 0, position: 0 },
+            { id: 'l2', account: 'acct_bank_0002', debit: 0, credit: 700, position: 1 },
+        ]
+        expect(amountsFromLines(chart, lines, 'acct_obe_0001')).toEqual({})
     })
 })
 
@@ -510,6 +535,7 @@ describe('openingScreenState', () => {
         status,
         number: status === 'posted' ? 'JE-1046' : '',
         replaces: '',
+        revision: 1,
     })
     const base = {
         isReady: true,

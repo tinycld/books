@@ -63,7 +63,7 @@ func groupThousands(n uint64) string {
 // day unchanged, unlike TS, which rolls it over; validate() refuses such days
 // (ruling P16). The year prints as stored and unpadded ("Jan 5, 50").
 func formatDay(day string) string {
-	d, err := parseDay(day)
+	d, err := parseCalendarDay(day)
 	if err != nil {
 		return day
 	}

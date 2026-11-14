@@ -344,7 +344,7 @@ func TestConversion_REST(t *testing.T) {
 		apiReq{
 			method: http.MethodPatch, url: "/api/collections/books_invoices/records/" + inv.Id,
 			token: tokenFor(t, ce.users.bookkeeper), want: http.StatusBadRequest,
-			body:    fmt.Sprintf(`{"estimate":%q}`, est.Id),
+			body:    fmt.Sprintf(`{"estimate":%q,"revision":%d}`, est.Id, docRevision(t, ce.app, "books_invoices", inv.Id)+1),
 			content: []string{wantKeepsEstimate},
 			after: func(t testing.TB, app *tests.TestApp) {
 				requireInvoiceEstimate(t, app, inv.Id, "")
@@ -360,7 +360,7 @@ func TestConversion_REST(t *testing.T) {
 		apiReq{
 			method: http.MethodPatch, url: "/api/collections/books_invoices/records/" + inv.Id,
 			token: tokenFor(t, ce.users.bookkeeper), want: http.StatusBadRequest,
-			body:    `{"estimate":""}`,
+			body:    fmt.Sprintf(`{"estimate":"","revision":%d}`, docRevision(t, ce.app, "books_invoices", inv.Id)+1),
 			content: []string{wantKeepsEstimate},
 			after: func(t testing.TB, app *tests.TestApp) {
 				requireInvoiceEstimate(t, app, inv.Id, est.Id)

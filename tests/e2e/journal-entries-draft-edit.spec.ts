@@ -1,15 +1,20 @@
-import { expect, type Locator, type Page, type Request, type Route, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
+import { createIncomeAccount, openChart } from './account-register-helpers'
 import {
     ACCOUNT_LABELS,
+    BATCH_WRITE,
     createDraftEntry,
     DESKTOP,
     fillLine,
     holdRequests,
+    isBatchOf,
     isPhone,
+    makeAccountInactiveElsewhere,
     openEntriesList,
     PHONE,
+    refuseEntryWrite,
     searchEntries,
     settleFrames,
 } from './journal-entries-helpers'
@@ -29,11 +34,20 @@ import { uniqueName } from './record-form-helpers'
 // owner-scoped and `isEditable` depends only on status and `canWrite`, and no
 // second member is seeded) or a read-only user (no such member is seeded).
 //
-// Server refusals (a refused post of an open draft, a refused delete) use
-// `page.route` to answer the request with a 400: no input makes the real server
-// refuse these. Those tests cover how the screen reacts to a refusal, not the
-// server's own rule. The held-request tests use `page.route` only to delay a write
-// and then pass it on to the real server.
+// A save, a post and a delete of a saved draft are each one batch request (the line
+// writes and the entry write, all saved or none), and a save states the revision the
+// form loaded, so the server refuses it when another session changed the draft.
+//
+// The refused post of an open draft is the server's own refusal: the draft's line 2
+// uses an account the test created and then made inactive from another tab, so the
+// post is refused with "Line 2: account <name> is inactive.". The refused delete uses
+// `page.route` to answer the batch with PocketBase's batch error (a 400 that carries
+// the refused entry write's own 400): the server refuses the delete of a posted or
+// void entry only, Delete draft shows on a draft only, and a post made elsewhere
+// flips the open screen to the read-only view, so no input makes the real server
+// refuse it. That test covers how the dialog reacts to a refusal, not the server's
+// rule (Go: TestImmutable_PostedRefusalsPointAtVoid). The held-request tests use
+// `page.route` only to delay a batch and then pass it on to the real server.
 
 const SIZES = [
     ['desktop', DESKTOP],
@@ -257,20 +271,9 @@ test.describe('journal-entries: edit and delete drafts (desktop)', () => {
     })
 })
 
-const ENTRY_RECORDS = '**/api/collections/books_journal_entries/records/*'
-const REFUSAL = 'Books are closed through 2026-09-30.'
-
-function isStatusPost(request: Request) {
-    return request.method() === 'PATCH' && (request.postData() ?? '').includes('"status":"posted"')
-}
-
-function refuse(route: Route, message: string) {
-    return route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({ message, data: {} }),
-    })
-}
+// The invented text of the faked delete refusal; no server rule says it.
+const REFUSAL = 'This draft cannot be deleted right now.'
+const CONFLICT = 'This entry changed after you opened it.'
 
 async function openSecondPage(page: Page, size: { width: number; height: number }) {
     const other = await page.context().newPage()
@@ -297,16 +300,24 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
     }) => {
         await start(page, size)
         const memo = uniqueName(`Refused open post ${sizeName}`)
-        await makeDraft(page, memo)
-        await page.route(ENTRY_RECORDS, route =>
-            isStatusPost(route.request()) ? refuse(route, REFUSAL) : route.continue()
-        )
+        const account = `${memo} account`
+        await openChart(page)
+        await createIncomeAccount(page, account)
+        await createDraftEntry(page, {
+            memo,
+            amount: '$10.00',
+            debitAccount: ACCOUNT_LABELS.checking,
+            creditAccount: account,
+        })
+        await makeAccountInactiveElsewhere(page, account)
 
         const typed = `${memo} typed`
         await page.getByTestId('entry-memo').fill(typed)
         await page.getByTestId('entry-post').click()
 
-        await expect(page.getByTestId('entry-error-summary')).toContainText(REFUSAL)
+        const refusal = `Line 2: account ${account} is inactive.`
+        await expect(page.getByTestId('entry-error-summary')).toContainText(refusal)
+        await expect(page.getByTestId('entry-line-error-1')).toContainText(refusal)
         await expect(page.getByTestId('entry-read-only')).toHaveCount(0)
         await expect(page.getByTestId('entry-memo')).toHaveValue(typed)
         await expect(page.getByTestId('entry-actions')).toBeVisible()
@@ -318,7 +329,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Back mid post ${sizeName}`)
         await makeDraft(page, memo)
-        const held = await holdRequests(page, ENTRY_RECORDS, isStatusPost)
+        const held = await holdRequests(page, BATCH_WRITE, isBatchOf('post'))
 
         await page.getByTestId('entry-post-new').click()
         await held.firstHeld
@@ -337,9 +348,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Refused delete ${sizeName}`)
         await makeDraft(page, memo)
-        await page.route(ENTRY_RECORDS, route =>
-            route.request().method() === 'DELETE' ? refuse(route, REFUSAL) : route.continue()
-        )
+        await refuseEntryWrite(page, 'delete', REFUSAL)
 
         await chooseDeleteDraft(page)
         await page.getByTestId('delete-draft-confirm').click()
@@ -356,11 +365,7 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Held delete ${sizeName}`)
         await makeDraft(page, memo)
-        const held = await holdRequests(
-            page,
-            ENTRY_RECORDS,
-            request => request.method() === 'DELETE'
-        )
+        const held = await holdRequests(page, BATCH_WRITE, isBatchOf('delete'))
 
         await chooseDeleteDraft(page)
         await page.getByTestId('delete-draft-confirm').dblclick()
@@ -375,34 +380,9 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         expect(held.count()).toBe(1)
     })
 
-    test('another session adds lines to the open draft: a memo-only save keeps them', async ({
+    test('another session adds lines to the open draft: a memo-only save is refused, saves nothing and keeps them', async ({
         page,
     }) => {
-        await page.addInitScript(() => {
-            // The app reads realtime events from a fetch stream. This copies that stream
-            // into a log so the test can wait for the one it needs.
-            const log: string[] = []
-            Object.assign(window, { __sse: log })
-            const original = window.fetch
-            window.fetch = async (input, init) => {
-                const response = await original(input, init)
-                const url = input instanceof Request ? input.url : String(input)
-                const method = (init?.method ?? 'GET').toUpperCase()
-                if (url.includes('/api/realtime') && method === 'GET' && response.body) {
-                    const reader = response.clone().body?.getReader()
-                    const decoder = new TextDecoder()
-                    const pump = async () => {
-                        while (reader) {
-                            const { done, value } = await reader.read()
-                            if (done) return
-                            log.push(decoder.decode(value))
-                        }
-                    }
-                    pump().catch(() => {})
-                }
-                return response
-            }
-        })
         await start(page, size)
         const memo = uniqueName(`Two pages ${sizeName}`)
         await makeDraft(page, memo)
@@ -417,36 +397,38 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         })
         await other.getByTestId('entry-add-line').click()
         await fillLine(other, 3, { account: ACCOUNT_LABELS.equity, credit: '$1.00' })
+        const otherSaved = other.waitForResponse(
+            res => res.url().includes('/api/batch') && res.status() === 200
+        )
         await other.getByTestId('entry-save-draft').click()
+        await otherSaved
 
-        await expect
-            .poll(() =>
-                page.evaluate(() =>
-                    (window as unknown as { __sse: string[] }).__sse.some(data =>
-                        data.includes('page two line')
-                    )
-                )
-            )
-            .toBe(true)
-
-        const lineDeletes: string[] = []
-        page.on('request', request => {
-            if (request.method() === 'DELETE' && request.url().includes('books_journal_lines'))
-                lineDeletes.push(request.url())
-        })
+        // This page still shows the two lines it loaded. The stored draft moved past the
+        // revision it loaded, so the save is refused: no line is deleted, no memo saved.
         const edited = `${memo} edited`
         await page.getByTestId('entry-memo').fill(edited)
-        const saved = page.waitForResponse(
-            res => res.request().method() === 'PATCH' && res.url().includes('journal_entries')
-        )
         await page.getByTestId('entry-save-draft').click()
-        await saved
-        await settleFrames(page)
 
-        expect(lineDeletes).toEqual([])
+        await expect(page.getByTestId('entry-conflict')).toContainText(CONFLICT)
+        // What was typed stays on the form.
+        await expect(page.getByTestId('entry-memo')).toHaveValue(edited)
+        await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+
+        // Load the current entry: the stored memo and the other session's lines show.
+        await page.getByTestId('entry-conflict-reload').click()
+        await expect(page.getByTestId('entry-conflict')).toHaveCount(0)
+        await expect(page.getByTestId('entry-memo')).toHaveValue(memo)
+        await expectCell(page.getByTestId('entry-line-account-2'), ACCOUNT_LABELS.checking)
+        await expect(page.getByTestId('entry-line-memo-2')).toHaveValue('page two line')
+        await expectCell(page.getByTestId('entry-line-credit-3'), '$1.00')
+
+        // The stored draft, opened again from the list: the typed memo was not saved and
+        // the other session's lines are there.
         await other.close()
         await backToList(page)
-        await openDraft(page, edited)
+        await searchList(page, edited)
+        await expect(page.getByTestId('entries-no-match')).toBeVisible()
+        await openDraft(page, memo)
         await expectCell(page.getByTestId('entry-line-account-2'), ACCOUNT_LABELS.checking)
         await expect(page.getByTestId('entry-line-memo-2')).toHaveValue('page two line')
         await expectCell(page.getByTestId('entry-line-credit-3'), '$1.00')
@@ -495,10 +477,6 @@ test.describe('journal-entries: draft edit review fixes (desktop)', () => {
         await expect(listItems(page, `${memo} typed`)).toHaveCount(0)
     })
 })
-
-function isDraftSave(request: Request) {
-    return request.method() === 'PATCH' && !isStatusPost(request)
-}
 
 async function watchForNotFound(page: Page) {
     await page.evaluate(() => {
@@ -549,7 +527,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
         await start(page, size)
         const memo = uniqueName(`Delete during save ${sizeName}`)
         await makeDraft(page, memo)
-        const held = await holdRequests(page, ENTRY_RECORDS, isDraftSave)
+        const held = await holdRequests(page, BATCH_WRITE, isBatchOf('save'))
         await watchForNotFound(page)
 
         await page.getByTestId('entry-memo').fill(`${memo} typed`)
@@ -571,7 +549,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
         await start(page, size)
         const memo = uniqueName(`Back during save ${sizeName}`)
         await makeDraft(page, memo)
-        const held = await holdRequests(page, ENTRY_RECORDS, isDraftSave)
+        const held = await holdRequests(page, BATCH_WRITE, isBatchOf('save'))
 
         await page.getByTestId('entry-memo').fill(`${memo} saved`)
         await page.getByTestId('entry-save-draft').click()
@@ -593,7 +571,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
         await fillLine(page, 2, { account: ACCOUNT_LABELS.checking, debit: '$1.00' })
         await page.getByTestId('entry-add-line').click()
         await fillLine(page, 3, { account: ACCOUNT_LABELS.equity, credit: '$1.00' })
-        const held = await holdRequests(page, ENTRY_RECORDS, isDraftSave)
+        const held = await holdRequests(page, BATCH_WRITE, isBatchOf('save'))
 
         await page.getByTestId('entry-memo').fill(`${memo} saved`)
         await page.getByTestId('entry-save-draft').click()
@@ -604,9 +582,7 @@ test.describe('journal-entries: draft edit second review fixes (desktop)', () =>
         const afterRemoval = await lineIds(page)
         expect(afterRemoval).toHaveLength(3)
 
-        const saved = page.waitForResponse(
-            res => res.request().method() === 'PATCH' && res.url().includes('journal_entries')
-        )
+        const saved = page.waitForResponse(res => res.url().includes('/api/batch'))
         held.release()
         await saved
         await settleFrames(page)
