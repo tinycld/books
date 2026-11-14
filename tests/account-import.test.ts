@@ -1080,6 +1080,19 @@ describe('buildImportPreview: an active row below an inactive parent', () => {
         expect(result[1].reason).toBe('parent is inactive')
     })
 
+    // A row older than the rule: the account exists already, so nothing is inserted.
+    it('is skipped, not an error, when the account exists already below the inactive parent', () => {
+        const result = preview(
+            [row({ name: 'Petty cash', parent: 'Old cash' })],
+            [
+                existing({ id: 'e1', name: 'Old cash', inactive: true }),
+                existing({ id: 'e2', name: 'Petty cash', parent: 'e1' }),
+            ]
+        )
+        expect(result[0].status).toBe('skipped')
+        expect(result[0].reason).toBe('already exists')
+    })
+
     it('is ready when the row is inactive too', () => {
         const result = preview([
             row({ name: 'Old cash', inactive: 'yes' }),

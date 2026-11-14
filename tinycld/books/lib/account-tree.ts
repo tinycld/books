@@ -209,24 +209,18 @@ export function flattenAccountTree<T extends TreeAccount>(
     const matches = (account: T) =>
         account.name.toLowerCase().includes(query) || account.number.toLowerCase().includes(query)
 
-    // An inactive account with an active account below it stays in the list: hiding
-    // it would hide the active one, which still takes postings. The server refuses
-    // that state now (server/accounts.go checkActiveParent), but a row older than
-    // the rule can hold it. The row shows its Inactive label as any inactive row.
-    const hasActiveBelow = (node: TreeNode<T>): boolean =>
-        node.children.some(child => !child.account.inactive || hasActiveBelow(child))
+    const isOtherGroup = (account: T) =>
+        filters.group !== '' && accountTypeDef(account.type)?.group !== filters.group
 
-    const isExcluded = (node: TreeNode<T>) => {
-        const { account } = node
-        if (filters.group !== '' && accountTypeDef(account.type)?.group !== filters.group) {
-            return true
-        }
-        if (!account.inactive || filters.showInactive) return false
-        return !hasActiveBelow(node)
-    }
-
+    // With Show inactive off, an inactive account is in the list only as the path to
+    // an account under it that is listed: hiding it would hide an active account,
+    // which still takes postings. It is never listed for itself, so a search that
+    // matches only it shows nothing. The server refuses an active account below an
+    // inactive one now (server/accounts.go checkActiveParent), but a row older than
+    // the rule can hold that state. The row shows its Inactive label as any inactive row.
     const isKept = (node: TreeNode<T>): boolean => {
-        if (isExcluded(node)) return false
+        if (isOtherGroup(node.account)) return false
+        if (node.account.inactive && !filters.showInactive) return node.children.some(isKept)
         if (query === '') return true
         return matches(node.account) || node.children.some(isKept)
     }
