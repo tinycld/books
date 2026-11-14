@@ -1,6 +1,7 @@
 package books
 
 import (
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -195,6 +196,81 @@ func TestPDFRoute_InvoiceFollowsTheInvoiceViewRule(t *testing.T) {
 			t.Fatalf("save rule: %v", err)
 		}
 		pdfReq(t, pe.app, "/api/books/pdf/invoice/"+id, tokenFor(t, pe.users.readOnly), http.StatusNotFound)
+	})
+}
+
+// Spec §4.3: the customer's link downloads the estimate's PDF with no sign-in;
+// the token in the path is the credential.
+func TestPublicEstimatePDF_ServesTheTokensEstimate(t *testing.T) {
+	pe := newPublicEnv(t)
+	number := pe.a.GetString("number")
+	apiReq{
+		method:  http.MethodGet,
+		url:     "/api/books/public/estimates/" + tokenOf(t, pe.app, pe.a.Id) + "/pdf",
+		want:    http.StatusOK,
+		content: []string{"%PDF-"},
+		before:  bindPDFRoutes,
+		response: func(t testing.TB, res *http.Response) {
+			for header, want := range map[string]string{
+				"Content-Type":        "application/pdf",
+				"Content-Disposition": `attachment; filename="estimate-` + number + `.pdf"`,
+				"Cache-Control":       "no-store",
+			} {
+				if got := res.Header.Get(header); got != want {
+					t.Errorf("%s = %q, want %q", header, got, want)
+				}
+			}
+			pdf, err := io.ReadAll(res.Body)
+			if err != nil {
+				t.Fatalf("read the PDF: %v", err)
+			}
+			_, text := extractPDFText(t, pdf)
+			for _, want := range []string{"Estimate", "No. " + number} {
+				if !strings.Contains(text, want) {
+					t.Errorf("the PDF text has no %q:\n%s", want, text)
+				}
+			}
+		},
+	}.run(t, pe.app)
+}
+
+// A token that opens no estimate answers 404, whatever its shape; the session
+// route still wants a sign-in.
+func TestPublicEstimatePDF_NoEstimateIsNotFound(t *testing.T) {
+	pe := newPublicEnv(t)
+	deleted := pe.mkEstimate(t, nil)
+	deletedToken := tokenOf(t, pe.app, deleted.Id)
+	if err := pe.app.Delete(reload(t, pe.app, "books_estimates", deleted.Id)); err != nil {
+		t.Fatalf("delete the estimate: %v", err)
+	}
+	pe.app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		bindPDFRoutes(e)
+		return e.Next()
+	})
+	serveCalls(t, pe.app, func(do func(apiReq) callResult) {
+		// The control: the route exists and serves a live token, so each 404
+		// below is the token check, not a missing route.
+		if res := do(get("/api/books/public/estimates/"+tokenOf(t, pe.app, pe.a.Id)+"/pdf", "", "")); res.status != http.StatusOK {
+			t.Fatalf("A's token: status %d, want 200; body: %.200s", res.status, res.body)
+		}
+		for name, token := range map[string]string{
+			"a well-formed unknown token": publicUnknownToken,
+			"abc":                         "abc",
+			"44 characters":               tokenOf(t, pe.app, pe.a.Id) + "x",
+			"../x":                        "..%2Fx",
+			"a deleted estimate's token":  deletedToken,
+		} {
+			res := do(get("/api/books/public/estimates/"+token+"/pdf", "", ""))
+			if res.status != http.StatusNotFound {
+				t.Errorf("%s: status %d, want 404; body: %.200s", name, res.status, res.body)
+			}
+			if !strings.Contains(res.body, "Document not found.") {
+				t.Errorf("%s: body %.200s, want the route's Document not found.", name, res.body)
+			}
+		}
+		if res := do(get("/api/books/pdf/estimate/"+pe.a.Id, "", "")); res.status != http.StatusUnauthorized {
+			t.Errorf("the session route with no auth: status %d, want 401", res.status)
+		}
 	})
 }
 

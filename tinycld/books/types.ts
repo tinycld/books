@@ -20,6 +20,8 @@ export type {
     BooksCustomers,
     BooksDocSequences,
     BooksEstimateLines,
+    BooksEstimatePublic,
+    BooksEstimateResponses,
     BooksEstimates,
     BooksInvoiceLines,
     BooksInvoices,

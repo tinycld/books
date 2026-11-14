@@ -303,10 +303,11 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
-    // As the invoice's: server-owned fields below the omit line (the number when
-    // the estimate is created, the totals at every write, the invoice made from
-    // it by the invoice guards), no relations (the estimate screen reads its
-    // customer, tax rate and invoice through its own queries).
+    // As the invoice's: server-owned fields below the omit line (the number and
+    // the public token when the estimate is created, the totals at every write,
+    // the invoice made from it by the invoice guards), no relations (the
+    // estimate screen reads its customer, tax rate and invoice through its own
+    // queries).
     const books_estimates = newCollection('books_estimates', {
         omitOnInsert: [
             'created',
@@ -319,6 +320,7 @@ export function registerCollections(
             'revision',
             'currency',
             'invoice',
+            'public_token',
             'sort_key',
         ] as const,
         ...onDemand,
@@ -328,6 +330,22 @@ export function registerCollections(
     // amount is recomputed by the server at every line write.
     const books_estimate_lines = newCollection('books_estimate_lines', {
         omitOnInsert: ['created', 'updated', 'amount'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A view the signed-out customer page reads by its token (the X-Share-Token
+    // header). Nothing inserts into it, and it has no autodates to omit (as
+    // books_access).
+    const books_estimate_public = newCollection('books_estimate_public', {
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A customer's Accept or Decline: the page sends every column but the
+    // autodates, and the server's guard sets the estimate's status.
+    const books_estimate_responses = newCollection('books_estimate_responses', {
+        omitOnInsert: ['created', 'updated'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
@@ -361,5 +379,7 @@ export function registerCollections(
         books_sales_receipt_tax_lines,
         books_estimates,
         books_estimate_lines,
+        books_estimate_public,
+        books_estimate_responses,
     }
 }

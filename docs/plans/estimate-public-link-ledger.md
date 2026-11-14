@@ -24,12 +24,11 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · reviewer A NOTE 9: `server/estimate_responses.go` `checkEstimateResponse` — a response naming an estimate id that does not exist returns a wrapped read error (500), not a refusal. A REST request cannot reach it (the createRule reads `@request.body.estimate.public_token`); only an app save (the seed) can, where it fails loudly. Optional polish: return nil on `sql.ErrNoRows` so the schema's relation validation answers.
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- cp 1 · `server/estimates_test.go`: `mkEstimateRow` sets `public_token` from `newPublicToken()`; the helper saves estimates on an app with no estimate guard, and `public_token` is now required (four delete-guard tests failed with `public_token: cannot be blank.`). No assertion changed.
+- cp 1 · `server/ledger_rules_test.go`: `TestLedgerRules_EveryPathRequiresLogin` passes `booksPublicPaths` (books_estimate_public list/view, books_estimate_responses create, each with its reason) to core's `rlstest.RequireAuthGuardOnAccessRules`; those three rules are public by design (spec §4.2, §4.3). A stale entry fails the scan.
 
 ## Phase notes
 - phase 1 / design gate (human, 2026-11-13): picked direction A (one card, decision directly under the total).
@@ -51,6 +50,25 @@ and again at the end)
     - Notes acted on: `PublicEstimateReady` owns the response hook (no conditional hook); `page.unroute` for one route; business text read from the page; `useDocumentShortcuts`/`barKeysOf` changes named; `parseDay` error handling; `re.App` in the route; log contexts; local-vs-UTC today and deleted-estimate refusal recorded as plan decisions; contact-line and reason-length UI assertions added.
     - Notes accepted as uncovered: the read-view decline note (no Books reader in the e2e seed), Copy customer link absent on closed/reader, no bottom bar on a phone (gate 2); "as every Books view" precedent for `changesignal.RegisterView` does not exist (first Books view registered).
 - review mode switches: none
+
+## Checkpoint 1
+- test writer: server/estimate_link_test.go, estimate_public_test.go, estimate_responses_test.go, pdf_routes_test.go (+2), audit_test.go (+2), oauth_scopes_test.go (+1), env_test.go (`apiReq`/`apiSeq` `shareToken`), registrations_test.go (hand-bound list + changesignal registry reset), tests/estimate-public-link-fixture.test.ts, tests/collections.test.ts (names + omitOnInsert test); 32 tests; red for the right reason: yes (Go: missing names under test, then behavior failures proven against throwaway stubs; `TestPublicTokenPattern_RefusesMalformedTokens` and `TestRegister_BindsEachPartOnce` red only on missing names; vitest 4 red; tsc red on missing generated types); untestable: none
+- Do 1 grep (runner): hits only in tests/document-form-title.test.ts (`Estimate 1001` title text), bank-import-mapping.spec.ts (a date), customer-form-list.spec.ts (customer search), customer-tree.test.ts (customer name): none counts or names seeded estimates; no change
+- implementer: two dispatches split by layer (>15 files). 1: migrations (public_token in 2100000012; 2100000014 view `pbc_books_est_public` + responses `pbc_books_est_resp`), collections.ts, hosts.ts, types.ts, both fixtures, seed `seedDeclinedEstimates`; DONE. 2: Go token, response guard, public PDF route + `writePDF`, registries; DONE.
+- test disputes:
+  - tests/collections.test.ts: asserted `books_estimate_public` registers with `omitOnInsert ['created','updated']`. Settled for the implementer: the test was wrong — spec §4.2 "Columns only: `id` (estimate id), `token`, `number`, … `business_phone`" and the Decisions' view SQL have no autodate column, so pbtsdb's `OmittableFields` refuses those names (TS2322); the plan's "both with omitOnInsert" is a plan defect for the view. A fresh test writer changed it to: the view is registered and has no `omitOnInsert`.
+  - server/pdf_routes_test.go: asserted the PDF text holds `"Estimate "+number` as one string. Settled for the implementer: the test was wrong — Do 6 "extract `writePDF` from `servePDF` … with no behavior change" and spec §4.3 "rendering the existing estimate kind"; that PDF prints `Estimate` and `No. 1001` on separate lines (pdf_template.html). A fresh test writer changed it to `Estimate` and `No. <A's number>`.
+- self-declared differences: (1) view has no `omitOnInsert` (the dispute above); (2) view collection id `pbc_books_est_public` (the brief named only the responses id); (3) `fixtureToken(tag)` exported from `lib/estimate-form-fixture.ts` (the public fixture's former local `tokenOf`), so `PUBLIC_ROWS.pending.token === ESTIMATES[0].public_token`; (4) `PUBLIC_ROWS` `satisfies Record<string, BooksEstimatePublic>`, `EstimateSeed` requires `public_token`; (5) `server/estimates_test.go` `mkEstimateRow` sets `public_token` (it saves on an app with no estimate guard, and the field is now required); (6) `server/ledger_rules_test.go` passes `booksPublicPaths` (the view list/view and the responses create, each with a reason) to `rlstest.RequireAuthGuardOnAccessRules`; (7) a `parseDay` error on a stored expiration date refuses with `refuse("%v", err)`.
+- gate 1: tests unedited: yes (two test-writer fixes of the disputes above, staged) · `packages:generate` ok, `tinycld-pkg check` pass (4992 tests), `go test ./...` pass, e2e estimate-form 5/5, estimate-form-convert 4/4, sales-documents-conflict 7/7, customer-form-list 2/2; seed log clean · pass
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): 0 BLOCK, 9 NOTE. NOTE 1, 2 (out-of-plan test files) → recorded under Out-of-plan changes; NOTE 3 (register.go comment says the public page is kept live, spec §3.4 says it is not) → accepted+fixed (comment reworded); NOTE 4 (`setFields` error dropped in the token-kept test) → accepted+fixed by test writer (save must succeed); NOTE 5 (no accept with an expiration date of today or later) → accepted+fixed by test writer (`TestEstimateResponse_AcceptBeforeTheEstimateExpires`, today and tomorrow, shown to fail on `<=` and on refuse-any-date); NOTE 6 (no `expand` probe on the create's 200 body) → accepted+fixed by test writer (`TestEstimateResponse_CreateExpandProbe`, shown to fail with a reader's auth); NOTE 7, 8 (test and view differ from plan text) → recorded under test disputes above; NOTE 9 → Design notes
+- gate 3 B (conformance): script lines: 0 real, 1 false positive (2100000012 edited in place: Books unreleased, spec §4.1 and the Decisions say in place) · finding 1, 2 (out-of-plan test files) → recorded under Out-of-plan changes; finding 3 (same register.go comment as A NOTE 3) → accepted+fixed
+- gate 1 after fixes: tests unedited by the implementer: yes · `packages:generate` ok, `tinycld-pkg check` pass, `go vet` and `gofmt` clean, `go test ./...` pass; e2e not re-run (the fix changed only Go tests and one Go comment)
+- fix review: round 1: clean
+- gate 3 A notes: 1 (NOTE 9), listed under Design notes
+- reviewer-caught deferrals: none
+- commit: the commit "feat(books): estimate public token, public view, response guard and public PDF route" (this ledger row is in it; `git log --grep "estimate public token"` gives the sha)
+- human: n/a (review mode C)
 
 ## Final review
 - eval:

@@ -4,15 +4,18 @@
 // imports other fixtures and types only, because the seed graph runs in plain node
 // (tests/seed-node.test.ts).
 //
-// The view and the responses collection do not exist yet. EstimatePublicRow and
-// EstimateResponseRecord mirror spec §4.2 and §4.3; the migration checkpoint that adds
-// `books_estimate_public` and `books_estimate_responses` (and `books_estimates.public_token`)
-// must replace both interfaces with the generated types (BooksEstimatePublic,
-// BooksEstimateResponses from '../types') and make every array below `satisfies` them.
+// The rows are typed with the generated types of the view `books_estimate_public` and
+// the collection `books_estimate_responses` (pb-migrations/2100000014), so a row that
+// drifts from the schema fails tsc.
 //
 // Amounts are integer cents, as in estimate-form-fixture.ts.
 
-import type { BooksEstimateLines, BooksEstimates } from '../types'
+import type {
+    BooksEstimateLines,
+    BooksEstimatePublic,
+    BooksEstimateResponses,
+    BooksEstimates,
+} from '../types'
 import { COMPANY_SETTINGS, LONG_COMPANY_SETTINGS } from './books-settings-fixture'
 import { CUSTOMERS } from './customer-form-fixture'
 import {
@@ -20,48 +23,25 @@ import {
     ESTIMATE_CURRENCY,
     ESTIMATE_IDS,
     ESTIMATES,
+    fixtureToken,
 } from './estimate-form-fixture'
 import { PRODUCT_IDS } from './products-services-fixture'
 
 // Spec §4.2: the columns of the public view, nothing else.
-export interface EstimatePublicRow {
-    id: string
-    token: string
-    number: string
-    status: BooksEstimates['status']
-    date: string
-    expiration_date: string
-    accepted_by: string
-    accepted_date: string
-    total: number
-    currency: string
-    message: string
-    customer_name: string
-    business_name: string
-    business_email: string
-    business_phone: string
-}
+export type EstimatePublicRow = BooksEstimatePublic
 
 // Spec §4.3: one customer answer through the link.
-export interface EstimateResponseRecord {
-    id: string
-    estimate: string
-    decision: 'accepted' | 'declined'
-    name: string
-    reason: string
-    created: string
-}
+export type EstimateResponseRecord = BooksEstimateResponses
 
 // "Today" for the reference, as the estimate form's fixture: 1001 is open, 1002 expired.
 export { ESTIMATE_TODAY as PUBLIC_TODAY } from './estimate-form-fixture'
 
-// A public token is 43 URL-safe characters (spec §4.1). The fixture's are readable on
-// purpose; the server makes real ones from a random source.
+// A public token is 43 URL-safe characters (spec §4.1). A row of the view whose estimate
+// is shown as stored has that estimate's token; a row that shows the estimate in another
+// state has its own.
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
 
-function tokenOf(tag: string): string {
-    return `pub_${tag}_`.padEnd(43, '0')
-}
+const tokenOf = fixtureToken
 
 const STAMP = '2026-11-12 09:00:00.000Z'
 
@@ -112,7 +92,7 @@ function publicRow(id: string, tag: string, extra: Partial<EstimatePublicRow> = 
         customer_name: customerName(row.customer),
         ...BUSINESS,
         ...extra,
-    } satisfies EstimatePublicRow
+    } satisfies BooksEstimatePublic
 }
 
 // One row per state of the public page (spec §3.4). The page decides from `status` and
@@ -143,7 +123,7 @@ export const PUBLIC_ROWS = {
     rejected: publicRow(ESTIMATE_IDS.rejected, 'rejected1004'),
     // Closed: made into an invoice.
     closed: publicRow(ESTIMATE_IDS.closed, 'closed1005'),
-} as const
+} as const satisfies Record<string, BooksEstimatePublic>
 
 // A link whose token no row has: the Not found state.
 export const UNKNOWN_TOKEN = tokenOf('nosuchlink')
@@ -183,6 +163,7 @@ function pendingEstimate(seed: DeclineSeed): BooksEstimates {
     if (!customer) throw new Error(`estimate public fixture: ${seed.id} names an unknown customer`)
     return {
         status: 'pending',
+        public_token: tokenOf(`declined${seed.number}`),
         bill_to: customer.billing_address,
         email: customer.email,
         tax_rate: '',
@@ -269,6 +250,7 @@ export const DECLINE_RESPONSES = [
         name: '',
         reason: LONG_DECLINE_REASON,
         created: '2026-11-11 16:42:10.000Z',
+        updated: '2026-11-11 16:42:10.000Z',
     },
     {
         id: 'estr1007declin1',
@@ -277,8 +259,9 @@ export const DECLINE_RESPONSES = [
         name: '',
         reason: '',
         created: '2026-11-12 08:15:00.000Z',
+        updated: '2026-11-12 08:15:00.000Z',
     },
-] satisfies EstimateResponseRecord[]
+] satisfies BooksEstimateResponses[]
 
 // What the reference shows for each declined estimate: Rejected, after the response.
 export const DECLINED_ESTIMATES = DECLINE_ESTIMATES.map(row => ({

@@ -133,6 +133,9 @@ type apiReq struct {
 	content []string
 	before  func(e *core.ServeEvent)
 	after   func(t testing.TB, app *tests.TestApp)
+	// shareToken is sent as the X-Share-Token header when set: the credential
+	// of a signed-out customer's estimate link.
+	shareToken string
 	// response checks the HTTP response itself (headers), beyond the body.
 	response func(t testing.TB, res *http.Response)
 }
@@ -142,6 +145,9 @@ func (r apiReq) run(t *testing.T, app *tests.TestApp) {
 	headers := map[string]string{}
 	if r.token != "" {
 		headers["Authorization"] = r.token
+	}
+	if r.shareToken != "" {
+		headers["X-Share-Token"] = r.shareToken
 	}
 	var body io.Reader
 	if r.body != "" {
@@ -185,7 +191,8 @@ func (r apiReq) run(t *testing.T, app *tests.TestApp) {
 // apiSeq runs several REST calls in order through one router, for a flow the
 // client makes as more than one request (a batch, then a post). OnServe runs
 // one time for all of them, so this is the app's one use of the router, as an
-// apiReq is. It reads method, url, token, body, want and content of each call.
+// apiReq is. It reads method, url, token, shareToken, body, want and content of
+// each call.
 func apiSeq(t *testing.T, app *tests.TestApp, calls ...apiReq) {
 	t.Helper()
 	router, err := apis.NewRouter(app)
@@ -203,6 +210,9 @@ func apiSeq(t *testing.T, app *tests.TestApp, calls ...apiReq) {
 			req.Header.Set("Content-Type", "application/json")
 			if call.token != "" {
 				req.Header.Set("Authorization", call.token)
+			}
+			if call.shareToken != "" {
+				req.Header.Set("X-Share-Token", call.shareToken)
 			}
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
