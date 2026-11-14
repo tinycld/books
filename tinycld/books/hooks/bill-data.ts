@@ -6,7 +6,7 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { billColumnsFrom, type EMPTY_BILL_COLUMNS } from '../lib/bill-columns'
-import { isBillAccountListed } from '../lib/bill-pickers'
+import { isPurchaseAccountListed } from '../lib/purchase-pickers'
 import { columnsOrThrow } from '../lib/record-save'
 import { BILL_KIND } from '../lib/sales-document-kinds'
 import type { BooksBills } from '../types'
@@ -109,7 +109,7 @@ function useVendorAccountQuery(vendorId: string) {
 /**
  * The form start of a bill: the Bill lines setting (Settings → Purchases), which decides
  * the tables a new form shows, and on a new form opened with `?vendor` whether the Account
- * picker lists the vendor's default expense account (isBillAccountListed), which then
+ * picker lists the vendor's default expense account (isPurchaseAccountListed), which then
  * starts the first account line. The settings row is the screen's own read (its readiness,
  * its error and its Retry are there, useDocumentScreen); the vendor's account is this
  * read's own, so its loading, its error and its Retry join the screen's.
@@ -119,7 +119,7 @@ function useBillFormStart(input: DocumentScreenInput): DocumentScreenReads['form
     const purchaseLines = settings?.purchase_lines ?? 'both'
     const vendorId = input.id === null ? (input.vendor ?? '') : ''
     const { query, sources } = useVendorAccountQuery(vendorId)
-    const vendorAccountListed = vendorId ? isBillAccountListed(query.data?.account) : undefined
+    const vendorAccountListed = vendorId ? isPurchaseAccountListed(query.data?.account) : undefined
     // Kept between renders: a copy's values (new line ids) are memoised on the start.
     const data = useMemo<DocumentFormStart>(
         () => ({ start: { kind: 'bill', purchaseLines, vendorAccountListed }, deposit: undefined }),

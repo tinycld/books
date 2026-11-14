@@ -23,7 +23,8 @@ import {
 import { documentTaxOf } from '../lib/document-tax'
 import { acceptanceShown } from '../lib/estimate-status'
 import { hideBuiltins } from '../lib/form-definition'
-import { billTablesShown, noLinesText } from '../lib/purchase-lines'
+import { textOf } from '../lib/form-values'
+import { noLinesText, purchaseTablesShown } from '../lib/purchase-lines'
 import { todayIso } from '../lib/register-range'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../stores/document-save-store'
@@ -121,30 +122,27 @@ function builtinValuesOf(values: DocumentStartValues | undefined): DocumentStart
     return builtins
 }
 
-function textOf(value: unknown): string {
-    return typeof value === 'string' ? value : ''
-}
-
 // The key Post's line-count error is filed at on a form with several line tables: no
 // field has it (form keys have no dash), so no field cell draws it; the lines draw it
 // under the first shown table (`<test id>-line-error`).
 export const LINE_COUNT_ERROR_KEY = 'line-count'
 
-// The line tables a form shows, decided once when it mounts. A kind with one table shows
-// it. A bill shows a table when the Bill lines setting includes it or the bill the form
-// starts with already has a line in it (billTablesShown); `rows` are the form's starting
-// table rows (a new form's start values, a stored bill's lines).
+// The line tables a form shows, decided once when it mounts. A kind whose start carries
+// no Purchase lines setting shows every table it has. A purchase kind (its start carries
+// `purchaseLines`) shows a table when the setting includes it or the document the form
+// starts with already has a line in it (purchaseTablesShown); `rows` are the form's
+// starting table rows (a new form's start values, a stored document's lines).
 function shownLineTablesOf(
     kind: SalesDocumentKind,
     start: DocumentStart | undefined,
     rows: Record<string, unknown>
 ): readonly string[] {
-    if (start?.kind !== 'bill') return kind.lineTables.map(table => table.key)
+    if (!start || !('purchaseLines' in start)) return kind.lineTables.map(table => table.key)
     const count = (key: string) => {
         const value = rows[key]
         return Array.isArray(value) ? value.length : 0
     }
-    return billTablesShown(start.purchaseLines, {
+    return purchaseTablesShown(start.purchaseLines, {
         account_lines: count('account_lines'),
         item_lines: count('item_lines'),
     })

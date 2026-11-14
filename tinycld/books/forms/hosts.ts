@@ -5,7 +5,7 @@ import { DOCUMENT_NOTE_LABELS, MEMO_ONLY_LABEL } from '../lib/document-notes'
 import { EXPENSE_REF_HINT, VENDOR_REF_HINT } from '../lib/document-texts'
 import {
     ACCOUNT_ROW_KIND,
-    BILL_ACCOUNT_COLUMNS,
+    PURCHASE_ACCOUNT_COLUMNS,
     PURCHASE_ITEM_COLUMNS,
     PURCHASE_ITEM_ROW_KIND,
 } from '../lib/purchase-line-columns'
@@ -254,7 +254,7 @@ const PURCHASE_LINE_BUILTINS = [
         kind: 'table',
         storage: 'rows',
         required: false,
-        columns: [...BILL_ACCOUNT_COLUMNS],
+        columns: [...PURCHASE_ACCOUNT_COLUMNS],
         rowKinds: [ACCOUNT_ROW_KIND],
         rowShortcuts: true,
         // The account kind's Alt+Enter adds a line after the focused one, so the row

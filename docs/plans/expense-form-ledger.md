@@ -30,10 +30,15 @@ with the reason, and shown to the human at the end)
 - cp 1 · reviewer A: interim state until checkpoints 3–4 — seeded expense entries open as `books/entries/<id>` (`lib/entry-route.ts` gains `expense` in cp 4); the vendor, product and account delete guards and the `fts_books_expenses` search source are cp 4. One PR, so not deferrals.
 - cp 1 · reviewer A: `expenseBeforePost` and `expensePaidFrom` both run `checkExpensePaidFrom(tx, doc, true)` in one post (Paid from read twice), as Do step 4 asks.
 - cp 1 · reviewer A: `TestExpensePost_CreatesNoAccount` makes 3900 Retained earnings first (dispute resolution); a book with no retained-earnings account is covered by the shared ledger rule, not by this test.
+- cp 2 · reviewer A: `forms/document-fields.tsx` `useVendorPick` — pick vendor A, then "No vendor" before A's two `queryOnce` reads resolve: A's read lands after `onChange('')` and the form ends on A with A's fills. The same race already existed between two vendor picks; reads come from the synced store, so no ordinary sequence reaches it. Fix if wanted: a pick counter in a `useRef` that drops a stale read.
 
 ## Out-of-plan changes
 - cp 1 · `server/report_general_ledger_test.go`: the General Ledger golden spec gains the `expense` branch of the Type case, a required follow-on of `entryDocTypeOptions` += `expense` (a Files-block change). Lines added, none removed (reviewers A and B).
 - cp 1 · `tinycld/books/types.ts`: re-exports the generated `BooksExpenses` / `BooksExpenseLines`, which the fixture (Do step 6) and `tests/expense-form-fixture.test.ts` import from `../types` (reviewers A and B).
+- cp 2 · `server/purchase_lines.go`: comment names `PURCHASE_ACCOUNT_TYPES` (carried from cp 1; follows the client rename).
+- cp 2 · `tests/expense-form-fixture.test.ts`: renamed import `PURCHASE_ACCOUNT_TYPES` only, assertion unchanged (the Files block's grep rule covers it).
+- cp 2 · `tinycld/books/components/products/ProductPicker.tsx`: import path `lib/purchase-pickers` after the `git mv`.
+- cp 2 · `tinycld/books/forms/document-line-cells.tsx`, `hooks/useDocumentForm.ts`, `lib/document-tax.ts`, `lib/document-schema.ts`, `forms/purchase-line-cells.tsx`, new `lib/form-values.ts`: the generic readers `textOf`, `isTableRow`, `rowsOf` live in one neutral module and the five private `textOf` copies import it (fix round, reviewer B #4/#5).
 
 ## Phase notes
 - phase 1 / design gate (human, 2026-11-14): Direction A picked (the bill's form with a payment header band). Open questions 1–19 accepted as the packet recommended. Platform items: the standing 2026-11-11 approval holds (shortcuts web + iOS hardware keyboard; autofocus and type-to-open pickers web only).
@@ -53,6 +58,21 @@ with the reason, and shown to the human at the end)
 - gate 3 B (conformance): script lines: 0 real, 2 false positive (in-place edits of migrations 2100000001 / 2100000002: Books unreleased, brief orders it) · findings: (1) out-of-plan report_general_ledger_test.go — accepted, recorded; (2) out-of-plan types.ts — accepted, recorded; (3) expenseKind LineTables literals duplicate the bill's key constants — accepted+fixed: `purchaseAccountLinesKey` / `purchaseItemLinesKey` in server/purchase_lines.go, used by both kinds (added to the Go rename list); (4) dead `_ = checkPurchaseAccountLine` in purchase_lines_test.go — accepted+fixed by a test writer.
 - fix review: round 1: clean. Gate 1 rerun after fixes: check, go test, bill-form.spec.ts (14 passed) green.
 - gate 3 A notes: 6, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: 4bc7e7e
+- human: n/a (review mode C)
+
+## Checkpoint 2
+- test writer: tests/purchase-values.test.ts (new), tests/purchase-pickers.test.ts (`git mv` from bill-pickers.test.ts + added cases), tests/payment-methods.test.ts, tests/sales-document-kinds.test.ts (added cases); renamed imports only in purchase-lines, bill-values, bill-host, bill-form-fixture, expense-form-fixture tests; red for the right reason: yes (29 of 30; `paymentMethodOptions({ allowNone: true })` red by tsc only, since None-first stays); the sales kinds' exact `features` toEqual gained `partyAddress: true` (the checkpoint sets it on `SALES_FEATURES`); untestable: none.
+- implementer: two dispatches split by layer. Part 1 (renames with every caller and the scratch route, `lib/purchase-values.ts`, `partyAddress`, `PURCHASE_LINE_SPECS`, `PartyFills`, `allowNone` / `RequiredPaymentMethodField`, `NO_VENDOR_TEXT`, the carried purchase_lines.go comment): DONE. Part 2 (`VendorField` "No vendor", `useVendorPick` through `partyFills`, read-view address by `features.partyAddress`, shown tables for any `purchaseLines` start, copy/correction address gating): DONE.
+- test disputes: none
+- self-declared differences: part 1 — 5 (cp2-impl.md): `textOf`/`rowsOf`/`isTableRow` moved to a lib (later to `lib/form-values.ts`, fix round); named type `PurchaseTableRows`; `PartyFills` over core `FormValues`; private `BillAccountRow` → `PurchaseAccountRow` and shared comments reworded; spec §3.1 still names `BILL_LINE_TABLES` (approved spec not edited). Part 2 — 4 (cp2-impl-2.md): `NO_PARTY_TEXT` keyed by party (trigger and read-view party name); read view's no-party name is `NO_PARTY_TEXT[party]` (receipt still "No customer"); `copyNeedsPartyRow` and `storedPartyAddressOf` gate the address reads; `useVendorPick` reads the vendor's account listing on every pick. Fix round — 1: `purchase-values.ts` imports none of the moved readers.
+- gate 1: tests unedited: yes · `packages:generate`, `tinycld-pkg check` (275 files / 5374 tests), `go test ./...`, e2e one file per command: bill-form (14), sales-receipt-form (4), sales-receipt-form-settings (6), invoice-form-draft (7), estimate-form (5) → pass. Rerun after the fix round: check and the same five specs, all pass.
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 0 BLOCK, 6 NOTE — kind context read past its hook (accepted+fixed with B #7); `NO_PARTY_TEXT` hand-typed union (accepted+fixed with B #6); vendor-pick race (Design notes); 3 out-of-plan files (Out-of-plan changes).
+- gate 3 B (conformance): script lines: 0 · findings: #1–#3 out-of-plan files — accepted, recorded; #4/#5 generic readers in a purchase-named module and five private `textOf` copies — accepted+fixed (`lib/form-values.ts`); #6 `NO_PARTY_TEXT: Record<DocumentPartyKey, string>` — accepted+fixed; #7 `partyFills` read through a raw `useContext` — accepted+fixed (carried on `DocumentFormScope`, `EMPTY_SCOPE` undefined).
+- fix review: round 1: clean.
+- gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: none
 - commit: (this commit)
 - human: n/a (review mode C)

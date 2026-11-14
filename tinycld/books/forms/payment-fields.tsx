@@ -8,24 +8,33 @@ import { defaultDepositAccount, depositAccountOptions } from '../lib/deposit-acc
 import { paymentMethodOptions } from '../lib/payment-methods'
 import { HostSelect } from './account-fields'
 
-// The sales receipt's Payment row (the `books:sales_receipt` host): Payment method and
-// Deposit to. The core cell draws each one's label and error.
+// The payment built-ins of a document host: the sales receipt's Payment row (Payment
+// method and Deposit to) and the expense's required Payment method. The core cell draws
+// each one's label and error.
 
-const PAYMENT_METHOD_OPTIONS = paymentMethodOptions()
+const OPTIONS_WITH_NONE = paymentMethodOptions({ allowNone: true })
+const OPTIONS_WITHOUT_NONE = paymentMethodOptions({ allowNone: false })
 
 function idOf(value: unknown): string {
     return typeof value === 'string' ? value : ''
 }
 
-// "None" (no method) first, then the fixed list (lib/payment-methods.ts).
+type PaymentMethodFieldProps = BuiltinFieldProps & {
+    // Whether "None" (no method) is offered first; true by default (a sales receipt's).
+    allowNone?: boolean
+}
+
+// The fixed list (lib/payment-methods.ts), with "None" first unless `allowNone` is false.
 export function PaymentMethodField({
     fieldKey,
     label,
     value,
     onChange,
     disabled,
-}: BuiltinFieldProps) {
+    allowNone = true,
+}: PaymentMethodFieldProps) {
     const { kind } = useDocumentFormScope()
+    const options = allowNone ? OPTIONS_WITH_NONE : OPTIONS_WITHOUT_NONE
     return (
         <View testID={`${kind.testId}-payment-method`}>
             <HostSelect
@@ -34,10 +43,15 @@ export function PaymentMethodField({
                 value={value}
                 onChange={onChange}
                 disabled={disabled}
-                options={PAYMENT_METHOD_OPTIONS}
+                options={options}
             />
         </View>
     )
+}
+
+// A Payment method that is required (an expense's): the fixed list with no "None".
+export function RequiredPaymentMethodField(props: BuiltinFieldProps) {
+    return <PaymentMethodField {...props} allowNone={false} />
 }
 
 // The chart's own text while it has no deposit account; the cell's error (the form's

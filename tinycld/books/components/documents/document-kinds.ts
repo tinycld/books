@@ -1,5 +1,6 @@
 import type { HostTableColumn } from '@tinycld/core/lib/forms/definition'
 import type { HostRowKind } from '@tinycld/core/lib/forms/host'
+import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { type TableRowMapper, tableRowsOf } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import type { ComponentType, ReactNode } from 'react'
@@ -26,6 +27,7 @@ import {
     billCorrectionValues,
     copyBillValues,
     newBillValues,
+    vendorBillFills,
 } from '../../lib/bill-values'
 import type { TaxRateFill } from '../../lib/document-fills'
 import {
@@ -38,6 +40,7 @@ import {
 import type { DocumentFormValuesBase } from '../../lib/document-values'
 import { EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../../lib/estimate-columns'
 import { copyEstimateValues, newEstimateValues } from '../../lib/estimate-values'
+import { rowsOf, textOf } from '../../lib/form-values'
 import { EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../../lib/invoice-columns'
 import {
     copyInvoiceValues,
@@ -47,7 +50,7 @@ import {
 } from '../../lib/invoice-values'
 import {
     ACCOUNT_ROW_KIND,
-    BILL_ACCOUNT_COLUMNS,
+    PURCHASE_ACCOUNT_COLUMNS,
     PURCHASE_ITEM_COLUMNS,
     PURCHASE_ITEM_ROW_KIND,
     PURCHASE_LINE_MAPPER,
@@ -73,6 +76,7 @@ import {
     newSalesReceiptValues,
     salesReceiptCorrectionValues,
 } from '../../lib/sales-receipt-values'
+import type { BooksVendors } from '../../types'
 import { BillReadDetails } from './BillReadDetails'
 import type { DocumentReadLinesProps } from './DocumentReadLines'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
@@ -113,10 +117,11 @@ const SALES_LINE_SPECS: Record<string, DocumentLineSpec> = {
 
 const PURCHASE_MAPPER: DocumentLineMapper = { ...PURCHASE_LINE_MAPPER, lines: 'purchase' }
 
-// The bill's two tables (BILL_LINE_TABLES), both stored in books_bill_lines.
-const BILL_LINE_SPECS: Record<string, DocumentLineSpec> = {
+// A purchase kind's two tables (PURCHASE_LINE_TABLES), both stored in the kind's one lines
+// collection.
+export const PURCHASE_LINE_SPECS: Record<string, DocumentLineSpec> = {
     account_lines: {
-        columns: BILL_ACCOUNT_COLUMNS,
+        columns: PURCHASE_ACCOUNT_COLUMNS,
         rowKinds: [ACCOUNT_ROW_KIND],
         mapper: PURCHASE_MAPPER,
     },
@@ -158,6 +163,15 @@ export function storedLineTableRows(
 // A form's start values: a sales kind's, or a bill's (its party is `vendor` and it has two
 // line tables).
 export type DocumentStartValues = DocumentFormValuesBase | BillFormValues
+
+// What a vendor pick fills besides the vendor itself, keyed by built-in; the Vendor field
+// sets each returned key. `accountIsListed` says whether the Account picker lists the
+// vendor's default expense account; `current` is the form's values at the pick.
+export type PartyFills = (
+    vendor: Pick<BooksVendors, 'id' | 'address' | 'terms' | 'expense_account'>,
+    accountIsListed: boolean,
+    current: FormValues
+) => Partial<FormValues>
 
 /**
  * A sales document kind as the screen runs it: its words and ids (`doc`), its reads and
@@ -217,6 +231,8 @@ export type DocumentKind = {
     lineSpecs: Record<string, DocumentLineSpec>
     // The read view's lines; DocumentReadLines when absent.
     ReadLines?: ComponentType<DocumentReadLinesProps>
+    // What a vendor pick fills (a vendor kind's); a kind without it fills nothing.
+    partyFills?: PartyFills
 }
 
 // The source row with the invoice's own columns back at the top level. The invoice's
@@ -413,5 +429,11 @@ export const BILL_DOCUMENT: DocumentKind = {
     },
     ReadDetails: BillReadDetails,
     ReadLines: PurchaseReadLines,
-    lineSpecs: BILL_LINE_SPECS,
+    lineSpecs: PURCHASE_LINE_SPECS,
+    // Mailing address, Terms and Due date, and the first account line's empty Account.
+    partyFills: (vendor, accountIsListed, current) =>
+        vendorBillFills(vendor, accountIsListed, {
+            date: textOf(current.date),
+            account_lines: rowsOf(current.account_lines),
+        }),
 }

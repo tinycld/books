@@ -10,7 +10,7 @@ import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { todayIso } from '../lib/register-range'
 import { DOCUMENT_PARTIES, type DocumentPartyKey } from '../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../stores/document-save-store'
-import { type DocumentScreenInput, documentPartyIdOf } from './document-data'
+import { copyNeedsPartyRow, type DocumentScreenInput, documentPartyIdOf } from './document-data'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
 import { useTaxRateOptions } from './useTaxRateOptions'
@@ -112,8 +112,10 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     const sourceStatus = source?.status ?? null
     const copyParty = party.data
     // A copy whose party cannot be read has no values to start from: not found. A source
-    // saved without one (a walk-in sales receipt) is copied without one.
-    const hasCopyParty = !sourcePartyId || copyParty !== undefined
+    // saved without one (a walk-in sales receipt), or a kind with no party address to fill
+    // from it, is copied without the party's row (copyNeedsPartyRow).
+    const hasCopyParty =
+        !copyNeedsPartyRow(sourcePartyId, documentKind.doc) || copyParty !== undefined
     const copyStatus = hasCopyParty ? sourceStatus : null
     // An estimate that does not exist, or whose customer cannot be read, has no values
     // to start an invoice from: not found.

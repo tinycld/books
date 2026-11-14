@@ -19,7 +19,7 @@
 import type { BooksExpenseLines, BooksExpenses } from '../types'
 import { INVOICE_USER_IDS } from './invoice-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
-import { BILL_ACCOUNT_TYPES } from './purchase-line-columns'
+import { PURCHASE_ACCOUNT_TYPES } from './purchase-line-columns'
 import { SEED_ACCOUNTS, type SeedAccount } from './seed-accounts'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
 
@@ -315,7 +315,7 @@ const KNOWN_PRODUCTS = new Set(
 const KNOWN_VENDORS = new Set(VENDORS.map(row => row.id))
 const PAID_FROM_NUMBERS = new Set(PAID_FROM_ACCOUNTS.map(account => account.number))
 const LINE_ACCOUNT_NUMBERS = new Set(
-    SEED_ACCOUNTS.filter(account => BILL_ACCOUNT_TYPES.has(account.type)).map(
+    SEED_ACCOUNTS.filter(account => PURCHASE_ACCOUNT_TYPES.has(account.type)).map(
         account => account.number
     )
 )

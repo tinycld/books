@@ -10,12 +10,13 @@ import { useDocumentFormScope } from '../components/documents/document-form-cont
 import { ProductPicker } from '../components/products/ProductPicker'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { useFormAccounts } from '../hooks/useFormAccounts'
-import {
-    BILL_ACCOUNT_EMPTY_TEXT,
-    type BillAccountOption,
-    billAccountOptions,
-} from '../lib/bill-pickers'
+import { textOf } from '../lib/form-values'
 import { centsToText } from '../lib/money-text'
+import {
+    PURCHASE_ACCOUNT_EMPTY_TEXT,
+    type PurchaseAccountOption,
+    purchaseAccountOptions,
+} from '../lib/purchase-pickers'
 import type { BooksProducts } from '../types'
 import {
     cellLabel,
@@ -31,15 +32,11 @@ import {
 // draws each one inside the table's cell (the error under it) and hands it the cell's
 // value and the row's table context.
 
-function textOf(value: unknown): string {
-    return typeof value === 'string' ? value : ''
-}
-
 // The options whose label holds the typed term, any case, in chart order.
 function matchingAccountOptions(
-    options: readonly BillAccountOption[],
+    options: readonly PurchaseAccountOption[],
     term: string
-): BillAccountOption[] {
+): PurchaseAccountOption[] {
     const needle = term.trim().toLowerCase()
     if (needle === '') return [...options]
     return options.filter(option => option.label.toLowerCase().includes(needle))
@@ -89,7 +86,7 @@ type FormAccounts = ReturnType<typeof useFormAccounts>
 // account" when its read failed or the account no longer exists (the id is kept).
 function accountTriggerLabel(
     id: string,
-    chosen: BillAccountOption | undefined,
+    chosen: PurchaseAccountOption | undefined,
     accounts: FormAccounts
 ): string {
     if (!id) return 'Choose an account'
@@ -101,7 +98,7 @@ function accountTriggerLabel(
 /**
  * Account: a picker over the active accounts an account line may charge (expense, other
  * expense, cost of goods sold), in chart order, indented by depth, "<number> <name>"
- * (billAccountOptions). A stored account the list no longer offers shows, marked
+ * (purchaseAccountOptions). A stored account the list no longer offers shows, marked
  * "(inactive)" when it is. The chart is the form's one accounts query (useFormAccounts):
  * while it loads the menu says so; a failed load shows Retry in the menu. A pick moves
  * focus to the line's next cell.
@@ -117,7 +114,7 @@ export function LineAccountCell({
     const id = textOf(value)
     const picker = useSearchPicker()
     const accounts = useFormAccounts()
-    const all = billAccountOptions(accounts.accounts, id)
+    const all = purchaseAccountOptions(accounts.accounts, id)
     const options = matchingAccountOptions(all, picker.debouncedTerm)
     const chosen = all.find(option => option.id === id)
     const triggerLabel = accountTriggerLabel(id, chosen, accounts)
@@ -149,7 +146,7 @@ export function LineAccountCell({
             isLoading={isLoading}
             loadFailed={accounts.isError}
             onRetry={accounts.retry}
-            emptyText={BILL_ACCOUNT_EMPTY_TEXT}
+            emptyText={PURCHASE_ACCOUNT_EMPTY_TEXT}
             triggerRef={table?.focusRef}
             onTriggerFocus={onTriggerFocus}
             onTriggerBlur={table?.noteBlur}

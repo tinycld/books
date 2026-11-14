@@ -1,9 +1,9 @@
-// A bill's two line tables (spec §3.4): `account_lines` (row kind `account`) and
-// `item_lines` (row kind `item`), both stored in books_bill_lines with their `kind`: their
-// columns, their row kinds and how a row maps to a line record. `forms/hosts.ts` imports
-// these and the generator loads hosts.ts in Node, and the bill fixture re-exports
-// BILL_ACCOUNT_TYPES into the plain-node seed graph, so this file imports types, the
-// shared column sizes and money-text.ts only.
+// A purchase kind's two line tables (spec §3.4): `account_lines` (row kind `account`) and
+// `item_lines` (row kind `item`), both stored in the kind's lines collection with their
+// `kind`: their columns, their row kinds and how a row maps to a line record.
+// `forms/hosts.ts` imports these and the generator loads hosts.ts in Node, and the bill
+// and expense fixtures read PURCHASE_ACCOUNT_TYPES in the plain-node seed graph, so this
+// file imports types, the shared column sizes and money-text.ts only.
 
 import type { HostTableColumn } from '@tinycld/core/lib/forms/definition'
 import type { HostRowKind } from '@tinycld/core/lib/forms/host'
@@ -13,8 +13,8 @@ import { AMOUNT_SIZE, QUANTITY_SIZE, RATE_SIZE } from './document-line-columns'
 import { centsToText, parseMoney } from './money-text'
 
 // The account types an account line may charge: the Account picker lists only these, and
-// the server refuses any other (server/bills.go billAccountTypes).
-export const BILL_ACCOUNT_TYPES: ReadonlySet<string> = new Set([
+// the server refuses any other (server/purchase_lines.go purchaseAccountTypes).
+export const PURCHASE_ACCOUNT_TYPES: ReadonlySet<string> = new Set([
     'expense',
     'other_expense',
     'cost_of_goods_sold',
@@ -35,7 +35,7 @@ const PRODUCT_FLEX = 5.7
 const DESCRIPTION_FLEX = 5.9
 const ACCOUNT_DESCRIPTION_FLEX = DESCRIPTION_FLEX + QUANTITY_SIZE.flex + RATE_SIZE.flex
 
-export const BILL_ACCOUNT_COLUMNS: readonly HostTableColumn[] = [
+export const PURCHASE_ACCOUNT_COLUMNS: readonly HostTableColumn[] = [
     {
         key: 'account',
         label: 'Account',

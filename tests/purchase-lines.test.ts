@@ -1,38 +1,38 @@
 import { describe, expect, it } from 'vitest'
 import {
-    billTablesShown,
     noLinesText,
     PURCHASE_LINES_LABELS,
     PURCHASE_LINES_OPTIONS,
+    purchaseTablesShown,
 } from '../tinycld/books/lib/purchase-lines'
 
 // The Bill lines setting and the tables a bill form shows (spec §3.11): a table shows when
 // the setting includes it, or when the bill the form opens with already has a line in it,
 // so editing an older bill never loses lines. Table order is kept.
-describe('billTablesShown', () => {
+describe('purchaseTablesShown', () => {
     const none = { account_lines: 0, item_lines: 0 }
 
     it('shows both tables for Accounts and products', () => {
-        expect(billTablesShown('both', none)).toEqual(['account_lines', 'item_lines'])
+        expect(purchaseTablesShown('both', none)).toEqual(['account_lines', 'item_lines'])
     })
 
     it('shows only Account details for Accounts only', () => {
-        expect(billTablesShown('accounts', none)).toEqual(['account_lines'])
+        expect(purchaseTablesShown('accounts', none)).toEqual(['account_lines'])
     })
 
     it('shows only Product and service details for Products only', () => {
-        expect(billTablesShown('products', none)).toEqual(['item_lines'])
+        expect(purchaseTablesShown('products', none)).toEqual(['item_lines'])
     })
 
     it('also shows the product table under Accounts only when the bill has product lines', () => {
-        expect(billTablesShown('accounts', { account_lines: 1, item_lines: 2 })).toEqual([
+        expect(purchaseTablesShown('accounts', { account_lines: 1, item_lines: 2 })).toEqual([
             'account_lines',
             'item_lines',
         ])
     })
 
     it('also shows the account table under Products only when the bill has account lines', () => {
-        expect(billTablesShown('products', { account_lines: 1, item_lines: 0 })).toEqual([
+        expect(purchaseTablesShown('products', { account_lines: 1, item_lines: 0 })).toEqual([
             'account_lines',
             'item_lines',
         ])

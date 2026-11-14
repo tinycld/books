@@ -11,7 +11,7 @@ import {
     type ExpenseRecord,
 } from '../tinycld/books/lib/expense-form-fixture'
 import { PRODUCTS } from '../tinycld/books/lib/products-services-fixture'
-import { BILL_ACCOUNT_TYPES } from '../tinycld/books/lib/purchase-line-columns'
+import { PURCHASE_ACCOUNT_TYPES } from '../tinycld/books/lib/purchase-line-columns'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import type { BooksExpenseLines, BooksExpenses } from '../tinycld/books/types'
 
@@ -80,7 +80,9 @@ describe('EXPENSES', () => {
         const wrong = EXPENSE_LINES.filter(line => line.kind === 'account')
             .filter(
                 line =>
-                    !BILL_ACCOUNT_TYPES.has(accountByNumber.get(line.account_number)?.type ?? '')
+                    !PURCHASE_ACCOUNT_TYPES.has(
+                        accountByNumber.get(line.account_number)?.type ?? ''
+                    )
             )
             .map(line => `${line.id} ${line.account_number}`)
         expect(wrong).toEqual([])
