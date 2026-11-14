@@ -28,3 +28,4 @@
 - A link button inside a form (Edit address, Edit customer) is a Tab stop after the field it edits; it needs no shortcut. — sales-receipt-form, human, eval
 - To take a Pressable out of the web Tab order, use `tabIndex={-1}`; RN-web ignores `focusable={false}` and sets tabIndex 0. — sales-receipt-form, retro, p2-sales-receipt
 - A report's `display.oneLine` gate is measured for its own columns at 390; never copy another report's display block. — profit-and-loss, retro, p5-profit-and-loss
+- At 390 a report's toolbar actions (Customize) sit under More; a phone capture or e2e opens More first. — profit-and-loss, retro, p5-profit-and-loss
