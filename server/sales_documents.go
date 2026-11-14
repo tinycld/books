@@ -720,13 +720,18 @@ func lineRowPlace(kind salesDocKind, lines []*core.Record, line *core.Record) li
 }
 
 // deferredLinePlace is lineRowPlace for a line write in a batch, which reads
-// no other line when it can: a kind that numbers its lines across the document
-// names the line by its position (the client writes positions with no gap). A
-// kind with LineRowLabels numbers a line among the lines of its kind, which
-// only the stored lines tell, so it reads them.
+// no other line: the line is named by its position, as the client writes the
+// positions with no gap. A kind with no LineRowLabels numbers its lines across
+// the document ("Line 3"); a kind with LineRowLabels numbers each line kind in
+// its own table from 0 (planTableWrites per table), so the position is also the
+// line's number among the lines of its kind ("Account line 2"). Only a line
+// kind that LineRowLabels does not name is counted over every stored line.
 func deferredLinePlace(tx core.App, kind salesDocKind, docID string, r *core.Record) (linePlace, error) {
 	if kind.LineRowLabels == nil {
 		return linePlace{"Line", r.GetInt("position") + 1}, nil
+	}
+	if label, ok := kind.LineRowLabels[r.GetString("kind")]; ok {
+		return linePlace{label, r.GetInt("position") + 1}, nil
 	}
 	others, err := salesDocLines(tx, kind, docID)
 	if err != nil {

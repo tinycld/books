@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, type Request, test } from '@playwright
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { BILL_REFUSALS } from '../../tinycld/books/lib/bill-form-fixture'
 import { formatDay } from '../../tinycld/books/lib/register-range'
-import { DESKTOP, PHONE } from './account-register-helpers'
+import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     accountLineRows,
     BILL_URL,
@@ -26,7 +26,14 @@ import {
 } from './bill-helpers'
 import { batchAnswered, refuseBatchWrite } from './document-batch-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
-import { batchOperations, openEntriesList, searchEntries } from './journal-entries-helpers'
+import {
+    batchOperations,
+    makeAccountInactiveElsewhere,
+    openEntriesList,
+    searchEntries,
+} from './journal-entries-helpers'
+import { createProduct } from './products-services-helpers'
+import { uniqueName } from './record-form-helpers'
 import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
 
 // The bill form and its read view (spec §3.1–§3.12), checkpoint 3. Every bill is made by
@@ -953,6 +960,184 @@ test.describe('bill-form: phone', () => {
         await page.getByTestId('delete-draft-confirm').click()
         await expect(page).not.toHaveURL(draftUrl)
         await expect(page.getByTestId('bill-form')).toHaveCount(0)
+    })
+})
+
+// Two refusals help/bills.md tells users about, through the real server (merge review A,
+// item 3). They live in this file, not in sales-documents-conflict.spec.ts, because every
+// new bill depends on the shared Bill lines setting, which this file's last tests change:
+// another file running beside them could get a bill with no account table.
+const BILL_CONFLICT =
+    'This bill changed after you opened it. Load the current bill, then review it before you save or post.'
+
+// A second session opens the draft by its memo, sets line 1's amount to 50.00 and
+// saves it.
+async function saveOtherAmount(other: Page, memo: string) {
+    await openBooks(other)
+    await openBillBySearch(other, memo)
+    await expect(other.getByTestId('form-input-memo')).toHaveValue(memo)
+    const otherLine = await billLineRowId(other, 'account_lines', 0)
+    await other.getByTestId(billCellTestId('account_lines', otherLine, 'amount')).fill('50.00')
+    await other.getByTestId('bill-title').click()
+    await expect(other.getByTestId('bill-total')).toContainText(money(5_000))
+    const saved = batchAnswered(other, 'books_bills', 'PATCH', 200)
+    await other.getByTestId('bill-save-draft').click()
+    await saved
+}
+
+// Load the current bill: the notice goes and the other session's amount is the
+// stored one.
+async function loadTheCurrentBill(page: Page) {
+    const total = page.getByTestId('bill-total')
+    const reload = page.getByTestId('bill-conflict-reload')
+    await expect(reload).toHaveText('Load the current bill')
+    await reload.click()
+    await expect(page.getByTestId('bill-conflict')).toHaveCount(0)
+    await expect(total).toContainText(money(5_000))
+    await expect(total).not.toContainText(money(7_000))
+    const reloadedLine = await billLineRowId(page, 'account_lines', 0)
+    await expect(
+        page.getByTestId(billCellTestId('account_lines', reloadedLine, 'amount'))
+    ).toHaveValue('50.00')
+}
+
+test.describe('bill-form: refusals from the server', () => {
+    test('a stale bill save is refused and loads the other session’s change', async ({
+        page,
+        browser,
+    }) => {
+        const memo = uniqueMemo('Bill conflict')
+        await openBooks(page)
+        await openNewBill(page)
+        await pickBillVendor(page, SUMMIT)
+        const line = await billLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(billCellTestId('account_lines', line, 'amount')).fill('40.00')
+        await page.getByTestId('form-input-memo').fill(memo)
+        await page.getByTestId('bill-save-draft').click()
+        await expect(page).toHaveURL(BILL_URL)
+        await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
+
+        // This session changes only line 1's amount: its view is fixed from here.
+        const ownLine = await billLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(billCellTestId('account_lines', ownLine, 'amount')).fill('70.00')
+        await page.getByTestId('bill-title').click()
+        const total = page.getByTestId('bill-total')
+        await expect(total).toContainText(money(7_000))
+
+        // A second session sets line 1's amount to 50.00 and saves the draft.
+        const context = await browser.newContext()
+        try {
+            await saveOtherAmount(await context.newPage(), memo)
+
+            // The form's own check sees the moved draft and refuses the save; what was
+            // typed stays and nothing is posted.
+            await page.getByTestId('bill-save-draft').click()
+            await expect(page.getByTestId('bill-conflict')).toContainText(BILL_CONFLICT)
+            await expect(total).toContainText(money(7_000))
+            await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
+
+            await loadTheCurrentBill(page)
+
+            // The reviewed post goes through.
+            await postBill(page)
+            await expect(page.getByTestId('bill-badge')).toHaveText('Posted')
+            await expect(page.getByTestId('bill-total')).toContainText(money(5_000))
+        } finally {
+            await context.close()
+        }
+    })
+
+    test('with realtime off, the server refuses a stale bill save (409) and the reload reads it again', async ({
+        page,
+        browser,
+    }) => {
+        const memo = uniqueMemo('Bill conflict no realtime')
+        // No realtime message reaches this session: its store stays as it loaded.
+        await page.route('**/api/realtime*', route => route.abort())
+        await openBooks(page)
+        await openNewBill(page)
+        await pickBillVendor(page, SUMMIT)
+        const line = await billLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(billCellTestId('account_lines', line, 'amount')).fill('40.00')
+        await page.getByTestId('form-input-memo').fill(memo)
+        await page.getByTestId('bill-save-draft').click()
+        await expect(page).toHaveURL(BILL_URL)
+        await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
+
+        const context = await browser.newContext()
+        try {
+            await saveOtherAmount(await context.newPage(), memo)
+
+            // This session's store did not move, so the form's own check passes and the
+            // batch goes out with the revision this form saw. The server refuses it with
+            // the bill's 409; what was typed stays.
+            const ownLine = await billLineRowId(page, 'account_lines', 0)
+            await page.getByTestId(billCellTestId('account_lines', ownLine, 'amount')).fill('70.00')
+            await page.getByTestId('bill-title').click()
+            const total = page.getByTestId('bill-total')
+            await expect(total).toContainText(money(7_000))
+            const refused = batchAnswered(page, 'books_bills', 'PATCH', 400)
+            await page.getByTestId('bill-save-draft').click()
+            const body = await (await refused).json()
+            const answers = Object.values(body.data?.requests ?? {}).map(request => {
+                const { response } = request as { response?: { status?: number } }
+                return response?.status
+            })
+            expect(answers).toContain(409)
+            await expect(page.getByTestId('bill-conflict')).toContainText(BILL_CONFLICT)
+            await expect(total).toContainText(money(7_000))
+            await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
+
+            await loadTheCurrentBill(page)
+
+            await postBill(page)
+            await expect(page.getByTestId('bill-badge')).toHaveText('Posted')
+            await expect(page.getByTestId('bill-total')).toContainText(money(5_000))
+        } finally {
+            await context.close()
+        }
+    })
+
+    test('a post is refused when a product line’s expense account became inactive', async ({
+        page,
+    }) => {
+        const account = uniqueName('E2E Bill expense')
+        const product = uniqueName('E2E Bill part')
+        const memo = uniqueMemo('Bill inactive expense account')
+        await openBooks(page)
+        await openChart(page)
+        await createAccount(page, account, { type: 'Expense', detailType: 'Office and general' })
+        await page.getByTestId('books-nav-lists').click()
+        await createProduct(page, {
+            type: 'non_inventory',
+            name: product,
+            price: '20.00',
+            cost: '12.00',
+            expenseAccount: account,
+        })
+
+        // A draft bill with one product line (Pacific Power's default account is inactive,
+        // so the empty account line 1 is dropped).
+        await openNewBill(page)
+        await pickBillVendor(page, PACIFIC_POWER)
+        await page.getByTestId('form-table-item_lines-add').click()
+        const productLine = await pickBillLineProduct(page, 0, product)
+        await expect(cellOf(page, 'item_lines', productLine)('rate')).toHaveValue('12.00')
+        await page.getByTestId('form-input-memo').fill(memo)
+        await page.getByTestId('bill-save-draft').click()
+        await expect(page).toHaveURL(BILL_URL)
+        await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
+
+        // Another tab makes the account inactive after the product and the draft named it:
+        // the picker offers no product whose expense account is inactive, so this is the
+        // way a person reaches the rule.
+        await makeAccountInactiveElsewhere(page, account)
+
+        await page.getByTestId('bill-post').click()
+        const refusal = `Product line 1: the expense account of ${product} is inactive. Choose an active one on the product or service.`
+        await expect(itemLineRows(page).nth(0).getByText(refusal, { exact: true })).toBeVisible()
+        await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
+        await expect(page.getByTestId('bill-read-only')).toHaveCount(0)
     })
 })
 
