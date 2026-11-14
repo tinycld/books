@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/bill-form-checkpoints.md
 - reference: docs/plans/bill-form-reference/
 - evidence: docs/plans/bill-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs, 2026-11-13)
 - capture manifest: docs/plans/bill-form-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -295,7 +295,7 @@
   - deferrals: none · rebuttals: none · design notes: none · out-of-plan changes: 3 files (Out-of-plan changes, "revise 2").
   - native: the BLOCK was found by reading source; native not executed.
   - lesson line added to `docs/helix-lessons.md`.
-- eval round 3: merge of origin/main (8552fd7), reviewer A notes (`merge-review-a.md`, 0 BLOCK, 4 NOTE); the human asked for all 4 fixed. The dev DB was reset. Fix sha = the commit that holds this line (`fix(books): bill line labels by position, bill conflict and expense-account e2e`). Findings `merge-a-fix.md` (4 items), round 2 `merge-a-fix2.md` (3 items).
+- eval round 3: merge of origin/main (8552fd7), reviewer A notes (`merge-review-a.md`, 0 BLOCK, 4 NOTE); the driver had all 4 fixed after the human's approval, before the merge. The dev DB was reset. Fix sha = the commit that holds this line (`fix(books): bill line labels by position, bill conflict and expense-account e2e`). Findings `merge-a-fix.md` (4 items), round 2 `merge-a-fix2.md` (3 items).
   - implementer: FIXED 2 of 2. Item 1: `deferredLinePlace` (server/sales_documents.go) labels a line whose kind is in LineRowLabels by `position+1` with no read of other lines (claim verified: `planTableWrites` per table, `PURCHASE_LINE_MAPPER.toRecord` writes the position as given); a line kind not in LineRowLabels still counts the stored lines. Item 4: spec l.66 names the product expense-account refusal (`msgLineExpenseAccountInactive`); new §3.6 bullet for the revision conflict (`msgBillRevisionConflict`, "Load the current bill"). Self-declared differences: none. Disputes: none.
   - test writer round 1: `TestBillBatch_NamesTheLineByItsTable` writes per-table positions (account 0, product 0, account 1), expects "Account line 2". New describe `bill-form: refusals from the server` in `tests/e2e/bill-form.spec.ts`: bill revision conflict, and the product expense-account refusal at post through the real server (reachable through the UI: new expense account, new product with it, draft bill, the account made inactive in a second tab, Post). Placement differs from the finding (bill-form.spec.ts, not sales-documents-conflict.spec.ts): accepted, the brief says every bill test lives in bill-form.spec.ts because the Bill lines setting is shared state.
   - gate 1: tests unedited: yes · `packages:generate` ok · check pass (258 files, 5172 tests) · go test ok · e2e `bill-form` 13, `sales-documents-conflict` 7 — passed.
@@ -303,5 +303,6 @@
   - test writer round 2: new `TestBillBatch_NamesAMovedLineByItsNewPosition` (a moved account line with amount 0: old code "Account line 2", new "Account line 1"; red against HEAD's `sales_documents.go` through `go test -overlay`; the reviewer's delete-first example gave the same label on both, so it was not used). New e2e: realtime aborted for the first session, its stale save reaches the server and the batch answer holds 409, then the notice, "Load the current bill", the reloaded values, Post. The client-side conflict test kept. Both conflict tests close the second context in `finally`.
   - gate 1 again: check pass (5172) · go test ok (no cache) · e2e `bill-form` 14 passed. Round 2 changed test files only, so no fix review (bright line). Rounds: 1.
   - deferrals: none · rebuttals: none · design notes: none · out-of-plan changes: none (all files are the feature's own).
+- eval round 4: approved (human, 2026-11-13). The U+200B break mark in copied account labels is accepted. e2e sha fe100d8: CI green on tinycld/books#45 (4 e2e shards, typecheck & unit) and on core tinycld/tinycld#473.
 - human comments and what changed
 - native: not executed in this run
