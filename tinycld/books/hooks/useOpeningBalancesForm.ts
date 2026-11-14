@@ -34,6 +34,7 @@ import { todayIso } from '../lib/register-range'
 import { isRevisionConflict, OPENING_CONFLICT_TEXT } from '../lib/revision'
 import { useOpeningPostStore } from '../stores/opening-post-store'
 import { useBackToChart } from './useBackToChart'
+import { useMyCloseOverride } from './useMyCloseOverride'
 import type { OpeningScreen } from './useOpeningBalancesScreen'
 import { LineWriteError, useOpeningDraftWrites } from './useOpeningDraftWrites'
 
@@ -96,9 +97,12 @@ function noticeText(postedNumber: string, draftReplacesNumber: string) {
 export function useOpeningBalancesForm(screen: OpeningScreen) {
     const closeDate = screen.settings?.closeDate ?? ''
     const fiscalStartMonth = screen.settings?.fiscalStartMonth ?? 1
+    // An override that ends while the form is open ends here too: the hook re-renders at
+    // its expiry, and the next validation uses the schema of that render.
+    const { override } = useMyCloseOverride()
     const form = useForm<OpeningFormValues>({
         mode: 'onChange',
-        resolver: zodResolver(openingFormSchema(closeDate)),
+        resolver: zodResolver(openingFormSchema(closeDate, override !== undefined)),
         defaultValues: defaultValues(screen, fiscalStartMonth),
     })
     const { setError, getValues, handleSubmit, reset, clearErrors } = form
