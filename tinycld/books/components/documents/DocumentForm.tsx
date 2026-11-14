@@ -13,6 +13,7 @@ import { ScrollView, Text, View } from 'react-native'
 import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
 import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
+import { useCopyEstimateLink } from '../../hooks/useCopyEstimateLink'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
@@ -27,7 +28,7 @@ import {
     type FooterSpans,
     footerSpansOf,
 } from '../../lib/document-footer-layout'
-import { canDeleteStatus, type DocumentStatus } from '../../lib/document-lifecycle'
+import { canDeleteStatus, type DocumentStatus, quoteStatusOf } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
@@ -44,6 +45,7 @@ import {
     type SalesDocumentKind,
 } from '../../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
+import type { BooksEstimates } from '../../types'
 import { ConflictNotice } from '../ConflictNotice'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
@@ -68,6 +70,7 @@ import {
 } from './document-form-context'
 import { useDocumentKind } from './document-kind-context'
 import type { DocumentKind } from './document-kinds'
+import { EstimateDeclineNote } from './EstimateDeclineNote'
 
 type EngineForm = UseFormReturn<Record<string, unknown>>
 
@@ -275,22 +278,40 @@ function PartRenderer({ state, definition, testID }: RendererProps) {
 
 const BAND_CLASS = 'rounded-xl border border-border bg-surface-secondary p-4'
 
+// The stored estimate whose customer decline the band shows: its id and its SAVED status.
+type DeclineNoteTarget = { estimateId: string; status: BooksEstimates['status'] | undefined }
+
 interface BandProps {
     state: DocumentFormState
     first: FormDefinition
     second: FormDefinition
+    declineNote: DeclineNoteTarget | null
 }
 
 // The header band; a kind that splits it draws the fields from `bandSplitAt` on as a
-// second row inside it (`<test id>-payment`).
-function DocumentBand({ state, first, second }: BandProps) {
+// second row inside it (`<test id>-payment`). A stored quote's customer decline note
+// sits directly under that row.
+function DocumentBand({ state, first, second, declineNote }: BandProps) {
     const { testId } = state.kind
     const ids = { band: `${testId}-band`, form: `${testId}-band-form` }
     return (
         <View testID={ids.band} className={BAND_CLASS}>
             <PartRenderer state={state} definition={first} testID={ids.form} />
             <BandSecondRow state={state} definition={second} />
+            <BandDeclineNote target={declineNote} />
         </View>
+    )
+}
+
+function BandDeclineNote({ target }: { target: DeclineNoteTarget | null }) {
+    if (target === null) return null
+    return (
+        <EstimateDeclineNote
+            estimateId={target.estimateId}
+            status={target.status}
+            testID="estimate-decline-note"
+            className="mt-4"
+        />
     )
 }
 
@@ -541,6 +562,14 @@ function estimateIdOf(record: DocumentScreenData['record']): string {
     return fields?.kind === 'invoice' ? fields.estimate : ''
 }
 
+// A stored estimate's customer link token; '' for a new form and any other kind. The
+// server sets the token in the create write (collections.ts omits it on insert), so the
+// optimistic row of a first save has none until the server's row lands.
+function publicTokenOf(record: DocumentScreenData['record']): string {
+    const fields = record?.kindFields
+    return fields?.kind === 'estimate' ? (fields.public_token ?? '') : ''
+}
+
 // A posting kind deletes its stored draft (the route's, or the one a refused post
 // wrote); a quote deletes a saved record its lifecycle allows (not a closed estimate).
 function canDeleteOf(
@@ -707,6 +736,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         void save.convert()
     }
     const isBusy = save.isSaving || deletion.isPending
+    const customerLink = useCopyEstimateLink(publicTokenOf(data.record))
     const pdf = useDraftPdf(kind, draftId, isBusy)
     const pdfVersion = documentKind.data.useVersion(draftId)
     const shortcuts = useDocumentShortcuts({
@@ -720,6 +750,8 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         saveAndNew: onSaveAndNew,
         canConvert,
         convert: onConvert,
+        canCopyLink: customerLink.isOffered,
+        copyLink: customerLink.copy,
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
@@ -769,6 +801,16 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
     const isFooterStacked = isPhone || linesLayout.isCards
     const convertAction = isQuote ? { isOffered: canConvert, onPress: onConvert } : null
     const removeAction = isQuote ? { isOffered: canDelete, onPress: deletion.open } : null
+    // Only a stored quote has a customer link: a new form never shows the action.
+    const copyLinkAction =
+        isQuote && data.record !== undefined
+            ? { isOffered: customerLink.isOffered, onPress: customerLink.copy }
+            : null
+    // The decline note follows the saved row, never the unsaved Status.
+    const declineNote =
+        isQuote && data.record !== undefined
+            ? { estimateId: data.record.id, status: quoteStatusOf(data.record.status) }
+            : null
     const deleteTexts = deleteDialogTexts(kind, data.record?.number ?? '')
     const ids = {
         form: `${kind.testId}-form`,
@@ -820,6 +862,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
                                         state={state}
                                         first={parts.band}
                                         second={parts.bandSecond}
+                                        declineNote={declineNote}
                                     />
                                     <View testID={ids.lines} onLayout={linesLayout.onLayout}>
                                         <DocumentLinesContext.Provider value={linesView}>
@@ -865,6 +908,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
                                 onSaveAndClose={onSaveAndClose}
                                 onSaveAndNew={onSaveAndNew}
                                 convert={convertAction}
+                                copyLink={copyLinkAction}
                                 remove={removeAction}
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
