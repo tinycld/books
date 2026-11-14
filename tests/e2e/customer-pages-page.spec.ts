@@ -132,6 +132,38 @@ test.describe('customer-pages: customer page', () => {
             .toEqual({ widthIs480: true, atContentRight: true, listToItsLeft: true })
     })
 
+    // Crossing 1360 px re-renders the page around the More trigger (the page covers the
+    // list below it, sits beside it above it). An open More menu must follow the trigger to
+    // the place a menu opened at the new width takes.
+    test('an open More menu follows its trigger across the 1360 px layout change', async ({
+        page,
+    }) => {
+        await openBooks(page, WIDE)
+        const name = uniqueName('More follows')
+        await createCustomer(page, { name })
+        await openCustomersList(page)
+        await searchCustomers(page, name)
+        await customerEntry(page, name).click()
+        await expect(page.getByTestId('customer-tab-details')).toBeVisible()
+        const menu = page.getByRole('menu')
+
+        await openMore(page)
+        const openedWide = await menu.boundingBox()
+        await page.keyboard.press('Escape')
+        await expect(menu).toBeHidden()
+
+        await page.setViewportSize({ width: 1280, height: 900 })
+        await expect(page.getByTestId('customer-back')).toBeVisible()
+        await openMore(page)
+        const openedNarrow = await menu.boundingBox()
+        // The test means nothing unless the layout change moved the trigger.
+        expect(openedNarrow).not.toEqual(openedWide)
+
+        await page.setViewportSize(WIDE)
+        await expect(page.getByTestId('customer-back')).toBeHidden()
+        await expect.poll(() => menu.boundingBox()).toEqual(openedWide)
+    })
+
     test('edits Details and Notes from the keyboard only, and the tab is in the URL', async ({
         page,
     }) => {
