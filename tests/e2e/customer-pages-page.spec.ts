@@ -121,6 +121,9 @@ test.describe('customer-pages: customer page', () => {
         await dialog.discard.click()
         await expect(page.getByTestId('customer-save-bar')).toBeHidden()
         await page.setViewportSize(WIDE)
+        // The wide layout drops the back button; wait for it, or openList reads the
+        // narrow layout's button as visible and clicks one that the resize detaches.
+        await expect(back).toBeHidden()
         await openNewCustomer(page)
         await searchCustomers(page, nameA)
         await expect(emailCellA).toBeVisible()
