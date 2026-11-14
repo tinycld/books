@@ -75,7 +75,7 @@ type SalesReceiptKindFields = { kind: 'sales_receipt' } & Pick<
 >
 type EstimateKindFields = { kind: 'estimate' } & Pick<
     BooksEstimates,
-    'expiration_date' | 'accepted_by' | 'accepted_date' | 'invoice'
+    'expiration_date' | 'accepted_by' | 'accepted_date' | 'invoice' | 'public_token'
 >
 export type DocumentKindFields = InvoiceKindFields | SalesReceiptKindFields | EstimateKindFields
 

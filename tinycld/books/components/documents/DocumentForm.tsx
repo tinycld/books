@@ -18,6 +18,7 @@ import { FormProvider, type UseFormReturn, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
 import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
+import { useCopyEstimateLink } from '../../hooks/useCopyEstimateLink'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
@@ -387,6 +388,14 @@ function estimateIdOf(record: DocumentScreenData['record']): string {
     return fields?.kind === 'invoice' ? fields.estimate : ''
 }
 
+// A stored estimate's customer link token; '' for a new form and any other kind. The
+// server sets the token in the create write (collections.ts omits it on insert), so the
+// optimistic row of a first save has none until the server's row lands.
+function publicTokenOf(record: DocumentScreenData['record']): string {
+    const fields = record?.kindFields
+    return fields?.kind === 'estimate' ? (fields.public_token ?? '') : ''
+}
+
 // A posting kind deletes its stored draft (the route's, or the one a refused post
 // wrote); a quote deletes a saved record its lifecycle allows (not a closed estimate).
 function canDeleteOf(
@@ -544,6 +553,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         void save.convert()
     }
     const isBusy = save.isSaving || deletion.isPending
+    const customerLink = useCopyEstimateLink(publicTokenOf(data.record))
     const pdf = useDraftPdf(kind, draftId, isBusy)
     const pdfVersion = documentKind.data.useVersion(draftId)
     const shortcuts = useDocumentShortcuts({
@@ -557,6 +567,8 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         saveAndNew: onSaveAndNew,
         canConvert,
         convert: onConvert,
+        canCopyLink: customerLink.isOffered,
+        copyLink: customerLink.copy,
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
@@ -601,6 +613,11 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
     const isFooterStacked = isPhone || linesLayout.isCards
     const convertAction = isQuote ? { isOffered: canConvert, onPress: onConvert } : null
     const removeAction = isQuote ? { isOffered: canDelete, onPress: deletion.open } : null
+    // Only a stored quote has a customer link: a new form never shows the action.
+    const copyLinkAction =
+        isQuote && data.record !== undefined
+            ? { isOffered: customerLink.isOffered, onPress: customerLink.copy }
+            : null
     const deleteTexts = deleteDialogTexts(kind, data.record?.number ?? '')
     const ids = {
         form: `${kind.testId}-form`,
@@ -702,6 +719,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
                                 onSaveAndClose={onSaveAndClose}
                                 onSaveAndNew={onSaveAndNew}
                                 convert={convertAction}
+                                copyLink={copyLinkAction}
                                 remove={removeAction}
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
