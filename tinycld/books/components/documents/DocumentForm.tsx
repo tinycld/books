@@ -29,6 +29,7 @@ import {
     DOCUMENT_FOOTER_ROW,
     DOCUMENT_FOOTER_SPANS,
 } from '../../lib/document-footer-layout'
+import { documentFormTitle } from '../../lib/document-form-title'
 import { canDeleteStatus, type DocumentStatus } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
@@ -320,20 +321,6 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
             <View style={DOCUMENT_FOOTER_MENU_SPACER} />
         </View>
     )
-}
-
-// A quote: its new title until the first save, then "Estimate 1001" by the
-// stored number. A posting kind: "Edit 1004" for a correction, new or saved; the kind's
-// draft title once the draft is stored; else its new title.
-export function documentFormTitle(
-    kind: SalesDocumentKind,
-    replacesNumber: string,
-    isStored: boolean,
-    number: string
-): string {
-    if (kind.lifecycle === 'quote') return isStored ? `${kind.noun} ${number}` : kind.newTitle
-    if (replacesNumber) return `Edit ${replacesNumber}`
-    return isStored ? kind.draftTitle : kind.newTitle
 }
 
 // A correction says what posting it does to the document it replaces.
