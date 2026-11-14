@@ -51,6 +51,14 @@ describe('tableWriteSteps', () => {
         expect(steps.map(step => step.itemNumber)).toEqual([null, null, 1, 3, 2, 4])
     })
 
+    // A refused batch names the record of the operation that failed; the save shows the
+    // refusal under that row (hooks/useDocumentSave.ts rowLabelOf).
+    it('gives each step the id of its row, a removed row too', () => {
+        const steps = tableWriteSteps(PLAN, namingOps())
+
+        expect(steps.map(step => step.rowId)).toEqual(['r1', 'r2', 'u0', 'u2', 'i1', 'i3'])
+    })
+
     it('makes no write until a step runs', () => {
         const ops = namingOps()
 

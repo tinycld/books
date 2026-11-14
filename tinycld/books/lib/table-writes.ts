@@ -12,26 +12,33 @@ export type TableWriteOps<T> = {
     remove(id: string): T
 }
 
-export type TableWriteStep<T> = { itemNumber: number | null; run: () => T }
+export type TableWriteStep<T> = { rowId: string; itemNumber: number | null; run: () => T }
 
 const byPosition = (a: TableRowWrite, b: TableRowWrite) => a.position - b.position
 
 /**
  * A `TableWritePlan` as ordered pbtsdb writes. Removes come first, so a later insert
  * never meets a row the plan drops; then updates and inserts by position. A step's
- * `itemNumber` is its row's place in the table from 1; a removed row has none.
+ * `itemNumber` is its row's place in the table from 1; a removed row has none. A step's
+ * `rowId` is the id of its row, a removed row's too.
  */
 export function tableWriteSteps<T>(
     plan: TableWritePlan | undefined,
     ops: TableWriteOps<T>
 ): TableWriteStep<T>[] {
     if (!plan) return []
-    const removes = plan.remove.map(id => ({ itemNumber: null, run: () => ops.remove(id) }))
+    const removes = plan.remove.map(id => ({
+        rowId: id,
+        itemNumber: null,
+        run: () => ops.remove(id),
+    }))
     const updates = [...plan.update].sort(byPosition).map(write => ({
+        rowId: write.row.id,
         itemNumber: write.position + 1,
         run: () => ops.update(write),
     }))
     const inserts = [...plan.insert].sort(byPosition).map(write => ({
+        rowId: write.row.id,
         itemNumber: write.position + 1,
         run: () => ops.insert(write),
     }))
