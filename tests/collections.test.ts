@@ -30,6 +30,8 @@ const NAMES = [
     'books_sales_receipt_tax_lines',
     'books_estimates',
     'books_estimate_lines',
+    'books_party_balances',
+    'books_party_contacts',
 ]
 
 function register() {
@@ -213,5 +215,24 @@ describe('registerCollections', () => {
             ])
             expect(calls.get(name)?.relations, name).toBeUndefined()
         }
+    })
+
+    // The balances view is never written: the server signals its topic when a
+    // journal line or an account changes, so an open customer page stays live.
+    it('keeps the party balances view live on its change topic, with no relations', () => {
+        const { calls } = register()
+        const balances = calls.get('books_party_balances')
+        expect(balances?.liveTopics).toEqual(['collection/books_party_balances'])
+        expect(balances?.relations).toBeUndefined()
+    })
+
+    // The contacts tab reads the contacts of one customer; nothing else enters
+    // through them.
+    it('registers the party contacts with no relations to fetch', () => {
+        const { calls } = register()
+        const contacts = calls.get('books_party_contacts')
+        expect(contacts?.syncMode).toBe('on-demand')
+        expect(contacts?.relations).toBeUndefined()
+        expect(contacts?.alwaysFetchRelations).toBeUndefined()
     })
 })
