@@ -7,8 +7,8 @@ import {
 } from '../tinycld/books/lib/customer-page-tabs'
 
 describe('CUSTOMER_TAB_ORDER', () => {
-    it('draws Transactions first, then Details and Notes', () => {
-        expect(CUSTOMER_TAB_ORDER).toEqual(['transactions', 'details', 'notes'])
+    it('draws Transactions, Contacts, Details and Notes, in that order', () => {
+        expect(CUSTOMER_TAB_ORDER).toEqual(['transactions', 'contacts', 'details', 'notes'])
     })
 })
 
@@ -30,9 +30,8 @@ describe('customerTabOf', () => {
         expect(customerTabOf('notes')).toBe('notes')
     })
 
-    it('selects Transactions for a known tab that is not built yet', () => {
-        expect(CUSTOMER_TAB_ORDER).not.toContain('contacts')
-        expect(customerTabOf('contacts')).toBe('transactions')
+    it('selects the Contacts tab from its param', () => {
+        expect(customerTabOf('contacts')).toBe('contacts')
     })
 })
 

@@ -36,6 +36,11 @@ describe('help/customers.md', () => {
         expect(body).toContain('(help://books:sales-receipts)')
     })
 
+    // Customer pages checkpoint 5: the page's own topic.
+    it('links the customer pages topic', () => {
+        expect(body).toContain('[Customer pages](help://books:customer-pages)')
+    })
+
     // Estimate checkpoint 4: cross-linked from the estimate topic's neighbours.
     it('links the estimates topic', () => {
         expect(body).toContain('(help://books:estimates)')

@@ -27,7 +27,7 @@ To set when the customer must pay, choose Payment terms, such as Net 30. When yo
 
 ## Edit a customer
 
-To edit a customer, choose its row in the list, or open the menu on its row and choose Edit. The customer opens on its page, on the Transactions tab; you edit the Details and Notes tabs in place. When you change a field, Save and Cancel show in a bar at the bottom of the page, on every tab. Choose Save, or press ⌘S, to write your changes and stay on the page. Only the fields you changed are written. To select the Details tab press ⌥3, and to select the Notes tab press ⌥4.
+To edit a customer, choose its row in the list, or open the menu on its row and choose Edit. The customer opens on its page, on the Transactions tab; you edit the Details and Notes tabs in place. When you change a field, Save and Cancel show in a bar at the bottom of the page, on every tab. Choose Save, or press ⌘S, to write your changes and stay on the page. Only the fields you changed are written. To select the Details tab press ⌥3, and to select the Notes tab press ⌥4. To learn what else the page shows, such as the customer's balance and contact people, see [Customer pages](help://books:customer-pages).
 
 To throw your changes away, choose Cancel or press Esc, then choose Discard. If you try to leave a customer that has changes that are not saved, Books asks "Discard changes?" first. Choose Keep editing to go back to the page, or Discard to leave without saving. When nothing is changed, Esc goes back to the list.
 

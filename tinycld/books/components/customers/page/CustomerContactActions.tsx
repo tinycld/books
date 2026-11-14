@@ -13,7 +13,8 @@ interface IconActionProps {
 }
 
 // A device with no handler for the link (a desktop browser and `tel:`) opens nothing.
-function openLink(url: string) {
+// The Contacts tab's Email and Phone links open through it too.
+export function openLink(url: string) {
     Linking.openURL(url).catch(error =>
         log.warn('books.customer-page', 'could not open a contact link', { error })
     )
