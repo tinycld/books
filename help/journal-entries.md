@@ -39,10 +39,10 @@ To have Books reverse an entry on a later day, type a date in Auto-reverse on. T
 
 A posted entry shows the state of its reversal in Auto-reverse on:
 
-- **Will reverse on** a date: Books has not reversed the entry yet. Books posts reversals each hour, so a reversal can post up to one hour after its day starts (the day starts at midnight UTC).
+- **Will reverse on** a date: Books has not reversed the entry yet. Books posts reversals each hour. A reversal posts when its day starts (midnight UTC). If you post the entry after that, the reversal posts at the next full hour.
 - **Reversed on** a date, with the number of the reversing entry.
 - **The automatic reversal did not post**: its day came and Books did not post the reversal. The journal list marks the entry with "Reversal overdue". To correct it, reverse the entry yourself or void it.
-- **Not reversed**, when someone voided the reversing entry. Books does not reverse the entry again.
+- **Not reversed**, with the number of the reversing entry that someone voided. Books does not reverse the entry again.
 
 Nobody posts an automatic reversal, so the entry shows no poster. The audit log records it as created by the system, with the entry it reverses.
 

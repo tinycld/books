@@ -149,7 +149,7 @@ function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
     const overdueAt = autoReversalOverdueAt(entry)
     const now = useClockTick(overdueAt === null ? [] : [overdueAt])
     const state = autoReversalState(entry, detail.reversals, now)
-    const autoReverseText = autoReversalText(state, entry, settledReversal(detail.reversals).posted)
+    const autoReverseText = autoReversalText(state, entry, settledReversal(detail.reversals))
     return (
         <View className="gap-3">
             <View className="flex-row flex-wrap gap-x-6 gap-y-3">
