@@ -679,9 +679,11 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
     // opened later starts with them folded.
     const instanceId = useId()
     const bandKey = `${data.formKey}#${instanceId}`
+    const partyFills = documentKind.partyFills
     const scope = useMemo<DocumentFormScope>(
         () => ({
             kind,
+            partyFills,
             bandKey,
             currency: data.currency,
             party: formParty.party,
@@ -695,6 +697,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         }),
         [
             kind,
+            partyFills,
             bandKey,
             data.currency,
             data.taxOptions.rows,

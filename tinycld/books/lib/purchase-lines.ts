@@ -17,21 +17,21 @@ export const PURCHASE_LINES_OPTIONS: { value: PurchaseLines; label: string }[] =
     ['both', 'accounts', 'products'] as const
 ).map(value => ({ value, label: PURCHASE_LINES_LABELS[value] }))
 
-export type BillTableKey = 'account_lines' | 'item_lines'
+export type PurchaseTableKey = 'account_lines' | 'item_lines'
 
-// The bill's tables in form order, and the settings that include each.
-const BILL_TABLES: readonly { key: BillTableKey; settings: readonly PurchaseLines[] }[] = [
+// A purchase kind's tables in form order, and the settings that include each.
+const PURCHASE_TABLES: readonly { key: PurchaseTableKey; settings: readonly PurchaseLines[] }[] = [
     { key: 'account_lines', settings: ['both', 'accounts'] },
     { key: 'item_lines', settings: ['both', 'products'] },
 ]
 
-// A table shows when the setting includes it or the bill the form opens with already has
-// a line in it, so editing an older bill never loses lines. Table order is kept.
-export function billTablesShown(
+// A table shows when the setting includes it or the document the form opens with already
+// has a line in it, so editing an older document never loses lines. Table order is kept.
+export function purchaseTablesShown(
     setting: PurchaseLines,
-    lineCounts: Record<BillTableKey, number>
-): BillTableKey[] {
-    return BILL_TABLES.filter(
+    lineCounts: Record<PurchaseTableKey, number>
+): PurchaseTableKey[] {
+    return PURCHASE_TABLES.filter(
         table => table.settings.includes(setting) || lineCounts[table.key] > 0
     ).map(table => table.key)
 }

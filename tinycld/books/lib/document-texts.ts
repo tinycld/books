@@ -1,10 +1,23 @@
 // The texts a sales document's shared layer shows, by kind (SalesDocumentKind.messages).
-// Pure data with no imports: lib/sales-document-kinds.ts reads it, and the generator
-// loads that module in Node through forms/hosts.ts.
+// Pure data with type imports only: lib/sales-document-kinds.ts reads it, and the
+// generator loads that module in Node through forms/hosts.ts.
+
+import type { DocumentPartyKey } from './sales-document-kinds'
 
 // A document saved without a customer (a kind whose customer is optional): the Customer
 // picker's clear choice, Bill to's empty text and the read view's Customer.
 export const NO_CUSTOMER_TEXT = 'No customer'
+
+// A document saved without a vendor (a kind whose vendor is optional): the Vendor
+// picker's clear choice, its empty trigger and the read view's Vendor.
+export const NO_VENDOR_TEXT = 'No vendor'
+
+// The none text of a kind whose party is optional, by party: the picker's empty trigger
+// and the read view's party name.
+export const NO_PARTY_TEXT: Record<DocumentPartyKey, string> = {
+    customer: NO_CUSTOMER_TEXT,
+    vendor: NO_VENDOR_TEXT,
+}
 
 // The hint under a bill's Vendor's bill no.: the layout's description (the design canvas)
 // and the text VendorRefField draws on the record.

@@ -9,7 +9,11 @@ import { isExpired } from '../lib/estimate-status'
 import type { LiveRecovery } from '../lib/live-recovery'
 import type { PurchaseLineRow } from '../lib/purchase-line-columns'
 import type { PurchaseLines } from '../lib/purchase-lines'
-import type { DocumentLifecycle } from '../lib/sales-document-kinds'
+import {
+    DOCUMENT_PARTIES,
+    type DocumentLifecycle,
+    type SalesDocumentKind,
+} from '../lib/sales-document-kinds'
 import type { CopyDeposit } from '../lib/sales-receipt-values'
 import type { TableWriteOps } from '../lib/table-writes'
 import type {
@@ -136,6 +140,28 @@ export function documentPartyIdOf(record: Pick<DocumentSource, 'customer' | 'kin
     const fields = record.kindFields
     if ('vendor' in fields && typeof fields.vendor === 'string') return fields.vendor
     return record.customer
+}
+
+// The party's address as the document stored it, from the column its party names
+// (DOCUMENT_PARTIES: a sales kind's Bill to, a bill's Mailing address). A kind without a
+// party address (`features.partyAddress`) stores none, so nothing is read: null.
+export function storedPartyAddressOf(
+    record: DocumentSource,
+    doc: Pick<SalesDocumentKind, 'party' | 'features'>
+): unknown {
+    if (!doc.features.partyAddress) return null
+    return recordColumnsOf(record)[DOCUMENT_PARTIES[doc.party].addressField] ?? null
+}
+
+// Whether a copy needs its source's party row to start from. A kind with a party address
+// fills it from the party's current record, so a party that cannot be read leaves the
+// copy nothing to start from; a kind without one copies the party's id alone. A source
+// saved without a party (a walk-in sales receipt) needs none.
+export function copyNeedsPartyRow(
+    sourcePartyId: string | undefined,
+    doc: Pick<SalesDocumentKind, 'features'>
+): boolean {
+    return doc.features.partyAddress && Boolean(sourcePartyId)
 }
 
 // A kind's own input to its new form's values and to a copy's, which its data source

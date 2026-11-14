@@ -11,6 +11,7 @@ import {
     lineTableSubtotals,
 } from './document-values'
 import { TOO_LARGE_TEXT } from './entry-lines'
+import { textOf } from './form-values'
 import { formatMoney } from './money'
 import { moneyInputCents } from './money-input'
 import { type DocumentLineTable, SALES_LINE_TABLES } from './sales-document-kinds'
@@ -39,10 +40,6 @@ export function documentTaxOf(rows: readonly TaxRow[], taxRateId: string): Docum
             : [{ id: chosen.id, ppm: chosen.rate_ppm }]
     const ppm = groupPpm(components.map(component => component.ppm))
     return { tax: { components }, label: `${chosen.name} (${ratePercentText(ppm)})` }
-}
-
-function textOf(value: unknown): string {
-    return typeof value === 'string' ? value : ''
 }
 
 // A cell whose text does not parse makes a total that means nothing.

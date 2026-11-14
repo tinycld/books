@@ -26,6 +26,7 @@ import { DOCUMENT_NOTE_TOO_LONG } from './document-notes'
 import { ACCOUNT_AMOUNT_MESSAGES, BILL_MESSAGES } from './document-texts'
 import { documentLinesOf, lineTableRows } from './document-values'
 import { acceptanceShown } from './estimate-status'
+import { textOf } from './form-values'
 import { moneyInputCents } from './money-input'
 import { isWellFormedMoney, maxLineAmount, maxStoredAmount } from './money-text'
 import { isIsoDay } from './register-range'
@@ -47,10 +48,6 @@ const MAX_PERCENT_PPM = 10_000_000
 const PERCENT_DECIMALS = /^-?\d+\.\d{5,}\s*%?$/
 
 type Issue = { path: (string | number)[]; message: string }
-
-function textOf(value: unknown): string {
-    return typeof value === 'string' ? value : ''
-}
 
 function isTooLong(value: unknown): boolean {
     return [...textOf(value)].length > MAX_TEXT

@@ -81,9 +81,9 @@ export const SALES_LINE_TABLES: readonly DocumentLineTable[] = [
     { key: 'lines', rowLabel: 'Line', heading: null, subtotal: null },
 ]
 
-// A bill's two tables, stacked in this order (spec §3.4); the Bill lines setting decides
-// which of them a form shows (lib/purchase-lines.ts).
-export const BILL_LINE_TABLES: readonly DocumentLineTable[] = [
+// A purchase kind's two tables, stacked in this order (spec §3.4); the Purchase lines
+// setting decides which of them a form shows (lib/purchase-lines.ts).
+export const PURCHASE_LINE_TABLES: readonly DocumentLineTable[] = [
     {
         key: 'account_lines',
         rowLabel: 'Account line',
@@ -98,11 +98,24 @@ export const BILL_LINE_TABLES: readonly DocumentLineTable[] = [
     },
 ]
 
-// What a kind has besides its lines: sales tax, a message to the customer, an email and
-// a PDF. A kind without one draws none of its fields, rows, actions or keys.
-export type DocumentFeatures = { tax: boolean; message: boolean; email: boolean; pdf: boolean }
+// What a kind has besides its lines: sales tax, a message to the customer, an email, a
+// PDF and the party's address (DocumentParty.addressField). A kind without one draws none
+// of its fields, rows, actions or keys.
+export type DocumentFeatures = {
+    tax: boolean
+    message: boolean
+    email: boolean
+    pdf: boolean
+    partyAddress: boolean
+}
 
-export const SALES_FEATURES: DocumentFeatures = { tax: true, message: true, email: true, pdf: true }
+export const SALES_FEATURES: DocumentFeatures = {
+    tax: true,
+    message: true,
+    email: true,
+    pdf: true,
+    partyAddress: true,
+}
 
 export type SalesDocumentKind = {
     key: SalesDocKey
@@ -258,7 +271,7 @@ export const BILL_KIND: SalesDocumentKind & { messages: typeof BILL_MESSAGES } =
     bandSplitAt: 'terms',
     helpTopic: 'books:bills',
     party: 'vendor',
-    lineTables: BILL_LINE_TABLES,
-    features: { tax: false, message: false, email: false, pdf: false },
+    lineTables: PURCHASE_LINE_TABLES,
+    features: { tax: false, message: false, email: false, pdf: false, partyAddress: true },
     keepsEmptyLinesOnRefusal: true,
 }

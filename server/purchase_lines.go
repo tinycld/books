@@ -39,7 +39,7 @@ const (
 
 // purchaseAccountTypes are the account types an account line may charge: the
 // expense types. The client's Account picker lists the same types
-// (BILL_ACCOUNT_TYPES).
+// (PURCHASE_ACCOUNT_TYPES).
 var purchaseAccountTypes = map[string]bool{"expense": true, "other_expense": true, "cost_of_goods_sold": true}
 
 // purchaseLineRowLabels names a purchase document's line by its kind, numbered
