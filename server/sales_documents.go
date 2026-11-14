@@ -539,7 +539,21 @@ func checkDraftSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) 
 		return err
 	}
 	setSalesDocTotals(r, totals)
-	return nil
+	return settleLinesWithHeader(tx, kind, r.Id, lines, totals)
+}
+
+// settleLinesWithHeader writes the line amounts of a document that a deferred
+// line write of this transaction left dirty (sales_document_deferral.go),
+// while a header write computes the same totals. The owner then has nothing to
+// restate: it would save the header a second time, and it restates no document
+// this write closes (an estimate an invoice is made from). Line writes after
+// this one mark the document dirty again.
+func settleLinesWithHeader(tx core.App, kind salesDocKind, docID string, lines []*core.Record, totals documentTotalsResult) error {
+	if !isDirty(tx, kind, docID) {
+		return nil
+	}
+	clearDirty(tx, kind, docID)
+	return restateLineAmounts(tx, kind, docID, lines, totals)
 }
 
 // checkSalesDocCustomer refuses an inactive customer when the write chooses it;
