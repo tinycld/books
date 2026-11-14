@@ -71,6 +71,8 @@ To delete one, open the menu on its row and choose Delete, then choose Delete in
 
 An item that is on a bundle cannot be deleted until you take it out of the bundle or make it inactive. The dialog tells you how many bundles hold it.
 
+An item that is on a line of an invoice, a sales receipt, an estimate or a bill, in any status, cannot be deleted: make it inactive instead. The dialog tells you how many documents of that type hold it.
+
 ## Custom fields
 
 An admin can add custom fields to a product form in Settings → Forms. Custom fields show at the end of the form on each product that uses the form they were added to. New products use the default form.

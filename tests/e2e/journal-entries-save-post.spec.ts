@@ -9,6 +9,7 @@ import {
     makeAccountInactiveElsewhere,
     openEntriesList,
     openNewEntry,
+    openOtherBooksPage,
     PHONE,
 } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
@@ -272,11 +273,10 @@ test.describe('journal-entries: save and post (desktop)', () => {
         await expect(page).toHaveURL(/\/entries\/new$/)
         await expect(page.getByTestId('entry-memo')).toHaveValue(memo)
 
-        // A second page of the same session shows the draft the failed post left.
-        const other = await page.context().newPage()
-        await login(other)
-        await navigateToPackage(other, 'books')
-        await other.setViewportSize(size)
+        // A second page of the same session shows the draft the failed post left. It
+        // reopens Books at the context's last Books route (the chart, from the inactive
+        // step above), so it goes through the Lists hub to the entries list.
+        const other = await openOtherBooksPage(page, ['entries'])
         await openEntriesList(other)
         const draft = listItems(other, memo)
         await expect(draft).toHaveCount(1)

@@ -87,6 +87,11 @@ describe('help/vendors.md', () => {
         expect(body).toMatch(/(?=[^.\n]*\bdelet\w*)[^.\n]*\bcannot be undone\b/i)
     })
 
+    it('says a vendor on a bill cannot be deleted and can be made inactive instead', () => {
+        expect(body).toMatch(/(?=[^.\n]*\bbills?\b)[^.\n]*\bcannot be deleted\b/i)
+        expect(body).toMatch(/(?=[^.\n]*\bbills?\b)[^.\n]*\binactive\b/i)
+    })
+
     it('explains custom fields from Settings → Forms', () => {
         expect(body).toMatch(/custom fields?/i)
         expect(body).toMatch(/Settings\s*(→|>)\s*Forms/)

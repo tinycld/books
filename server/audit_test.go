@@ -146,6 +146,56 @@ func TestAudit_RedactsTheEstimatePublicToken(t *testing.T) {
 	}.run(t, ee.app)
 }
 
+// Spec §3.10: a bill's audit row is "Bill 1003", or "Draft bill" while it has
+// no number; a line's row follows its bill and names its table and its place
+// in that table, as the refusals do ("Bill 1003: Account line 2", "Bill 1003:
+// Product line 1"; settled in checkpoint 1, reviewer B 7).
+func TestAudit_LabelsABillAndItsLines(t *testing.T) {
+	be := newBillEnv(t)
+	audited := auditedCollections(be.app)
+	bills, ok := audited["books_bills"]
+	if !ok {
+		t.Fatal("books_bills is not audited")
+	}
+	lines, ok := audited["books_bill_lines"]
+	if !ok {
+		t.Fatal("books_bill_lines is not audited")
+	}
+	bill := mkBill(t, be.app, be.summit, nil)
+	mkBillLine(t, be.app, bill, 0, accountLine(be.software, 12500))
+	accountLine2 := mkBillLine(t, be.app, bill, 1, accountLine(be.designTools, 2500))
+	productLine1 := mkBillLine(t, be.app, bill, 2, productLine(be.patchCable, 2, 310))
+
+	label := func(collection string, id string) string {
+		t.Helper()
+		r := reload(t, be.app, collection, id)
+		if collection == "books_bills" {
+			return bills.ExtractLabel(r)
+		}
+		return lines.ExtractLabel(r)
+	}
+	if got, want := label("books_bills", bill.Id), "Draft bill"; got != want {
+		t.Errorf("draft bill label = %q, want %q", got, want)
+	}
+	if got, want := label("books_bill_lines", accountLine2.Id), "Draft bill: Account line 2"; got != want {
+		t.Errorf("draft bill line label = %q, want %q", got, want)
+	}
+
+	if err := setFields(t, be.app, "books_doc_sequences", "booksseqbill000", map[string]any{"next_number": 1003}); err != nil {
+		t.Fatalf("move the bill sequence to 1003: %v", err)
+	}
+	mustPostBill(t, be.app, bill.Id, be.users.bookkeeper.Id)
+	if got, want := label("books_bills", bill.Id), "Bill 1003"; got != want {
+		t.Errorf("posted bill label = %q, want %q", got, want)
+	}
+	if got, want := label("books_bill_lines", accountLine2.Id), "Bill 1003: Account line 2"; got != want {
+		t.Errorf("posted bill account line label = %q, want %q", got, want)
+	}
+	if got, want := label("books_bill_lines", productLine1.Id), "Bill 1003: Product line 1"; got != want {
+		t.Errorf("posted bill product line label = %q, want %q", got, want)
+	}
+}
+
 // Spec §3.11: an edit of "Sales deposited to" shows in the audit log as other
 // settings edits do: a books_settings row naming the change.
 func TestAudit_LogsASalesDepositAccountChange(t *testing.T) {

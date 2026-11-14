@@ -65,6 +65,14 @@ describe('searchTarget', () => {
         })
     })
 
+    it('routes a bill hit to the bill screen', () => {
+        expect(searchTarget('bill:abc')).toEqual({
+            path: 'books/bills/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('bill:')).toBeNull()
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('quote:1')).toBeNull()
         expect(searchTarget('invoice:')).toBeNull()

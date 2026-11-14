@@ -103,6 +103,11 @@ describe('help/products-services.md', () => {
         )
     })
 
+    it('says a product on a bill cannot be deleted and can be made inactive instead', () => {
+        expect(body).toMatch(/(?=[^.\n]*\bbills?\b)[^.\n]*\bcannot be deleted\b/i)
+        expect(body).toMatch(/(?=[^.\n]*\bbills?\b)[^.\n]*\binactive\b/i)
+    })
+
     it('explains inactive products', () => {
         expect(body).toContain('Make inactive')
         expect(body).toContain('Make active')

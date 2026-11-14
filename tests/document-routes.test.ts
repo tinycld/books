@@ -50,6 +50,17 @@ describe('documentNewHref', () => {
         )
     })
 
+    // A vendor kind (checkpoint 2): the opened-with param is the party's field, after
+    // `fresh`; Post & new from a form not opened with a vendor has none.
+    it('keeps the vendor after the fresh nonce, and has none when not given', () => {
+        expect(documentNewHref({ routeBase: 'books/bills' }, { vendor: 'v1', fresh: 'f1' })).toBe(
+            'books/bills/new?fresh=f1&vendor=v1'
+        )
+        expect(documentNewHref({ routeBase: 'books/bills' }, { fresh: 'f1' })).toBe(
+            'books/bills/new?fresh=f1'
+        )
+    })
+
     // Save & new on an estimate carries the customer it was opened with; no screen of
     // this unit links to `?customer`, so this is its coverage. The layer's order holds:
     // `fresh` first, then `customer`.

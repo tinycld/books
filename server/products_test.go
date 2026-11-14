@@ -965,3 +965,21 @@ func TestProduct_DeleteRefusedWhileOnEstimateLines(t *testing.T) {
 		"This product or service is on 2 estimates. Make it inactive instead.")
 	requireProductCount(t, app, 1)
 }
+
+// Spec §3.10: a product on a bill line cannot be deleted; the count is of
+// bills, not of lines.
+func TestProduct_DeleteRefusedWhileOnBillLines(t *testing.T) {
+	be := newBillEnv(t)
+	first := mkBill(t, be.app, be.summit, nil)
+	mkBillLine(t, be.app, first, 0, productLine(be.patchCable, 1, 310))
+	mkBillLine(t, be.app, first, 1, productLine(be.patchCable, 2, 310))
+	requireMessageOnlyRefusal(t, be.app.Delete(reload(t, be.app, "books_products", be.patchCable.Id)),
+		"This product or service is on 1 bill. Make it inactive instead.")
+	reload(t, be.app, "books_products", be.patchCable.Id)
+
+	second := mkBill(t, be.app, be.officeSupply, nil)
+	mkBillLine(t, be.app, second, 0, productLine(be.patchCable, 12, 310))
+	requireMessageOnlyRefusal(t, be.app.Delete(reload(t, be.app, "books_products", be.patchCable.Id)),
+		"This product or service is on 2 bills. Make it inactive instead.")
+	reload(t, be.app, "books_products", be.patchCable.Id)
+}

@@ -76,7 +76,8 @@ export function DocumentScreen({
     ...input
 }: DocumentScreenInput & { document: DocumentKind; tab?: string }) {
     const data = useDocumentScreen(documentKind, input)
-    const tab = documentTabOf(tabParam)
+    // A kind without a PDF has no tabs: a `tab` param in its URL shows the form.
+    const tab = documentKind.doc.features.pdf ? documentTabOf(tabParam) : 'edit'
     const reloadRows = documentKind.data.useReload()
     // A reload mounts a new form on the stored document: the old form's typed values go
     // with it. Local to this screen: no other component reads it.
