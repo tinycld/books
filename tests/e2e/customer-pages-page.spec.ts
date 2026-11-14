@@ -9,6 +9,7 @@ import {
     discardDialog,
     field,
     holdRecordWrite,
+    isDisabled,
     isRecordUrl,
     openBooks,
     openCustomer,
@@ -18,6 +19,7 @@ import {
     refusedWrites,
     searchCustomers,
     seenNotFoundOrDiscard,
+    settle,
     stampDigits,
     takesClickAtCenter,
     uniqueName,
@@ -359,10 +361,34 @@ test.describe('customer-pages: customer page', () => {
         await expect(phoneNotesTab).toHaveAttribute('aria-selected', 'true')
         await expect(page.getByTestId('customer-notes-input')).toBeVisible()
         await page.setViewportSize(DESKTOP)
+
+        // An inactive customer takes no new transaction: the button is disabled with the
+        // reason under it, and ⌥N opens no menu.
+        const newTransaction = page.getByTestId('customer-new-transaction')
+        const newTransactionHint = page.getByTestId('customer-new-transaction-hint')
+        const newInvoice = page.getByTestId('customer-new-invoice')
+        await expect.poll(() => isDisabled(newTransaction)).toBe(true)
+        await expect(newTransactionHint).toHaveText(
+            'Make this customer active to add transactions.'
+        )
+        await title.click()
+        await page.keyboard.press('Alt+n')
+        await settle(page)
+        await expect(newInvoice).toHaveCount(0)
+
         await openMore(page)
         await expect(page.getByTestId('customer-more-inactive')).toHaveText('Make active')
         await page.getByTestId('customer-more-inactive').click()
         await expect(badge).toHaveCount(0)
+
+        // Active again: the button is enabled and ⌥N opens the menu.
+        await expect.poll(() => isDisabled(newTransaction)).toBe(false)
+        await expect(newTransactionHint).toHaveCount(0)
+        await title.click()
+        await page.keyboard.press('Alt+n')
+        await expect(newInvoice).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(newInvoice).toHaveCount(0)
         await chooseMore(page, 'customer-more-delete')
         await page.getByTestId('delete-customer-confirm').click()
         await expect(page).toHaveURL(LIST_URL)

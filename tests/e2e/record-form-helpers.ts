@@ -275,24 +275,39 @@ export async function returnToBooks(page: Page) {
 }
 
 // Holds every load of `url`, so what it answers is not ready. `held` lists the held
-// loads; `release` lets them through.
+// loads; `release` lets them through, or, given `{ status }`, answers each held load
+// with that PocketBase-shaped error instead (a load seen loading, then failing).
 export async function holdLoads(page: Page, url: string) {
     let open = () => {}
     const released = new Promise<void>(resolve => {
         open = resolve
     })
     const held: string[] = []
+    let answer: { status: number } | undefined
     const handler = async (route: Route) => {
         held.push(route.request().url())
         await released
-        await route.continue()
+        if (answer === undefined) {
+            await route.continue()
+            return
+        }
+        await route.fulfill({
+            status: answer.status,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                status: answer.status,
+                message: 'Something went wrong.',
+                data: {},
+            }),
+        })
     }
     await page.route(url, handler)
     return {
         held,
         // Waits for the held handlers: removing a route under a pending handler hands
         // its request on, and the handler's own `continue` then fails.
-        release: async () => {
+        release: async (refusal?: { status: number }) => {
+            answer = refusal
             open()
             await page.unrouteAll({ behavior: 'wait' })
         },
