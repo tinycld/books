@@ -27,11 +27,17 @@ To set when the customer must pay, choose Payment terms, such as Net 30. When yo
 
 ## Edit a customer
 
-To edit a customer, choose its row in the list, or open the menu on its row and choose Edit. The customer opens on its page, where you edit the Details and Notes tabs in place. When you change a field, Save and Cancel show in a bar at the bottom of the page, on every tab. Choose Save, or press ⌘S, to write your changes and stay on the page. Only the fields you changed are written. To select the Details tab press ⌥3, and to select the Notes tab press ⌥4.
+To edit a customer, choose its row in the list, or open the menu on its row and choose Edit. The customer opens on its page, on the Transactions tab; you edit the Details and Notes tabs in place. When you change a field, Save and Cancel show in a bar at the bottom of the page, on every tab. Choose Save, or press ⌘S, to write your changes and stay on the page. Only the fields you changed are written. To select the Details tab press ⌥3, and to select the Notes tab press ⌥4.
 
 To throw your changes away, choose Cancel or press Esc, then choose Discard. If you try to leave a customer that has changes that are not saved, Books asks "Discard changes?" first. Choose Keep editing to go back to the page, or Discard to leave without saving. When nothing is changed, Esc goes back to the list.
 
 On a very wide window, an open customer's page shows beside the list of names, and the list stays in use. A new customer opens in a panel beside the list. On a smaller window or a phone, the customer opens as its own page over the list. If you make the window wider or narrower, the open customer moves between the two and keeps what you typed.
+
+## A customer's transactions
+
+The Transactions tab lists the customer's invoices, estimates and sales receipts, newest first. To select it, press ⌥1. Each row shows the date, the type, the number, the due date (invoices only), the total and the status. An invoice is Draft, Open, Overdue (posted and due before today) or Void; an estimate is Pending, Accepted, Rejected, Closed or Expired; a sales receipt is Draft, Paid or Void. A corrected invoice or sales receipt shows once, with its number: the voided original is left out.
+
+To see one type only, choose Invoices, Estimates or Sales receipts above the list; choose All, or Show all, to see every type again. The list starts on All each time you open the customer or select the Transactions tab again. Choose a row to open the document; go back to return to the customer's page as you left it. If the customer has no transactions yet, choose New transaction to start an invoice, an estimate or a sales receipt for the customer.
 
 ## Sub-customers
 

@@ -5,7 +5,6 @@ import { Menu } from '@tinycld/core/ui/menu'
 import { MoreHorizontal } from 'lucide-react-native'
 import { Pressable } from 'react-native'
 import type { CustomerPageState } from '../../../hooks/useCustomerPage'
-import { customerPageControls } from '../../../lib/customer-page-tabs'
 import type { BooksCustomers } from '../../../types'
 import { WhileOpen } from '../../RecordRowMenu'
 import { DeleteCustomerDialog } from '../DeleteCustomerDialog'
@@ -51,12 +50,7 @@ function AddSubItem({ isVisible, onSelect }: { isVisible: boolean; onSelect: () 
 export function CustomerMoreMenu({ record, page, isPhone }: CustomerMoreMenuProps) {
     const writes = useWritesAvailable()
     const color = useThemeColor('foreground')
-    const { actions, navigation, deleteDialog } = page
-    const controls = customerPageControls({
-        canWrite: page.canWrite,
-        inactive: record.inactive,
-        isTopLevel: record.parent === '',
-    })
+    const { actions, navigation, deleteDialog, controls } = page
     if (!controls.showMore) return null
     const isWriteDisabled = actions.isWorking || !writes.available
     const addSub = () => navigation.openNew(record.id)

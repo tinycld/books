@@ -1,0 +1,105 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "transactions",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280, 1600],
+            "height": 1000,
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "waitFor": "customer-balance-open" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "filter-empty",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "actions": [
+                { "fill": "customers-search", "value": "Alvarez" },
+                { "clickText": "Marisol Alvarez" },
+                { "waitFor": "customer-tab-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-sales-receipt" },
+                { "waitFor": "customer-transactions-no-match" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "empty-inactive-sub",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "actions": [
+                { "click": "customers-show-inactive" },
+                { "fill": "customers-search", "value": "Boise" },
+                { "clickText": "Northwind Boise (closed)" },
+                { "waitFor": "customer-transactions-empty" },
+                { "waitFor": "customer-new-transaction-hint" },
+                { "click": "customer-tab-transactions" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "settleMs": 800,
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-transactions" },
+                { "waitForHidden": "customer-transactions-loading" }
+            ]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1600],
+            "actions": [
+                { "fill": "customers-search", "value": "St. Jude Community" },
+                {
+                    "clickText": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "customer-tab-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "waitFor": "customer-balance-open" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_invoices", "hold": true },
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-transactions-loading" }
+            ]
+        }
+    ]
+}
