@@ -26,6 +26,7 @@ export const COMPANY_SETTINGS = {
     threshold_1099: 200000,
     sales_deposit_account: '',
     default_customer_message: '',
+    purchase_lines: 'both',
     created: STAMP,
     updated: STAMP,
 } satisfies BooksSettings

@@ -456,7 +456,9 @@ export function recordFormHelpers(kind: RecordKind) {
         const pageBack = page.getByTestId(`${recordPrefix}-back`)
         const panelClose = page.getByTestId(`${recordPrefix}-close`)
         const notFoundBack = page.getByTestId(`${recordPrefix}-not-found-back`)
-        const listCard = page.getByTestId(kind.listCard)
+        // The shown hub's card: a Lists hub that a later screen covers stays mounted below
+        // it, so a second Lists press can leave two hubs in the stack.
+        const listCard = page.getByTestId(kind.listCard).filter({ visible: true })
         // A fresh page may reopen Books at its last route (the list, or a record), and
         // pressing the nav item over either would stack a second screen.
         await expect(

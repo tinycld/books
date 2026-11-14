@@ -118,7 +118,22 @@ describe('registries', () => {
             'sales_receipt',
         ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
-        expect(columns[1]?.actions.map(a => a.id)).toEqual(['vendor'])
+        expect(columns[1]?.actions.map(a => a.id)).toEqual(['vendor', 'bill'])
+    })
+
+    it('NEW_ACTIONS has an available Bill action in the vendors column at books/bills/new', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'bill')).toEqual({
+            id: 'bill',
+            label: 'Bill',
+            href: 'books/bills/new',
+            column: 'vendors',
+            available: true,
+        })
+    })
+
+    it('the New menu Vendors column lists Vendor, then Bill', () => {
+        const vendors = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Vendors')
+        expect(vendors?.actions.map(a => a.label)).toEqual(['Vendor', 'Bill'])
     })
 
     it('the New menu puts an available Invoice right after Customer in the Customers column', () => {
@@ -485,6 +500,9 @@ describe('hidesNewFab', () => {
         '/a/books/sales-receipts/abc',
         '/a/books/estimates/new',
         '/a/books/estimates/abc',
+        '/a/books/bills/new',
+        '/a/books/bills/abc',
+        '/a/acme/books/bills/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

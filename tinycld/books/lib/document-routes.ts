@@ -7,12 +7,13 @@ type RouteKind = Pick<SalesDocumentKind, 'routeBase'>
 
 // The kind's new-document route with only the params given. `fresh` is a nonce: a
 // replace from one new form to another (Post & new) keys a fresh form on it; it comes
-// before `customer`, which Post & new keeps only when the form was opened with it.
-// `estimate` starts an invoice from that estimate (Convert to invoice).
+// before the party (`customer` or `vendor`), which Post & new keeps only when the form
+// was opened with it. `estimate` starts an invoice from that estimate (Convert to invoice).
 export function documentNewHref(
     kind: RouteKind,
     input: {
         customer?: string
+        vendor?: string
         fresh?: string
         replaces?: string
         copy?: string
@@ -20,7 +21,7 @@ export function documentNewHref(
     }
 ): string {
     const params = new URLSearchParams()
-    for (const key of ['replaces', 'copy', 'estimate', 'fresh', 'customer'] as const) {
+    for (const key of ['replaces', 'copy', 'estimate', 'fresh', 'customer', 'vendor'] as const) {
         const value = input[key]
         if (value) params.set(key, value)
     }

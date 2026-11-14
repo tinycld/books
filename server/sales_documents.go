@@ -25,12 +25,21 @@ const (
 	lifecycleQuote   = "quote"
 )
 
-// salesDocKind is one kind of sales document (an invoice, a sales receipt, an
-// estimate): the collections it writes, the forms host of its lines, its doc
-// type, its lifecycle, its refusal texts and the parts of its guards and
-// posting that differ by kind. Every guard and the posting below take a kind;
-// invoiceKind (invoices.go), salesReceiptKind (sales_receipts.go) and
-// estimateKind (estimates.go) are the kinds.
+// The parties a document names: the header field that holds it and the field
+// of each journal line that names it.
+const (
+	partyCustomer = "customer"
+	partyVendor   = "vendor"
+)
+
+// salesDocKind is one kind of document of the shared layer: the sales
+// documents (an invoice, a sales receipt, an estimate) and the purchase
+// documents (a bill). It holds the collections the kind writes, the forms host
+// of its lines, its doc type, its lifecycle, its party, its refusal texts and
+// the parts of its guards and posting that differ by kind. Every guard and the
+// posting below take a kind; invoiceKind (invoices.go), salesReceiptKind
+// (sales_receipts.go), estimateKind (estimates.go) and billKind (bills.go) are
+// the kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
@@ -41,16 +50,34 @@ type salesDocKind struct {
 	// and posted tax line collections; ParentField is the field of a line and
 	// of a tax line that names its document.
 	Collection, LinesCollection, TaxLinesCollection, ParentField string
-	// HostKey is the forms host whose lines built-in says which cells each
-	// kind of line needs (forms/hosts.ts).
+	// HostKey is the forms host whose line table built-ins say which cells
+	// each kind of line needs (forms/hosts.ts).
 	HostKey string
-	// CustomerRequired records the schema's rule: the invoice's `customer`
-	// relation is required in its migration, the sales receipt's is not. No Go
-	// code reads it: the shared guard checks a customer only when one is
-	// chosen, and the schema refuses an empty one on an invoice. It mirrors
-	// the client kind's `customerRequired` (lib/sales-document-kinds.ts).
+	// LineTables are the host's table built-ins whose row kinds a line may
+	// take: a line's kind is looked up in each of them.
+	LineTables []string
+	// LineRowLabels names a line in a refusal by its kind ("Account line"),
+	// numbered among the document's lines of that kind. nil numbers every line
+	// across the document as "Line n" (the sales kinds' one table).
+	LineRowLabels map[string]string
+	// Party is the header field that names the document's party, partyCustomer
+	// or partyVendor; the entry's lines name it in the field of the same name.
+	// PartyCollection is the party's collection.
+	Party, PartyCollection string
+	// AddressField is the header's address snapshot of the party (an
+	// invoice's bill_to, a bill's mailing_address).
+	AddressField string
+	// CustomerRequired records the schema's rule that the party is required:
+	// the invoice's `customer` and the bill's `vendor` relations are required
+	// in their migrations, the sales receipt's is not. No Go code reads it:
+	// the shared guard checks a party only when one is chosen, and the schema
+	// refuses an empty one. It mirrors the client kind's `customerRequired`
+	// (lib/sales-document-kinds.ts).
 	CustomerRequired bool
-	Msgs             salesDocMessages
+	// HasTax is false for a kind with no sales tax: no tax-rate guard, no tax
+	// in its totals and no tax snapshot when it posts.
+	HasTax bool
+	Msgs   salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
@@ -72,9 +99,15 @@ type salesDocKind struct {
 	// BeforePost runs in the posting transaction before the lines are read;
 	// nil is no step, and a quote has none.
 	BeforePost func(tx core.App, doc *core.Record) error
-	// DebitAccount is the account the posting debits for the total; nil for a
-	// quote, which never posts.
-	DebitAccount func(tx core.App, doc *core.Record) (string, error)
+	// DebitAccount is the account the posting debits for the total (a sales
+	// kind's control account); CreditAccount the account it credits for the
+	// total (a bill's Accounts payable). A posting kind sets exactly one of
+	// them; a quote, which never posts, sets neither.
+	DebitAccount  func(tx core.App, doc *core.Record) (string, error)
+	CreditAccount func(tx core.App, doc *core.Record) (string, error)
+	// LineAccounts are the entry's lines for the document's lines, on the side
+	// opposite the total's; nil is incomeByAccount (the sales kinds' credits).
+	LineAccounts func(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error)
 }
 
 // isEditableStatus reports whether a person may change a document in status
@@ -88,12 +121,13 @@ func (k salesDocKind) isEditableStatus(status string) bool {
 }
 
 // salesDocMessages are the refusal texts that name the kind ("invoice",
-// "sales receipt", "estimate"). The texts every kind shares are constants. On
-// a quote, NotDraft, DeleteNotDraft and LineNotDraft are the texts of a closed
-// document; ZeroTotal, PostedFromForm and EditMissing are posting texts.
+// "sales receipt", "estimate", "bill"). The texts every kind shares are
+// constants. On a quote, NotDraft, DeleteNotDraft and LineNotDraft are the
+// texts of a closed document; ZeroTotal, PostedFromForm and EditMissing are
+// posting texts. PartyInactive refuses an inactive party; %s is its name.
 type salesDocMessages struct {
 	TotalNegative, TotalTooLarge, TooManyLines, ZeroTotal, PostedFromForm, NotDraft, DeleteNotDraft,
-	LineStays, LineNotDraft, LineRestating, LineUnknownKind, EditMissing, CustomerOnDocs string
+	LineStays, LineNotDraft, LineRestating, LineUnknownKind, EditMissing, CustomerOnDocs, PartyInactive string
 	// RevisionConflict refuses a save or a post of a document that changed after
 	// the caller loaded it (revision.go), with status 409.
 	RevisionConflict string
@@ -103,26 +137,27 @@ type salesDocMessages struct {
 // cells each kind of line needs.
 const salesDocLinesKey = "lines"
 
-// Refusal texts every sales document kind shares. A line's texts start with
-// its number; a product's name is kept as typed (refuseNamed).
+// Refusal texts every document kind shares. A line's texts start with its
+// label (lineRowLabel: "Line 3", "Account line 2"); a product's name is kept
+// as typed (refuseNamed).
 const (
 	msgDocumentDay             = "Enter a date that exists, in the form YYYY-MM-DD."
 	msgDocumentDayTooEarly     = "Enter a date in 1900 or later."
 	msgDocumentTaxRateInactive = "The tax rate is inactive. Choose an active rate."
 	msgLineAmountByBooks       = "Books computes a line's amount."
-	msgLineProductInactive     = "Line %d: %s is inactive. Choose an active product or service."
-	msgLineBundle              = "Line %d: a bundle is never stored on a line. Pick it again to add its items."
-	msgLineTooLarge            = "Line %d: the amount is too large."
-	msgLineNoAmountKind        = "Line %d: A %s line has no product or amount."
-	msgLineCell                = "Line %d: %s."
-	msgLineQuantity            = "Line %d: Enter a quantity more than 0."
-	msgLineItemPercent         = "Line %d: An item line has no percent."
-	msgLinePercentCells        = "Line %d: A percent line has no quantity or rate."
+	msgLineProductInactive     = "%s: %s is inactive. Choose an active product or service."
+	msgLineBundle              = "%s: a bundle is never stored on a line. Pick it again to add its items."
+	msgLineTooLarge            = "%s: the amount is too large."
+	msgLineNoAmountKind        = "%s: A %s line has no product or amount."
+	msgLineCell                = "%s: %s."
+	msgLineQuantity            = "%s: Enter a quantity more than 0."
+	msgLineItemPercent         = "%s: An item line has no percent."
+	msgLinePercentCells        = "%s: A percent line has no quantity or rate."
 )
 
-// documentDocTypes are the doc types of the sales documents: their entries come
-// only from posting the document (entries.go).
-var documentDocTypes = map[string]bool{docTypeInvoice: true, docTypeSalesReceipt: true}
+// documentDocTypes are the doc types of the documents that post: their entries
+// come only from posting the document (entries.go).
+var documentDocTypes = map[string]bool{docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true}
 
 // maxDocumentLines is the most lines one sales document holds; the client's
 // bound is MAX_DOCUMENT_LINES (lib/document-lines.ts).
@@ -510,20 +545,23 @@ func onlySalesDocUnlinks(tx core.App, stored, r *core.Record) (bool, error) {
 }
 
 // checkDraftSalesDoc runs the header guards of a draft (the kind's own, then
-// the customer, the tax rate and the address every kind has), sets the sort
-// key, and sets the three totals from the stored lines and the header tax.
+// the party, the tax rate of a kind with tax and the address every kind has),
+// sets the sort key, and sets the totals from the stored lines and the header
+// tax.
 func checkDraftSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	if err := kind.CheckHeader(tx, stored, r); err != nil {
 		return err
 	}
-	if err := checkSalesDocCustomer(tx, kind, stored, r); err != nil {
+	if err := checkSalesDocParty(tx, kind, stored, r); err != nil {
 		return err
 	}
-	if err := checkSalesDocTaxRate(tx, stored, r); err != nil {
-		return err
+	if kind.HasTax {
+		if err := checkSalesDocTaxRate(tx, stored, r); err != nil {
+			return err
+		}
 	}
-	if !isAddress(r.Get("bill_to")) {
-		return refuseField("bill_to", msgAddressShape)
+	if !isAddress(r.Get(kind.AddressField)) {
+		return refuseField(kind.AddressField, msgAddressShape)
 	}
 	r.Set("sort_key", salesDocSortKey(r))
 
@@ -531,14 +569,14 @@ func checkDraftSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) 
 	if err != nil {
 		return err
 	}
-	totals, err := salesDocTotals(tx, r, lineInputs(lines))
+	totals, err := salesDocTotals(tx, kind, r, lineInputs(lines))
 	if err != nil {
 		return err
 	}
-	if err := checkSalesDocTotals(kind, totals); err != nil {
+	if err := checkSalesDocTotals(kind, lines, totals); err != nil {
 		return err
 	}
-	setSalesDocTotals(r, totals)
+	setSalesDocTotals(kind, r, totals)
 	return settleLinesWithHeader(tx, kind, r.Id, lines, totals)
 }
 
@@ -556,35 +594,35 @@ func settleLinesWithHeader(tx core.App, kind salesDocKind, docID string, lines [
 	return restateLineAmounts(tx, kind, docID, lines, totals)
 }
 
-// checkSalesDocCustomer refuses an inactive customer when the write chooses it;
-// a draft keeps a customer that became inactive after it was chosen, and a
-// correction keeps its original's. An empty customer passes: the invoice's
-// schema requires one, the sales receipt's does not. A customer that does not
-// exist is the schema's refusal.
-func checkSalesDocCustomer(tx core.App, kind salesDocKind, stored, r *core.Record) error {
-	id := r.GetString("customer")
-	if id == "" || (stored != nil && stored.GetString("customer") == id) {
+// checkSalesDocParty refuses an inactive party (customer or vendor) when the
+// write chooses it; a draft keeps a party that became inactive after it was
+// chosen, and a correction keeps its original's. An empty party passes: the
+// invoice's and the bill's schemas require one, the sales receipt's does not.
+// A party that does not exist is the schema's refusal.
+func checkSalesDocParty(tx core.App, kind salesDocKind, stored, r *core.Record) error {
+	id := r.GetString(kind.Party)
+	if id == "" || (stored != nil && stored.GetString(kind.Party) == id) {
 		return nil
 	}
-	customer, err := tx.FindRecordById("books_customers", id)
+	party, err := tx.FindRecordById(kind.PartyCollection, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("books: read the document's customer: %w", err)
+		return fmt.Errorf("books: read the document's %s: %w", kind.Party, err)
 	}
-	if !customer.GetBool("inactive") {
+	if !party.GetBool("inactive") {
 		return nil
 	}
-	keeps, err := keepsCorrectedCustomer(tx, kind, r, id)
+	keeps, err := keepsCorrectedParty(tx, kind, r, id)
 	if err != nil || keeps {
 		return err
 	}
-	return refuseNamedField("customer", msgCustomerInactive, customer.GetString("display_name"))
+	return refuseNamedField(kind.Party, kind.Msgs.PartyInactive, party.GetString("display_name"))
 }
 
 // checkSalesDocTaxRate refuses an inactive rate or group when the write
-// chooses it, as checkSalesDocCustomer does for the customer.
+// chooses it, as checkSalesDocParty does for the party.
 func checkSalesDocTaxRate(tx core.App, stored, r *core.Record) error {
 	id := r.GetString("tax_rate")
 	if id == "" || (stored != nil && stored.GetString("tax_rate") == id) {
@@ -625,6 +663,8 @@ func docLineRecords(tx core.App, linesCollection, parentField, docID string) ([]
 	return lines, nil
 }
 
+// lineInputs reads the lines as the totals math takes them. Amount is the
+// stored amount, which the math reads only on an account line (typed there).
 func lineInputs(lines []*core.Record) []documentLine {
 	out := make([]documentLine, len(lines))
 	for i, l := range lines {
@@ -634,15 +674,80 @@ func lineInputs(lines []*core.Record) []documentLine {
 			Rate:       int64(l.GetInt("rate")),
 			PercentPpm: int64(l.GetInt("percent_ppm")),
 			Taxable:    l.GetBool("taxable"),
+			Amount:     int64(l.GetInt("amount")),
 		}
 	}
 	return out
 }
 
+// lineRowLabel is how a refusal names line among the document's lines (in
+// their order): "Line 3" for a sales kind, whose lines are numbered across the
+// document; "Account line 2" for a kind with LineRowLabels, numbered among
+// the lines of the same kind.
+func lineRowLabel(kind salesDocKind, lines []*core.Record, line *core.Record) string {
+	return lineRowPlace(kind, lines, line).String()
+}
+
+// linePlace is a line's label and its number under that label.
+type linePlace struct {
+	label string
+	n     int
+}
+
+func (p linePlace) String() string {
+	return fmt.Sprintf("%s %d", p.label, p.n)
+}
+
+// lineRowPlace is lineRowLabel's label and number apart. A kind with no label
+// of its own (every kind of a sales document) names the line "Line" by its
+// place among all the lines.
+func lineRowPlace(kind salesDocKind, lines []*core.Record, line *core.Record) linePlace {
+	label, ok := kind.LineRowLabels[line.GetString("kind")]
+	if !ok {
+		label = "Line"
+	}
+	n := 0
+	for _, l := range lines {
+		if ok && l.GetString("kind") != line.GetString("kind") {
+			continue
+		}
+		n++
+		if l.Id == line.Id {
+			break
+		}
+	}
+	return linePlace{label, n}
+}
+
+// deferredLinePlace is lineRowPlace for a line write in a batch, which reads
+// no other line: the line is named by its position, as the client writes the
+// positions with no gap. A kind with no LineRowLabels numbers its lines across
+// the document ("Line 3"); a kind with LineRowLabels numbers each line kind in
+// its own table from 0 (planTableWrites per table), so the position is also the
+// line's number among the lines of its kind ("Account line 2"). Only a line
+// kind that LineRowLabels does not name is counted over every stored line.
+func deferredLinePlace(tx core.App, kind salesDocKind, docID string, r *core.Record) (linePlace, error) {
+	if kind.LineRowLabels == nil {
+		return linePlace{"Line", r.GetInt("position") + 1}, nil
+	}
+	if label, ok := kind.LineRowLabels[r.GetString("kind")]; ok {
+		return linePlace{label, r.GetInt("position") + 1}, nil
+	}
+	others, err := salesDocLines(tx, kind, docID)
+	if err != nil {
+		return linePlace{}, err
+	}
+	return lineRowPlace(kind, withLine(others, r), r), nil
+}
+
 // ownLineAmount is the amount of a line that depends on no other line: an
-// item's quantity times its rate. A percent or subtotal line's amount comes
-// from the lines before it, so the restatement writes it; until then it is 0.
+// item's quantity times its rate, or an account line's typed amount. A percent
+// or subtotal line's amount comes from the lines before it, so the restatement
+// writes it; until then it is 0.
 func ownLineAmount(r *core.Record) int64 {
+	if r.GetString("kind") == lineKindAccount {
+		return int64(r.GetInt("amount"))
+	}
 	totals := documentTotals(lineInputs([]*core.Record{r}), nil, nil)
 	if r.GetString("kind") != lineKindItem || !totals.HasAmount[0] {
 		return 0
@@ -652,8 +757,11 @@ func ownLineAmount(r *core.Record) int64 {
 
 // salesDocTotals runs documentTotals over lines with the document's header
 // tax: a rate is its own one component, a group its components in the group's
-// order.
-func salesDocTotals(tx core.App, doc *core.Record, lines []documentLine) (documentTotalsResult, error) {
+// order. A kind with no tax has none.
+func salesDocTotals(tx core.App, kind salesDocKind, doc *core.Record, lines []documentLine) (documentTotalsResult, error) {
+	if !kind.HasTax {
+		return documentTotals(lines, nil, nil), nil
+	}
 	ppms, ids, err := taxComponents(tx, doc.GetString("tax_rate"))
 	if err != nil {
 		return documentTotalsResult{}, err
@@ -697,15 +805,16 @@ func taxComponents(tx core.App, taxRateID string) ([]int64, []string, error) {
 }
 
 // checkSalesDocTotals refuses a percent line with no target, a line amount
-// past maxAmount and a total below zero or past maxStoredAmount. Line numbers
-// count from 1 in the lines' order.
-func checkSalesDocTotals(kind salesDocKind, totals documentTotalsResult) error {
+// past maxAmount and a total below zero or past maxStoredAmount. totals are
+// those of lines, in the same order; a line is named by lineRowLabel.
+func checkSalesDocTotals(kind salesDocKind, lines []*core.Record, totals documentTotalsResult) error {
 	if len(totals.PercentTargetErrors) > 0 {
-		return refuse("Line %d: %s", totals.PercentTargetErrors[0]+1, msgPercentTarget)
+		line := lines[totals.PercentTargetErrors[0]]
+		return refuse("%s: %s", lineRowLabel(kind, lines, line), msgPercentTarget)
 	}
 	for i, amount := range totals.Amounts {
 		if totals.HasAmount[i] && (amount > maxAmount || amount < -maxAmount) {
-			return refuse(msgLineTooLarge, i+1)
+			return refuse(msgLineTooLarge, lineRowLabel(kind, lines, lines[i]))
 		}
 	}
 	if totals.TooLarge || totals.Total > maxStoredAmount || totals.Subtotal > maxStoredAmount {
@@ -717,9 +826,12 @@ func checkSalesDocTotals(kind salesDocKind, totals documentTotalsResult) error {
 	return nil
 }
 
-func setSalesDocTotals(r *core.Record, totals documentTotalsResult) {
+// setSalesDocTotals writes the totals; a kind with no tax has no tax_total.
+func setSalesDocTotals(kind salesDocKind, r *core.Record, totals documentTotalsResult) {
 	r.Set("subtotal", totals.Subtotal)
-	r.Set("tax_total", totals.TaxTotal)
+	if kind.HasTax {
+		r.Set("tax_total", totals.TaxTotal)
+	}
 	r.Set("total", totals.Total)
 }
 
@@ -729,9 +841,10 @@ func setSalesDocTotals(r *core.Record, totals documentTotalsResult) {
 // has its own cells and no others, a product the write chooses is active and
 // not a bundle, and the document's lines with this write still have a target
 // for every percent line and totals Books can store. It sets the line's
-// amount. While restateSalesDoc writes the document's lines, an update that
-// changes only the amount passes and any other update is refused. stored is
-// the record before an update, nil on a create.
+// amount: Books computes it, so a write that sends one is refused, except on
+// an account line, which keeps the amount typed. While restateSalesDoc writes the document's lines, an update
+// that changes only the amount passes and any other update is refused. stored
+// is the record before an update, nil on a create.
 func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	docID := r.GetString(kind.ParentField)
 	if stored != nil && stored.GetString(kind.ParentField) != docID {
@@ -743,7 +856,11 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		}
 		return nil
 	}
-	if stored != nil && stored.GetInt("amount") != r.GetInt("amount") {
+	typedAmount := r.GetString("kind") == lineKindAccount
+	if !typedAmount && stored == nil && r.GetInt("amount") != 0 {
+		return refuse(msgLineAmountByBooks)
+	}
+	if !typedAmount && stored != nil && stored.GetInt("amount") != r.GetInt("amount") {
 		return refuse(msgLineAmountByBooks)
 	}
 	doc, err := tx.FindRecordById(kind.Collection, docID)
@@ -770,20 +887,22 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 
 	// In a batch the owner checks the document one time, after the last write
 	// (sales_document_deferral.go): this write checks its own line only and
-	// reads no other line. The line number is the line's position (the client
-	// writes positions with no gap).
+	// reads no other line (deferredLinePlace).
 	if isDeferring(tx, kind, docID) {
-		n := r.GetInt("position") + 1
-		if err := checkLineCells(tx, kind, r, n); err != nil {
+		place, err := deferredLinePlace(tx, kind, docID, r)
+		if err != nil {
 			return err
 		}
-		if err := checkLineProduct(tx, stored, r, n); err != nil {
+		if err := checkLineCells(tx, kind, r, place); err != nil {
+			return err
+		}
+		if err := checkLineProduct(tx, stored, r, place.String()); err != nil {
 			return err
 		}
 		// The schema's max would refuse the amount first, with its own text.
 		amount := ownLineAmount(r)
 		if amount > maxAmount || amount < -maxAmount {
-			return refuse(msgLineTooLarge, n)
+			return refuse(msgLineTooLarge, place.String())
 		}
 		r.Set("amount", amount)
 		return nil
@@ -795,17 +914,17 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 	}
 	lines := withLine(others, r)
 	index := slices.IndexFunc(lines, func(l *core.Record) bool { return l.Id == r.Id })
-	if err := checkLineCells(tx, kind, r, index+1); err != nil {
+	if err := checkLineCells(tx, kind, r, lineRowPlace(kind, lines, r)); err != nil {
 		return err
 	}
-	if err := checkLineProduct(tx, stored, r, index+1); err != nil {
+	if err := checkLineProduct(tx, stored, r, lineRowLabel(kind, lines, r)); err != nil {
 		return err
 	}
-	totals, err := salesDocTotals(tx, doc, lineInputs(lines))
+	totals, err := salesDocTotals(tx, kind, doc, lineInputs(lines))
 	if err != nil {
 		return err
 	}
-	if err := checkSalesDocTotals(kind, totals); err != nil {
+	if err := checkSalesDocTotals(kind, lines, totals); err != nil {
 		return err
 	}
 	r.Set("amount", totals.Amounts[index])
@@ -848,68 +967,97 @@ func compareLines(a, b *core.Record) int {
 	return strings.Compare(a.Id, b.Id)
 }
 
-// checkLineCells holds a line to its kind. The cells each kind requires (an
-// item's and a percent line's product, a description line's description) are
-// core's check of the document kind's forms host's row kinds, the same rule
-// the form runs; a host that is not bound refuses every line rather than let
-// one through unchecked. The rest are Books rules core does not make: an
-// item's quantity is more than 0 (PocketBase skips the schema's min for a 0 or
+// checkLineCells holds line r, named by place among the document's lines, to
+// its kind. A kind that no table of the document kind holds is refused.
+// The cells each kind requires (an item's and a percent line's product, a
+// description line's description, an account line's account) are core's
+// check of the document kind's forms host's row kinds, the same rule the form
+// runs; a host that is not bound refuses every line rather than let one
+// through unchecked. The rest are Books rules core does not make: an item's
+// quantity is more than 0 (PocketBase skips the schema's min for a 0 or
 // missing number) and it has no percent; a percent line has no quantity or
-// rate; a description or subtotal line has no product, rate or percent. A 0%
-// percent line is stored: refusing it is the client's rule. n is the line
-// number.
-func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, n int) error {
-	msg, err := lineRowError(tx, kind, r)
+// rate; a description or subtotal line has no product, rate or percent; a
+// bill's product line has no account; an account line has no product,
+// quantity or rate, and checkBillAccountLine checks its account. A 0% percent line is
+// stored: refusing it is the client's rule.
+func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePlace) error {
+	label, n := place.String(), place.n
+	table, err := lineTable(tx, kind, r.GetString("kind"))
 	if err != nil {
 		return err
 	}
-	if msg != "" {
-		return refuse(msgLineCell, n, msg)
+	if table == nil {
+		// A kind no table holds has no label of its own: n counts every line.
+		return refuse(kind.Msgs.LineUnknownKind, n)
+	}
+	if msg := table.RowError(storedLineCells(r)); msg != "" {
+		return refuse(msgLineCell, label, msg)
 	}
 	lineKind := r.GetString("kind")
 	switch lineKind {
 	case lineKindItem, lineKindPercent:
+		// Only a bill's lines have an account cell; a sales line reads "".
+		if lineKind == lineKindItem && r.GetString("account") != "" {
+			return refuse(msgBillProductLineAccount, label)
+		}
 		if lineKind == lineKindItem && r.GetFloat("quantity") <= 0 {
-			return refuse(msgLineQuantity, n)
+			return refuse(msgLineQuantity, label)
 		}
 		if lineKind == lineKindItem && r.GetInt("percent_ppm") != 0 {
-			return refuse(msgLineItemPercent, n)
+			return refuse(msgLineItemPercent, label)
 		}
 		if lineKind == lineKindPercent && (r.GetFloat("quantity") != 0 || r.GetInt("rate") != 0) {
-			return refuse(msgLinePercentCells, n)
+			return refuse(msgLinePercentCells, label)
 		}
 	case lineKindDescription, lineKindSubtotal:
 		if r.GetString("product") != "" || r.GetInt("rate") != 0 || r.GetInt("percent_ppm") != 0 {
-			return refuse(msgLineNoAmountKind, n, lineKind)
+			return refuse(msgLineNoAmountKind, label, lineKind)
 		}
+	case lineKindAccount:
+		if r.GetString("product") != "" || r.GetFloat("quantity") != 0 || r.GetInt("rate") != 0 {
+			return refuse(msgBillAccountLineCells, label)
+		}
+		return checkBillAccountLine(tx, r, n)
 	}
 	return nil
 }
 
-// lineRowError is core's per-kind required check of the document kind's lines
-// built-in over the line's cells, keyed as the form keys them: "" when the
-// line has every cell its kind needs. A stored line holds its percent in ppm.
-func lineRowError(tx core.App, kind salesDocKind, r *core.Record) (string, error) {
+// lineTable is the table built-in of the document kind's forms host, among
+// its LineTables, whose row kinds hold lineKind; nil when none does.
+func lineTable(tx core.App, kind salesDocKind, lineKind string) (*forms.Builtin, error) {
 	host := forms.HostFor(tx, kind.HostKey)
 	if host == nil {
-		return "", fmt.Errorf("books: the %s forms host is not bound", kind.HostKey)
+		return nil, fmt.Errorf("books: the %s forms host is not bound", kind.HostKey)
 	}
-	lines := host.Builtin(salesDocLinesKey)
-	if lines == nil {
-		return "", fmt.Errorf("books: the %s host has no %s built-in", kind.HostKey, salesDocLinesKey)
+	for _, key := range kind.LineTables {
+		table := host.Builtin(key)
+		if table == nil {
+			return nil, fmt.Errorf("books: the %s host has no %s built-in", kind.HostKey, key)
+		}
+		if slices.ContainsFunc(table.RowKinds, func(k forms.RowKind) bool { return k.Key == lineKind }) {
+			return table, nil
+		}
 	}
+	return nil, nil
+}
+
+// storedLineCells is a stored line's cells keyed as the form keys them, for
+// core's row check: a stored line holds its percent in ppm. `amount` is a cell
+// the bill's account row kind requires (its typed amount); a number is never
+// blank, so a 0 amount is checkBillAccountLine's refusal, not core's.
+func storedLineCells(r *core.Record) map[string]any {
 	row := map[string]any{"percent": r.Get("percent_ppm")}
-	for _, key := range []string{"kind", "product", "description", "quantity", "rate", "taxable"} {
+	for _, key := range []string{"kind", "product", "account", "description", "quantity", "rate", "amount", "taxable"} {
 		row[key] = r.Get(key)
 	}
-	return lines.RowError(row), nil
+	return row
 }
 
 // checkLineProduct refuses a bundle (the form adds a bundle's items, never the
 // bundle) and an inactive product when the write chooses it; a line keeps a
 // product that became inactive after it was chosen. A product that does not
-// exist is the schema's refusal. n is the line number.
-func checkLineProduct(tx core.App, stored, r *core.Record, n int) error {
+// exist is the schema's refusal. label names the line (lineRowLabel).
+func checkLineProduct(tx core.App, stored, r *core.Record, label string) error {
 	id := r.GetString("product")
 	if id == "" || (stored != nil && stored.GetString("product") == id) {
 		return nil
@@ -922,10 +1070,10 @@ func checkLineProduct(tx core.App, stored, r *core.Record, n int) error {
 		return fmt.Errorf("books: read the line's product: %w", err)
 	}
 	if product.GetString("type") == "bundle" {
-		return refuse(msgLineBundle, n)
+		return refuse(msgLineBundle, label)
 	}
 	if product.GetBool("inactive") {
-		return refuseNamed(msgLineProductInactive, n, product.GetString("name"))
+		return refuseNamed(msgLineProductInactive, label, product.GetString("name"))
 	}
 	return nil
 }
@@ -950,17 +1098,18 @@ func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) 
 		return err
 	}
 	left := slices.DeleteFunc(stored, func(l *core.Record) bool { return l.Id == line.Id })
-	totals, err := salesDocTotals(tx, doc, lineInputs(left))
+	totals, err := salesDocTotals(tx, kind, doc, lineInputs(left))
 	if err != nil {
 		return err
 	}
-	return checkSalesDocTotals(kind, totals)
+	return checkSalesDocTotals(kind, left, totals)
 }
 
 // restateSalesDoc recomputes every line amount and the document's totals from
 // its stored lines and header tax, and saves each line whose amount changed
-// and the document. The line guard lets the amounts through while the
-// document is marked restating; the header guard lets Books' own save through.
+// and the document. An account line's amount is the typed one, so it never
+// changes here. The line guard lets the amounts through while the document is
+// marked restating; the header guard lets Books' own save through.
 func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTotalsResult, error) {
 	doc, err := tx.FindRecordById(kind.Collection, docID)
 	if err != nil {
@@ -970,17 +1119,17 @@ func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTota
 	if err != nil {
 		return documentTotalsResult{}, err
 	}
-	totals, err := salesDocTotals(tx, doc, lineInputs(lines))
+	totals, err := salesDocTotals(tx, kind, doc, lineInputs(lines))
 	if err != nil {
 		return documentTotalsResult{}, err
 	}
-	if err := checkSalesDocTotals(kind, totals); err != nil {
+	if err := checkSalesDocTotals(kind, lines, totals); err != nil {
 		return documentTotalsResult{}, err
 	}
 	if err := restateLineAmounts(tx, kind, docID, lines, totals); err != nil {
 		return documentTotalsResult{}, err
 	}
-	setSalesDocTotals(doc, totals)
+	setSalesDocTotals(kind, doc, totals)
 	// The header guard would read the lines again to set these same totals.
 	defer ownWrite(tx, kind.Collection, doc.Id)()
 	if err := tx.Save(doc); err != nil {

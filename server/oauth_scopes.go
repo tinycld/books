@@ -12,10 +12,11 @@ const (
 // scope only decides whether a token may use a collection at all.
 //
 // The ledger, the customers, the vendors, their contact people, the products
-// (with their bundle rows), the sales tax agencies, rates and groups, the bank
-// connections, their files and the imports of those files are read-write; a
-// file's parsed rows, the bank transactions, which only the server writes, and
-// the party balances view are read-only. Everything that
+// (with their bundle rows), the sales and purchase documents with their lines,
+// the sales tax agencies, rates and groups, the bank connections, their files
+// and the imports of those files are read-write; a file's parsed rows, the bank
+// transactions, which only the server writes, and the party balances view are
+// read-only. Everything that
 // decides who may do what (the settings with the close date, numbering,
 // overrides, admin grants) is read-only for tokens, as is a sales document's tax
 // snapshot, which only posting writes: "record transactions" on a
@@ -54,6 +55,8 @@ func oauthPackage() oauth.Package {
 			"books_sales_receipt_tax_lines": ro,
 			"books_estimates":               rw,
 			"books_estimate_lines":          rw,
+			"books_bills":                   rw,
+			"books_bill_lines":              rw,
 			"books_party_contacts":          rw,
 			"books_party_balances":          ro,
 			"books_account_balances":        ro,

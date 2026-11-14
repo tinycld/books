@@ -1,11 +1,19 @@
 import type { BooksAccounts, BooksSettings } from '../types'
 import type { DepositAccountRow } from './deposit-accounts'
 import { formatMoney } from './money'
+import { PURCHASE_LINES_LABELS } from './purchase-lines'
 import { formatDay } from './register-range'
 import { setAccountLabel } from './sales-settings'
 import { FISCAL_MONTHS } from './setup-schema'
 
-export type SectionId = 'company' | 'accounting' | 'sales' | 'numbering' | 'form-1099' | 'access'
+export type SectionId =
+    | 'company'
+    | 'accounting'
+    | 'sales'
+    | 'purchases'
+    | 'numbering'
+    | 'form-1099'
+    | 'access'
 
 export type SettingsSection = { id: SectionId; label: string; adminOnly: boolean }
 
@@ -13,6 +21,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     { id: 'company', label: 'Company', adminOnly: false },
     { id: 'accounting', label: 'Accounting', adminOnly: false },
     { id: 'sales', label: 'Sales', adminOnly: false },
+    { id: 'purchases', label: 'Purchases', adminOnly: false },
     { id: 'numbering', label: 'Numbering', adminOnly: false },
     { id: 'form-1099', label: '1099s', adminOnly: false },
     { id: 'access', label: 'Access', adminOnly: true },
@@ -62,6 +71,15 @@ export function salesSummary(
     return settings.default_customer_message === '' ? deposit : `${deposit} · Default message set`
 }
 
+// The Purchases line. Without the settings (still loading or failed), it names the
+// setting and claims no value.
+export function purchasesSummary(
+    settings: Pick<BooksSettings, 'purchase_lines'> | undefined
+): string {
+    if (!settings) return 'Bill lines'
+    return `Bill lines: ${PURCHASE_LINES_LABELS[settings.purchase_lines]}`
+}
+
 export function sectionSummary(
     id: SectionId,
     data: {
@@ -74,6 +92,7 @@ export function sectionSummary(
     if (id === 'company') return data.settings?.business_name || 'Name your business'
     if (id === 'accounting') return accountingSummary(data.settings)
     if (id === 'sales') return salesSummary(data.settings, data.depositAccounts)
+    if (id === 'purchases') return purchasesSummary(data.settings)
     if (id === 'numbering') {
         return data.sequenceCount === 1 ? '1 document type' : `${data.sequenceCount} document types`
     }

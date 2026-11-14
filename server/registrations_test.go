@@ -847,6 +847,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSalesDocGuards(parts, invoiceKind)
 	registerSalesDocGuards(parts, salesReceiptKind)
 	registerSalesDocGuards(parts, estimateKind)
+	registerSalesDocGuards(parts, billKind)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)
