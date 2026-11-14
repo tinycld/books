@@ -48,12 +48,18 @@ func docLineCreateOps(t testing.TB, kind salesDocKind, docID string, lines []map
 	return ops
 }
 
-func (pe *postingEnv) batchAsBookkeeper(t *testing.T, want int, content []string, ops ...string) apiReq {
+// batchAs is one /api/batch call as user, with the operations in order.
+func batchAs(t testing.TB, user *core.Record, want int, content []string, ops ...string) apiReq {
 	t.Helper()
 	return apiReq{
-		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, pe.users.bookkeeper),
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, user),
 		body: batchBody(ops...), want: want, content: content,
 	}
+}
+
+func (pe *postingEnv) batchAsBookkeeper(t *testing.T, want int, content []string, ops ...string) apiReq {
+	t.Helper()
+	return batchAs(t, pe.users.bookkeeper, want, content, ops...)
 }
 
 // twelveLines has every kind of line, a percent line after an item and after
@@ -252,4 +258,291 @@ func TestDocDeferral_ASingleRequestAndAGoWriteKeepTheirRefusal(t *testing.T) {
 		content: []string{fmt.Sprintf(wantPercentTarget, 1)},
 	}.run(t, pe.app)
 	requireLineCount(t, pe.app, inv, 2)
+}
+
+func docHeaderOp(kind salesDocKind, docID, body string) string {
+	return fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/%s/records/%s","body":%s}`, kind.Collection, docID, body)
+}
+
+// threeLines are two items and a percent line that applies to the second.
+func (pe *postingEnv) threeLines() []map[string]any {
+	return []map[string]any{
+		item(pe.service, 3, 45000, false),
+		item(pe.accessPoint, 2, 18900, true),
+		percentLine(pe.discount, -100000),
+	}
+}
+
+// threeLineInvoice saves a draft with the Denver group and threeLines, each
+// line a single write.
+func (pe *postingEnv) threeLineInvoice(t testing.TB) *core.Record {
+	t.Helper()
+	inv := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	for i, line := range pe.threeLines() {
+		mkInvoiceLine(t, pe.app, inv, i, line)
+	}
+	return inv
+}
+
+// requireSamePosting compares the tax lines and the journal lines of two
+// posted invoices, in order.
+func requireSamePosting(t testing.TB, app core.App, gotID, wantID string) {
+	t.Helper()
+	rows := func(collection, field, id string, cells ...string) string {
+		records, err := app.FindRecordsByFilter(collection, field+" = {:id}", "position,id", 0, 0, dbx.Params{"id": id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := make([]string, len(records))
+		for i, r := range records {
+			for _, cell := range cells {
+				out[i] += r.GetString(cell) + " "
+			}
+		}
+		return strings.Join(out, "| ")
+	}
+	got, want := reload(t, app, "books_invoices", gotID), reload(t, app, "books_invoices", wantID)
+	if got.GetString("status") != statusPosted || want.GetString("status") != statusPosted {
+		t.Fatalf("status = %s and %s, want both posted", got.GetString("status"), want.GetString("status"))
+	}
+	gotTax := rows("books_invoice_tax_lines", "invoice", gotID, "component", "rate_ppm", "taxable_amount", "amount")
+	wantTax := rows("books_invoice_tax_lines", "invoice", wantID, "component", "rate_ppm", "taxable_amount", "amount")
+	if wantTax == "" || gotTax != wantTax {
+		t.Errorf("tax lines = %q, want %q", gotTax, wantTax)
+	}
+	gotEntry := rows("books_journal_lines", "entry", got.GetString("entry"), "account", "debit", "credit")
+	wantEntry := rows("books_journal_lines", "entry", want.GetString("entry"), "account", "debit", "credit")
+	if wantEntry == "" || gotEntry != wantEntry {
+		t.Errorf("entry lines = %q, want %q", gotEntry, wantEntry)
+	}
+}
+
+// Review Focus 4: the post reads settled lines, and the owner restates nothing
+// after it.
+func TestDocDeferral_APostInTheBatchReadsSettledLines(t *testing.T) {
+	pe := costEnv(t)
+	single := pe.threeLineInvoice(t)
+	mustPostInvoice(t, pe.app, single.Id, pe.users.bookkeeper.Id)
+
+	batched := bigInvoice(t, pe, 2)
+	saw := docRevision(t, pe.app, "books_invoices", batched.Id)
+	old, err := salesDocLines(pe.app, invoiceKind, batched.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops := []string{docLineDeleteOp(invoiceKind, old[1].Id), docLineDeleteOp(invoiceKind, old[0].Id)}
+	ops = append(ops, docLineCreateOps(t, invoiceKind, batched.Id, pe.threeLines())...)
+	ops = append(ops, docHeaderOp(invoiceKind, batched.Id, fmt.Sprintf(`{"status":"posted","revision":%d}`, saw+1)))
+
+	pe.batchAsBookkeeper(t, http.StatusOK, []string{`"status":"posted"`}, ops...).run(t, pe.app)
+
+	requireSameDocRows(t, pe.app, invoiceKind, batched.Id, single.Id)
+	requireSamePosting(t, pe.app, batched.Id, single.Id)
+	if got := docRevision(t, pe.app, "books_invoices", batched.Id); got != saw+1 {
+		t.Errorf("revision = %d, want %d", got, saw+1)
+	}
+	requireNoDrift(t, pe.app)
+}
+
+func TestDocDeferral_AHeaderSaveInTheBatchKeepsOneRevision(t *testing.T) {
+	pe := costEnv(t)
+	single := pe.threeLineInvoice(t)
+	batched := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	saw := docRevision(t, pe.app, "books_invoices", batched.Id)
+	ops := docLineCreateOps(t, invoiceKind, batched.Id, pe.threeLines())
+	ops = append(ops, docHeaderOp(invoiceKind, batched.Id, fmt.Sprintf(`{"memo":"October work","revision":%d}`, saw+1)))
+
+	pe.batchAsBookkeeper(t, http.StatusOK, []string{"October work"}, ops...).run(t, pe.app)
+
+	requireSameDocRows(t, pe.app, invoiceKind, batched.Id, single.Id)
+	saved := reload(t, pe.app, "books_invoices", batched.Id)
+	if saved.GetInt("revision") != saw+1 || saved.GetString("memo") != "October work" {
+		t.Errorf("revision/memo = %d/%q, want %d/October work", saved.GetInt("revision"), saved.GetString("memo"), saw+1)
+	}
+}
+
+// The header write settles the lines itself, so the owner does not save the
+// header a second time (each header save rewrites the search index).
+func TestDocDeferral_AHeaderSaveInTheBatchSavesTheHeaderOneTime(t *testing.T) {
+	pe := costEnv(t)
+	inv := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	saw := docRevision(t, pe.app, "books_invoices", inv.Id)
+	ops := docLineCreateOps(t, invoiceKind, inv.Id, pe.threeLines())
+	ops = append(ops, docHeaderOp(invoiceKind, inv.Id, fmt.Sprintf(`{"memo":"October work","revision":%d}`, saw+1)))
+
+	saves := countStatements(t, pe.app,
+		func(statement string) bool { return strings.HasPrefix(statement, "UPDATE `books_invoices` SET") },
+		func() { pe.batchAsBookkeeper(t, http.StatusOK, []string{"October work"}, ops...).run(t, pe.app) })
+
+	if saves != 1 {
+		t.Fatalf("%d saves of the header, want 1", saves)
+	}
+}
+
+// An invoice made from an estimate closes it inside the invoice's create. The
+// owner restates no closed estimate, so the close settles the lines.
+func TestDocDeferral_AnEstimateClosedInTheBatchKeepsSettledLines(t *testing.T) {
+	ce := newConversionEnv(t)
+	enableBatch(t, ce.app)
+	est := ce.mkEstimate(t, nil) // one item line of 450.00
+	ops := []string{
+		docLineCreateOp(t, estimateKind, est.Id, 1, percentLine(ce.service, -100000)),
+		docLineCreateOp(t, estimateKind, est.Id, 2, subtotalLine()),
+		fmt.Sprintf(`{"method":"POST","url":"/api/collections/books_invoices/records","body":{"customer":%q,"status":"draft","date":"2026-11-04","due_date":"2026-12-04","estimate":%q}}`,
+			ce.customer.Id, est.Id),
+	}
+
+	batchAs(t, ce.users.bookkeeper, http.StatusOK, []string{est.Id}, ops...).run(t, ce.app)
+
+	closed := reload(t, ce.app, "books_estimates", est.Id)
+	if closed.GetString("status") != statusClosed {
+		t.Fatalf("status = %s, want closed", closed.GetString("status"))
+	}
+	lines, err := salesDocLines(ce.app, estimateKind, est.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(lineAmountsOf(lines)); got != "[45000 -4500 40500]" {
+		t.Errorf("line amounts = %s, want [45000 -4500 40500]", got)
+	}
+	if closed.GetInt("subtotal") != 40500 || closed.GetInt("total") != 40500 {
+		t.Errorf("subtotal/total = %d/%d, want 40500/40500", closed.GetInt("subtotal"), closed.GetInt("total"))
+	}
+}
+
+func TestDocDeferral_LineWritesAfterTheHeaderWriteAreSettled(t *testing.T) {
+	pe := costEnv(t)
+	single := pe.threeLineInvoice(t)
+	batched := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	mkInvoiceLine(t, pe.app, batched, 0, pe.threeLines()[0])
+	saw := docRevision(t, pe.app, "books_invoices", batched.Id)
+	ops := []string{
+		docHeaderOp(invoiceKind, batched.Id, fmt.Sprintf(`{"memo":"header first","revision":%d}`, saw+1)),
+		docLineCreateOp(t, invoiceKind, batched.Id, 1, pe.threeLines()[1]),
+		docLineCreateOp(t, invoiceKind, batched.Id, 2, pe.threeLines()[2]),
+	}
+
+	pe.batchAsBookkeeper(t, http.StatusOK, []string{"header first"}, ops...).run(t, pe.app)
+
+	requireSameDocRows(t, pe.app, invoiceKind, batched.Id, single.Id)
+	if got := docRevision(t, pe.app, "books_invoices", batched.Id); got != saw+1 {
+		t.Errorf("revision = %d, want %d", got, saw+1)
+	}
+}
+
+// Review Focus 2: the client's delete of a draft.
+func TestDocDeferral_ADeleteOfTheDocumentAfterItsLines(t *testing.T) {
+	pe := costEnv(t)
+	inv := pe.threeLineInvoice(t)
+	lines, err := salesDocLines(pe.app, invoiceKind, inv.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ops []string
+	for i := len(lines) - 1; i >= 0; i-- {
+		ops = append(ops, docLineDeleteOp(invoiceKind, lines[i].Id))
+	}
+	ops = append(ops, fmt.Sprintf(`{"method":"DELETE","url":"/api/collections/books_invoices/records/%s"}`, inv.Id))
+
+	pe.batchAsBookkeeper(t, http.StatusOK, nil, ops...).run(t, pe.app)
+
+	requireLineCount(t, pe.app, inv, 0)
+	if _, err := pe.app.FindRecordById("books_invoices", inv.Id); err == nil {
+		t.Fatal("the invoice is still stored")
+	}
+}
+
+// Review Focus 3: each document has its own owner.
+func TestDocDeferral_TwoDocumentsInOneBatch(t *testing.T) {
+	pe := costEnv(t)
+	single := pe.threeLineInvoice(t)
+	a := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	b := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	var ops []string
+	for i, line := range pe.threeLines() {
+		ops = append(ops, docLineCreateOp(t, invoiceKind, a.Id, i, line), docLineCreateOp(t, invoiceKind, b.Id, i, line))
+	}
+
+	pe.batchAsBookkeeper(t, http.StatusOK, []string{a.Id, b.Id}, ops...).run(t, pe.app)
+
+	requireSameDocRows(t, pe.app, invoiceKind, a.Id, single.Id)
+	requireSameDocRows(t, pe.app, invoiceKind, b.Id, single.Id)
+	for _, id := range []string{a.Id, b.Id} {
+		if got := docRevision(t, pe.app, "books_invoices", id); got != 2 {
+			t.Errorf("revision of %s = %d, want 2", id, got)
+		}
+	}
+}
+
+func TestDocDeferral_AnEstimateAndASalesReceipt(t *testing.T) {
+	// The receipt env has no discount product; any product names a percent line.
+	lines := func(re *receiptEnv) []map[string]any {
+		return []map[string]any{
+			item(re.service, 3, 45000, false),
+			item(re.accessPoint, 2, 18900, true),
+			percentLine(re.service, -100000),
+			subtotalLine(),
+			percentLine(re.service, 50000),
+			descriptionLine("Work done at the annex office."),
+			item(re.service, 1.5, 28000, true),
+		}
+	}
+	check := func(t *testing.T, re *receiptEnv, kind salesDocKind, batched, single *core.Record) {
+		t.Helper()
+		enableBatch(t, re.app)
+		for i, line := range lines(re) {
+			line[kind.ParentField], line["position"] = single.Id, i
+			if _, err := saveNew(re.app, kind.LinesCollection, line); err != nil {
+				t.Fatalf("save line %d: %v", i+1, err)
+			}
+		}
+		before := docRevision(t, re.app, kind.Collection, batched.Id)
+
+		batchAs(t, re.users.bookkeeper, http.StatusOK, []string{batched.Id},
+			docLineCreateOps(t, kind, batched.Id, lines(re))...).run(t, re.app)
+
+		requireSameDocRows(t, re.app, kind, batched.Id, single.Id)
+		if reload(t, re.app, kind.Collection, batched.Id).GetInt("total") == 0 {
+			t.Error("total = 0, want the lines' total")
+		}
+		if got := docRevision(t, re.app, kind.Collection, batched.Id); got != before+1 {
+			t.Errorf("revision = %d, want %d", got, before+1)
+		}
+	}
+	t.Run("estimate", func(t *testing.T) {
+		ee := newEstimateEnv(t)
+		fields := map[string]any{"tax_rate": ee.denver.Id}
+		check(t, ee.receiptEnv, estimateKind, ee.mkEstimate(t, fields), ee.mkEstimate(t, fields))
+	})
+	t.Run("sales receipt", func(t *testing.T) {
+		re := newReceiptEnv(t)
+		fields := map[string]any{"tax_rate": re.denver.Id}
+		check(t, re, salesReceiptKind, re.mkReceipt(t, fields), re.mkReceipt(t, fields))
+	})
+}
+
+func TestDocDeferral_TheMarksDoNotOutliveTheBatch(t *testing.T) {
+	deleteFirst := func(t *testing.T, pe *postingEnv, first *core.Record) apiReq {
+		return apiReq{
+			method: http.MethodDelete, url: "/api/collections/books_invoice_lines/records/" + first.Id,
+			token: tokenFor(t, pe.users.bookkeeper), want: http.StatusBadRequest,
+			content: []string{fmt.Sprintf(wantPercentTarget, 1)},
+		}
+	}
+	t.Run("after a batch that commits", func(t *testing.T) {
+		pe := costEnv(t)
+		inv, first := pe.itemThenPercent(t)
+		batch := pe.batchAsBookkeeper(t, http.StatusOK, []string{inv.Id},
+			docLineCreateOp(t, invoiceKind, inv.Id, 2, item(pe.service, 1, 100, false)))
+		apiSeq(t, pe.app, batch, deleteFirst(t, pe, first))
+		requireLineCount(t, pe.app, inv, 3)
+	})
+	t.Run("after a batch that is refused", func(t *testing.T) {
+		pe := costEnv(t)
+		inv, first := pe.itemThenPercent(t)
+		batch := pe.batchAsBookkeeper(t, http.StatusBadRequest, []string{fmt.Sprintf(wantPercentTarget, 1)},
+			docLineDeleteOp(invoiceKind, first.Id))
+		apiSeq(t, pe.app, batch, deleteFirst(t, pe, first))
+		requireLineCount(t, pe.app, inv, 2)
+	})
 }
