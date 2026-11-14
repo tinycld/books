@@ -6,6 +6,7 @@
 // live in hooks/<kind>-data.ts.
 
 import {
+    BILL_MESSAGES,
     type DocumentMessages,
     ESTIMATE_MESSAGES,
     INVOICE_MESSAGES,
@@ -16,7 +17,7 @@ import {
 // forms host (forms/hosts.ts) seeds it too.
 export const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
 
-export type SalesDocKey = 'invoice' | 'sales_receipt' | 'estimate'
+export type SalesDocKey = 'invoice' | 'sales_receipt' | 'estimate' | 'bill'
 
 // How a kind's statuses run (lib/document-lifecycle.ts): `posting` (draft → posted →
 // void) or `quote` (pending / accepted / rejected → closed, never posted).
@@ -76,6 +77,23 @@ export const SALES_LINE_TABLES: readonly DocumentLineTable[] = [
     { key: 'lines', rowLabel: 'Line', heading: null, subtotal: null },
 ]
 
+// A bill's two tables, stacked in this order (spec §3.4); the Bill lines setting decides
+// which of them a form shows (lib/purchase-lines.ts).
+export const BILL_LINE_TABLES: readonly DocumentLineTable[] = [
+    {
+        key: 'account_lines',
+        rowLabel: 'Account line',
+        heading: 'Account details',
+        subtotal: { label: 'Account lines', testId: 'total-account-lines' },
+    },
+    {
+        key: 'item_lines',
+        rowLabel: 'Product line',
+        heading: 'Product and service details',
+        subtotal: { label: 'Products and services', testId: 'total-item-lines' },
+    },
+]
+
 // What a kind has besides its lines: sales tax, a message to the customer, an email and
 // a PDF. A kind without one draws none of its fields, rows, actions or keys.
 export type DocumentFeatures = { tax: boolean; message: boolean; email: boolean; pdf: boolean }
@@ -116,6 +134,11 @@ export type SalesDocumentKind = {
     // The kind's line tables in form order, all summed into one set of totals.
     lineTables: readonly DocumentLineTable[]
     features: DocumentFeatures
+    // Every save drops each table's empty trailing line before the form checks it. True:
+    // a save the client refuses (it writes nothing) puts the dropped lines back, so the
+    // form shows them with the refusal (a bill, spec §3.4 "dropped at save"). False: they
+    // stay dropped (the sales kinds' forms, as they always were).
+    keepsEmptyLinesOnRefusal: boolean
 }
 
 export const INVOICE_KIND: SalesDocumentKind = {
@@ -141,6 +164,7 @@ export const INVOICE_KIND: SalesDocumentKind = {
     party: 'customer',
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
+    keepsEmptyLinesOnRefusal: false,
 }
 
 export const SALES_RECEIPT_KIND: SalesDocumentKind = {
@@ -167,6 +191,7 @@ export const SALES_RECEIPT_KIND: SalesDocumentKind = {
     party: 'customer',
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
+    keepsEmptyLinesOnRefusal: false,
 }
 
 // Its messages keep their own type, so a reader of a quote-only text (cannotConvert)
@@ -199,4 +224,37 @@ export const ESTIMATE_KIND: SalesDocumentKind & { messages: typeof ESTIMATE_MESS
     party: 'customer',
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
+    keepsEmptyLinesOnRefusal: false,
+}
+
+// A bill (spec §3.1): the purchase kind of the layer. Its party is a vendor, it has two
+// line tables and no tax, message, email or PDF. Its messages keep their own type, so a
+// reader of a bill-only text (duplicateRef) needs no fallback.
+export const BILL_KIND: SalesDocumentKind & { messages: typeof BILL_MESSAGES } = {
+    key: 'bill',
+    lifecycle: 'posting',
+    hostKey: 'books:bill',
+    testId: 'bill',
+    routeBase: 'books/bills',
+    noun: 'Bill',
+    thisNoun: 'This bill',
+    draftTitle: 'Draft bill',
+    newTitle: 'New bill',
+    shortcutGroup: 'Bill',
+    // Balance due equals Total until Pay Bills.
+    figure: { label: 'Balance due', testId: 'balance-due' },
+    lastTotal: { label: 'Balance due', testId: 'total-balance' },
+    customerRequired: true,
+    // A bill has no message; the field is never drawn.
+    noteHints: { message: '', memo: MEMO_HINT },
+    messages: BILL_MESSAGES,
+    // Never called: a bill has no PDF (`features.pdf`); kept so the type holds.
+    pdfStem: number => (number ? `bill-${number}` : 'draft-bill'),
+    // The second band row: Terms, Bill date, Due date and Vendor's bill no.
+    bandSplitAt: 'terms',
+    helpTopic: 'books:bills',
+    party: 'vendor',
+    lineTables: BILL_LINE_TABLES,
+    features: { tax: false, message: false, email: false, pdf: false },
+    keepsEmptyLinesOnRefusal: true,
 }

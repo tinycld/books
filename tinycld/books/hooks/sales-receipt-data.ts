@@ -16,7 +16,6 @@ import {
 } from '../lib/sales-receipt-columns'
 import { depositShown } from '../lib/sales-settings'
 import type { BooksSalesReceipts } from '../types'
-import { customerPartyRead } from './customer-party'
 import {
     type DocumentDataSource,
     type DocumentFormStart,
@@ -29,8 +28,10 @@ import {
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
+    salesLineMapperOf,
     useHeldRecord,
 } from './document-data'
+import { customerPartyRead } from './party-read'
 import { useBooksSettings } from './useBooksSettings'
 import { useDepositAccounts } from './useDepositAccounts'
 
@@ -271,7 +272,8 @@ function useSalesReceiptWrites(): DocumentWrites {
             }),
         deleteRecord: id => receiptsCollection.delete(id),
         lineOps: (receiptId, mapper) => {
-            const lineRecord = (write: TableRowWrite) => mapper.toRecord(write.row, write.position)
+            const { toRecord } = salesLineMapperOf(mapper)
+            const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)
             return {
                 insert: write =>
                     linesCollection.insert({

@@ -334,6 +334,49 @@ func TestBillLine_AccountLineKeepsItsTypedAmount(t *testing.T) {
 	requireBillTotal(t, be.app, bill.Id, 14745)
 }
 
+// Core's row check reads a stored line's cells (storedLineCells), and the bill's
+// account row kind requires its Amount: a stored account line with a non-zero
+// amount passes that check on every later save, of the line and of its bill.
+func TestBillLine_StoredAccountAmountPassesTheRowCheck(t *testing.T) {
+	be := newBillEnv(t)
+	bill := mkBill(t, be.app, be.summit, nil)
+	line := mkBillLine(t, be.app, bill, 0, accountLine(be.software, 12500))
+
+	if err := setFields(t, be.app, "books_bill_lines", line.Id, map[string]any{"description": "October hosting"}); err != nil {
+		t.Fatalf("a description edit of a stored account line was refused: %v", err)
+	}
+	posted := mustPostBill(t, be.app, bill.Id, be.users.bookkeeper.Id)
+	if got := posted.GetString("status"); got != statusPosted {
+		t.Errorf("bill status = %q after the post, want posted", got)
+	}
+	if got := reload(t, be.app, "books_bill_lines", line.Id).GetInt("amount"); got != 12500 {
+		t.Errorf("account line amount = %d after the post, want 12500", got)
+	}
+}
+
+// A sales item line's Amount is Books' (the restatement writes it); listing
+// `amount` among the stored cells must not stop a later save of that line or
+// the post of its invoice.
+func TestSalesLine_ItemKeepsItsComputedAmountOnLaterSaves(t *testing.T) {
+	ie := newInvoiceEnv(t)
+	inv := ie.mkInvoice(t, nil)
+	line := mkInvoiceLine(t, ie.app, inv, 0, item(ie.service, 2, 45000, false))
+	if got := reload(t, ie.app, "books_invoice_lines", line.Id).GetInt("amount"); got != 90000 {
+		t.Fatalf("item line amount = %d after its save, want the computed 90000", got)
+	}
+
+	if err := setFields(t, ie.app, "books_invoice_lines", line.Id, map[string]any{"description": "October close"}); err != nil {
+		t.Fatalf("a description edit of an item line with its computed amount was refused: %v", err)
+	}
+	posted := mustPostInvoice(t, ie.app, inv.Id, ie.users.bookkeeper.Id)
+	if got := posted.GetString("status"); got != statusPosted {
+		t.Errorf("invoice status = %q after the post, want posted", got)
+	}
+	if got := reload(t, ie.app, "books_invoice_lines", line.Id).GetInt("amount"); got != 90000 {
+		t.Errorf("item line amount = %d after the post, want 90000", got)
+	}
+}
+
 // A refusal names a line by its table and its place among that table's lines,
 // not by its place among all the bill's lines.
 func TestBillLine_RefusalsNumberLinesPerTable(t *testing.T) {

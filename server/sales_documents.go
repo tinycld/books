@@ -810,10 +810,12 @@ func lineTable(tx core.App, kind salesDocKind, lineKind string) (*forms.Builtin,
 }
 
 // storedLineCells is a stored line's cells keyed as the form keys them, for
-// core's row check: a stored line holds its percent in ppm.
+// core's row check: a stored line holds its percent in ppm. `amount` is a cell
+// the bill's account row kind requires (its typed amount); a number is never
+// blank, so a 0 amount is checkBillAccountLine's refusal, not core's.
 func storedLineCells(r *core.Record) map[string]any {
 	row := map[string]any{"percent": r.Get("percent_ppm")}
-	for _, key := range []string{"kind", "product", "account", "description", "quantity", "rate", "taxable"} {
+	for _, key := range []string{"kind", "product", "account", "description", "quantity", "rate", "amount", "taxable"} {
 		row[key] = r.Get(key)
 	}
 	return row

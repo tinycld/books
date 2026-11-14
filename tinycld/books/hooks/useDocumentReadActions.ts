@@ -48,7 +48,7 @@ function offeredActionsOf(
     const actions =
         doc.lifecycle === 'quote'
             ? quoteReadActions(record.status, canWrite, invoiceIdOf(record) !== '')
-            : documentReadActions(record.status, canWrite).filter(
+            : documentReadActions(record.status, canWrite, doc.features).filter(
                   action => action !== 'entry' || record.entry !== ''
               )
     return doc.features.pdf ? actions : actions.filter(action => action !== 'pdf')

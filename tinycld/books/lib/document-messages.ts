@@ -26,6 +26,8 @@ export function customerInactiveText(name: string): string {
 // error (`reference_no`, `payment_method`) is keyed by its field and never comes here.
 export type DocumentRefusalTarget =
     | 'customer'
+    | 'vendor'
+    | 'ref_no'
     | 'date'
     | 'due_date'
     | 'tax_rate'
@@ -49,15 +51,29 @@ const DEPOSIT_REFUSAL =
 // server/estimates.go msgExpirationBeforeDate and msgAcceptedDateRequired.
 const EXPIRATION_REFUSAL = /^Expiration date\b/
 const ACCEPTED_DATE_REFUSAL = /^Enter the accepted date\b/
+// server/bills.go: the inactive vendor ("%s is inactive. Choose an active vendor.") and
+// the duplicate vendor's bill no. ("%s already has bill no. %s (%s).").
+const VENDOR_REFUSAL = /is inactive\. Choose an active vendor\.?$/
+const DUPLICATE_REF_REFUSAL = / already has bill no\. .+ \(.+\)\.?$/
 
-// The kind decides which fields it has (its `key`): only an invoice has a due date, only
-// a sales receipt has Deposit to, only an estimate has Expiration date and Accepted date.
+// A bill's own fields: Vendor, Due date and Vendor's bill no.; null for another text.
+function billRefusalTarget(message: string): DocumentRefusalTarget | null {
+    if (VENDOR_REFUSAL.test(message)) return 'vendor'
+    if (DUPLICATE_REF_REFUSAL.test(message)) return 'ref_no'
+    if (DUE_DATE_REFUSAL.test(message)) return 'due_date'
+    return null
+}
+
+// The kind decides which fields it has (its `key`): only an invoice and a bill have a due
+// date, only a sales receipt has Deposit to, only an estimate has Expiration date and
+// Accepted date, only a bill has Vendor and Vendor's bill no. (and no customer or tax).
 export function documentRefusalTarget(
     message: string,
     kind: Pick<SalesDocumentKind, 'key'>
 ): DocumentRefusalTarget {
     const line = LINE_REFUSAL.exec(message)
     if (line) return { line: Number(line[1]) - 1 }
+    if (kind.key === 'bill') return billRefusalTarget(message) ?? 'root'
     if (CUSTOMER_REFUSAL.test(message)) return 'customer'
     if (kind.key === 'sales_receipt' && DATE_REFUSAL.test(message)) return 'date'
     if (kind.key === 'invoice' && DUE_DATE_REFUSAL.test(message)) return 'due_date'

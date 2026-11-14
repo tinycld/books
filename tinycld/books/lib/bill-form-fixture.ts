@@ -15,11 +15,17 @@
 // fixture names a default expense account: the relation id is known only after the seed
 // creates the accounts. The seed maps the number to the created account's id.
 
-import type { BooksBillLines, BooksBills, BooksSettings } from '../types'
+import type { BooksBillLines, BooksBills } from '../types'
 import { INVOICE_USER_IDS } from './invoice-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
+import { BILL_ACCOUNT_TYPES } from './purchase-line-columns'
+import { PURCHASE_LINES_LABELS, type PurchaseLines } from './purchase-lines'
 import { SEED_ACCOUNTS } from './seed-accounts'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
+
+// Settings → Purchases → Bills → "Bill lines" (spec §3.11), and the account types an
+// account line may charge (spec §3.4), from the modules the bill form reads.
+export { BILL_ACCOUNT_TYPES, PURCHASE_LINES_LABELS, type PurchaseLines }
 
 export const BILL_CURRENCY = 'USD'
 // "Today" for the reference captures, so default dates are stable.
@@ -31,8 +37,6 @@ export type BillRecord = BooksBills
 export type BillLineRecord = BooksBillLines
 export type BillStatus = BillRecord['status']
 export type BillLineKind = BillLineRecord['kind']
-// Settings → Purchases → Bills → "Bill lines" (books_settings.purchase_lines, spec §3.11).
-export type PurchaseLines = BooksSettings['purchase_lines']
 
 // `account_number` is a fixture column the seed maps to `account`.
 export type BillLineFixtureRecord = Omit<BillLineRecord, 'account'> & { account_number: string }
@@ -57,13 +61,6 @@ const IDS = BILL_IDS
 
 // The vendors the seeded book holds that no VENDOR_IDS key names.
 const METRO_PROPERTIES = 'vendmetroprop01'
-
-// Account line types the Account picker lists and the server accepts (spec §3.4).
-export const BILL_ACCOUNT_TYPES: ReadonlySet<string> = new Set([
-    'expense',
-    'other_expense',
-    'cost_of_goods_sold',
-])
 
 type BillSeed = Pick<BillRecord, 'id' | 'vendor' | 'status' | 'date' | 'due_date'> &
     Partial<BillRecord>
@@ -273,11 +270,6 @@ export const NEW_BILL_LINES: Record<PurchaseLines, { account: number; item: numb
 
 // Settings → Purchases → Bills (spec §3.11). The seeded books_settings row holds `both`.
 export const PURCHASE_LINES_DEFAULT: PurchaseLines = 'both'
-export const PURCHASE_LINES_LABELS: Record<PurchaseLines, string> = {
-    both: 'Accounts and products',
-    accounts: 'Accounts only',
-    products: 'Products only',
-}
 
 // What the reference shows for the server's refusals (spec §3.5, §3.6).
 export const BILL_REFUSALS = {

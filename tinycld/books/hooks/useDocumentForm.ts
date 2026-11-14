@@ -1,22 +1,29 @@
 import { useAuth } from '@tinycld/core/lib/auth'
+import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
 import type { FormHostUi } from '@tinycld/core/lib/forms/host-ui'
 import type { EvalContext } from '@tinycld/core/lib/forms/logic'
-import { tableRowsOf } from '@tinycld/core/lib/forms/table-rows'
 import { type FormHost, useFormHost } from '@tinycld/core/lib/forms/use-form-hosts'
-import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
 import { z } from '@tinycld/core/ui/form'
 import { useFormCreate, useFormEdit, useHostUi } from '@tinycld/core/ui/forms'
 import { type RefObject, useMemo, useRef } from 'react'
 import { useWatch } from 'react-hook-form'
-import type { DocumentKind } from '../components/documents/document-kinds'
+import {
+    type DocumentKind,
+    type DocumentStartValues,
+    storedLineTableRows,
+} from '../components/documents/document-kinds'
 import { defaultTaxRateId } from '../lib/document-fills'
-import type { DocumentLineRow } from '../lib/document-line-columns'
-import { type DepositRule, type DocumentSaveMode, documentSchema } from '../lib/document-schema'
+import {
+    type DepositRule,
+    type DocumentSaveMode,
+    documentSchema,
+    type PostLineRule,
+} from '../lib/document-schema'
 import { documentTaxOf } from '../lib/document-tax'
-import type { DocumentFormValuesBase } from '../lib/document-values'
 import { acceptanceShown } from '../lib/estimate-status'
 import { hideBuiltins } from '../lib/form-definition'
+import { billTablesShown, noLinesText } from '../lib/purchase-lines'
 import { todayIso } from '../lib/register-range'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { type DocumentStart, recordColumnsOf } from './document-data'
@@ -54,7 +61,7 @@ type TaxRows = DocumentScreenData['taxOptions']['rows']
 type FormInput = Pick<DocumentScreenData, 'record' | 'lines' | 'party' | 'currency'> & {
     taxRows: TaxRows
     // A new form's values when it corrects (`?replaces`) or copies (`?copy`) a document.
-    startValues?: DocumentFormValuesBase
+    startValues?: DocumentStartValues
     // What a new form starts from besides the document, as the kind's data source read it.
     start?: DocumentStart
     // How a sales receipt draws Deposit to; an invoice has none.
@@ -76,12 +83,15 @@ function depositFallbackOf(start: DocumentStart | undefined, isHidden: boolean):
 // `documentSchema` with the tax the validated values choose (their `tax_rate` through the
 // tax rows), so the total rules count the header tax, and with the save mode and the
 // Deposit to rule at the time it runs (Post adds its rule to the same resolver).
+// `postLineRule` is Post's line-count rule by the tables the form shows; none for a kind
+// with one table (documentSchema's default).
 function documentRecordSchema(
     kind: SalesDocumentKind,
     currency: string,
     saveMode: RefObject<DocumentSaveMode>,
     taxRows: RefObject<TaxRows>,
-    deposit: RefObject<DepositRule | undefined>
+    deposit: RefObject<DepositRule | undefined>,
+    postLineRule: PostLineRule | undefined
 ) {
     return z
         .object({})
@@ -89,7 +99,8 @@ function documentRecordSchema(
         .superRefine((values, ctx) => {
             const taxRate = typeof values.tax_rate === 'string' ? values.tax_rate : ''
             const { tax } = documentTaxOf(taxRows.current, taxRate)
-            const schema = documentSchema(kind, currency, saveMode.current, tax, deposit.current)
+            const mode = saveMode.current
+            const schema = documentSchema(kind, currency, mode, tax, deposit.current, postLineRule)
             const result = schema.safeParse(values)
             if (result.success) return
             for (const issue of result.error.issues) {
@@ -98,34 +109,73 @@ function documentRecordSchema(
         })
 }
 
-// A stored document's lines as each line table's form rows, by the table's spec
-// (DocumentKind.lineSpecs). A kind with one table gets every line there; with more, each
-// table gets the lines of its own row kinds.
-export function storedTableRowsOf(
-    documentKind: DocumentKind,
-    lines: readonly DocumentLineRow[]
-): Record<string, TableRow[]> {
-    const tables = documentKind.doc.lineTables
-    const entries = tables.map(table => {
-        const spec = documentKind.lineSpecs[table.key]
-        const kinds = new Set(spec.rowKinds.map(rowKind => rowKind.key))
-        const own = tables.length === 1 ? lines : lines.filter(line => kinds.has(line.kind))
-        return [table.key, tableRowsOf(own, spec.mapper)] as const
-    })
-    return Object.fromEntries(entries)
-}
-
 // The built-ins of a correction's, a copy's or an invoice-from-estimate's values:
 // `replaces` and `estimate` are no fields of the form (the save writes them), so the
 // engine never files them among the custom fields.
-function builtinValuesOf(
-    values: DocumentFormValuesBase | undefined
-): DocumentFormValuesBase | undefined {
+function builtinValuesOf(values: DocumentStartValues | undefined): DocumentStartValues | undefined {
     if (!values) return undefined
-    const builtins: DocumentFormValuesBase = { ...values }
+    const builtins: DocumentStartValues = { ...values }
     delete builtins.replaces
     delete builtins.estimate
     return builtins
+}
+
+function textOf(value: unknown): string {
+    return typeof value === 'string' ? value : ''
+}
+
+// The key Post's line-count error is filed at on a form with several line tables: no
+// field has it (form keys have no dash), so no field cell draws it; the lines draw it
+// under the first shown table (`<test id>-line-error`).
+export const LINE_COUNT_ERROR_KEY = 'line-count'
+
+// The line tables a form shows, decided once when it mounts. A kind with one table shows
+// it. A bill shows a table when the Bill lines setting includes it or the bill the form
+// starts with already has a line in it (billTablesShown); `rows` are the form's starting
+// table rows (a new form's start values, a stored bill's lines).
+function shownLineTablesOf(
+    kind: SalesDocumentKind,
+    start: DocumentStart | undefined,
+    rows: Record<string, unknown>
+): readonly string[] {
+    if (start?.kind !== 'bill') return kind.lineTables.map(table => table.key)
+    const count = (key: string) => {
+        const value = rows[key]
+        return Array.isArray(value) ? value.length : 0
+    }
+    return billTablesShown(start.purchaseLines, {
+        account_lines: count('account_lines'),
+        item_lines: count('item_lines'),
+    })
+}
+
+// A line table with a section heading (a bill's "Account details") is named by that
+// heading above it (DocumentForm's LineTableHeading), so the rendered copy drops the
+// table cell's own label, which would repeat it. The registered host and the stored
+// definition keep the label.
+function withoutHeadedTableLabels(
+    definition: FormDefinition,
+    kind: SalesDocumentKind
+): FormDefinition {
+    const headed = new Set(
+        kind.lineTables.filter(table => table.heading !== null).map(table => table.key)
+    )
+    if (headed.size === 0) return definition
+    const fields = definition.fields.map(field =>
+        headed.has(field.key) ? { ...field, label: '' } : field
+    )
+    return { ...definition, fields }
+}
+
+// Post's line-count rule for a form with several tables, in the words of the tables it
+// shows, under the first of them; none for a kind with one table.
+function postLineRuleOf(
+    kind: SalesDocumentKind,
+    shown: readonly string[]
+): PostLineRule | undefined {
+    if (kind.lineTables.length <= 1) return undefined
+    const tableKey = shown[0] ?? kind.lineTables[0].key
+    return { message: noLinesText(shown), tableKey, errorKey: LINE_COUNT_ERROR_KEY }
 }
 
 /**
@@ -148,22 +198,6 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     const depositRef = useRef(input.deposit)
     depositRef.current = input.deposit
     const { currency } = input
-    const ui = useMemo<FormHostUi | null>(
-        () =>
-            hostUi
-                ? {
-                      ...hostUi,
-                      recordSchema: documentRecordSchema(
-                          kind,
-                          currency,
-                          saveMode,
-                          taxRowsRef,
-                          depositRef
-                      ),
-                  }
-                : null,
-        [hostUi, kind, currency]
-    )
     const isNew = input.record === undefined
     // Read once: the create form seeds from its first values (core keeps them in a ref).
     const createValues = isNew
@@ -178,7 +212,32 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
           }))
         : {}
     const { lines, record } = input
-    const tables = useMemo(() => storedTableRowsOf(documentKind, lines), [documentKind, lines])
+    const tables = useMemo(() => storedLineTableRows(documentKind, lines), [documentKind, lines])
+    // Decided once per form and kept for its life: a table stays shown after its last line
+    // is removed or saved away, so editing a bill never loses a table mid-session.
+    const shownRef = useRef<readonly string[] | null>(null)
+    if (shownRef.current === null) {
+        shownRef.current = shownLineTablesOf(kind, input.start, isNew ? createValues : tables)
+    }
+    const shownTables = shownRef.current
+    const postLineRule = useMemo(() => postLineRuleOf(kind, shownTables), [kind, shownTables])
+    const ui = useMemo<FormHostUi | null>(
+        () =>
+            hostUi
+                ? {
+                      ...hostUi,
+                      recordSchema: documentRecordSchema(
+                          kind,
+                          currency,
+                          saveMode,
+                          taxRowsRef,
+                          depositRef,
+                          postLineRule
+                      ),
+                  }
+                : null,
+        [hostUi, kind, currency, postLineRule]
+    )
     // The engine reads the row as one flat record of its columns.
     const editRow = useMemo(() => (record ? recordColumnsOf(record) : { id: '' }), [record])
     const schemas = ui?.schemas
@@ -197,18 +256,29 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     const status = useWatch({ control: chosen.form.control, name: 'status' })
     const isAcceptanceHidden =
         kind.lifecycle === 'quote' && !acceptanceShown(typeof status === 'string' ? status : '')
+    // A line table the form does not show (a bill's, by the Bill lines setting) is hidden
+    // the same way; host line tables that may be hidden are not required.
+    const hiddenTables = useMemo(
+        () => kind.lineTables.map(table => table.key).filter(key => !shownTables.includes(key)),
+        [kind, shownTables]
+    )
     const hiddenKeys = useMemo(
-        () => [...(isDepositHidden ? DEPOSIT_TO : []), ...(isAcceptanceHidden ? ACCEPTANCE : [])],
-        [isDepositHidden, isAcceptanceHidden]
+        () => [
+            ...(isDepositHidden ? DEPOSIT_TO : []),
+            ...(isAcceptanceHidden ? ACCEPTANCE : []),
+            ...hiddenTables,
+        ],
+        [isDepositHidden, isAcceptanceHidden, hiddenTables]
     )
     const engineDefinition = chosen.definition
-    const definition = useMemo(
-        () =>
-            engineDefinition && hiddenKeys.length > 0
+    const definition = useMemo(() => {
+        if (!engineDefinition) return engineDefinition
+        const shown =
+            hiddenKeys.length > 0
                 ? hideBuiltins(engineDefinition, hiddenKeys, host)
-                : engineDefinition,
-        [engineDefinition, hiddenKeys, host]
-    )
+                : engineDefinition
+        return withoutHeadedTableLabels(shown, kind)
+    }, [engineDefinition, hiddenKeys, host, kind])
     // Read through the form state proxy, so a change re-renders the guard (useRecordForm).
     const dirtyFields = chosen.form.formState.dirtyFields
     return {
@@ -227,10 +297,16 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         depositFallback: depositFallbackOf(input.start, isDepositHidden),
         recordId: record?.id,
         // The posted document a new correction replaces; its insert writes it.
-        replaces: isNew ? (input.startValues?.replaces ?? '') : '',
+        replaces: isNew ? textOf(input.startValues?.replaces) : '',
         // The estimate a new invoice is made from, or a new correction keeps; its insert
         // writes it. A stored invoice's is on its record and is never written again.
-        estimate: isNew ? (input.startValues?.estimate ?? '') : '',
+        estimate: isNew ? textOf(input.startValues?.estimate) : '',
+        // Post's line-count error under the first shown table, on a form with several
+        // tables: its table and the key it is filed at. Null for a kind with one table
+        // (its table's field cell draws it).
+        lineCountError: postLineRule?.errorKey
+            ? { tableKey: postLineRule.tableKey, errorKey: postLineRule.errorKey }
+            : null,
         // The party a new form was opened with (`?customer`, `?vendor`): Post & new keeps
         // only that one. A copy's or a correction's party comes from its source, not from
         // the route.

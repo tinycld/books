@@ -1,23 +1,28 @@
 import { Text, View } from 'react-native'
-import { AMOUNT_COLUMN_WIDTH } from '../../forms/document-line-cells'
-import type { DocumentReadLine as ReadLine } from '../../hooks/document-data'
+import {
+    type DocumentReadLine,
+    isSalesReadLine,
+    type SalesReadLine as ReadLine,
+} from '../../hooks/document-data'
 import { formatMoney } from '../../lib/money'
 import { ratePercentText } from '../../lib/sales-tax'
 import { useDocumentKind } from './document-kind-context'
+import {
+    READ_AMOUNT_CELL as AMOUNT_CELL,
+    ReadCell as Cell,
+    READ_DESCRIPTION_FLEX as DESCRIPTION_FLEX,
+    READ_GAP as GAP,
+    ReadHeadCell as HeadCell,
+    READ_NAME_FLEX as PRODUCT_FLEX,
+    READ_QTY_CELL as QTY_CELL,
+    READ_RATE_CELL as RATE_CELL,
+    ReadLineCard,
+} from './read-line-cells'
 
-const GAP = 8
-const QTY_WIDTH = 80
-const RATE_WIDTH = 112
 const TAX_WIDTH = 52
-const PRODUCT_FLEX = { flex: 3, minWidth: 0 }
-const DESCRIPTION_FLEX = { flex: 4, minWidth: 0 }
 const ROW_GAP = { gap: GAP }
-const QTY_CELL = { width: QTY_WIDTH }
-const RATE_CELL = { width: RATE_WIDTH }
-const AMOUNT_CELL = { width: AMOUNT_COLUMN_WIDTH }
 const TAX_CELL = { width: TAX_WIDTH }
 const FULL_CELL = { flex: 1 }
-const CARD_CELL = {}
 // Right of a Subtotal's amount: the Tax column.
 const SUBTOTAL_TRAILING = { width: TAX_WIDTH }
 
@@ -48,38 +53,6 @@ function rateText(line: ReadLine, currency: string): string {
 
 function amountText(line: ReadLine, currency: string): string {
     return line.kind === 'description' ? '' : formatMoney(line.amount, currency)
-}
-
-interface CellProps {
-    text: string
-    style: object
-    alignRight?: boolean
-    isMuted?: boolean
-}
-
-function Cell({ text, style, alignRight = false, isMuted = false }: CellProps) {
-    const align = alignRight ? 'text-right tabular-nums' : ''
-    const tone = isMuted ? 'text-muted-foreground' : 'text-foreground'
-    const textClass = `text-sm ${tone} ${align}`
-    return (
-        <Text style={style} className={textClass}>
-            {text}
-        </Text>
-    )
-}
-
-function HeadCell({
-    label,
-    style,
-    alignRight = false,
-}: Omit<CellProps, 'text'> & { label: string }) {
-    const align = alignRight ? 'text-right' : ''
-    const textClass = `text-xs font-medium text-muted-foreground ${align}`
-    return (
-        <Text style={style} className={textClass}>
-            {label}
-        </Text>
-    )
 }
 
 function GridHeader() {
@@ -171,33 +144,31 @@ function Card({ line, index, currency }: { line: ReadLine; index: number; curren
     const { doc } = useDocumentKind()
     const testID = `${doc.testId}-line-${line.id}`
     return (
-        <View
+        <ReadLineCard
             testID={testID}
-            className="mb-2 gap-1 rounded-lg border border-border bg-background p-3"
-        >
-            <View className="flex-row items-start justify-between gap-3">
-                <Text className="min-w-0 flex-1 text-sm font-medium text-foreground">{title}</Text>
-                <Text className="text-sm tabular-nums text-foreground">{amount}</Text>
-            </View>
-            <Cell text={description} style={CARD_CELL} isMuted />
-            <Cell text={detail} style={CARD_CELL} isMuted />
-        </View>
+            title={title}
+            amount={amount}
+            description={description}
+            detail={detail}
+        />
     )
 }
 
 export interface DocumentReadLinesProps {
-    lines: ReadLine[]
+    // The kind's stored lines: each ReadLines draws those of its own line type.
+    lines: DocumentReadLine[]
     currency: string
     isPhone: boolean
 }
 
 /**
- * A posted or void document's lines, read only, with the amounts the server stored: a
- * grid on a wide screen (the form's columns without the row menu), a card per line on a
+ * A posted or void sales document's lines, read only, with the amounts the server stored:
+ * a grid on a wide screen (the form's columns without the row menu), a card per line on a
  * phone.
  */
-export function DocumentReadLines({ lines, currency, isPhone }: DocumentReadLinesProps) {
+export function DocumentReadLines({ lines: stored, currency, isPhone }: DocumentReadLinesProps) {
     const { doc } = useDocumentKind()
+    const lines = stored.filter(isSalesReadLine)
     if (!isPhone) return <Grid lines={lines} currency={currency} />
     const cards = lines.map((line, index) => (
         <Card key={line.id} line={line} index={index} currency={currency} />

@@ -2,16 +2,17 @@
 // schemas (`FormHostUi.recordSchema`), so every message is a field error of the same
 // resolver. Core already checks each row kind's required cells; these are the rules core
 // cannot read from the host: the quantity's bounds and decimals, the typed rate and
-// percent, the text lengths in code points, an invoice's due date against its date, a
-// sales receipt's Deposit to and Reference no., an estimate's Expiration date, Accepted
-// date and Accepted by, the percent target and the totals. The texts are the kind's (`kind.messages`). The host's
-// columns carry no bounds, so each cell shows one message, from here.
+// percent, the text lengths in code points, an invoice's and a bill's due date against
+// its date, a bill's Vendor's bill no., a sales receipt's Deposit to and Reference no.,
+// an estimate's Expiration date, Accepted date and Accepted by, the percent target and
+// the totals. The texts are the kind's (`kind.messages`). The host's columns carry no
+// bounds, so each cell shows one message, from here.
 //
 // Each line table's rows are checked under the table's key; a kind with several tables
 // (a bill's account and product lines) sums them into one set of totals. An account
 // line's typed Amount may be negative, never 0. The total rules report at the first
-// table's key, so their message shows under it. They run only when every cell parses, as
-// a total of half-typed cells means nothing.
+// shown table's key (`PostLineRule.tableKey`), so their message shows under it. They run
+// only when every cell parses, as a total of half-typed cells means nothing.
 // The record holds only the tax rate's id, so the form passes the chosen tax; without
 // it the totals checked are the line totals, and the server checks the total with tax.
 
@@ -22,7 +23,7 @@ import { percentTextToPpm } from './document-line-columns'
 import { type DocumentTax, documentTotals, MAX_DOCUMENT_LINES } from './document-lines'
 import { type DocumentMessages, ESTIMATE_MESSAGES, INVOICE_MESSAGES } from './document-messages'
 import { DOCUMENT_NOTE_TOO_LONG } from './document-notes'
-import { ACCOUNT_AMOUNT_MESSAGES } from './document-texts'
+import { ACCOUNT_AMOUNT_MESSAGES, BILL_MESSAGES } from './document-texts'
 import { documentLinesOf, lineTableRows } from './document-values'
 import { acceptanceShown } from './estimate-status'
 import { moneyInputCents } from './money-input'
@@ -71,7 +72,8 @@ function rateMessage(value: unknown, currency: string, messages: DocumentMessage
         return messages.rateMalformed
     }
     const cents = moneyInputCents(value, currency)
-    return cents === null || Math.abs(cents) > maxLineAmount ? messages.rateTooLarge : null
+    if (cents === null || Math.abs(cents) > maxLineAmount) return messages.rateTooLarge
+    return cents < 0 && messages.rateNegative ? messages.rateNegative : null
 }
 
 // An empty percent is core's "Percent is required" (the Percent kind requires it).
@@ -156,13 +158,31 @@ function dayOf(value: unknown): string {
     return textOf(value).slice(0, 10)
 }
 
-// Only an invoice has a due date.
+// The kinds that have a due date, and their text for one before the document's date.
+const DUE_BEFORE_DATE: Partial<Record<SalesDocumentKind['key'], string>> = {
+    invoice: INVOICE_MESSAGES.dueBeforeDate,
+    bill: BILL_MESSAGES.dueBeforeDate,
+}
+
 function dueDateIssues(kind: SalesDocumentKind, values: Record<string, unknown>): Issue[] {
-    if (kind.key !== 'invoice') return []
+    const message = DUE_BEFORE_DATE[kind.key]
+    if (message === undefined) return []
     const date = dayOf(values.date)
     const due = dayOf(values.due_date)
     if (!isIsoDay(date) || !isIsoDay(due) || due >= date) return []
-    return [{ path: ['due_date'], message: INVOICE_MESSAGES.dueBeforeDate }]
+    return [{ path: ['due_date'], message }]
+}
+
+// The books_bills schema's `ref_no` max, in code points as the server counts it. The
+// server trims the number before it stores it (server/bills.go), so the bound is on the
+// trimmed text.
+const MAX_BILL_REF = 40
+
+// Only a bill has Vendor's bill no.
+function billRefIssues(kind: SalesDocumentKind, values: Record<string, unknown>): Issue[] {
+    const ref = textOf(values.ref_no).trim()
+    if (kind.key !== 'bill' || [...ref].length <= MAX_BILL_REF) return []
+    return [{ path: ['ref_no'], message: BILL_MESSAGES.refTooLong }]
 }
 
 // The books_estimates schema's `accepted_by` max, in code points as the server counts it.
@@ -225,7 +245,11 @@ function isPostableLine(row: TableRow): boolean {
 
 // Post's line-count rule: its text and the table it shows under. The caller names them
 // by the tables its form shows; by default, the kind's needItemLine under its first table.
-export type PostLineRule = { message: string; tableKey: string }
+// The line-count limit and the total rules show under the same table. `errorKey`, when
+// given, is the key the line-count issue is filed at instead of the table's: a form with
+// several tables draws that error itself, under the tables, rather than in the table's
+// own field cell.
+export type PostLineRule = { message: string; tableKey: string; errorKey?: string }
 
 function documentIssues(
     kind: SalesDocumentKind,
@@ -241,13 +265,16 @@ function documentIssues(
         key: table.key,
         rows: lineTableRows(values, table.key),
     }))
-    const firstKey = tables[0]?.key ?? 'lines'
+    // The rules over all the lines show under the table the post rule names: the first
+    // table the form shows (a bill may hide its first table).
+    const firstKey = postLineRule.tableKey
     const lines = tables.flatMap(table => table.rows)
     const cells = tables.flatMap(table =>
         table.rows.flatMap((row, index) => cellIssues(table.key, row, index, currency, messages))
     )
     const issues: Issue[] = [
         ...dueDateIssues(kind, values),
+        ...billRefIssues(kind, values),
         ...paymentIssues(kind, values, deposit),
         ...estimateIssues(kind, values),
         ...cells,
@@ -264,7 +291,8 @@ function documentIssues(
         issues.push({ path: ['memo'], message: DOCUMENT_NOTE_TOO_LONG.memo })
     }
     if (mode === 'post' && !lines.some(isPostableLine)) {
-        issues.push({ path: [postLineRule.tableKey], message: postLineRule.message })
+        const key = postLineRule.errorKey ?? postLineRule.tableKey
+        issues.push({ path: [key], message: postLineRule.message })
     }
     return issues
 }

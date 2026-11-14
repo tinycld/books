@@ -30,8 +30,9 @@ import { centsToText, parseMoney } from './money-text'
 // (document-footer-layout.ts) then resolves to its slots' summed width at every width.
 const FLOOR_PER_WEIGHT = 45
 
-// A floored column's size: the floor and the weight that keeps the shared ratio.
-function floored(minWidth: number) {
+// A floored column's size: the floor and the weight that keeps the shared ratio. The
+// bill's two tables (purchase-line-columns.ts) size their floored columns by it too.
+export function floored(minWidth: number) {
     return { minWidth, flex: minWidth / FLOOR_PER_WEIGHT }
 }
 

@@ -366,8 +366,9 @@ function hasFieldErrors(state: DocumentFormState): boolean {
  *   optimistic row never swaps the form. Accepted by and Accepted date, hidden while
  *   Status is not Accepted, are saved empty then.
  *
- * The empty trailing Item line is dropped before the form validates (spec: dropped at
- * save); Post validates with the `post` mode of the record schema, which adds its rule.
+ * The empty trailing line of each line table is dropped before the form validates (spec:
+ * dropped at save); a kind that keeps them on a refusal (a bill) gets them back when the
+ * client refuses the save. Post validates with the `post` mode of the record schema, which adds its rule.
  * The built-in columns are checked against the kind's columns before anything is sent.
  */
 export function useDocumentSave(state: DocumentFormState, options: DocumentSaveOptions = {}) {
@@ -546,15 +547,33 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         },
     })
 
-    // Each line table's empty trailing line.
+    // Each line table's empty trailing line, dropped so the save validates and writes the
+    // lines without it. Core's submit reads the form's own values, so the drop goes
+    // through the form. The returned function puts the dropped lines back, for a save that
+    // writes nothing, on a kind that keeps them then (`keepsEmptyLinesOnRefusal`: a bill's
+    // spec drops them "at save", and a refused save is no save).
     const dropEmptyLines = () => {
+        const dropped: { key: string; lines: unknown[] }[] = []
         for (const table of kind.lineTables) {
             const lines = state.form.getValues(table.key)
             if (!Array.isArray(lines)) continue
             const kept = documentLinesForSave(lines)
             if (kept.length !== lines.length) {
+                dropped.push({ key: table.key, lines })
                 state.form.setValue(table.key, kept, { shouldDirty: true })
             }
+        }
+        return () => {
+            if (!kind.keepsEmptyLinesOnRefusal) return
+            // Putting the lines back changes the tables, and a change of the tables clears
+            // Post's line-count error (DocumentForm's useClearLineCountError). The refusal
+            // filed it for these same lines, so it is filed again after them.
+            const countKey = state.lineCountError?.errorKey
+            const countError = countKey ? state.form.getFieldState(countKey).error : undefined
+            for (const { key, lines } of dropped) {
+                state.form.setValue(key, lines, { shouldDirty: true })
+            }
+            if (countKey && countError) state.form.setError(countKey, countError)
         }
     }
 
@@ -694,8 +713,9 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const start = async (mode: SaveMode) => {
         // A new answer from the server replaces the last one.
         state.form.clearErrors('root')
+        let restoreLines = () => {}
         try {
-            dropEmptyLines()
+            restoreLines = dropEmptyLines()
             fillDepositFallback()
             clearHiddenAcceptance()
             // Post validates with its own rule added (at least one Item line); the
@@ -703,13 +723,18 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             if (mode.post) state.saveMode.current = 'post'
             try {
                 const started = await startSave(mode)
-                // Not started: the form's own check refused it (or nothing changed).
-                if (!started) reportFieldErrors()
+                // Not started: the form's own check refused it (or nothing changed), so
+                // nothing was written; a bill's form gets its dropped lines back.
+                if (!started) {
+                    restoreLines()
+                    reportFieldErrors()
+                }
                 return started
             } finally {
                 state.saveMode.current = 'draft'
             }
         } catch (error) {
+            restoreLines()
             return startFailed(error, rootServerForm(state.form), {
                 logContext: texts.logContext,
                 operation: state.isNew ? 'create' : 'update',

@@ -1,12 +1,13 @@
 import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
-import { DOCUMENT_NOTE_LABELS } from '../lib/document-notes'
+import { DOCUMENT_NOTE_LABELS, MEMO_ONLY_LABEL } from '../lib/document-notes'
+import { VENDOR_REF_HINT } from '../lib/document-texts'
 import {
-    PURCHASE_ACCOUNT_LINE_COLUMNS,
-    PURCHASE_ACCOUNT_ROW_KINDS,
-    PURCHASE_ITEM_LINE_COLUMNS,
-    PURCHASE_ITEM_ROW_KINDS,
+    ACCOUNT_ROW_KIND,
+    BILL_ACCOUNT_COLUMNS,
+    PURCHASE_ITEM_COLUMNS,
+    PURCHASE_ITEM_ROW_KIND,
 } from '../lib/purchase-line-columns'
 import { INVOICE_KIND, MEMO_HINT, SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
 
@@ -199,7 +200,7 @@ const BILL_LAYOUT = {
         terms: { width: 'quarter' },
         date: { width: 'quarter' },
         due_date: { width: 'quarter' },
-        ref_no: { width: 'quarter', description: "The number on the vendor's bill" },
+        ref_no: { width: 'quarter', description: VENDOR_REF_HINT },
         memo: { description: MEMO_HINT },
     },
     rules: [],
@@ -1200,6 +1201,10 @@ const hosts: FormHostDefInput[] = [
                 storage: 'column',
                 required: false,
                 component: 'VendorRefField',
+                // The cell draws the label and the error; VendorRefField draws the input
+                // (core's error border) and the hint while there is no error, and the
+                // document form drops this field's description (spec §3.6 refusals). Not
+                // bare: core draws a bare cell only on a stored record, never on a new one.
                 chrome: 'cell',
             },
             // Not required, unlike the sales `lines`: the Bill lines setting hides one
@@ -1212,10 +1217,12 @@ const hosts: FormHostDefInput[] = [
                 kind: 'table',
                 storage: 'rows',
                 required: false,
-                columns: [...PURCHASE_ACCOUNT_LINE_COLUMNS],
-                rowKinds: [...PURCHASE_ACCOUNT_ROW_KINDS],
+                columns: [...BILL_ACCOUNT_COLUMNS],
+                rowKinds: [ACCOUNT_ROW_KIND],
                 rowShortcuts: true,
-                insertShortcuts: { below: 'Alt+Enter' },
+                // The account kind's Alt+Enter adds a line after the focused one, so the
+                // row menu's "Insert line below" names that key.
+                insertShortcuts: { below: ACCOUNT_ROW_KIND.shortcut },
             },
             {
                 key: 'item_lines',
@@ -1223,14 +1230,14 @@ const hosts: FormHostDefInput[] = [
                 kind: 'table',
                 storage: 'rows',
                 required: false,
-                columns: [...PURCHASE_ITEM_LINE_COLUMNS],
-                rowKinds: [...PURCHASE_ITEM_ROW_KINDS],
+                columns: [...PURCHASE_ITEM_COLUMNS],
+                rowKinds: [PURCHASE_ITEM_ROW_KIND],
                 rowShortcuts: true,
-                insertShortcuts: { below: 'Alt+p' },
+                insertShortcuts: { below: PURCHASE_ITEM_ROW_KIND.shortcut },
             },
             {
                 key: 'memo',
-                label: DOCUMENT_NOTE_LABELS.memo,
+                label: MEMO_ONLY_LABEL,
                 kind: 'textarea',
                 storage: 'column',
                 required: false,
