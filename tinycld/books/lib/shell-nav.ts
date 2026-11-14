@@ -26,6 +26,9 @@ export interface NewAction {
     href: string
     column: 'customers' | 'vendors' | 'other'
     available: boolean
+    // A transaction for one customer: the customer page's New transaction menu lists it
+    // and opens it with `?customer=<id>`.
+    takesCustomer?: true
 }
 
 export interface ListEntry {
@@ -100,6 +103,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/invoices/new',
         column: 'customers',
         available: true,
+        takesCustomer: true,
     },
     {
         id: 'estimate',
@@ -107,6 +111,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/estimates/new',
         column: 'customers',
         available: true,
+        takesCustomer: true,
     },
     {
         id: 'sales_receipt',
@@ -114,6 +119,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/sales-receipts/new',
         column: 'customers',
         available: true,
+        takesCustomer: true,
     },
     {
         id: 'vendor',
