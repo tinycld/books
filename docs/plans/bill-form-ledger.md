@@ -102,6 +102,14 @@
 - cp 5 · reviewer A NOTE 3: the estimate → invoice convert keeps a shown-table entry under the estimate id that may never be forgotten in the app session (harmless: one table; fix: skip the keep on convert or for single-table kinds).
 - cp 5 · reviewer A NOTE 4: if a bill-lines test fails with unsaved edits on the bill form, the `afterEach` restore meets the discard dialog and fails, leaving the setting changed on a reused database (fix: accept a visible discard dialog before `setBillLines`).
 - cp 5 · reviewer A NOTE 5: the cp 5 capture saves "Products only" on the capture database and does not put back "Accounts and products".
+- revise 1 · critic N1 (trial-balance-375): "Software Subscriptions:Design Tools" wraps to 3 lines ("Software" / "Subscriptions:Design" / "Tools"); the ':' break is allowed but not used there, and the third line is behind the tab bar in the shot.
+- revise 1 · critic N2 (trial-balance-375): wrapped rows 6200 and 6210 have about 2 px between their labels and read as one block.
+- revise 1 · critic N3 (trial-balance-375): "Software Subscriptions" wraps although about 20 px is clear before the No. column.
+- revise 1 · reviewer A NOTE 2: U+200B stays in the DOM text of a wrapping label, text cell and heading. On web (and on native long-press copy), a user who copies "Software Subscriptions:Design Tools" from a wrapping row and pastes it into a search or a name field pastes an invisible U+200B after ':', so the search finds nothing. Accessible names, CSV, PDF and print are clean (built from data). Possible web fix: a `copy` listener on the report table that strips U+200B; native has no simple hook.
+- revise 1 · reviewer A NOTE 3: books `tests/e2e/books-report-helpers.ts` (`tbSnapshot` l.254, 262) reads labels with `innerText`, which keeps U+200B; a later phone test that compares a ':' label will fail for no visible reason (fix: strip U+200B in the helpers).
+- revise 1 · reviewer A NOTE 4: any ':' followed by a non-space breaks in a wrapping text column, so a time ("Call at 10:30"), a ratio ("3:1") or a URL in a text label may break after its colon (the human's rule; measure agrees, nothing is clipped). Option: mark only a ':' followed by a letter.
+- revise 1 · reviewer A NOTE 5: `breakAfterColons` has no unit test of its own (only the web e2e reaches it); cases: "Note: x" unchanged, "a::b", trailing "a:", stripped output equals input.
+- revise 1 · reviewer A NOTE 6: the native wrap after ':' is stated from RN, Minikin and TextKit sources only; no device run.
 - cp 3 · capture limit: the built shots have product lines only (the capture spec has no action that types an account amount), and `errors` shows one real refusal; gate 2 did not judge account lines with data, the "Account lines" subtotal, the root summary or a line refusal.
 
 ## Out-of-plan changes
@@ -134,6 +142,9 @@
 - cp 4 · `tinycld/books/forms/document-fields.tsx`: `VendorRefField` draws the `bill-ref-no` wrapper id again (cp 3 fix review NOTE 1 / carry-over item 3; the brief's test-id list names it).
 - cp 4 · `help/chart-of-accounts.md`: named conditionally by the Files block ("if it lists what blocks an account delete"); it did, so it gained the bill bullet.
 - cp 5 · `tinycld/books/stores/document-save-store.ts` (`shownTables`, `keepShownTables`, `forgetShownTables`), `tinycld/books/hooks/useDocumentSave.ts` (`replaceWithSaved` keeps the form's shown tables under the draft id before the replace), `tinycld/books/hooks/useDocumentForm.ts` (unions the kept set, forgets it on unmount, comment corrected): the cp 3 carry-over (reviewer A NOTE 2, spec §3.11 "Once shown in a form session a table stays shown").
+- revise 1 · core `core/reports/components/ReportTable.tsx` (`HeadingText` draws `breakAfterColons`): `headingWidths` takes a heading's min from `longestWordWidth`, which now ends a word after ':', so the drawn heading must break there too or it is clipped (implementer D1; reviewers A and B agree).
+- revise 1 · core `core/help/reports.md` (l.164, 169): the help says a ':' ends a word in a wrapping column and the ':' stays on the first line (reviewer B finding 2).
+- revise 1 · books `docs/plans/bill-form-evidence/revise1/` (capture.json + 6 shots): the gate-2 evidence of the core change.
 
 ## Phase notes
 - phase 1 / design gate (human, 2026-11-13):
@@ -257,6 +268,20 @@
 - human: none (review mode C).
 
 ## Final review
-- eval:
+- eval: revised → revise 1 (human, 2026-11-13: core report columns break a word after ':'; CI shard 4 red on `trial-balance.spec.ts:574` at a 375 px row). Fix: core `a40968a` on core branch `books/p3-bill`; books fix sha = the commit that holds this line.
+- revise 1 (core task, run as checkpoint 0 for the core gates; brief `revise1-core.md`, findings `revise1-fix.md`, 4 items):
+  - test writer: core `core/reports/lib/__tests__/text-width.test.ts`, `core/reports/lib/__tests__/column-measure.test.ts`, `tests/e2e/reports-column-fit.spec.ts`; books `tests/e2e/trial-balance.spec.ts` (`splitWords` ends a word after ':'; phone test at 375 and 390). 4 red for the right reason: yes. Playwright `getByText(…, { exact: true })` drops U+200B (playwright-core `normalizeWhiteSpace`, probe confirmed).
+  - implementer: two dispatches (the first handed off mid-run), FIXED 2 of 2. `text-width.ts`: `WORD = /[^\s:]*:|[^\s:]+/g` (a word ends after ':'), `breakAfterColons` (U+200B after a ':' with no white space after it, draw only); `ReportRow.tsx` `wrappedText(text, lines)` in `LabelText` and text `RowCell` when `lines > 1` (figures never); `ReportTable.tsx` `HeadingText`. `column-measure.ts`, `format.ts` unchanged (all min measures read `longestWordWidth`).
+  - test disputes: none.
+  - self-declared differences: D1 `ReportTable.tsx` out of plan (see Out-of-plan changes); D2 the mark only where text may wrap (`lines > 1`), so one-line text keeps plain text for copy; D3 text cells of a wrapping text column also get it (`widestCell` uses the same measure).
+  - platform behavior (the human asked for it here): ':' is UAX #14 class IS, and LB29 keeps ':' + letter together; U+200B is class ZW, LB8 breaks after it and LB7 keeps ':' before it. Web (react-native-web DOM span): Chromium/WebKit/Gecko break by UAX #14, CSS Text 3 lists U+200B as a soft wrap opportunity; proved by core e2e `reports-column-fit.spec.ts` (red before, green after). Android: RN 0.88.1 `TextLayoutManager.kt` lays out with `StaticLayout` (Minikin, ICU line BreakIterator). iOS: RN 0.88.1 `RCTTextLayoutManager.mm` uses TextKit with word wrap (Apple ICU). Native: from source only, not executed.
+  - gate 1: tests unedited: yes · `packages:generate` ok · core check pass (456 files, 4037 tests) · books check pass (253 files, 5091 tests) · e2e one file per command: core `reports-column-fit` 4, `reports-fit` 1, `reports-wrap` 16, `reports-text-width` 1, `reports-view` 11; books `trial-balance` 13, `balance-sheet` 10, `profit-and-loss` 11, `general-ledger` 9, `journal-report` 11 — all passed. No other workspace member renders core report rows (grepped).
+  - gate 2: capture `docs/plans/bill-form-evidence/revise1/capture.json` (trial balance at 375, 390, 1280, light + dark; 6 files). First capture failed: the manifest used a `{reportId:…}` URL placeholder this run's capture spec copy does not have (the page said "no longer have access"); fixed the manifest to open Trial Balance from the hub, captured again. Invalid shots: none · blocking: none · notes: 3, listed under Design notes.
+  - gate 3 A (correctness): 0 BLOCK, 7 NOTE. NOTE 1 (out-of-plan file) and NOTE 7 (evidence files) recorded; NOTEs 2–6 to Design notes.
+  - gate 3 B (conformance): script lines: 0 · finding 1 (out-of-plan `ReportTable.tsx`) → accepted, recorded under Out-of-plan changes, no code change · finding 2 (help `core/help/reports.md` l.164/169 does not say ':' ends a word) → accepted+fixed (fix item 1, `revise1-fix2.md`). DEFERRALS: none. `check:core-isolation` exit 0.
+  - fix round 1: implementer FIXED 1 of 1 (help text). Gate 1 again: core check pass (4037); text only, no e2e, no shot changed.
+  - fix review: round 1 (`review-diff.mjs … --fix --repo … --files revise1-core.md`, 1 file, 0 conformance lines): clean. Rounds: 1.
+  - reviewer-caught deferrals: none.
+  - lesson line added to `docs/helix-lessons.md`.
 - human comments and what changed
 - native: not executed in this run

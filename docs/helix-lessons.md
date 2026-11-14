@@ -28,3 +28,4 @@
 - A link button inside a form (Edit address, Edit customer) is a Tab stop after the field it edits; it needs no shortcut. — sales-receipt-form, human, eval
 - To take a Pressable out of the web Tab order, use `tabIndex={-1}`; RN-web ignores `focusable={false}` and sets tabIndex 0. — sales-receipt-form, retro, p2-sales-receipt
 - A report's `display.oneLine` gate is measured for its own columns at 390; never copy another report's display block. — profit-and-loss, retro, p5-profit-and-loss
+- A wrapping report column's least width is its longest word, and core ends a word after ':' (a sub-account path "Parent:Child" breaks after the colon); phone report tests run at 375 as well as 390 (CI's 390 viewport leaves a 375 px row). — bill-form, human, eval revise 1
