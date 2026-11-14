@@ -82,7 +82,7 @@ export function labelledLineRefusal(rowLabel: string | null, message: string): s
     return `${rowLabel}: ${message}`
 }
 
-const TOTALS_REFUSALS = new Set(
+const TOTALS_REFUSALS = new Set<string>(
     [INVOICE_MESSAGES, SALES_RECEIPT_MESSAGES, ESTIMATE_MESSAGES].flatMap(messages => [
         messages.totalNegative,
         messages.totalTooLarge,
