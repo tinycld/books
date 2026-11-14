@@ -587,14 +587,22 @@ func docLineUpdateOp(kind salesDocKind, lineID, body string) string {
 }
 
 // The client writes updates by position. Stored: a note, an item, a percent
-// line of the item. The note moves to the end: after the first update the
-// percent line has the note above it, a state a single write refuses.
+// line of the item. The note moves to the end. After the first update the item
+// and the note are both at position 0; the item's id sorts first (the ids are
+// fixed for that), so the percent line has the note above it, a state a single
+// write refuses.
 func TestDocDeferral_AMoveThroughAStateThatIsNotValid(t *testing.T) {
 	pe := costEnv(t)
 	inv := pe.mkInvoice(t, nil)
-	note := mkInvoiceLine(t, pe.app, inv, 0, descriptionLine("Note"))
-	first := mkInvoiceLine(t, pe.app, inv, 1, item(pe.service, 1, 5000, false))
+	withID := func(id string, fields map[string]any) map[string]any {
+		fields["id"] = id
+		return fields
+	}
+	note := mkInvoiceLine(t, pe.app, inv, 0, withID("moveline0000002", descriptionLine("Note")))
+	first := mkInvoiceLine(t, pe.app, inv, 1, withID("moveline0000001", item(pe.service, 1, 5000, false)))
 	percent := mkInvoiceLine(t, pe.app, inv, 2, percentLine(pe.discount, 100000))
+	requireRefused(t, setFields(t, pe.app, "books_invoice_lines", first.Id, map[string]any{"position": 0}),
+		fmt.Sprintf(wantPercentTarget, 3))
 
 	pe.batchAsBookkeeper(t, http.StatusOK, []string{inv.Id},
 		docLineUpdateOp(invoiceKind, first.Id, `{"position":0}`),

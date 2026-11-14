@@ -557,50 +557,57 @@ test.describe('invoice-form: draft invoice', () => {
             .toBe(true)
     })
 
-    // The save sends its line updates by position. Moving the note above the item puts the
-    // percent line under a note for one write; the server checks only the lines the batch
-    // leaves (server/sales_document_deferral.go).
-    test('a saved draft keeps a percent line under its item when a note moves above them', async ({
+    // Stored: an item, a percent line of it, a second item. The save removes the first
+    // item and moves the second above the percent line. The remove is the batch's first
+    // operation, and after it the percent line has no line above it; the server checks only
+    // the lines the batch leaves (server/sales_document_deferral.go). The header write is
+    // the last operation.
+    test('a saved draft takes a new item for its percent line when the old item is removed', async ({
         page,
     }) => {
         const cell = (rowId: string, column: string) =>
             page.getByTestId(lineCellTestId(rowId, column))
+        const rowIds = () => Promise.all([0, 1].map(index => lineRowId(page, index)))
+        const product = seededProduct()
         await openBooks(page)
         await saveInvoiceDraft(page, {
             customer: seededCustomer().name,
-            product: seededProduct().name,
+            product: product.name,
             memo: uniqueMemo('Invoice line move'),
         })
-        const item = await lineRowId(page, 0)
-        await page.getByTestId(`form-table-lines-menu-${item}`).focus()
+        const first = await lineRowId(page, 0)
+        await page.getByTestId(`form-table-lines-menu-${first}`).focus()
         await page.getByTestId('form-table-lines-add-more').click()
         await page.getByTestId('form-table-lines-add-percent').click()
         await expect(lineRows(page)).toHaveCount(2)
         const percent = await pickLineProduct(page, 1, 'Discount')
         await cell(percent, 'percent').fill('10')
-        await cell(percent, 'percent').focus()
-        await page.keyboard.press('Alt+t')
+        // Enter in the last line's last editable cell adds an Item line.
+        await cell(percent, 'percent').press('Enter')
         await expect(lineRows(page)).toHaveCount(3)
-        const note = await lineRowId(page, 2)
-        await cell(note, 'description').fill('Delivered to the annex')
+        const second = await pickLineProduct(page, 2, product.name)
 
         const created = batchAnswered(page, 'books_invoice_lines', 'POST', 200)
         await page.getByTestId('invoice-save-draft').click()
         await created
-        const amount = await cell(percent, 'amount').innerText()
-        expect(amount).toContain(money(Math.round(seededProduct().price / 10)))
+        const amount = money(Math.round(product.price / 10))
+        await expect(cell(percent, 'amount')).toContainText(amount)
 
-        await cell(note, 'description').focus()
+        await cell(first, 'description').focus()
+        await page.keyboard.press('ControlOrMeta+Alt+Backspace')
+        await expect(lineRows(page)).toHaveCount(2)
+        await cell(second, 'description').focus()
         await page.keyboard.press('ControlOrMeta+Alt+ArrowUp')
-        await page.keyboard.press('ControlOrMeta+Alt+ArrowUp')
-        await expect.poll(() => lineRowId(page, 0)).toBe(note)
+        await expect.poll(rowIds).toEqual([second, percent])
 
-        const moved = batchAnswered(page, 'books_invoice_lines', 'PATCH', 200)
+        const removed = batchAnswered(page, 'books_invoice_lines', 'DELETE', 200)
         await page.getByTestId('invoice-save-draft').click()
-        await moved
-        await expect.poll(() => lineRowId(page, 1)).toBe(item)
-        await expect.poll(() => lineRowId(page, 2)).toBe(percent)
-        await expect(cell(percent, 'amount')).toHaveText(amount)
+        const request = (await removed).request()
+        expect(batchWriteIndex(request, 'books_invoice_lines', 'DELETE')).toBe(0)
+        const operations: { url: string }[] = request.postDataJSON().requests
+        expect(batchWriteIndex(request, 'books_invoices', 'PATCH')).toBe(operations.length - 1)
+        await expect.poll(rowIds).toEqual([second, percent])
+        await expect(cell(percent, 'amount')).toContainText(amount)
         await expect(page.getByTestId('invoice-lines')).not.toContainText('A percent line applies')
     })
 
