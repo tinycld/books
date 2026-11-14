@@ -1,5 +1,5 @@
 import type { DocumentTotals } from './document-lines'
-import { INVOICE_MESSAGES } from './document-texts'
+import { ESTIMATE_MESSAGES, INVOICE_MESSAGES, SALES_RECEIPT_MESSAGES } from './document-texts'
 import { TOO_LARGE_TEXT } from './entry-lines'
 import { formatMoney } from './money'
 import { maxStoredAmount } from './money-text'
@@ -72,10 +72,22 @@ export function documentRefusalTarget(
 // The refusal text of a line write, with the write's "Line n" label in front. The
 // server's line checks already start their text with the stored line's number, which
 // is the one the user sees, so such a text keeps its own label and gets no second one.
+// A totals text gets none either: the server checks the totals of a batch one time and
+// refuses on the batch's first line write, which is not the line that made the total
+// (server/sales_document_deferral.go).
 export function labelledLineRefusal(rowLabel: string | null, message: string): string {
-    if (rowLabel === null || LINE_REFUSAL.test(message)) return message
+    if (rowLabel === null || LINE_REFUSAL.test(message) || TOTALS_REFUSALS.has(message)) {
+        return message
+    }
     return `${rowLabel}: ${message}`
 }
+
+const TOTALS_REFUSALS = new Set(
+    [INVOICE_MESSAGES, SALES_RECEIPT_MESSAGES, ESTIMATE_MESSAGES].flatMap(messages => [
+        messages.totalNegative,
+        messages.totalTooLarge,
+    ])
+)
 
 const NO_TOTAL = '—'
 
