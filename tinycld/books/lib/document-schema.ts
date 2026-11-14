@@ -4,7 +4,7 @@
 // cannot read from the host: the quantity's bounds and decimals, the typed rate and
 // percent, the text lengths in code points, an invoice's and a bill's due date against
 // its date, a bill's Vendor's bill no., a sales receipt's Deposit to and Reference no.,
-// an estimate's Expiration date, Accepted date and Accepted by, the percent target and
+// an expense's Ref no., an estimate's Expiration date, Accepted date and Accepted by, the percent target and
 // the totals. The texts are the kind's (`kind.messages`). The host's columns carry no
 // bounds, so each cell shows one message, from here.
 //
@@ -206,19 +206,21 @@ function estimateIssues(kind: SalesDocumentKind, values: Record<string, unknown>
     return issues
 }
 
-// The books_sales_receipts schema's `reference_no` max, in code points as the server
-// counts it.
+// The books_sales_receipts and books_expenses schemas' `reference_no` max, in code points
+// as the server counts it.
 const MAX_REFERENCE = 40
 
-// Only a sales receipt has a payment row. Deposit to is required while it is drawn ("Ask");
-// while "Sales deposited to" names an account it is hidden and the server stamps that
-// account on the receipt. With no deposit account in the chart the text says to add one.
+// The payment row of a kind that has one, by its texts: a sales receipt's Deposit to and
+// Reference no., an expense's Ref no. (its Paid from and Payment method are host-required).
+// Deposit to (only a sales receipt passes `deposit`) is required while it is drawn
+// ("Ask"); while "Sales deposited to" names an account it is hidden and the server stamps
+// that account on the receipt. With no deposit account in the chart the text says to add
+// one. A kind with no `referenceTooLong` text has no reference field.
 function paymentIssues(
     kind: SalesDocumentKind,
     values: Record<string, unknown>,
     deposit: DepositRule | undefined
 ): Issue[] {
-    if (kind.key !== 'sales_receipt') return []
     const { messages } = kind
     const issues: Issue[] = []
     const isDepositMissing =

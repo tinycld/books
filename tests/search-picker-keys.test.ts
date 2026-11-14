@@ -19,6 +19,12 @@ describe('searchPickerKeyAction', () => {
         expect(searchPickerKeyAction(key('a'), false)).toBe('open-with-text')
     })
 
+    it('leaves ? on a closed picker to the shortcut list, and other printable keys type-open', () => {
+        expect(searchPickerKeyAction(key('?'), false)).toBe('none')
+        expect(searchPickerKeyAction(key('/'), false)).toBe('open-with-text')
+        expect(searchPickerKeyAction(key('S'), false)).toBe('open-with-text')
+    })
+
     it('does nothing on Tab, Escape, Shift and ArrowUp', () => {
         expect(searchPickerKeyAction(key('Tab'), false)).toBe('none')
         expect(searchPickerKeyAction(key('Escape'), false)).toBe('none')

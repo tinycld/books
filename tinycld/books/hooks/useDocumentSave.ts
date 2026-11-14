@@ -529,6 +529,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             taxRate: string
             mode: SaveMode
             progress: Progress
+            // Puts back the empty lines the save dropped (dropEmptyLines).
+            restoreLines: () => void
         }) => {
             await atomic(() => {
                 writes.insertRecord({
@@ -553,7 +555,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             state.create.form.reset(state.create.form.getValues())
             navigateAfter(id, mode)
         },
-        onError: (error, { id, rows, taxRate, lines, progress }) => {
+        onError: (error, { id, rows, taxRate, lines, progress, restoreLines }) => {
             // The draft is written and its post was refused: it stays, and the refusal
             // shows on this form, whose next save updates it. The post is no line's
             // write, so its refusal gets no "Line n" label.
@@ -564,6 +566,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             }
             // The batch was refused and nothing is stored: the new form stays with the
             // refusal where it belongs, and the next Save inserts the document once.
+            restoreLines()
             refuse({ error, rowLabel: rowLabelOf(error, lines) })
         },
         onSettled: (_data, _error, { id }) => {
@@ -584,6 +587,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             onDrafted: (revision: number) => void
             mode: SaveMode
             progress: Progress
+            // Puts back the empty lines the save dropped (dropEmptyLines).
+            restoreLines: () => void
         }) => {
             // The store row moved past the revision this form saw (another session's
             // save reached the store). Its revision can be the very value this save would
@@ -622,12 +627,15 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             onDrafted(progress.revision)
             navigateAfter(id, mode)
         },
-        onError: (error, { onDrafted, save, progress }) => {
+        onError: (error, { onDrafted, save, progress, restoreLines }) => {
             if (progress.drafted) {
                 onDrafted(progress.revision)
                 refuse({ error, rowLabel: null })
                 return
             }
+            // The batch was refused and nothing is stored: no line was saved, so none
+            // was dropped at save.
+            restoreLines()
             refuse({ error, rowLabel: rowLabelOf(error, save.lines) })
         },
         onSettled: (_data, _error, { id }) => {
@@ -703,7 +711,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // The estimate a new invoice names is no field of the form: the insert writes it.
     const estimateColumn = state.estimate === '' ? {} : { estimate: state.estimate }
 
-    const startCreate = async (mode: SaveMode) => {
+    const startCreate = async (mode: SaveMode, restoreLines: () => void) => {
         const split = await state.create.submit()
         if (!split) return false
         const columns = {
@@ -724,13 +732,14 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             taxRate: formTaxRate(state),
             mode,
             progress: newProgress(),
+            restoreLines,
         })
         return true
     }
 
     // A new form whose draft is already written (a refused post): every column and the
     // lines against the ones it wrote, stating the revision that draft has.
-    const startWrittenUpdate = async (draft: Written, mode: SaveMode) => {
+    const startWrittenUpdate = async (draft: Written, mode: SaveMode, restoreLines: () => void) => {
         const split = await state.create.submit()
         if (!split) return false
         const rows = lineTableRowsOf(kind, split.tables)
@@ -758,6 +767,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             onDrafted: revision => markWritten({ id: draft.id, rows, revision, taxRate }),
             mode,
             progress: newProgress(),
+            restoreLines,
         })
         return true
     }
@@ -772,7 +782,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         return state.form.trigger([...QUOTE_RULE_KEYS])
     }
 
-    const startUpdate = async (id: string, mode: SaveMode) => {
+    const startUpdate = async (id: string, mode: SaveMode, restoreLines: () => void) => {
         const result = await state.edit.patch()
         const rulesHold = await quoteRulesHold()
         if (!result || !rulesHold) return false
@@ -802,15 +812,18 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             },
             mode,
             progress: newProgress(),
+            restoreLines,
         })
         return true
     }
 
-    const startSave = (mode: SaveMode) => {
+    const startSave = (mode: SaveMode, restoreLines: () => void) => {
         const id = state.recordId
-        if (id !== undefined) return startUpdate(id, mode)
+        if (id !== undefined) return startUpdate(id, mode, restoreLines)
         const draft = written
-        return draft ? startWrittenUpdate(draft, mode) : startCreate(mode)
+        return draft
+            ? startWrittenUpdate(draft, mode, restoreLines)
+            : startCreate(mode, restoreLines)
     }
 
     const start = async (mode: SaveMode) => {
@@ -826,9 +839,10 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             // record schema reads the mode when it runs.
             if (mode.post) state.saveMode.current = 'post'
             try {
-                const started = await startSave(mode)
+                const started = await startSave(mode, restoreLines)
                 // Not started: the form's own check refused it (or nothing changed), so
-                // nothing was written; a bill's form gets its dropped lines back.
+                // nothing was written; a bill's form gets its dropped lines back (as it
+                // does when the server refuses a batch that wrote nothing).
                 if (!started) {
                     restoreLines()
                     reportFieldErrors()

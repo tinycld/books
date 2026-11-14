@@ -1349,13 +1349,15 @@ const hosts: FormHostDefInput[] = [
                 component: 'RequiredPaymentMethodField',
                 chrome: 'cell',
             },
+            // No maxLength: core would add its own "Ref no. is too long" beside the record
+            // schema's 40-character text (EXPENSE_MESSAGES.referenceTooLong), as the bill's
+            // ref_no. The migration holds the same 40 bound.
             {
                 key: 'reference_no',
                 label: 'Ref no.',
                 kind: 'text',
                 storage: 'column',
                 required: false,
-                maxLength: 40,
             },
             ...PURCHASE_LINE_BUILTINS,
             {

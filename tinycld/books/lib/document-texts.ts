@@ -231,6 +231,74 @@ export const BILL_MESSAGES = {
     refTooLong: string
 }
 
+// The expense's texts. The first group is shown by the client and refused by the server
+// with the same words (server/expenses.go, the vendor text in server/bills.go and the line
+// texts in server/purchase_lines.go); tests/document-messages.test.ts fails when they
+// drift. The zero-total Post rule is the server's only: the client shows its refusal. An
+// expense's party is a vendor: the `customer…` keys of the shared layer hold the vendor's
+// texts. An expense has no percent lines, bundles or PDF; the type's texts for them are
+// the invoice's and never show.
+export const EXPENSE_MESSAGES = {
+    totalNegative: 'An expense total cannot be below zero.',
+    totalZero: 'An expense total must be more than zero to post.',
+    totalTooLarge: 'The expense total is more than Books can store.',
+    tooManyLines: 'An expense holds at most 250 lines.',
+    customerInactive: BILL_MESSAGES.customerInactive,
+    customerOnInvoices: '%s is on expenses. Make it inactive instead.',
+    // Under Paid from: an account that is not a bank or credit card account, and an
+    // inactive one (`%s` is "<number> <name>").
+    paidFromType: 'Choose a bank or credit card account.',
+    paidFromInactive: '%s is inactive. Choose an active account.',
+    // Under Ref no.: the check number, the Paid from account ("<number> <name>") and the
+    // expense that has it: "Expense 1004", or "a draft expense" while it has no number.
+    duplicateCheckNo: 'Check no. %s from %s is already on %s.',
+    accountInactive: BILL_MESSAGES.accountInactive,
+    accountNotExpense: BILL_MESSAGES.accountNotExpense,
+    productInactive: BILL_MESSAGES.productInactive,
+    productNotPurchased: BILL_MESSAGES.productNotPurchased,
+    accountAmountZero: BILL_MESSAGES.accountAmountZero,
+
+    // Client only.
+    percentTarget: INVOICE_MESSAGES.percentTarget,
+    needItemLine: BILL_MESSAGES.needItemLine,
+    quantityNotPositive: INVOICE_MESSAGES.quantityNotPositive,
+    quantityDecimals: INVOICE_MESSAGES.quantityDecimals,
+    quantityTooLarge: INVOICE_MESSAGES.quantityTooLarge,
+    rateMalformed: INVOICE_MESSAGES.rateMalformed,
+    rateTooLarge: INVOICE_MESSAGES.rateTooLarge,
+    // books_expense_lines.rate has min 0, as a bill line's.
+    rateNegative: BILL_MESSAGES.rateNegative,
+    percentRange: INVOICE_MESSAGES.percentRange,
+    percentDecimals: INVOICE_MESSAGES.percentDecimals,
+    noAccess: 'You need bookkeeper access to create expenses',
+    notFound: 'This expense does not exist',
+    cannotEdit: 'This expense cannot be edited',
+    loadFailed: 'Books could not load this expense.',
+    customerLoadFailed: BILL_MESSAGES.customerLoadFailed,
+    bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
+    bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
+    pdfUnsaved: INVOICE_MESSAGES.pdfUnsaved,
+    pdfUnsavedSave: INVOICE_MESSAGES.pdfUnsavedSave,
+    pdfStale: INVOICE_MESSAGES.pdfStale,
+    voidBody: INVOICE_MESSAGES.voidBody,
+    referenceTooLong: 'Ref no. can be at most 40 characters',
+    // The delete-draft confirm's title and body (the draft dialog's own action and ids).
+    deleteTitle: 'Delete this draft expense?',
+    deleteBody: "This can't be undone.",
+} as const satisfies DocumentMessages & {
+    totalZero: string
+    paidFromType: string
+    paidFromInactive: string
+    duplicateCheckNo: string
+    accountInactive: string
+    accountNotExpense: string
+    productInactive: string
+    productNotPurchased: string
+    accountAmountZero: string
+    voidBody: string
+    referenceTooLong: string
+}
+
 // The estimate's texts. The first group is shown by the client and refused by the server
 // with the same words (server/estimates.go); tests/document-messages.test.ts fails when
 // they drift. The line texts are the invoice's. An estimate never posts, so it has no

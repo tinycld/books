@@ -18,12 +18,14 @@
 
 import type { BooksExpenseLines, BooksExpenses } from '../types'
 import { INVOICE_USER_IDS } from './invoice-form-fixture'
+import { PAID_FROM_TYPES } from './paid-from-method'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
 import { PURCHASE_ACCOUNT_TYPES } from './purchase-line-columns'
 import { SEED_ACCOUNTS, type SeedAccount } from './seed-accounts'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
 
 export { EXPENSE_REF_HINT } from './document-texts'
+export { defaultMethodFor, PAID_FROM_TYPES } from './paid-from-method'
 
 export const EXPENSE_CURRENCY = 'USD'
 // "Today" for the reference captures, so default dates are stable.
@@ -247,18 +249,11 @@ export const EXPENSE_LINES = [
 ] satisfies ExpenseLineFixtureRecord[]
 
 // The Paid from choices of the seeded book (spec §3.3): its active bank and credit card
-// accounts in chart order. A credit card account sets Payment method to Credit card, a
-// bank account of detail type Cash on hand to Cash, any other bank account to Check.
-export const PAID_FROM_TYPES: ReadonlySet<string> = new Set(['bank', 'credit_card'])
+// accounts in chart order. The types and the method a pick sets live in
+// lib/paid-from-method.ts.
 export const PAID_FROM_ACCOUNTS: SeedAccount[] = SEED_ACCOUNTS.filter(
     account => PAID_FROM_TYPES.has(account.type) && !account.inactive
 )
-
-export function defaultMethodFor(account: Pick<SeedAccount, 'type' | 'detail_type'>) {
-    if (account.type === 'credit_card') return 'credit_card' as const
-    if (account.detail_type === 'cash_on_hand') return 'cash' as const
-    return 'check' as const
-}
 
 // What the reference shows under Paid from: each account's own posted balance (the
 // Chart of Accounts figure) in cents. 1010 is overdrawn, so its line shows in the danger
