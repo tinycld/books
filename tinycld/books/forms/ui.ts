@@ -11,6 +11,9 @@ import {
     DocumentTaxField,
     DocumentTermsField,
     DueDateField,
+    MailingAddressField,
+    VendorField,
+    VendorRefField,
 } from './document-fields'
 import {
     LineAmountCell,
@@ -30,6 +33,12 @@ import {
 import { MoneyField } from './money-fields'
 import { DepositAccountField, PaymentMethodField } from './payment-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
+import {
+    LineAccountCell,
+    LineItemAmountCell,
+    LinePurchaseProductCell,
+    LineTypedAmountCell,
+} from './purchase-line-cells'
 import { ExemptionReasonField, TaxRateField } from './tax-fields'
 import { LegalNameField, TaxIdField, TaxIdTypeField } from './vendor-1099-fields'
 import { AccountNumberField, PaymentTermsField } from './vendor-fields'
@@ -77,6 +86,13 @@ const ui: FormHostUi = {
         ExpirationDateField,
         AcceptedByField,
         AcceptedDateField,
+        VendorField,
+        MailingAddressField,
+        VendorRefField,
+        LineAccountCell,
+        LinePurchaseProductCell,
+        LineTypedAmountCell,
+        LineItemAmountCell,
     },
     // The money input's rules run through the forms engine, at save and between saves,
     // so a refused amount blocks the save and its message is the cell's inline text.

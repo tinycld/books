@@ -10,6 +10,7 @@ import {
     percentAmount,
 } from '../tinycld/books/lib/document-lines'
 import { INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
+import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
 import { TAX_RATE_ROWS } from '../tinycld/books/lib/tax-rates-fixture'
 
 type VectorCase = {
@@ -20,6 +21,8 @@ type VectorCase = {
         rate: number
         percent_ppm: number
         taxable: boolean
+        // An account line's typed amount; other kinds leave it out.
+        amount?: number
     }[]
     components: number[]
     amounts: (number | null)[]
@@ -58,6 +61,7 @@ describe('documentTotals: the shared vectors', () => {
                 rate: line.rate,
                 percentPpm: line.percent_ppm,
                 taxable: line.taxable,
+                amount: line.amount,
             }))
             const got = documentTotals(lines, taxOf(tc.components))
             expect(got.amounts).toEqual(tc.amounts)
@@ -76,6 +80,39 @@ describe('documentTotals: the shared vectors', () => {
             expect(got.isTooLarge).toBe(tc.too_large)
         })
     }
+})
+
+// The bill's account line (plan Decisions "lib/document-lines.ts"): its amount is the typed
+// amount (may be negative), summed into the subtotal as an item's is.
+describe('documentTotals: account lines', () => {
+    const lines = [
+        { kind: 'account' as const, amount: 18_745 },
+        { kind: 'account' as const, amount: -3_890 },
+        { kind: 'item' as const, quantity: 3, rate: 12_140 },
+    ]
+
+    it('sums account lines, negative ones included, with item lines', () => {
+        const got = documentTotals(lines, null)
+        expect(got.subtotal).toBe(51_275)
+        expect(got.total).toBe(51_275)
+        expect(got.isTooLarge).toBe(false)
+    })
+
+    it('adds nothing for an account line of 0', () => {
+        const got = documentTotals([...lines, { kind: 'account' as const, amount: 0 }], null)
+        expect(got.subtotal).toBe(51_275)
+        expect(got.total).toBe(51_275)
+    })
+
+    it('reports isTooLarge when the total passes maxStoredAmount', () => {
+        // Each line is inside the per-line limit; only their sum passes the stored limit.
+        const big = Array.from({ length: 10 }, () => ({
+            kind: 'account' as const,
+            amount: maxLineAmount,
+        }))
+        expect(maxLineAmount * 10).toBeGreaterThan(maxStoredAmount)
+        expect(documentTotals(big, null).isTooLarge).toBe(true)
+    })
 })
 
 describe('lineAmount and percentAmount', () => {

@@ -1,22 +1,28 @@
 import type { Transaction } from '@tanstack/react-db'
 import type { Users } from '@tinycld/core/types/pbSchema'
 import { useRef } from 'react'
+import type { DocumentLineMapper } from '../components/documents/document-kinds'
 import { type DocumentStatus, isReadOnlyStatus } from '../lib/document-lifecycle'
 import type { DocumentLineRow } from '../lib/document-line-columns'
 import type { DepositRule } from '../lib/document-schema'
 import { isExpired } from '../lib/estimate-status'
 import type { LiveRecovery } from '../lib/live-recovery'
+import type { PurchaseLineRow } from '../lib/purchase-line-columns'
+import type { PurchaseLines } from '../lib/purchase-lines'
 import type { DocumentLifecycle } from '../lib/sales-document-kinds'
 import type { CopyDeposit } from '../lib/sales-receipt-values'
 import type { TableWriteOps } from '../lib/table-writes'
 import type {
     BooksAccounts,
+    BooksBills,
+    BooksCustomers,
     BooksEstimates,
     BooksInvoices,
     BooksInvoiceTaxLines,
     BooksProducts,
     BooksSalesReceipts,
     BooksTaxRates,
+    BooksVendors,
 } from '../types'
 
 // The per-kind reads and writes the shared sales document layer calls. pbtsdb's
@@ -29,7 +35,10 @@ export type DocumentScreenInput = {
     id: string | null
     replaces?: string
     copy?: string
+    // The party a new form is opened with (`?customer`, or `?vendor` on a kind whose party
+    // is a vendor): the screen reads the one its kind's party names.
     customer?: string
+    vendor?: string
     fresh?: string
     // On an invoice's new form: the estimate it is made from (Convert to invoice).
     estimate?: string
@@ -37,7 +46,8 @@ export type DocumentScreenInput = {
 
 // The columns every kind's header row has, as the generated invoice type names them,
 // with any kind's status. The posting columns (`entry` … `replaced_by`) are '' on a kind
-// that never posts. `revision` is what a save states it saw (lib/revision.ts).
+// that never posts; the sales columns (`customer` … `tax_total`) are ''/null/0 on a
+// purchase kind (bill-data.ts). `revision` is what a save states it saw (lib/revision.ts).
 type SharedColumns = { status: DocumentStatus } & Pick<
     BooksInvoices,
     | 'id'
@@ -77,7 +87,15 @@ type EstimateKindFields = { kind: 'estimate' } & Pick<
     BooksEstimates,
     'expiration_date' | 'accepted_by' | 'accepted_date' | 'invoice'
 >
-export type DocumentKindFields = InvoiceKindFields | SalesReceiptKindFields | EstimateKindFields
+type BillKindFields = { kind: 'bill' } & Pick<
+    BooksBills,
+    'vendor' | 'terms' | 'due_date' | 'ref_no' | 'mailing_address'
+>
+export type DocumentKindFields =
+    | InvoiceKindFields
+    | SalesReceiptKindFields
+    | EstimateKindFields
+    | BillKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -96,6 +114,7 @@ export type DocumentRecord = SharedColumns & {
         | (EstimateKindFields & {
               invoiceRow: Pick<BooksInvoices, 'number' | 'status'> | undefined
           })
+        | (BillKindFields & { vendorRow: Pick<BooksVendors, 'display_name'> | undefined })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
     taxRateRow: Pick<BooksTaxRates, 'name'> | undefined
@@ -111,20 +130,71 @@ export function expiredOnOf(record: DocumentRecord | undefined, today: string): 
     return isExpired(estimate, today) ? fields.expiration_date : null
 }
 
+// The id of a document's party (DOCUMENT_PARTIES): a purchase kind keeps its vendor in
+// its own columns (`kindFields.vendor`); every sales kind's party is `customer`.
+export function documentPartyIdOf(record: Pick<DocumentSource, 'customer' | 'kindFields'>): string {
+    const fields = record.kindFields
+    if ('vendor' in fields && typeof fields.vendor === 'string') return fields.vendor
+    return record.customer
+}
+
 // A kind's own input to its new form's values and to a copy's, which its data source
 // reads: none for an invoice or an estimate; for a sales receipt, how Deposit to is
-// chosen.
+// chosen; for a bill, the Bill lines setting (which tables a new form shows) and, on a new
+// form opened with `?vendor`, whether the Account picker lists that vendor's default
+// expense account (only then does the first account line start with it; undefined
+// without `?vendor`).
 export type DocumentStart =
     | { kind: 'invoice' }
     | { kind: 'sales_receipt'; deposit: CopyDeposit }
     | { kind: 'estimate' }
+    | { kind: 'bill'; purchaseLines: PurchaseLines; vendorAccountListed?: boolean }
 
 // What a kind's form starts from besides the document: its start input and the Deposit
 // to rule of its schema (none for an invoice).
 export type DocumentFormStart = { start: DocumentStart; deposit: DepositRule | undefined }
 
-// A stored line with the product the read view names.
-export type DocumentReadLine = DocumentLineRow & { productRow: BooksProducts | undefined }
+// A stored line of any kind: a sales kind's (DocumentLineRow) or a purchase kind's
+// (PurchaseLineRow, which alone has an `account` column).
+export type DocumentStoredLine = DocumentLineRow | PurchaseLineRow
+
+export function isPurchaseLine(line: DocumentStoredLine): line is PurchaseLineRow {
+    return 'account' in line
+}
+
+export function isSalesLine(line: DocumentStoredLine): line is DocumentLineRow {
+    return !isPurchaseLine(line)
+}
+
+// A line table's mapper as a sales kind's (the `lines` tag DocumentLineMapper carries). A
+// purchase mapper here is a bug: a sales kind's data source writes sales lines only.
+export function salesLineMapperOf(mapper: DocumentLineMapper) {
+    if (mapper.lines !== 'sales') throw new Error('a sales document has a purchase line table')
+    return mapper
+}
+
+// A line table's mapper as a purchase kind's, as salesLineMapperOf.
+export function purchaseLineMapperOf(mapper: DocumentLineMapper) {
+    if (mapper.lines !== 'purchase') throw new Error('a purchase document has a sales line table')
+    return mapper
+}
+
+// A stored line with the product the read view names; a purchase line also with its
+// account ("<number> <name>").
+export type SalesReadLine = DocumentLineRow & { productRow: BooksProducts | undefined }
+export type PurchaseReadLine = PurchaseLineRow & {
+    productRow: BooksProducts | undefined
+    accountRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
+}
+export type DocumentReadLine = SalesReadLine | PurchaseReadLine
+
+export function isPurchaseReadLine(line: DocumentReadLine): line is PurchaseReadLine {
+    return isPurchaseLine(line)
+}
+
+export function isSalesReadLine(line: DocumentReadLine): line is SalesReadLine {
+    return isSalesLine(line)
+}
 
 // A tax line the server wrote at posting (the tax-rates snapshot).
 export type DocumentTaxLine = Pick<BooksInvoiceTaxLines, 'id' | 'rate_ppm' | 'amount'>
@@ -147,7 +217,7 @@ export type DocumentScreenReads = {
     record: DocumentRead<DocumentRecord | undefined>
     lines: DocumentRead<DocumentReadLine[]>
     source: DocumentRead<DocumentSource | undefined>
-    sourceLines: DocumentRead<DocumentLineRow[]>
+    sourceLines: DocumentRead<DocumentStoredLine[]>
     // On an invoice's new form with `?estimate`: the estimate it is made from and its
     // lines in order. Idle (ready and empty) on every other form and kind.
     estimateSource: DocumentRead<EstimateSource | undefined>
@@ -191,12 +261,48 @@ export type DocumentWrites = {
     storedRevision(id: string): number | undefined
     // One request: the server deletes the lines with the row, in one transaction.
     deleteRecord(id: string): DocumentTransaction
-    // A line insert sets the parent field.
-    lineOps(parentId: string): TableWriteOps<DocumentTransaction>
+    // One line table's writes: each row converts through the table's mapper
+    // (DocumentKind.lineSpecs), and a line insert sets the parent field.
+    lineOps(parentId: string, mapper: DocumentLineMapper): TableWriteOps<DocumentTransaction>
+}
+
+// The party row a form and a screen read: a sales kind's customer or a purchase kind's
+// vendor.
+export type DocumentPartyRow = BooksCustomers | BooksVendors
+
+// The party row as a customer (a sales kind's): null for no party. A vendor here is a
+// bug: a sales kind's data source reads customers only.
+export function customerPartyOf(party: DocumentPartyRow | null): BooksCustomers | null {
+    if (!party) return null
+    if (!('billing_address' in party)) throw new Error('a sales document has a vendor party')
+    return party
+}
+
+// The party row as a vendor (a purchase kind's), as customerPartyOf.
+export function vendorPartyOf(party: DocumentPartyRow | null): BooksVendors | null {
+    if (!party) return null
+    if (!('expense_account' in party)) throw new Error('a purchase document has a customer party')
+    return party
+}
+
+// One read of the party a document names: its row (undefined with no id, while it loads,
+// or when it does not exist), its state, what the screen's one Retry recovers (empty
+// unless it failed) and a Retry of this read alone.
+export type DocumentPartyRead = {
+    data: DocumentPartyRow | undefined
+    isLoading: boolean
+    isReady: boolean
+    isError: boolean
+    recovery: LiveRecovery
+    retry: () => void
 }
 
 export type DocumentDataSource = {
     useScreenReads(input: DocumentScreenInput & { isHeld: boolean }): DocumentScreenReads
+    // The party `id` names ('' reads nothing), from the collection of the kind's party.
+    // Each call is its own live query: the screen's and the form's reads fail and recover
+    // apart.
+    useParty(id: string): DocumentPartyRead
     useWrites(): DocumentWrites
     // The stored document's `updated`, read from its own row ('' with no id): every write
     // moves it, so the PDF view fetches again.

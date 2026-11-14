@@ -12,7 +12,8 @@ const invoiceHostKey = "books:invoice"
 // fails when they drift. PocketBase adds the final period to a text without
 // one. %s is the customer's name, which refuseNamedField keeps as typed.
 // msgPercentTarget and msgCustomerInactive are the words of every sales
-// document kind; the guards in sales_documents.go read them from here.
+// document kind: the guards in sales_documents.go read msgPercentTarget from
+// here, and each sales kind's Msgs.PartyInactive is msgCustomerInactive.
 const (
 	msgDueBeforeDate      = "The due date cannot be before the invoice date"
 	msgPercentTarget      = "A percent line applies to the item or subtotal right above it"
@@ -55,7 +56,12 @@ var invoiceKind = salesDocKind{
 	TaxLinesCollection: "books_invoice_tax_lines",
 	ParentField:        "invoice",
 	HostKey:            invoiceHostKey,
+	LineTables:         []string{salesDocLinesKey},
+	Party:              partyCustomer,
+	PartyCollection:    "books_customers",
+	AddressField:       "bill_to",
 	CustomerRequired:   true,
+	HasTax:             true,
 	Msgs: salesDocMessages{
 		TotalNegative:    msgTotalNegative,
 		TotalTooLarge:    msgTotalTooLarge,
@@ -71,6 +77,7 @@ var invoiceKind = salesDocKind{
 		EditMissing:      msgInvoiceEditMissing,
 		CustomerOnDocs:   msgCustomerOnInvoices,
 		RevisionConflict: msgInvoiceRevisionConflict,
+		PartyInactive:    msgCustomerInactive,
 	},
 	CheckHeader: func(tx core.App, stored, r *core.Record) error {
 		if err := checkInvoiceDays(r); err != nil {

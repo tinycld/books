@@ -645,15 +645,22 @@ function onDemandEntriesCollection(rows: BooksJournalEntries[], refuseOnceFor?: 
     return onDemandCollection('books_journal_entries', rows, refuseOnceFor)
 }
 
-// Any collection loaded on demand as onDemandEntriesCollection describes, by name.
+// The one equality a refused load names: a row id, or any field's value.
+type RefuseOnceFor = string | { field: string; value: string }
+
+// Any collection loaded on demand as onDemandEntriesCollection describes, by name. A
+// `refuseOnceFor` object refuses the first load whose filter names `field = value` (the
+// lines of one document, by its parent column).
 function onDemandCollection<T extends { id: string }>(
     name: string,
     rows: T[],
-    refuseOnceFor?: string
+    refuseOnceFor?: RefuseOnceFor
 ) {
     counter += 1
     const id = `${name}-on-demand-${counter}`
-    let isRefused = refuseOnceFor === undefined
+    const refused =
+        typeof refuseOnceFor === 'string' ? { field: 'id', value: refuseOnceFor } : refuseOnceFor
+    let isRefused = refused === undefined
     return createCollection({
         id,
         getKey: (row: T) => row.id,
@@ -668,7 +675,10 @@ function onDemandCollection<T extends { id: string }>(
                             c => c.operator === 'eq'
                         )
                         const namesRefused = comparisons.some(
-                            c => c.field.at(-1) === 'id' && c.value === refuseOnceFor
+                            c =>
+                                refused !== undefined &&
+                                c.field.at(-1) === refused.field &&
+                                c.value === refused.value
                         )
                         if (!isRefused && namesRefused) {
                             isRefused = true
@@ -1123,6 +1133,22 @@ export function seedFormRecords(hosts: readonly FormHostDefInput[]) {
 // after seedBooks, which replaces the registry.
 export function guardedStore<T extends { id: string }>(name: string, rows: T[]) {
     const collection = guarded<T>(name, rows)
+    state.registry[name] = collection
+    return collection
+}
+
+// Registers a read-only collection under `name` loaded on demand, as pbtsdb loads it: each
+// subset load gets the rows its equality filters name. With `refuseOnceFor`, the first
+// load whose filter names that row id (or `field = value`) is refused with a 403, as
+// pbtsdb refuses it; later loads succeed, so a retry that rebuilds the failed query
+// recovers it. Returns the collection, whose id expectLiveQueryError takes. Call after
+// seedBooks, which replaces the registry.
+export function onDemandStore<T extends { id: string }>(
+    name: string,
+    rows: T[],
+    refuseOnceFor?: RefuseOnceFor
+) {
+    const collection = onDemandCollection<T>(name, rows, refuseOnceFor)
     state.registry[name] = collection
     return collection
 }

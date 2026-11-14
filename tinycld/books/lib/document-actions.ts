@@ -1,4 +1,5 @@
 import type { DocumentStatus } from './document-lifecycle'
+import { type DocumentFeatures, SALES_FEATURES } from './sales-document-kinds'
 
 // The read view's actions of a posted or void sales document (spec §3.6 of the invoice).
 // Pure, so who sees which action and the key map are unit-tested. A quote's are
@@ -35,13 +36,16 @@ export const DOCUMENT_TAB_KEYS = { edit: 'Alt+1', pdf: 'Alt+2' } as const
 // A writer edits or voids a posted document and copies any; a void document (a replaced
 // original is void too) is only copied. A reader views the journal entry and the PDF.
 // A draft opens in the form, never here, so it offers nothing. The posting rule: every
-// posting kind shares the statuses.
+// posting kind shares the statuses. A kind with no PDF (a bill, `features.pdf` false)
+// offers no Download PDF.
 export function documentReadActions(
     status: DocumentStatus,
-    canWrite: boolean
+    canWrite: boolean,
+    features: Pick<DocumentFeatures, 'pdf'> = SALES_FEATURES
 ): DocumentReadAction[] {
     if (status === 'draft') return []
-    if (!canWrite) return ['entry', 'pdf']
-    if (status === 'posted') return ['edit', 'void', 'copy', 'entry', 'pdf']
-    return ['copy', 'entry', 'pdf']
+    const pdf: DocumentReadAction[] = features.pdf ? ['pdf'] : []
+    if (!canWrite) return ['entry', ...pdf]
+    if (status === 'posted') return ['edit', 'void', 'copy', 'entry', ...pdf]
+    return ['copy', 'entry', ...pdf]
 }

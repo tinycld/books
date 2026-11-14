@@ -4,9 +4,16 @@
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { percentTextToPpm } from './document-line-columns'
 import type { DocumentTax, DocumentTotals } from './document-lines'
-import { type DocumentFormValuesBase, documentTotalsOf } from './document-values'
+import {
+    allLineRows,
+    type DocumentLineTableValues,
+    documentTotalsOf,
+    lineTableSubtotals,
+} from './document-values'
+import { TOO_LARGE_TEXT } from './entry-lines'
 import { formatMoney } from './money'
 import { moneyInputCents } from './money-input'
+import { type DocumentLineTable, SALES_LINE_TABLES } from './sales-document-kinds'
 import { groupPpm, ratePercentText } from './sales-tax'
 import type { TaxOptionRate } from './tax-rate-options'
 
@@ -44,6 +51,7 @@ export function rowParses(row: TableRow, currency: string): boolean {
         const quantityOk = typeof row.quantity === 'number' && Number.isFinite(row.quantity)
         return quantityOk && moneyInputCents(textOf(row.rate), currency) !== null
     }
+    if (row.kind === 'account') return moneyInputCents(textOf(row.amount), currency) !== null
     if (row.kind === 'percent') return percentTextToPpm(textOf(row.percent) || '0') !== null
     return true
 }
@@ -77,15 +85,39 @@ export function lineAmountViews(rows: readonly TableRow[], currency: string): Li
     })
 }
 
-// The totals the screen shows, or null while a cell does not parse or a percent line has
-// no line to apply to (the header then reads "—").
+// A line table's own subtotal row in the totals, its amount formatted.
+export type DocumentTableSubtotal = { label: string; amount: string; testId: string }
+
+// The totals of a kind with more than one line table have no single Subtotal (`null`):
+// each table's subtotal shows instead (`tableSubtotals`). A kind with one table gets the
+// plain totals, with no `tableSubtotals`.
+export type ShownDocumentTotals = Omit<DocumentTotals, 'subtotal'> & {
+    subtotal: number | null
+    tableSubtotals?: DocumentTableSubtotal[]
+}
+
+// The totals the screen shows over every line table of the kind (`values` keyed by each
+// table's key), or null while a cell does not parse or a percent line has no line to
+// apply to (the header then reads "—").
 export function shownDocumentTotals(
-    values: Pick<DocumentFormValuesBase, 'lines'>,
+    values: DocumentLineTableValues,
     tax: DocumentTax,
-    currency: string
-): DocumentTotals | null {
-    const lines = values.lines ?? []
+    currency: string,
+    tables: readonly DocumentLineTable[] = SALES_LINE_TABLES
+): ShownDocumentTotals | null {
+    const lines = allLineRows(values, tables)
     if (!lines.every(row => rowParses(row, currency))) return null
-    const totals = documentTotalsOf(values, tax)
-    return totals.percentTargetErrors.length > 0 ? null : totals
+    const totals = documentTotalsOf({ lines }, tax)
+    if (totals.percentTargetErrors.length > 0) return null
+    if (tables.length <= 1) return totals
+    // Totals past what Books can store show "Too large" in every money row, the table
+    // subtotals too.
+    const amountOf = (cents: number) =>
+        totals.isTooLarge ? TOO_LARGE_TEXT : formatMoney(cents, currency)
+    const tableSubtotals = lineTableSubtotals(values, tables).map(({ subtotal, cents }) => ({
+        label: subtotal.label,
+        amount: amountOf(cents),
+        testId: subtotal.testId,
+    }))
+    return { ...totals, subtotal: null, tableSubtotals }
 }

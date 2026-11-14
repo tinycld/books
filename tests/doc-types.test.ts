@@ -23,6 +23,17 @@ describe('estimate doc type', () => {
 
 // The Numbering card's helper names what each doc type does from now on: estimates are
 // saved (they never post), every other doc type is posted.
+// Settings → Numbering draws one card per sequence row, so the seeded `bill` row gets
+// the "Bills" card from DOC_TYPES; registers and the ledger read "Bill" as its Type.
+describe('bill doc type', () => {
+    it('names the Numbering card "Bills", previews the next bill and labels the Type "Bill"', () => {
+        expect(DOC_TYPES.bill).toEqual({ label: 'Bills', noun: 'bill' })
+        expect(DOC_TYPE_LABELS.bill).toBe('Bill')
+        expect(nextNumberPreview('bill', '', '1001')).toBe('Next bill: 1001')
+        expect(sequenceHelper('bill')).toContain('applies to bills posted from now on.')
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(

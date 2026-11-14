@@ -1,7 +1,7 @@
 ---
 title: Settings
-summary: Company details, the close date and overrides, sales deposits and the default message, document numbering, 1099s, and who can open Books.
-tags: [settings, close date, override, sales, default message, numbering, 1099s, access]
+summary: Company details, the close date and overrides, sales deposits and the default message, bill lines, document numbering, 1099s, and who can open Books.
+tags: [settings, close date, override, sales, default message, purchases, bill lines, numbering, 1099s, access]
 order: 20
 ---
 
@@ -25,6 +25,16 @@ To set how sales receipts deposit and the message new documents start with, open
 - Invoices, estimates and sales receipts: **Default message to customer**, at most 4000 characters. New invoices, estimates and sales receipts start with this message, and you can change it on each one. A change does not touch documents that you already made.
 
 For more, see [Sales receipts](help://books:sales-receipts).
+
+## Purchases
+
+To choose which line tables a new bill shows, open Settings and choose Purchases. Everyone with Books access sees the section; only a Books admin can change it. The Bills card has one setting, **Bill lines**, with its own Save button:
+
+- Accounts and products (the default): a new bill shows Account details and Product and service details.
+- Accounts only: a new bill shows Account details only.
+- Products only: a new bill shows Product and service details only.
+
+A table that the setting hides still shows on a bill that already has lines in it, so editing an older bill never loses lines. For more, see [Bills](help://books:bills).
 
 ## Numbering
 
