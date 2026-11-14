@@ -1,6 +1,8 @@
 import { expect, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
+import { openBooksMenu } from './books-report-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { visibleTestId } from './sales-receipt-helpers'
 
 // A bill's own screen: `books/bills/<id>`, never `books/bills/new`.
 export const BILL_URL = /\/books\/bills\/(?!new(?:[?#]|$))[^/?#]+$/
@@ -154,6 +156,56 @@ export async function openBillBySearch(page: Page, term: string) {
     await option.click()
     await expect(page).toHaveURL(BILL_URL)
     await expect(page.getByTestId('bill-form').or(page.getByTestId('bill-read-only'))).toBeVisible()
+}
+
+// Settings → Purchases → Bills (spec §3.11). Only bill-form.spec.ts may use these: the
+// Bill lines setting is the shared books_settings row, and that file's tests run in order
+// on one worker.
+
+export const SETTINGS_ROW_PATH = '/api/collections/books_settings/records/bookssettings01'
+
+export type BillLinesLabel = 'Accounts and products' | 'Accounts only' | 'Products only'
+
+// Books must already be open, as the admin the specs log in as. Opens Settings →
+// Purchases: on desktop through the sidebar and the rail, on a phone through the Books
+// menu (the drawer) and the section list.
+export async function openPurchasesSettings(page: Page) {
+    if (isPhone(page)) {
+        await openBooksMenu(page)
+        await page.getByTestId('mobile-drawer-panel').getByTestId('books-nav-settings').click()
+    } else {
+        await visibleTestId(page, 'books-nav-settings').click()
+    }
+    // On a settings route the press pushes a new Settings root and keeps the old screen
+    // hidden in the DOM: wait for the push before the rail click.
+    await expect(page).toHaveURL(/\/books\/settings$/)
+    await visibleTestId(page, 'books-settings-section-purchases').click()
+    await expect(page).toHaveURL(/\/books\/settings\/purchases$/)
+    await expect(visibleTestId(page, 'books-settings-bill-lines')).toBeVisible()
+}
+
+// Books must already be open. Opens Settings → Purchases and stores Bill lines as the
+// option `label`, unless it is already the stored one (a freshly opened card's select
+// names the stored choice); waits for the stored row. Stays on Settings → Purchases.
+export async function setBillLines(page: Page, label: BillLinesLabel) {
+    await openPurchasesSettings(page)
+    const select = visibleTestId(page, 'books-settings-bill-lines')
+    if ((await select.innerText()).trim() === label) return
+    await select.click()
+    const item = page.getByRole('menuitem', { name: label, exact: true })
+    await item.click()
+    await expect(item).toHaveCount(0)
+    await expect(select).toContainText(label)
+    const save = visibleTestId(page, 'books-settings-bill-lines-save')
+    await expect(save).toBeEnabled()
+    const answered = page.waitForResponse(
+        response =>
+            response.request().method() === 'PATCH' &&
+            new URL(response.url()).pathname === SETTINGS_ROW_PATH
+    )
+    await save.click()
+    expect((await answered).status()).toBe(200)
+    await expect(save).toBeDisabled()
 }
 
 // Desktop. Reopens the saved draft on screen without search: leaves through the sidebar's

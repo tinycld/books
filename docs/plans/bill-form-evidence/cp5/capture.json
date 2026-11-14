@@ -1,0 +1,91 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "settings",
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-bill-lines",
+            "hideLabels": ["New"],
+            "height": 800,
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "settings-readonly",
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-bill-lines-readonly",
+            "hideLabels": ["New", "Reconnecting…"],
+            "widths": [1280],
+            "height": 800,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "new-accounts",
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-bill-lines",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1100,
+            "actions": [
+                { "click": "books-settings-bill-lines" },
+                { "clickMenuItem": "Accounts only" },
+                { "click": "books-settings-bill-lines-save" },
+                { "pause": 1000 },
+                { "pushPath": "/a/books/bills/new" },
+                { "waitFor": "bill-form" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "correction-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 3600,
+            "actions": [
+                { "pause": 500 },
+                { "press": "/" },
+                { "pause": 500 },
+                { "type": "Office Supply World" },
+                { "pause": 1500 },
+                { "clickOption": "Bill 1002" },
+                { "waitFor": "bill-read-only" },
+                { "click": "bill-read-edit" },
+                { "waitFor": "bill-form" },
+                { "waitFor": "bill-replace-note" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "new-products",
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-bill-lines",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "books-settings-bill-lines" },
+                { "clickMenuItem": "Products only" },
+                { "click": "books-settings-bill-lines-save" },
+                { "pause": 1000 },
+                { "pushPath": "/a/books/bills/new" },
+                { "waitFor": "bill-form" },
+                { "pause": 800 }
+            ]
+        }
+    ]
+}

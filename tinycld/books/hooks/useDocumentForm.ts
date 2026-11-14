@@ -6,7 +6,7 @@ import { type FormHost, useFormHost } from '@tinycld/core/lib/forms/use-form-hos
 import { log } from '@tinycld/core/lib/logger'
 import { z } from '@tinycld/core/ui/form'
 import { useFormCreate, useFormEdit, useHostUi } from '@tinycld/core/ui/forms'
-import { type RefObject, useMemo, useRef } from 'react'
+import { type RefObject, useEffect, useMemo, useRef } from 'react'
 import { useWatch } from 'react-hook-form'
 import {
     type DocumentKind,
@@ -26,6 +26,7 @@ import { hideBuiltins } from '../lib/form-definition'
 import { billTablesShown, noLinesText } from '../lib/purchase-lines'
 import { todayIso } from '../lib/register-range'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
+import { useDocumentSaveStore } from '../stores/document-save-store'
 import { type DocumentStart, recordColumnsOf } from './document-data'
 import type { DocumentScreenData } from './useDocumentScreen'
 
@@ -149,6 +150,19 @@ function shownLineTablesOf(
     })
 }
 
+// The tables a form shows plus those its form session already showed (kept across the
+// new → draft route replace), in the kind's table order.
+function withKeptTables(
+    kind: SalesDocumentKind,
+    shown: readonly string[],
+    kept: readonly string[] | undefined
+): readonly string[] {
+    if (!kept) return shown
+    return kind.lineTables
+        .map(table => table.key)
+        .filter(key => shown.includes(key) || kept.includes(key))
+}
+
 // A line table with a section heading (a bill's "Account details") is named by that
 // heading above it (DocumentForm's LineTableHeading), so the rendered copy drops the
 // table cell's own label, which would repeat it. The registered host and the stored
@@ -213,13 +227,24 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         : {}
     const { lines, record } = input
     const tables = useMemo(() => storedLineTableRows(documentKind, lines), [documentKind, lines])
-    // Decided once per form and kept for its life: a table stays shown after its last line
-    // is removed or saved away, so editing a bill never loses a table mid-session.
+    // Decided once per form session and kept for its life: a table stays shown after its
+    // last line is removed or saved away, so editing a bill never loses a table
+    // mid-session. A new form's first save replaces the route with the draft's, which
+    // mounts this form again: the new form kept its tables in the document save store
+    // under the draft's id (useDocumentSave), and the draft's form starts from them.
     const shownRef = useRef<readonly string[] | null>(null)
     if (shownRef.current === null) {
-        shownRef.current = shownLineTablesOf(kind, input.start, isNew ? createValues : tables)
+        const kept = record ? useDocumentSaveStore.getState().shownTables[record.id] : undefined
+        const fresh = shownLineTablesOf(kind, input.start, isNew ? createValues : tables)
+        shownRef.current = withKeptTables(kind, fresh, kept)
     }
     const shownTables = shownRef.current
+    // The draft's form session ends with its form.
+    const recordId = record?.id
+    useEffect(() => {
+        if (!recordId) return
+        return () => useDocumentSaveStore.getState().forgetShownTables(recordId)
+    }, [recordId])
     const postLineRule = useMemo(() => postLineRuleOf(kind, shownTables), [kind, shownTables])
     const ui = useMemo<FormHostUi | null>(
         () =>
@@ -295,7 +320,10 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         definition,
         form: chosen.form,
         depositFallback: depositFallbackOf(input.start, isDepositHidden),
-        recordId: record?.id,
+        recordId,
+        // The line tables this form session shows (a new form's first save keeps them for
+        // the draft's form it lands on).
+        shownTables,
         // The posted document a new correction replaces; its insert writes it.
         replaces: isNew ? textOf(input.startValues?.replaces) : '',
         // The estimate a new invoice is made from, or a new correction keeps; its insert
