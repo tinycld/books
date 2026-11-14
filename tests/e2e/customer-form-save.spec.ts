@@ -591,6 +591,11 @@ test.describe('customer-form: save and discard', () => {
             await page.getByRole('option').filter({ hasText: name }).click()
             await expect(title).toHaveText(name)
             await expect(page).toHaveURL(customerPath(id))
+            // The hit opens the customer's page on its default tab, Transactions.
+            await expect(page.getByTestId('customer-tab-transactions')).toHaveAttribute(
+                'aria-selected',
+                'true'
+            )
             await page.goBack()
             await expect(hubCard).toBeVisible()
             await expect(customerSurface(page)).toBeHidden()

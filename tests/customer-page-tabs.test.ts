@@ -6,22 +6,33 @@ import {
     customerTabOf,
 } from '../tinycld/books/lib/customer-page-tabs'
 
+describe('CUSTOMER_TAB_ORDER', () => {
+    it('draws Transactions first, then Details and Notes', () => {
+        expect(CUSTOMER_TAB_ORDER).toEqual(['transactions', 'details', 'notes'])
+    })
+})
+
 describe('customerTabOf', () => {
-    it('selects the first built tab when there is no tab param', () => {
-        expect(customerTabOf(undefined)).toBe(CUSTOMER_TAB_ORDER[0])
+    it('selects Transactions when there is no tab param', () => {
+        expect(customerTabOf(undefined)).toBe('transactions')
     })
 
-    it('selects the first built tab for an unknown value', () => {
-        expect(customerTabOf('bogus')).toBe(CUSTOMER_TAB_ORDER[0])
+    it('selects Transactions for an unknown value', () => {
+        expect(customerTabOf('bogus')).toBe('transactions')
     })
 
-    it('selects the Notes tab from its param', () => {
+    it('selects the Transactions tab from its param', () => {
+        expect(customerTabOf('transactions')).toBe('transactions')
+    })
+
+    it('selects the Details and Notes tabs from their params', () => {
+        expect(customerTabOf('details')).toBe('details')
         expect(customerTabOf('notes')).toBe('notes')
     })
 
-    it('selects the first built tab for a known tab that is not built yet', () => {
-        expect(CUSTOMER_TAB_ORDER).not.toContain('transactions')
-        expect(customerTabOf('transactions')).toBe(CUSTOMER_TAB_ORDER[0])
+    it('selects Transactions for a known tab that is not built yet', () => {
+        expect(CUSTOMER_TAB_ORDER).not.toContain('contacts')
+        expect(customerTabOf('contacts')).toBe('transactions')
     })
 })
 

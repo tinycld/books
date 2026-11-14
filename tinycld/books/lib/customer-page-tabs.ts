@@ -10,9 +10,9 @@ export const CUSTOMER_TABS: readonly { key: CustomerTab; label: string; keys: st
 ]
 
 // The tabs built so far, in strip order; the first is the default (no `tab` param).
-export const CUSTOMER_TAB_ORDER: readonly CustomerTab[] = ['details', 'notes']
+export const CUSTOMER_TAB_ORDER: readonly CustomerTab[] = ['transactions', 'details', 'notes']
 
-export const DEFAULT_CUSTOMER_TAB: CustomerTab = CUSTOMER_TAB_ORDER[0] ?? 'details'
+export const DEFAULT_CUSTOMER_TAB: CustomerTab = CUSTOMER_TAB_ORDER[0] ?? 'transactions'
 
 // The tabs the strip draws, in CUSTOMER_TAB_ORDER.
 export const SHOWN_CUSTOMER_TABS = CUSTOMER_TAB_ORDER.flatMap(key =>

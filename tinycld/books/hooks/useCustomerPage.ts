@@ -125,8 +125,9 @@ export function useCustomerPage(record: BooksCustomers) {
         navigation.leave()
         return true
     }
-    // The New transaction menu, one state for the header's button and the Transactions
-    // tab's empty-state button. It is never open while the menu is disabled or hidden.
+    // What the header, the More menu and the Transactions tab offer. The New transaction
+    // menu is one state for the header's button and the Transactions tab's empty-state
+    // button; it is never open while the menu is disabled or hidden.
     const controls = customerPageControls({
         canWrite,
         inactive: record.inactive,
@@ -179,6 +180,7 @@ export function useCustomerPage(record: BooksCustomers) {
             refusal: deleteRefusal,
         },
         bannerMessage,
+        controls,
         newMenuOpen,
         setNewMenuOpen,
         toggleInactive,

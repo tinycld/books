@@ -3,7 +3,7 @@ import { View } from 'react-native'
 import { type CustomerPageState, useCustomerPage } from '../../../hooks/useCustomerPage'
 import { useDetailSurface } from '../../../hooks/useDetailSurface'
 import { CUSTOMER_DISCARD_MESSAGE } from '../../../lib/customer-messages'
-import { type CustomerTab, customerPageControls } from '../../../lib/customer-page-tabs'
+import type { CustomerTab } from '../../../lib/customer-page-tabs'
 import type { DetailSurface } from '../../../lib/detail-surface'
 import type { BooksCustomers } from '../../../types'
 import { ListBanner } from '../../ListBanner'
@@ -15,17 +15,32 @@ import { CustomerNotesTab } from './CustomerNotesTab'
 import { CustomerPageHeader } from './CustomerPageHeader'
 import { CustomerPageSaveBar } from './CustomerPageSaveBar'
 import { CustomerTabs } from './CustomerTabs'
+import { CustomerTransactionsTab } from './CustomerTransactionsTab'
 import { NewTransactionMenu } from './NewTransactionMenu'
 
 interface TabBodyProps {
     tab: CustomerTab
+    record: BooksCustomers
     page: CustomerPageState
     surface: DetailSurface
     rowClassName: string
+    gutterClass: string
 }
 
 // Only the selected tab's body is mounted; the forms it edits live in the page.
-function TabBody({ tab, page, surface, rowClassName }: TabBodyProps) {
+function TabBody({ tab, record, page, surface, rowClassName, gutterClass }: TabBodyProps) {
+    if (tab === 'transactions') {
+        const openNewMenu = () => page.setNewMenuOpen(true)
+        return (
+            <CustomerTransactionsTab
+                customerId={record.id}
+                canWrite={page.canWrite}
+                newTransactionDisabled={page.controls.newTransactionDisabled}
+                onNewTransaction={openNewMenu}
+                gutterClass={gutterClass}
+            />
+        )
+    }
     if (tab === 'notes') {
         return (
             <CustomerNotesTab
@@ -57,12 +72,7 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
     const isPhone = useBreakpoint() === 'mobile'
     const { gutterClass, rowClassName } = columnsFor(isPhone)
     const page = useCustomerPage(record)
-    const { navigation, actions } = page
-    const controls = customerPageControls({
-        canWrite: page.canWrite,
-        inactive: record.inactive,
-        isTopLevel: record.parent === '',
-    })
+    const { navigation, actions, controls } = page
     const balance = <CustomerBalance customerId={record.id} />
     const newTransaction = (
         <NewTransactionMenu
@@ -107,7 +117,14 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
             </View>
             <CustomerTabs selected={page.tab} onSelect={page.selectTab} gutterClass={gutterClass} />
             <View className="flex-1">
-                <TabBody tab={page.tab} page={page} surface={surface} rowClassName={rowClassName} />
+                <TabBody
+                    tab={page.tab}
+                    record={record}
+                    page={page}
+                    surface={surface}
+                    rowClassName={rowClassName}
+                    gutterClass={gutterClass}
+                />
             </View>
             <CustomerPageSaveBar
                 isVisible={page.isDirty}
