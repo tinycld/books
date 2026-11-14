@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/customer-pages-checkpoints.md
 - reference: docs/plans/customer-pages-reference/
 - evidence: docs/plans/customer-pages-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ removed by finish.mjs
 - capture manifest: docs/plans/customer-pages-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -182,6 +182,6 @@
 - core change requests (not made; core is out of this unit): core `Switch` toggles on Space on web (WAI-ARIA switch), then `PrimaryContactField` goes back to core `Toggle`; core `Menu` gives focus back to its trigger before it runs a row's `onSelect`, then the RecordRowMenu line goes
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved 2026-11-14 (human); CI green on PR #48 at b73bcde (e2e sha)
+- human comments and what changed: read-only Details look accepted as is; the four core gaps (Switch Space, Menu focus return, Menu position across 1360 px, disabled ShortcutButton tooltip) go to a core fix task, with the Books workarounds removed after it
 - native: not executed in this run
