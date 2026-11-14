@@ -141,7 +141,7 @@ function Probe({ customer, seen }: ProbeProps) {
     const state = useDocumentForm(INVOICE_DOCUMENT, {
         record: undefined,
         lines: [],
-        customer,
+        party: customer,
         currency: 'USD',
         taxRows: [],
     })
@@ -528,7 +528,7 @@ describe('useDocumentSave: a stored draft', () => {
         const state = useDocumentForm(INVOICE_DOCUMENT, {
             record,
             lines: stored.lines.map(line => ({ ...line, productRow: undefined })),
-            customer: undefined,
+            party: undefined,
             currency: 'USD',
             taxRows: stored.taxRows,
         })

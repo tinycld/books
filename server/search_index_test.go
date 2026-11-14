@@ -58,8 +58,8 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 8 {
-		t.Fatalf("%d indexes, want one per search source (8)", len(searchIndexes))
+	if len(searchIndexes) != 9 {
+		t.Fatalf("%d indexes, want one per search source (9)", len(searchIndexes))
 	}
 }
 

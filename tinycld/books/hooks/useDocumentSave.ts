@@ -11,17 +11,17 @@ import { newRecordId } from 'pbtsdb/core'
 import { type RefObject, useRef, useState } from 'react'
 import type { ErrorOption } from 'react-hook-form'
 import type { ViewInstance } from 'react-native'
+import type { DocumentKind } from '../components/documents/document-kinds'
 import { refusedRecordId } from '../lib/batch-refusal'
 import {
-    DOCUMENT_LINE_COLUMNS,
-    DOCUMENT_LINE_MAPPER,
-    DOCUMENT_ROW_KINDS,
-} from '../lib/document-line-columns'
-import { documentLineWriteSteps, documentSavePlan } from '../lib/document-line-order'
+    type DocumentLineStep,
+    documentTablesSavePlan,
+    documentTablesWriteSteps,
+} from '../lib/document-line-order'
 import {
-    type DocumentRefusalTarget,
     documentRefusalTarget,
     labelledLineRefusal,
+    tableLineRefusal,
 } from '../lib/document-messages'
 import { type DocumentTab, documentHref, documentNewHref } from '../lib/document-routes'
 import { documentTaxOf } from '../lib/document-tax'
@@ -31,13 +31,29 @@ import { type HiddenFields, hiddenRefusalKeys, refusalMessage } from '../lib/rec
 import { columnsOrThrow, type RefusalForm, runLocked, startFailed } from '../lib/record-save'
 import { messageOnlyRefusal } from '../lib/refusal'
 import { assertRevisionSeen, documentConflictText, isRevisionConflict } from '../lib/revision'
-import { INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
+import { DOCUMENT_PARTIES, INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
 import { createTablePlans } from '../lib/table-writes'
 import { useDocumentSaveStore } from '../stores/document-save-store'
 import type { DocumentTransaction, DocumentWrites } from './document-data'
 import type { DocumentFormState } from './useDocumentForm'
 
-const LINE_COLUMNS = { lines: DOCUMENT_LINE_COLUMNS }
+// Each line table's columns (DocumentKind.lineSpecs), keyed by the table's key, in the
+// kind's table order.
+function lineColumnsOf(documentKind: DocumentKind) {
+    const entries = documentKind.doc.lineTables.map(
+        table => [table.key, documentKind.lineSpecs[table.key].columns] as const
+    )
+    return Object.fromEntries(entries)
+}
+
+// The form's rows of each line table, keyed by the table's key; none for a table the
+// values do not hold.
+function lineTableRowsOf(
+    kind: SalesDocumentKind,
+    tables: Readonly<Record<string, TableRow[]>>
+): Record<string, TableRow[]> {
+    return Object.fromEntries(kind.lineTables.map(table => [table.key, tables[table.key] ?? []]))
+}
 
 // The kind's words of a save: its log context, the toast title of a refusal that came
 // after the user left, and the root error of a press that failed before it was sent.
@@ -58,22 +74,32 @@ type SaveTexts = ReturnType<typeof saveTexts>
 
 /**
  * Where Post & new goes: a fresh new form of the kind (its `fresh` nonce mounts a new one
- * even from `new`), keeping `?customer` only when this form was opened with it.
+ * even from `new`), keeping the party param (`?customer`, `?vendor`) only when this form
+ * was opened with it.
  */
 export function postAndNewHref(
-    kind: Pick<SalesDocumentKind, 'routeBase'>,
-    openedWithCustomer: string | undefined
+    kind: Pick<SalesDocumentKind, 'routeBase' | 'party'>,
+    openedWithParty: string | undefined
 ): string {
-    return documentNewHref(kind, { fresh: newRecordId(), customer: openedWithCustomer })
+    const field = DOCUMENT_PARTIES[kind.party].field
+    return documentNewHref(kind, { fresh: newRecordId(), [field]: openedWithParty })
 }
 
-// The cell a line's refusal shows under: the first cell its kind draws (core's table
-// shows cell errors only, never one for a whole row).
-function lineRefusalPath(form: DocumentFormState['form'], index: number): string {
-    const rows = form.getValues('lines')
-    const kind = Array.isArray(rows) ? rows[index]?.kind : undefined
-    const column = DOCUMENT_ROW_KINDS.find(k => k.key === kind)?.columns[0] ?? 'product'
-    return `lines.${index}.${column}`
+// The cell a line's refusal shows under: the first cell its row kind draws in its table
+// (core's table shows cell errors only, never one for a whole row); the table's first
+// row kind's first cell when the row is not there.
+function lineRefusalPath(
+    form: DocumentFormState['form'],
+    documentKind: DocumentKind,
+    table: string,
+    index: number
+): string {
+    const rows = form.getValues(table)
+    const rowKind = Array.isArray(rows) ? rows[index]?.kind : undefined
+    const rowKinds = documentKind.lineSpecs[table]?.rowKinds ?? []
+    const shown = rowKinds.find(k => k.key === rowKind) ?? rowKinds[0]
+    const column = shown?.columns[0] ?? 'product'
+    return `${table}.${index}.${column}`
 }
 
 // Every server answer that is not a field the form shows goes to `root.server`: the
@@ -85,27 +111,33 @@ function rootServerForm(form: DocumentFormState['form']): RefusalForm {
 
 type Refused = { error: unknown; rowLabel: string | null }
 
-// The field a text refusal names, or null for the summary: a target the form does not
-// draw when the answer arrives has no cell.
+// The field a text refusal names, or null for the summary: "<row label> <n>: …" names
+// that line of the table with that row label; a target the form does not draw when the
+// answer arrives has no cell. A "Line n" text on a kind that has no table of that row
+// label names no line the form draws.
 function refusalFieldOf(
-    form: DocumentFormState['form'],
-    target: DocumentRefusalTarget,
+    state: DocumentFormState,
+    text: string,
     isDrawn: (key: string) => boolean
 ): string | null {
-    if (target === 'root') return null
-    if (typeof target === 'object') {
-        return isDrawn('lines') ? lineRefusalPath(form, target.line) : null
+    const { form, kind, document: documentKind } = state
+    const tableLine = tableLineRefusal(text, kind.lineTables)
+    if (tableLine) {
+        if (!isDrawn(tableLine.table)) return null
+        return lineRefusalPath(form, documentKind, tableLine.table, tableLine.line)
     }
+    const target = documentRefusalTarget(text, kind)
+    if (target === 'root' || typeof target === 'object') return null
     return isDrawn(target) ? target : null
 }
 
 /**
- * Where a refusal of a document save shows: "Line n: …" under that line, a customer,
- * date, due date, tax or Deposit to text under its field, any other text in the screen's
- * summary, field errors under their fields, and a failure with no message (a network
- * error) as the host's toast. A refusal of a field the form does not draw when the answer
- * arrives (not in the definition, or hidden by it or a rule; `hiddenFields`, as
- * recordRefusalHandler) joins the summary.
+ * Where a refusal of a document save shows: "Line n: …" (a table's row label and number)
+ * under that line, a customer, date, due date, tax or Deposit to text under its field, any
+ * other text in the screen's summary, field errors under their fields, and a failure with
+ * no message (a network error) as the host's toast. A refusal of a field the form does not
+ * draw when the answer arrives (not in the definition, or hidden by it or a rule;
+ * `hiddenFields`, as recordRefusalHandler) joins the summary.
  */
 function showRefusal(
     state: DocumentFormState,
@@ -122,7 +154,7 @@ function showRefusal(
     const message = messageOnlyRefusal(refused.error)
     if (message !== null) {
         const text = labelledLineRefusal(refused.rowLabel, message)
-        const field = refusalFieldOf(form, documentRefusalTarget(text, state.kind), isDrawn)
+        const field = refusalFieldOf(state, text, isDrawn)
         if (field === null) root.setError('root', server(text))
         else form.setError(field, server(text))
         return
@@ -181,33 +213,52 @@ function usePresence(surfaceRef: RefObject<ViewInstance | null>) {
     return () => surfaceRef.current !== null && navigation.isFocused()
 }
 
-type StoredLines = Parameters<typeof documentSavePlan>[0]['storedLines']
+type StoredLines = Parameters<typeof documentTablesSavePlan>[0]['storedLines']
 
-// The lines as a save stores them, for the next save's line plan.
-function storedLinesOf(rows: readonly TableRow[]): StoredLines {
-    return rows.map((row, position) => ({
-        id: row.id,
-        ...DOCUMENT_LINE_MAPPER.toRecord(row, position),
-    }))
+type TablePlans = Readonly<Record<string, TableWritePlan | undefined>>
+
+// The lines as a save stores them, every table's through its own mapper, for the next
+// save's line plan.
+function storedLinesOf(
+    documentKind: DocumentKind,
+    tables: Readonly<Record<string, TableRow[]>>
+): StoredLines {
+    return documentKind.doc.lineTables.flatMap(table => {
+        const { mapper } = documentKind.lineSpecs[table.key]
+        return (tables[table.key] ?? []).map((row, position) => ({
+            id: row.id,
+            ...mapper.toRecord(row, position),
+        }))
+    })
 }
 
-// A line write of a save: its row, the "Line n" label of a refusal of it (a removed row
-// has none), and the write.
+// A line write of a save: its row, the label of a refusal of it (its table's row label and
+// its number in that table, "Line 3", "Account line 2"; a removed row has none), and the
+// write.
 type LineWrite = { rowId: string; label: string | null; run: () => DocumentTransaction }
 
 // The line writes of a saved document's save, and whether its header write goes first.
 type SavePlan = { headerFirst: boolean; lines: LineWrite[] }
 
-function lineWriteOf(step: {
-    rowId: string
-    itemNumber: number | null
-    run: () => DocumentTransaction
-}): LineWrite {
-    return {
+// Each line table's plan with the ops that write its rows, in the kind's table order:
+// each table's rows are written through its own mapper (DocumentKind.lineSpecs).
+function tablePlansOf(state: DocumentFormState, writes: DocumentWrites) {
+    const { lineSpecs } = state.document
+    return (documentId: string, plans: TablePlans) =>
+        state.kind.lineTables.map(table => ({
+            table: table.key,
+            plan: plans[table.key],
+            ops: writes.lineOps(documentId, lineSpecs[table.key].mapper),
+        }))
+}
+
+function lineWriteOf(state: DocumentFormState) {
+    const rowLabels = new Map(state.kind.lineTables.map(table => [table.key, table.rowLabel]))
+    return (step: DocumentLineStep<DocumentTransaction>): LineWrite => ({
         rowId: step.rowId,
-        label: step.itemNumber === null ? null : `Line ${step.itemNumber}`,
+        label: step.itemNumber === null ? null : `${rowLabels.get(step.table)} ${step.itemNumber}`,
         run: step.run,
-    }
+    })
 }
 
 // The header tax of a tax rate id, as the totals read it.
@@ -221,39 +272,42 @@ function formTaxRate(state: DocumentFormState): string {
     return typeof value === 'string' ? value : ''
 }
 
-// A new document's line writes: its header is inserted first with the form's tax, so the
-// order is planned against that tax (documentLineWriteSteps).
+// A new document's line writes over every line table: its header is inserted first with
+// the form's tax, so the order is planned against that tax (documentTablesWriteSteps: the
+// tables in form order).
 function createLinesOf(state: DocumentFormState, writes: DocumentWrites) {
-    return (documentId: string, plan: TableWritePlan | undefined): LineWrite[] =>
-        documentLineWriteSteps({
+    const tablePlans = tablePlansOf(state, writes)
+    const toLineWrite = lineWriteOf(state)
+    return (documentId: string, plans: TablePlans): LineWrite[] =>
+        documentTablesWriteSteps({
             storedLines: [],
-            plan,
+            plans: tablePlans(documentId, plans),
             tax: taxOf(state, formTaxRate(state)),
-            ops: writes.lineOps(documentId),
-        }).map(lineWriteOf)
+        }).map(toLineWrite)
 }
 
-// A saved document's save plan: its line writes in an order the server accepts with the
-// tax it stores while they are written, and the place of the header write
-// (documentSavePlan).
+// A saved document's save plan: its line writes over every line table in an order the
+// server accepts with the tax it stores while they are written, and the place of the
+// header write (documentTablesSavePlan).
 function savePlanOf(state: DocumentFormState, writes: DocumentWrites) {
+    const tablePlans = tablePlansOf(state, writes)
+    const toLineWrite = lineWriteOf(state)
     return (
         documentId: string,
-        plan: TableWritePlan | undefined,
+        plans: TablePlans,
         stored: { lines: StoredLines; taxRate: string }
     ): SavePlan => {
-        const ordered = documentSavePlan({
+        const ordered = documentTablesSavePlan({
             storedLines: stored.lines,
-            plan,
+            plans: tablePlans(documentId, plans),
             storedTax: taxOf(state, stored.taxRate),
             nextTax: taxOf(state, formTaxRate(state)),
-            ops: writes.lineOps(documentId),
         })
-        return { headerFirst: ordered.headerFirst, lines: ordered.steps.map(lineWriteOf) }
+        return { headerFirst: ordered.headerFirst, lines: ordered.steps.map(toLineWrite) }
     }
 }
 
-// The "Line n" label of the line whose write a refused batch names; null for the header's
+// The label of the line whose write a refused batch names; null for the header's
 // write, a removed line's, and a failure that names no operation.
 function rowLabelOf(error: unknown, lines: readonly LineWrite[]): string | null {
     const id = refusedRecordId(error)
@@ -291,8 +345,14 @@ function newProgress(): Progress {
 
 // The draft a new form wrote before its post was refused: the form stays on `new` with
 // the refusal, and its next save updates this document instead of inserting another.
-// `revision` is what that save states it saw; `taxRate` is the tax the draft stores.
-type Written = { id: string; rows: TableRow[]; revision: number; taxRate: string }
+// `rows` are each line table's rows as written, keyed by the table's key; `revision` is
+// what that save states it saw; `taxRate` is the tax the draft stores.
+type Written = {
+    id: string
+    rows: Record<string, TableRow[]>
+    revision: number
+    taxRate: string
+}
 
 type DocumentSaveOptions = {
     // The tab a draft saved from `new` opens on (default the form): a save from the PDF
@@ -365,14 +425,16 @@ function hasFieldErrors(state: DocumentFormState): boolean {
  *   so the optimistic row never swaps the form. Accepted by and Accepted date, hidden
  *   while Status is not Accepted, are saved empty then.
  *
- * The empty trailing Item line is dropped before the form validates (spec: dropped at
- * save); Post validates with the `post` mode of the record schema, which adds its rule.
+ * The empty trailing line of each line table is dropped before the form validates (spec:
+ * dropped at save); a kind that keeps them on a refusal (a bill) gets them back when the
+ * client refuses the save. Post validates with the `post` mode of the record schema, which adds its rule.
  * The built-in columns are checked against the kind's columns before anything is sent.
  */
 export function useDocumentSave(state: DocumentFormState, options: DocumentSaveOptions = {}) {
     const { kind, document: documentKind } = state
     const writes = documentKind.data.useWrites()
     const texts = saveTexts(kind)
+    const lineColumns = lineColumnsOf(documentKind)
     const orgHref = useOrgHref()
     const surfaceRef = useRef<ViewInstance>(null)
     const isPresent = usePresence(surfaceRef)
@@ -420,6 +482,15 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
 
     const release = (id: string) => useDocumentSaveStore.getState().release(id)
 
+    // A new form's save replaces the route with the saved document's, which mounts its
+    // form again. A draft lands on that form: it starts from the tables this form session
+    // shows (useDocumentForm), so a table whose last line was removed stays shown. A post
+    // lands on the read view, which has no form to start.
+    const replaceWithSaved = (id: string, mode: SaveMode) => {
+        if (!mode.post) useDocumentSaveStore.getState().keepShownTables(id, state.shownTables)
+        router.replace(savedHref(id, mode))
+    }
+
     // Where the form goes after a save: Post & new to a fresh form; a save from `new` to
     // the document's own route; a saved draft stays (a post shows its read view there).
     // Convert on `new` first replaces the route with the saved quote's, then pushes the
@@ -427,12 +498,12 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const navigateAfter = (id: string, mode: SaveMode) => {
         if (!isPresent()) return
         if (mode.convert) {
-            if (state.isNew) router.replace(savedHref(id, mode))
+            if (state.isNew) replaceWithSaved(id, mode)
             router.push(orgHref(documentNewHref(INVOICE_KIND, { estimate: id })))
         } else if (mode.close) options.leave?.()
         else if (mode.andNew) {
-            router.replace(orgHref(postAndNewHref(kind, state.openedWithCustomer)))
-        } else if (state.isNew) router.replace(savedHref(id, mode))
+            router.replace(orgHref(postAndNewHref(kind, state.openedWithParty)))
+        } else if (state.isNew) replaceWithSaved(id, mode)
     }
 
     // The new form's values are now stored: they become its baseline, and its next save
@@ -454,7 +525,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             formId: string
             fields: Record<string, unknown>
             lines: LineWrite[]
-            rows: TableRow[]
+            rows: Record<string, TableRow[]>
             taxRate: string
             mode: SaveMode
             progress: Progress
@@ -565,11 +636,34 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         },
     })
 
-    const dropEmptyLine = () => {
-        const lines = state.form.getValues('lines')
-        if (!Array.isArray(lines)) return
-        const kept = documentLinesForSave(lines)
-        if (kept.length !== lines.length) state.form.setValue('lines', kept, { shouldDirty: true })
+    // Each line table's empty trailing line, dropped so the save validates and writes the
+    // lines without it. Core's submit reads the form's own values, so the drop goes
+    // through the form. The returned function puts the dropped lines back, for a save that
+    // writes nothing, on a kind that keeps them then (`keepsEmptyLinesOnRefusal`: a bill's
+    // spec drops them "at save", and a refused save is no save).
+    const dropEmptyLines = () => {
+        const dropped: { key: string; lines: unknown[] }[] = []
+        for (const table of kind.lineTables) {
+            const lines = state.form.getValues(table.key)
+            if (!Array.isArray(lines)) continue
+            const kept = documentLinesForSave(lines)
+            if (kept.length !== lines.length) {
+                dropped.push({ key: table.key, lines })
+                state.form.setValue(table.key, kept, { shouldDirty: true })
+            }
+        }
+        return () => {
+            if (!kind.keepsEmptyLinesOnRefusal) return
+            // Putting the lines back changes the tables, and a change of the tables clears
+            // Post's line-count error (DocumentForm's useClearLineCountError). The refusal
+            // filed it for these same lines, so it is filed again after them.
+            const countKey = state.lineCountError?.errorKey
+            const countError = countKey ? state.form.getFieldState(countKey).error : undefined
+            for (const { key, lines } of dropped) {
+                state.form.setValue(key, lines, { shouldDirty: true })
+            }
+            if (countKey && countError) state.form.setError(countKey, countError)
+        }
     }
 
     // A Deposit to that appeared ("Sales deposited to" went back to Ask) on a form that
@@ -617,7 +711,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             ...columnsOrThrow(documentKind.columnsFrom, { ...split.columns, ...estimateColumn }),
         }
         const id = newRecordId()
-        const plans = createTablePlans(split.tables, LINE_COLUMNS)
+        const plans = createTablePlans(split.tables, lineColumns)
         holdFor(id, mode)
         insert.mutate({
             id,
@@ -625,8 +719,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             replaces: state.replaces,
             formId: state.create.formId,
             fields: split.fields,
-            lines: createLines(id, plans.lines),
-            rows: split.tables.lines ?? [],
+            lines: createLines(id, plans),
+            rows: lineTableRowsOf(kind, split.tables),
             taxRate: formTaxRate(state),
             mode,
             progress: newProgress(),
@@ -639,15 +733,25 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const startWrittenUpdate = async (draft: Written, mode: SaveMode) => {
         const split = await state.create.submit()
         if (!split) return false
-        const rows = split.tables.lines ?? []
+        const rows = lineTableRowsOf(kind, split.tables)
+        const plans = Object.fromEntries(
+            kind.lineTables.map(table => [
+                table.key,
+                planTableWrites(
+                    draft.rows[table.key] ?? [],
+                    rows[table.key],
+                    lineColumns[table.key]
+                ),
+            ])
+        )
         const taxRate = formTaxRate(state)
         holdFor(draft.id, mode)
         update.mutate({
             id: draft.id,
             patch: columnsOrThrow(documentKind.columnsFrom, split.columns),
             fields: split.fields,
-            save: savePlan(draft.id, planTableWrites(draft.rows, rows, DOCUMENT_LINE_COLUMNS), {
-                lines: storedLinesOf(draft.rows),
+            save: savePlan(draft.id, plans, {
+                lines: storedLinesOf(documentKind, draft.rows),
                 taxRate: draft.taxRate,
             }),
             saw: draft.revision,
@@ -685,7 +789,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             id,
             patch: columnsOrThrow(documentKind.columnsFrom, result.columns),
             fields: result.fields,
-            save: savePlan(id, result.tableWrites.lines, {
+            save: savePlan(id, result.tableWrites, {
                 lines: state.storedLines,
                 taxRate: state.storedTaxRate,
             }),
@@ -713,8 +817,9 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         // A new answer from the server replaces the last one.
         state.form.clearErrors('root')
         setConflict(false)
+        let restoreLines = () => {}
         try {
-            dropEmptyLine()
+            restoreLines = dropEmptyLines()
             fillDepositFallback()
             clearHiddenAcceptance()
             // Post validates with its own rule added (at least one Item line); the
@@ -722,13 +827,18 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             if (mode.post) state.saveMode.current = 'post'
             try {
                 const started = await startSave(mode)
-                // Not started: the form's own check refused it (or nothing changed).
-                if (!started) reportFieldErrors()
+                // Not started: the form's own check refused it (or nothing changed), so
+                // nothing was written; a bill's form gets its dropped lines back.
+                if (!started) {
+                    restoreLines()
+                    reportFieldErrors()
+                }
                 return started
             } finally {
                 state.saveMode.current = 'draft'
             }
         } catch (error) {
+            restoreLines()
             return startFailed(error, rootServerForm(state.form), {
                 logContext: texts.logContext,
                 operation: state.isNew ? 'create' : 'update',

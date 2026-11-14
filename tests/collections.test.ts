@@ -32,6 +32,8 @@ const NAMES = [
     'books_estimate_lines',
     'books_estimate_public',
     'books_estimate_responses',
+    'books_bills',
+    'books_bill_lines',
 ]
 
 function register() {

@@ -168,7 +168,7 @@ export async function createProduct(
 // person makes the server refuse a line or a bundle item that names one. `makeActive`
 // makes the product active again from that tab and closes it.
 export async function makeProductInactiveElsewhere(page: Page, name: string) {
-    const other = await openOtherBooksPage(page)
+    const other = await openOtherBooksPage(page, ['products'])
     await openProductsList(other)
     await searchProducts(other, name)
     const id = await productIdOf(other, name)
