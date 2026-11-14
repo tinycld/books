@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { type EntryFormLine, isBlankLine } from '../lib/entry-lines'
 import { parseLineRefusal } from '../lib/entry-messages'
 import type { EntryFormValues } from '../lib/entry-schema'
+import { isRevisionConflict } from '../lib/revision'
 import type { useEntryForm } from './useEntryForm'
 import { useEntrySave } from './useEntrySave'
 
@@ -15,6 +16,11 @@ interface EntrySubmitProps {
     // The draft being edited and its saved lines; a new entry has neither.
     entryId?: string | null
     saved?: readonly EntryFormLine[]
+    // The revision of the draft the form's values were taken from; 0 for a new entry.
+    revision?: number
+    // Reads the draft again and mounts a new form on it, in place of what is typed here.
+    // It rejects, and mounts nothing, when the read fails. Only a saved draft has one.
+    onReload?(): Promise<void>
     // The posted entry a new draft replaces.
     replaces?: string
     onSaved(id: string, outcome: SaveOutcome): void
@@ -23,6 +29,9 @@ interface EntrySubmitProps {
     // optimistic status change is not yet confirmed.
     onBusyChange?(isBusy: boolean): void
 }
+
+const ENTRY_RELOAD_FAILED_TEXT =
+    'Books could not load this entry. Check your connection, then try again.'
 
 type Refusal = { message?: unknown }
 
@@ -61,6 +70,8 @@ export function useEntrySubmit({
     currency,
     entryId = null,
     saved = [],
+    revision = 0,
+    onReload,
     replaces,
     onSaved,
     onCancel,
@@ -76,6 +87,7 @@ export function useEntrySubmit({
     const submittedSnapshot = useRef<string | null>(null)
     const { saveDraft, post, isPending } = useEntrySave({
         entryId,
+        revision,
         saved,
         replaces,
         currency,
@@ -96,6 +108,9 @@ export function useEntrySubmit({
         },
     })
     const [isDiscardOpen, setDiscardOpen] = useState(false)
+    // Another session changed the draft after this form loaded it. It is a state of the
+    // screen, not a field error: what the person typed is valid and stays as it is.
+    const [isConflict, setConflict] = useState(false)
     const isBusy = useRef(false)
     const isLive = useRef(true)
     const left = useRef(false)
@@ -113,6 +128,10 @@ export function useEntrySubmit({
     }, [])
 
     const showRefusal = (error: unknown, lines: EntryFormValues['lines']) => {
+        if (isRevisionConflict(error)) {
+            setConflict(true)
+            return
+        }
         const fieldErrors = Object.entries(extractValidationErrors(error) ?? {})
         if (fieldErrors.length > 0) {
             // A key that is no field of this form (the server names columns, the form
@@ -145,6 +164,7 @@ export function useEntrySubmit({
         isBusy.current = true
         onBusyChange?.(true)
         left.current = false
+        setConflict(false)
         modeRef.current = mode
         submittedKeys.current = entryForm.fields.map(field => field.key)
         submittedSnapshot.current = editSnapshot(getValues())
@@ -176,8 +196,26 @@ export function useEntrySubmit({
         onCancel()
     }
 
+    // Load the current entry in place of what is typed here: the screen reads the rows
+    // again and mounts a new form. When that read fails, a new form would show the rows
+    // the store already holds in place of what is typed. So this form stays as it is,
+    // with the notice and its action, and the summary says the entry could not be loaded.
+    const reload = onReload
+        ? async () => {
+              form.clearErrors('root.server')
+              try {
+                  await onReload()
+              } catch (error) {
+                  log.error('books.entry', error, { operation: 'reload' })
+                  setError('root.server', { type: 'client', message: ENTRY_RELOAD_FAILED_TEXT })
+              }
+          }
+        : undefined
+
     return {
         isPending,
+        isConflict,
+        reload,
         isDiscardOpen,
         saveDraft: submit('draft', 'draft'),
         post: submit('post', 'post'),

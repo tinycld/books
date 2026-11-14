@@ -29,6 +29,12 @@
 // bill's subtotal and total with server/document_totals.go at every line or
 // header write of a draft.
 //
+// REVISION is as on the invoice (2100000010): it counts the transactions that
+// changed a draft or one of its lines. Books sets it to 1 on create (the create
+// rule pins it) and increases it in Go. A request that updates a draft states
+// the revision it saw, so the update rule cannot pin it; Go checks the value
+// (server/revision.go).
+//
 // MONEY, DATES and SORT KEY are as on the invoice (2100000010). An account
 // line's amount may be negative (a vendor discount or a return) but never 0;
 // a product line's rate is 0 or more (a discount is a negative account line).
@@ -93,7 +99,7 @@ migrate(
                 type: 'base',
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && @request.body.status = "draft" && ${unset(...BILL_SERVER_FIELDS)}`,
+                createRule: `${WRITE} && @request.body.status = "draft" && ${unset(...BILL_SERVER_FIELDS, 'revision')}`,
                 updateRule: `${WRITE} && ${unset(...BILL_SERVER_FIELDS)} && (status = "draft" || (status = "posted" && @request.body.status = "void"))`,
                 deleteRule: `${WRITE} && status = "draft"`,
                 fields: [
@@ -128,6 +134,9 @@ migrate(
                     { name: 'memo', type: 'text', max: 4000 },
                     { name: 'subtotal', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    // Counts the transactions that changed the draft or its lines. A
+                    // save or a post states the value it saw (server/revision.go).
+                    { name: 'revision', type: 'number', onlyInt: true, min: 0 },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
                     {
                         name: 'entry',

@@ -323,6 +323,23 @@ type AnswerRow = {
     cells: Record<string, number | string | boolean | null>
 }
 type Answer = { cursor: string; rows: AnswerRow[]; next: string }
+
+// The answers of a paged report, in the order they arrived, as runs: a first page (no
+// cursor) starts a run, and a later page joins the newest run whose last page names its
+// cursor. A page that follows no page of any run fails the test.
+function pageRuns(answers: readonly Answer[]): Answer[][] {
+    const runs: Answer[][] = []
+    for (const answer of answers) {
+        if (answer.cursor === '') {
+            runs.push([answer])
+            continue
+        }
+        const run = runs.findLast(pages => pages.at(-1)?.next === answer.cursor)
+        if (!run) throw new Error(`a page with cursor ${answer.cursor} follows no page`)
+        run.push(answer)
+    }
+    return runs
+}
 type SentRun = {
     params?: { period?: { preset?: string }; accounts?: unknown[] }
     options?: { cursor?: string }
@@ -1083,12 +1100,23 @@ test.describe('general-ledger: report', () => {
                 return (await nextPages()).some(answer => answer.next === '')
             })
             .toBe(true)
-        const pages = [first, ...(await nextPages())]
-        const withTotal = pages.filter(answer =>
+        // The open report runs again when another session posts (the shared DB has other
+        // workers), and the list then pages again from a new first page. So the rule is
+        // per run: its pages, followed from its first page by their cursors, carry the
+        // section total one time, on the last page. A run the list left before its end
+        // (a newer run took its place) carries none.
+        const runs = pageRuns(await Promise.all(answers))
+        const hasTotal = (answer: Answer) =>
             answer.rows.some(row => row.kind === 'subtotal' && row.section === savingsGroup?.id)
-        )
-        expect(withTotal.length).toBe(1)
-        expect(withTotal[0]?.next).toBe('')
+        const isComplete = (run: Answer[]) => run.at(-1)?.next === ''
+        expect(runs.some(isComplete), 'a run reached its last page').toBe(true)
+        for (const [index, run] of runs.entries()) {
+            const withTotal = run.flatMap((answer, at) => (hasTotal(answer) ? [at] : []))
+            const expected = isComplete(run) ? [run.length - 1] : []
+            expect(withTotal, `the pages with the section total in run ${index + 1}`).toEqual(
+                expected
+            )
+        }
         await page.unrouteAll({ behavior: 'wait' })
     })
 })

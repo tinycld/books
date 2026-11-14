@@ -105,6 +105,7 @@ function invoice(
         subtotal: 0,
         tax_total: 0,
         total: 0,
+        revision: 1,
         currency: INVOICE_CURRENCY,
         entry: '',
         replaces: '',

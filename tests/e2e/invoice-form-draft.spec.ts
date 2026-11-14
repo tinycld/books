@@ -5,6 +5,7 @@ import { dueDateFor } from '../../tinycld/books/lib/document-dates'
 import { documentTotals } from '../../tinycld/books/lib/document-lines'
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import { TAX_IDS, TAX_RATES } from '../../tinycld/books/lib/tax-rates-fixture'
+import { batchAnswered, batchWriteIndex } from './document-batch-helpers'
 import {
     INVOICE_URL,
     invoiceIdFromUrl,
@@ -21,6 +22,7 @@ import {
     searchToInvoice,
     uniqueMemo,
 } from './invoice-helpers'
+import { createProduct, makeProductInactiveElsewhere } from './products-services-helpers'
 import { isDisabled } from './record-form-helpers'
 
 // The seeded customer whose terms are Net 30 (CUSTOMER_TERMS_PATCHES) and whose default
@@ -404,51 +406,28 @@ test.describe('invoice-form: draft invoice', () => {
     test('a refused line on a new invoice stays under its row and a second save makes no second invoice', async ({
         page,
     }) => {
-        const product = seededProduct()
-        // Every invoice insert and delete this page makes; the difference is the invoices
-        // that exist.
+        // The test's own product: another tab makes it inactive after the line chose it
+        // (the product picker offers no inactive product), so the server refuses the line.
+        const product = { name: uniqueMemo('Line refusal product') }
+        // Every accepted batch of this page that inserts an invoice: the invoices it made.
+        // A refused save is one refused batch, which stores nothing.
         let created = 0
-        let deleted = 0
         page.on('response', r => {
-            const url = new URL(r.url())
-            if (!r.ok()) return
-            const method = r.request().method()
-            if (method === 'POST' && url.pathname === '/api/collections/books_invoices/records') {
-                created += 1
-            }
-            if (
-                method === 'DELETE' &&
-                url.pathname.startsWith('/api/collections/books_invoices/records/')
-            ) {
-                deleted += 1
-            }
+            if (r.ok() && batchWriteIndex(r.request(), 'books_invoices', 'POST') >= 0) created += 1
         })
-        // The server's own refusal of a line (server/sales_documents.go msgLineProductInactive):
-        // no seeded product is inactive, so the line create answers it here.
+        // The server's own refusal of a line (server/sales_documents.go msgLineProductInactive).
         const refusal = `Line 1: ${product.name} is inactive. Choose an active product or service.`
         const refusalText = `${product.name} is inactive. Choose an active product or service.`
-        await page.route('**/api/collections/books_invoice_lines/records*', route =>
-            route.request().method() === 'POST'
-                ? route.fulfill({
-                      status: 400,
-                      contentType: 'application/json',
-                      body: JSON.stringify({ status: 400, message: refusal, data: {} }),
-                  })
-                : route.fallback()
-        )
-        const lineRefused = page.waitForResponse(
-            r =>
-                r.url().includes('/api/collections/books_invoice_lines/records') &&
-                r.request().method() === 'POST' &&
-                r.status() === 400
-        )
+        const lineRefused = batchAnswered(page, 'books_invoice_lines', 'POST', 400)
 
         await openBooks(page)
+        await createProduct(page, { type: 'service', name: product.name, price: '25.00' })
         await openNewInvoice(page)
         await pickInvoiceCustomer(page, seededCustomer().name)
         await pickLineProduct(page, 0, product.name)
         await page.getByTestId('form-input-memo').fill(uniqueMemo('Invoice line refusal'))
         await page.getByTestId('invoice-title').click()
+        const elsewhere = await makeProductInactiveElsewhere(page, product.name)
 
         await page.keyboard.press('ControlOrMeta+s')
         await lineRefused
@@ -462,10 +441,11 @@ test.describe('invoice-form: draft invoice', () => {
         await expect(page.getByTestId(lineCellTestId(rowId, 'product'))).toContainText(product.name)
         await expect(page.getByTestId('invoice-form')).toBeVisible()
         await expect(page).toHaveURL(NEW_INVOICE_URL)
-        // The refused save took its invoice back.
-        await expect.poll(() => ({ created, deleted })).toEqual({ created: 1, deleted: 1 })
+        // The refused save stored no invoice.
+        expect(created).toBe(0)
 
-        await page.unrouteAll({ behavior: 'wait' })
+        // The other tab makes the product active again, so the next save is accepted.
+        await elsewhere.makeActive()
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(INVOICE_URL)
         await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
@@ -475,8 +455,7 @@ test.describe('invoice-form: draft invoice', () => {
         )
         await expect(page.getByText(refusalText)).toHaveCount(0)
         // The second save inserted the invoice once: one invoice exists.
-        await expect.poll(() => created - deleted).toBe(1)
-        expect(created).toBe(2)
+        await expect.poll(() => created).toBe(1)
     })
 
     test('line cells show their values and the totals sit under Amount at every wide width', async ({

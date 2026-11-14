@@ -1,4 +1,4 @@
-import { useMutation } from '@tinycld/core/lib/mutations'
+import { atomic, performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
 import { useRef } from 'react'
@@ -10,27 +10,35 @@ import {
     planLineWrites,
 } from '../lib/entry-lines'
 import type { EntryFormValues } from '../lib/entry-schema'
+import { assertRevisionSeen } from '../lib/revision'
 import type { BooksJournalEntries } from '../types'
 
 interface EntrySaveProps {
     entryId: string | null
+    // The revision the form loaded with its values; 0 for a new entry.
+    revision: number
     saved: readonly EntryFormLine[]
     replaces?: string
     currency: string
     docType?: BooksJournalEntries['doc_type']
-    // Called once the entry and every line are written, before a post sets the status, so
-    // the form can take the saved draft as its baseline even when the post is then refused.
+    // Called once the draft is saved, before a new entry's post, so the form can take
+    // the saved draft as its baseline even when the post is then refused.
     onDraftSaved?: (values: EntryFormValues) => void
 }
 
 type SaveVariables = { values: EntryFormValues; mode: 'draft' | 'post' }
 
-type Stored = {
+// The draft as this form last saved it. `revision` is what the next write states it
+// saw; it is the form's own count, never read from the live row, which another
+// editor's save updates under the form.
+type Baseline = {
     entryId: string | null
+    revision: number
     saved: EntryFormLine[]
-    // Id of the line written for each non-blank form index. The form sends a new line with a
-    // blank id every time, so a retry finds the row it already wrote through its position.
-    assigned: Map<number, string>
+    // Id of the line this hook created for each form index. The form can send such a
+    // line with a blank id again (a save does not always put the id back), and it must
+    // then be found, not inserted a second time.
+    created: Map<number, string>
 }
 
 // The form's lines with the ids the save wrote. Blank lines were not saved and stay blank.
@@ -47,14 +55,14 @@ function withWrittenIds(values: EntryFormValues, writtenIds: readonly string[]) 
     }
 }
 
-const emptyStored = (): Stored => ({ entryId: null, saved: [], assigned: new Map() })
-
-// The save is not atomic (entry, then lines, then status), so a refusal part way leaves
-// rows behind. `stored` remembers what was written, for a new entry and for an existing
-// draft alike (its `saved` prop stays stale until the live query catches up), so the next
-// save updates those rows instead of inserting them again.
+// A save is one batch: the line writes, then the entry with its header, the revision
+// and, for a post, the status. The server saves all of it or none, and refuses it when
+// the draft changed after this form loaded it. A new entry cannot be created and posted
+// in one batch (the post would merge into the create, which must be a draft), so it is
+// created as a draft with its lines, then posted.
 export function useEntrySave({
     entryId,
+    revision,
     saved,
     replaces,
     currency,
@@ -65,36 +73,39 @@ export function useEntrySave({
         'books_journal_entries',
         'books_journal_lines'
     )
-    const stored = useRef<Stored>(emptyStored())
-    // What the last completed save wrote, so a post chained behind a draft updates that entry.
-    const finished = useRef<Stored | null>(null)
+    const baseline = useRef<Baseline>({
+        entryId,
+        revision,
+        saved: [...saved],
+        created: new Map(),
+    })
     const inFlight = useRef<{ mode: SaveVariables['mode']; promise: Promise<string> } | null>(null)
 
     const mutation = useMutation({
-        mutationFn: function* ({ values, mode }: SaveVariables) {
+        mutationFn: async ({ values, mode }: SaveVariables) => {
             const typed = dropBlankLines(values.lines)
             const cents = (text: string) => parseAmountText(text, currency) ?? 0
-            const fields = {
+            const header = {
                 date: values.date,
                 memo: values.memo,
                 auto_reverse_on: values.autoReverseOn,
             }
-            const isResumable =
-                stored.current.entryId !== null &&
-                (entryId === null || stored.current.entryId === entryId)
-            const work: Stored = isResumable
-                ? stored.current
-                : { entryId, saved: [...saved], assigned: new Map() }
-            stored.current = work
-
-            // A blank line adopts the id written for its position, unless the form already
-            // carries that id on another line (it was reset with the written ids).
+            const base = baseline.current
+            const isNew = base.entryId === null
+            const id = base.entryId ?? newRecordId()
+            if (!isNew) assertRevisionSeen(entriesCollection.get(id)?.revision, base.revision)
+            // Every line has its id before the write. A blank line takes the id this
+            // hook created for its position, unless the form carries that id elsewhere.
             const carried = new Set(typed.map(line => line.id).filter(Boolean))
+            const created = new Map<number, string>()
             const lines = typed.map((line, index) => {
-                const assigned = work.assigned.get(index)
-                const adopted = assigned && !carried.has(assigned) ? assigned : ''
-                return { ...line, id: line.id || adopted }
+                if (line.id) return line
+                const earlier = base.created.get(index)
+                const id = earlier && !carried.has(earlier) ? earlier : newRecordId()
+                created.set(index, id)
+                return { ...line, id }
             })
+            const positionOf = new Map(lines.map((line, index) => [line.id, index]))
             const lineFields = (line: EntryFormLine) => ({
                 entry: id,
                 account: line.account,
@@ -103,69 +114,62 @@ export function useEntrySave({
                 memo: line.memo,
                 customer: line.customer,
                 vendor: line.vendor,
-                position: lines.indexOf(line),
+                position: positionOf.get(line.id) ?? 0,
             })
+            const plan = planLineWrites(base.saved, lines)
+            // A new entry is a draft first; an existing draft can post in its save.
+            const postsInSave = mode === 'post' && !isNew
+            const sent = isNew ? 1 : base.revision + 1
 
-            let id = work.entryId ?? ''
-            if (work.entryId === null) {
-                id = newRecordId()
-                yield entriesCollection.insert({
-                    id,
-                    ...fields,
-                    status: 'draft',
-                    doc_type: docType,
-                    origin: 'manual',
-                    reverses: '',
-                    replaces: replaces ?? '',
-                })
-                work.entryId = id
-            } else {
-                yield entriesCollection.update(id, draft => {
-                    Object.assign(draft, fields)
-                })
-            }
-
-            const plan = planLineWrites(work.saved, lines)
-            const updates = plan.updates.map(line =>
-                linesCollection.update(line.id, draft => {
-                    Object.assign(draft, lineFields(line))
-                })
-            )
-            if (updates.length > 0) {
-                yield updates
-                const updated = new Map(plan.updates.map(line => [line.id, line]))
-                work.saved = work.saved.map(line => updated.get(line.id) ?? line)
-            }
-            for (const line of plan.inserts) {
-                const lineId = line.id || newRecordId()
-                yield linesCollection.insert({ id: lineId, ...lineFields(line) })
-                work.saved.push({ ...line, id: lineId })
-                work.assigned.set(lines.indexOf(line), lineId)
-            }
-            if (plan.deletes.length > 0) {
-                yield plan.deletes.map(lineId => linesCollection.delete(lineId))
-                const gone = new Set(plan.deletes)
-                work.saved = work.saved.filter(line => !gone.has(line.id))
-                for (const [index, lineId] of work.assigned) {
-                    if (gone.has(lineId)) work.assigned.delete(index)
+            await atomic(() => {
+                if (isNew) {
+                    entriesCollection.insert({
+                        id,
+                        ...header,
+                        status: 'draft',
+                        doc_type: docType,
+                        origin: 'manual',
+                        reverses: '',
+                        replaces: replaces ?? '',
+                    })
                 }
-            }
+                for (const line of plan.updates) {
+                    linesCollection.update(line.id, draft => {
+                        Object.assign(draft, lineFields(line))
+                    })
+                }
+                for (const line of plan.inserts) {
+                    linesCollection.insert({ id: line.id, ...lineFields(line) })
+                }
+                for (const lineId of plan.deletes) linesCollection.delete(lineId)
+                // Last, and once: the batch sends one operation for the entry, at the
+                // place of its first mutation, and the server reads the lines when it
+                // posts.
+                if (!isNew) {
+                    entriesCollection.update(id, draft => {
+                        Object.assign(draft, header)
+                        draft.revision = sent
+                        if (postsInSave) draft.status = 'posted'
+                    })
+                }
+            })
+            baseline.current = { entryId: id, revision: sent, saved: lines, created }
             onDraftSaved?.(
                 withWrittenIds(
                     values,
-                    lines.map((line, index) => line.id || work.assigned.get(index) || '')
+                    lines.map(line => line.id)
                 )
             )
 
-            if (mode === 'post') {
-                yield entriesCollection.update(id, draft => {
-                    draft.status = 'posted'
+            if (mode === 'post' && isNew) {
+                await performMutations(function* () {
+                    yield entriesCollection.update(id, draft => {
+                        draft.status = 'posted'
+                        draft.revision = sent + 1
+                    })
                 })
+                baseline.current = { entryId: id, revision: sent + 1, saved: lines, created }
             }
-            finished.current = work
-            // An existing draft stays on screen after a save, so the next save resumes from
-            // what this one wrote. A new entry moves on to its own screen.
-            stored.current = entryId === null ? emptyStored() : work
             return id
         },
         // The caller awaits the rejection and puts the refusal on its form.
@@ -177,15 +181,10 @@ export function useEntrySave({
     // so a post issued during a draft save still ends posted.
     const run = (variables: SaveVariables): Promise<string> => {
         const running = inFlight.current
-        if (!running) finished.current = null
         if (running?.mode === variables.mode) return running.promise
         const start = () => mutation.mutateAsync(variables)
-        const startAfter = () => {
-            if (finished.current) stored.current = finished.current
-            return start()
-        }
         const promise: Promise<string> = (
-            running ? running.promise.then(startAfter, start) : start()
+            running ? running.promise.then(start, start) : start()
         ).finally(() => {
             if (inFlight.current?.promise === promise) inFlight.current = null
         })

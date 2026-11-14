@@ -36,7 +36,14 @@ async function openRowMenu(page: Page, name: string) {
     await row(page, name).locator('[data-testid^="account-menu-"]').click()
 }
 
-async function createAccount(page: Page, name: string, type: string, detailType: string) {
+// `parent` is the name of the parent account; without it the account is top-level.
+async function createAccount(
+    page: Page,
+    name: string,
+    type: string,
+    detailType: string,
+    parent?: string
+) {
     await page.getByTestId('account-new-toolbar').click()
     const panel = page.getByTestId('account-panel')
     await expect(panel).toBeVisible()
@@ -45,8 +52,17 @@ async function createAccount(page: Page, name: string, type: string, detailType:
     await page.getByRole('menuitem', { name: type, exact: true }).click()
     await panel.getByTestId('account-detail-type').click()
     await page.getByRole('menuitem', { name: detailType, exact: true }).click()
+    if (parent !== undefined) {
+        await panel.getByTestId('account-parent').click()
+        await page.getByRole('menuitem', { name: parent, exact: true }).click()
+    }
     await panel.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(row(page, name)).toBeVisible()
+}
+
+async function chooseRowAction(page: Page, name: string, action: string) {
+    await openRowMenu(page, name)
+    await page.getByRole('menuitem', { name: action, exact: true }).click()
 }
 
 test.describe('chart-of-accounts: list, edit and import', () => {
@@ -166,5 +182,50 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await expect(row(page, importedChild)).toBeVisible()
         // Done pops back instead of pushing, so only one Chart of Accounts is mounted.
         await expect(page.getByTestId('account-search')).toHaveCount(1)
+    })
+
+    // One viewport: the rule is the server's, and the parent list is the same
+    // function at every size. A phone run would repeat the same logic.
+    test('an active account cannot be below an inactive parent', async ({ page }) => {
+        const parent = uniqueName('E2E Old Group')
+        const child = uniqueName('E2E Old Item')
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await openChartOfAccounts(page)
+
+        await createAccount(page, parent, 'Expense', 'Office and general')
+        await createAccount(page, child, 'Expense', 'Office and general', parent)
+
+        // Sub-account first: a parent with an active sub-account stays active.
+        await chooseRowAction(page, child, 'Make inactive')
+        await expect(row(page, child)).toHaveCount(0)
+        await chooseRowAction(page, parent, 'Make inactive')
+        await expect(row(page, parent)).toHaveCount(0)
+
+        await page.getByTestId('account-show-inactive').click()
+        await expect(row(page, parent).getByText('Inactive')).toBeVisible()
+
+        // The server refuses Make active on the sub-account while its parent is inactive.
+        await chooseRowAction(page, child, 'Make active')
+        await expect(page.getByText('Make the parent account active first.')).toBeVisible()
+        await expect(row(page, child).getByText('Inactive')).toBeVisible()
+
+        // A new account is active, so the inactive account is not offered as its parent.
+        await page.getByTestId('account-new-toolbar').click()
+        const panel = page.getByTestId('account-panel')
+        await panel.getByTestId('account-type').click()
+        await page.getByRole('menuitem', { name: 'Expense', exact: true }).click()
+        await panel.getByTestId('account-parent').click()
+        await expect(page.getByRole('menuitem', { name: 'Rent', exact: true })).toBeVisible()
+        await expect(page.getByRole('menuitem', { name: parent, exact: true })).toHaveCount(0)
+        await page.keyboard.press('Escape')
+        await panel.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(panel).toHaveCount(0)
+
+        // Parent first, then the sub-account.
+        await chooseRowAction(page, parent, 'Make active')
+        await expect(row(page, parent).getByText('Inactive')).toHaveCount(0)
+        await chooseRowAction(page, child, 'Make active')
+        await expect(row(page, child).getByText('Inactive')).toHaveCount(0)
     })
 })

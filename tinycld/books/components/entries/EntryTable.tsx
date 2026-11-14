@@ -21,6 +21,7 @@ interface EntryTableProps {
     onOpenEntry: (entryId: string) => void
     onNearEnd: () => void
     rowMenu?: (entryId: string) => ReactNode
+    isOverdue: (entryId: string) => boolean
 }
 
 function HeadingText({ label }: { label: string }) {
@@ -61,6 +62,7 @@ export function EntryTable({
     onOpenEntry,
     onNearEnd,
     rowMenu,
+    isOverdue,
 }: EntryTableProps) {
     const viewHeight = useWindowHeight()
     const rowWindow = useRowWindow({
@@ -77,6 +79,7 @@ export function EntryTable({
                 currency={currency}
                 onOpenEntry={onOpenEntry}
                 rowMenu={rowMenu}
+                isOverdue={isOverdue(entry.id)}
             />
         ))
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

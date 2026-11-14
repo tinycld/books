@@ -127,6 +127,7 @@ export function LineError({ index }: { index: number }) {
         line?.customer?.message,
         line?.debit?.message,
         line?.credit?.message,
+        line?.memo?.message,
         errors.root?.[`line${index}`]?.message,
     ].filter((message): message is string => typeof message === 'string' && message !== '')
     if (messages.length === 0) return null

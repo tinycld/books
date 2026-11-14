@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 
+	"tinycld.org/core/audit"
 	"tinycld.org/core/background"
 	"tinycld.org/core/logging"
 	"tinycld.org/core/readonly"
@@ -130,7 +131,34 @@ func autoReverse(tx core.App, entry *core.Record) error {
 	if err != nil {
 		return err
 	}
-	return postDraft(tx, rev.Id, "")
+	if err := postDraft(tx, rev.Id, ""); err != nil {
+		return err
+	}
+	return logAutoReversal(tx, entry, rev.Id)
+}
+
+// logAutoReversal writes the audit row of an automatic reversal. Core's audit
+// hooks are request hooks, and the sweep makes no request, so without this the
+// log holds no trace of an entry that nobody posted. The row is written
+// through tx: it commits with the reversal, a failed write rolls the reversal
+// back (the next sweep tries again), and a retried sweep writes no second row.
+// The actor is the system (no request). The action is "created": audit_logs'
+// action is a select, so a name of Books' own would need a core migration.
+func logAutoReversal(tx core.App, original *core.Record, reversalID string) error {
+	posted, err := tx.FindRecordById("books_journal_entries", reversalID)
+	if err != nil {
+		return fmt.Errorf("books: read the posted reversal: %w", err)
+	}
+	err = audit.Log(tx, "created", "books_journal_entries", posted.Id, entryLabel(posted), nil, map[string]any{
+		"origin":          originAutoReversal,
+		"reverses":        original.Id,
+		"reverses_label":  entryLabel(original),
+		"auto_reverse_on": original.GetString("auto_reverse_on"),
+	})
+	if err != nil {
+		return fmt.Errorf("books: write the audit row of the automatic reversal: %w", err)
+	}
+	return nil
 }
 
 // checkPendingAutoReversals refuses a close date on or after an auto-reverse

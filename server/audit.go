@@ -16,8 +16,10 @@ import (
 // books_account_balances, which only Books writes, and the books_access view,
 // which nobody writes. Core's audit hooks are request hooks, so they log what
 // a person asked for (a post, a void); the reversal Books writes inside it is
-// part of that same logged update. registrations_test.go fails when a new
-// collection is neither here nor declared server-only.
+// part of that same logged update. The auto-reverse sweep makes no request,
+// so it writes its own row (logAutoReversal, auto_reverse.go).
+// registrations_test.go fails when a new collection is neither here nor
+// declared server-only.
 //
 // books_bank_transactions is here because a person may move a transaction's status
 // between For review and Excluded; Go writes every other part of it.

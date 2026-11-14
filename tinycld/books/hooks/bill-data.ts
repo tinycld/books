@@ -2,7 +2,6 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import type { TableRowWrite } from '@tinycld/core/lib/forms/table-rows'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { evictRows } from '@tinycld/core/lib/server-rows'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
@@ -281,12 +280,20 @@ function useBillWrites(): DocumentWrites {
             return billsCollection.update(id, draft => {
                 Object.assign(draft, columns)
                 if (Object.keys(input.fields).length > 0) draft.fields = input.fields
+                draft.revision = input.revision
+                if (input.post) draft.status = 'posted'
             })
         },
-        setStatus: (id, status) =>
+        postRecord: (id, revision) =>
             billsCollection.update(id, draft => {
-                draft.status = status
+                draft.status = 'posted'
+                draft.revision = revision
             }),
+        voidRecord: id =>
+            billsCollection.update(id, draft => {
+                draft.status = 'void'
+            }),
+        storedRevision: id => billsCollection.get(id)?.revision,
         deleteRecord: id => billsCollection.delete(id),
         lineOps: (billId, mapper) => {
             const { toRecord } = purchaseLineMapperOf(mapper)
@@ -308,7 +315,6 @@ function useBillWrites(): DocumentWrites {
                 remove: lineId => linesCollection.delete(lineId),
             }
         },
-        evictLines: ids => evictRows(linesCollection, ids, LOG_CONTEXT),
     }
 }
 
@@ -319,10 +325,18 @@ function useBillVersion(id: string | undefined): string {
     return record?.updated ?? ''
 }
 
+function useBillReload(): () => Promise<void> {
+    const [billsCollection, linesCollection] = useStore('books_bills', 'books_bill_lines')
+    return async () => {
+        await Promise.all([billsCollection.reload(), linesCollection.reload()])
+    }
+}
+
 // The bill kind's data source: every `useStore` of a bill collection.
 export const BILL_DATA: DocumentDataSource = {
     useScreenReads: useBillScreenReads,
     useParty: vendorPartyRead(LOG_CONTEXT),
     useWrites: useBillWrites,
     useVersion: useBillVersion,
+    useReload: useBillReload,
 }

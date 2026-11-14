@@ -1,5 +1,6 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { useStore } from '@tinycld/core/lib/pocketbase'
 import { router, useIsFocused } from 'expo-router'
 import { useState } from 'react'
 import { View } from 'react-native'
@@ -21,6 +22,8 @@ import { ReplaceHeader } from './ReplaceHeader'
 interface HeldDraft {
     entryId: string
     currency: string
+    // The draft's revision when the values below were taken: what a save states it saw.
+    revision: number
     initialValues: ReadyEntryDetail['initialValues']
     // Set on a saved replacement draft: the number of the posted entry it replaces.
     replacesNumber?: string
@@ -33,14 +36,23 @@ interface DraftScreenProps {
     flipped: ReadyEntryDetail | null
     onSaveBusyChange(isBusy: boolean): void
     onDeleteBusyChange(isBusy: boolean): void
+    // Reads the draft again and takes it from the store, after another session changed
+    // it. It rejects, and changes nothing, when the read fails.
+    onReload(): Promise<void>
 }
 
 // While a save or delete runs, this screen stays mounted whatever the optimistic rows say,
 // so the typed values, a refusal message and the delete dialog survive a rollback. The
 // form is seeded once: later changes from other sessions never reach `saved`, so a Save
 // cannot delete a line the form never showed.
-function DraftScreen({ held, flipped, onSaveBusyChange, onDeleteBusyChange }: DraftScreenProps) {
-    const { entryId, currency, initialValues, replacesNumber } = held
+function DraftScreen({
+    held,
+    flipped,
+    onSaveBusyChange,
+    onDeleteBusyChange,
+    onReload,
+}: DraftScreenProps) {
+    const { entryId, currency, revision, initialValues, replacesNumber } = held
     const orgHref = useOrgHref()
     const { onBack } = useBackToEntries()
     const del = useDeleteDraft(entryId, onDeleteBusyChange)
@@ -82,6 +94,8 @@ function DraftScreen({ held, flipped, onSaveBusyChange, onDeleteBusyChange }: Dr
                     initial={initialValues}
                     saved={initialValues.lines}
                     entryId={entryId}
+                    revision={revision}
+                    onReload={onReload}
                     currency={currency}
                     journalNumber={replacesNumber}
                     onSaved={onSaved}
@@ -119,10 +133,27 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
     // delete is still running. A screen left under another one is not held while loading,
     // so it does not linger as a second copy.
     const [held, setHeld] = useState<HeldDraft | null>(null)
+    // A reload drops the held draft, so the next render takes the stored one, and the
+    // new key mounts a new form on it: the old form's typed values go with it.
+    const [reloads, setReloads] = useState(0)
+    const [entriesCollection, linesCollection] = useStore(
+        'books_journal_entries',
+        'books_journal_lines'
+    )
+    // The store can be behind the server (a realtime message that did not arrive), and a
+    // form built from it would be refused again, so the rows are read again first. A
+    // failed read rejects before the held draft is dropped: the form stays, with what is
+    // typed in it, and shows the failure (useEntrySubmit `reload`).
+    const reload = async () => {
+        await Promise.all([entriesCollection.reload(), linesCollection.reload()])
+        setHeld(null)
+        setReloads(count => count + 1)
+    }
     if (!held && detail.viewState === 'ready' && detail.isEditable) {
         setHeld({
             entryId: detail.entry.id,
             currency: detail.currency,
+            revision: detail.entry.revision,
             initialValues: detail.initialValues,
             replacesNumber: detail.replacesEntry?.number,
         })
@@ -138,14 +169,18 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
     if (held && showsDraft) {
         return (
             <DraftScreen
-                key={held.entryId}
+                key={`${held.entryId}:${reloads}`}
                 held={held}
+                onReload={reload}
                 flipped={isReady && !isDraftRow ? detail : null}
                 onSaveBusyChange={setSaving}
                 onDeleteBusyChange={setDeleting}
             />
         )
     }
+    // The form is gone, and what it was built from is older than its own saves: the next
+    // form takes the stored draft and its revision.
+    if (held) setHeld(null)
     if (detail.viewState === 'loading') return <LoadingState />
     if (detail.viewState === 'error') return <EntryLoadError onRetry={detail.retry} />
     if (detail.viewState === 'not-found') {

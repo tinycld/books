@@ -43,7 +43,7 @@ func TestPost_UnbalancedPostOverRESTIsRefused(t *testing.T) {
 		method:  http.MethodPatch,
 		url:     "/api/collections/books_journal_entries/records/" + entry.Id,
 		token:   tokenFor(t, env.users.bookkeeper),
-		body:    `{"status":"posted"}`,
+		body:    postBody(t, env.app, entry.Id),
 		want:    http.StatusBadRequest,
 		content: []string{"Debits (10.00) do not equal credits (9.00)", "out of balance by 1.00"},
 		after: func(t testing.TB, app *tests.TestApp) {
@@ -67,7 +67,7 @@ func TestPost_OverRESTStampsTheActor(t *testing.T) {
 		method:  http.MethodPatch,
 		url:     "/api/collections/books_journal_entries/records/" + entry.Id,
 		token:   tokenFor(t, env.users.bookkeeper),
-		body:    `{"status":"posted"}`,
+		body:    postBody(t, env.app, entry.Id),
 		want:    http.StatusOK,
 		content: []string{`"posted_by":"` + env.users.bookkeeper.Id + `"`, `"number":"1"`},
 	}.run(t, env.app)
@@ -135,7 +135,7 @@ func TestPost_ClosedPeriodWithAnOverride(t *testing.T) {
 		method:  http.MethodPatch,
 		url:     "/api/collections/books_journal_entries/records/" + entry.Id,
 		token:   tokenFor(t, env.users.bookkeeper),
-		body:    `{"status":"posted"}`,
+		body:    postBody(t, env.app, entry.Id),
 		want:    http.StatusOK,
 		content: []string{`"close_override":"` + ov.Id + `"`},
 	}.run(t, env.app)

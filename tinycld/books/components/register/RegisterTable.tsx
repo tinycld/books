@@ -3,12 +3,12 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { ArrowDown, ArrowUp } from 'lucide-react-native'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useRowWindow } from '../../hooks/useRowWindow'
+import { balanceText } from '../../lib/money'
 import type { RegisterLine, RegisterOrder } from '../../lib/register'
 import {
     ACCOUNT_CELL_STYLE,
     AMOUNT_CELL_STYLE,
     BALANCE_CELL_STYLE,
-    balanceText,
     DATE_CELL_STYLE,
     MEMO_CELL_STYLE,
     REF_CELL_STYLE,

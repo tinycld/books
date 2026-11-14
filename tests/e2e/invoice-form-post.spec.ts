@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
+import { createIncomeAccount, openChart } from './account-register-helpers'
 import {
     INVOICE_URL,
     invoiceIdFromUrl,
@@ -15,7 +16,13 @@ import {
     saveInvoiceDraft,
     uniqueMemo,
 } from './invoice-helpers'
-import { openEntriesList, PHONE, searchEntries } from './journal-entries-helpers'
+import {
+    makeAccountInactiveElsewhere,
+    openEntriesList,
+    PHONE,
+    searchEntries,
+} from './journal-entries-helpers'
+import { createProduct } from './products-services-helpers'
 
 // Posting an invoice, its read view, and what it posts to the ledger (spec §3.5, §3.6, §3.9).
 // Every invoice is made by driving the form with a unique memo and the default date (today,
@@ -136,6 +143,35 @@ test.describe('invoice-form: post and read', () => {
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
     })
 
+    // The server writes a percent line's amount one time, after the last line of the
+    // save's batch (server/sales_document_deferral.go), so the batch's own answer for that
+    // line carries 0. The read view must show the stored amount.
+    test('the read view shows the amount of a percent line after the post', async ({ page }) => {
+        const accessPoint = PRODUCTS.find(p => p.id === PRODUCT_IDS.accessPoint)
+        if (!accessPoint) throw new Error('no access point in the fixture')
+        const surcharge = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+        }).format(Math.round(accessPoint.price / 10) / 100)
+        await openBooks(page)
+        await fillNewInvoice(page, uniqueMemo('Invoice percent read'))
+        const item = await lineRowId(page, 0)
+        await page.getByTestId(`form-table-lines-menu-${item}`).focus()
+        await page.getByTestId('form-table-lines-add-more').click()
+        await page.getByTestId('form-table-lines-add-percent').click()
+        await expect(lineRows(page)).toHaveCount(2)
+        const percent = await lineRowId(page, 1)
+        await pickLineProduct(page, 1, 'Discount')
+        await page.getByTestId(lineCellTestId(percent, 'percent')).fill('10')
+        await expect(page.getByTestId(lineCellTestId(percent, 'amount'))).toContainText(surcharge)
+
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await expect(page).toHaveURL(INVOICE_URL)
+        await expect(page.getByTestId('invoice-read-only')).toBeVisible()
+        await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
+        await expect(page.getByTestId(`invoice-line-${percent}`)).toContainText(surcharge)
+    })
+
     test('a posted invoice is voided and copied from More', async ({ page }) => {
         const customer = seededCustomer()
         await openBooks(page)
@@ -238,31 +274,33 @@ test.describe('invoice-form: post and read', () => {
     })
 
     test('a refused post keeps the draft, and Post & new starts a fresh form', async ({ page }) => {
-        const refusal =
-            'Line 2: Wireless access point is inactive. Choose an active product or service.'
+        // The server's own refusal of the post (server/sales_document_posting.go
+        // msgLineIncomeAccountInactive). The test's own product posts to the test's own
+        // income account, which another tab makes inactive once the line chose the product:
+        // the draft and its lines are accepted (a product keeps an account that became
+        // inactive), and the status write is refused.
+        const account = uniqueMemo('Retired income')
+        const ownProduct = uniqueMemo('Retired income product')
+        const refusal = `Line 2: the income account of ${ownProduct} is inactive. Choose an active one on the product or service.`
         await openBooks(page)
+        await openChart(page)
+        await createIncomeAccount(page, account)
+        await page.getByTestId('books-nav-lists').click()
+        await createProduct(page, {
+            type: 'service',
+            name: ownProduct,
+            price: '25.00',
+            incomeAccount: account,
+        })
         await openNewInvoice(page)
         await pickInvoiceCustomer(page, seededCustomer())
         await pickLineProduct(page, 0, PATCH_CABLE)
         await page.getByTestId('form-table-lines-add').click()
         await expect(lineRows(page)).toHaveCount(2)
-        const secondRow = await pickLineProduct(page, 1, ACCESS_POINT)
+        const secondRow = await pickLineProduct(page, 1, ownProduct)
         await page.getByTestId('form-input-memo').fill(uniqueMemo('Invoice refused post'))
+        await makeAccountInactiveElsewhere(page, account)
 
-        // The status write only: the draft insert and its lines reach the server.
-        await page.route('**/api/collections/books_invoices/records/*', route => {
-            const request = route.request()
-            const isPost =
-                request.method() === 'PATCH' &&
-                (request.postData() ?? '').includes('"status":"posted"')
-            return isPost
-                ? route.fulfill({
-                      status: 400,
-                      contentType: 'application/json',
-                      body: JSON.stringify({ message: refusal, data: {} }),
-                  })
-                : route.fallback()
-        })
         const refused = page.waitForResponse(
             r =>
                 r.request().method() === 'PATCH' &&
@@ -278,8 +316,10 @@ test.describe('invoice-form: post and read', () => {
         await expect(row).toContainText(refusal)
         await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
         await expect(page.getByTestId('invoice-form')).toBeVisible()
-        await page.unrouteAll({ behavior: 'wait' })
 
+        // With a product whose income account is active on line 2, the post goes through.
+        await pickLineProduct(page, 1, ACCESS_POINT)
+        await page.getByTestId('invoice-title').click()
         await page.keyboard.press('ControlOrMeta+Shift+Enter')
         await expect(page).toHaveURL(/\/books\/invoices\/new\?fresh=[^&]+$/)
         expect(new URL(page.url()).searchParams.has('customer')).toBe(false)
@@ -289,6 +329,7 @@ test.describe('invoice-form: post and read', () => {
         const product = page.getByTestId(lineCellTestId(freshRow, 'product'))
         await expect(product).not.toContainText(PATCH_CABLE)
         await expect(product).not.toContainText(ACCESS_POINT)
+        await expect(product).not.toContainText(ownProduct)
         await expect(page.getByTestId(lineCellTestId(freshRow, 'description'))).toHaveValue('')
         await expect(page.getByTestId('form-input-customer')).toBeFocused()
     })

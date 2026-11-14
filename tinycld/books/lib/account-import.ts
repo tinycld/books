@@ -205,6 +205,7 @@ export function buildImportPreview(input: {
             name: p.name,
             typeKey: p.typeKey,
             parentRaw: p.parentRaw,
+            inactive: p.inactive,
             fieldError: p.fieldError,
         })),
         input.existing

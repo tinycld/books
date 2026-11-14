@@ -2,6 +2,7 @@ package books
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -418,4 +419,92 @@ func TestCloseDate_OtherSettingsEditsSkipTheCloseDateGuard(t *testing.T) {
 	s = reload(t, env.app, "books_settings", settingsID)
 	s.Set("close_date", "2026-07-31")
 	requireRefused(t, env.app.Save(s), "reverses automatically on 2026-06-01")
+}
+
+func autoReversalAuditRows(t testing.TB, app core.App, reversalID string) []*core.Record {
+	t.Helper()
+	rows, err := app.FindRecordsByFilter("audit_logs",
+		"resource_type = 'books_journal_entries' && resource_id = {:id}", "", 0, 0, dbx.Params{"id": reversalID})
+	if err != nil {
+		t.Fatalf("read the audit rows: %v", err)
+	}
+	return rows
+}
+
+// The sweep makes no request, so core's audit hooks log nothing for it. Books
+// writes the row itself, as the system.
+func TestAutoReverse_WritesOneAuditRow(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := accrual(t, env, "2026-05-31", "2026-06-01")
+	requireSweep(t, env.app, at("2026-06-01", 1), 1)
+	rev := findReversal(t, env.app, entry.Id)
+
+	rows := autoReversalAuditRows(t, env.app, rev.Id)
+	if len(rows) != 1 {
+		t.Fatalf("audit rows = %d, want 1", len(rows))
+	}
+	row := rows[0]
+	if row.GetString("action") != "created" || row.GetString("actor") != "" || row.GetString("resource_label") != entryLabel(rev) {
+		t.Fatalf("audit row = %v", row.PublicExport())
+	}
+	meta := auditJSONField(t, row, "metadata")
+	want := map[string]any{
+		"source": "system", "origin": originAutoReversal, "reverses": entry.Id,
+		"reverses_label": entryLabel(entry), "auto_reverse_on": "2026-06-01",
+	}
+	for key, value := range want {
+		if meta[key] != value {
+			t.Errorf("metadata[%q] = %v, want %v (all: %v)", key, meta[key], value, meta)
+		}
+	}
+
+	// A later sweep posts nothing and logs nothing.
+	requireSweep(t, env.app, at("2026-06-02", 1), 0)
+	if n := len(autoReversalAuditRows(t, env.app, rev.Id)); n != 1 {
+		t.Fatalf("audit rows after a second sweep = %d, want 1", n)
+	}
+}
+
+// A refused reversal leaves no row: the row is in the reversal's transaction.
+func TestAutoReverse_ARefusedReversalWritesNoAuditRow(t *testing.T) {
+	env := newLedgerEnv(t)
+	accrual(t, env, "2026-05-31", "2026-06-01")
+	// Raw SQL on purpose, as in TestAutoReverse_ClosedPeriodIsSkippedNotForced.
+	if _, err := env.app.DB().NewQuery("UPDATE books_settings SET close_date = '2026-06-30'").Execute(); err != nil {
+		t.Fatal(err)
+	}
+	requireSweep(t, env.app, at("2026-07-01", 1), 0)
+	if n, err := env.app.CountRecords("audit_logs", dbx.HashExp{"resource_type": "books_journal_entries"}); err != nil || n != 0 {
+		t.Fatalf("audit rows = %d (err %v), want 0", n, err)
+	}
+}
+
+// The audit write fails: the reversal rolls back with it, and the next sweep
+// posts it with exactly one row.
+func TestAutoReverse_AFailedAuditWriteRollsTheReversalBack(t *testing.T) {
+	env := newLedgerEnv(t)
+	entry := accrual(t, env, "2026-05-31", "2026-06-01")
+	auditDown := true
+	env.app.OnRecordCreate("audit_logs").BindFunc(func(e *core.RecordEvent) error {
+		if auditDown {
+			return errors.New("the audit log is down")
+		}
+		return e.Next()
+	})
+
+	requireSweep(t, env.app, at("2026-06-01", 1), 0)
+	if rev, err := postedReversalOf(env.app, entry.Id); err != nil || rev != nil {
+		t.Fatalf("a reversal is posted with no audit row (err %v)", err)
+	}
+	if n, err := env.app.CountRecords("books_journal_entries", dbx.HashExp{"reverses": entry.Id}); err != nil || n != 0 {
+		t.Fatalf("%d reversal rows are left (err %v), want 0", n, err)
+	}
+	requireNextNumber(t, env.app, 2)
+	requireNoDrift(t, env.app)
+
+	auditDown = false
+	requireSweep(t, env.app, at("2026-06-01", 2), 1)
+	if n := len(autoReversalAuditRows(t, env.app, findReversal(t, env.app, entry.Id).Id)); n != 1 {
+		t.Fatalf("audit rows = %d, want 1", n)
+	}
 }

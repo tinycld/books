@@ -2,7 +2,6 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import type { TableRowWrite } from '@tinycld/core/lib/forms/table-rows'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { evictRows } from '@tinycld/core/lib/server-rows'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
@@ -228,12 +227,20 @@ function useInvoiceWrites(): DocumentWrites {
             return invoicesCollection.update(id, draft => {
                 Object.assign(draft, columns)
                 if (Object.keys(input.fields).length > 0) draft.fields = input.fields
+                draft.revision = input.revision
+                if (input.post) draft.status = 'posted'
             })
         },
-        setStatus: (id, status) =>
+        postRecord: (id, revision) =>
             invoicesCollection.update(id, draft => {
-                draft.status = status
+                draft.status = 'posted'
+                draft.revision = revision
             }),
+        voidRecord: id =>
+            invoicesCollection.update(id, draft => {
+                draft.status = 'void'
+            }),
+        storedRevision: id => invoicesCollection.get(id)?.revision,
         deleteRecord: id => invoicesCollection.delete(id),
         lineOps: (invoiceId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
@@ -252,7 +259,6 @@ function useInvoiceWrites(): DocumentWrites {
                 remove: lineId => linesCollection.delete(lineId),
             }
         },
-        evictLines: ids => evictRows(linesCollection, ids, LOG_CONTEXT),
     }
 }
 
@@ -263,10 +269,18 @@ function useInvoiceVersion(id: string | undefined): string {
     return record?.updated ?? ''
 }
 
+function useInvoiceReload(): () => Promise<void> {
+    const [invoicesCollection, linesCollection] = useStore('books_invoices', 'books_invoice_lines')
+    return async () => {
+        await Promise.all([invoicesCollection.reload(), linesCollection.reload()])
+    }
+}
+
 // The invoice kind's data source: every `useStore` of an invoice collection.
 export const INVOICE_DATA: DocumentDataSource = {
     useScreenReads: useInvoiceScreenReads,
     useParty: customerPartyRead(LOG_CONTEXT),
     useWrites: useInvoiceWrites,
     useVersion: useInvoiceVersion,
+    useReload: useInvoiceReload,
 }

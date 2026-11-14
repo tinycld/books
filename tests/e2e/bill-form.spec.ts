@@ -24,8 +24,9 @@ import {
     searchToBill,
     setBillLines,
 } from './bill-helpers'
+import { batchAnswered, refuseBatchWrite } from './document-batch-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
-import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { batchOperations, openEntriesList, searchEntries } from './journal-entries-helpers'
 import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
 
 // The bill form and its read view (spec §3.1–§3.12), checkpoint 3. Every bill is made by
@@ -135,7 +136,8 @@ function cellOf(page: Page, table: 'account_lines' | 'item_lines', rowId: string
     return (column: string) => page.getByTestId(billCellTestId(table, rowId, column))
 }
 
-// Every write of a bill or its lines the page sends.
+// Every write of a bill or its lines the page sends: a request of its own, or a batch
+// (a save) with an operation on them.
 function billWrites(page: Page): Request[] {
     const writes: Request[] = []
     page.on('request', request => {
@@ -143,12 +145,16 @@ function billWrites(page: Page): Request[] {
         const isBillWrite =
             request.method() !== 'GET' &&
             /^\/api\/collections\/books_bill(s|_lines)\/records/.test(path)
-        if (isBillWrite) writes.push(request)
+        const isBillBatch = batchOperations(request).some(operation =>
+            /\/api\/collections\/books_bill(s|_lines)\/records/.test(operation.url)
+        )
+        if (isBillWrite || isBillBatch) writes.push(request)
     })
     return writes
 }
 
-// Answers every write to this bill's row with a refusal, as the server would.
+// Answers every write to this bill's row with a refusal, as the server would: the header
+// write of a save's batch, and an update of its own (the post of a new bill).
 async function refuseBillWrites(page: Page, id: string, message: string) {
     await page.unrouteAll({ behavior: 'wait' })
     await page.route(`**/api/collections/books_bills/records/${id}*`, route =>
@@ -160,6 +166,7 @@ async function refuseBillWrites(page: Page, id: string, message: string) {
               })
             : route.fallback()
     )
+    await refuseBatchWrite(page, 'books_bills', 'PATCH', { message, data: {} })
 }
 
 test.describe('bill-form: keyboard', () => {
@@ -352,12 +359,8 @@ test.describe('bill-form: keyboard', () => {
         await expect(search2).toHaveCount(0)
         await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
 
-        const saved = page.waitForResponse(
-            r =>
-                r.request().method() === 'PATCH' &&
-                new URL(r.url()).pathname === `/api/collections/books_bills/records/${id}` &&
-                r.status() === 200
-        )
+        // The save is one batch: the line writes, then the bill's one header write.
+        const saved = batchAnswered(page, 'books_bills', 'PATCH', 200)
         await page.keyboard.press('ControlOrMeta+s')
         await saved
         await expect(page).toHaveURL(DRAFT_URL_OF(id))

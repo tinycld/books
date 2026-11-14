@@ -401,8 +401,8 @@ func TestBillLine_RefusalsNumberLinesPerTable(t *testing.T) {
 	})
 }
 
-// lineWith is a line's fields with extra cells added over them.
-func lineWith(base, extra map[string]any) map[string]any {
+// billLineWith is a line's fields with extra cells added over them.
+func billLineWith(base, extra map[string]any) map[string]any {
 	all := map[string]any{}
 	for k, v := range base {
 		all[k] = v
@@ -428,7 +428,7 @@ func TestBillLine_KeepsOnlyTheCellsOfItsKind(t *testing.T) {
 			"rate":     {"rate": 500},
 		}
 		for name, extra := range others {
-			_, err := newBillLine(be.app, bill, 0, lineWith(accountLine(be.software, 12500), extra))
+			_, err := newBillLine(be.app, bill, 0, billLineWith(accountLine(be.software, 12500), extra))
 			if err == nil {
 				t.Errorf("an account line with a %s was saved", name)
 				continue
@@ -455,9 +455,9 @@ func TestBillLine_KeepsOnlyTheCellsOfItsKind(t *testing.T) {
 
 	t.Run("a product line with an account", func(t *testing.T) {
 		bill := mkBill(t, be.app, be.officeSupply, nil)
-		_, err := newBillLine(be.app, bill, 0, lineWith(productLine(be.accessPoint, 3, 12140), map[string]any{"account": be.software.Id}))
+		_, err := newBillLine(be.app, bill, 0, billLineWith(productLine(be.accessPoint, 3, 12140), map[string]any{"account": be.software.Id}))
 		requireRefusalText(t, err, wantBillProductLineAccount)
-		_, err = newBillLine(be.app, bill, 0, lineWith(productLine(be.accessPoint, 3, 12140), map[string]any{"account": be.equipment.Id}))
+		_, err = newBillLine(be.app, bill, 0, billLineWith(productLine(be.accessPoint, 3, 12140), map[string]any{"account": be.equipment.Id}))
 		requireRefusalText(t, err, wantBillProductLineAccount)
 		requireBillLineCount(t, be.app, bill, 0)
 
@@ -511,7 +511,7 @@ func TestBillLine_ProductAmountIsBooks(t *testing.T) {
 	bill := mkBill(t, be.app, be.officeSupply, nil)
 
 	// A create may not carry an amount either: Books computes it.
-	_, err := newBillLine(be.app, bill, 0, lineWith(productLine(be.accessPoint, 3, 12140), map[string]any{"amount": 500}))
+	_, err := newBillLine(be.app, bill, 0, billLineWith(productLine(be.accessPoint, 3, 12140), map[string]any{"amount": 500}))
 	requireRefusalText(t, err, wantLineAmountByBooks)
 	requireBillLineCount(t, be.app, bill, 0)
 
