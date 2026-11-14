@@ -235,11 +235,34 @@ func TestLifecycle_EachChangedInputFails(t *testing.T) {
 	day.secondSaleDay = "2026-01-05"
 	amount.firstSaleAmount = 120001
 
-	for name, in := range map[string]lifecycleInput{"account": account, "day": day, "amount": amount} {
-		t.Run(name, func(t *testing.T) {
-			c := runLifecycle(t, in)
-			if diff := differences(c.monthRows(t), wantMonthRows); len(diff) == 0 {
-				t.Error("the month rows equal the expected rows after the input changed")
+	// The month rows that each change must move, written by hand: these and no
+	// other. The 2026 sale is on Checking and Consulting Income in 2026-02.
+	cases := []struct {
+		name string
+		in   lifecycleInput
+		want []string
+	}{
+		{"account", account, []string{
+			`Checking 2026-02: got "5000/5000", want "205000/5000"`,
+			`Savings 2026-02: got "200000/0", want ""`,
+		}},
+		{"day", day, []string{
+			`Checking 2026-01: got "200000/0", want ""`,
+			`Checking 2026-02: got "5000/5000", want "205000/5000"`,
+			`Consulting Income 2026-01: got "0/200000", want ""`,
+			`Consulting Income 2026-02: got "", want "0/200000"`,
+		}},
+		{"amount", amount, []string{
+			`Checking 2025-03: got "200001/170000", want "200000/170000"`,
+			`Consulting Income 2025-03: got "0/120001", want "0/120000"`,
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := runLifecycle(t, tc.in)
+			diff := differences(c.monthRows(t), wantMonthRows)
+			if strings.Join(diff, "\n") != strings.Join(tc.want, "\n") {
+				t.Errorf("differences:\n%s\nwant:\n%s", strings.Join(diff, "\n"), strings.Join(tc.want, "\n"))
 			}
 			requireNoDrift(t, c.book.app)
 		})
