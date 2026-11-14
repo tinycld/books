@@ -347,11 +347,17 @@ func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
 	}
 	var set []string
 	for _, name := range names {
-		if r.Collection().Fields.GetByName(name) == nil {
+		field := r.Collection().Fields.GetByName(name)
+		if field == nil {
 			continue
 		}
-		// A number field reads "0" and an unset date "" when empty.
-		if v := r.GetString(name); v != "" && v != "0" {
+		// An empty number field reads "0". Only there is "0" empty: the text
+		// field number can hold the text "0".
+		empty := ""
+		if field.Type() == core.FieldTypeNumber {
+			empty = "0"
+		}
+		if v := r.GetString(name); v != "" && v != empty {
 			set = append(set, name)
 		}
 	}

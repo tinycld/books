@@ -1,6 +1,7 @@
 package books
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -190,8 +191,52 @@ func TestRebuildRoute_ReportsLineDrifts(t *testing.T) {
 	apiReq{
 		method: http.MethodPost, url: "/api/books/balances/rebuild",
 		token: tokenFor(t, env.users.admin), want: http.StatusOK, before: bindBalanceRoutes,
-		content: []string{`"fixed":0`, `"lineDrifts":[{"line":"` + line.Id + `"`, `"entryStatus":"draft"`},
+		content: []string{`"fixed":0`, `"lineDrifts":[{"line":"` + line.Id + `"`, `"entryStatus":"draft"`, `"lineDriftCount":1`},
 	}.run(t, env.app)
+}
+
+// A line whose entry row is gone still carries its stamp, and every report
+// that selects by the stamp counts it.
+func TestVerifyLines_ReportsALineWhoseEntryIsGone(t *testing.T) {
+	env := newLedgerEnv(t)
+	posted := mustPost(t, env.app, env.sale(t, "2026-05-10", 200).Id, "")
+	lines := mustLines(t, env.app, posted.Id)
+	// Raw SQL on purpose: the hooks refuse the delete of a posted entry.
+	if _, err := env.app.DB().NewQuery("DELETE FROM books_journal_entries WHERE id = {:id}").
+		Bind(dbx.Params{"id": posted.Id}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+	drifts, err := verifyLines(env.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drifts) != len(lines) {
+		t.Fatalf("drifts = %+v, want the %d lines of the deleted entry", drifts, len(lines))
+	}
+	for _, d := range drifts {
+		if d.Entry != posted.Id || d.EntryStatus != "" || d.EntryDate != "" || !d.Posted || d.Date != "2026-05-10" {
+			t.Errorf("drift = %+v, want a posted line of the missing entry %s", d, posted.Id)
+		}
+	}
+}
+
+// The route answers with at most maxLineDriftsReported lines and the full count.
+func TestLineDriftReport_IsCapped(t *testing.T) {
+	drifts := make([]LineDrift, maxLineDriftsReported+2)
+	for i := range drifts {
+		drifts[i].Line = fmt.Sprintf("line%03d", i)
+	}
+	listed, count := lineDriftReport(drifts)
+	if len(listed) != maxLineDriftsReported || count != maxLineDriftsReported+2 {
+		t.Fatalf("listed %d, count %d; want %d and %d", len(listed), count, maxLineDriftsReported, maxLineDriftsReported+2)
+	}
+	if listed[0].Line != "line000" {
+		t.Errorf("first listed = %q, want the first drift", listed[0].Line)
+	}
+	few, n := lineDriftReport(drifts[:3])
+	if len(few) != 3 || n != 3 {
+		t.Fatalf("listed %d, count %d; want 3 and 3", len(few), n)
+	}
 }
 
 func TestRebuildRoute_ACleanLedgerReportsAnEmptyList(t *testing.T) {
