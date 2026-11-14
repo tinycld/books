@@ -30,6 +30,8 @@ const NAMES = [
     'books_sales_receipt_tax_lines',
     'books_estimates',
     'books_estimate_lines',
+    'books_estimate_public',
+    'books_estimate_responses',
 ]
 
 function register() {
@@ -194,6 +196,19 @@ describe('registerCollections', () => {
             'duplicates',
             'created_by',
         ])
+    })
+
+    // The server makes an estimate's public token in its create. Nothing writes the
+    // public view, and it has no autodate columns, so it omits nothing; a response
+    // sends every column but its autodates.
+    it('never inserts the estimate public token or a response autodate', () => {
+        const { calls } = register()
+        expect(calls.get('books_estimates')?.omitOnInsert).toEqual(
+            expect.arrayContaining(['public_token'])
+        )
+        expect(calls.has('books_estimate_public')).toBe(true)
+        expect(calls.get('books_estimate_public')?.omitOnInsert).toBeUndefined()
+        expect(calls.get('books_estimate_responses')?.omitOnInsert).toEqual(['created', 'updated'])
     })
 
     // The guard sets name_key and sort_key on every write. The Taxes page reads a

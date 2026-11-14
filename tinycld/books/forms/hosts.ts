@@ -965,6 +965,7 @@ const hosts: FormHostDefInput[] = [
             'invoice',
             'form',
             'fields',
+            'public_token',
             'sort_key',
             'created',
             'updated',
