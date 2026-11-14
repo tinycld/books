@@ -521,6 +521,30 @@ func TestDocDeferral_AnEstimateAndASalesReceipt(t *testing.T) {
 	})
 }
 
+// The short path stores an item's own amount, so it holds the line to the
+// line limit itself: the schema's max would refuse it first with its own text.
+func TestDocDeferral_ALinePastTheLineLimitKeepsItsText(t *testing.T) {
+	pe := costEnv(t)
+	inv := pe.mkInvoice(t, nil)
+	pe.batchAsBookkeeper(t, http.StatusBadRequest, []string{fmt.Sprintf(wantLineTooLarge, 4)},
+		docLineCreateOp(t, invoiceKind, inv.Id, 3, item(pe.service, bigQty, bigRate+1, false))).run(t, pe.app)
+	requireLineCount(t, pe.app, inv, 0)
+}
+
+// requireNoDeferralMarks fails when a deferring or dirty mark of any
+// transaction is left: the marks are process-wide and keyed by transaction, so
+// a later request never reads a leaked one and only this count shows it.
+func requireNoDeferralMarks(t testing.TB) {
+	t.Helper()
+	txMarks.Range(func(key, _ any) bool {
+		name := key.(txMarkKey).name
+		if strings.HasSuffix(name, ".deferring") || strings.HasSuffix(name, ".dirty") {
+			t.Errorf("mark %s of %s is left after the batch", name, key.(txMarkKey).id)
+		}
+		return true
+	})
+}
+
 func TestDocDeferral_TheMarksDoNotOutliveTheBatch(t *testing.T) {
 	deleteFirst := func(t *testing.T, pe *postingEnv, first *core.Record) apiReq {
 		return apiReq{
@@ -536,6 +560,16 @@ func TestDocDeferral_TheMarksDoNotOutliveTheBatch(t *testing.T) {
 			docLineCreateOp(t, invoiceKind, inv.Id, 2, item(pe.service, 1, 100, false)))
 		apiSeq(t, pe.app, batch, deleteFirst(t, pe, first))
 		requireLineCount(t, pe.app, inv, 3)
+		requireNoDeferralMarks(t)
+	})
+	t.Run("after a batch whose later operation is refused", func(t *testing.T) {
+		pe := costEnv(t)
+		inv, _ := pe.itemThenPercent(t)
+		pe.batchAsBookkeeper(t, http.StatusBadRequest, []string{fmt.Sprintf(wantNeedsProduct, 4)},
+			docLineCreateOp(t, invoiceKind, inv.Id, 2, item(pe.service, 1, 100, false)),
+			docLineCreateOp(t, invoiceKind, inv.Id, 3, map[string]any{"kind": "item", "quantity": 1, "rate": 100})).run(t, pe.app)
+		requireLineCount(t, pe.app, inv, 2)
+		requireNoDeferralMarks(t)
 	})
 	t.Run("after a batch that is refused", func(t *testing.T) {
 		pe := costEnv(t)
@@ -544,5 +578,6 @@ func TestDocDeferral_TheMarksDoNotOutliveTheBatch(t *testing.T) {
 			docLineDeleteOp(invoiceKind, first.Id))
 		apiSeq(t, pe.app, batch, deleteFirst(t, pe, first))
 		requireLineCount(t, pe.app, inv, 2)
+		requireNoDeferralMarks(t)
 	})
 }
