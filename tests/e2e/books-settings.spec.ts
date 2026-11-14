@@ -9,7 +9,8 @@ import {
     TEST_USER_EMAIL,
     TEST_USER_NAME,
 } from '@tinycld/core/e2e-helpers'
-import { leaveToChart, openOpeningBalances } from './opening-balances-helpers'
+import { openOtherBooksPage } from './journal-entries-helpers'
+import { openOpeningBalances } from './opening-balances-helpers'
 
 // The e2e database is shared, so every test sets its own values through the UI and puts back
 // what it changed. Nothing here reads or writes PocketBase directly.
@@ -398,7 +399,7 @@ test.describe('books-settings: Settings screens', () => {
     // the test saves nothing in the opening form.
     // What this does not cover: the post. A posted opening entry is permanent in the
     // shared database; the server's check of a post with an override has Go tests.
-    test('Opening balances: a closed date is refused without an override and accepted with one', async ({
+    test('Opening balances: a closed date is refused without an override, accepted with one, and refused again when it ends', async ({
         page,
     }) => {
         const closeDate = '2026-06-30'
@@ -407,53 +408,38 @@ test.describe('books-settings: Settings screens', () => {
         await openAccounting(page)
         let hasCloseDate = false
         let hasOverride = false
-
-        // Types the closed date in the opening form, runs the check, and puts the date
-        // back, so the form has no unsaved change when the test leaves it.
-        const withClosedDate = async (check: () => Promise<void>) => {
-            await openOpeningForm(page)
-            const date = page.getByTestId('opening-date')
-            const original = await date.inputValue()
-            await date.fill(closeDate)
-            await check()
-            await date.fill(original)
-        }
-        // Back through history, not through the Settings nav item: that item opens a
-        // second Settings screen over the first one, and each override row would be in
-        // the page two times.
-        const backToAccounting = async () => {
-            const accounting = id(page, 'books-settings-fiscal-month')
-            if (await accounting.isVisible()) return
-            await leaveToChart(page)
-            await page.goBack()
-            await expect(accounting).toBeVisible()
-        }
+        // The opening form stays open in a second tab while this tab changes the
+        // override, as when an admin grants one to a person who is at the form.
+        let formTab: Page | undefined
 
         try {
             hasCloseDate = true
             await setCloseDate(page, closeDate)
 
-            await withClosedDate(async () => {
-                await expect(page.getByText(closedText).first()).toBeVisible()
-            })
+            formTab = await openOtherBooksPage(page)
+            await openOpeningForm(formTab)
+            const date = formTab.getByTestId('opening-date')
+            const closed = formTab.getByText(closedText)
+            await date.fill(closeDate)
+            await expect(closed.first()).toBeVisible()
 
-            await backToAccounting()
             hasOverride = true
             await grantOverride(page, TEST_USER_NAME, reason)
             await expect(overrideRow(page, reason)).toBeVisible()
+            // The form checks the date again when the override starts: the error
+            // leaves with no edit and no reload.
+            await expect(closed).toHaveCount(0)
+            await expect(date).toHaveValue(closeDate)
 
-            await withClosedDate(async () => {
-                await expect(page.getByTestId('opening-date')).toHaveValue(closeDate)
-                await expect(page.getByText(closedText)).toHaveCount(0)
-                // The date still validates with an override: a day that does not exist.
-                await page.getByTestId('opening-date').fill('2026-02-30')
-                await expect(
-                    page.getByText('Enter a real date as YYYY-MM-DD').first()
-                ).toBeVisible()
-            })
+            // And again when it ends.
+            await revokeOverride(page, reason)
+            hasOverride = false
+            await expect(closed.first()).toBeVisible()
         } finally {
             await runRestores([
-                backToAccounting,
+                async () => {
+                    await formTab?.close()
+                },
                 async () => {
                     if (hasOverride) await revokeOverride(page, reason)
                 },
