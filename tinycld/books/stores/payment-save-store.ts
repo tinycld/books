@@ -17,6 +17,12 @@ interface PaymentSaveState {
     holding: string | null
     hold: (id: string) => void
     release: () => void
+    // The posted payment a correction form's own save corrects. Set before the mutation;
+    // cleared by a refusal, or, after a save that worked, when that form unmounts (it is
+    // moving on to its new route then).
+    correcting: string | null
+    startCorrecting: (original: string) => void
+    stopCorrecting: (original: string) => void
     refused: PaymentRefusedSave | null
     handOff: (refused: PaymentRefusedSave) => void
     // The draft's form that started from the hand-off has gone.
@@ -31,6 +37,10 @@ export const usePaymentSaveStore = create<PaymentSaveState>()(set => ({
     holding: null,
     hold: id => set({ holding: id }),
     release: () => set({ holding: null }),
+    correcting: null,
+    startCorrecting: original => set({ correcting: original }),
+    stopCorrecting: original =>
+        set(state => (state.correcting === original ? { correcting: null } : {})),
     refused: null,
     handOff: refused => set({ refused }),
     clearRefused: () => set({ refused: null }),

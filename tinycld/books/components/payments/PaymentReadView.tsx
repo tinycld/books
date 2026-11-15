@@ -167,12 +167,7 @@ export function PaymentReadView({
                     <ReplacedBy payment={payment} />
                 </View>
             </ScrollView>
-            <PaymentReadActions
-                status={payment.status}
-                canWrite={canWrite}
-                entryId={payment.entry}
-                scopeOwner={scopeOwner}
-            />
+            <PaymentReadActions payment={payment} canWrite={canWrite} scopeOwner={scopeOwner} />
         </View>
     )
 }

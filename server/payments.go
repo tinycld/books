@@ -43,6 +43,9 @@ const (
 	msgPaymentDeleteNotDraft   = "Only a draft payment can be deleted."
 	msgPaymentPostedFromForm   = "A draft payment is posted from the payment form."
 	msgPaymentEditMissing      = "The payment being edited does not exist."
+	// A correction (a payment with `replaces`) keeps its original's customer
+	// (spec §3.6).
+	msgPaymentCorrectionCustomer = "An edited payment keeps the customer of the payment it replaces."
 	// %s is the customer's name (refuseNamed).
 	msgCustomerOnPayments = "%s is on payments. Make it inactive instead."
 	// The payments whose Deposit to is an account being deleted.
@@ -262,16 +265,42 @@ func checkPaymentHeader(tx core.App, stored, r *core.Record) error {
 
 // checkPaymentCustomer refuses an empty customer, and an inactive one when the
 // write chooses it, unless the payment corrects a posted payment of that
-// customer. A customer that does not exist is the schema's refusal.
+// customer. A correction is refused when its customer is not its original's;
+// the inactive check runs first, so an inactive customer chosen on a
+// correction reads as inactive. A customer that does not exist is the
+// schema's refusal.
 func checkPaymentCustomer(tx core.App, stored, r *core.Record) error {
 	id := r.GetString("customer")
 	if id == "" {
 		return refuseField("customer", msgPaymentCustomerRequired)
 	}
-	if stored != nil && stored.GetString("customer") == id {
+	if stored == nil || stored.GetString("customer") != id {
+		if err := refuseInactivePaymentCustomer(tx, r); err != nil {
+			return err
+		}
+	}
+	return refuseCorrectionCustomer(tx, r)
+}
+
+// refuseCorrectionCustomer refuses a correction whose customer is not the
+// customer of the payment it replaces. An original that does not exist is
+// refused at posting (msgPaymentEditMissing).
+func refuseCorrectionCustomer(tx core.App, r *core.Record) error {
+	replaces := r.GetString("replaces")
+	if replaces == "" {
 		return nil
 	}
-	return refuseInactivePaymentCustomer(tx, r)
+	original, err := tx.FindRecordById(paymentsCollection, replaces)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the payment being edited: %w", err)
+	}
+	if original.GetString("customer") != r.GetString("customer") {
+		return refuseField("customer", msgPaymentCorrectionCustomer)
+	}
+	return nil
 }
 
 // refuseInactivePaymentCustomer refuses the payment's customer when it is

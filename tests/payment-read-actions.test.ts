@@ -17,6 +17,14 @@ describe('paymentReadActions', () => {
         expect(paymentReadActions('void', false)).toEqual(['entry'])
     })
 
+    it('gives a writer on a posted payment with no entry edit and void, not entry', () => {
+        expect(paymentReadActions('posted', true, false)).toEqual(['edit', 'void'])
+    })
+
+    it('gives a reader of a posted payment with no entry no read action', () => {
+        expect(paymentReadActions('posted', false, false)).toEqual([])
+    })
+
     it('gives a draft no read action', () => {
         expect(paymentReadActions('draft', true)).toEqual([])
         expect(paymentReadActions('draft', false)).toEqual([])
