@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/expense-form-checkpoints.md
 - reference: docs/plans/expense-form-reference/
 - evidence: docs/plans/expense-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-14)
 - capture manifest: docs/plans/expense-form-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -149,6 +149,6 @@ with the reason, and shown to the human at the end)
 - commit: 800375e
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved (2026-11-14, human: "approve design and notes"; retro items M1, 1–4 approved). CI green at dd35b2c after a flaky-test fix (journal-entries-save-post double click: test waited on a badge the new form always shows; 291167e, review notes dd35b2c).
+- human comments and what changed: workers: 1 on the purchase-lines-setting project accepted.
 - native: not executed in this run
