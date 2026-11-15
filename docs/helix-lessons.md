@@ -42,3 +42,8 @@
 - An e2e test that changes the shared `books_settings` row goes in the `purchase-lines-setting` Playwright project (one worker); `-g` also runs that dependency project, and its red tests skip their dependents. — expense-form, retro, p3-expense
 - In e2e helpers, wait on the visible screen (`.filter({ visible: true })`), never on the first match of an `or`: Books keeps a list mounted and hidden under an open record. Scope a row lookup to its account section, and read server data through the page's `fetch`, not Node `page.request`. — report-drill-down, retro, p5-drill-down
 - A report drill is set per column; a blank cell (a zero Debit or Credit) has no drill and no link. — report-drill-down, retro, p5-drill-down
+- Before a test asserts how core's report view behaves (row ids, open group rows, union fields, labels shared with the picker), read the core code or the built shot first. — sales-tax-liability, retro, p5-sales-tax-liability
+- An e2e period helper must not depend on today's date: when Custom pre-fills the asked days, wait for the settled run, not for a change. — sales-tax-liability, retro, p5-sales-tax-liability
+- Before you capture a report at 390, give it a phone `display.layouts` and check that each track fits core's 374 px row (at most about three figures on a line). — sales-tax-liability, retro, p5-sales-tax-liability
+- After `page.setViewportSize` across a breakpoint, assert an element of the new layout before the next action; the old layout's controls detach on the resize. — customers, retro, p2-customer-pages
+- List `pb-migrations/` before you name a new migration number; never assume the next free one. — audit-log, retro, p5-audit-log
