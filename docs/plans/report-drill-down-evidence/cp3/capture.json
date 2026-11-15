@@ -1,0 +1,187 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "panel",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1440],
+            "height": 1100,
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "toolbar": "report-fold-all", "label": "Collapse all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "6100 Rent" },
+                { "clickLabel": "Show transactions: 6100 Rent, Total" },
+                { "waitFor": "report-drill-panel" },
+                { "pause": 2000 },
+                { "clickIn": "report-drill-panel", "testId": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "panel-section",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1440],
+            "height": 900,
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "toolbar": "report-fold-all", "label": "Collapse all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "Total Expenses" },
+                { "clickLabel": "Show transactions: Total Expenses, Total" },
+                { "waitFor": "report-drill-panel" },
+                { "pause": 2000 },
+                { "clickIn": "report-drill-panel", "testId": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "panel-empty",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1440],
+            "height": 900,
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "toolbar": "report-fold-all", "label": "Collapse all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "6100 Rent" },
+                { "clickLabel": "Show transactions: 6100 Rent, Total" },
+                { "waitFor": "report-drill-panel" },
+                { "pause": 1500 },
+                { "clickIn": "report-drill-panel", "testId": "report-param-period" },
+                { "waitFor": "report-period-popover" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2026-01-03" },
+                { "fill": "report-period-to", "value": "2026-01-03" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty" },
+                { "pause": 1500 },
+                { "clickIn": "report-drill-panel", "testId": "report-drill-panel-title" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "panel-page",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "viewport": { "width": 1440, "height": 900 } },
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "toolbar": "report-fold-all", "label": "Collapse all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "6100 Rent" },
+                { "clickLabel": "Show transactions: 6100 Rent, Total" },
+                { "waitFor": "report-drill-panel" },
+                { "pause": 1500 },
+                { "viewport": { "width": 1280, "height": 800 } },
+                { "reload": true },
+                { "waitFor": "report-drill-panel" },
+                { "pause": 2500 },
+                { "clickIn": "report-drill-panel", "testId": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "statement",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "screen",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "toolbar": "report-fold-all", "label": "Collapse all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "6100 Rent" },
+                { "clickLabel": "Show transactions: 6100 Rent, Total" },
+                { "waitFor": "report-back" },
+                { "waitFor": "report-param-accounts" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "screen-section",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "toolbar": "report-fold-all", "label": "Collapse all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "Total Expenses" },
+                { "clickLabel": "Show transactions: Total Expenses, Total" },
+                { "waitFor": "report-back" },
+                { "waitFor": "report-param-accounts" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "screen-empty",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "toolbar": "report-fold-all", "label": "Collapse all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "6100 Rent" },
+                { "clickLabel": "Show transactions: 6100 Rent, Total" },
+                { "waitFor": "report-back" },
+                { "waitFor": "report-param-accounts" },
+                { "pause": 1500 },
+                { "click": "report-param-period" },
+                { "waitFor": "report-period-popover" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2026-01-03" },
+                { "fill": "report-period-to", "value": "2026-01-03" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        }
+    ]
+}

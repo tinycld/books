@@ -25,6 +25,7 @@ import {
     dayWords,
     expectedHeading,
     expectTableFits,
+    figureDigits,
     figureText,
     filterToAccounts,
     filterToAccountsAndWait,
@@ -40,8 +41,12 @@ import {
     postEntryOn,
     pressFigure,
     snapshotWhen,
+    type TdRow,
     type TdSnapshot,
+    tdLinesOf,
     tdSnapshot,
+    tdSubtotalOf,
+    tdTotalOf,
 } from './books-report-helpers'
 import { ACCOUNT_LABELS, postedEntryNumber } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
@@ -131,35 +136,14 @@ function customPeriodChip(from: string, to: string): string {
     return `Period: ${fromText} – ${shortDay(to)}`
 }
 
-// A figure's digits, sign and point, without a currency sign or grouping.
-function figure(text: string | undefined): string {
-    return (text ?? '').replace(/[^0-9.\-−]/g, '')
-}
-
-type TdRow = TdSnapshot['rows'][number]
-
 function groupOf(snapshot: TdSnapshot, label: string): TdRow | undefined {
     return snapshot.rows.find(row => row.kind === 'group' && row.label === label)
-}
-
-// The lines of the section headed `label`: the detail rows after its heading, up to the
-// next row that is not a line.
-function linesOf(snapshot: TdSnapshot, label: string): TdRow[] {
-    const start = snapshot.rows.findIndex(row => row.kind === 'group' && row.label === label)
-    if (start < 0) return []
-    const after = snapshot.rows.slice(start + 1)
-    const end = after.findIndex(row => row.kind !== 'detail')
-    return end < 0 ? after : after.slice(0, end)
-}
-
-function subtotalOf(snapshot: TdSnapshot, label: string): TdRow | undefined {
-    return snapshot.rows.find(row => row.kind === 'subtotal' && row.label === `Total ${label}`)
 }
 
 // The line of the section headed `section` whose Description is `memo`. An entry memo is
 // the Description of each of the entry's lines, so the line is found in its section.
 function lineWith(snapshot: TdSnapshot, section: string, memo: string): TdRow | undefined {
-    return linesOf(snapshot, section).find(row => row.cells.description === memo)
+    return tdLinesOf(snapshot, section).find(row => row.cells.description === memo)
 }
 
 // Presses a line's label (the link) and checks it is a link named "Open: <label>".
@@ -228,10 +212,6 @@ function focusedTestId(page: Page): Promise<string> {
 
 function urlPeriod(page: Page): string | null {
     return new URL(page.url()).searchParams.get('p-period')
-}
-
-function totalOf(snapshot: TdSnapshot): TdRow | undefined {
-    return snapshot.rows.find(row => row.kind === 'total')
 }
 
 // How long a press is watched for a drill it starts: a drill pushes the opened report's
@@ -309,7 +289,7 @@ test.describe('report-drill-down: screen', () => {
         const before = await snapshotWhen(
             page,
             tdSnapshot,
-            s => linesOf(s, expense).length === 2 && linesOf(s, toBank).length === 1,
+            s => tdLinesOf(s, expense).length === 2 && tdLinesOf(s, toBank).length === 1,
             `${expense}'s entry and bill lines and ${toBank}'s transfer line`
         )
 
@@ -322,14 +302,14 @@ test.describe('report-drill-down: screen', () => {
         const back = await snapshotWhen(
             page,
             tdSnapshot,
-            s => linesOf(s, toBank).length === 1,
+            s => tdLinesOf(s, toBank).length === 1,
             'the report again after Back'
         )
         expect(back.chips.period).toBe(before.chips.period)
         expect(back.chips.accounts).toBe(before.chips.accounts)
 
         // A press anywhere on the row opens it: here its Amount, not its label.
-        const transferLine = linesOf(back, toBank)[0]
+        const transferLine = tdLinesOf(back, toBank)[0]
         expect(transferLine.cells.type).toBe('Transfer')
         await page.getByTestId(`report-cell-amount-${transferLine.id}`).click()
         await expect(page).toHaveURL(TRANSFER_URL)
@@ -339,10 +319,10 @@ test.describe('report-drill-down: screen', () => {
         const again = await snapshotWhen(
             page,
             tdSnapshot,
-            s => linesOf(s, expense).some(row => row.cells.type === 'Bill'),
+            s => tdLinesOf(s, expense).some(row => row.cells.type === 'Bill'),
             `${expense}'s bill line`
         )
-        const billLine = linesOf(again, expense).find(row => row.cells.type === 'Bill')
+        const billLine = tdLinesOf(again, expense).find(row => row.cells.type === 'Bill')
         if (!billLine) throw new Error(`no bill line under ${expense}`)
         await pressLineLabel(page, billLine)
         await expect(page).toHaveURL(BILL_URL)
@@ -352,10 +332,10 @@ test.describe('report-drill-down: screen', () => {
         const sections = await snapshotWhen(
             page,
             tdSnapshot,
-            s => groupOf(s, expense) !== undefined && subtotalOf(s, expense) !== undefined,
+            s => groupOf(s, expense) !== undefined && tdSubtotalOf(s, expense) !== undefined,
             `${expense}'s heading and total`
         )
-        const total = subtotalOf(sections, expense)
+        const total = tdSubtotalOf(sections, expense)
         const heading = groupOf(sections, expense)
         if (!total || !heading) throw new Error(`no heading or total for ${expense}`)
         await expect(page.getByTestId(`report-row-${total.id}`)).not.toHaveRole('link')
@@ -456,10 +436,10 @@ test.describe('report-drill-down: screen', () => {
         const snapshot = await snapshotWhen(
             page,
             tdSnapshot,
-            s => linesOf(s, expense).length === 1,
+            s => tdLinesOf(s, expense).length === 1,
             `${expense}'s one line`
         )
-        const id = linesOf(snapshot, expense)[0].id
+        const id = tdLinesOf(snapshot, expense)[0].id
         const wholeTexts = () =>
             page.evaluate(rowId => {
                 const isCut = (testId: string) => {
@@ -527,11 +507,11 @@ test.describe('report-drill-down: screen', () => {
             const first = await snapshotWhen(
                 page,
                 tdSnapshot,
-                s => linesOf(s, expense).length === 1 && subtotalOf(s, expense) !== undefined,
+                s => tdLinesOf(s, expense).length === 1 && tdSubtotalOf(s, expense) !== undefined,
                 `${expense}'s first line without a reload`
             )
-            expect(figure(linesOf(first, expense)[0].cells.amount)).toBe('21.00')
-            expect(figure(subtotalOf(first, expense)?.cells.amount)).toBe('21.00')
+            expect(figureDigits(tdLinesOf(first, expense)[0].cells.amount)).toBe('21.00')
+            expect(figureDigits(tdSubtotalOf(first, expense)?.cells.amount)).toBe('21.00')
 
             await postEntryOn(other, {
                 date: today,
@@ -544,7 +524,7 @@ test.describe('report-drill-down: screen', () => {
             await snapshotWhen(
                 page,
                 tdSnapshot,
-                s => linesOf(s, expense).length === 2,
+                s => tdLinesOf(s, expense).length === 2,
                 `${expense}'s second line without a reload`
             )
         } finally {
@@ -562,12 +542,12 @@ test.describe('report-drill-down: screen', () => {
             page,
             tdSnapshot,
             s => {
-                const amounts = linesOf(s, expense).map(row => figure(row.cells.amount))
+                const amounts = tdLinesOf(s, expense).map(row => figureDigits(row.cells.amount))
                 return amounts.length === 2 && amounts[0] === '9.00'
             },
             `${expense}'s lines by Amount ascending`
         )
-        expect(linesOf(sorted, expense).map(row => figure(row.cells.amount))).toEqual([
+        expect(tdLinesOf(sorted, expense).map(row => figureDigits(row.cells.amount))).toEqual([
             '9.00',
             '21.00',
         ])
@@ -605,7 +585,7 @@ test.describe('report-drill-down: screen', () => {
         await openProfitAndLoss(page)
         await openSectionTo(page, EXPENSES, expense)
         const shown = await figureText(page, 'amount', expense)
-        expect(figure(shown)).toBe('200.00')
+        expect(figureDigits(shown)).toBe('200.00')
         const total = await cellOf(page, 'amount', expense)
         await expect(total).toHaveRole('link')
         await expect(total).toHaveAccessibleName(`Show transactions: ${expense}, Total, ${shown}`)
@@ -617,25 +597,25 @@ test.describe('report-drill-down: screen', () => {
         const detail = await snapshotWhen(
             page,
             tdSnapshot,
-            s => linesOf(s, expense).length === 2 && subtotalOf(s, expense) !== undefined,
+            s => tdLinesOf(s, expense).length === 2 && tdSubtotalOf(s, expense) !== undefined,
             `${expense}'s two lines and its total`
         )
         expect(detail.chips.period).toBe(source.chips.period)
         expect(detail.chips.accounts).toContain(expense)
-        const lines = linesOf(detail, expense).map(row => ({
+        const lines = tdLinesOf(detail, expense).map(row => ({
             date: row.label,
             type: row.cells.type,
             number: row.cells.number,
             description: row.cells.description,
             split: row.cells.split,
-            amount: figure(row.cells.amount),
+            amount: figureDigits(row.cells.amount),
         }))
         const line = { date: shortDay(today), type: 'Journal entry', split: 'Business Checking' }
         expect(lines).toEqual([
             { ...line, number: number1, description: memo1, amount: '120.00' },
             { ...line, number: number2, description: memo2, amount: '80.00' },
         ])
-        expect(figure(subtotalOf(detail, expense)?.cells.amount)).toBe('200.00')
+        expect(figureDigits(tdSubtotalOf(detail, expense)?.cells.amount)).toBe('200.00')
     })
 
     test('a figure opened by Tab and Enter leads back to the statement as it was left', async ({
@@ -660,7 +640,7 @@ test.describe('report-drill-down: screen', () => {
         await openSectionTo(page, EXPENSES, expense)
         const source = await tdSnapshot(page)
         const shown = await figureText(page, 'amount', expense)
-        expect(figure(shown)).toBe('64.00')
+        expect(figureDigits(shown)).toBe('64.00')
         const label = rowOf(page, expense)
         const rowId = ((await label.getAttribute('data-testid')) ?? '').slice('report-row-'.length)
         const figureId = `report-cell-amount-${rowId}`
@@ -716,11 +696,11 @@ test.describe('report-drill-down: screen', () => {
         const detail = await snapshotWhen(
             page,
             tdSnapshot,
-            s => groupOf(s, expense) !== undefined && totalOf(s) !== undefined,
+            s => groupOf(s, expense) !== undefined && tdTotalOf(s) !== undefined,
             `${expense}'s section and the report Total`
         )
         expect(detail.chips.period).toBe(source.chips.period)
-        expect(figure(totalOf(detail)?.cells.amount)).toBe(figure(totalExpenses))
+        expect(figureDigits(tdTotalOf(detail)?.cells.amount)).toBe(figureDigits(totalExpenses))
     })
 
     test('a month cell of the Profit and Loss by Month opens that month of the period', async ({
@@ -746,7 +726,7 @@ test.describe('report-drill-down: screen', () => {
         // The period's months in order: p0 last month, p1 this month (core assemble.go).
         const thisMonth = 'amount.p1'
         const cell = await figureText(page, thisMonth, expense)
-        expect(figure(cell)).toBe('45.00')
+        expect(figureDigits(cell)).toBe('45.00')
 
         await pressFigure(page, thisMonth, expense)
         await expectTransactionDetailScreen(page)
@@ -759,10 +739,10 @@ test.describe('report-drill-down: screen', () => {
         const detail = await snapshotWhen(
             page,
             tdSnapshot,
-            s => subtotalOf(s, expense) !== undefined,
+            s => tdSubtotalOf(s, expense) !== undefined,
             `${expense}'s total`
         )
-        expect(figure(subtotalOf(detail, expense)?.cells.amount)).toBe(figure(cell))
+        expect(figureDigits(tdSubtotalOf(detail, expense)?.cells.amount)).toBe(figureDigits(cell))
     })
 
     test('a Balance Sheet and a Trial Balance figure open the account up to the day', async ({
@@ -796,7 +776,7 @@ test.describe('report-drill-down: screen', () => {
 
         await openBalanceSheet(page)
         const current = await figureText(page, 'current', bank)
-        expect(figure(current)).toBe('325.00')
+        expect(figureDigits(current)).toBe('325.00')
         await pressFigure(page, 'current', bank)
         await expectTransactionDetailScreen(page)
         expect(urlPeriod(page)).toBe(`${today}..${today}`)
@@ -808,10 +788,10 @@ test.describe('report-drill-down: screen', () => {
         const fromBalance = await snapshotWhen(
             page,
             tdSnapshot,
-            s => subtotalOf(s, bank) !== undefined,
+            s => tdSubtotalOf(s, bank) !== undefined,
             `${bank}'s total from the Balance Sheet`
         )
-        expect(figure(subtotalOf(fromBalance, bank)?.cells.amount)).toBe('325.00')
+        expect(figureDigits(tdSubtotalOf(fromBalance, bank)?.cells.amount)).toBe('325.00')
         const back = page.getByTestId('report-back')
         await expect(back).toHaveText('Balance Sheet')
         await back.click()
@@ -821,7 +801,7 @@ test.describe('report-drill-down: screen', () => {
         await chooseAsOf(page, { preset: 'today' })
         await filterToAccountsAndWait(page, [bank, RETAINED_EARNINGS])
         const debit = await figureText(page, 'debit', bank)
-        expect(figure(debit)).toBe('325.00')
+        expect(figureDigits(debit)).toBe('325.00')
         // B's Credit draws no figure, so it is no link.
         const blankCredit = await cellOf(page, 'credit', bank)
         await expect(blankCredit).toBeAttached()
@@ -832,10 +812,10 @@ test.describe('report-drill-down: screen', () => {
         const fromTrial = await snapshotWhen(
             page,
             tdSnapshot,
-            s => subtotalOf(s, bank) !== undefined,
+            s => tdSubtotalOf(s, bank) !== undefined,
             `${bank}'s total from the Trial Balance`
         )
-        expect(figure(subtotalOf(fromTrial, bank)?.cells.amount)).toBe(figure(debit))
+        expect(figureDigits(tdSubtotalOf(fromTrial, bank)?.cells.amount)).toBe(figureDigits(debit))
         await page.getByTestId('report-back').click()
         await expect(page.getByTestId('report-title')).toHaveText('Trial Balance')
 
