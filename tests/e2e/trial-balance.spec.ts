@@ -66,11 +66,13 @@ const SEEDED_EQUITY_AND_INCOME = ['Retained earnings', "Owner's Equity", 'Consul
 
 // The seeded accounts the Trial Balance shows as of the end of last month. Sales tax
 // payable holds the tax of the seeded invoices (seed.ts seedInvoices, dated October 2026);
-// Accounts payable and Design Tools hold the seeded October bills (seed.ts seedBills).
+// Accounts payable and Design Tools hold the seeded October bills (seed.ts seedBills);
+// Undeposited funds holds the seeded October payment deposited there (seed.ts seedPayments).
 const SEEDED_DEFAULT_ROWS = [
     'Business Checking',
     'Business Savings',
     'Accounts receivable',
+    'Undeposited funds',
     'Office Equipment',
     'Accounts payable',
     'Company Card',

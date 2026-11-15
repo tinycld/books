@@ -225,8 +225,9 @@ export function registerCollections(
 
     // Every field below the omit line is Books' own: the number at posting, the
     // totals at every draft write, who and when by the request, sort_key by the
-    // guard. No relations: the invoice screen reads its customer, tax rate and
-    // users through their own queries.
+    // guard, the open balance at posting and at every payment post or void. No
+    // relations: the invoice screen reads its customer, tax rate and users
+    // through their own queries.
     const books_invoices = newCollection('books_invoices', {
         omitOnInsert: [
             'created',
@@ -236,6 +237,7 @@ export function registerCollections(
             'subtotal',
             'tax_total',
             'total',
+            'balance',
             'revision',
             'currency',
             'entry',
@@ -417,6 +419,39 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the invoice's: server-owned fields below the omit line (the number,
+    // applied and credited at posting), no relations (the payment screen reads
+    // its customer, deposit account and users through their own queries).
+    const books_payments = newCollection('books_payments', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'applied',
+            'credited',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // One row per invoice a payment pays; the client writes every column but
+    // the autodates. No relations: the payment screen reads the invoices
+    // through their own query.
+    const books_payment_applications = newCollection('books_payment_applications', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     // A view, never written: the server signals its topic when a journal line or
     // an account changes (server/party_balances.go), so an open page follows a
     // post or a void with no reload.
@@ -469,6 +504,8 @@ export function registerCollections(
         books_bill_lines,
         books_expenses,
         books_expense_lines,
+        books_payments,
+        books_payment_applications,
         books_party_balances,
         books_party_contacts,
     }

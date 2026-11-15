@@ -1285,7 +1285,10 @@ const generalLedgerSpecGolden = "" +
 	`{"value":"Expense"},` +
 	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"invo` +
 	`ice"}]},{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
-	`{"value":"Invoice"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"sales_receipt"}]},` +
+	`{"value":"Invoice"},` +
+	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"payment"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Payment"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"sales_receipt"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
 	`{"value":"Sales receipt"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"transfer"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},{"value":"Transfer"},{"op":"eq","args":[{"path":[{"link":"entry` +
