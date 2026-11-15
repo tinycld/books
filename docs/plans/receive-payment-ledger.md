@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/receive-payment-checkpoints.md
 - reference: docs/plans/receive-payment-reference/
 - evidence: docs/plans/receive-payment-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-15)
 - capture manifest: docs/plans/receive-payment-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -214,7 +214,7 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
+- eval: approved by the human 2026-11-15 (no corrections); CI full suite green on PR #55 at dd767ac
 - cp 3 corrections (driver, 2026-11-15, staging cp3-spec-fixes.md; findings file staging cp/cp3-efix.md, causes: spec-logic 1, platform 1):
   - 1. A Find invoice no. pick lost a typed Amount received. Fix: with `amountTyped` true and a valid typed amount above zero, `onFindPicked` (hooks/usePaymentForm.ts) sets the customer, keeps `amount` and `amountTyped`, and pays the found invoice `spreadAmount([invoice], cents)` (up to its open balance; the rest is credit, §3.4 re-apply). Runner decision: the re-apply covers the found invoice only, not the customer's other rows (the pick names that invoice; no list load). Otherwise unchanged (tick at open balance, Amount received follows).
   - 2. No touch path for Pay all below 640 px. Fix: `OutstandingCards` draws a "Pay all" `SelectBox` (`payment-tick-all`, `tickAll` state, `onTickAll`) above the cards, the wide header's behavior. Declared: only the box is the press target, not the "Pay all" text.
