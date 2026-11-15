@@ -17,19 +17,28 @@
   - Date to the minute, zone once → needs extension (accepted: core T1 `dateTimeText` + header zone line, T2 `options.timeZone`)
 
 ## Deferrals
-(none yet)
+(none)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, checkpoint 0, finding 1 (part): "The bump changes the virtualized table of every report and every FlashList screen in every package. Today it rides in a reports-feature PR … Better: move it to its own core PR, and rebase this branch onto that PR."
+  **rebutted because:** the human approved the fork fix and its pin bump on this branch (driver's resume prompt, 2026-11-15: "The human approved the fork fix. It is done: fork commit cab6dab9 … pin bumped in core 04577323 … Record this in the ledger as the gate 1 fix"). Gate 1 of this checkpoint cannot pass without it (`reports-scroll-anchor.spec.ts:437`, 8 of 160 runs failed before). The record part of the finding is accepted (Out-of-plan changes, gate 1 row).
+- **finding:** reviewer B, checkpoint 0, finding 5: "`core/reports/hooks/usePanelTitle.ts:17-22`: a new React Context (`PanelRecord`, `PanelTitleProvider`) for shared UI state. … Fix: in `usePanelTitle`, read the path from the route: `firstOf(useLocalSearchParams()[RECORD_KEY])`."
+  **rebutted because:** the context is not shared UI state; it passes one immutable value to one subtree: `PanelTitleProvider({ open, children })` wraps each mounted panel with the record path that instance draws, and the code says why that matters: "The title is filed under its record path, so it never shows for another record." The shared state (the title per path) is in the Zustand store (`useReportUIStore(s => s.setRecordTitle)`), as CLAUDE.md asks. Reading `dr` from the route instead would let a panel instance that is still mounted while `dr` moves to another row file its old title under the new record's path, the defect the core plan review fixed ("the panel title is keyed by record path (a second row opening the same record blanked it)", Checkpoint 0 plan review row). The plan's Produces names `PanelTitleProvider`.
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 0 · report-empty-*, report-empty-month-*: header — the zone line "Times in Central Time" shows in the empty states, where no time is on screen (core fills `zoneWords` from the shown columns in every state; the earlier reference had none there).
+- cp 0 · gate 3 A NOTE 1: `core/reports/components/ReportDrillPanel.tsx:317-326` — a package panel whose chunk fails to load (offline) or that throws shows "Could not load this record" with no Retry; pressing the row again resets it (`resetKey` = `recordOpens`), but the text does not say so. Suggested: a Retry action `report-record-panel-retry` that resets the boundary.
+- cp 0 · gate 3 A NOTE 2: `core/reports/lib/date-time.ts:39-52` with `useReportView.ts` `todayIso()` — the zone is read once per app start (R3, human Q2) but `today` from the live clock; after a device zone change while the app runs, period presets use a day of one zone at the midnights of the other. Suggested: derive `today` from `readerTimeZone()`.
+- cp 0 · gate 3 A NOTE 3: `tests/e2e/reports-zone-record-panel.spec.ts:157-164` — the B7 step does not assert that Customize is open after its press, nor closed after the row press (the store test `report-ui-store.test.ts` pins `openRecord` closing Customize).
+- cp 0 · gate 3 A NOTE 4: `core/reports/lib/__tests__/format.test.ts:463-472` compares in the test process's zone; the Chicago text is pinned in `date-time.test.ts` only.
+- cp 0 · gate 3 A NOTE 5: fork `cab6dab9` `holdItemAtLiveOffset` is correct (reviewed src and dist); it mutates the manager during render, as `updateProps` already does; the fork test covers only the vertical insert with a pending scroll event, not the no-op paths (equal offsets, native, before the first layout).
+- cp 0 · gate 3 A NOTE 6: the flash-list change is JS-only (a web path, a no-op on native), so no EAS build is needed for the pin bump; the core PR description should say so.
 
 ## Out-of-plan changes
 - cp 0 (core): `docs/plans/2026-11-15-report-zone-times-and-record-panel-part-1.md` and `-part-2.md` — the Files block names only the outline file; the task bodies are in two part files (written in parallel, as the earlier core plans `2026-11-14-report-drill-down-part-*.md` are).
+- cp 0 (core), gate 3 B findings 2–4 (recorded, named by the core plan, which the Files block defers to: "the core plan names every file"): `core/server/reports/detail.go`, `heading.go`, `join.go`, `layout.go`, `levels.go`, `lookup.go`, `rows.go`, `formula_cases_test.go` (each formula context gains `readerDay` for T2; `rows.go` gains `compiler.loc`); new tests `core/server/reports/viewsource_test.go`, `zonerange_test.go`, `zoneoptions_test.go`, `core/reports/stores/__tests__/report-ui-store.test.ts`.
+- cp 0 (books): `docs/plans/audit-log-capture.json` — biome format only (gate 1). The fixture change (`tinycld/books/lib/audit-log-fixture.ts`) and the re-captured reference shots are committed with checkpoint 0, not 1 as Do 6 says, so the next runner starts from a clean tree.
+- cp 0 (core), gate 1 fix: `core/package-versions.json`, `core/package.json`, `package.json` — the `@shopify/flash-list` pin moves from fork `265c951d` to `cab6dab9`, the fork commit that fixes the scroll-anchor race `reports-scroll-anchor.spec.ts:437` showed (human-approved).
 
 ## Phase notes
 - phase 1: unattended; no corrections to the extractions (intake in the staging folder). The design gate (2026-11-15) answered the packet's questions below.
@@ -77,6 +86,19 @@ and again at the end)
 - gates 2, 3: not started (gate 1 is red). Gate 3 input over 9cc926c0..716cefd4 is built (staging `cp/cp0-review-input.md`, 66 files, 14 out-of-plan against the Books Files block, 1 conformance line to verify) and must be built again after the fix.
 - uncommitted in books (in the tree): the Books plan amendment (B1–B7, N1–N5), `docs/plans/audit-log-capture.json` biome format. Scratch route edited (git-excluded).
 - **stopped: gate 1 — `reports-scroll-anchor.spec.ts` fails from a race in the flash-list fork; the fix is a vendor fork change and a version pin bump, outside this checkpoint.** Core commits 71cd5357..716cefd4 stay on `books/p5-audit-log` (not pushed). Resume after the fork fix lands: re-run gate 1 e2e (`cp/g1-e2e-core.sh`), then gates 2 and 3, Do 6.
+- resumed 2026-11-15 (fresh runner). The human approved the fork fix. **Gate 1 fix:** fork commit `nathanstitt/flash-list@cab6dab9` (PR #3: on web, a data change reads the DOM scroller's live offset and takes the item to hold again before the layout moves; fork unit test `src/__tests__/webOffsetCorrection.web.test.tsx`), pin bumped in core 04577323 (`core/package-versions.json`, `core/package.json`, root `package.json`; see Out-of-plan changes), `pnpm install` at the workspace root. Proof: before, 8 of 160 runs of `reports-scroll-anchor.spec.ts` failed (staging `cp/flashlist-red-*`); after, 300 of 300 passed with the pinned fork (`cp/flashlist-pinned-repeat100.log`). The pin bump and the fork diff get the reviewer-A pass inside gate 3 A (staging `cp/cp0-flashlist-fork.diff`).
+- gate 1: tests unedited: yes (SDD, tests first per task) · pass (core checks, Go, vitest, 24 salesstub e2e files, Books consumers; `reports-scroll-anchor` fail → flash-list fork race → fork fix + pin bump → pass 300/300).
+- Do 5 (core PR): the driver's; not opened by the runner.
+- Do 6 (books side, implementer, staging `cp/cp0-do6-impl.md`): fixture `detailRow` sends `label`/`labelValue: row.created` with `labelType: 'datetime'` (core formats a typed label from `labelValue`), `auditDateTimeText` removed (callers read core `dateTimeText`); scratch route: `zoneWords` = core `zoneLine` in every state (as core's own view), `hasPanel` true, core record-mode panel in the `side` slot with `dr` = `books/history/books_invoices/bkinvoice001001` and `openRecord('d:auditlog0000030')`; capture spec copy `timezoneId: 'America/Chicago'`. Capture-only stand-ins (manifest `reportPanels` + `components/history/RecordHistoryPanel.tsx`) added, `packages:generate`, captured, then removed and regenerated (not committed).
+- gate 2: capture `HELIX_CAPTURE=docs/plans/audit-log-capture.json`, 27 passed, 21 reference shots changed (`report-*`, `panel-1440-*`; `history-*` unchanged, same text through core `dateTimeText`) · invalid shots: none · blocking: none · notes: 1 (Design notes). Critique `docs/plans/audit-log-evidence/cp0/critique.md`; spec §3 core checks hold: Central times, "Times in Central Time" once, panel 480 px at 1440, opened row marked (light and dark).
+- gate 3 input: built in a detached worktree soft-reset to 9cc926c0 (`review-diff.mjs --repo`, branch history kept): 69 staged, 17 out-of-plan, 1 conformance line.
+- gate 3 A (correctness, staging `cp/cp0-review-A.md`): 0 BLOCK, 9 NOTE, 0 DEFERRAL; fork `cab6dab9` and the pin bump reviewed (correct). NOTEs 1–6 to Design notes; 7–9 confirm the out-of-plan files and the script line.
+- gate 3 B (conformance, staging `cp/cp0-review-B.md`): script lines: 0 real, 1 false positive (`reports-zone-record-panel.spec.ts:89` `skipWithoutReportsStub`, the guard every salesstub spec uses) · findings 1–4 out-of-plan files → recorded (Out-of-plan changes); finding 1's "own PR" part and finding 5 (`PanelTitleProvider` context) → rebutted (see Rebuttals).
+- fix review: n/a (no accepted finding changed code; rounds: 0)
+- gate 3 A notes: 6 (Design notes)
+- reviewer-caught deferrals: none
+- books gate 1 after Do 6: `packages:generate` ok; `tinycld-pkg check` 278 files / 5569 tests pass; `biome check .` clean.
+- commit: core 04577323 (no new core change after gate 1); books: this commit.
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
