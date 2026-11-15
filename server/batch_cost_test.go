@@ -86,6 +86,38 @@ func TestBatchCost_Create1000LineDraft(t *testing.T) {
 	}
 }
 
+// The time bound above depends on the machine. This is the cause it guards,
+// counted: a batch that writes many lines of one draft saves the entry one
+// time, before the commit, not one time for each line.
+func TestBatchCost_LinesSaveTheirEntryOnce(t *testing.T) {
+	env := newLedgerEnv(t)
+	enableBatch(t, env.app)
+	entry := mkDraft(t, env.app, "2026-05-10")
+	saw := revisionOf(t, env.app, entry.Id)
+
+	var ops []string
+	for i := 0; i < 20; i++ {
+		if i%2 == 0 {
+			ops = append(ops, lineCreateOp(entry.Id, env.checking, 1, 0, i))
+		} else {
+			ops = append(ops, lineCreateOp(entry.Id, env.revenue, 0, 1, i))
+		}
+	}
+	env.app.ResetEventCalls()
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, env.users.bookkeeper),
+		body: batchBody(ops...), want: http.StatusOK,
+	}.run(t, env.app)
+
+	if got := env.app.EventCalls["OnRecordUpdateExecute"]; got != 1 {
+		t.Fatalf("record updates in a batch of 20 line creates = %d, want 1 (the entry)", got)
+	}
+	saved := reload(t, env.app, "books_journal_entries", entry.Id)
+	if saved.GetInt("total") != 10 || saved.GetInt("revision") != saw+1 {
+		t.Fatalf("total/revision = %d/%d, want 10/%d", saved.GetInt("total"), saved.GetInt("revision"), saw+1)
+	}
+}
+
 func TestBatchCost_Post1000LineDraft(t *testing.T) {
 	env := newLedgerEnv(t)
 	enableBatch(t, env.app)
