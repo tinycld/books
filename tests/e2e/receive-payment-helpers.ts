@@ -125,6 +125,23 @@ export async function pickPaymentCustomer(page: Page, name: string) {
     await expect(trigger).toContainText(name)
 }
 
+// The same pick at phone size, where the picker's menu is a sheet: the option is found by
+// its test id, not by its menu role.
+export async function pickPaymentCustomerOnPhone(page: Page, name: string, customerId: string) {
+    const trigger = page.getByTestId('payment-customer')
+    await trigger.click()
+    await page.getByTestId('payment-customer-search').fill(name)
+    const option = page.getByTestId(`payment-customer-option-${customerId}`)
+    await option.click()
+    await expect(option).toHaveCount(0)
+    await expect(trigger).toContainText(name)
+}
+
+// A listed invoice's phone card (spec §3.3: the form is narrower than 640 px).
+export function paymentCard(page: Page, invoiceId: string) {
+    return page.getByTestId(`payment-card-${invoiceId}`)
+}
+
 export function paymentRow(page: Page, invoiceId: string) {
     return page.getByTestId(`payment-row-${invoiceId}`)
 }

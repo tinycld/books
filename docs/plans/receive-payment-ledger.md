@@ -58,6 +58,21 @@
 - cp 2 · reviewer A NOTE 8: after Delete draft the hold is released before the back navigation ends, so "This payment does not exist" can flash.
 - cp 2 · reviewer A NOTE 9: with `allowInInputs`, ⌥⌫ in Memo or Reference no. clears every row payment instead of deleting a word, and ⌥A cannot type "å" (keys chosen by the spec).
 - cp 2 · core change request: core `TextInput` (core/ui/form/TextInput.tsx) takes no `className`/`style` and always draws its label row and `mb-3` wrapper, so a grid money cell (right-aligned, `tabular-nums`) cannot use it; `PaymentMoneyField` copies its classes and placeholder colour instead (fix item 7).
+- cp 3 · populated-390-*, read-390-*: card first line reads "Invoice 1005" with no invoice date (the reference shows "Invoice 1006 · Sep 2, 2026"); the build follows the spec text `tick box and "Invoice 1004" on the first line`.
+- cp 3 · over-390-*: no built shot shows a card with a row refusal or a truncated long invoice number (the seeded customer has two short-numbered invoices), so those card states have no visual evidence.
+- cp 3 · credit-390-*: a typed Amount received shows "5000.00", a followed one "3,448.87" (cp 2's note, now at 390).
+- cp 3 · read-390-*: the read detail band puts Customer and Payment date side by side at 390, the customer link ~12 px below the date value; the reference stacks Customer, Payment date, Payment in one column (the read band is cp 2's).
+- cp 3 · read-credit-390-*: with no method and no reference, the Payment line starts in lower case ("deposited to 1200 Undeposited funds") — shared `paymentText`.
+- cp 3 · populated-390-*: the card's tick box sits ~10 px right of the left edge of the due date, labels and input (the reference has the same inset).
+- cp 3 · reviewer A NOTE: a Find pick after a typed Amount received sets `amountTyped` false and Amount received to the invoice's balance (the typed amount is lost); the brief's Do step 3 says "Amount received follows", while spec §3.2/§3.4 keep a typed amount on a customer change. Option: when typed, keep the amount and re-apply it.
+- cp 3 · reviewer A NOTE: a typed amount's spread, ⌥A and the header tick box write payments into rows the filter hides. Option: act only on the shown rows, or show "n invoices hidden by the filter".
+- cp 3 · reviewer A NOTE: `useFindInvoice`'s `failed` path and the dropped-unreadable-customer path have no hook-level test (`findOutcome` covers `inactive`).
+- cp 3 · reviewer A NOTE: on the first frame the width is 0, so the wide grid draws, then the cards (a one-frame flash on a phone), per the plan's "above 0 and below 640" rule.
+- cp 3 · reviewer A NOTE: an applied card whose invoice is not yet filed draws "Invoice " and Original "$0.00" for a moment (as the grid row does).
+- cp 3 · runner: on a phone the outstanding list has no header tick box, so Pay all has no touch control (⌥A only); the spec names the header tick box for the wide grid only.
+- cp 3 · find-miss-1280-light (re-capture): the focused Find invoice no. field draws a blue 2 px ring while the focused Customer trigger draws a teal one — two focus colours on one form (core `TextInput` focus style vs the picker trigger).
+- cp 3 · fix review NOTE: new text `Invoice no. can be at most 40 characters` (`findTooLong`, `lib/payment-texts.ts`) for the find field's 40-character rule (the `books_invoices.number` limit); no spec or plan text exists; it follows the Reference no. wording.
+- cp 3 · new text `No open invoice starts with <text>` (`payment-filter-empty`, fix item 2) for a filter that keeps no row; no spec or plan text exists; it follows the spec's `No open invoice 1099`.
 - cp 2 · core change request: `tinycld/core/components/search-palette/useSearchResults.ts` keeps the debounced query for 300 ms after the palette closes, so a reopen within that time refetches the old query (found through the cp 2 test dispute).
 
 ## Out-of-plan changes
@@ -67,6 +82,8 @@
 - cp 1 · `tinycld/books/lib/entry-route.ts`: comment names payment among the document kinds
 - cp 1 · `tinycld/books/types.ts`: re-exports `BooksPayments`, `BooksPaymentApplications` (the fixture imports types through `../types`)
 - cp 2 · `tinycld/books/components/SelectBox.tsx`: optional `tabIndex?: 0 | -1`, so the payment row and header tick boxes leave the Tab order (spec §3.1, lesson 29); existing callers unchanged (the implementer's stated reason, Deposit to / Payment method, was wrong — reviewer A NOTE 10)
+- cp 3 · `tinycld/books/components/payments/OutstandingGrid.tsx`: exports `DueText`, `GridRowProps`, `tickAllState` (now over rows + payments + currency) and takes a `tickAll` prop, so the cards reuse the grid's parts and the header tick box reads every listed row while the grid draws only the filtered ones (reviewer A NOTE, reviewer B #1)
+- cp 3 · `tinycld/books/components/payments/PaymentForm.tsx`: the one caller of `OutstandingInvoices`' changed props (`grid` → `list`, `customer`, `onFindPicked`) (reviewer A NOTE, reviewer B #2)
 
 ## Phase notes
 - phase 1: design packet generated unattended (staging p2-receive-payment/packet.md); no human corrections.
@@ -108,6 +125,25 @@
 - fix review: round 1: 0 BLOCK, 3 NOTE (to Design notes), 0 not fixed
 - gate 3 A notes: 8, listed under Design notes
 - reviewer-caught deferrals: A 5 / B 5 (overlapping): header untick (fixed), Enter picks (test fixed), `useTableMinWidth` (fixed), core TextInput (fixed in substance; core gap recorded), Tab stops (test fixed), Delete draft Enter (rebutted), 640 switch (rebutted), `?replaces` (cp 4). The implementer declared `useTableMinWidth` and the raw input as differences, not deferrals.
+- commit: (this commit)
+- human: none (review mode C)
+
+## Checkpoint 3
+- test writer: tests/payment-allocation.test.ts (5 `filterRowsByNumber` cases), tests/payment-find.test.ts (new; `findOutcome` + two hook tests of the §4.4 filter: draft/void same number not matched, paid invoice a miss with no warning), e2e receive-payment-phone.spec.ts (new; phone post at 390, Find invoice no. desktop), receive-payment-keyboard.spec.ts (Tab stop `payment-find` after Amount received in both keyboard tests), receive-payment-helpers.ts (`pickPaymentCustomerOnPhone`, `paymentCard`); 14 tests; red for the right reason: yes (missing exports/modules; e2e no `payment-card-<id>` / no `payment-find`; keyboard spec not run, waits on the same missing `payment-find`); untestable: none
+- implementer: one dispatch (10 source files); `payment-find.ts`, `useFindInvoice` (two `queryOnce` reads, §4.4 filter, `.limit(2)`), `FindInvoiceField`, `OutstandingCards`, `AppliedInvoiceCards`, `filterRowsByNumber`, `onFindPicked`, width switch with core `useContainerWidth` in `OutstandingInvoices` and `AppliedInvoices`; DONE (report cp3-impl.md)
+- test disputes: none
+- self-declared differences: Do step 4 no change (`PaymentBand` already draws Amount received last at `mobile`) · lookup message is a root error of the field's own small `useForm<{ find }>` (input keeps a plain border), drawn only with no customer · Enter with a customer does nothing; a stale lookup answer is dropped · `onFindPicked` resets `amountTyped` and Amount received follows even after a typed amount · the filter keeps a row with a refusal visible · header tick-box state over every listed row (`tickAll` prop) · Enter in a cell skips filtered rows · `orderBy(id)` before `.limit(2)`, customers by `inArray` · card labels "Invoice <n>" (applied: "Due <date>", Original / Applied) · find field 260 px on the grid, full width with cards
+- gate 1: tests unedited: yes · pass (packages:generate, tinycld-pkg check 5677 tests; e2e `receive-payment:` 9 passed, customer-pages-transactions 5, customer-pages-balance 6)
+- gate 2 capture: first run 3 failed (populated/over/credit waited for `payment-tick-all`, which the phone cards do not draw) → manifest ticks the first two cards by label (`Pay invoice`, nth 0/1) and waits for `payment-totals` → 16 shots. The scratch capture spec gained a `press` action (find-miss Enter).
+- gate 2: invalid shots: none · blocking: none · notes: 7 (listed under Design notes; note 5, the hover tooltip in read-credit-390, was a capture artifact → manifest clicks `payment-title` before the shot, re-captured)
+- gate 3 A (correctness): BLOCK lookup text stays as a hidden prefix filter after a customer is chosen, and a filter that keeps no row draws an empty list with no message → accepted (fix 1 test, fix 2) · NOTEs: typed amount lost on a Find pick, spread/⌥A into hidden rows, hook failed path untested, first-frame grid flash, unfiled applied card → Design notes · out-of-plan OutstandingGrid / PaymentForm → recorded · second `useForm` without resolver = B #4 (fix 3) · "the test writer appended a ledger entry" → not a defect: the runner wrote it
+- gate 3 B (conformance): script lines: 0 · #1, #2 out-of-plan files → recorded (Out-of-plan changes) · #3 = A BLOCK (fix 1, 2) · #4 `useForm` without `zodResolver`, lookup answer stored through `setError` → accepted (fix 3) · #5 comment claims a customer check the guard lacks → accepted (fix 4) · DEFERRALS: none
+- fix round: findings file cp3-fix.md, 4 items (causes: weak-test 1, spec-logic 1, conformance 1, other: wrong comment 1). Test writer item 1: steps added to the Find test (miss then picker pick → field empty; lookup pick → field empty; `payment-filter-empty` text; hidden after clear), red at the first new assertion (`999999` kept). Implementer items 2–4 fixed; differences: the picker-pick clear sits in `PaymentForm.tsx` (wraps `onCustomerPicked`; the find state is the form component's), re-picking the same customer keeps the text; new `findTooLong` text; `hideError` removed from the find input; `listBody` takes one object.
+- gate 1 (after fixes): tests unedited: yes · pass (packages:generate, check 5677 tests; e2e `receive-payment:` 9, customer-pages-transactions 5, customer-pages-balance 6). Re-capture: empty, find-miss, read-credit → 6 passed.
+- gate 2 (after fixes): fresh critic: invalid none · blocking none · 1 note (focus ring colours) under Design notes
+- fix review: round 1: 0 BLOCK, 1 NOTE (new `findTooLong` text, to Design notes), 0 not fixed
+- gate 3 A notes: 5, listed under Design notes
+- reviewer-caught deferrals: none
 - commit: (this commit)
 - human: none (review mode C)
 

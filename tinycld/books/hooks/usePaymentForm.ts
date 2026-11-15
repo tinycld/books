@@ -204,11 +204,28 @@ export function usePaymentForm({
         }
     }
 
-    // Enter in a Payment cell: the next row's cell, or Clear payments after the last.
+    // Find invoice no. found the invoice while no customer was chosen: its customer becomes
+    // the form's, and the invoice is paid in full. Amount received follows that payment.
+    const onFindPicked = (invoice: OutstandingRow, customer: string) => {
+        if (getValues('customer') !== '') return
+        const before = getValues('payments')
+        const payments = tickRow(clearPayments(), invoice)
+        write('customer', customer)
+        write('payments', payments)
+        write('amountTyped', false)
+        write('amount', followedAmount(payments, currency))
+        revalidate(before, true)
+    }
+
+    // Enter in a Payment cell: the next drawn row's cell (a row the find filter hides has
+    // no cell), or Clear payments after the last.
     const focusAfterRow = (rowId: string) => {
         const index = outstanding.rows.findIndex(row => row.id === rowId)
-        const next = outstanding.rows[index + 1]
-        if (next) rowRefs.current.get(next.id)?.focus()
+        const next = outstanding.rows
+            .slice(index + 1)
+            .map(row => rowRefs.current.get(row.id))
+            .find(node => node !== undefined)
+        if (next) next.focus()
         else clearRef.current?.focus()
     }
 
@@ -235,6 +252,7 @@ export function usePaymentForm({
         onClear,
         onTickAll,
         onCustomerPicked,
+        onFindPicked,
         focusAfterRow,
         focusDate: () => dateRef.current?.focus(),
     }
