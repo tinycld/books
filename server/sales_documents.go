@@ -172,8 +172,10 @@ const maxDocumentLines = 250
 
 // registerSalesDocGuards binds the kind's header and line guards inside
 // serialized, so no other write can commit between a check and the write it
-// allows. Every line create, update and delete then restates the document
-// (each line's amount and the three totals) in the same transaction.
+// allows. A line create, update or delete then restates the document (each
+// line's amount and the three totals) in the same transaction; in a batch the
+// document is restated one time, after the batch's last write
+// (sales_document_deferral.go).
 func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDoc(tx, kind, stored, r)
@@ -850,9 +852,13 @@ func setSalesDocTotals(kind salesDocKind, r *core.Record, totals documentTotalsR
 // document's lines with this write still have a target for every percent line
 // and totals Books can store. It sets the line's amount: Books computes it, so
 // a write that sends one is refused, except on an account line, which keeps
-// the amount typed. While restateSalesDoc writes the document's lines, an
-// update that changes only the amount passes and any other update is refused.
-// stored is the record before an update, nil on a create.
+// the amount typed. In a batch (the document is deferring,
+// sales_document_deferral.go) it does not read the document's other lines: it
+// checks the line's own cells, product and amount, and the document's owner
+// checks the percent targets and the totals of the lines the batch leaves.
+// While restateSalesDoc writes the document's lines, an update that changes
+// only the amount passes and any other update is refused. stored is the record
+// before an update, nil on a create.
 func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	docID := r.GetString(kind.ParentField)
 	if stored != nil && stored.GetString(kind.ParentField) != docID {
