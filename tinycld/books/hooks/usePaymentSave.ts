@@ -106,6 +106,12 @@ export function usePaymentSave({
             if (holdsHandOff && store.refused?.id === id) store.clearRefused()
         }
     }, [holdsHandOff, id])
+    // A correction's save that worked keeps `correcting` until this form goes, so the form
+    // does not show "cannot be edited" (its original is void now) while it moves on.
+    useEffect(() => {
+        if (!replaces) return
+        return () => usePaymentSaveStore.getState().stopCorrecting(replaces)
+    }, [replaces])
 
     const save = useMutation({
         mutationFn: function* (input: SaveVariables) {
@@ -217,6 +223,8 @@ export function usePaymentSave({
                 }))
                 const progress = { isHeaderWritten: !isNew }
                 const store = usePaymentSaveStore.getState()
+                const isCorrection = isNew && replaces !== ''
+                if (isCorrection) store.startCorrecting(replaces)
                 store.hold(id)
                 try {
                     await save.mutateAsync({
@@ -232,6 +240,7 @@ export function usePaymentSave({
                         afterSave(mode)
                     }
                 } catch (error) {
+                    if (isCorrection) store.stopCorrecting(replaces)
                     if (!isLive.current || left.current) {
                         log.warn(LOG_CONTEXT, writeRefusalText(error))
                     } else if (isNew && progress.isHeaderWritten) {

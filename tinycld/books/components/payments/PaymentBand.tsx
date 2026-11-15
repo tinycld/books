@@ -2,7 +2,7 @@ import { SelectInput, type SelectOption, TextInput } from '@tinycld/core/ui/form
 import { DateField } from '@tinycld/core/ui/forms/fields/DateField'
 import type { ReactNode } from 'react'
 import { useController } from 'react-hook-form'
-import { Text, View } from 'react-native'
+import { Platform, Text, View } from 'react-native'
 import type { PaymentFormState } from '../../hooks/usePaymentForm'
 import { paymentMethodOptions } from '../../lib/payment-methods'
 import { PaymentCustomerField } from './PaymentCustomerField'
@@ -48,10 +48,12 @@ function PaymentDateInput({
     control,
     dateRef,
     isDisabled,
+    autoFocus,
 }: {
     control: PaymentFormState['form']['control']
     dateRef: PaymentFormState['dateRef']
     isDisabled: boolean
+    autoFocus: boolean
 }) {
     const { field } = useController({ control, name: 'date' })
     const handleChange = (next: string | null) => field.onChange(next ?? '')
@@ -61,6 +63,7 @@ function PaymentDateInput({
             onChange={handleChange}
             withTime={false}
             disabled={isDisabled}
+            autoFocus={autoFocus}
             accessibilityLabel="Payment date"
             testID="payment-date"
             inputRef={dateRef}
@@ -83,7 +86,12 @@ interface PaymentBandProps {
     isPhone: boolean
     // A save runs: the fields wait for it.
     isDisabled: boolean
+    // A correction keeps its customer: Customer cannot open, and Payment date takes the
+    // first focus on web.
+    isCustomerLocked: boolean
 }
+
+const AUTO_FOCUS = Platform.OS === 'web'
 
 /**
  * The band (spec §3.2): Customer and Payment date, then Payment method, Reference no. and
@@ -97,6 +105,7 @@ export function PaymentBand({
     depositTriggerLabel,
     isPhone,
     isDisabled,
+    isCustomerLocked,
 }: PaymentBandProps) {
     const { form, values, customerName, dateRef, onCustomerPicked, onAmountTyped, focusDate } =
         paymentForm
@@ -112,6 +121,8 @@ export function PaymentBand({
     const pickCustomer = (id: string) => {
         void onCustomerPicked(id)
     }
+    const isCustomerDisabled = isDisabled || isCustomerLocked
+    const focusDateFirst = AUTO_FOCUS && isCustomerLocked
     return (
         <View testID="payment-band" className={`${BAND} ${outer}`}>
             <View className="min-w-0 shrink gap-4">
@@ -121,7 +132,8 @@ export function PaymentBand({
                             value={values.customer}
                             name={customerName}
                             error={customerError}
-                            isDisabled={isDisabled}
+                            isDisabled={isCustomerDisabled}
+                            hasFocusOnOpen={!isCustomerLocked}
                             onPick={pickCustomer}
                             onPicked={focusDate}
                         />
@@ -131,6 +143,7 @@ export function PaymentBand({
                             control={control}
                             dateRef={dateRef}
                             isDisabled={isDisabled}
+                            autoFocus={focusDateFirst}
                         />
                         <FieldError message={dateError} testID="payment-date-error" />
                     </Field>

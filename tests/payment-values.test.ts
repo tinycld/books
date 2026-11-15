@@ -4,6 +4,7 @@ import { centsToText } from '../tinycld/books/lib/money-text'
 import type { OutstandingRow } from '../tinycld/books/lib/payment-allocation'
 import { paymentDefaultDeposit } from '../tinycld/books/lib/payment-deposit'
 import {
+    correctionPaymentValues,
     draftPaymentValues,
     newPaymentValues,
     paymentWriteRows,
@@ -129,6 +130,94 @@ describe('draftPaymentValues', () => {
         const values = draftPaymentValues(larger, DRAFT_APPLICATIONS)
         expect(values.amountTyped).toBe(true)
         expect(values.amount).toBe(centsToText(150_000))
+    })
+})
+
+// A correction (`?replaces=<id>`) starts from its posted original. The original's own
+// applications are part of each invoice's stored balance being low, so a row's open
+// balance is the invoice's balance plus what the original applied to it (spec §3.3: a
+// correction lists every invoice its stored allocations name).
+function postedPayment(id: string) {
+    const row = PAYMENTS.find(p => p.id === id)
+    if (row?.status !== 'posted') throw new Error(`no posted payment ${id} in the fixture`)
+    return row
+}
+
+// The original's applications as the correction reads them: each with its invoice's
+// number and its invoice's stored balance (after the original was applied).
+function postedApplications(paymentId: string) {
+    return applicationsOf(paymentId).map(application => {
+        const invoice = PAYMENT_INVOICES.find(row => row.id === application.invoice)
+        if (!invoice) throw new Error(`no invoice ${application.invoice}`)
+        return {
+            invoice: application.invoice,
+            amount: application.amount,
+            number: invoice.number,
+            balance: invoice.balance,
+        }
+    })
+}
+
+describe('correctionPaymentValues', () => {
+    it('copies the header of the original', () => {
+        const original = postedPayment(PAYMENT_IDS.partial)
+        const values = correctionPaymentValues(original, postedApplications(PAYMENT_IDS.partial))
+        expect(values).toMatchObject({
+            customer: original.customer,
+            date: original.date,
+            payment_method: 'bank_transfer',
+            reference_no: 'ACH 7781-2290',
+            deposit_to: original.deposit_to,
+            amount: centsToText(50_000),
+            memo: original.memo,
+        })
+    })
+
+    it('opens each row for its invoice balance plus what the original applied to it', () => {
+        // Payment 1002 paid 500.00 of invoice 1009, whose balance is now 750.00.
+        const partial = correctionPaymentValues(
+            postedPayment(PAYMENT_IDS.partial),
+            postedApplications(PAYMENT_IDS.partial)
+        )
+        expect(partial.payments).toEqual({
+            [PAYMENT_INVOICE_IDS.partly]: { amount: '500.00', open: 125_000, number: '1009' },
+        })
+
+        // Payment 1001 paid invoices 1003 and 1005 in full; both are at zero now.
+        const full = correctionPaymentValues(
+            postedPayment(PAYMENT_IDS.paidInFull),
+            postedApplications(PAYMENT_IDS.paidInFull)
+        )
+        expect(full.payments).toEqual({
+            [PAYMENT_INVOICE_IDS.paidA]: { amount: '325.00', open: 32_500, number: '1003' },
+            [PAYMENT_INVOICE_IDS.paidB]: { amount: '187.50', open: 18_750, number: '1005' },
+        })
+    })
+
+    it('follows the rows when the original applied its whole amount', () => {
+        const values = correctionPaymentValues(
+            postedPayment(PAYMENT_IDS.paidInFull),
+            postedApplications(PAYMENT_IDS.paidInFull)
+        )
+        expect(values.amountTyped).toBe(false)
+        expect(values.amount).toBe(centsToText(51_250))
+    })
+
+    it('marks the amount typed when the original kept a credit', () => {
+        // Payment 1004 received 1,500.00 and applied 1,344.00: 156.00 kept as a credit.
+        const values = correctionPaymentValues(
+            postedPayment(PAYMENT_IDS.overpayment),
+            postedApplications(PAYMENT_IDS.overpayment)
+        )
+        expect(values.amountTyped).toBe(true)
+        expect(values.amount).toBe(centsToText(150_000))
+        expect(values.payments).toEqual({
+            [PAYMENT_INVOICE_IDS.northwindPaid]: {
+                amount: '1,344.00',
+                open: 134_400,
+                number: '1007',
+            },
+        })
     })
 })
 

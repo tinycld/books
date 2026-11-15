@@ -370,6 +370,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     actions={read.actions}
                     isPhone={isPhone}
                     isBusy={read.voidDialog.isPending}
+                    hasPdf={doc.features.pdf}
                     scopeOwner={scopeOwner}
                 />
                 <VoidDialog {...read.voidDialog} />

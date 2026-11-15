@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -384,6 +385,99 @@ func TestPaymentCorrection_KeepsAnInactiveCustomer(t *testing.T) {
 		t.Errorf("correction status %q customer %q, want posted with Harborview Dental", corrected.GetString("status"), corrected.GetString("customer"))
 	}
 	requireInvoiceBalance(t, pe.app, inv, 0)
+}
+
+// The refusal of a correction whose customer is not its original's (spec §3.6
+// "a correction keeps its original's customer"; human scope 2026-11-15),
+// written out so a change of wording fails here too.
+const wantPaymentCorrectionCustomer = "An edited payment keeps the customer of the payment it replaces."
+
+// correctionOfPostedPayment posts a payment of 200.00 of Harborview Dental on
+// a 300.00 invoice and returns the original, its invoice and Riverside Clinic,
+// another active customer.
+func correctionOfPostedPayment(t *testing.T, pe *paymentEnv) (original, inv, other *core.Record) {
+	t.Helper()
+	inv = pe.postedInvoice(t, pe.customer, 30000)
+	original = pe.mkPayment(t, map[string]any{"amount": 20000})
+	mkApplication(t, pe.app, original, inv, 0, 20000)
+	original = mustPostPayment(t, pe.app, original.Id, pe.users.bookkeeper.Id)
+	other = mkCustomer(t, pe.app, "Riverside Clinic", "")
+	return original, inv, other
+}
+
+// requireOriginalStillPosted checks that a refused correction left the
+// original posted, unreplaced, with its entry posted and its application on
+// its invoice.
+func requireOriginalStillPosted(t *testing.T, pe *paymentEnv, original, inv *core.Record) {
+	t.Helper()
+	after := reload(t, pe.app, "books_payments", original.Id)
+	if after.GetString("status") != statusPosted || after.GetString("replaced_by") != "" || after.GetString("voided_at") != "" {
+		t.Errorf("original status %q replaced_by %q voided_at %q, want posted, none, none",
+			after.GetString("status"), after.GetString("replaced_by"), after.GetString("voided_at"))
+	}
+	if s := reload(t, pe.app, "books_journal_entries", original.GetString("entry")).GetString("status"); s != statusPosted {
+		t.Errorf("the original's entry status %q, want posted", s)
+	}
+	requireApplicationCount(t, pe.app, original, 1)
+	requireInvoiceBalance(t, pe.app, inv, 10000)
+}
+
+func TestPaymentCorrection_CreateRefusesAnotherCustomer(t *testing.T) {
+	pe := newPaymentEnv(t)
+	original, inv, other := correctionOfPostedPayment(t, pe)
+
+	_, err := pe.newPayment(map[string]any{"replaces": original.Id, "customer": other.Id, "amount": 20000})
+	requireFieldRefusal(t, err, "customer", wantPaymentCorrectionCustomer)
+	requirePaymentCount(t, pe.app, 1)
+	requireOriginalStillPosted(t, pe, original, inv)
+}
+
+func TestPaymentCorrection_UpdateRefusesAnotherCustomer(t *testing.T) {
+	pe := newPaymentEnv(t)
+	original, inv, other := correctionOfPostedPayment(t, pe)
+	draft := pe.mkPayment(t, map[string]any{"replaces": original.Id, "amount": 20000})
+
+	err := setFields(t, pe.app, "books_payments", draft.Id, map[string]any{"customer": other.Id})
+	requireFieldRefusal(t, err, "customer", wantPaymentCorrectionCustomer)
+	if got := reload(t, pe.app, "books_payments", draft.Id).GetString("customer"); got != pe.customer.Id {
+		t.Errorf("correction customer = %q after the refusal, want the original's %q", got, pe.customer.Id)
+	}
+	requireOriginalStillPosted(t, pe, original, inv)
+}
+
+// A correction whose customer was changed past the write guard (a raw table
+// write) is refused again inside the posting transaction, and nothing of the
+// post stays: the original keeps its entry and its application.
+func TestPaymentCorrection_PostRefusesAnotherCustomer(t *testing.T) {
+	pe := newPaymentEnv(t)
+	actor := pe.users.bookkeeper.Id
+	original, inv, other := correctionOfPostedPayment(t, pe)
+	// No applications: without the customer check this correction would post.
+	draft := pe.mkPayment(t, map[string]any{"replaces": original.Id, "amount": 20000})
+	if _, err := pe.app.DB().NewQuery("UPDATE books_payments SET customer = {:c} WHERE id = {:id}").
+		Bind(dbx.Params{"c": other.Id, "id": draft.Id}).Execute(); err != nil {
+		t.Fatalf("set the correction's customer past the guards: %v", err)
+	}
+
+	// The posting step alone, as a write that skipped the draft guard reaches it.
+	err := pe.app.RunInTransaction(func(tx core.App) error {
+		r, err := tx.FindRecordById(paymentsCollection, draft.Id)
+		if err != nil {
+			return err
+		}
+		r.Set("status", statusPosted)
+		r.Set("posted_by", actor)
+		return postPayment(tx, r, time.Now())
+	})
+	requireFieldRefusal(t, err, "customer", wantPaymentCorrectionCustomer)
+	requirePaymentNotPosted(t, pe.app, draft.Id, 1002)
+	requireOriginalStillPosted(t, pe, original, inv)
+
+	// The whole post, through every hook.
+	requireFieldRefusal(t, postPaymentAs(pe.app, draft.Id, actor), "customer", wantPaymentCorrectionCustomer)
+	requirePaymentNotPosted(t, pe.app, draft.Id, 1002)
+	requireOriginalStillPosted(t, pe, original, inv)
+	requireNoDrift(t, pe.app)
 }
 
 // A person's REST create of a payment entry is refused with the payment's

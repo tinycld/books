@@ -78,6 +78,8 @@ export function useDocumentReadActions(
             yield writes.voidRecord(id)
         },
         onSuccess: () => setVoidOpen(false),
+        // The dialog shows the refusal; without this core reports it again as a toast.
+        onError: () => {},
     })
     const isVoiding = voidDocument.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })

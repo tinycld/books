@@ -9,6 +9,8 @@ interface PaymentCustomerFieldProps {
     name: string
     error: string
     isDisabled: boolean
+    // Takes the first focus on web; a correction's locked Customer does not.
+    hasFocusOnOpen: boolean
     onPick: (id: string) => void
     // After a pick: focus moves on to Payment date.
     onPicked: () => void
@@ -18,13 +20,15 @@ const AUTO_FOCUS = Platform.OS === 'web'
 
 /**
  * Customer: Books SearchPicker over the active customers (sub-customers "Parent:
- * Child"), with the options' loading and failed states. It has focus on open, on web.
+ * Child"), with the options' loading and failed states. It has focus on open, on web,
+ * unless `hasFocusOnOpen` is false.
  */
 export function PaymentCustomerField({
     value,
     name,
     error,
     isDisabled,
+    hasFocusOnOpen,
     onPick,
     onPicked,
 }: PaymentCustomerFieldProps) {
@@ -51,7 +55,7 @@ export function PaymentCustomerField({
                 loadFailed={customers.loadFailed}
                 onRetry={customers.retry}
                 emptyText="No active customer matches"
-                autoFocus={AUTO_FOCUS}
+                autoFocus={AUTO_FOCUS && hasFocusOnOpen}
                 onPicked={onPicked}
             />
             <FieldError message={error} testID="payment-customer-error" />

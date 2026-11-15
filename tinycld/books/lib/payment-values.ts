@@ -1,5 +1,5 @@
-// The receive-payment form's values: the start values of a new payment and of a saved
-// draft, and the application rows a save writes (spec §3.4, §3.6).
+// The receive-payment form's values: the start values of a new payment, a saved draft and
+// a correction, and the application rows a save writes (spec §3.4, §3.6).
 
 import { newRecordId } from 'pbtsdb/core'
 import type { BooksPaymentApplications, BooksPayments } from '../types'
@@ -98,6 +98,32 @@ export function draftPaymentValues(
         payments,
         memo: payment.memo,
     }
+}
+
+// An application of a posted original as a correction reads it: `balance` is its
+// invoice's stored balance, which the original's own application has already lowered.
+type OriginalApplication = Pick<BooksPaymentApplications, 'invoice' | 'amount'> & {
+    number: string
+    balance: number
+}
+
+// A correction (`?replaces=<id>`) starts from its posted original: the original's header,
+// and each of its applications with the open balance the correction may pay, the invoice's
+// balance plus what the original applied to it (the correction releases that at posting).
+// `amountTyped` follows the rule of draftPaymentValues.
+export function correctionPaymentValues(
+    original: DraftPayment,
+    applications: readonly OriginalApplication[]
+): PaymentFormValues {
+    return draftPaymentValues(
+        original,
+        applications.map(application => ({
+            invoice: application.invoice,
+            amount: application.amount,
+            open: application.balance + application.amount,
+            number: application.number,
+        }))
+    )
 }
 
 export type PaymentWriteRow = { id: string; invoice: string; amount: number }

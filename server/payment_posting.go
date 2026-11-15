@@ -122,6 +122,11 @@ func correctedPayment(tx core.App, p *core.Record) (*core.Record, error) {
 	if original.GetString("entry") == "" {
 		return nil, refuse(msgSalesDocNoEntry, paymentName(original))
 	}
+	// Checked again here, inside the posting transaction: a write that skipped
+	// the draft guard must not post a correction for another customer.
+	if original.GetString("customer") != p.GetString("customer") {
+		return nil, refuseField("customer", msgPaymentCorrectionCustomer)
+	}
 	return original, nil
 }
 

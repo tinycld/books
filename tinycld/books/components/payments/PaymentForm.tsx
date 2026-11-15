@@ -38,6 +38,9 @@ export interface PaymentFormProps {
     storedInvoices: readonly OutstandingInvoice[]
     extraOpen?: Readonly<Record<string, number>>
     replaces?: string
+    // A correction keeps its original's customer (spec §3.6): Customer cannot change, and
+    // the first focus is Payment date.
+    isCustomerLocked: boolean
     openedWithCustomer?: string
     canWrite: boolean
     scopeOwner: ScopeOwner
@@ -63,6 +66,7 @@ export function PaymentForm({
     storedInvoices,
     extraOpen,
     replaces,
+    isCustomerLocked,
     openedWithCustomer,
     canWrite,
     scopeOwner,
@@ -185,6 +189,7 @@ export function PaymentForm({
                         depositTriggerLabel={deposit.triggerLabel}
                         isPhone={isPhone}
                         isDisabled={isWriting}
+                        isCustomerLocked={isCustomerLocked}
                     />
                     <OutstandingInvoices
                         mode={listMode}
