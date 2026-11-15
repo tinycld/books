@@ -11,7 +11,7 @@
 - scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
 - capture manifest: docs/plans/attachments-capture.json
 - review mode: C — none (unattended)
-- core extension: E1 accepted — `PreviewModal` toolbar button roles and names, helix checkpoint 0 in core (branch books/p3-attachments; core PR https://github.com/tinycld/tinycld/pull/478); small, not `exclusive`
+- core extension: E1 accepted — `PreviewModal` toolbar button roles and names, helix checkpoint 0 in core (branch books/p3-attachments; core PR https://github.com/tinycld/tinycld/pull/478); small, not `exclusive`. Core correction 1 (rune-safe `original-filename` cut in the PocketBase fork) adds core commit c7bafd80 on the same branch and PR
 - sparks:
   - The add-files target is a calm, wide, dashed area that invites a drop without shouting → expressible (core `DropZone` around `rounded-xl border border-dashed border-border`, `text-muted-foreground`, Lucide `Paperclip` in `useThemeColor('muted-foreground')`; as Books `BankFileDrop`)
 
@@ -51,6 +51,8 @@ and again at the end)
 - cp 2 · reader-*, reader-empty-390, void-1280, moved-1280: heading row — "Up to 20 MB each" shows where no file can be added (reader, void, moved). The loop follows spec §2 ("the limit text "Up to 20 MB each" … beside it", no condition) and checkpoint Do 4; the approved reference shows no limit text in these states. The spec and the reference disagree: the human decides (critic's view: the text is noise where no add is possible).
 - cp 2 · loading-1280-dark: skeleton row — almost invisible on the dark background (the reference is equally faint).
 - cp 2 · loading-1280: skeleton row — the two bars are about 245 px and 125 px wide; the reference bars fill the column (about 400 px and 135 px), as a real row does.
+
+- core correction 1 · reviewer A NOTEs (core and Books): a file name that is invalid UTF-8 from the start (a hand-made multipart request, e.g. a Latin-1 filename) still fails the fork's blob writer with "Failed to create record.", at any length. Browsers and the Books clients send UTF-8, so no ordinary sequence reaches it; upstream behaviour, not a regression. Optional hardening: `strings.ToValidUTF8(name, "")` in the fork's `truncateOriginalName`.
 
 ## Out-of-plan changes
 - cp 1 · `docs/plans/attachments-capture.json` — biome formatting only (content unchanged); `tinycld-pkg check` refused its format.
@@ -130,7 +132,21 @@ and again at the end)
 - human: review mode C, no message
 - mistakes: a stale implementer e2e run collided with gate 1; one critic dispatch wrote no report (retro log)
 
+## Core correction 1
+- source: the human's correction at the eval gate, 2026-11-15 (staging `core-fix-1.md`): make the PocketBase fork's `original-filename` cut rune-safe in core; remove the Books `truncateUTF8Bytes` workaround; confirm `stampBankUpload` works through the core fix. This closes checkpoint 1's "core change request" and its self-declared difference 3 (`truncateUTF8Bytes` no longer exists).
+- findings: `cp/core-fix-1-fix.md` (3 items: core cut, Books workaround removal, Books bank-upload test)
+- test writer: core `third_party/pocketbase/tools/filesystem/filesystem_tinycld_test.go` (`TestFilesystemUploadFileCutsALongNameOnARuneBoundary`, `TestFilesystemUploadMultipartCutsALongNameOnARuneBoundary`, 7 cases each: short ASCII, 255 ASCII bytes, 255 bytes of 3-byte runes, 256 ASCII bytes, cuts inside a 2-, 3- and 4-byte rune); Books `server/banking_upload_test.go` `TestBankUpload_StoresALongMultibyteNameCutTo255Runes`; kept `TestAttachmentUpload_TrimsALongNameTo255Runes`. Red for the right reason: yes (blob writer "Metadata values must be valid UTF-8"; Books bank upload 400 "Failed to create record."); the multipart test and the round-2 cases proved red in a scratch worktree of HEAD, never by editing the real source.
+- implementer: fork `UploadFile` and `UploadMultipart` call `truncateOriginalName` (at most 255 bytes, cut moved back to a rune start); Books `stampAttachmentUpload` rewrite, its comment, `truncateUTF8Bytes` and the `unicode/utf8` import removed; DONE
+- self-declared differences: `UploadMultipart` had the same byte cut and got the same fix (not named by the correction; covered by its own test)
+- gate 1: tests unedited: yes · pass: fork `go test ./...` ok; Books `go test ./...` ok (129 s); `packages:generate`; core `tinycld-pkg check` 466 files / 4127 tests; `pnpm run check:core-isolation` exit 0; Books `tinycld-pkg check` 280 files / 5616 tests. After the fix round: fork `go test ./...` ok; Books bank/attachment upload tests ok. No e2e: the change is Go only and no attachments e2e uploads a long name.
+- gate 3 A (core): BLOCK 1 (helper inline in the upstream `filesystem.go`, unmarked call sites, tests in the upstream `filesystem_test.go`, no FORK.md row, against `third_party/pocketbase/FORK.md` "Put new code in new files … Mark the line with `// fork:`" and "Put new tests in `*_tinycld_test.go`") accepted+fixed: helper in `tools/filesystem/filesystem_tinycld.go`, two `// fork:` call lines, tests in `filesystem_tinycld_test.go`, FORK.md row. NOTE (tests weak: a `name[:254]` mutant passed) accepted+fixed (cases added; mutant run red). NOTE (invalid UTF-8 name) to Design notes.
+- gate 3 A (Books): 0 BLOCK. NOTE 1 (test comment said 600 bytes, is 596) fixed by the runner (comment only). NOTE 2 (ledger still names the workaround) → this section. NOTE 3 (fix input did not list the staged test) recorded, no change. NOTE 4 (CI order) → for the driver: push core c7bafd80 to `books/p3-attachments` before or with the Books push; the Books multibyte tests are red against a core branch without it. NOTE 5 (invalid UTF-8 name) to Design notes.
+- fix review: round 1: clean (core fix diff of 3 files, 0 conformance lines)
+- deferrals: none · rebuttals: none · out-of-plan files: none (every file is named by the correction)
+- commits: core c7bafd80 `fix(core): cut original-filename metadata on a rune boundary` (tinycld, branch books/p3-attachments, PR #478); Books: the commit that adds this section
+- mistakes: the first fix ignored FORK.md (retro log)
+
 ## Final review
-- eval: (pending)
+- eval: revised → core correction 1 (see "Core correction 1"; core c7bafd80)
 - human comments and what changed
 - native: not executed in this run

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -123,14 +122,6 @@ func stampAttachmentUpload(e *core.RecordRequestEvent) error {
 		}
 		e.Record.Set("name", truncateRunes(f.OriginalName, 255))
 		e.Record.Set("size", f.Size)
-		// PocketBase stores the original name as file metadata cut to 255
-		// bytes, which can split a rune and fail the upload; the name column
-		// keeps the full stamp above. This waits on a core fix: the fork cuts
-		// original-filename by bytes in
-		// tinycld/third_party/pocketbase/tools/filesystem/filesystem.go:290-294.
-		// When core cuts on a rune boundary, remove this rewrite and
-		// truncateUTF8Bytes.
-		f.OriginalName = truncateUTF8Bytes(f.OriginalName, 255)
 	}
 	// A superuser keeps the uploader it sent, which the seed uses.
 	stampActor(e.Record, "uploaded_by", e.Auth)
@@ -153,18 +144,6 @@ func checkAttachmentUpload(f *filesystem.File) error {
 		return refuseNamed(msgAttachmentType, f.OriginalName)
 	}
 	return nil
-}
-
-// truncateUTF8Bytes cuts s to at most max bytes, never inside a rune.
-func truncateUTF8Bytes(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	cut := max
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut]
 }
 
 // attachmentParent is the kind and the row of the document r belongs to,
