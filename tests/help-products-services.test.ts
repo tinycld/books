@@ -108,6 +108,15 @@ describe('help/products-services.md', () => {
         expect(body).toMatch(/(?=[^.\n]*\bbills?\b)[^.\n]*\binactive\b/i)
     })
 
+    // Expense form spec §3.11: a product on an expense line cannot be deleted.
+    it('says a product on an expense cannot be deleted and can be made inactive instead', () => {
+        // An expense document, not an expense account.
+        expect(body).toMatch(
+            /(?=[^.\n]*\bexpenses?\b(?!\s+accounts?\b))[^.\n]*\bcannot be deleted\b/i
+        )
+        expect(body).toMatch(/(?=[^.\n]*\bexpenses?\b(?!\s+accounts?\b))[^.\n]*\binactive\b/i)
+    })
+
     it('explains inactive products', () => {
         expect(body).toContain('Make inactive')
         expect(body).toContain('Make active')

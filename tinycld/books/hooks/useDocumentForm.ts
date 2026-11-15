@@ -23,7 +23,8 @@ import {
 import { documentTaxOf } from '../lib/document-tax'
 import { acceptanceShown } from '../lib/estimate-status'
 import { hideBuiltins } from '../lib/form-definition'
-import { billTablesShown, noLinesText } from '../lib/purchase-lines'
+import { textOf } from '../lib/form-values'
+import { noLinesText, purchaseTablesShown } from '../lib/purchase-lines'
 import { todayIso } from '../lib/register-range'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../stores/document-save-store'
@@ -121,30 +122,27 @@ function builtinValuesOf(values: DocumentStartValues | undefined): DocumentStart
     return builtins
 }
 
-function textOf(value: unknown): string {
-    return typeof value === 'string' ? value : ''
-}
-
 // The key Post's line-count error is filed at on a form with several line tables: no
 // field has it (form keys have no dash), so no field cell draws it; the lines draw it
 // under the first shown table (`<test id>-line-error`).
 export const LINE_COUNT_ERROR_KEY = 'line-count'
 
-// The line tables a form shows, decided once when it mounts. A kind with one table shows
-// it. A bill shows a table when the Bill lines setting includes it or the bill the form
-// starts with already has a line in it (billTablesShown); `rows` are the form's starting
-// table rows (a new form's start values, a stored bill's lines).
+// The line tables a form shows, decided once when it mounts. A kind whose start carries
+// no Purchase lines setting shows every table it has. A purchase kind (its start carries
+// `purchaseLines`) shows a table when the setting includes it or the document the form
+// starts with already has a line in it (purchaseTablesShown); `rows` are the form's
+// starting table rows (a new form's start values, a stored document's lines).
 function shownLineTablesOf(
     kind: SalesDocumentKind,
     start: DocumentStart | undefined,
     rows: Record<string, unknown>
 ): readonly string[] {
-    if (start?.kind !== 'bill') return kind.lineTables.map(table => table.key)
+    if (!start || !('purchaseLines' in start)) return kind.lineTables.map(table => table.key)
     const count = (key: string) => {
         const value = rows[key]
         return Array.isArray(value) ? value.length : 0
     }
-    return billTablesShown(start.purchaseLines, {
+    return purchaseTablesShown(start.purchaseLines, {
         account_lines: count('account_lines'),
         item_lines: count('item_lines'),
     })
@@ -281,8 +279,9 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     const status = useWatch({ control: chosen.form.control, name: 'status' })
     const isAcceptanceHidden =
         kind.lifecycle === 'quote' && !acceptanceShown(typeof status === 'string' ? status : '')
-    // A line table the form does not show (a bill's, by the Bill lines setting) is hidden
-    // the same way; host line tables that may be hidden are not required.
+    // A line table the form does not show (a bill's or an expense's, by the Purchase
+    // lines setting) is hidden the same way; host line tables that may be hidden are not
+    // required.
     const hiddenTables = useMemo(
         () => kind.lineTables.map(table => table.key).filter(key => !shownTables.includes(key)),
         [kind, shownTables]
@@ -339,15 +338,9 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         // only that one. A copy's or a correction's party comes from its source, not from
         // the route.
         openedWithParty: isNew && !input.startValues ? input.party?.id : undefined,
-        // The lines as stored and the tax rows: the save orders its line writes against
-        // them (lib/document-line-order.ts).
-        storedLines: lines,
-        taxRows: input.taxRows,
-        // The stored document's revision and tax rate as the row holds them now (0 and ''
-        // on a new form). The save takes its baseline from the first, and orders its line
-        // writes against the second: the server holds it while the lines are written.
+        // The stored document's revision as the row holds it now (0 on a new form): the
+        // save takes its baseline from it.
         revision: record?.revision ?? 0,
-        storedTaxRate: record?.tax_rate ?? '',
         saveMode,
         isReady: chosen.isReady && ui !== null,
         isDirty: Object.keys(dirtyFields).length > 0,

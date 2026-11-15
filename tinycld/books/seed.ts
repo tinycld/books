@@ -3,6 +3,7 @@ import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
+import { CUSTOMER_PAGE_CONTACTS } from './lib/customer-page-fixture'
 import {
     CONVERTED_INVOICE,
     CONVERTED_INVOICE_LINES,
@@ -10,6 +11,12 @@ import {
     ESTIMATE_SEED_IDS,
     ESTIMATES,
 } from './lib/estimate-form-fixture'
+import {
+    DECLINE_ESTIMATE_LINES,
+    DECLINE_ESTIMATES,
+    DECLINE_RESPONSES,
+} from './lib/estimate-public-link-fixture'
+import { EXPENSE_LINES, EXPENSE_SEED_IDS, EXPENSES } from './lib/expense-form-fixture'
 import { REVIEW_SEED_STATEMENT } from './lib/for-review-fixture'
 import {
     GENERAL_LEDGER_LONG_SECTION,
@@ -124,7 +131,7 @@ async function postSeedDraft(pb: PocketBase, entryId: string, userId: string): P
 // increased the draft's revision.
 async function postSeedDocument(
     pb: PocketBase,
-    collection: 'books_invoices' | 'books_sales_receipts' | 'books_bills',
+    collection: 'books_invoices' | 'books_sales_receipts' | 'books_bills' | 'books_expenses',
     id: string,
     userId: string
 ): Promise<void> {
@@ -202,7 +209,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedInvoices(pb, ctx, customerIds)
     await seedSalesReceipts(pb, ctx, accountIds, customerIds)
     await seedEstimates(pb, customerIds)
+    await seedPartyContacts(pb, customerIds)
+    await seedDeclinedEstimates(pb, customerIds)
     await seedBills(pb, ctx, accountIds)
+    await seedExpenses(pb, ctx, accountIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -570,6 +580,91 @@ export async function seedEstimates(
     await seedConvertedInvoice(pb, customerIds, createdIds)
 }
 
+// Creates the customer page's contacts (CUSTOMER_PAGE_CONTACTS) as the contact dialog
+// does, with server-assigned ids. `customerIds` maps a customer-form fixture id to the
+// created customer's id. Saving a primary contact clears the flag on its customer's
+// other contacts, so the primaries are created last and stay primary.
+export async function seedPartyContacts(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const primariesLast = [
+        ...CUSTOMER_PAGE_CONTACTS.filter(c => !c.is_primary),
+        ...CUSTOMER_PAGE_CONTACTS.filter(c => c.is_primary),
+    ]
+    for (const { id, created: _created, updated: _updated, ...row } of primariesLast) {
+        const customer = customerIds.get(row.customer)
+        if (customer === undefined) {
+            throw new Error(
+                `seed: contact ${id} names customer ${row.customer}, which was not created`
+            )
+        }
+        await pb.collection('books_party_contacts').create({ ...row, customer })
+    }
+}
+
+// The days a seeded declined estimate stays open before its customer's answer: the
+// response guard refuses an answer on an expired estimate, so the expiration date is
+// after the seed's today (the fixture's fixed date would make the seed fail later).
+const DECLINE_SEED_OPEN_DAYS = 90
+
+// Creates the DECLINE_ESTIMATES (1006 and 1007, right after seedEstimates' five) Pending
+// with their lines, then saves each one's DECLINE_RESPONSES row as the superuser, not
+// through a public request. The server's response guard runs on that create and sets the
+// estimate to Rejected, so the seeded state is the one a real decline makes. The server
+// gives each estimate its public token; the fixture's is never sent.
+export async function seedDeclinedEstimates(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const now = new Date()
+    const expirationDate = isoDay(
+        new Date(now.getFullYear(), now.getMonth(), now.getDate() + DECLINE_SEED_OPEN_DAYS)
+    )
+    for (const fixture of DECLINE_ESTIMATES) {
+        const customer = customerIds.get(fixture.customer)
+        if (customer === undefined) {
+            throw new Error(
+                `seed: declined estimate ${fixture.id} names customer ${fixture.customer}, which was not created`
+            )
+        }
+        const response = DECLINE_RESPONSES.find(row => row.estimate === fixture.id)
+        if (response === undefined) {
+            throw new Error(`seed: declined estimate ${fixture.id} has no DECLINE_RESPONSES row`)
+        }
+        const created = await pb.collection('books_estimates').create({
+            customer,
+            status: 'pending',
+            date: fixture.date,
+            expiration_date: expirationDate,
+            tax_rate: fixture.tax_rate,
+            message: fixture.message,
+            memo: fixture.memo,
+            bill_to: fixture.bill_to,
+            email: fixture.email,
+        })
+        for (const line of DECLINE_ESTIMATE_LINES.filter(row => row.estimate === fixture.id)) {
+            await pb.collection('books_estimate_lines').create({
+                estimate: created.id,
+                position: line.position,
+                kind: line.kind,
+                product: line.product,
+                description: line.description,
+                quantity: line.quantity,
+                rate: line.rate,
+                percent_ppm: line.percent_ppm,
+                taxable: line.taxable,
+            })
+        }
+        await pb.collection('books_estimate_responses').create({
+            estimate: created.id,
+            decision: response.decision,
+            name: response.name,
+            reason: response.reason,
+        })
+    }
+}
+
 // Saves CONVERTED_INVOICE as a draft that names its estimate, then its lines, as the
 // invoice form made from an estimate does: the server closes the estimate at this first
 // save. A draft posts nothing. `estimateIds` maps an estimate fixture id to the created
@@ -660,6 +755,58 @@ export async function seedBills(
         if (fixture.status === 'void') {
             await pb
                 .collection('books_bills')
+                .update(created.id, { status: 'void', voided_by: ctx.user.id })
+        }
+    }
+}
+
+// Saves the EXPENSE_SEED_IDS fixture expenses, in order, through the writes the expense
+// form makes, as seedBills does: create the draft, create its lines, then post it, so the
+// server numbers each (1001 void, 1002, 1003 on a fresh book, as the fixture shows),
+// computes every product line's amount and the totals, and writes the journal entry; the
+// void one is then voided, and the draft stays a draft. Paid from and each account line
+// name their account by seed account number; `accountIds` maps it to the created
+// account's id.
+export async function seedExpenses(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    for (const id of EXPENSE_SEED_IDS) {
+        const fixture = EXPENSES.find(row => row.id === id)
+        if (fixture === undefined) throw new Error(`seed: expense ${id} is not in EXPENSES`)
+        const created = await pb.collection('books_expenses').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            paid_from: seededAccountId(accountIds, fixture.paid_from_number, `expense ${id}`),
+            payment_method: fixture.payment_method,
+            reference_no: fixture.reference_no,
+            memo: fixture.memo,
+        })
+        for (const line of EXPENSE_LINES.filter(row => row.expense === id)) {
+            const account = seededAccountId(
+                accountIds,
+                line.account_number,
+                `expense line ${line.id}`
+            )
+            const typed =
+                line.kind === 'account'
+                    ? { account, amount: line.amount }
+                    : { product: line.product, quantity: line.quantity, rate: line.rate }
+            await pb.collection('books_expense_lines').create({
+                expense: created.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...typed,
+            })
+        }
+        if (fixture.status === 'draft') continue
+        await postSeedDocument(pb, 'books_expenses', created.id, ctx.user.id)
+        if (fixture.status === 'void') {
+            await pb
+                .collection('books_expenses')
                 .update(created.id, { status: 'void', voided_by: ctx.user.id })
         }
     }

@@ -9,13 +9,19 @@ import {
     INVOICE_MESSAGES,
     labelledLineRefusal,
     SALES_RECEIPT_MESSAGES,
+    tableLineRefusal,
 } from '../tinycld/books/lib/document-messages'
-import { BILL_MESSAGES, ESTIMATE_MESSAGES } from '../tinycld/books/lib/document-texts'
+import {
+    BILL_MESSAGES,
+    ESTIMATE_MESSAGES,
+    EXPENSE_MESSAGES,
+} from '../tinycld/books/lib/document-texts'
 import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
 import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
 import {
     BILL_KIND,
     ESTIMATE_KIND,
+    EXPENSE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -240,7 +246,8 @@ describe('server/estimate_conversion.go', () => {
 })
 
 // The bill's texts the client and the server both show (plan, Decisions: Messages), whose
-// Go constants live in server/bills.go. `%s` and `%d` are compared as written.
+// Go constants live in server/bills.go, and the line texts it shares with the expense in
+// server/purchase_lines.go. `%s` and `%d` are compared as written.
 const BILL_SHARED = [
     'A bill total cannot be below zero. Use a vendor credit.',
     'A bill total must be more than zero to post.',
@@ -266,7 +273,10 @@ const BILL_CLIENT_ONLY = {
 } as const
 
 function billServerSource() {
-    return readFileSync(join(__dirname, '..', 'server', 'bills.go'), 'utf8')
+    const server = join(__dirname, '..', 'server')
+    return ['bills.go', 'purchase_lines.go']
+        .map(file => readFileSync(join(server, file), 'utf8'))
+        .join('\n')
 }
 
 // A client text and its server twin differ only by the final period PocketBase adds.
@@ -301,6 +311,161 @@ describe('server/bills.go', () => {
             expect(hasText, text).toBe(true)
         })
     }
+})
+
+// The expense's texts the client and the server both show (plan, Decisions: Messages),
+// whose Go constants live in server/expenses.go, the inactive vendor text it shares with
+// the bill in server/bills.go, and the line texts it shares with the bill in
+// server/purchase_lines.go. `%s` and `%d` are compared as written.
+const EXPENSE_SHARED = [
+    'An expense total cannot be below zero.',
+    'An expense total must be more than zero to post.',
+    'The expense total is more than Books can store.',
+    'An expense holds at most 250 lines.',
+    '%s is inactive. Choose an active vendor.',
+    'Choose a bank or credit card account.',
+    '%s is inactive. Choose an active account.',
+    'Check no. %s from %s is already on %s.',
+    'Account line %d: %s is inactive. Choose an active account.',
+    'Account line %d: %s is not an expense account. Choose an expense or cost of goods account.',
+    'Product line %d: %s is inactive. Choose an active product or service.',
+    'Product line %d: %s is not purchased. Turn on “I purchase this” for it first.',
+    'Account line %d: Enter an amount other than 0.',
+] as const
+
+const EXPENSE_CLIENT_ONLY = {
+    noAccess: 'You need bookkeeper access to create expenses',
+    notFound: 'This expense does not exist',
+    cannotEdit: 'This expense cannot be edited',
+    loadFailed: 'Books could not load this expense.',
+    voidBody: 'A reversing entry is posted in the original period. The number is kept.',
+} as const
+
+function expenseServerSource() {
+    const server = join(__dirname, '..', 'server')
+    return ['expenses.go', 'bills.go', 'purchase_lines.go']
+        .map(file => readFileSync(join(server, file), 'utf8'))
+        .join('\n')
+}
+
+describe('EXPENSE_MESSAGES', () => {
+    it('is the expense kind’s texts', () => {
+        expect(EXPENSE_MESSAGES).toBeDefined()
+        expect(EXPENSE_KIND.messages).toBe(EXPENSE_MESSAGES)
+    })
+
+    it('holds the client texts under their keys', () => {
+        expect(EXPENSE_MESSAGES).toMatchObject(EXPENSE_CLIENT_ONLY)
+        expect(Object.values(EXPENSE_MESSAGES)).toContain('Ref no. can be at most 40 characters')
+    })
+
+    // Every EXPENSE_MESSAGES text that names a server refusal is one of the shared texts,
+    // so a text changed on one side only fails here.
+    it('holds every shared text the server refuses with', () => {
+        const client = Object.values(EXPENSE_MESSAGES).map(text => withoutFinalPeriod(String(text)))
+        for (const text of EXPENSE_SHARED) expect(client, text).toContain(withoutFinalPeriod(text))
+    })
+})
+
+describe('server/expenses.go', () => {
+    for (const text of EXPENSE_SHARED) {
+        it(`holds the expense's "${text}" verbatim as a Go string`, () => {
+            const source = expenseServerSource()
+            const hasText =
+                source.includes(`"${text}"`) || source.includes(`"${withoutFinalPeriod(text)}"`)
+            expect(hasText, text).toBe(true)
+        })
+    }
+})
+
+// The expense's refusals (spec §3.6): Vendor, Paid from and Ref no. under their fields,
+// line texts under their rows, the totals in the summary. Server texts carry PocketBase's
+// final period.
+describe('documentRefusalTarget with the expense kind', () => {
+    const expenseTarget = (message: string) => documentRefusalTarget(message, EXPENSE_KIND)
+
+    it('sends an inactive vendor refusal to Vendor', () => {
+        expect(expenseTarget('Summit IT Services is inactive. Choose an active vendor.')).toBe(
+            'vendor'
+        )
+    })
+
+    it('sends the Paid from refusals to Paid from', () => {
+        expect(expenseTarget('Choose a bank or credit card account.')).toBe('paid_from')
+        expect(expenseTarget('1000 Business Checking is inactive. Choose an active account.')).toBe(
+            'paid_from'
+        )
+    })
+
+    it('sends the duplicate check number refusal to Ref no.', () => {
+        expect(
+            expenseTarget('Check no. 1042 from 1000 Business Checking is already on Expense 1004.')
+        ).toBe('reference_no')
+        expect(
+            expenseTarget(
+                'Check no. 1042 from 1000 Business Checking is already on a draft expense.'
+            )
+        ).toBe('reference_no')
+    })
+
+    it('sends a bare Payment method refusal to Payment method', () => {
+        expect(expenseTarget('Payment method is required.')).toBe('payment_method')
+        expect(expenseTarget('Payment method must be one of the listed methods.')).toBe(
+            'payment_method'
+        )
+    })
+
+    // server/sales_documents.go msgDocumentDay and msgDocumentDayTooEarly: an expense has
+    // no due date, so a bare date text is its Payment date's.
+    it('sends a bare date refusal to Payment date', () => {
+        expect(expenseTarget('Enter a date that exists, in the form YYYY-MM-DD.')).toBe('date')
+        expect(expenseTarget('Enter a date in 1900 or later.')).toBe('date')
+    })
+
+    it('sends an account line or product line refusal to its row', () => {
+        expect(
+            tableLineRefusal(
+                'Account line 2: Rent is inactive. Choose an active account.',
+                EXPENSE_KIND.lineTables
+            )
+        ).toEqual({ table: 'account_lines', line: 1 })
+        expect(
+            tableLineRefusal(
+                'Product line 1: Cat6 patch cable, 10 ft is inactive. Choose an active product or service.',
+                EXPENSE_KIND.lineTables
+            )
+        ).toEqual({ table: 'item_lines', line: 0 })
+    })
+
+    it('sends the total texts to the summary with no line prefix', () => {
+        for (const text of [
+            'An expense total cannot be below zero.',
+            'The expense total is more than Books can store.',
+            'An expense total must be more than zero to post.',
+        ]) {
+            expect(labelledLineRefusal('Account line 1', text), text).toBe(text)
+            expect(expenseTarget(labelledLineRefusal('Account line 1', text)), text).toBe('root')
+        }
+    })
+
+    it("keeps the bill's routing", () => {
+        const billTarget = (message: string) => documentRefusalTarget(message, BILL_KIND)
+        expect(billTarget('Summit IT Services is inactive. Choose an active vendor.')).toBe(
+            'vendor'
+        )
+        expect(billTarget('Summit IT Services already has bill no. INV-9 (Bill 1003).')).toBe(
+            'ref_no'
+        )
+        expect(billTarget("Due date can't be before the bill date.")).toBe('due_date')
+        expect(billTarget('Choose a bank or credit card account.')).toBe('root')
+        expect(
+            billTarget('Check no. 1042 from 1000 Business Checking is already on Expense 1004.')
+        ).toBe('root')
+        for (const text of [BILL_MESSAGES.totalNegative, BILL_MESSAGES.totalTooLarge]) {
+            expect(labelledLineRefusal('Account line 1', text)).toBe(text)
+            expect(billTarget(text)).toBe('root')
+        }
+    })
 })
 
 // Server refusals carry PocketBase's final period.
@@ -360,15 +525,13 @@ describe('labelledLineRefusal', () => {
     // The server checks a batch's totals one time and refuses on the batch's first line
     // write, which is not the line that made the total (server/sales_document_deferral.go).
     it.each([
-        INVOICE_MESSAGES,
-        SALES_RECEIPT_MESSAGES,
-        ESTIMATE_MESSAGES,
-    ])('gives a totals text of a kind no line label', messages => {
+        { messages: INVOICE_MESSAGES, kind: INVOICE_KIND },
+        { messages: SALES_RECEIPT_MESSAGES, kind: SALES_RECEIPT_KIND },
+        { messages: ESTIMATE_MESSAGES, kind: ESTIMATE_KIND },
+    ])('gives a totals text of the $kind.key kind no line label', ({ messages, kind }) => {
         for (const text of [messages.totalNegative, messages.totalTooLarge]) {
             expect(labelledLineRefusal('Line 1', text)).toBe(text)
-            expect(documentRefusalTarget(labelledLineRefusal('Line 1', text), INVOICE_KIND)).toBe(
-                'root'
-            )
+            expect(documentRefusalTarget(labelledLineRefusal('Line 1', text), kind)).toBe('root')
         }
     })
 

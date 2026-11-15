@@ -25,7 +25,7 @@ interface RecordRowMenuProps<I extends string> {
 // On a phone the menu is a sheet that slides out for a moment after it closes. Its items
 // leave at once, so a closed menu's actions are never in the accessibility tree or the
 // page next to the items of the next row's menu.
-function WhileOpen({ children }: { children: ReactNode }) {
+export function WhileOpen({ children }: { children: ReactNode }) {
     const { isOpen } = usePopoverContext()
     if (!isOpen) return null
     return <>{children}</>

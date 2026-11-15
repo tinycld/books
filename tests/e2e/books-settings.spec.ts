@@ -671,8 +671,8 @@ test.describe('books-settings: Settings screens', () => {
         await openSettings(page)
         // The section list in screen order, in the wide rail and in the phone list: Sales
         // and Purchases sit between Accounting and Numbering (presence and order only; their
-        // summaries follow settings that sales-receipt-form-settings.spec.ts and
-        // bill-form.spec.ts change).
+        // summaries follow settings that sales-receipt-form-settings.spec.ts,
+        // bill-form.spec.ts and expense-form.spec.ts change).
         const sectionOrder = () =>
             page
                 .locator('[data-testid^="books-settings-section-"]:visible')

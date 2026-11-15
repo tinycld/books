@@ -76,8 +76,8 @@ export function salesSummary(
 export function purchasesSummary(
     settings: Pick<BooksSettings, 'purchase_lines'> | undefined
 ): string {
-    if (!settings) return 'Bill lines'
-    return `Bill lines: ${PURCHASE_LINES_LABELS[settings.purchase_lines]}`
+    if (!settings) return 'Purchase lines'
+    return `Purchase lines: ${PURCHASE_LINES_LABELS[settings.purchase_lines]}`
 }
 
 export function sectionSummary(

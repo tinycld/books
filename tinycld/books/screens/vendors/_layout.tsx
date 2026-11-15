@@ -17,6 +17,7 @@ export default function VendorsLayout() {
             list={<VendorsList openId={openId} />}
             isDetailOpen={open.kind !== 'none'}
             detailScreens={VENDOR_DETAIL_SCREENS}
+            detailWidth="panel"
         />
     )
 }

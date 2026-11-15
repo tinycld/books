@@ -92,6 +92,15 @@ describe('help/vendors.md', () => {
         expect(body).toMatch(/(?=[^.\n]*\bbills?\b)[^.\n]*\binactive\b/i)
     })
 
+    // Expense form spec §3.11: a vendor on any expense cannot be deleted.
+    it('says a vendor on an expense cannot be deleted and can be made inactive instead', () => {
+        // An expense document, not an expense account.
+        expect(body).toMatch(
+            /(?=[^.\n]*\bexpenses?\b(?!\s+accounts?\b))[^.\n]*\bcannot be deleted\b/i
+        )
+        expect(body).toMatch(/(?=[^.\n]*\bexpenses?\b(?!\s+accounts?\b))[^.\n]*\binactive\b/i)
+    })
+
     it('explains custom fields from Settings → Forms', () => {
         expect(body).toMatch(/custom fields?/i)
         expect(body).toMatch(/Settings\s*(→|>)\s*Forms/)

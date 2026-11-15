@@ -35,6 +35,7 @@ import {
 } from '../lib/document-fills'
 import { DOCUMENT_FOOTER_ROW, DOCUMENT_FOOTER_SPANS } from '../lib/document-footer-layout'
 import type { LineAmountView } from '../lib/document-tax'
+import { isTableRow, textOf } from '../lib/form-values'
 import { moneyInputCents, moneyInputText } from '../lib/money-input'
 import type { BooksProducts } from '../types'
 
@@ -60,10 +61,6 @@ const NUMBER_KEYBOARD = Platform.OS === 'web' ? 'default' : 'numbers-and-punctua
 
 const INPUT_CLASS =
     'min-h-11 min-w-0 rounded-lg border border-border bg-background px-3 py-2.5 text-base text-foreground'
-
-function textOf(value: unknown): string {
-    return typeof value === 'string' ? value : ''
-}
 
 // A line cell's test id and accessible name; the bill's cells (purchase-line-cells.tsx)
 // use them too.
@@ -98,10 +95,6 @@ function pickedCells(
 function lineQuantityOf(row: TableRow): number {
     const quantity = row.quantity
     return typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 ? quantity : 1
-}
-
-export function isTableRow(value: unknown): value is TableRow {
-    return typeof value === 'object' && value !== null && 'id' in value
 }
 
 // The row `id` as the form holds it now: a pick's reads are awaited, and the row can be

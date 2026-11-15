@@ -34,12 +34,12 @@ const (
 
 // salesDocKind is one kind of document of the shared layer: the sales
 // documents (an invoice, a sales receipt, an estimate) and the purchase
-// documents (a bill). It holds the collections the kind writes, the forms host
-// of its lines, its doc type, its lifecycle, its party, its refusal texts and
-// the parts of its guards and posting that differ by kind. Every guard and the
-// posting below take a kind; invoiceKind (invoices.go), salesReceiptKind
-// (sales_receipts.go), estimateKind (estimates.go) and billKind (bills.go) are
-// the kinds.
+// documents (a bill, an expense). It holds the collections the kind writes,
+// the forms host of its lines, its doc type, its lifecycle, its party, its
+// refusal texts and the parts of its guards and posting that differ by kind.
+// Every guard and the posting below take a kind; invoiceKind (invoices.go),
+// salesReceiptKind (sales_receipts.go), estimateKind (estimates.go), billKind
+// (bills.go) and expenseKind (expenses.go) are the kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
@@ -65,15 +65,20 @@ type salesDocKind struct {
 	// PartyCollection is the party's collection.
 	Party, PartyCollection string
 	// AddressField is the header's address snapshot of the party (an
-	// invoice's bill_to, a bill's mailing_address).
+	// invoice's bill_to, a bill's mailing_address); "" for a kind with no
+	// address (an expense).
 	AddressField string
 	// CustomerRequired records the schema's rule that the party is required:
 	// the invoice's `customer` and the bill's `vendor` relations are required
-	// in their migrations, the sales receipt's is not. No Go code reads it:
+	// in their migrations, the sales receipt's and the expense's are not. No Go code reads it:
 	// the shared guard checks a party only when one is chosen, and the schema
 	// refuses an empty one. It mirrors the client kind's `customerRequired`
 	// (lib/sales-document-kinds.ts).
 	CustomerRequired bool
+	// PartyCheckedOnPost leaves an inactive party to the Post check: a draft
+	// write may name one (an expense), and checkPostParty refuses it when the
+	// document posts. false refuses it on the write that chooses it too.
+	PartyCheckedOnPost bool
 	// HasTax is false for a kind with no sales tax: no tax-rate guard, no tax
 	// in its totals and no tax snapshot when it posts.
 	HasTax bool
@@ -101,7 +106,7 @@ type salesDocKind struct {
 	BeforePost func(tx core.App, doc *core.Record) error
 	// DebitAccount is the account the posting debits for the total (a sales
 	// kind's control account); CreditAccount the account it credits for the
-	// total (a bill's Accounts payable). A posting kind sets exactly one of
+	// total (a bill's Accounts payable, an expense's Paid from). A posting kind sets exactly one of
 	// them; a quote, which never posts, sets neither.
 	DebitAccount  func(tx core.App, doc *core.Record) (string, error)
 	CreditAccount func(tx core.App, doc *core.Record) (string, error)
@@ -157,7 +162,9 @@ const (
 
 // documentDocTypes are the doc types of the documents that post: their entries
 // come only from posting the document (entries.go).
-var documentDocTypes = map[string]bool{docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true}
+var documentDocTypes = map[string]bool{
+	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true,
+}
 
 // maxDocumentLines is the most lines one sales document holds; the client's
 // bound is MAX_DOCUMENT_LINES (lib/document-lines.ts).
@@ -165,8 +172,10 @@ const maxDocumentLines = 250
 
 // registerSalesDocGuards binds the kind's header and line guards inside
 // serialized, so no other write can commit between a check and the write it
-// allows. Every line create, update and delete then restates the document
-// (each line's amount and the three totals) in the same transaction.
+// allows. A line create, update or delete then restates the document (each
+// line's amount and the three totals) in the same transaction; in a batch the
+// document is restated one time, after the batch's last write
+// (sales_document_deferral.go).
 func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDoc(tx, kind, stored, r)
@@ -545,7 +554,7 @@ func onlySalesDocUnlinks(tx core.App, stored, r *core.Record) (bool, error) {
 }
 
 // checkDraftSalesDoc runs the header guards of a draft (the kind's own, then
-// the party, the tax rate of a kind with tax and the address every kind has),
+// the party, the tax rate of a kind with tax and the address of a kind with one),
 // sets the sort key, and sets the totals from the stored lines and the header
 // tax.
 func checkDraftSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) error {
@@ -560,7 +569,7 @@ func checkDraftSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) 
 			return err
 		}
 	}
-	if !isAddress(r.Get(kind.AddressField)) {
+	if kind.AddressField != "" && !isAddress(r.Get(kind.AddressField)) {
 		return refuseField(kind.AddressField, msgAddressShape)
 	}
 	r.Set("sort_key", salesDocSortKey(r))
@@ -598,10 +607,11 @@ func settleLinesWithHeader(tx core.App, kind salesDocKind, docID string, lines [
 // write chooses it; a draft keeps a party that became inactive after it was
 // chosen, and a correction keeps its original's. An empty party passes: the
 // invoice's and the bill's schemas require one, the sales receipt's does not.
-// A party that does not exist is the schema's refusal.
+// A party that does not exist is the schema's refusal. A kind whose party is
+// checked on Post only (PartyCheckedOnPost) passes here.
 func checkSalesDocParty(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	id := r.GetString(kind.Party)
-	if id == "" || (stored != nil && stored.GetString(kind.Party) == id) {
+	if kind.PartyCheckedOnPost || id == "" || (stored != nil && stored.GetString(kind.Party) == id) {
 		return nil
 	}
 	party, err := tx.FindRecordById(kind.PartyCollection, id)
@@ -836,15 +846,19 @@ func setSalesDocTotals(kind salesDocKind, r *core.Record, totals documentTotalsR
 }
 
 // validateSalesDocLine checks one line write of an editable document (a draft,
-// a quote that is not closed): the line stays on its
-// document, the document holds at most maxDocumentLines lines, the line's kind
-// has its own cells and no others, a product the write chooses is active and
-// not a bundle, and the document's lines with this write still have a target
-// for every percent line and totals Books can store. It sets the line's
-// amount: Books computes it, so a write that sends one is refused, except on
-// an account line, which keeps the amount typed. While restateSalesDoc writes the document's lines, an update
-// that changes only the amount passes and any other update is refused. stored
-// is the record before an update, nil on a create.
+// a quote that is not closed): the line stays on its document, the document
+// holds at most maxDocumentLines lines, the line's kind has its own cells and
+// no others, a product the write chooses is active and not a bundle, and the
+// document's lines with this write still have a target for every percent line
+// and totals Books can store. It sets the line's amount: Books computes it, so
+// a write that sends one is refused, except on an account line, which keeps
+// the amount typed. In a batch (the document is deferring,
+// sales_document_deferral.go) it does not read the document's other lines: it
+// checks the line's own cells, product and amount, and the document's owner
+// checks the percent targets and the totals of the lines the batch leaves.
+// While restateSalesDoc writes the document's lines, an update that changes
+// only the amount passes and any other update is refused. stored is the record
+// before an update, nil on a create.
 func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	docID := r.GetString(kind.ParentField)
 	if stored != nil && stored.GetString(kind.ParentField) != docID {
@@ -977,8 +991,9 @@ func compareLines(a, b *core.Record) int {
 // quantity is more than 0 (PocketBase skips the schema's min for a 0 or
 // missing number) and it has no percent; a percent line has no quantity or
 // rate; a description or subtotal line has no product, rate or percent; a
-// bill's product line has no account; an account line has no product,
-// quantity or rate, and checkBillAccountLine checks its account. A 0% percent line is
+// purchase document's product line has no account; an account line has no
+// product, quantity or rate, and checkPurchaseAccountLine checks its account
+// (purchase_lines.go). A 0% percent line is
 // stored: refusing it is the client's rule.
 func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePlace) error {
 	label, n := place.String(), place.n
@@ -996,9 +1011,9 @@ func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePl
 	lineKind := r.GetString("kind")
 	switch lineKind {
 	case lineKindItem, lineKindPercent:
-		// Only a bill's lines have an account cell; a sales line reads "".
+		// Only a purchase document's lines have an account cell; a sales line reads "".
 		if lineKind == lineKindItem && r.GetString("account") != "" {
-			return refuse(msgBillProductLineAccount, label)
+			return refuse(msgPurchaseProductLineAccount, label)
 		}
 		if lineKind == lineKindItem && r.GetFloat("quantity") <= 0 {
 			return refuse(msgLineQuantity, label)
@@ -1015,9 +1030,9 @@ func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePl
 		}
 	case lineKindAccount:
 		if r.GetString("product") != "" || r.GetFloat("quantity") != 0 || r.GetInt("rate") != 0 {
-			return refuse(msgBillAccountLineCells, label)
+			return refuse(msgPurchaseAccountLineCells, label)
 		}
-		return checkBillAccountLine(tx, r, n)
+		return checkPurchaseAccountLine(tx, r, n)
 	}
 	return nil
 }
@@ -1044,7 +1059,7 @@ func lineTable(tx core.App, kind salesDocKind, lineKind string) (*forms.Builtin,
 // storedLineCells is a stored line's cells keyed as the form keys them, for
 // core's row check: a stored line holds its percent in ppm. `amount` is a cell
 // the bill's account row kind requires (its typed amount); a number is never
-// blank, so a 0 amount is checkBillAccountLine's refusal, not core's.
+// blank, so a 0 amount is checkPurchaseAccountLine's refusal, not core's.
 func storedLineCells(r *core.Record) map[string]any {
 	row := map[string]any{"percent": r.Get("percent_ppm")}
 	for _, key := range []string{"kind", "product", "account", "description", "quantity", "rate", "amount", "taxable"} {

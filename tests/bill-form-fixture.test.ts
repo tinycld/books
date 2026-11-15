@@ -1,12 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
-    BILL_ACCOUNT_TYPES,
     BILL_LINES,
     BILL_SEED_IDS,
     BILLS,
     type BillLineFixtureRecord,
     type BillLineRecord,
     type BillRecord,
+    PURCHASE_ACCOUNT_TYPES,
     type PurchaseLines,
 } from '../tinycld/books/lib/bill-form-fixture'
 import { PRODUCTS } from '../tinycld/books/lib/products-services-fixture'
@@ -58,7 +58,7 @@ describe('BILLS', () => {
     it('puts every account line on a seed account the bill Account picker lists', () => {
         const typeOf = new Map(SEED_ACCOUNTS.map(account => [account.number, account.type]))
         const wrong = BILL_LINES.filter(line => line.kind === 'account')
-            .filter(line => !BILL_ACCOUNT_TYPES.has(typeOf.get(line.account_number) ?? ''))
+            .filter(line => !PURCHASE_ACCOUNT_TYPES.has(typeOf.get(line.account_number) ?? ''))
             .map(line => `${line.id} ${line.account_number}`)
         expect(wrong).toEqual([])
     })
