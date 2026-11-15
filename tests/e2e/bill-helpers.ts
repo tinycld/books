@@ -158,13 +158,14 @@ export async function openBillBySearch(page: Page, term: string) {
     await expect(page.getByTestId('bill-form').or(page.getByTestId('bill-read-only'))).toBeVisible()
 }
 
-// Settings → Purchases → Bills (spec §3.11). Only bill-form.spec.ts may use these: the
-// Bill lines setting is the shared books_settings row, and that file's tests run in order
-// on one worker.
+// Settings → Purchases → Bills and expenses (expense spec §3.10). Only the bill and
+// expense tests whose describe title ends in "lines setting" may change the setting: it
+// is the shared books_settings row, and those tests run in their own Playwright project
+// before every other test (playwright.config.ts).
 
 export const SETTINGS_ROW_PATH = '/api/collections/books_settings/records/bookssettings01'
 
-export type BillLinesLabel = 'Accounts and products' | 'Accounts only' | 'Products only'
+export type PurchaseLinesLabel = 'Accounts and products' | 'Accounts only' | 'Products only'
 
 // Books must already be open, as the admin the specs log in as. Opens Settings →
 // Purchases: on desktop through the sidebar and the rail, on a phone through the Books
@@ -181,22 +182,22 @@ export async function openPurchasesSettings(page: Page) {
     await expect(page).toHaveURL(/\/books\/settings$/)
     await visibleTestId(page, 'books-settings-section-purchases').click()
     await expect(page).toHaveURL(/\/books\/settings\/purchases$/)
-    await expect(visibleTestId(page, 'books-settings-bill-lines')).toBeVisible()
+    await expect(visibleTestId(page, 'books-settings-purchase-lines')).toBeVisible()
 }
 
-// Books must already be open. Opens Settings → Purchases and stores Bill lines as the
+// Books must already be open. Opens Settings → Purchases and stores Purchase lines as the
 // option `label`, unless it is already the stored one (a freshly opened card's select
 // names the stored choice); waits for the stored row. Stays on Settings → Purchases.
-export async function setBillLines(page: Page, label: BillLinesLabel) {
+export async function setPurchaseLines(page: Page, label: PurchaseLinesLabel) {
     await openPurchasesSettings(page)
-    const select = visibleTestId(page, 'books-settings-bill-lines')
+    const select = visibleTestId(page, 'books-settings-purchase-lines')
     if ((await select.innerText()).trim() === label) return
     await select.click()
     const item = page.getByRole('menuitem', { name: label, exact: true })
     await item.click()
     await expect(item).toHaveCount(0)
     await expect(select).toContainText(label)
-    const save = visibleTestId(page, 'books-settings-bill-lines-save')
+    const save = visibleTestId(page, 'books-settings-purchase-lines-save')
     await expect(save).toBeEnabled()
     const answered = page.waitForResponse(
         response =>

@@ -103,3 +103,17 @@ describe('a bill entry', () => {
         expect(actions).not.toContain('reverse')
     })
 })
+
+// An expense's entry (expense form spec §3.11): it opens on its expense and is
+// edited as a correction of it.
+describe('an expense entry', () => {
+    it('opens on its expense', () => {
+        expect(entryHref(entry('expense', 'document', 'e1'))).toBe('books/expenses/e1')
+    })
+
+    it('edits as a correction of its expense', () => {
+        expect(entryEditHref(entry('expense', 'document', 'e1'))).toBe(
+            'books/expenses/new?replaces=e1'
+        )
+    })
+})

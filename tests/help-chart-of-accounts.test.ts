@@ -51,6 +51,30 @@ describe('help/chart-of-accounts.md', () => {
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)
     })
 
+    // Expense form spec §3.11: an account on an expense line, or the Paid from of an
+    // expense, cannot be deleted.
+    describe('the Delete an account section', () => {
+        const section =
+            /^## Delete an account\s*$([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body)?.[1] ?? ''
+        const lines = section.split('\n')
+        // An expense document, not an expense account.
+        const expenseDoc = /\bexpenses?\b(?!\s+accounts?\b)/i
+
+        it('names expenses among the refusals', () => {
+            expect(
+                lines.find(line => expenseDoc.test(line) && /\baccount line/i.test(line)),
+                'a refusal line naming an expense account line'
+            ).toBeDefined()
+        })
+
+        it('says the Paid from of an expense blocks the delete', () => {
+            expect(
+                lines.find(line => /\bPaid from\b/.test(line) && expenseDoc.test(line)),
+                'a refusal line naming Paid from of an expense'
+            ).toBeDefined()
+        })
+    })
+
     it('writes shortcuts with Mac glyphs only', () => {
         expect(body).not.toMatch(/\b(Ctrl|Control|Cmd|Command|Alt|Option)\s*\+/i)
         expect(body).not.toMatch(/\bShift\s*\+/i)

@@ -374,6 +374,50 @@ func TestVendor_DeleteRefusedWhileOnBills(t *testing.T) {
 	})
 }
 
+// Spec §3.11: a vendor on any expense, draft or posted, cannot be deleted. The
+// expenses check comes after the bills one and before the journal-lines one.
+func TestVendor_DeleteRefusedWhileOnExpenses(t *testing.T) {
+	wantOnExpenses := func(name string) string { return name + " is on expenses. Make it inactive instead." }
+	wantOnBills := func(name string) string { return name + " is on bills. Make it inactive instead." }
+
+	t.Run("on one draft expense and no bill", func(t *testing.T) {
+		ee := newExpenseEnv(t)
+		exp := ee.mkExpense(t, map[string]any{"vendor": ee.officeSupply.Id})
+		mkExpenseLine(t, ee.app, exp, 0, accountLine(ee.designTools, 4000))
+		requireMessageOnlyRefusal(t, ee.app.Delete(reload(t, ee.app, "books_vendors", ee.officeSupply.Id)),
+			wantOnExpenses("Office Supply World"))
+		reload(t, ee.app, "books_vendors", ee.officeSupply.Id)
+	})
+
+	t.Run("on a bill and an expense gets the bills text", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		registerSalesDocGuards(env.app, billKind)
+		registerSalesDocGuards(env.app, expenseKind)
+		bindHostsByKey(t, env.app, billKind.HostKey, expenseKind.HostKey)
+		ee := expenseEnvOn(t, env)
+		exp := ee.mkExpense(t, map[string]any{"vendor": ee.summit.Id})
+		mkExpenseLine(t, ee.app, exp, 0, accountLine(ee.software, 12500))
+		bill := mkBill(t, ee.app, ee.summit, nil)
+		mkBillLine(t, ee.app, bill, 0, accountLine(ee.software, 8000))
+		requireMessageOnlyRefusal(t, ee.app.Delete(reload(t, ee.app, "books_vendors", ee.summit.Id)),
+			wantOnBills("Summit IT Services"))
+		reload(t, ee.app, "books_vendors", ee.summit.Id)
+	})
+
+	t.Run("on a posted expense, so also on journal lines, gets the expenses text", func(t *testing.T) {
+		ee := newExpenseEnv(t)
+		exp := ee.mkExpense(t, map[string]any{"vendor": ee.summit.Id})
+		mkExpenseLine(t, ee.app, exp, 0, accountLine(ee.software, 12500))
+		posted := mustPostExpense(t, ee.app, exp.Id, ee.users.bookkeeper.Id)
+		if n, err := ee.app.CountRecords("books_journal_lines", dbx.HashExp{"entry": posted.GetString("entry"), "vendor": ee.summit.Id}); err != nil || n == 0 {
+			t.Fatalf("%d journal lines of the posted expense name the vendor (err %v), want some", n, err)
+		}
+		requireMessageOnlyRefusal(t, ee.app.Delete(reload(t, ee.app, "books_vendors", ee.summit.Id)),
+			wantOnExpenses("Summit IT Services"))
+		reload(t, ee.app, "books_vendors", ee.summit.Id)
+	})
+}
+
 func TestVendor_DeletingItsAccountClearsTheExpenseAccount(t *testing.T) {
 	app := newGuardedApp(t)
 	rent := mkAccount(t, app, "Rent", "expense", "rent_lease")

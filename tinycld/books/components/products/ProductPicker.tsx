@@ -4,13 +4,13 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import type { PressableInstance } from 'react-native'
+import { type LiveRecovery, mergeRecoveries } from '../../lib/live-recovery'
+import { PRODUCT_PICKER_LIMIT, productPickerOptions } from '../../lib/product-list'
 import {
     PURCHASE_PRODUCT_EMPTY_TEXT,
     purchaseProductOptions,
     purchaseProductSuffix,
-} from '../../lib/bill-pickers'
-import { type LiveRecovery, mergeRecoveries } from '../../lib/live-recovery'
-import { PRODUCT_PICKER_LIMIT, productPickerOptions } from '../../lib/product-list'
+} from '../../lib/purchase-pickers'
 import type { BooksProducts } from '../../types'
 import { SearchPicker, type SearchPickerOption, useSearchPicker } from '../SearchPicker'
 

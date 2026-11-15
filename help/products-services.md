@@ -71,7 +71,7 @@ To delete one, open the menu on its row and choose Delete, then choose Delete in
 
 An item that is on a bundle cannot be deleted until you take it out of the bundle or make it inactive. The dialog tells you how many bundles hold it.
 
-An item that is on a line of an invoice, a sales receipt, an estimate or a bill, in any status, cannot be deleted: make it inactive instead. The dialog tells you how many documents of that type hold it.
+An item that is on a line of an invoice, a sales receipt, an estimate, a bill or an expense, in any status, cannot be deleted: make it inactive instead. The dialog tells you how many documents of that type hold it.
 
 ## Custom fields
 

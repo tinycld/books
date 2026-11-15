@@ -196,6 +196,59 @@ func TestAudit_LabelsABillAndItsLines(t *testing.T) {
 	}
 }
 
+// Spec §3.11: an expense's audit row is "Expense 1004", or "Draft expense"
+// while it has no number; a line's row follows its expense and names its
+// table and its place in that table, as lineRowLabel(expenseKind, …) does
+// ("Expense 1004: Account line 2").
+func TestAudit_LabelsAnExpenseAndItsLines(t *testing.T) {
+	ee := newExpenseEnv(t)
+	audited := auditedCollections(ee.app)
+	expenses, ok := audited["books_expenses"]
+	if !ok {
+		t.Fatal("books_expenses is not audited")
+	}
+	lines, ok := audited["books_expense_lines"]
+	if !ok {
+		t.Fatal("books_expense_lines is not audited")
+	}
+	exp := ee.mkExpense(t, map[string]any{"vendor": ee.officeSupply.Id})
+	mkExpenseLine(t, ee.app, exp, 0, accountLine(ee.software, 12500))
+	accountLine2 := mkExpenseLine(t, ee.app, exp, 1, accountLine(ee.designTools, 2500))
+	productLine1 := mkExpenseLine(t, ee.app, exp, 2, productLine(ee.patchCable, 2, 310))
+
+	if got, want := expenseLabel(reload(t, ee.app, "books_expenses", exp.Id)), "Draft expense"; got != want {
+		t.Errorf("expenseLabel of a draft = %q, want %q", got, want)
+	}
+	if got, want := expenses.ExtractLabel(reload(t, ee.app, "books_expenses", exp.Id)), "Draft expense"; got != want {
+		t.Errorf("draft expense audit label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, ee.app, "books_expense_lines", accountLine2.Id)), "Draft expense: Account line 2"; got != want {
+		t.Errorf("draft expense line label = %q, want %q", got, want)
+	}
+
+	if err := setFields(t, ee.app, "books_doc_sequences", "booksseqexpense", map[string]any{"next_number": 1004}); err != nil {
+		t.Fatalf("move the expense sequence to 1004: %v", err)
+	}
+	mustPostExpense(t, ee.app, exp.Id, ee.users.bookkeeper.Id)
+	posted := reload(t, ee.app, "books_expenses", exp.Id)
+	if got, want := expenseLabel(posted), "Expense 1004"; got != want {
+		t.Errorf("expenseLabel of a posted expense = %q, want %q", got, want)
+	}
+	if got, want := expenses.ExtractLabel(posted), "Expense 1004"; got != want {
+		t.Errorf("posted expense audit label = %q, want %q", got, want)
+	}
+	second := reload(t, ee.app, "books_expense_lines", accountLine2.Id)
+	if got, want := expenseLineLabel(ee.app, second), "Expense 1004: Account line 2"; got != want {
+		t.Errorf("expenseLineLabel of the second account line = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(second), "Expense 1004: Account line 2"; got != want {
+		t.Errorf("posted expense account line audit label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, ee.app, "books_expense_lines", productLine1.Id)), "Expense 1004: Product line 1"; got != want {
+		t.Errorf("posted expense product line audit label = %q, want %q", got, want)
+	}
+}
+
 // Spec §3.11: an edit of "Sales deposited to" shows in the audit log as other
 // settings edits do: a books_settings row naming the change.
 func TestAudit_LogsASalesDepositAccountChange(t *testing.T) {
