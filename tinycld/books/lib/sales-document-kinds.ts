@@ -100,14 +100,15 @@ export const PURCHASE_LINE_TABLES: readonly DocumentLineTable[] = [
 ]
 
 // What a kind has besides its lines: sales tax, a message to the customer, an email, a
-// PDF and the party's address (DocumentParty.addressField). A kind without one draws none
-// of its fields, rows, actions or keys.
+// PDF, the party's address (DocumentParty.addressField) and the Attachments section. A
+// kind without one draws none of its fields, rows, actions or keys.
 export type DocumentFeatures = {
     tax: boolean
     message: boolean
     email: boolean
     pdf: boolean
     partyAddress: boolean
+    attachments: boolean
 }
 
 export const SALES_FEATURES: DocumentFeatures = {
@@ -116,6 +117,7 @@ export const SALES_FEATURES: DocumentFeatures = {
     email: true,
     pdf: true,
     partyAddress: true,
+    attachments: false,
 }
 
 export type SalesDocumentKind = {
@@ -273,7 +275,14 @@ export const BILL_KIND: SalesDocumentKind & { messages: typeof BILL_MESSAGES } =
     helpTopic: 'books:bills',
     party: 'vendor',
     lineTables: PURCHASE_LINE_TABLES,
-    features: { tax: false, message: false, email: false, pdf: false, partyAddress: true },
+    features: {
+        tax: false,
+        message: false,
+        email: false,
+        pdf: false,
+        partyAddress: true,
+        attachments: true,
+    },
     keepsEmptyLinesOnRefusal: true,
 }
 
@@ -307,6 +316,13 @@ export const EXPENSE_KIND: SalesDocumentKind & { messages: typeof EXPENSE_MESSAG
     helpTopic: 'books:expenses',
     party: 'vendor',
     lineTables: PURCHASE_LINE_TABLES,
-    features: { tax: false, message: false, email: false, pdf: false, partyAddress: false },
+    features: {
+        tax: false,
+        message: false,
+        email: false,
+        pdf: false,
+        partyAddress: false,
+        attachments: true,
+    },
     keepsEmptyLinesOnRefusal: true,
 }

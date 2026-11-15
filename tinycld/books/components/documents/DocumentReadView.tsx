@@ -2,7 +2,9 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useFormHost } from '@tinycld/core/lib/forms/use-form-hosts'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
+import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import {
     type DocumentRecord,
@@ -25,6 +27,7 @@ import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-docume
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
+import { AttachmentsSection } from './AttachmentsSection'
 import { DocumentDetail } from './DocumentDetail'
 import { DocumentHeader } from './DocumentHeader'
 import { DocumentPdfView } from './DocumentPdfView'
@@ -195,9 +198,12 @@ interface FooterProps {
     message: string
     memo: string
     memoLabel: string
+    // The Attachments section, under Memo in the notes column (a phone stacks it after
+    // Memo); null for a kind without it.
+    attachments: ReactNode
 }
 
-function ReadFooter({ isPhone, totals, message, memo, memoLabel }: FooterProps) {
+function ReadFooter({ isPhone, totals, message, memo, memoLabel, attachments }: FooterProps) {
     const notesClass = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const notes = (
         <View className={notesClass}>
@@ -208,6 +214,7 @@ function ReadFooter({ isPhone, totals, message, memo, memoLabel }: FooterProps) 
                 valueSuffix="message"
             />
             <DocumentDetail field="memo" label={memoLabel} value={memo} valueSuffix="memo" />
+            {attachments}
         </View>
     )
     if (isPhone) {
@@ -310,6 +317,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
+    const writes = useServerActionState()
     const totals = readTotals(data, record, documentKind)
     const ReadLines = documentKind.ReadLines ?? DocumentReadLines
     // A kind without a message to the customer shows none (an empty detail is not drawn).
@@ -325,6 +333,20 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const isPosting = doc.lifecycle === 'posting'
     const isExpired = expiredOnOf(record, todayIso()) !== null
     const readOnlyId = `${doc.testId}-read-only`
+    const attachments = doc.features.attachments ? (
+        <AttachmentsSection
+            kind={doc}
+            attachments={data.attachments}
+            recordId={record.id}
+            isVoid={record.status === 'void'}
+            replacedByNumber={record.replaced_by ? record.number : ''}
+            canWrite={data.canWrite}
+            isDisabled={writes.isDisabled}
+            mode="read"
+            scopeOwner={scopeOwner}
+            onRetry={data.retry}
+        />
+    ) : null
     return (
         <ScopeProvider owner={scopeOwner}>
             <View testID={readOnlyId} className="flex-1 bg-background">
@@ -353,6 +375,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             message={message}
                             memo={record.memo}
                             memoLabel={memoLabel}
+                            attachments={attachments}
                         />
                         <ReadStamps record={record} isPosting={isPosting} />
                     </TabPanel>
