@@ -1,5 +1,4 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import {
     createCustomer,
     customerEntry,
@@ -25,8 +24,8 @@ import {
     localToday,
     NEW_INVOICE_URL,
     pickInvoiceCustomer,
-    pickLineProduct,
 } from './invoice-helpers'
+import { fillInvoice, nonTaxableService, postInvoice } from './receive-payment-helpers'
 import {
     chooseReceiptSelect,
     pickReceiptLineProduct,
@@ -49,15 +48,13 @@ import {
 
 const INVOICES_URL = '**/api/collections/books_invoices/records**'
 const ESTIMATES_URL = '**/api/collections/books_estimates/records**'
-const MENU_ITEMS = ['customer-new-invoice', 'customer-new-estimate', 'customer-new-sales-receipt']
+const MENU_ITEMS = [
+    'customer-new-invoice',
+    'customer-new-estimate',
+    'customer-new-sales-receipt',
+    'customer-new-receive-payment',
+]
 const ROW_ID = /^customer-transaction-([a-z0-9]{15})$/
-
-// A seeded Service: not taxable, so a document's total is its line amount.
-function nonTaxableService() {
-    const row = PRODUCTS.find(p => p.id === PRODUCT_IDS.taxPrep)
-    if (!row || row.taxable) throw new Error('no non-taxable tax prep service in the fixture')
-    return row.name
-}
 
 // The id of the customer whose page is open, read from the URL.
 function openCustomerId(page: Page) {
@@ -102,34 +99,6 @@ async function startTransaction(page: Page, item: string, path: string, customer
     await page.getByTestId('customer-new-transaction').click()
     await page.getByTestId(item).click()
     await expect(page).toHaveURL(new RegExp(`/books/${path}/new\\?customer=${customerId}$`))
-}
-
-// The open invoice form: date (unless the default today), due date, one service line at
-// `rate`.
-async function fillInvoice(page: Page, input: { date?: string; dueDate: string; rate: string }) {
-    if (input.date !== undefined) await page.getByTestId('form-input-date').fill(input.date)
-    await page.getByTestId('form-input-due_date').fill(input.dueDate)
-    const rowId = await pickLineProduct(page, 0, nonTaxableService())
-    await page.getByTestId(lineCellTestId(rowId, 'rate')).fill(input.rate)
-    await expect(page.getByTestId(lineCellTestId(rowId, 'amount'))).toContainText(`$${input.rate}`)
-}
-
-// The number in an invoice read view's title, "Invoice <n>".
-async function invoiceNumber(page: Page) {
-    const title = page.getByTestId('invoice-title')
-    await expect(title).toHaveText(/^Invoice \d+$/)
-    const number = /^Invoice (\d+)$/.exec(await title.innerText())?.[1]
-    if (!number) throw new Error('the read view title has no number')
-    return number
-}
-
-// Posts the open invoice form; returns the posted invoice's id and number.
-async function postInvoice(page: Page) {
-    await page.getByTestId('invoice-post').click()
-    await expect(page).toHaveURL(INVOICE_URL)
-    await expect(page.getByTestId('invoice-read-only')).toBeVisible()
-    await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
-    return { id: invoiceIdFromUrl(page), number: await invoiceNumber(page) }
 }
 
 // Back from a document to the customer page kept under it, on its Transactions tab.

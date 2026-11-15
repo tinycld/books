@@ -38,6 +38,8 @@ const NAMES = [
     'books_expense_lines',
     'books_party_balances',
     'books_party_contacts',
+    'books_payments',
+    'books_payment_applications',
 ]
 
 function register() {

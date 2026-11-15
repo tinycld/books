@@ -569,6 +569,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             sales_receipt: 'Sales receipt',
             bill: 'Bill',
             expense: 'Expense',
+            payment: 'Payment',
         })
     })
 
@@ -578,6 +579,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             'bill',
             'expense',
             'invoice',
+            'payment',
             'sales_receipt',
             'transfer',
         ])

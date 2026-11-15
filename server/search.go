@@ -13,7 +13,7 @@ import (
 )
 
 // searchSource contributes accounts, journal entries, customers, vendors,
-// products, invoices, sales receipts, estimates, bills and expenses to core's
+// products, invoices, sales receipts, estimates, bills, expenses and payments to core's
 // federated /api/search. Each kind is read from its FTS5 index
 // (server/search_index.go). Rows are shaped here so the palette and the
 // CLI show the same thing; the client adapter
@@ -95,9 +95,13 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates, bills, expenses)
+	payments, paymentTotal, err := searchSalesDocs(ctx, app, paymentSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates, bills, expenses, payments)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
-		estimateTotal + billTotal + expenseTotal
+		estimateTotal + billTotal + expenseTotal + paymentTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -396,9 +400,17 @@ var expenseSearch = salesDocSearch{
 	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
 }
 
+// paymentSearch names its customer: "Payment 1004 · Harborview Dental" /
+// "Draft payment · Harborview Dental". A word matches the payment's number,
+// reference no. and memo, or the customer's display name, company and email.
+var paymentSearch = salesDocSearch{
+	table: paymentsCollection, index: paymentsIndex, docType: docTypePayment, kind: "payment",
+	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
+}
+
 // salesDocTermMatch is true when one query word matches a document's own
-// index row (number, memo, message; a sales receipt's and an expense's
-// reference no. and a bill's vendor's bill no. too) or its party's (a
+// index row (number, memo, message; a sales receipt's, an expense's and a
+// payment's reference no. and a bill's vendor's bill no. too) or its party's (a
 // customer's display name, company, email; a vendor's legal name too).
 // Reading the party's row at query time lets a renamed party find its
 // documents with no reindex. %[1]s is the bound word, %[2]s the document's

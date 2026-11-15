@@ -6,7 +6,7 @@ import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { useMemo } from 'react'
 import { View } from 'react-native'
 import { FORM_KEYS } from '../../lib/entry-shortcuts'
-import { useDocumentKind } from './document-kind-context'
+import { useDocumentChrome } from './document-chrome'
 
 // A row of a More menu: its key text is shown on the row; the key itself is registered
 // by the screen and does what the row does. The row's test id is `<kind test id>-<id>`.
@@ -81,7 +81,7 @@ function barKeysOf(group: string) {
 }
 
 // Menu content: on native the overlay host renders it outside the screen's tree, where
-// the kind context does not reach, so the row test-id prefix comes in as a prop.
+// the chrome context does not reach, so the row test-id prefix comes in as a prop.
 function MoreItems({ items, rowIdPrefix }: { items: DocumentMoreItem[]; rowIdPrefix: string }) {
     const rowIds = items.map(item => `${rowIdPrefix}-${item.id}`)
     const rows = items.map((item, index) => (
@@ -106,7 +106,7 @@ interface DocumentMoreMenuProps {
 
 // The More menu of the form's bar and of the read view's phone bar.
 export function DocumentMoreMenu({ items, isDisabled, testID }: DocumentMoreMenuProps) {
-    const { doc } = useDocumentKind()
+    const doc = useDocumentChrome()
     if (items.length === 0) return null
     return (
         <Menu
@@ -165,7 +165,7 @@ function PostAndNewButton({
  */
 export function DocumentActionBar(props: DocumentActionBarProps) {
     const { isSaving, isPhone, onCancel, onSaveDraft, onPost, onPostAndNew, scopeOwner } = props
-    const { doc } = useDocumentKind()
+    const doc = useDocumentChrome()
     const moreItems = useMoreItems(props)
     const keys = useMemo(() => barKeysOf(doc.shortcutGroup), [doc.shortcutGroup])
     const testId = doc.testId

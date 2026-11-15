@@ -1,6 +1,9 @@
 package books
 
 import (
+	"fmt"
+
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -85,9 +88,16 @@ var invoiceKind = salesDocKind{
 		}
 		return checkInvoiceEstimate(tx, stored, r)
 	},
-	AfterCreate: closeEstimateFor,
-	Withdraw:    reopenEstimate,
-	Replace:     moveEstimateTo,
+	TracksBalance: true,
+	AfterCreate:   closeEstimateFor,
+	Withdraw:      reopenEstimate,
+	CheckVoid:     refuseVoidWithPayments,
+	Replace: func(tx core.App, original, correction *core.Record) error {
+		if err := moveInvoicePayments(tx, original, correction); err != nil {
+			return err
+		}
+		return moveEstimateTo(tx, original, correction)
+	},
 	DebitAccount: func(tx core.App, _ *core.Record) (string, error) {
 		receivable, err := ensureReceivables(tx)
 		if err != nil {
@@ -95,6 +105,55 @@ var invoiceKind = salesDocKind{
 		}
 		return receivable.Id, nil
 	},
+}
+
+// Refusals of an invoice that payments pay (receive payment spec §3.9, Q5).
+// %s is the amount applied.
+const (
+	msgInvoiceVoidWithPayments    = "Payments are applied to this invoice. Void or edit those payments first."
+	msgInvoiceCorrectionBelowPaid = "Payments of %s are applied to this invoice. Its total cannot be below that."
+	msgInvoiceCorrectionCustomer  = "Payments are applied to this invoice, so its customer cannot change."
+)
+
+// refuseVoidWithPayments is the invoice's CheckVoid: an invoice that a posted
+// payment pays stays posted until that payment is voided or edited. A draft
+// payment's application does not hold it.
+func refuseVoidWithPayments(tx core.App, doc *core.Record) error {
+	var row struct {
+		N int `db:"n"`
+	}
+	err := tx.DB().NewQuery(`
+		SELECT COUNT(*) AS n FROM books_payment_applications a
+		JOIN books_payments p ON p.id = a.payment
+		WHERE a.invoice = {:invoice} AND p.status = 'posted'`).
+		Bind(dbx.Params{"invoice": doc.Id}).One(&row)
+	if err != nil {
+		return fmt.Errorf("books: count the payments applied to the invoice: %w", err)
+	}
+	if row.N > 0 {
+		return refuse(msgInvoiceVoidWithPayments)
+	}
+	return nil
+}
+
+// moveInvoicePayments is the payment part of an invoice correction's Replace
+// step: while posted payments apply to the original, the correction keeps its
+// customer and a total of at least what they apply; then every application
+// of the original (a draft payment's too) moves to the correction.
+func moveInvoicePayments(tx core.App, original, correction *core.Record) error {
+	applied, err := postedAppliedTo(tx, original.Id)
+	if err != nil {
+		return err
+	}
+	if applied > 0 {
+		if correction.GetString("customer") != original.GetString("customer") {
+			return refuse(msgInvoiceCorrectionCustomer)
+		}
+		if int64(correction.GetInt("total")) < applied {
+			return refuse(msgInvoiceCorrectionBelowPaid, formatMoney(applied, correction.GetString("currency")))
+		}
+	}
+	return moveApplications(tx, original, correction)
 }
 
 func checkInvoiceDays(r *core.Record) error {
