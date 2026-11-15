@@ -194,7 +194,7 @@ The report shows the sales tax that you charged in the period, by agency and the
 - A sale with no tax rate, for example a sale to an exempt customer, has no sales tax, so it is not in the report.
 - A sale with a tax rate and no taxable line shows under that rate: its sales are Non-taxable, and its tax is 0.00. A rate of 0% shows its sales with tax 0.00.
 
-The agencies are open when the report opens, and the rates are folded. To see the documents that charged a rate, press the rate row. Its documents open below it, in date order, then by number. Each document shows its date, its type and number, and its customer, for example "2026-10-14 · Invoice 1042 · Harborview Dental", with its four figures. A sales receipt with no customer ends after its number. To fold or open all levels, press Collapse all or Expand all.
+The agencies are open when the report opens, and the rates are folded. To see the documents that charged a rate, press the rate row. Its documents open below it, in date order, then by number. Each document shows its date, its type and number, and its customer, for example "2026-10-14 · Invoice 1042 · Harborview Dental", with its four figures. A sales receipt with no customer ends after its number. To open the invoice or sales receipt, press its document row. To fold or open all levels, press Collapse all or Expand all.
 
 To change the dates, press the Period chip. The default is Last month. Pick a preset, such as This month or Last quarter, or pick Custom and type the first and last day. When no posted sale was taxed in the period, the report shows "No rows for" and the period.
 

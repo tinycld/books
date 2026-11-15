@@ -51,9 +51,19 @@ func salesTaxLiabilitySpec() *reports.Spec {
 			{Formula: fld("document", "date")},
 			{Formula: fld("document", "sequence")},
 		},
-		Detail:  &reports.Detail{Label: stlDetailLabel()},
+		Detail:  &reports.Detail{Label: stlDetailLabel(), Open: stlDetailOpen()},
 		Display: stlDisplay(),
 	}
+}
+
+// stlDetailOpen is the read view of a document row's invoice or sales
+// receipt, by the document's kind and id. Only detail rows carry it: rate,
+// agency and total rows open nothing.
+func stlDetailOpen() *reports.Node {
+	return op("if", op("eq", fld("document", "kind"), lit("invoice")),
+		op("concat", lit("books/invoices/"), fld("document", "id")),
+		op("concat", lit("books/sales-receipts/"), fld("document", "id")),
+	)
 }
 
 // stlDetailLabel is "<date> · <Invoice|Sales receipt> <number> · <customer>";
