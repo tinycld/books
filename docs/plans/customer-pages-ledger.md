@@ -185,3 +185,4 @@
 - eval: approved 2026-11-14 (human); CI green on PR #48 at b73bcde (e2e sha)
 - human comments and what changed: read-only Details look accepted as is; the four core gaps (Switch Space, Menu focus return, Menu position across 1360 px, disabled ShortcutButton tooltip) go to a core fix task, with the Books workarounds removed after it
 - native: not executed in this run
+- core follow-up (2026-11-14, human asked): the four core gaps (Switch Space, Menu focus return, Menu re-placement across a breakpoint, disabled ShortcutButton tooltip) are fixed in core branch books/p2-customer-pages-core-fixes (4907c73c); the Books workarounds (PrimaryContactField, RecordRowMenu trigger focus) are removed on the same books branch. The Design notes and Out-of-plan entries above that name them as core change requests are resolved.
