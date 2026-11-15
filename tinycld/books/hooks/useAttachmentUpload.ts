@@ -34,57 +34,29 @@ const UPLOAD_STARTED: AttachmentUploadState = { kind: 'uploading', percent: 0 }
 
 interface AttachmentUploadInput {
     kind: Pick<SalesDocumentKind, 'key'>
-    // The stored document the files belong to; undefined on a new form.
+    // The stored document the files belong to (a form's own, or the draft a new form
+    // wrote); undefined on a new form that wrote nothing yet.
     recordId: string | undefined
     sessionKey: string
     // The document's stored attachments (section and custom File field rows).
     count: number
 }
 
+interface FileUploadInput {
+    draft: AttachmentDraft
+    sessionKey: string
+    kind: Pick<SalesDocumentKind, 'key'>
+    // The stored document the file goes to.
+    parentId: string
+}
+
 /**
- * Adding files to a bill or an expense (spec §3.1, §3.2): Attach files, a web drop, the
- * client checks, and the upload of each file with its progress. The files that are not
- * stored yet are in the attachments store under `sessionKey`; a read view's session
- * uploads each file at once.
+ * The upload of one file not stored yet, with its progress in the attachments store: a
+ * read view's at once, a form's Retry, and a form save's attachments step
+ * (useAttachmentSaveStep).
  */
-export function useAttachmentUpload({ kind, recordId, sessionKey, count }: AttachmentUploadInput) {
-    const { pickFiles } = usePickFiles()
+export function useAttachmentFileUpload() {
     const [attachments] = useStore('books_attachments')
-    const parentColumn = attachmentParentColumn(kind)
-    const isRead = isReadSession(sessionKey)
-
-    const setDraftState = (key: string, state: AttachmentUploadState) =>
-        useAttachmentsStore.getState().setState(sessionKey, key, state)
-
-    // Stores one file on `parentId`; true when it was stored. A refusal or a transport
-    // failure leaves the draft failed with the text its row shows. Once the server has
-    // the file the draft goes at once, so the file never shows (or counts) twice, and a
-    // failure after that point is not the upload's: Retry would store a second copy.
-    const uploadNow = async (draft: AttachmentDraft, parentId: string): Promise<boolean> => {
-        setDraftState(draft.key, UPLOAD_STARTED)
-        const onProgress = throttleProgress((loaded, total) => {
-            const percent = total > 0 ? Math.round((loaded / total) * 100) : 0
-            setDraftState(draft.key, { kind: 'uploading', percent })
-        })
-        let row: unknown
-        try {
-            row = await uploadRecordWithFile({
-                collection: ATTACHMENTS_COLLECTION,
-                fields: { [parentColumn]: parentId, field: '' },
-                file: draft.file,
-                fileField: 'file',
-                onProgress,
-            })
-        } catch (error) {
-            const { text, isTransport } = uploadErrorText(error)
-            if (isTransport) log.warn('books.attachments', 'upload failed', { parentId })
-            setDraftState(draft.key, { kind: 'failed', message: text })
-            return false
-        }
-        useAttachmentsStore.getState().discard(sessionKey, draft.key)
-        await acceptStoredRow(row, parentId)
-        return true
-    }
 
     // Files the stored row so it shows before the realtime echo. The server has the file
     // whatever happens here, so the echo or the next load lists it; a failure only logs.
@@ -102,6 +74,54 @@ export function useAttachmentUpload({ kind, recordId, sessionKey, count }: Attac
             })
         }
     }
+
+    // Stores one file on `parentId`; true when it was stored. A refusal or a transport
+    // failure leaves the draft failed with the text its row shows. Once the server has
+    // the file the draft goes at once, so the file never shows (or counts) twice, and a
+    // failure after that point is not the upload's: Retry would store a second copy.
+    return async ({ draft, sessionKey, kind, parentId }: FileUploadInput): Promise<boolean> => {
+        const setDraftState = (state: AttachmentUploadState) =>
+            useAttachmentsStore.getState().setState(sessionKey, draft.key, state)
+        setDraftState(UPLOAD_STARTED)
+        const onProgress = throttleProgress((loaded, total) => {
+            const percent = total > 0 ? Math.round((loaded / total) * 100) : 0
+            setDraftState({ kind: 'uploading', percent })
+        })
+        let row: unknown
+        try {
+            row = await uploadRecordWithFile({
+                collection: ATTACHMENTS_COLLECTION,
+                fields: { [attachmentParentColumn(kind)]: parentId, field: '' },
+                file: draft.file,
+                fileField: 'file',
+                onProgress,
+            })
+        } catch (error) {
+            const { text, isTransport } = uploadErrorText(error)
+            if (isTransport) log.warn('books.attachments', 'upload failed', { parentId })
+            setDraftState({ kind: 'failed', message: text })
+            return false
+        }
+        useAttachmentsStore.getState().discard(sessionKey, draft.key)
+        await acceptStoredRow(row, parentId)
+        return true
+    }
+}
+
+/**
+ * Adding files to a bill or an expense (spec §3.1, §3.2): Attach files, a web drop, the
+ * client checks, and the upload of each file with its progress. The files that are not
+ * stored yet are in the attachments store under `sessionKey`. A read view's session
+ * uploads each file at once; a form's files are pending until its save, and Retry of a
+ * failed one uploads it at once when the document is stored (`recordId`).
+ */
+export function useAttachmentUpload({ kind, recordId, sessionKey, count }: AttachmentUploadInput) {
+    const { pickFiles } = usePickFiles()
+    const storeFile = useAttachmentFileUpload()
+    const isRead = isReadSession(sessionKey)
+
+    const uploadNow = (draft: AttachmentDraft, parentId: string) =>
+        storeFile({ draft, sessionKey, kind, parentId })
 
     // Checks each file against the document's count (stored rows, plus the files not
     // stored yet, less the marked removals); a refused file is not added and the first
@@ -149,7 +169,8 @@ export function useAttachmentUpload({ kind, recordId, sessionKey, count }: Attac
     const retry = (key: string) => {
         const session = useAttachmentsStore.getState().sessions[sessionKey]
         const draft = session?.drafts.find(d => d.key === key)
-        if (!draft || !recordId) return
+        // Only a failed file: a second press while its upload runs would store it twice.
+        if (draft?.state.kind !== 'failed' || !recordId) return
         void uploadNow(draft, recordId)
     }
 

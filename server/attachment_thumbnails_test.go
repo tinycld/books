@@ -16,10 +16,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
+	"github.com/pocketbase/pocketbase/tools/hook"
 
 	"tinycld.org/core/thumbnails"
 )
@@ -420,4 +423,134 @@ func TestAttachments_OnlyTheThumbnailStoreChangesARow(t *testing.T) {
 		fresh.Set("name", "renamed.txt")
 		requireRefusalText(t, ae.app.Save(fresh), wantAttachmentNotChanged)
 	})
+}
+
+// The thumbnail store and the correction's move each save the attachment row
+// (revise 1; cp4 fix 1). The move runs in the posting's transaction, which
+// holds PocketBase's one write connection until it commits; the thumbnail job
+// runs in the background. The store must not write back the parent it read
+// before that commit: the row ends on the correction with its thumbnail.
+
+// interleaveEnv is a text attachment (core renders no thumbnail for it, so no
+// background job writes the row) on a bill, and a second bill it moves to.
+func interleaveEnv(t *testing.T) (ae *attachEnv, row *core.Record, from, to string) {
+	t.Helper()
+	ae = newAttachEnv(t)
+	original := ae.draftBill(t)
+	correction := ae.draftBill(t)
+	row, err := storeAttachment(ae.app, onBill(original.Id), "", "notes.txt", []byte("Signed for at the loading dock.\n"))
+	if err != nil {
+		t.Fatalf("store notes.txt: %v", err)
+	}
+	return ae, row, original.Id, correction.Id
+}
+
+// requireMovedWithThumbnail checks the row sits on the correction, the
+// original holds none, and the stored thumbnail is still there.
+func requireMovedWithThumbnail(t *testing.T, app core.App, id, from, to string) {
+	t.Helper()
+	stored := reload(t, app, "books_attachments", id)
+	if got := stored.GetString("bill"); got != to {
+		t.Errorf("bill = %q after the move and the thumbnail store, want the correction %q (the original is %q)", got, to, from)
+	}
+	requireAttachmentCount(t, app, "bill", from, 0)
+	if stored.GetString("thumbnail") == "" {
+		t.Errorf("thumbnail is empty after the move and the thumbnail store, want the stored JPEG")
+		return
+	}
+	requireJPEGThumbnail(t, app, stored)
+}
+
+// writeConnWaits is how many times a request for PocketBase's one write
+// connection has had to wait for it so far.
+func writeConnWaits(t *testing.T, app core.App) int64 {
+	t.Helper()
+	db, ok := app.NonconcurrentDB().(*dbx.DB)
+	if !ok {
+		t.Fatalf("the write connection is %T, want *dbx.DB", app.NonconcurrentDB())
+	}
+	return db.DB().Stats().WaitCount
+}
+
+// The thumbnail job stores its thumbnail while a correction's posting holds
+// the move open in its transaction. The store must not read the row as it was
+// before the move commits and then write that parent back after it: the row
+// ends on the correction with its thumbnail.
+func TestAttachmentThumbnail_AStoreDuringAnOpenMoveKeepsBoth(t *testing.T) {
+	ae, row, from, to := interleaveEnv(t)
+
+	// The store's save reached its last update hook: whatever it read for the
+	// row, it read it by now, and only the write itself is left.
+	reachedWrite := make(chan struct{}, 1)
+	ae.app.OnRecordUpdate(attachmentsCollection).Bind(&hook.Handler[*core.RecordEvent]{
+		Priority: 1000,
+		Func: func(e *core.RecordEvent) error {
+			if len(e.Record.GetUnsavedFiles("thumbnail")) == 1 {
+				select {
+				case reachedWrite <- struct{}{}:
+				default:
+				}
+			}
+			return e.Next()
+		},
+	})
+
+	moved := make(chan struct{})
+	release := make(chan struct{})
+	moveDone := make(chan error, 1)
+	go func() {
+		moveDone <- ae.app.RunInTransaction(func(tx core.App) error {
+			if err := moveAttachments(tx, "bill", from, to); err != nil {
+				return err
+			}
+			close(moved)
+			<-release
+			return nil
+		})
+	}()
+	select {
+	case <-moved:
+	case err := <-moveDone:
+		t.Fatalf("the move ended before it was held open: %v", err)
+	}
+
+	// The move is saved in its transaction and not committed. The store starts
+	// now; it is held as soon as it needs the write connection the move holds.
+	waits := writeConnWaits(t, ae.app)
+	thumb := thumbnailFile(t, "notes_thumb.jpg")
+	storeDone := make(chan struct{})
+	go func() {
+		storeAttachmentThumbnail(context.Background(), ae.app, row.Id, thumb)
+		close(storeDone)
+	}()
+	held := false
+	deadline := time.After(5 * time.Second)
+	for !held {
+		select {
+		case <-reachedWrite:
+			held = true
+		case <-storeDone:
+			held = true
+		case <-deadline:
+			close(release)
+			t.Fatal("the thumbnail store neither waited for the write connection nor reached its write within 5 s")
+		default:
+			held = writeConnWaits(t, ae.app) > waits
+			if !held {
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}
+
+	close(release)
+	if err := <-moveDone; err != nil {
+		t.Fatalf("move the attachment: %v", err)
+	}
+	select {
+	case <-storeDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the thumbnail store did not end within 5 s after the move committed")
+	}
+
+	requireMovedWithThumbnail(t, ae.app, row.Id, from, to)
 }

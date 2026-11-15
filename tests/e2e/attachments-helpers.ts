@@ -30,6 +30,29 @@ export function attachmentsSection(page: Page, prefix: string): Locator {
     return page.getByTestId(`${prefix}-attachments`).filter({ visible: true })
 }
 
+// The Attachments section of the open form (new, draft, correction, copy).
+export function formSection(page: Page, prefix: string): Locator {
+    return page
+        .getByTestId(`${prefix}-form`)
+        .filter({ visible: true })
+        .getByTestId(`${prefix}-attachments`)
+}
+
+// A pending row's second line: "<size> · Not saved yet".
+const PENDING_DETAIL = /^[\d.]+ (KB|B) · Not saved yet$/
+
+// The form lists `name` as a pending file (spec §3.2, §3.4): its row says "Not saved yet"
+// and is not a button (a pending file does not open).
+export async function expectPending(page: Page, prefix: string, name: string) {
+    const section = formSection(page, prefix)
+    const row = section
+        .getByTestId(`${prefix}-attachments-list`)
+        .locator(`[data-testid^="${prefix}-attachment-pending-"]`)
+        .filter({ has: page.getByText(name, { exact: true }) })
+    await expect(row.getByText(PENDING_DETAIL)).toBeVisible()
+    await expect(section.getByRole('button', { name, exact: true })).toHaveCount(0)
+}
+
 // Every row of the list in screen order: stored (`-attachment-<id>`) and pending
 // (`-attachment-pending-<key>`) rows, never a row's Remove or Retry button.
 function attachmentRows(page: Page, prefix: string): Locator {

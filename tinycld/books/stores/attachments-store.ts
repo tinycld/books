@@ -14,11 +14,14 @@ export type AttachmentDraft = {
 }
 
 // One screen's files that are not stored yet, the stored rows it will delete at its save
-// (a form's pending removals), and the refusal under its add area.
+// (a form's pending removals), and the refusal under its add area. `removalRefusals` maps
+// a stored row whose delete a form's save refused to the server's text, which its row
+// shows; absent until a delete is refused.
 export type AttachmentSession = {
     drafts: AttachmentDraft[]
     removals: string[]
     refusal: string | null
+    removalRefusals?: Record<string, string>
 }
 
 const READ_SESSION_PREFIX = 'read:'
@@ -30,6 +33,19 @@ export function readSessionKey(recordId: string): string {
 
 export function isReadSession(sessionKey: string): boolean {
     return sessionKey.startsWith(READ_SESSION_PREFIX)
+}
+
+// The session key of a form (new, draft, correction, copy), by the screen's form key; a
+// form's files are pending until its save (useDocumentSave's attachments step).
+export function formSessionKey(formKey: string): string {
+    return `form:${formKey}`
+}
+
+// Whether a session holds work for a form's save or its Cancel: a file not stored yet or
+// a stored row marked for removal.
+export function hasSessionChanges(session: AttachmentSession | undefined): boolean {
+    if (!session) return false
+    return session.drafts.length > 0 || session.removals.length > 0
 }
 
 interface AttachmentsState {
@@ -44,7 +60,14 @@ interface AttachmentsState {
     setState: (sessionKey: string, key: string, state: AttachmentUploadState) => void
     discard: (sessionKey: string, key: string) => void
     markRemoval: (sessionKey: string, id: string) => void
+    unmarkRemoval: (sessionKey: string, id: string) => void
     unmarkRemovals: (sessionKey: string) => void
+    // A form save's delete of `id` was refused: the row is no longer marked, so it shows
+    // again, with `text`.
+    refuseRemoval: (sessionKey: string, id: string, text: string) => void
+    // Empties a session it keeps open: a form's Discard. Another mounted screen may hold
+    // the same session, so it is not dropped.
+    clear: (sessionKey: string) => void
     setRefusal: (sessionKey: string, text: string | null) => void
 }
 
@@ -53,6 +76,14 @@ function emptySession(): AttachmentSession {
 }
 
 type Sessions = AttachmentsState['sessions']
+
+function withoutRefusal(
+    refusals: Record<string, string> | undefined,
+    id: string
+): Record<string, string> | undefined {
+    if (!refusals || !(id in refusals)) return refusals
+    return without(refusals, id)
+}
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
     return Object.fromEntries(Object.entries(record).filter(([k]) => k !== key))
@@ -121,6 +152,7 @@ export const useAttachmentsStore = create<AttachmentsState>()(set => ({
                 drafts: session.drafts.filter(draft => draft.key !== key),
             }))
         ),
+    // A row marked again drops the refusal of its earlier delete: the next save tries it.
     markRemoval: (sessionKey, id) =>
         set(s =>
             changed(s.sessions, sessionKey, session => ({
@@ -128,10 +160,27 @@ export const useAttachmentsStore = create<AttachmentsState>()(set => ({
                 removals: session.removals.includes(id)
                     ? session.removals
                     : [...session.removals, id],
+                removalRefusals: withoutRefusal(session.removalRefusals, id),
+            }))
+        ),
+    refuseRemoval: (sessionKey, id, text) =>
+        set(s =>
+            changed(s.sessions, sessionKey, session => ({
+                ...session,
+                removals: session.removals.filter(removal => removal !== id),
+                removalRefusals: { ...session.removalRefusals, [id]: text },
+            }))
+        ),
+    unmarkRemoval: (sessionKey, id) =>
+        set(s =>
+            changed(s.sessions, sessionKey, session => ({
+                ...session,
+                removals: session.removals.filter(removal => removal !== id),
             }))
         ),
     unmarkRemovals: sessionKey =>
         set(s => changed(s.sessions, sessionKey, session => ({ ...session, removals: [] }))),
+    clear: sessionKey => set(s => changed(s.sessions, sessionKey, () => emptySession())),
     setRefusal: (sessionKey, text) =>
         set(s => changed(s.sessions, sessionKey, session => ({ ...session, refusal: text }))),
 }))
