@@ -1,0 +1,64 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "height": 1200,
+            "actions": [
+                {
+                    "idFromText": "Sales Tax Liability",
+                    "goto": "/a/reports/$urlId?p-period=2026-10-01..2026-10-31"
+                },
+                { "waitFor": "report-table" },
+                { "waitFor": "Total Old county agency" }
+            ]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/reports?package=books",
+            "widths": [1280, 390],
+            "actions": [
+                {
+                    "idFromText": "Sales Tax Liability",
+                    "goto": "/a/reports/$urlId?p-period=2026-10-01..2026-10-31"
+                },
+                { "waitFor": "Total Old county agency" },
+                { "click": "report-fold-all" },
+                { "waitForHidden": "Total Old county agency" }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/reports?package=books",
+            "height": 1200,
+            "widths": [1280, 390],
+            "actions": [
+                {
+                    "idFromText": "Sales Tax Liability",
+                    "goto": "/a/reports/$urlId?p-period=2026-10-01..2026-10-31"
+                },
+                { "waitFor": "Total City and County of Denver" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-agencies" },
+                { "fill": "report-filter-search", "value": "Colorado Department of Revenue" },
+                { "clickCheckbox": "Colorado Department of Revenue" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitForHidden": "Total City and County of Denver" },
+                { "waitFor": "Total Colorado Department of Revenue" }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "actions": [
+                {
+                    "idFromText": "Sales Tax Liability",
+                    "goto": "/a/reports/$urlId?p-period=2026-09-01..2026-09-30"
+                },
+                { "waitFor": "report-empty" }
+            ]
+        }
+    ]
+}
