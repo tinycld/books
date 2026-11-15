@@ -143,6 +143,23 @@ describe('attachmentPreviewSource', () => {
             size: row.size,
         })
     })
+
+    // Revise 1: core pickThumbnailBase thumbnails the generated file when the source
+    // names one.
+    it('names the generated thumbnail file when the row has one', () => {
+        const row = {
+            ...fixtureRow(ATTACHMENT_IDS.billPdf),
+            thumbnail: 'osw_invoice_1002_thumb_k3j2h1.jpg',
+        }
+        expect(attachmentPreviewSource(row).thumbnailFileName).toBe(
+            'osw_invoice_1002_thumb_k3j2h1.jpg'
+        )
+    })
+
+    it('names no thumbnail file when the row has none', () => {
+        const row = { ...fixtureRow(ATTACHMENT_IDS.billPdf), thumbnail: '' }
+        expect(Object.hasOwn(attachmentPreviewSource(row), 'thumbnailFileName')).toBe(false)
+    })
 })
 
 // Who sees add and Remove (spec §3.1, §3.3, §3.5).

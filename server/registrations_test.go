@@ -881,18 +881,23 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 // registerLedger binds registerAttachments, so TestRegister_BindsEachPartOnce
 // covers it with no line of its own. This pins what registerAttachments alone
 // binds: one create-request, one create, one delete-request and one update
-// handler, and nothing else. Counted on a bare app, because core audit adds
+// handler, the after-create handler that starts the thumbnail job, and the
+// terminate handlers of the books background jobs (bound once per app, by the
+// first background.For; the auto-reverse sweep shares them on a registered
+// app), and nothing else. Counted on a bare app, because core audit adds
 // request hooks of its own on a fully registered one.
-func TestRegister_AttachmentsBindFourHooks(t *testing.T) {
+func TestRegister_AttachmentsBindTheirHooks(t *testing.T) {
 	parts := newBooksApp(t)
 	pb := &pocketbase.PocketBase{App: parts}
 	before := rlstest.HookHandlerCounts(t, pb)
 	registerAttachments(parts)
 	rlstest.AssertCompositionDiff(t, rlstest.HookHandlerCounts(t, pb), before, map[string]int{
-		"OnRecordCreateRequest": 1,
-		"OnRecordCreate":        1,
-		"OnRecordDeleteRequest": 1,
-		"OnRecordUpdate":        1,
+		"OnRecordCreateRequest":      1,
+		"OnRecordCreate":             1,
+		"OnRecordDeleteRequest":      1,
+		"OnRecordUpdate":             1,
+		"OnRecordAfterCreateSuccess": 1,
+		"OnTerminate":                2,
 	})
 }
 

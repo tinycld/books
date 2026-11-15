@@ -12,12 +12,16 @@ import { searchToExpense } from './expense-helpers'
 import { DESKTOP, openInvoiceBySearch } from './invoice-helpers'
 
 // Attachments spec §3.3, §3.4, §3.5, plan checkpoint 2. Every test reads the seeded
-// documents only (bill 1002 and 1003, expense 1003, invoice 1003): none adds, removes,
+// documents only (bill 1002 and 1003, expense 1002 and 1003, invoice 1003): none adds, removes,
 // edits, voids or copies there.
 
 const BILL_PDF = 'OSW-invoice-1002.pdf'
 const BILL_PNG = 'packing-slip-photo.png'
 const EXPENSE_JPG = 'receipt-office-supply-world.jpg'
+// The seeded HEIC photo on posted expense 1002 (fixture ATTACHMENT_IDS.expenseHeic).
+const EXPENSE_HEIC = 'pacific-power-meter.heic'
+const SEEDED_EXPENSE_1002_TITLE = 'Expense 1002 · Pacific Power'
+const LIMIT_TEXT = 'Up to 20 MB each'
 // The memo the e2e seed writes on the posted invoice INVOICE_IDS.posted (seed.ts,
 // seedInvoiceMemo); the server numbers it 1003, the third of INVOICE_SEED_IDS.
 const SEEDED_INVOICE_MEMO = 'Seed invoice posted'
@@ -45,7 +49,8 @@ test.describe('attachments: read view', () => {
 
         const section = attachmentsSection(page, 'bill')
         await expect(page.getByTestId('bill-attachments-heading')).toHaveText('Attachments (2)')
-        await expect(section.getByText('Up to 20 MB each', { exact: true })).toBeVisible()
+        // A writer on a posted bill can add a file, so the limit text shows.
+        await expect(section.getByText(LIMIT_TEXT, { exact: true })).toBeVisible()
         // The W-9 of the custom File field is not a section row.
         await expectAttachmentNames(page, 'bill', [BILL_PDF, BILL_PNG])
 
@@ -119,6 +124,8 @@ test.describe('attachments: reader', () => {
         await expectAttachmentNames(page, 'expense', [EXPENSE_JPG])
         await expect(section.getByRole('button', { name: `Remove ${EXPENSE_JPG}` })).toHaveCount(0)
         await expect(page.getByTestId('expense-attachments-add')).toHaveCount(0)
+        // A reader cannot add a file, so the limit text does not show.
+        await expect(section.getByText(LIMIT_TEXT, { exact: true })).toHaveCount(0)
 
         await attachmentRow(page, 'expense', EXPENSE_JPG).click()
         const modal = previewModal(page)
@@ -130,6 +137,28 @@ test.describe('attachments: reader', () => {
         await searchToBill(page, '1003', 'Bill 1003 · Summit IT Services')
         await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
         await expect(page.getByTestId('bill-attachments-empty')).toHaveText('No attachments')
+        await expect(
+            attachmentsSection(page, 'bill').getByText(LIMIT_TEXT, { exact: true })
+        ).toHaveCount(0)
+    })
+})
+
+test.describe('attachments: generated thumbnail', () => {
+    test("a HEIC photo's row draws the thumbnail the server made", async ({ page }) => {
+        await openBooks(page)
+        await searchToExpense(page, '1002', SEEDED_EXPENSE_1002_TITLE)
+        await expect(page.getByTestId('expense-read-only').filter({ visible: true })).toBeVisible()
+
+        // The browser cannot draw a HEIC: the row's image is the generated JPEG,
+        // thumbnailed again by PocketBase to 40 px, through an authed URL.
+        const thumb = attachmentRow(page, 'expense', EXPENSE_HEIC).locator('img')
+        await expect(thumb).toHaveAttribute('src', /\/api\/files\/[^/]+\/[^/]+\/[^/?]+\.jpg\?/)
+        await expect(thumb).not.toHaveAttribute('src', /\.heic/i)
+        await expect(thumb).toHaveAttribute('src', /token=/)
+        await expect(thumb).toHaveAttribute('src', /thumb=40x40/)
+        await expect
+            .poll(() => thumb.evaluate(img => (img as HTMLImageElement).naturalWidth))
+            .toBeGreaterThan(0)
     })
 })
 

@@ -37,8 +37,10 @@ export const ATTACHMENT_MIME_TYPES: readonly string[] = [
     ...new Set(Object.values(ATTACHMENT_EXTENSIONS)),
 ]
 
-// The image types PocketBase makes a thumbnail of. A HEIC or HEIF photo has no
-// thumbnail (PocketBase would serve the full file, which a browser cannot draw), so its
+// The image types PocketBase thumbnails itself (`?thumb=` of the stored file). A type core
+// renders (a HEIC or HEIF photo, a PDF, an office document) gets a generated JPEG in the
+// row's `thumbnail` field instead, made by the server after the upload
+// (server/attachment_thumbnails.go); until it is stored, and for every other type, the
 // row shows the type icon.
 const THUMBNAIL_MIME_TYPES: readonly string[] = [
     'image/jpeg',
@@ -155,12 +157,14 @@ export function attachmentsNotSavedText(noun: string, count: number): string {
     return `The ${noun.toLowerCase()} was saved as a draft. ${files} did not upload. Save draft or Post tries ${them} again.`
 }
 
-type StoredFile = Pick<BooksAttachments, 'id' | 'file' | 'name' | 'size'>
+type StoredFile = Pick<BooksAttachments, 'id' | 'file' | 'name' | 'size'> &
+    Partial<Pick<BooksAttachments, 'thumbnail'>>
 
 // What core's preview, thumbnail and download read of a stored row. PocketBase keeps no
-// type, so the type is the name's.
+// type, so the type is the name's. A row with a generated thumbnail names it, so core
+// Thumbnail draws that file (core pickThumbnailBase).
 export function attachmentPreviewSource(row: StoredFile): FilePreviewSource {
-    return {
+    const source: FilePreviewSource = {
         collectionId: ATTACHMENTS_COLLECTION,
         recordId: row.id,
         fileName: row.file,
@@ -168,6 +172,14 @@ export function attachmentPreviewSource(row: StoredFile): FilePreviewSource {
         mimeType: attachmentMimeOf(row.name, ''),
         size: row.size,
     }
+    if (!row.thumbnail) return source
+    return { ...source, thumbnailFileName: row.thumbnail }
+}
+
+// Whether a row draws a thumbnail rather than the type icon: a generated one, or
+// PocketBase's own for a plain image type.
+export function hasThumbnail(source: FilePreviewSource): boolean {
+    return Boolean(source.thumbnailFileName) || isImageMime(source.mimeType)
 }
 
 // Who sees add and Remove (spec §3.1, §3.3, §3.5): a writer on a document that is not

@@ -15,7 +15,7 @@ import {
     attachmentDetailText,
     attachmentPreviewSource,
     attachmentsHeading,
-    isImageMime,
+    hasThumbnail,
     movedText,
     NO_ATTACHMENTS_TEXT,
 } from '../../lib/attachments'
@@ -25,20 +25,37 @@ const ROW_STYLE = { minHeight: 44 }
 const BOX_STYLE = { width: 40, height: 40 }
 const RETRY_STYLE = { minHeight: 36 }
 
-// The 40 px mark of a row: core Thumbnail for an image PocketBase thumbnails, else the
-// type's icon in a box of the same size.
+// The 40 px tile every row's mark sits in. The edge keeps a thumbnail of a white
+// page visible on a white screen, and keeps it from glaring on a dark one.
+function MarkTile({ children }: { children: ReactNode }) {
+    return (
+        <View
+            className="shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-surface-secondary"
+            style={BOX_STYLE}
+        >
+            {children}
+        </View>
+    )
+}
+
+// The mark of a row: core Thumbnail for a row with a generated thumbnail or an
+// image PocketBase thumbnails, else the type's icon, both in the same tile. The
+// realtime update that stores a generated thumbnail redraws the row.
 function FileMark({ row }: { row: DocumentAttachmentRow }) {
     const muted = useThemeColor('muted-foreground')
     const source = attachmentPreviewSource(row)
-    if (isImageMime(source.mimeType)) return <Thumbnail source={source} size={40} />
+    if (hasThumbnail(source)) {
+        return (
+            <MarkTile>
+                <Thumbnail source={source} size={40} />
+            </MarkTile>
+        )
+    }
     const { icon: Icon, color } = getFileIconForMime(source.mimeType, muted)
     return (
-        <View
-            className="shrink-0 items-center justify-center rounded bg-surface-secondary"
-            style={BOX_STYLE}
-        >
+        <MarkTile>
             <Icon size={20} color={color} />
-        </View>
+        </MarkTile>
     )
 }
 
@@ -181,7 +198,7 @@ interface AttachmentsSectionProps {
 
 /**
  * The Attachments section of a bill or an expense (spec §3.3): the heading with the
- * count and the limit; one skeleton row while the rows load; the error
+ * count, and the limit where a file can be added; one skeleton row while the rows load; the error
  * with Retry when they fail; the list, each row opening core PreviewModal; "No
  * attachments" when there are none and no add area shows; and, on a replaced original,
  * "Moved to <number> (edited)" instead.
@@ -220,6 +237,9 @@ export function AttachmentsSection({
     const isEmpty = isReady && rows.length === 0
     const moved = isEmpty && replacedByNumber !== '' ? movedText(replacedByNumber) : ''
     const empty = isEmpty && moved === '' && !controls.showsAdd ? NO_ATTACHMENTS_TEXT : ''
+    // The limit shows only where a file can be added: a writer on a document that is not
+    // void (a replaced original is void).
+    const limit = controls.showsAdd ? ATTACHMENT_LIMIT_TEXT : ''
     return (
         <View testID={`${prefix}-attachments`} className="gap-2">
             <View className="flex-row flex-wrap items-baseline gap-x-2">
@@ -229,7 +249,7 @@ export function AttachmentsSection({
                 >
                     {heading}
                 </Text>
-                <MutedLine text={ATTACHMENT_LIMIT_TEXT} />
+                <MutedLine text={limit} />
             </View>
             <SkeletonRow isVisible={isLoading} testID={`${prefix}-attachments-loading`} />
             <LoadError isVisible={isError} prefix={prefix} onRetry={onRetry} />

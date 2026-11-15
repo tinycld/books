@@ -12,8 +12,8 @@
 // server stamps name, size and uploaded_by from the upload and the request's
 // user, whatever the client sent; core FileField sends size and its uploader,
 // so the create rule does not refuse them. A row never changes (no update
-// rule): the only update is the server's move of a corrected document's files
-// to the correction when it posts.
+// rule): the only updates are the server's move of a corrected document's
+// files to the correction when it posts, and its store of the thumbnail.
 //
 // FILES. The file field is protected (only a request that passes the view rule
 // with a file token reads it), holds one file of at most 20 MB, and takes only
@@ -21,6 +21,13 @@
 // file opens from the app's own origin. server/attachments.go holds the same
 // list (attachmentMimeTypes) and checks it first, so the refusal is a message
 // the client keeps. thumbs declares the 40 px box core Thumbnail asks for.
+//
+// THUMBNAIL. For a type core renders (a HEIC or HEIF photo, a WebP, a PDF, an
+// office document), a background job stores a generated JPEG of at most
+// 480 x 360 in thumbnail after the create (server/attachment_thumbnails.go);
+// core Thumbnail asks ?thumb=40x40 of it too. Any other row has none. The
+// update guard admits that one write. Quota counts size only: the thumbnail
+// is not the person's file.
 //
 // field is empty for the Attachments section and a custom File field's key
 // otherwise. Deleting a draft bill or expense deletes its rows and files
@@ -89,6 +96,16 @@ migrate(
                         protected: true,
                         thumbs: ['40x40'],
                         mimeTypes: MIME_TYPES,
+                    },
+                    {
+                        name: 'thumbnail',
+                        type: 'file',
+                        required: false,
+                        maxSelect: 1,
+                        maxSize: 2097152,
+                        protected: true,
+                        thumbs: ['40x40'],
+                        mimeTypes: ['image/jpeg'],
                     },
                     { name: 'name', type: 'text', max: 255 },
                     { name: 'size', type: 'number', onlyInt: true, min: 0 },

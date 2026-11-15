@@ -9,9 +9,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"slices"
-	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -45,12 +42,25 @@ var attachmentMimeTypes = []string{
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
-// attachmentExtensions are the file name extensions of the allow-list's
-// types, compared lower-cased; the client checks the same list when a file
-// reports no type.
-var attachmentExtensions = []string{
-	".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif",
-	".txt", ".csv", ".xls", ".xlsx", ".doc", ".docx",
+// attachmentExtensionTypes are the file name extensions of the allow-list's
+// types, compared lower-cased, and the type of each; the client keeps the
+// same list (ATTACHMENT_EXTENSIONS) for a file that reports no type. The row
+// keeps no type, so the thumbnail job reads a stored file's type from here.
+var attachmentExtensionTypes = map[string]string{
+	".pdf":  "application/pdf",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+	".heic": "image/heic",
+	".heif": "image/heif",
+	".txt":  "text/plain",
+	".csv":  "text/csv",
+	".xls":  "application/vnd.ms-excel",
+	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	".doc":  "application/msword",
+	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
 // Refusal texts of the attachment guards. The client shows the size, type,
@@ -90,8 +100,10 @@ func attachmentTexts(kind salesDocKind) (void, limit string) {
 // guard has no reason to stop.
 //
 // An attachment never changes. The update guard lets through only Books' own
-// move of a corrected document's files (moveAttachments) and PocketBase's
-// clearing of the uploader when that user is deleted.
+// move of a corrected document's files (moveAttachments), PocketBase's
+// clearing of the uploader when that user is deleted, and the thumbnail job's
+// store of a generated thumbnail on a row that has none
+// (registerAttachmentThumbnails).
 func registerAttachments(app core.App) {
 	app.OnRecordCreateRequest(attachmentsCollection).BindFunc(stampAttachmentUpload)
 	app.OnRecordCreate(attachmentsCollection).BindFunc(func(e *core.RecordEvent) error {
@@ -101,11 +113,12 @@ func registerAttachments(app core.App) {
 		return serializedRequest(e, func(tx core.App) error { return checkAttachmentDelete(tx, e.Record) })
 	})
 	app.OnRecordUpdate(attachmentsCollection).BindFunc(func(e *core.RecordEvent) error {
-		if hasTxMark(e.App, attachmentMoveMark, e.Record.Id) || isUploaderCleared(e.Record) {
+		if hasTxMark(e.App, attachmentMoveMark, e.Record.Id) || isUploaderCleared(e.Record) || isThumbnailStored(e.Record) {
 			return e.Next()
 		}
 		return refuse(msgAttachmentNotChanged)
 	})
+	registerAttachmentThumbnails(app)
 }
 
 // stampAttachmentUpload checks an uploaded file's size and type and stamps
@@ -123,6 +136,9 @@ func stampAttachmentUpload(e *core.RecordRequestEvent) error {
 		e.Record.Set("name", truncateRunes(f.OriginalName, 255))
 		e.Record.Set("size", f.Size)
 	}
+	// The thumbnail is one the server generates; a client's own image would draw
+	// for any file type and sit outside the quota, so it is dropped for everyone.
+	e.Record.Set("thumbnail", "")
 	// A superuser keeps the uploader it sent, which the seed uses.
 	stampActor(e.Record, "uploaded_by", e.Auth)
 	return e.Next()
@@ -137,7 +153,7 @@ func checkAttachmentUpload(f *filesystem.File) error {
 	if f.Size > maxAttachmentBytes {
 		return refuseNamed(msgAttachmentTooLarge, f.OriginalName)
 	}
-	if !slices.Contains(attachmentExtensions, strings.ToLower(filepath.Ext(f.OriginalName))) {
+	if attachmentTypeOf(f.OriginalName) == "" {
 		return refuseNamed(msgAttachmentType, f.OriginalName)
 	}
 	if validators.UploadedFileMimeType(attachmentMimeTypes)(f) != nil {
@@ -233,13 +249,35 @@ func checkAttachmentDelete(tx core.App, r *core.Record) error {
 // PocketBase's unset of the relation when the uploading user is deleted.
 // Every other column is as stored.
 func isUploaderCleared(r *core.Record) bool {
+	return isStoredFile(r) && isThumbnailKept(r) && r.GetString("uploaded_by") == ""
+}
+
+// isThumbnailStored reports whether an update only sets the thumbnail where
+// there was none: the thumbnail job's one write. A second thumbnail over the
+// first, or a thumbnail with any other change, is not admitted.
+func isThumbnailStored(r *core.Record) bool {
+	stored := r.Original()
+	return stored.GetString("thumbnail") == "" &&
+		len(r.GetUnsavedFiles("thumbnail")) == 1 &&
+		isStoredFile(r) &&
+		r.GetString("uploaded_by") == stored.GetString("uploaded_by")
+}
+
+// isStoredFile reports whether the parent, the field, the file, its name and
+// its size are as stored.
+func isStoredFile(r *core.Record) bool {
 	stored := r.Original()
 	for _, field := range []string{"bill", "expense", "field", "file", "name"} {
 		if r.GetString(field) != stored.GetString(field) {
 			return false
 		}
 	}
-	return r.GetInt("size") == stored.GetInt("size") && r.GetString("uploaded_by") == ""
+	return r.GetInt("size") == stored.GetInt("size")
+}
+
+// isThumbnailKept reports whether an update leaves the thumbnail as stored.
+func isThumbnailKept(r *core.Record) bool {
+	return len(r.GetUnsavedFiles("thumbnail")) == 0 && r.GetString("thumbnail") == r.Original().GetString("thumbnail")
 }
 
 // moveAttachments re-points every row whose parentField is from to to: the
