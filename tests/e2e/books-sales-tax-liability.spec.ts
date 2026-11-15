@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import { hubRow, login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { chooseParamOption, hubRow, login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import * as stlFixture from '~/tinycld/books/lib/sales-tax-liability-fixture'
 import { TAX_AGENCIES, TAX_IDS, TAX_RATE_ROWS } from '~/tinycld/books/lib/tax-rates-fixture'
 import { DESKTOP } from './account-register-helpers'
@@ -7,12 +7,24 @@ import {
     chooseAgencies,
     chooseOctober,
     choosePeriod,
+    expectPhoneLines,
     openBooksReports,
+    openReportAccount,
     openSalesTaxLiability,
     type ReportSnapshot,
+    reportLinesUnder,
     reportSnapshot,
     snapshotWhen,
 } from './books-report-helpers'
+import {
+    INVOICE_URL,
+    lineCellTestId,
+    openNewInvoice,
+    pickInvoiceCustomer,
+    pickLineProduct,
+    uniqueMemo,
+} from './invoice-helpers'
+import { createAgency, createRate, openTaxes, uniqueName } from './tax-rates-helpers'
 
 // The shipped Sales Tax Liability in core's report view (/a/reports/<id>), read by the e2e
 // user through the viewer share Books keeps. The seed posts the fixture's taxed invoices and
@@ -107,6 +119,111 @@ function rateRowsOf(snapshot: ReportSnapshot, agency: string): Row[] {
         throw new Error(`no ${agency} block in ${labels(snapshot).join(' | ')}`)
     }
     return snapshot.rows.slice(start + 1, end)
+}
+
+// The opened rate whose documents no other seed or spec charges (D1): its two fixture
+// invoices, top to bottom by date, with their customers. The seed numbers them itself.
+const LODGING = rateName(TAX_IDS.lodging)
+const LODGING_DOCUMENTS = [
+    { id: 'stlinv000001051', label: /^2026-10-22 · Invoice \d+ · Fox Hollow Vineyards$/ },
+    { id: 'stlinv000001053', label: /^2026-10-27 · Invoice \d+ · Evergreen Montessori School$/ },
+]
+// The fixture's sales receipt with no customer: its label ends after the number.
+const WALK_IN_RECEIPT = /^2026-10-14 · Sales receipt \d+$/
+
+type Figures = {
+    gross: number | null
+    nontaxable: number | null
+    taxable: number | null
+    tax: number | null
+}
+
+function figuresOf(row: Row): Figures {
+    return {
+        gross: cents(row.cells.gross),
+        nontaxable: cents(row.cells.nontaxable),
+        taxable: cents(row.cells.taxable),
+        tax: cents(row.cells.tax),
+    }
+}
+
+// The four figures of a fixture document's one tax line (cents).
+function documentFigures(id: string): Figures {
+    const document = stlFixture.SALES_TAX_DOCUMENTS.find(row => row.id === id)
+    if (!document) throw new Error(`no fixture document ${id}`)
+    const lines = stlFixture.taxLinesOf(document)
+    if (lines.length !== 1) throw new Error(`${id} has ${lines.length} tax lines, want one`)
+    const [line] = lines
+    return {
+        gross: line.gross_amount,
+        nontaxable: line.gross_amount - line.taxable_amount,
+        taxable: line.taxable_amount,
+        tax: line.amount,
+    }
+}
+
+// The one row of `kind` labelled `label`: before a rate opens, its document rows may carry
+// the rate's name too, so a rate row is found by its kind.
+function rowOfKind(snapshot: ReportSnapshot, kind: Row['kind'], label: string): Row {
+    const found = snapshot.rows.filter(row => row.kind === kind && row.label === label)
+    if (found.length !== 1) {
+        throw new Error(
+            `${found.length} ${kind} rows labelled "${label}" in ${labels(snapshot).join(' | ')}`
+        )
+    }
+    return found[0]
+}
+
+// The rows of the opened Denver lodging, read once its total has landed.
+function openedLodging(page: Page): Promise<ReportSnapshot> {
+    return snapshotWhen(
+        page,
+        reportSnapshot,
+        s =>
+            reportLinesUnder(s, LODGING).length > 0 &&
+            s.rows.some(row => row.kind === 'subtotal' && row.label === `Total ${LODGING}`),
+        `${LODGING}'s document rows and its total`
+    )
+}
+
+// The phone run: the report is opened and set to October at the default viewport
+// (navigateToPackage clicks the desktop rail), then the window shrinks to `size`.
+async function expectPhoneLinesAt(page: Page, size: { width: number; height: number }) {
+    await login(page)
+    await navigateToPackage(page, 'books')
+    await openSalesTaxLiability(page)
+    await chooseOctober(page)
+    await page.setViewportSize(size)
+
+    // While the rate is closed (an open group row leaves its figures to its total row):
+    // the rate row, and the agency's total row, which shows only the Tax amount
+    // (blankAbove "byRate").
+    const agencyTotal = `Total ${agencyName(TAX_IDS.denver)}`
+    const closed = await snapshotWhen(
+        page,
+        reportSnapshot,
+        s =>
+            s.rows.some(row => row.kind === 'group' && row.label === LODGING) &&
+            s.rows.some(row => row.kind === 'subtotal' && row.label === agencyTotal),
+        `the ${LODGING} row and ${agencyTotal}`
+    )
+    await expectPhoneLines(page, rowOfKind(closed, 'group', LODGING).id)
+    const agency = rowOfKind(closed, 'subtotal', agencyTotal)
+    expect(
+        [agency.cells.gross ?? '', agency.cells.nontaxable ?? '', agency.cells.taxable ?? ''],
+        `${agencyTotal}: no sales figure on a phone`
+    ).toEqual(['', '', ''])
+    expect(cents(agency.cells.tax), `${agencyTotal}: its Tax amount`).not.toBeNull()
+
+    // On the phone the press target is the same row.
+    await openReportAccount(page, LODGING)
+    const snapshot = await openedLodging(page)
+    const [firstDocument] = reportLinesUnder(snapshot, LODGING)
+    expect(firstDocument.label, `${LODGING}'s first document row`).toMatch(
+        LODGING_DOCUMENTS[0].label
+    )
+    await expectPhoneLines(page, firstDocument.id)
+    await expectPhoneLines(page, rowOfKind(snapshot, 'subtotal', `Total ${LODGING}`).id)
 }
 
 const OCTOBER_AGENCIES = [
@@ -252,5 +369,130 @@ test.describe('sales-tax-liability: report', () => {
             'No rows for September 1 – September 30, 2026'
         )
         await expect(page.locator('[data-testid^="report-row-g:"]')).toHaveCount(0)
+    })
+
+    test('a rate opens into its documents, by date, with their figures', async ({ page }) => {
+        await startBooks(page)
+        await openSalesTaxLiability(page)
+        await chooseOctober(page)
+
+        await openReportAccount(page, LODGING)
+        const lodging = await openedLodging(page)
+        const lines = reportLinesUnder(lodging, LODGING)
+        expect(
+            lines.map(row => row.label),
+            `${LODGING}'s document rows, top to bottom`
+        ).toEqual([
+            expect.stringMatching(LODGING_DOCUMENTS[0].label),
+            expect.stringMatching(LODGING_DOCUMENTS[1].label),
+        ])
+        for (const [index, document] of LODGING_DOCUMENTS.entries()) {
+            expect(figuresOf(lines[index]), `${lines[index].label}'s four figures (cents)`).toEqual(
+                documentFigures(document.id)
+            )
+        }
+        // The second invoice charged the rate on no taxable line: all Non-taxable.
+        expect(figuresOf(lines[1])).toEqual({
+            gross: 30_000,
+            nontaxable: 30_000,
+            taxable: 0,
+            tax: 0,
+        })
+
+        const after = lodging.rows[lodging.rows.indexOf(lines[1]) + 1]
+        expect(after?.label, `the row after ${LODGING}'s documents`).toBe(`Total ${LODGING}`)
+        expect(figuresOf(after), `Total ${LODGING}'s four figures (cents)`).toEqual(
+            stlFixture.salesTaxRateFigures(TAX_IDS.lodging)
+        )
+
+        const state = rateName(TAX_IDS.state)
+        await openReportAccount(page, state)
+        const opened = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => reportLinesUnder(s, state).length > 0,
+            `${state}'s document rows`
+        )
+        expect(
+            reportLinesUnder(opened, state).map(row => row.label),
+            `${state} lists the sales receipt with no customer`
+        ).toEqual(expect.arrayContaining([expect.stringMatching(WALK_IN_RECEIPT)]))
+    })
+
+    test('a post and a void refresh the open report', async ({ page }) => {
+        // D2: an agency and rate of the test's own, so no other spec's sales move the figures.
+        await openTaxes(page)
+        const agency = uniqueName('Liability agency')
+        const rate = uniqueName('Liability rate')
+        const agencyId = await createAgency(page, agency)
+        await createRate(page, agencyId, rate, '5')
+
+        const report = await page.context().newPage()
+        await login(report)
+        await navigateToPackage(report, 'books')
+        await report.setViewportSize(TALL)
+        await openSalesTaxLiability(report)
+        await choosePeriod(report, { preset: 'thisMonthToDate' })
+        // chooseAgencies waits for the agency's rows, and this agency has none yet.
+        await chooseParamOption(report, 'agencies', {
+            from: 'add-filter',
+            search: agency,
+            labels: [agency],
+        })
+        await expect.poll(() => new URL(report.url()).searchParams.get('p-agencies')).not.toBeNull()
+        await expect(report.getByTestId('report-empty')).toBeVisible()
+
+        await openNewInvoice(page)
+        await pickInvoiceCustomer(page, 'Bluefin Marine Supply')
+        const lineId = await pickLineProduct(page, 0, 'Wireless access point')
+        await page.getByTestId(lineCellTestId(lineId, 'quantity')).fill('1')
+        await page.getByTestId(lineCellTestId(lineId, 'rate')).fill('200.00')
+        await expect(page.getByTestId(lineCellTestId(lineId, 'amount'))).toContainText('$200.00')
+        await page.getByTestId('form-input-tax_rate').click()
+        await page.getByRole('menuitem', { name: `${rate} 5%`, exact: true }).click()
+        await expect(page.getByTestId('form-input-tax_rate')).toContainText(rate)
+        await page.getByTestId('form-input-memo').fill(uniqueMemo('Liability void'))
+        await page.getByTestId('invoice-post').click()
+        await expect(page).toHaveURL(INVOICE_URL)
+        await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
+
+        // No navigation on the report page: core re-runs the open report live.
+        const posted = await snapshotWhen(
+            report,
+            reportSnapshot,
+            s =>
+                s.rows.some(row => row.kind === 'total') &&
+                s.rows.some(row => row.label === `Total ${agency}`),
+            'the report shows the posted invoice'
+        )
+        expect(labels(posted)).toEqual([agency, rate, `Total ${agency}`, 'Total'])
+        for (const label of [rate, `Total ${agency}`, 'Total']) {
+            expect(taxOf(rowLabelled(posted, label)), `${label} tax (cents)`).toBe(1000)
+        }
+
+        // Desktop: Void sits in the read view's bar (the More menu holds it only on a phone).
+        await page.getByTestId('invoice-read-void').click()
+        await page.getByTestId('void-confirm').click()
+        await expect(page.getByTestId('invoice-badge')).toHaveText('Void')
+
+        await expect(report.getByTestId('report-empty')).toBeVisible()
+        await expect(
+            report
+                .locator('[data-testid^="report-row-"]')
+                .filter({ has: report.getByText(agency, { exact: true }) })
+        ).toHaveCount(0)
+    })
+
+    test('on a 390 phone each row is its label, then its figures on two lines', async ({
+        page,
+    }) => {
+        await expectPhoneLinesAt(page, { width: 390, height: 844 })
+    })
+
+    // Lesson 32: CI's 390 viewport leaves a 375 px row.
+    test('on a 375 phone each row is its label, then its figures on two lines', async ({
+        page,
+    }) => {
+        await expectPhoneLinesAt(page, { width: 375, height: 812 })
     })
 })
