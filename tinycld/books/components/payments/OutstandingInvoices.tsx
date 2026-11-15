@@ -1,7 +1,12 @@
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { Text, View } from 'react-native'
+import { filterRowsByNumber, type OutstandingRow } from '../../lib/payment-allocation'
+import { PAYMENT_CARDS_BELOW } from '../../lib/payment-columns'
 import { fillPaymentText, PAYMENT_MESSAGES } from '../../lib/payment-texts'
-import { OutstandingGrid, type OutstandingGridProps } from './OutstandingGrid'
+import { FindInvoiceField, type FindInvoiceFieldState } from './FindInvoiceField'
+import { OutstandingCards } from './OutstandingCards'
+import { OutstandingGrid, type OutstandingGridProps, tickAllState } from './OutstandingGrid'
 
 export type OutstandingListMode = 'no-customer' | 'loading' | 'error' | 'none' | 'rows'
 
@@ -65,39 +70,79 @@ function ListMessage({ text, testID }: { text: string; testID: string }) {
     )
 }
 
+// The list's props: every listed row; the list draws those the find filter keeps.
+export type OutstandingListProps = Omit<OutstandingGridProps, 'tickAll'>
+
 interface OutstandingInvoicesProps {
     mode: OutstandingListMode
     customerName: string
     onRetry: () => void
-    grid: OutstandingGridProps
+    // Find invoice no.: the form owns it, so its customer pick handlers can clear it.
+    find: FindInvoiceFieldState
+    list: OutstandingListProps
+}
+
+// The rows the find filter keeps, and every row with a message under its Payment cell, so
+// a refusal is never hidden.
+function shownRows(list: OutstandingListProps, filterText: string): OutstandingRow[] {
+    const kept = new Set(filterRowsByNumber(list.rows, filterText).map(row => row.id))
+    return list.rows.filter(row => kept.has(row.id) || (list.rowErrors[row.id] ?? '') !== '')
 }
 
 /**
- * The list area of the payment form (spec §3.3): with no customer the hint, while loading
- * a skeleton of three rows, a failed read the error banner with Retry, a customer with no
- * open invoice the credit note, else the grid.
+ * The list area of the payment form (spec §3.3, §3.5): Find invoice no., then with no
+ * customer the hint, while loading a skeleton of three rows, a failed read the error banner
+ * with Retry, a customer with no open invoice the credit note, else the rows the find text
+ * keeps: a grid, or cards while the list's own width is below PAYMENT_CARDS_BELOW. A find
+ * text that keeps no row says so.
  */
 export function OutstandingInvoices({
     mode,
     customerName,
     onRetry,
-    grid,
+    find,
+    list,
 }: OutstandingInvoicesProps) {
-    const body = listBody(mode, customerName, onRetry, grid)
+    const { width, onLayout } = useContainerWidth()
+    const isCards = width > 0 && width < PAYMENT_CARDS_BELOW
+    const drawn = {
+        ...list,
+        rows: shownRows(list, find.filterText),
+        tickAll: tickAllState(list.rows, list.payments, list.currency),
+    }
+    const body = listBody({
+        mode,
+        customerName,
+        onRetry,
+        grid: drawn,
+        isCards,
+        filterText: find.filterText.trim(),
+    })
     return (
-        <View testID="payment-outstanding" className="gap-3">
+        <View testID="payment-outstanding" className="gap-3" onLayout={onLayout}>
             <Text className="text-sm font-semibold text-foreground">Outstanding invoices</Text>
+            <FindInvoiceField field={find} isFullWidth={isCards} isDisabled={list.isDisabled} />
             {body}
         </View>
     )
 }
 
-function listBody(
-    mode: OutstandingListMode,
-    customerName: string,
-    onRetry: () => void,
+function listBody({
+    mode,
+    customerName,
+    onRetry,
+    grid,
+    isCards,
+    filterText,
+}: {
+    mode: OutstandingListMode
+    customerName: string
+    onRetry: () => void
     grid: OutstandingGridProps
-) {
+    isCards: boolean
+    // The find text, trimmed.
+    filterText: string
+}) {
     if (mode === 'no-customer') {
         return (
             <ListMessage text={PAYMENT_MESSAGES.chooseCustomer} testID="payment-choose-customer" />
@@ -109,5 +154,10 @@ function listBody(
         const text = fillPaymentText(PAYMENT_MESSAGES.noOpenInvoices, customerName)
         return <ListMessage text={text} testID="payment-list-empty" />
     }
+    if (grid.rows.length === 0) {
+        const text = fillPaymentText(PAYMENT_MESSAGES.filterEmpty, filterText)
+        return <ListMessage text={text} testID="payment-filter-empty" />
+    }
+    if (isCards) return <OutstandingCards {...grid} />
     return <OutstandingGrid {...grid} />
 }

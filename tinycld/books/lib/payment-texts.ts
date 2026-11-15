@@ -32,6 +32,10 @@ export const PAYMENT_MESSAGES = {
     findMiss: 'No open invoice %s',
     findFailed: 'Books could not look up invoice %s. Try again.',
     customerInactive: '%s is inactive. Choose an active customer.',
+    // The find text, trimmed, when it keeps none of the customer's listed rows.
+    filterEmpty: 'No open invoice starts with %s',
+    // The invoice number field's limit (books_invoices.number max 40).
+    findTooLong: 'Invoice no. can be at most 40 characters',
 
     // Deposit to's option when the chart has no active Undeposited funds account.
     createdOnPost: 'Undeposited funds (created when you post)',

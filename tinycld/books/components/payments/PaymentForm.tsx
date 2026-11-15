@@ -21,6 +21,7 @@ import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
 import { ClearPaymentsLink } from './ClearPaymentsLink'
+import { useFindInvoiceField } from './FindInvoiceField'
 import { OutstandingInvoices, outstandingListMode } from './OutstandingInvoices'
 import { PaymentBand } from './PaymentBand'
 import { PaymentTotals } from './PaymentTotals'
@@ -109,6 +110,18 @@ export function PaymentForm({
         },
     })
     const { form, values, outstanding, totals } = paymentForm
+    const find = useFindInvoiceField({
+        customer: values.customer,
+        getCustomer: () => form.getValues('customer'),
+        onPicked: paymentForm.onFindPicked,
+    })
+    // A pick of another customer clears Find invoice no., so an old lookup text never
+    // becomes a filter of the new customer's list.
+    const onCustomerPicked = (id: string) => {
+        if (id !== form.getValues('customer')) find.clear()
+        return paymentForm.onCustomerPicked(id)
+    }
+    const band = { ...paymentForm, onCustomerPicked }
     // A running save, delete or post: every control waits for it, so an edit made during
     // the write is not lost when the form resets to what it submitted.
     const isWriting = save.isPending
@@ -127,7 +140,7 @@ export function PaymentForm({
     const figure = paymentFigureText(values.amount, currency)
     const summaryErrors = rootErrorOnly(errors)
     const memoStyle = isPhone ? undefined : MEMO_WIDE
-    const grid = {
+    const list = {
         rows: outstanding.rows,
         payments: values.payments,
         rowErrors,
@@ -167,7 +180,7 @@ export function PaymentForm({
                         isEnabled
                     />
                     <PaymentBand
-                        paymentForm={paymentForm}
+                        paymentForm={band}
                         depositOptions={deposit.options}
                         depositTriggerLabel={deposit.triggerLabel}
                         isPhone={isPhone}
@@ -177,7 +190,8 @@ export function PaymentForm({
                         mode={listMode}
                         customerName={paymentForm.customerName}
                         onRetry={outstanding.retry}
-                        grid={grid}
+                        find={find}
+                        list={list}
                     />
                     <ClearPaymentsLink
                         isVisible={listMode === 'rows'}

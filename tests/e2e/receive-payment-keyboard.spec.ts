@@ -109,6 +109,9 @@ test.describe('receive-payment: keyboard', () => {
         await expect(paymentRow(page, first.id)).toContainText('Overdue')
         await expect(paymentRow(page, second.id)).not.toContainText('Overdue')
 
+        // Find invoice no. is the stop after Amount received, before the rows.
+        await tabTo(page, page.getByTestId('payment-find'))
+
         // Each row's one Tab stop is its Payment cell; Enter moves down the rows.
         await tabTo(page, rowAmount(page, first.id))
         await page.keyboard.press('Enter')
@@ -172,6 +175,7 @@ test.describe('receive-payment: keyboard', () => {
         await tabTo(page, page.getByTestId('payment-reference'))
         await tabTo(page, page.getByTestId('payment-deposit-to'))
         await tabTo(page, amount)
+        await tabTo(page, page.getByTestId('payment-find'))
         await tabTo(page, rowAmount(page, first.id))
         await tabTo(page, rowAmount(page, second.id))
 

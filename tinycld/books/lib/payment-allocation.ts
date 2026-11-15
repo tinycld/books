@@ -108,6 +108,18 @@ export function isEveryRowPaid(
     return rows.length > 0 && rows.every(row => entryCents(payments[row.id], currency) > 0)
 }
 
+// Find invoice no. with a customer chosen: the rows whose number starts with the text
+// (trimmed); an empty text keeps every row. It takes rows, never payments, so a hidden
+// row keeps its payment.
+export function filterRowsByNumber(
+    rows: readonly OutstandingRow[],
+    text: string
+): OutstandingRow[] {
+    const prefix = text.trim()
+    if (prefix === '') return [...rows]
+    return rows.filter(row => row.number.startsWith(prefix))
+}
+
 // Amount received while the user has not typed it: the text of Amount to apply, '' at 0.
 export function followedAmount(payments: Payments, currency: string): string {
     const cents = amountToApply(payments, currency)

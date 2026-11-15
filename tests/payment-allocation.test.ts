@@ -5,6 +5,7 @@ import {
     amountToCredit,
     clearPayments,
     entryCents,
+    filterRowsByNumber,
     followedAmount,
     type OutstandingRow,
     payAll,
@@ -149,6 +150,49 @@ describe('amountToApply and entryCents', () => {
     it('counts a missing or unparsable entry as 0', () => {
         expect(entryCents(undefined, USD)).toBe(0)
         expect(entryCents(entry(OVERDUE, 'abc'), USD)).toBe(0)
+    })
+})
+
+describe('filterRowsByNumber', () => {
+    // A long-numbered invoice next to the three above (spec §3.5: a number prefix filter).
+    const LONG: OutstandingRow = {
+        id: 'invlong00000001',
+        number: 'HV-2026-RETAINER-001014',
+        date: '2026-11-14',
+        due_date: '2026-12-14',
+        total: 1_234_567_890,
+        open: 1_234_567_890,
+    }
+    const LISTED = [...ROWS, LONG]
+    const ids = (rows: readonly OutstandingRow[]) => rows.map(row => row.id)
+
+    it('keeps the rows whose number starts with the text, in list order', () => {
+        expect(ids(filterRowsByNumber(LISTED, '10'))).toEqual([OVERDUE.id, PARTLY.id, OPEN.id])
+        expect(ids(filterRowsByNumber(LISTED, '101'))).toEqual([OPEN.id])
+        expect(ids(filterRowsByNumber(LISTED, 'HV-'))).toEqual([LONG.id])
+    })
+
+    it('matches a prefix only, never a number that holds the text further in', () => {
+        expect(ids(filterRowsByNumber(LISTED, '014'))).toEqual([])
+        expect(ids(filterRowsByNumber(LISTED, '06'))).toEqual([])
+    })
+
+    it('trims spaces around the text', () => {
+        expect(ids(filterRowsByNumber(LISTED, '  1011  '))).toEqual([OPEN.id])
+    })
+
+    it('keeps every row for an empty or blank text', () => {
+        expect(ids(filterRowsByNumber(LISTED, ''))).toEqual(ids(LISTED))
+        expect(ids(filterRowsByNumber(LISTED, '   '))).toEqual(ids(LISTED))
+    })
+
+    it('leaves the payments of hidden rows as they were: it takes rows, never payments', () => {
+        const payments = tickRow(tickRow({}, OVERDUE), LONG)
+        const before = structuredClone(payments)
+        const shown = filterRowsByNumber(LISTED, '1011')
+        expect(ids(shown)).toEqual([OPEN.id])
+        expect(payments).toEqual(before)
+        expect(amountToApply(payments, USD)).toBe(48_000 + 1_234_567_890)
     })
 })
 

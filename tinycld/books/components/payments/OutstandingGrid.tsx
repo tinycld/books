@@ -22,7 +22,10 @@ const COL = {
 } as const
 
 export interface OutstandingGridProps {
+    // The drawn rows: the listed rows the find filter keeps.
     rows: OutstandingRow[]
+    // The header tick box's state over every listed row (`tickAllState`).
+    tickAll: SelectBoxState
     payments: Payments
     // A row's message under its Payment cell, by invoice id.
     rowErrors: Readonly<Record<string, string>>
@@ -70,7 +73,7 @@ export function InvoiceLink({
     )
 }
 
-function DueText({ dueDate, today }: { dueDate: string; today: string }) {
+export function DueText({ dueDate, today }: { dueDate: string; today: string }) {
     const isOverdue = dueDate !== '' && dueDate < today
     const tone = isOverdue ? 'text-destructive' : 'text-foreground'
     const overdue = isOverdue ? ' · Overdue' : ''
@@ -82,8 +85,14 @@ function DueText({ dueDate, today }: { dueDate: string; today: string }) {
     )
 }
 
-function tickAllState(rows: readonly OutstandingRow[], paid: (row: OutstandingRow) => boolean) {
-    const count = rows.filter(paid).length
+// The header tick box over every listed row, hidden by the find filter or not, since
+// pressing it pays or clears them all.
+export function tickAllState(
+    rows: readonly OutstandingRow[],
+    payments: Payments,
+    currency: string
+): SelectBoxState {
+    const count = rows.filter(row => entryCents(payments[row.id], currency) > 0).length
     if (count === 0) return 'empty'
     return count === rows.length ? 'checked' : 'mixed'
 }
@@ -128,7 +137,8 @@ function GridHeader({
     )
 }
 
-interface GridRowProps extends Omit<OutstandingGridProps, 'rows' | 'onTickAll' | 'rowErrors'> {
+export interface GridRowProps
+    extends Omit<OutstandingGridProps, 'rows' | 'tickAll' | 'onTickAll' | 'rowErrors'> {
     row: OutstandingRow
     error: string
     isLast: boolean
@@ -211,11 +221,10 @@ function GridRow({
  * inside the sideways scroller.
  */
 export function OutstandingGrid(props: OutstandingGridProps) {
-    const { rows, rowErrors, payments, currency, isDisabled, onTickAll } = props
+    const { rows, rowErrors, tickAll, isDisabled, onTickAll } = props
     // The rows sit in the page's scroller, not a scroller of their own, so the gutter the
     // hook measures stays 0 and only the content width is used.
     const { contentStyle } = useTableMinWidth(PAYMENT_GRID_MIN_WIDTH)
-    const tick = tickAllState(rows, row => entryCents(payments[row.id], currency) > 0)
     const lastId = rows[rows.length - 1]?.id
     const drawn = rows.map(row => (
         <GridRow
@@ -229,7 +238,7 @@ export function OutstandingGrid(props: OutstandingGridProps) {
     return (
         <ScrollView horizontal contentContainerStyle={contentStyle}>
             <View style={{ flex: 1 }}>
-                <GridHeader tick={tick} isDisabled={isDisabled} onTickAll={onTickAll} />
+                <GridHeader tick={tickAll} isDisabled={isDisabled} onTickAll={onTickAll} />
                 {drawn}
             </View>
         </ScrollView>
