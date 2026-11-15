@@ -178,22 +178,6 @@ function central(day: string, hour: number, minute: number): string {
     return new Date(ms).toISOString().replace('T', ' ')
 }
 
-/**
- * The reader's day and time to the minute ("Nov 14, 2026, 4:07 PM"). Stand-in for
- * core T1's `dateTimeText`, which checkpoint 0 adds; the route and the history
- * screen then read core's.
- */
-export function auditDateTimeText(instant: string): string {
-    return new Intl.DateTimeFormat('en-US', {
-        timeZone: AUDIT_LOG_TIME_ZONE,
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    }).format(new Date(instant.replace(' ', 'T')))
-}
-
 // --- The rows, newest first. ---
 
 interface RowInput {
@@ -706,9 +690,10 @@ function detailRow(row: AuditLogRow): ResultRow {
         id: `d:${row.id}`,
         kind: 'detail',
         depth: 0,
-        // Core T1 writes a date-time label in the reader's zone; until then the
-        // fixture writes the text itself.
-        label: auditDateTimeText(row.created),
+        // As the engine sends a typed label: core writes it in the reader's zone.
+        label: row.created,
+        labelType: 'datetime',
+        labelValue: row.created,
         open: `books/history/${row.history_type}/${row.history_id}`,
         cells: {
             created: row.created,
