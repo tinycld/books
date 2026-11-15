@@ -205,15 +205,23 @@ export function usePaymentForm({
     }
 
     // Find invoice no. found the invoice while no customer was chosen: its customer becomes
-    // the form's, and the invoice is paid in full. Amount received follows that payment.
+    // the form's. A typed Amount received above zero keeps its value and is re-applied to
+    // the invoice, up to its open balance (the rest is Amount to credit). Else the invoice
+    // is paid in full and Amount received follows that payment.
     const onFindPicked = (invoice: OutstandingRow, customer: string) => {
         if (getValues('customer') !== '') return
         const before = getValues('payments')
-        const payments = tickRow(clearPayments(), invoice)
+        const cents = moneyInputCents(getValues('amount'), currency)
+        const isTyped = getValues('amountTyped') && cents !== null && cents > 0
         write('customer', customer)
-        write('payments', payments)
-        write('amountTyped', false)
-        write('amount', followedAmount(payments, currency))
+        if (isTyped) {
+            write('payments', spreadAmount([invoice], cents))
+        } else {
+            const payments = tickRow(clearPayments(), invoice)
+            write('payments', payments)
+            write('amountTyped', false)
+            write('amount', followedAmount(payments, currency))
+        }
         revalidate(before, true)
     }
 

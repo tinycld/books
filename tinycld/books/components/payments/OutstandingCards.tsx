@@ -83,14 +83,40 @@ function InvoiceCard({
     )
 }
 
+// The cards' touch path to the wide grid's header tick box: the same state and handler,
+// so it pays every listed row, or clears them all when every row is paid.
+function TickAllBar({
+    tick,
+    isDisabled,
+    onTickAll,
+}: {
+    tick: SelectBoxState
+    isDisabled: boolean
+    onTickAll: () => void
+}) {
+    return (
+        <View className="flex-row items-center gap-1">
+            <SelectBox
+                state={tick}
+                label="Pay every listed invoice"
+                testID="payment-tick-all"
+                onPress={onTickAll}
+                isDisabled={isDisabled}
+                tabIndex={-1}
+            />
+            <Text className="text-sm text-foreground">Pay all</Text>
+        </View>
+    )
+}
+
 /**
- * The outstanding list below 640 px (spec §3.3): one card per invoice, with the tick box
- * and "Invoice 1004" on the first line, the due date, Original and Open balance as a
- * label-value pair, and the Payment input at full width. The tick box is a press target
- * only; the card's one Tab stop is its Payment input.
+ * The outstanding list below 640 px (spec §3.3): a "Pay all" tick box over the cards, then
+ * one card per invoice, with the tick box and "Invoice 1004" on the first line, the due
+ * date, Original and Open balance as a label-value pair, and the Payment input at full
+ * width. The tick boxes are press targets only; the card's one Tab stop is its Payment input.
  */
 export function OutstandingCards(props: OutstandingGridProps) {
-    const { rows, rowErrors } = props
+    const { rows, rowErrors, tickAll, isDisabled, onTickAll } = props
     const lastId = rows[rows.length - 1]?.id
     const drawn = rows.map(row => (
         <InvoiceCard
@@ -101,5 +127,10 @@ export function OutstandingCards(props: OutstandingGridProps) {
             isLast={row.id === lastId}
         />
     ))
-    return <View className="gap-3">{drawn}</View>
+    return (
+        <View className="gap-3">
+            <TickAllBar tick={tickAll} isDisabled={isDisabled} onTickAll={onTickAll} />
+            {drawn}
+        </View>
+    )
 }

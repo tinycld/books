@@ -64,12 +64,13 @@
 - cp 3 · read-390-*: the read detail band puts Customer and Payment date side by side at 390, the customer link ~12 px below the date value; the reference stacks Customer, Payment date, Payment in one column (the read band is cp 2's).
 - cp 3 · read-credit-390-*: with no method and no reference, the Payment line starts in lower case ("deposited to 1200 Undeposited funds") — shared `paymentText`.
 - cp 3 · populated-390-*: the card's tick box sits ~10 px right of the left edge of the due date, labels and input (the reference has the same inset).
-- cp 3 · reviewer A NOTE: a Find pick after a typed Amount received sets `amountTyped` false and Amount received to the invoice's balance (the typed amount is lost); the brief's Do step 3 says "Amount received follows", while spec §3.2/§3.4 keep a typed amount on a customer change. Option: when typed, keep the amount and re-apply it.
+- ~~cp 3 · reviewer A NOTE: a Find pick after a typed Amount received sets `amountTyped` false and Amount received to the invoice's balance (the typed amount is lost); the brief's Do step 3 says "Amount received follows", while spec §3.2/§3.4 keep a typed amount on a customer change. Option: when typed, keep the amount and re-apply it.~~ (resolved: driver correction 1, see Final review)
 - cp 3 · reviewer A NOTE: a typed amount's spread, ⌥A and the header tick box write payments into rows the filter hides. Option: act only on the shown rows, or show "n invoices hidden by the filter".
 - cp 3 · reviewer A NOTE: `useFindInvoice`'s `failed` path and the dropped-unreadable-customer path have no hook-level test (`findOutcome` covers `inactive`).
 - cp 3 · reviewer A NOTE: on the first frame the width is 0, so the wide grid draws, then the cards (a one-frame flash on a phone), per the plan's "above 0 and below 640" rule.
 - cp 3 · reviewer A NOTE: an applied card whose invoice is not yet filed draws "Invoice " and Original "$0.00" for a moment (as the grid row does).
-- cp 3 · runner: on a phone the outstanding list has no header tick box, so Pay all has no touch control (⌥A only); the spec names the header tick box for the wide grid only.
+- ~~cp 3 · runner: on a phone the outstanding list has no header tick box, so Pay all has no touch control (⌥A only); the spec names the header tick box for the wide grid only.~~ (resolved: driver correction 2, see Final review)
+- cp 3 corrections · populated/over/credit-390-*: the "Pay all" tick box above the cards sits ~12 px left of the card tick boxes and ~22 px right of the section edge (a third indent).
 - cp 3 · find-miss-1280-light (re-capture): the focused Find invoice no. field draws a blue 2 px ring while the focused Customer trigger draws a teal one — two focus colours on one form (core `TextInput` focus style vs the picker trigger).
 - cp 3 · fix review NOTE: new text `Invoice no. can be at most 40 characters` (`findTooLong`, `lib/payment-texts.ts`) for the find field's 40-character rule (the `books_invoices.number` limit); no spec or plan text exists; it follows the Reference no. wording.
 - cp 3 · new text `No open invoice starts with <text>` (`payment-filter-empty`, fix item 2) for a filter that keeps no row; no spec or plan text exists; it follows the spec's `No open invoice 1099`.
@@ -149,3 +150,11 @@
 
 ## Final review
 - eval:
+- cp 3 corrections (driver, 2026-11-15, staging cp3-spec-fixes.md; findings file staging cp/cp3-efix.md, causes: spec-logic 1, platform 1):
+  - 1. A Find invoice no. pick lost a typed Amount received. Fix: with `amountTyped` true and a valid typed amount above zero, `onFindPicked` (hooks/usePaymentForm.ts) sets the customer, keeps `amount` and `amountTyped`, and pays the found invoice `spreadAmount([invoice], cents)` (up to its open balance; the rest is credit, §3.4 re-apply). Runner decision: the re-apply covers the found invoice only, not the customer's other rows (the pick names that invoice; no list load). Otherwise unchanged (tick at open balance, Amount received follows).
+  - 2. No touch path for Pay all below 640 px. Fix: `OutstandingCards` draws a "Pay all" `SelectBox` (`payment-tick-all`, `tickAll` state, `onTickAll`) above the cards, the wide header's behavior. Declared: only the box is the press target, not the "Pay all" text.
+  - test writer: steps added to both tests of tests/e2e/receive-payment-phone.spec.ts (typed 100.00 kept and applied on a Find pick of a 125.00 invoice; Pay all at 390 pays both cards, a second press clears); red for the right reason: yes (row 125.00; no `payment-tick-all`)
+  - gate 1: tests unedited: yes · pass (packages:generate, check 5677 tests; e2e `receive-payment:` 9 passed). Helper file not edited, so no regression specs.
+  - gate 2: re-captured populated/over/credit-390 (6 shots, subset manifest staging cp/cp3-efix-capture.json); fresh critic (evidence cp3/critique-efix.md): invalid none · blocking none · 9 notes: the "Pay all" tick-box indent (new, Design notes); the rest repeat recorded notes (typed vs followed group separator; faint dark tick-box border, as the reference)
+  - fix review: round 1: clean
+  - lessons: 2 lines added to docs/helix-lessons.md
