@@ -20,10 +20,54 @@ export function inactiveRefusalMessage(activeChildren: number): string {
 export const BOX_NEEDS_EXPENSE_TYPE =
     'Only expense accounts can be reported on a 1099. Set this account to Not reported in Settings → 1099s first.'
 
-// Shown before a delete is tried; the server still decides and its own
-// refusal is shown if it differs.
-export function deleteBlockedMessage(usage: { lines: number; children: number }): string | null {
-    if (usage.lines > 0) return 'This account is used on journal lines'
-    if (usage.children > 0) return 'This account has sub-accounts'
+// The document refusals of accountLineReferences in server/accounts.go, in its
+// order; each count is of distinct documents.
+const DOCUMENT_REFUSALS = [
+    {
+        key: 'bills',
+        one: 'This account is on 1 bill and cannot be deleted. Make it inactive instead.',
+        many: 'This account is on %d bills and cannot be deleted. Make it inactive instead.',
+    },
+    {
+        key: 'expenses',
+        one: 'This account is on 1 expense and cannot be deleted. Make it inactive instead.',
+        many: 'This account is on %d expenses and cannot be deleted. Make it inactive instead.',
+    },
+    {
+        key: 'paidExpenses',
+        one: 'This account paid 1 expense and cannot be deleted. Make it inactive instead.',
+        many: 'This account paid %d expenses and cannot be deleted. Make it inactive instead.',
+    },
+] as const
+
+export const DELETE_BLOCKED_JOURNAL_LINES = 'This account is used on journal lines'
+export const DELETE_BLOCKED_SUB_ACCOUNTS = 'This account has sub-accounts'
+
+export interface AccountDeleteUsage {
+    lines: number
+    children: number
+    bills: number
+    expenses: number
+    paidExpenses: number
+}
+
+// Shown before a delete is tried, in the order of checkAccountDelete in
+// server/accounts.go: a posted document also has journal lines, and its text
+// says what holds the account. The server still decides and its own refusal is
+// shown if it differs.
+export function deleteBlockedMessage(usage: AccountDeleteUsage): string | null {
+    for (const refusal of DOCUMENT_REFUSALS) {
+        const n = usage[refusal.key]
+        if (n === 1) return refusal.one
+        if (n > 1) return refusal.many.replace('%d', String(n))
+    }
+    if (usage.lines > 0) return DELETE_BLOCKED_JOURNAL_LINES
+    if (usage.children > 0) return DELETE_BLOCKED_SUB_ACCOUNTS
     return null
+}
+
+// The journal line and sub-account reasons do not say that the account cannot
+// be deleted or what to do; the document texts say both.
+export function deleteReasonNeedsHint(reason: string): boolean {
+    return reason === DELETE_BLOCKED_JOURNAL_LINES || reason === DELETE_BLOCKED_SUB_ACCOUNTS
 }

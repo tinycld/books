@@ -57,10 +57,13 @@ describe('help/settings.md', () => {
         expect(body).toContain('(help://books:sales-receipts)')
     })
 
-    // Bill form checkpoint 5: Settings → Purchases and its Bill lines setting (spec §3.11).
-    it('covers the Purchases section and its Bill lines setting', () => {
+    // Expense form spec §3.10: Settings → Purchases, its Bills and expenses card and the
+    // Purchase lines setting that now covers bills and expenses.
+    it('covers the Purchases section, its Bills and expenses card and the Purchase lines setting', () => {
         expect(body).toMatch(/Settings → Purchases|the Purchases section|#+ Purchases\s*$/m)
-        expect(body).toContain('Bill lines')
+        expect(body).toContain('Bills and expenses')
+        expect(body).toContain('Purchase lines')
+        expect(body).not.toContain('Bill lines')
     })
 
     it('hand-writes no hostname other than {{server-host}}', () => {

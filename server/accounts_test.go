@@ -846,6 +846,65 @@ func TestAccount_DeleteRefusedWhileOnBillAccountLines(t *testing.T) {
 	}
 }
 
+// Spec §3.11: an account on an expense's account line, draft or posted,
+// cannot be deleted (the count is of expenses, not of lines), and neither can
+// the Paid from of any expense, draft or posted. The document check runs
+// before the journal-lines one, so an account that paid a posted expense gets
+// the expense text, not the journal-lines text.
+func TestAccount_DeleteRefusedWhileOnExpenses(t *testing.T) {
+	t.Run("on expense account lines", func(t *testing.T) {
+		ee := newExpenseEnv(t)
+		app := ee.app
+		utilities := mkNumberedAccount(t, app, "Utilities", "6300", "expense", "utilities")
+		deleteUtilities := func() error {
+			return app.Delete(reload(t, app, "books_accounts", utilities.Id))
+		}
+
+		// Two account lines of one draft expense count one expense.
+		first := ee.mkExpense(t, nil)
+		mkExpenseLine(t, app, first, 0, accountLine(utilities, 8000))
+		mkExpenseLine(t, app, first, 1, accountLine(utilities, 2500))
+		requireMessageOnlyRefusal(t, deleteUtilities(),
+			"This account is on 1 expense and cannot be deleted. Make it inactive instead.")
+		reload(t, app, "books_accounts", utilities.Id)
+
+		for _, vendor := range []*core.Record{ee.officeSupply, ee.summit} {
+			exp := ee.mkExpense(t, map[string]any{"vendor": vendor.Id})
+			mkExpenseLine(t, app, exp, 0, accountLine(utilities, 1500))
+		}
+		requireMessageOnlyRefusal(t, deleteUtilities(),
+			"This account is on 3 expenses and cannot be deleted. Make it inactive instead.")
+		reload(t, app, "books_accounts", utilities.Id)
+	})
+
+	t.Run("as Paid from", func(t *testing.T) {
+		ee := newExpenseEnv(t)
+		app := ee.app
+		operating := mkNumberedAccount(t, app, "Operating Checking", "1020", "bank", "checking")
+		deleteOperating := func() error {
+			return app.Delete(reload(t, app, "books_accounts", operating.Id))
+		}
+
+		first := ee.mkExpense(t, map[string]any{"paid_from": operating.Id})
+		mkExpenseLine(t, app, first, 0, accountLine(ee.software, 4000))
+		requireMessageOnlyRefusal(t, deleteOperating(),
+			"This account paid 1 expense and cannot be deleted. Make it inactive instead.")
+		reload(t, app, "books_accounts", operating.Id)
+
+		second := ee.mkExpense(t, map[string]any{"paid_from": operating.Id, "vendor": ee.summit.Id})
+		mkExpenseLine(t, app, second, 0, accountLine(ee.software, 6000))
+		third := ee.mkExpense(t, map[string]any{"paid_from": operating.Id, "vendor": ee.officeSupply.Id})
+		mkExpenseLine(t, app, third, 0, accountLine(ee.designTools, 2500))
+		mustPostExpense(t, app, third.Id, ee.users.bookkeeper.Id)
+		if n, err := app.CountRecords("books_journal_lines", dbx.HashExp{"account": operating.Id}); err != nil || n == 0 {
+			t.Fatalf("%d journal lines on Operating Checking after the post (err %v), want at least 1", n, err)
+		}
+		requireMessageOnlyRefusal(t, deleteOperating(),
+			"This account paid 3 expenses and cannot be deleted. Make it inactive instead.")
+		reload(t, app, "books_accounts", operating.Id)
+	})
+}
+
 // An active account is never below an inactive parent: the chart hides an
 // inactive account with everything under it.
 

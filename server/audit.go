@@ -63,6 +63,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_bill_lines": {
 			ExtractLabel: func(r *core.Record) string { return billLineLabel(app, r) },
 		},
+		"books_expenses": {ExtractLabel: expenseLabel, Redact: []string{"sort_key"}},
+		"books_expense_lines": {
+			ExtractLabel: func(r *core.Record) string { return expenseLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -196,6 +200,30 @@ func billLineLabel(app core.App, r *core.Record) string {
 		return fmt.Sprintf("%s: line %d", bill, r.GetInt("position")+1)
 	}
 	return bill + ": " + lineRowLabel(billKind, withLine(lines, r), r)
+}
+
+// expenseLabel names an expense by its number: "Expense 1004". A draft has no
+// number: "Draft expense".
+func expenseLabel(r *core.Record) string {
+	noun, _, draft := entryNouns(docTypeExpense)
+	if n := r.GetString("number"); n != "" {
+		return noun + " " + n
+	}
+	return draft
+}
+
+// expenseLineLabel is billLineLabel for an expense's line: "Expense 1004:
+// Account line 2".
+func expenseLineLabel(app core.App, r *core.Record) string {
+	expense := r.GetString("expense")
+	if rec, err := app.FindRecordById(expensesCollection, expense); err == nil {
+		expense = expenseLabel(rec)
+	}
+	lines, err := salesDocLines(app, expenseKind, r.GetString("expense"))
+	if err != nil {
+		return fmt.Sprintf("%s: line %d", expense, r.GetInt("position")+1)
+	}
+	return expense + ": " + lineRowLabel(expenseKind, withLine(lines, r), r)
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office
