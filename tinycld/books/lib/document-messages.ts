@@ -2,6 +2,7 @@ import type { DocumentTotals } from './document-lines'
 import {
     BILL_MESSAGES,
     ESTIMATE_MESSAGES,
+    EXPENSE_MESSAGES,
     INVOICE_MESSAGES,
     SALES_RECEIPT_MESSAGES,
 } from './document-texts'
@@ -28,7 +29,8 @@ export function customerInactiveText(name: string): string {
 
 // Where a server refusal of a sales document save shows: under the field it names, under
 // the line it numbers (zero-based), else in the form's error summary. A PocketBase field
-// error (`reference_no`, `payment_method`) is keyed by its field and never comes here.
+// error (`reference_no`, `payment_method`) is keyed by its field and comes here only when
+// a refusal arrives as a bare message.
 export type DocumentRefusalTarget =
     | 'customer'
     | 'vendor'
@@ -37,6 +39,9 @@ export type DocumentRefusalTarget =
     | 'due_date'
     | 'tax_rate'
     | 'deposit_to'
+    | 'paid_from'
+    | 'payment_method'
+    | 'reference_no'
     | 'expiration_date'
     | 'accepted_date'
     | { line: number }
@@ -61,25 +66,68 @@ const ACCEPTED_DATE_REFUSAL = /^Enter the accepted date\b/
 // the duplicate vendor's bill no. ("%s already has bill no. %s (%s).").
 const VENDOR_REFUSAL = /is inactive\. Choose an active vendor\.?$/
 const DUPLICATE_REF_REFUSAL = / already has bill no\. .+ \(.+\)\.?$/
+// server/expenses.go msgExpensePaidFromType and msgExpensePaidFromInactive (a line's
+// "Account line n: … is inactive." text numbers a row and never reaches this test).
+const PAID_FROM_REFUSAL =
+    /^Choose a bank or credit card account\b|is inactive\. Choose an active account\.?$/
+// server/expenses.go msgExpenseDuplicateCheckNo.
+const DUPLICATE_CHECK_REFUSAL = /^Check no\. .+ from .+ is already on .+\.?$/
+// The payment method's schema refusal names its label.
+const PAYMENT_METHOD_REFUSAL = /^Payment method\b/
 
-// A bill's own fields: Vendor, Due date and Vendor's bill no.; null for another text.
+// A bill's own fields: Due date and Vendor's bill no.; null for another text.
 function billRefusalTarget(message: string): DocumentRefusalTarget | null {
-    if (VENDOR_REFUSAL.test(message)) return 'vendor'
     if (DUPLICATE_REF_REFUSAL.test(message)) return 'ref_no'
     if (DUE_DATE_REFUSAL.test(message)) return 'due_date'
     return null
 }
 
-// The kind decides which fields it has (its `key`): only an invoice and a bill have a due
-// date, only a sales receipt has Deposit to, only an estimate has Expiration date and
-// Accepted date, only a bill has Vendor and Vendor's bill no. (and no customer or tax).
+// An expense's own fields: Paid from, Payment method, Ref no. and Payment date; null for
+// another text.
+function expenseRefusalTarget(message: string): DocumentRefusalTarget | null {
+    if (PAID_FROM_REFUSAL.test(message)) return 'paid_from'
+    if (DUPLICATE_CHECK_REFUSAL.test(message)) return 'reference_no'
+    if (PAYMENT_METHOD_REFUSAL.test(message)) return 'payment_method'
+    if (DATE_REFUSAL.test(message)) return 'date'
+    return null
+}
+
+// A text that numbers a row of one of the kind's line tables ("Account line 2: …"): the
+// caller sends it to that row (tableLineRefusal), so no header field takes it.
+function isTableLineText(message: string, kind: Pick<SalesDocumentKind, 'lineTables'>): boolean {
+    return tableLineRefusal(message, kind.lineTables) !== null
+}
+
+// The kind decides which fields it has (its `key` and `party`): only an invoice and a
+// bill have a due date, only a sales receipt has Deposit to, only an estimate has
+// Expiration date and Accepted date, only a bill has Vendor's bill no., only an expense
+// has Paid from and Ref no., and a kind whose party is a vendor has Vendor (and no
+// customer or tax).
 export function documentRefusalTarget(
     message: string,
-    kind: Pick<SalesDocumentKind, 'key'>
+    kind: Pick<SalesDocumentKind, 'key' | 'party' | 'lineTables'>
 ): DocumentRefusalTarget {
     const line = LINE_REFUSAL.exec(message)
     if (line) return { line: Number(line[1]) - 1 }
+    if (kind.party === 'vendor') return vendorKindRefusalTarget(message, kind)
+    return customerKindRefusalTarget(message, kind)
+}
+
+function vendorKindRefusalTarget(
+    message: string,
+    kind: Pick<SalesDocumentKind, 'key' | 'lineTables'>
+): DocumentRefusalTarget {
+    if (isTableLineText(message, kind)) return 'root'
+    if (VENDOR_REFUSAL.test(message)) return 'vendor'
     if (kind.key === 'bill') return billRefusalTarget(message) ?? 'root'
+    if (kind.key === 'expense') return expenseRefusalTarget(message) ?? 'root'
+    return 'root'
+}
+
+function customerKindRefusalTarget(
+    message: string,
+    kind: Pick<SalesDocumentKind, 'key'>
+): DocumentRefusalTarget {
     if (CUSTOMER_REFUSAL.test(message)) return 'customer'
     if (kind.key === 'sales_receipt' && DATE_REFUSAL.test(message)) return 'date'
     if (kind.key === 'invoice' && DUE_DATE_REFUSAL.test(message)) return 'due_date'
@@ -128,11 +176,16 @@ export function labelledLineRefusal(rowLabel: string | null, message: string): s
     return `${rowLabel}: ${message}`
 }
 
-const TOTALS_REFUSALS = new Set<string>(
-    [INVOICE_MESSAGES, SALES_RECEIPT_MESSAGES, ESTIMATE_MESSAGES, BILL_MESSAGES].flatMap(
-        messages => [messages.totalNegative, messages.totalTooLarge]
-    )
-)
+const TOTALS_REFUSALS = new Set<string>([
+    ...[
+        INVOICE_MESSAGES,
+        SALES_RECEIPT_MESSAGES,
+        ESTIMATE_MESSAGES,
+        BILL_MESSAGES,
+        EXPENSE_MESSAGES,
+    ].flatMap(messages => [messages.totalNegative, messages.totalTooLarge]),
+    EXPENSE_MESSAGES.totalZero,
+])
 
 const NO_TOTAL = '—'
 

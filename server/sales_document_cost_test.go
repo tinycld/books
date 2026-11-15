@@ -48,6 +48,8 @@ const (
 	replaceStatementBound = 3223
 )
 
+const msgStatementBound = "%d statements, want at most %d (the measured count plus 10 percent). A line write makes more statements than it did, or the count grows faster than the line count; if the new statements are needed, measure again and set the bound"
+
 // costedRun is timedRun with the count of every SQL statement the call ran.
 func costedRun(t *testing.T, app *tests.TestApp, r apiReq) (time.Duration, int) {
 	t.Helper()
@@ -77,7 +79,7 @@ func TestDocBatchCost_Create250LineInvoice(t *testing.T) {
 		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
 	}
 	if statements > createStatementBound {
-		t.Fatalf("%d statements, want at most %d: the work grows faster than the line count", statements, createStatementBound)
+		t.Fatalf(msgStatementBound, statements, createStatementBound)
 	}
 	saved := reload(t, pe.app, "books_invoices", id)
 	if saved.GetInt("subtotal") != 25000 || saved.GetInt("revision") != 1 {
@@ -117,7 +119,7 @@ func TestDocBatchCost_ReplaceAndPost250Lines(t *testing.T) {
 		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
 	}
 	if statements > replaceStatementBound {
-		t.Fatalf("%d statements, want at most %d: the work grows faster than the line count", statements, replaceStatementBound)
+		t.Fatalf(msgStatementBound, statements, replaceStatementBound)
 	}
 	posted := reload(t, pe.app, "books_invoices", inv.Id)
 	if posted.GetInt("subtotal") != 50000 || posted.GetInt("revision") != saw+1 {

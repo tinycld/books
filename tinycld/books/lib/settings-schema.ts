@@ -92,7 +92,7 @@ export function salesDepositValues(row: BooksSettings): SalesDepositValues {
     return { sales_deposit_account: row.sales_deposit_account ?? '' }
 }
 
-// "Bill lines" (bill form spec §3.11): the bill line tables a new bill shows.
+// "Purchase lines" (expense form spec §3.10): the line tables new bills and expenses show.
 export const purchaseLinesSchema = z.object({
     purchase_lines: z.enum(['both', 'accounts', 'products']),
 })

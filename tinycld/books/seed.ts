@@ -16,6 +16,7 @@ import {
     DECLINE_ESTIMATES,
     DECLINE_RESPONSES,
 } from './lib/estimate-public-link-fixture'
+import { EXPENSE_LINES, EXPENSE_SEED_IDS, EXPENSES } from './lib/expense-form-fixture'
 import { REVIEW_SEED_STATEMENT } from './lib/for-review-fixture'
 import {
     GENERAL_LEDGER_LONG_SECTION,
@@ -143,7 +144,7 @@ async function postSeedDraft(pb: PocketBase, entryId: string, userId: string): P
 // increased the draft's revision.
 async function postSeedDocument(
     pb: PocketBase,
-    collection: 'books_invoices' | 'books_sales_receipts' | 'books_bills',
+    collection: 'books_invoices' | 'books_sales_receipts' | 'books_bills' | 'books_expenses',
     id: string,
     userId: string
 ): Promise<void> {
@@ -227,6 +228,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedPartyContacts(pb, customerIds)
     await seedDeclinedEstimates(pb, customerIds)
     await seedBills(pb, ctx, accountIds)
+    await seedExpenses(pb, ctx, accountIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -870,6 +872,58 @@ export async function seedBills(
         if (fixture.status === 'void') {
             await pb
                 .collection('books_bills')
+                .update(created.id, { status: 'void', voided_by: ctx.user.id })
+        }
+    }
+}
+
+// Saves the EXPENSE_SEED_IDS fixture expenses, in order, through the writes the expense
+// form makes, as seedBills does: create the draft, create its lines, then post it, so the
+// server numbers each (1001 void, 1002, 1003 on a fresh book, as the fixture shows),
+// computes every product line's amount and the totals, and writes the journal entry; the
+// void one is then voided, and the draft stays a draft. Paid from and each account line
+// name their account by seed account number; `accountIds` maps it to the created
+// account's id.
+export async function seedExpenses(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    for (const id of EXPENSE_SEED_IDS) {
+        const fixture = EXPENSES.find(row => row.id === id)
+        if (fixture === undefined) throw new Error(`seed: expense ${id} is not in EXPENSES`)
+        const created = await pb.collection('books_expenses').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            paid_from: seededAccountId(accountIds, fixture.paid_from_number, `expense ${id}`),
+            payment_method: fixture.payment_method,
+            reference_no: fixture.reference_no,
+            memo: fixture.memo,
+        })
+        for (const line of EXPENSE_LINES.filter(row => row.expense === id)) {
+            const account = seededAccountId(
+                accountIds,
+                line.account_number,
+                `expense line ${line.id}`
+            )
+            const typed =
+                line.kind === 'account'
+                    ? { account, amount: line.amount }
+                    : { product: line.product, quantity: line.quantity, rate: line.rate }
+            await pb.collection('books_expense_lines').create({
+                expense: created.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...typed,
+            })
+        }
+        if (fixture.status === 'draft') continue
+        await postSeedDocument(pb, 'books_expenses', created.id, ctx.user.id)
+        if (fixture.status === 'void') {
+            await pb
+                .collection('books_expenses')
                 .update(created.id, { status: 'void', voided_by: ctx.user.id })
         }
     }

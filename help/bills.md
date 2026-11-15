@@ -7,6 +7,8 @@ order: 40
 
 To record what you owe a vendor, enter the vendor's bill as a bill. When you post it, Books gives it a number and records it in your books: Accounts payable goes up by the total, and each line's expense account gets its amount.
 
+If you already paid, and there is no bill to pay later, record an expense instead. See [Expenses](help://books:expenses).
+
 ## Enter a bill
 
 To enter a bill, choose New in the sidebar (the round + button on a phone) and pick Bill, under Vendors. In a web browser, the Vendor field has focus when the form opens, so you can start to type the vendor's name at once.
@@ -62,9 +64,9 @@ To start a new bill from one that you already have, open it and choose Copy. The
 
 To see the entry a bill posted, open it and choose View journal entry. A posted bill also shows in Journal Entries with the Type Bill and its number.
 
-## The Bill lines setting
+## The Purchase lines setting
 
-To choose which tables a new bill shows, open Settings → Purchases and set **Bill lines** on the Bills card: Accounts and products (the default), Accounts only, or Products only. Only a Books admin can change Bill lines; everyone else sees the setting.
+To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills and expenses card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense. Only a Books admin can change Purchase lines; everyone else sees the setting.
 
 The setting only changes what the form shows. A table that the setting hides still shows on a bill that already has lines in it (a saved draft, an edit or a copy), so you never lose lines. Once a table shows on a form, it stays until you leave the form, even after you remove its last line. A posted bill shows every table that has lines. See [Settings](help://books:settings).
 

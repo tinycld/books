@@ -34,6 +34,8 @@ const NAMES = [
     'books_estimate_responses',
     'books_bills',
     'books_bill_lines',
+    'books_expenses',
+    'books_expense_lines',
     'books_party_balances',
     'books_party_contacts',
 ]

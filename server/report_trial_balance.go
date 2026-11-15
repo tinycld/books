@@ -14,9 +14,41 @@ func trialBalanceShipped() reports.Shipped {
 		Title:       "Trial Balance",
 		Description: "Each account's balance on one day, as a debit or a credit.",
 		Spec:        mustJSON(trialBalanceSpec()),
-		Revision:    1,
+		// 2: opened lines open the transaction that posted them (detail.open),
+		// and an account's Debit or Credit opens Transaction Detail by Account
+		// (drill).
+		Revision:    2,
 		Unpublished: true,
 	}
+}
+
+// trialBalanceDrill opens Transaction Detail by Account from an account row's
+// Debit or Credit: its posted lines from its first one (an income or expense
+// account's first in the as-of day's fiscal year) up to the as-of day, so the
+// section total is the figure by the account's normal side. sign is the
+// comparison ("gte" for Debit, "lt" for Credit) the column's own formula puts
+// on the net to choose its side: core writes a cell's drill whatever the cell
+// shows, so the side that draws no figure gets no accounts and opens nothing.
+// The retained-earnings row sums earlier years' income and expense lines of
+// other accounts, so it opens nothing.
+func trialBalanceDrill(sign string) *reports.Drill {
+	asOf := prm("asOf")
+	net := op("sum", op("sub", fld("debit"), fld("credit")))
+	from := op("if",
+		op("in", rec("byAccount", "type"), lit(profitAndLossTypes())),
+		firstLineFY(asOf),
+		firstLine(asOf),
+	)
+	return tdDrillTarget(map[string]map[string]reports.DrillValue{
+		"byAccount": {
+			"period": {Range: &reports.DrillRange{From: from, To: asOf}},
+			"accounts": {Formula: op("if",
+				op("eq", rec("byAccount", "detail_type"), lit("retained_earnings")),
+				lit(nil),
+				op("if", op(sign, net, lit(0)), tdAccount(), lit(nil)),
+			)},
+		},
+	}, nil)
 }
 
 // trialBalanceSpec is one row per account: its net of the posted lines on or
@@ -50,19 +82,7 @@ func trialBalanceSpec() *reports.Spec {
 				},
 				Default: mustJSON("nonzero"),
 			},
-			{
-				ID: "accounts", Type: reports.ParamChoice, Label: "Accounts", Multiple: true,
-				OptionsFrom: &reports.OptionsFrom{
-					Source:     "books.accounts",
-					Value:      path("id"),
-					Label:      path("full_name"),
-					Group:      path("type"),
-					GroupLabel: "All {group} accounts",
-					// Chart order (the type select's declared order), not
-					// alphabetical, so the picker reads like the chart.
-					GroupOrder: &reports.GroupOrder{By: reports.GroupOrderDeclared},
-				},
-			},
+			accountsParam(),
 		},
 		Filter: op("and",
 			op("eq", fld("posted"), lit(true)),
@@ -80,10 +100,12 @@ func trialBalanceSpec() *reports.Spec {
 					lit(nil),
 					op("if", op("gte", op("sum", net), lit(0)), op("sum", net), lit(nil)),
 				),
+				Drill: trialBalanceDrill("gte"),
 			},
 			{
 				ID: "credit", Label: "Credit", Total: reports.TotalRows,
 				Formula: op("if", op("lt", op("sum", net), lit(0)), op("sub", lit(0), op("sum", net)), lit(nil)),
+				Drill:   trialBalanceDrill("lt"),
 			},
 		},
 		Groups: []reports.Group{{
@@ -111,11 +133,14 @@ func trialBalanceSpec() *reports.Spec {
 			{Formula: fld("date")},
 			{Formula: fld("entry", "sequence")},
 		},
-		Detail: &reports.Detail{Label: op("concat",
-			fld("date"), lit(" · "),
-			fld("entry", "number"), lit(" · "),
-			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
-		)},
+		Detail: &reports.Detail{
+			Label: op("concat",
+				fld("date"), lit(" · "),
+				fld("entry", "number"), lit(" · "),
+				lineDescriptionFormula(),
+			),
+			Open: entryOpenPath(),
+		},
 		// A long account name wraps onto up to three lines on a phone rather
 		// than losing its end to an ellipsis (column-fit decision 3; three
 		// lines fit "Software Subscriptions:Design Tools" at 390 px).

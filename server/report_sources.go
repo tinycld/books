@@ -65,6 +65,9 @@ func reportSources() []reports.Source {
 				{Key: "currency", Label: "Currency", Type: reports.Text},
 				{Key: "auto_reverse_on", Label: "Auto-reverse on", Type: reports.Date, TextDay: true},
 				{Key: "posted_at", Label: "Posted at", Type: reports.DateTime, Aggregates: reports.MinMax},
+				// The id of the document the entry posts (empty for other
+				// entries), so a line opens its document's screen.
+				{Key: "document", Label: "Document", Type: reports.Text},
 			},
 			Links: []reports.Link{
 				{Key: "lines", Label: "Lines", Target: "books.journal_lines", Cardinality: reports.ToMany, BackField: "entry"},
@@ -285,6 +288,7 @@ func entryDocTypeOptions() []reports.Option {
 		{Value: docTypeInvoice, Label: entryTypeLabels.DocTypes[docTypeInvoice]},
 		{Value: docTypeSalesReceipt, Label: entryTypeLabels.DocTypes[docTypeSalesReceipt]},
 		{Value: docTypeBill, Label: entryTypeLabels.DocTypes[docTypeBill]},
+		{Value: docTypeExpense, Label: entryTypeLabels.DocTypes[docTypeExpense]},
 	}
 }
 

@@ -1,6 +1,5 @@
-// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
-import { documentFormTitle } from '../tinycld/books/components/documents/DocumentForm'
+import { documentFormTitle } from '../tinycld/books/lib/document-form-title'
 import { ESTIMATE_KIND, INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
 
 // The form's title (spec §3.3): an estimate has no draft, so it reads "New estimate"

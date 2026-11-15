@@ -187,8 +187,8 @@ func TestJournalSpecLoads(t *testing.T) {
 	if shipped.Description != "Every posted entry with its debit and credit lines, for a period." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 2 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(journalSpec())
 	if err != nil {
@@ -714,13 +714,42 @@ func TestJournalShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Journal" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Journal" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
 		t.Fatalf("reconcileBooksReportShares: %v", err)
 	}
 	requireViewer(t, app, row, reader, "a Books reader")
+}
+
+// A posted journal entry's line opens the entry's read view; the entry's
+// heading row (it keeps its fold), its subtotal and the Total do not open.
+func TestJournalLineOpens(t *testing.T) {
+	b := newGLBook(t)
+	operating := b.account(t, "Operating", "1000", "bank", "checking")
+	rent := b.account(t, "Office rent", "6000", "expense", "rent_lease")
+	entry := b.post(t, "2026-08-04", ln{rent, 4000, 0}, ln{operating, 0, 4000})
+
+	res := runJournal(t, b.app, b.reader, map[string]any{"period": jnAugust}, reports.Options{Today: glToday})
+	block := blockFor(t, res, entry)
+	if len(block.lines) != 2 {
+		t.Fatalf("the entry's block holds %d lines, want 2", len(block.lines))
+	}
+	want := "books/entries/" + entry.Id
+	for _, r := range block.lines {
+		if r.Open != want {
+			t.Errorf("line %s opens %q, want %q", r.ID, r.Open, want)
+		}
+	}
+	if block.head.Open != "" {
+		t.Errorf("the entry's heading row opens %q, want no open (it folds)", block.head.Open)
+	}
+	for _, r := range res.Rows {
+		if r.Kind != reports.KindDetail && r.Open != "" {
+			t.Errorf("%s row %q opens %q, want no open", r.Kind, r.Label, r.Open)
+		}
+	}
 }
 
 // jnPages walks every page of the Journal from opts' first page to its last.

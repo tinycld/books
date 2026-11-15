@@ -224,3 +224,8 @@
 - eval:
 - human comments and what changed
 - native: not executed in this run
+
+## Merge origin/main (2026-11-15)
+- origin/main brought p3-expense (`2100000017_create_books_expenses.js`) and p5-drill-down (books#52: `books.transaction_detail`, `entryOpenPath()`, `server/entry_routes.json`). This unit's migration is renumbered `2100000017_add_books_tax_line_gross.js` → `2100000018_add_books_tax_line_gross.js` (Books is unreleased; checkpoint 1's line above names the old number).
+- conflicts kept both sides: `help/reports.md` (tags; "Who sees" lists Transaction Detail by Account and the Sales Tax Liability), `server/register.go` (both shipped reports), `tests/e2e/books-report-helpers.ts` (both fixture imports), `tests/help-reports.test.ts` (both test sets).
+- `entryOpenPath()` reads a journal entry's `origin`/`doc_type`/`document`; this report's rows are sales documents, so it is not a drop-in. `stlDetailOpen()` keeps its own `kind` switch and takes its route segments from `entryRoutes` (entry_routes.json).

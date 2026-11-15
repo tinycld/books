@@ -1,0 +1,167 @@
+{
+    "outDir": "report-drill-down-reference",
+    "shots": [
+        {
+            "name": "statement",
+            "url": "/a/books/helix-mockup?state=statement",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement",
+            "url": "/a/books/helix-mockup?state=statement",
+            "ready": "report-table",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/helix-mockup?state=panel",
+            "ready": "report-drill-panel",
+            "widths": [1440],
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "panel-section",
+            "url": "/a/books/helix-mockup?state=panel-section",
+            "ready": "report-drill-panel",
+            "widths": [1440],
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "panel-empty",
+            "url": "/a/books/helix-mockup?state=panel-empty",
+            "ready": "report-drill-panel",
+            "widths": [1440],
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "panel-loading",
+            "url": "/a/books/helix-mockup?state=panel-loading",
+            "ready": "report-drill-panel",
+            "widths": [1440],
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "panel-error",
+            "url": "/a/books/helix-mockup?state=panel-error",
+            "ready": "report-error",
+            "widths": [1440],
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "panel-no-access",
+            "url": "/a/books/helix-mockup?state=panel-no-access",
+            "ready": "report-no-access",
+            "widths": [1440],
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "panel-page",
+            "url": "/a/books/helix-mockup?state=panel-page",
+            "ready": "report-drill-panel",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen",
+            "url": "/a/books/helix-mockup?state=screen",
+            "ready": "report-table",
+            "widths": [1280],
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen",
+            "url": "/a/books/helix-mockup?state=screen",
+            "ready": "report-table",
+            "widths": [1024],
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen",
+            "url": "/a/books/helix-mockup?state=screen",
+            "ready": "report-table",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-section",
+            "url": "/a/books/helix-mockup?state=screen-section",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-section",
+            "url": "/a/books/helix-mockup?state=screen-section",
+            "ready": "report-table",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-month",
+            "url": "/a/books/helix-mockup?state=screen-month",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-empty",
+            "url": "/a/books/helix-mockup?state=screen-empty",
+            "ready": "report-screen",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-empty",
+            "url": "/a/books/helix-mockup?state=screen-empty",
+            "ready": "report-screen",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-loading",
+            "url": "/a/books/helix-mockup?state=screen-loading",
+            "ready": "report-screen",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-error",
+            "url": "/a/books/helix-mockup?state=screen-error",
+            "ready": "report-error",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-error",
+            "url": "/a/books/helix-mockup?state=screen-error",
+            "ready": "report-error",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-timeout",
+            "url": "/a/books/helix-mockup?state=screen-timeout",
+            "ready": "report-timeout",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "screen-no-access",
+            "url": "/a/books/helix-mockup?state=screen-no-access",
+            "ready": "report-no-access",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        }
+    ]
+}

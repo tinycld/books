@@ -1,0 +1,722 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "./new",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "new-card",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "2100 Company Card" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6210 Design Tools" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Figma seats, November" },
+                { "fillLabel": "Amount, row 1", "value": "45.00" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "./new-card",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "2100 Company Card" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6210 Design Tools" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Figma seats, November" },
+                { "fillLabel": "Amount, row 1", "value": "45.00" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "draft",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Cash" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Storage unit 14B, November" },
+                { "fillLabel": "Amount, row 1", "value": "185.00" },
+                { "fill": "form-input-memo", "value": "Paid at the storage office front desk" },
+                { "click": "expense-save-draft" },
+                { "waitFor": "Draft expense" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "2051" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 1",
+                    "value": "Electricity, suite 210, September 4 to October 3"
+                },
+                { "fillLabel": "Amount, row 1", "value": "148.37" },
+                { "click": "form-table-account_lines-add" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 2" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 2",
+                    "value": "Credit for the August meter misread"
+                },
+                { "fillLabel": "Amount, row 2", "value": "-10.00" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/expenses/new?replaces=$urlId" },
+                { "waitFor": "expense-replace-note" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./correction",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "2052" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 1",
+                    "value": "Electricity, suite 210, September 4 to October 3"
+                },
+                { "fillLabel": "Amount, row 1", "value": "148.37" },
+                { "click": "form-table-account_lines-add" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 2" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 2",
+                    "value": "Credit for the August meter misread"
+                },
+                { "fillLabel": "Amount, row 2", "value": "-10.00" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/expenses/new?replaces=$urlId" },
+                { "waitFor": "expense-replace-note" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "1042" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Electricity, suite 210, November" },
+                { "fillLabel": "Amount, row 1", "value": "152.10" },
+                { "click": "expense-save-draft" },
+                { "waitFor": "form-field-reference_no-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./errors",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "1042" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Electricity, suite 210, November" },
+                { "fillLabel": "Amount, row 1", "value": "152.10" },
+                { "click": "expense-save-draft" },
+                { "waitFor": "form-field-reference_no-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "no-lines",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "click": "expense-post" },
+                { "waitFor": "expense-line-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "no-pay-accounts",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1100,
+            "emptyRecords": "books_accounts",
+            "actions": [{ "waitFor": "expense-paid-from-error" }, { "pause": 300 }]
+        },
+        {
+            "name": "conflict",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "writes": { "collection": "books_expenses", "answers": [409] },
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "2100 Company Card" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Conference room cabling" },
+                { "fillLabel": "Amount, row 1", "value": "64.20" },
+                { "fill": "form-input-memo", "value": "Conference room cabling" },
+                { "click": "expense-post" },
+                { "waitFor": "expense-conflict" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "phone-more",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 844,
+            "actions": [
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Cash" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Storage unit 14B, November" },
+                { "fillLabel": "Amount, row 1", "value": "185.00" },
+                { "fill": "form-input-memo", "value": "Storage unit, phone draft" },
+                { "click": "expense-save-draft" },
+                { "waitFor": "Draft expense" },
+                { "pause": 500 },
+                { "click": "expense-more" },
+                { "waitFor": "expense-delete-draft" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "delete",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 900,
+            "opaque": "delete-draft-dialog",
+            "actions": [
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Cash" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Storage unit 14B, December" },
+                { "fillLabel": "Amount, row 1", "value": "185.00" },
+                { "fill": "form-input-memo", "value": "Storage unit, draft to delete" },
+                { "click": "expense-save-draft" },
+                { "waitFor": "Draft expense" },
+                { "pause": 500 },
+                { "click": "expense-more" },
+                { "click": "expense-delete-draft" },
+                { "waitFor": "delete-draft-dialog" }
+            ]
+        },
+        {
+            "name": "posted",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1100,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "2061" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 1",
+                    "value": "Electricity, suite 210, September 4 to October 3, meter 114-387; includes the after-hours HVAC run for the server closet"
+                },
+                { "fillLabel": "Amount, row 1", "value": "148.37" },
+                { "click": "form-table-account_lines-add" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 2" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 2",
+                    "value": "Credit for the August meter misread"
+                },
+                { "fillLabel": "Amount, row 2", "value": "-10.00" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./posted",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1100,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "2062" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 1",
+                    "value": "Electricity, suite 210, September 4 to October 3, meter 114-387; includes the after-hours HVAC run for the server closet"
+                },
+                { "fillLabel": "Amount, row 1", "value": "148.37" },
+                { "click": "form-table-account_lines-add" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 2" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                {
+                    "fillLabel": "Description, row 2",
+                    "value": "Credit for the August meter misread"
+                },
+                { "fillLabel": "Amount, row 2", "value": "-10.00" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted-card",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "2100 Company Card" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "Visa 5521" },
+                {
+                    "fillLabel": "Description, row 1",
+                    "value": "Desk organizers and monitor risers"
+                },
+                { "fillLabel": "Amount, row 1", "value": "79.98" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "fillLabel": "Qty, row 1", "value": "10" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Design desk supplies and cables for the new conference room"
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./posted-card",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1100,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "2100 Company Card" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "Visa 5522" },
+                {
+                    "fillLabel": "Description, row 1",
+                    "value": "Desk organizers and monitor risers"
+                },
+                { "fillLabel": "Amount, row 1", "value": "79.98" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "fillLabel": "Qty, row 1", "value": "10" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Design desk supplies and cables for the new conference room"
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "replaced",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1100,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "2071" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Electricity, suite 210, October" },
+                { "fillLabel": "Amount, row 1", "value": "148.37" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/expenses/new?replaces=$urlId" },
+                { "waitFor": "expense-replace-note" },
+                { "pause": 500 },
+                { "fillLabel": "Amount, row 1", "value": "158.37" },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 },
+                { "back": true },
+                { "waitFor": "expense-replaced-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "reader",
+            "widths": [390],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1100,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "2081" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Electricity, suite 210, October" },
+                { "fillLabel": "Amount, row 1", "value": "148.37" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 },
+                {
+                    "fake": {
+                        "collection": "books_access",
+                        "items": [
+                            {
+                                "collectionId": "pbc_books_access",
+                                "collectionName": "books_access",
+                                "id": "$authId",
+                                "user": "$authId",
+                                "level": "read_only",
+                                "can_read": true,
+                                "can_write": false,
+                                "is_admin": false
+                            }
+                        ]
+                    }
+                },
+                { "reload": true },
+                { "waitFor": "expense-read-only" },
+                { "waitForHidden": "expense-read-edit" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./reader",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1100,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "2082" },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Electricity, suite 210, October" },
+                { "fillLabel": "Amount, row 1", "value": "148.37" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 },
+                {
+                    "fake": {
+                        "collection": "books_access",
+                        "items": [
+                            {
+                                "collectionId": "pbc_books_access",
+                                "collectionName": "books_access",
+                                "id": "$authId",
+                                "user": "$authId",
+                                "level": "read_only",
+                                "can_read": true,
+                                "can_write": false,
+                                "is_admin": false
+                            }
+                        ]
+                    }
+                },
+                { "reload": true },
+                { "waitFor": "expense-read-only" },
+                { "waitForHidden": "expense-read-edit" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "loading",
+            "widths": [1280],
+            "url": "/a/books/expenses/doesnotexist000",
+            "ready": "expense-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": { "collection": "books_expenses", "hold": true }
+        },
+        {
+            "name": "error",
+            "widths": [1280],
+            "url": "/a/books/expenses/doesnotexist000",
+            "ready": "expense-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": { "collection": "books_expenses", "status": 400 }
+        },
+        {
+            "name": "not-found",
+            "widths": [1280],
+            "url": "/a/books/expenses/doesnotexist000",
+            "ready": "expense-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "no-access",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "cannot-edit",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 700,
+            "actions": [
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Cash" },
+                { "pause": 300 },
+                { "clickLabel": "Account, row 1" },
+                { "clickMenuItem": "6100 Rent" },
+                { "pause": 300 },
+                { "fillLabel": "Description, row 1", "value": "Storage unit 14B, January" },
+                { "fillLabel": "Amount, row 1", "value": "185.00" },
+                { "fill": "form-input-memo", "value": "Storage unit, draft not to correct" },
+                { "click": "expense-save-draft" },
+                { "waitFor": "Draft expense" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/expenses/new?replaces=$urlId" },
+                { "waitFor": "expense-cannot-edit" },
+                { "pause": 300 }
+            ]
+        }
+    ]
+}

@@ -40,7 +40,9 @@ func balanceSheetShipped() reports.Shipped {
 		Title:       "Balance Sheet",
 		Description: "What the business owns and owes on one day, beside the same day a year earlier.",
 		Spec:        mustJSON(balanceSheetSpec()),
-		Revision:    1,
+		// 2: an account's Current and Prior year open Transaction Detail by
+		// Account (drill).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -83,13 +85,14 @@ func balanceSheetSpec() *reports.Spec {
 		),
 		Columns: []reports.Column{
 			{ID: "account", Label: "Account", Path: reports.Path{{Link: "account"}}},
-			{ID: "current", Label: "Current", Heading: d, Formula: op("coalesce", op("sum", signed), lit(0))},
+			{ID: "current", Label: "Current", Heading: d, Formula: op("coalesce", op("sum", signed), lit(0)), Drill: balanceDrill(d)},
 			{
 				ID: "prior", Label: "Prior year", Heading: dPrior,
 				Formula: op("coalesce",
 					op("sum", op("if", op("lte", fld("date"), dPrior), signed, lit(nil))),
 					lit(0),
 				),
+				Drill: balanceDrill(dPrior),
 			},
 			{ID: "change", Label: "Change", Detail: reports.DetailBlank, Formula: op("sub", col("current"), col("prior"))},
 			{ID: "pct", Label: "% change", Format: "percent", Detail: reports.DetailBlank, Formula: percentChange()},
@@ -161,6 +164,21 @@ func balanceSheetSpec() *reports.Spec {
 		)},
 		Display: balanceSheetDisplay(),
 	}
+}
+
+// balanceDrill opens Transaction Detail by Account from an account row's
+// balance on day d: the account's posted lines from its first one up to d, so
+// the section total is the balance. An account with no posted line on or
+// before d still opens (its 0.00 figure): the range is then d to d, an empty
+// run. Class, kind and section rows do not drill: their groups are no account
+// type.
+func balanceDrill(d *reports.Node) *reports.Drill {
+	return tdDrillTarget(map[string]map[string]reports.DrillValue{
+		"byAccount": {
+			"period":   {Range: &reports.DrillRange{From: op("coalesce", firstLine(d), d), To: d}},
+			"accounts": tdAccountOf(),
+		},
+	}, nil)
 }
 
 // balanceSheetDisplay keeps every figure whole: the label narrows with an

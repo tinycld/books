@@ -27,6 +27,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerSalesDocGuards(app, salesReceiptKind)
 	registerSalesDocGuards(app, estimateKind)
 	registerSalesDocGuards(app, billKind)
+	registerSalesDocGuards(app, expenseKind)
 	registerPartyBalances()
 	registerEstimateResponses(app)
 	// Declare the public view's source tables so CheckViews and the change
@@ -42,6 +43,7 @@ func Register(app *pocketbase.PocketBase) {
 	reports.RegisterShipped(journalShipped())
 	reports.RegisterShipped(profitAndLossShipped())
 	reports.RegisterShipped(profitAndLossByMonthShipped())
+	reports.RegisterShipped(transactionDetailShipped())
 	reports.RegisterShipped(salesTaxLiabilityShipped())
 	registerReportShares(app)
 	registerAudit(app)
