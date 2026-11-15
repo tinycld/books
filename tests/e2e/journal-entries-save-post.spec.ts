@@ -181,8 +181,8 @@ test.describe('journal-entries: save and post (desktop)', () => {
         await fillLine(page, 1, { credit: '$5.00' })
         await page.getByTestId('entry-save-draft').click()
         // The new-entry form shows the same Draft badge, so only the move to `entries/<id>` says
-        // the save finished. Back pressed before that pops the new form, and the save's late
-        // replace then covers the list with the draft.
+        // the save finished. A Back press before the save resolves is safe (the screen drops
+        // the late replace), but one that spans the replace to `entries/<id>` is lost.
         await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
         await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
         await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
@@ -320,6 +320,12 @@ test.describe('journal-entries: save and post (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Double save ${sizeName}`)
         await fillBalanced(page, memo)
+        // The save writes the entry and its lines in one batch request, so a second write
+        // shows as a second non-GET batch request even before the list could show it.
+        let writes = 0
+        page.on('request', request => {
+            if (request.method() !== 'GET' && request.url().includes('/api/batch')) writes += 1
+        })
 
         await page.getByTestId('entry-save-draft').dblclick()
 
@@ -328,8 +334,10 @@ test.describe('journal-entries: save and post (desktop)', () => {
         await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
         await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
         await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
+        expect(writes).toBe(1)
         await backToList(page)
         await expect(listItems(page, memo)).toHaveCount(1)
+        expect(writes).toBe(1)
     })
 
     test('leaving while a save is in flight does not navigate to the draft afterwards', async ({
