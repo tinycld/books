@@ -56,8 +56,16 @@ func timedRun(t *testing.T, app *tests.TestApp, r apiReq) time.Duration {
 	return time.Since(started)
 }
 
-// costBound is half the batch timeout: room for a slower machine.
-const costBound = 1500 * time.Millisecond
+// The wall time of a batch changes with the machine (the 1,000-line create
+// took 0.45s on a laptop and 1.5s on a CI runner), so the cost tests log it and
+// bound the SQL statements of the batch instead: the count is the same on every
+// machine, and it grows when a line write gets a new query. Measured
+// 2026-11-15; each bound is the measured value plus 10 percent.
+const (
+	draftCreateStatementBound  = 10455
+	draftPostStatementBound    = 9924
+	draftReplaceStatementBound = 5304
+)
 
 func TestBatchCost_Create1000LineDraft(t *testing.T) {
 	env := newLedgerEnv(t)
@@ -73,13 +81,13 @@ func TestBatchCost_Create1000LineDraft(t *testing.T) {
 		}
 	}
 
-	took := timedRun(t, env.app, apiReq{
+	took, statements := costedRun(t, env.app, apiReq{
 		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, env.users.bookkeeper),
 		body: batchBody(ops...), want: http.StatusOK, content: []string{entryID},
 	})
-	t.Logf("create of a 1,000-line draft in one batch: %s", took)
-	if took > costBound {
-		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
+	t.Logf("create of a 1,000-line draft in one batch: %s, %d statements", took, statements)
+	if statements > draftCreateStatementBound {
+		t.Fatalf(msgStatementBound, statements, draftCreateStatementBound)
 	}
 	if got := reload(t, env.app, "books_journal_entries", entryID).GetInt("total"); got != 500 {
 		t.Fatalf("draft total = %d, want 500", got)
@@ -93,14 +101,14 @@ func TestBatchCost_Post1000LineDraft(t *testing.T) {
 	entry := bigDraft(t, env, 1000)
 	t.Logf("build of a 1,000-line draft, one transaction for each line: %s", time.Since(built))
 
-	took := timedRun(t, env.app, apiReq{
+	took, statements := costedRun(t, env.app, apiReq{
 		method: http.MethodPatch, url: "/api/collections/books_journal_entries/records/" + entry.Id,
 		token: tokenFor(t, env.users.bookkeeper),
 		body:  postBody(t, env.app, entry.Id), want: http.StatusOK, content: []string{`"status":"posted"`},
 	})
-	t.Logf("post of a 1,000-line draft: %s", took)
-	if took > costBound {
-		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
+	t.Logf("post of a 1,000-line draft: %s, %d statements", took, statements)
+	if statements > draftPostStatementBound {
+		t.Fatalf(msgStatementBound, statements, draftPostStatementBound)
 	}
 	requireNoDrift(t, env.app)
 	if d, c := balanceOf(t, env.app, env.checking, "2026-05"); d != 500 || c != 0 {
@@ -129,13 +137,13 @@ func TestBatchCost_ReplaceAndPost200Lines(t *testing.T) {
 	}
 	ops = append(ops, fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_journal_entries/records/%s","body":{"status":"posted","revision":%d}}`, entry.Id, saw+1))
 
-	took := timedRun(t, env.app, apiReq{
+	took, statements := costedRun(t, env.app, apiReq{
 		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, env.users.bookkeeper),
 		body: batchBody(ops...), want: http.StatusOK, content: []string{`"status":"posted"`},
 	})
-	t.Logf("replace of 200 lines and the post in one batch: %s", took)
-	if took > costBound {
-		t.Fatalf("took %s, want under %s", took, costBound)
+	t.Logf("replace of 200 lines and the post in one batch: %s, %d statements", took, statements)
+	if statements > draftReplaceStatementBound {
+		t.Fatalf(msgStatementBound, statements, draftReplaceStatementBound)
 	}
 	posted := reload(t, env.app, "books_journal_entries", entry.Id)
 	if posted.GetInt("total") != 200 || posted.GetInt("revision") != saw+1 {
