@@ -9,7 +9,7 @@ A writer keeps the vendor's bill or the receipt with the bill or expense it supp
 - No new route. An **Attachments** section in the shared document layout (direction A: in the footer's notes column), shown only by the kinds whose `features.attachments` is on: the bill and the expense. Invoice, sales receipt and estimate do not show it.
 - Form (`DocumentForm` footer): the left column, under Memo; on a phone or when the lines draw as cards, after Memo in the stacked footer.
 - Read view (`DocumentReadView` `ReadFooter`): the left column, under Memo, above the Posted by / Voided by stamps; on a phone after Memo.
-- Section heading "Attachments" (`text-sm font-semibold text-foreground`, as the line-table headings) with a count when there is at least one file ("Attachments (2)") and the limit text "Up to 20 MB each" (`text-sm text-muted-foreground`) beside it.
+- Section heading "Attachments" (`text-sm font-semibold text-foreground`, as the line-table headings) with a count when there is at least one file ("Attachments (2)") and the limit text "Up to 20 MB each" (`text-sm text-muted-foreground`) beside it. The limit text shows only where a file can be added: for a writer on a document that is not void. A reader, a void document and a replaced (moved) original show no limit text.
 
 ## 3. Behavior
 
@@ -31,7 +31,7 @@ A writer keeps the vendor's bill or the receipt with the bill or expense it supp
   A refused file is not added; the message shows under the area (`accessibilityRole="alert"`, `text-danger`) until the next add.
 
 ### 3.3 The list
-- One row per file, in upload order (oldest first): a 40 px thumbnail for an image (core `Thumbnail`, PocketBase `?thumb=80x80`) or the type icon (`getFileIconForMime`) for any other file; the file name (one line, `numberOfLines={1}`, ellipsis at the end; the type shows in the thumbnail or icon); and a second line "1.2 MB · Ana Lopez, Nov 14" (size, uploader, upload date; a pending row: "1.2 MB · Not saved yet"; an uploading row: "Uploading… 45%"; a failed row: the error in `text-danger`).
+- One row per file, in upload order (oldest first): a 40 px thumbnail (core `Thumbnail`, `?thumb=40x40`) or the type icon (`getFileIconForMime`). The thumbnail rule: a type core renders (`thumbnails.CanGenerate`: HEIC, HEIF, WebP, PDF, DOCX, XLSX and the other document types core lists) gets a JPEG thumbnail the server generates after the upload (§4), and the row draws that file; a JPEG, PNG or GIF draws PocketBase's own `?thumb=` of the stored file; any other type, and a rendered type until its thumbnail is stored (or when the render fails), draws the type icon. The realtime update that stores the thumbnail redraws the row; the file name (one line, `numberOfLines={1}`, ellipsis at the end; the type shows in the thumbnail or icon); and a second line "1.2 MB · Ana Lopez, Nov 14" (size, uploader, upload date; a pending row: "1.2 MB · Not saved yet"; an uploading row: "Uploading… 45%"; a failed row: the error in `text-danger`).
 - A row is a button that opens the file (§3.4). A writer's row has a trailing **Remove** icon button (Lucide `X`, `accessibilityLabel="Remove <name>"`), hidden on a void document and for a reader.
 - Remove in the read view opens a core `ConfirmDialog`: "Remove <name>? It is deleted from this bill." (expense: "It is deleted from this expense."), action **Remove** (destructive). Remove in the form needs no dialog (it is pending; Cancel restores it).
 - Wide: the list is one column in the footer's left span (the notes span). Phone: full width, rows at least 44 px high.
@@ -75,19 +75,21 @@ A writer keeps the vendor's bill or the receipt with the bill or expense it supp
   - `bill` (relation `books_bills`, optional, cascade delete), `expense` (relation `books_expenses`, optional, cascade delete) — exactly one is set (Go guard);
   - `field` (text ≤ 40; empty for the Attachments section, a custom field key otherwise);
   - `file` (file, required, one file, `maxSize` 20 971 520, `protected: true`, `thumbs: ['80x80']`, `mimeTypes` the allow-list: `application/pdf`; `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/heic`, `image/heif`; `text/plain`, `text/csv`; `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`). HTML, SVG and executables are refused, because a stored file opens from the app's own origin;
+  - `thumbnail` (file, optional, one file, `maxSize` 2 097 152, `protected: true`, `thumbs: ['40x40']`, `mimeTypes` `image/jpeg`) — a JPEG of at most 480 × 360 that the server generates for a type core renders; empty for any other type;
   - `name` (text ≤ 255), `size` (number, int ≥ 0), `uploaded_by` (relation users, optional) — written by the server from the upload and the auth record, whatever the client sent (core `FileField` sends `size` and the uploader, so the create rule does not refuse them);
   - `created`, `updated`. Indexes on `(bill, created)` and `(expense, created)`.
-  - Rules: list/view READ; create WRITE; update null (an attachment never changes); delete WRITE.
+  - Rules: list/view READ; create WRITE; update null (an attachment never changes; the server's own move and thumbnail store are Go saves); delete WRITE.
 - Go (`server/attachments.go`):
   - a create-request hook stamps `name` (the upload's original name, trimmed to 255), `size` and `uploaded_by`;
   - a create guard inside `serialized` refuses: both or neither parent set; a void parent ("This bill is void. Its attachments can't change." / "This expense is void. Its attachments can't change."); the 26th attachment of a document ("A bill holds at most 25 attachments." / "An expense holds at most 25 attachments."), counting every row of the document and, for a correction, the rows of the document it replaces;
   - a delete-request guard inside `serialized` refuses a void parent with the same message (a request hook, so the relation cascade of Delete draft is not refused);
-  - `moveAttachments(tx, from, to)`, called by the bill and expense correction posting step in the posting transaction, re-points every row of the original to the correction;
+  - `moveAttachments(tx, from, to)`, called by the bill and expense correction posting step in the posting transaction, re-points every row of the original to the correction (a row keeps its thumbnail);
+  - the background render (`server/attachment_thumbnails.go`): after a create commits, when core `thumbnails.CanGenerate` accepts the type of the stored name's extension, a background job reads the stored file, renders it with core `thumbnails.Generate` (480 × 360, under a timeout) and, once the server is writable (`readonly.WhenWritable`, bounded by `readonly.TailWait`), sets `thumbnail` on a fresh copy of the row. A row deleted meanwhile, or a render that fails, logs a warning and keeps the type icon. The update guard admits only this store of a thumbnail on a row that has none, beside the move and PocketBase's clearing of a deleted uploader; every other update is refused with "An attachment is not changed. Remove it and attach the file again.". The store makes no audit row (core audit logs request hooks only), and the quota counts `size` only (the thumbnail is not the person's file);
   - registers the quota source, the audit collection and the OAuth scope entry.
 - Forms hosts `books:bill` and `books:expense` (`forms/hosts.ts`): `files: { collection: 'books_attachments', recordColumn: 'bill' | 'expense', fieldColumn: 'field', sizeColumn: 'size', uploaderColumn: 'uploaded_by', nameColumn: 'name', fileColumn: 'file' }`; `columns` unchanged (no column added to the host collections). No new built-in: the section is a Books part of the document layout, fixed in the footer, not movable in Settings → Forms.
 - Client: `books_attachments` in `collections.ts` (`...onDemand`, relations `uploaded_by` → users); the section reads its rows with one `useLiveQuery` (`where` the parent id and `field = ''`, `orderBy created`), the uploader through `materialize()`; writes: upload through core `uploadRecordWithFile` then `acceptServerRow` (the sanctioned file-bytes exception, as `useBankFileUpload`), delete through `useMutation` (`collection.delete`). The upload error text reuses Books `uploadErrorText` (moved from `lib/bank-connections.ts` to a shared `lib/upload-errors.ts`).
 - Kind flag: the document kinds' `features` gain `attachments` (bill and expense on).
-- Seed (`seed.ts`, through `lib/attachments-fixture.ts`): one PDF and one PNG on the seeded posted Office Supply World bill, one JPEG receipt on a seeded posted expense; small generated files (a few KB) committed under the fixture.
+- Seed (`seed.ts`, through `lib/attachments-fixture.ts`): one PDF and one PNG on the seeded posted Office Supply World bill, one JPEG receipt on a seeded posted expense, one HEIC photo on another seeded posted expense (expense 1002, so the generated thumbnail is seen); small generated files (a few KB) committed under the fixture.
 
 ## 5. Cut
 - Attachments on other documents (invoice, sales receipt, estimate, journal entry, transfer) — the spec scopes attachments to bills and expenses in v0.
@@ -111,7 +113,7 @@ A writer keeps the vendor's bill or the receipt with the bill or expense it supp
 
 ## 8. Non-goals
 - No change to the ledger: an attachment never posts, never moves a total, never blocks Post.
-- No virus scanning, no image editing or cropping, no PDF thumbnail rendering (a PDF shows its type icon).
+- No virus scanning, no image editing or cropping.
 - No per-person attachment storage (the files count toward the organization).
 - No change to how invoices, sales receipts and estimates look.
 

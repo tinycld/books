@@ -16,15 +16,7 @@
   - The add-files target is a calm, wide, dashed area that invites a drop without shouting → expressible (core `DropZone` around `rounded-xl border border-dashed border-border`, `text-muted-foreground`, Lucide `Paperclip` in `useThemeColor('muted-foreground')`; as Books `BankFileDrop`)
 
 ## Deferrals
-- **agreed:** spec §3.3 "a 40 px thumbnail for an image (core `Thumbnail`, PocketBase `?thumb=80x80`)"; checkpoint 2 Do 4 "40 px `Thumbnail` for `isImageMime`"
-  **built:** JPEG, PNG, GIF and WebP rows draw `Thumbnail`; HEIC and HEIF rows (allowed types, Q2) draw the type icon in the 40 px box (`lib/attachments.ts` `THUMBNAIL_MIME_TYPES`)
-  **reason:** missing dependency
-  **blocker evidence:** the PocketBase fork makes thumbnails only of the types in `tinycld/third_party/pocketbase/tools/filesystem/filesystem.go:515` (`image/png`, `image/jpg`, `image/jpeg`, `image/gif`, `image/webp`, `image/x-icon`, `image/bmp`; no HEIC decoder imported), verified by grep 2026-11-15; for any other type `?thumb=` serves the original file, which Chrome and Firefox cannot draw, so a `Thumbnail` would show a broken image
-  **impact:** a HEIC/HEIF photo (an iPhone camera default) shows the image type icon in the list, not a preview of the photo; it still opens in the preview and downloads
-  **unblock:** core adds a HEIC decoder to the PocketBase fork's thumbnail generator (core maintainer); then add `image/heic`/`image/heif` to `THUMBNAIL_MIME_TYPES`
-  **tracked in:** spec §3.3 (docs/specs/attachments-design.md), this ledger
-  **found by:** reviewer B
-  **checkpoint:** 2
+(none — checkpoint 2's HEIC/HEIF thumbnail deferral was wrong and is removed by revise 1: core `tinycld.org/core/thumbnails` (omnidoc) already renders HEIC/HEIF; see Final review, revise 1)
 
 ## Rebuttals
 (every reviewer finding rejected in triage is listed here verbatim,
@@ -51,6 +43,14 @@ and again at the end)
 - cp 2 · reader-*, reader-empty-390, void-1280, moved-1280: heading row — "Up to 20 MB each" shows where no file can be added (reader, void, moved). The loop follows spec §2 ("the limit text "Up to 20 MB each" … beside it", no condition) and checkpoint Do 4; the approved reference shows no limit text in these states. The spec and the reference disagree: the human decides (critic's view: the text is noise where no add is possible).
 - cp 2 · loading-1280-dark: skeleton row — almost invisible on the dark background (the reference is equally faint).
 - cp 2 · loading-1280: skeleton row — the two bars are about 245 px and 125 px wide; the reference bars fill the column (about 400 px and 135 px), as a real row does.
+
+- revise 1 · the cp 2 note on "Up to 20 MB each" (reader, void, moved) is settled by the human: hidden there (revise 1 item 2).
+- revise 1 · fix review NOTE: `storeAttachmentThumbnail` and `moveAttachments` each save a whole row read before the other committed: a store that reads before a correction's move commits writes the old `bill`/`expense` back (the file returns to the replaced original); a move that reads before the store commits clears `thumbnail` (orphaned JPEG). Needs a correction posted in the milliseconds after an upload's render; neither path is reachable in the UI before checkpoints 3 and 4. Fix: store with a column-only update inside a transaction, or `serialized`; checkpoint 4 (the correction move end to end) should take it.
+- revise 1 · fix review NOTE: `isThumbnailStored` admits any first thumbnail set, with no tx mark from the job; only a superuser or Go code can update (REST update rule null). Optional: a tx mark as `attachmentMoveMark`.
+- revise 1 · posted-*-dark: the PDF row's generated thumbnail fills its tile as a bright white 40 px square (a white page); light is fine with the border.
+- revise 1 · loading-*, error-*: "Up to 20 MB each" shows while the list loads or failed (a writer on a posted bill, per spec §2); the reference shows none there.
+- revise 1 · evidence: no built shot shows a HEIC, WebP or office row's generated thumbnail (expense 1002's HEIC row moves in the `moved` capture); the e2e `attachments:` HEIC test proves the row draws it (`naturalWidth` > 0).
+- revise 1 · critic NOTEs 3–7 repeat the cp 2 notes above (void with a file, moved text, tooltip artefact, faint dark skeleton, skeleton bar widths).
 
 - core correction 1 · reviewer A NOTEs (core and Books): a file name that is invalid UTF-8 from the start (a hand-made multipart request, e.g. a Latin-1 filename) still fails the fork's blob writer with "Failed to create record.", at any length. Browsers and the Books clients send UTF-8, so no ordinary sequence reaches it; upstream behaviour, not a regression. Optional hardening: `strings.ToValidUTF8(name, "")` in the fork's `truncateOriginalName`.
 
@@ -147,6 +147,17 @@ and again at the end)
 - mistakes: the first fix ignored FORK.md (retro log)
 
 ## Final review
-- eval: revised → core correction 1 (see "Core correction 1"; core c7bafd80)
+- eval: revised → core correction 1 (see "Core correction 1"; core c7bafd80); revised → revise 1 (below)
 - human comments and what changed
+- revise 1 (2026-11-15, staging `revise-1.md`): (1) "HEIC/HEIF thumbnails are NOT deferred": core `tinycld.org/core/thumbnails` (omnidoc) renders them, as drive uses it; (2) hide "Up to 20 MB each" for readers and on void and moved documents ("hiding is fine"), spec §2 to match. Core not edited (core already serves Books: `thumbnails.CanGenerate`/`Generate`, `FilePreviewSource.thumbnailFileName`, `pickThumbnailBase`).
+  - findings: `cp/revise-1-fix.md` (2 items), round 2 `cp/revise-1-fix-2.md` (2 items)
+  - test writer: `server/attachment_thumbnails_test.go` (new; HEIC and PDF get a JPEG thumbnail, `.txt` none, the update guard; round 2 `TestAttachmentUpload_DropsAClientThumbnail`), `server/testdata/sips-quad-64x48.heic` (copy of core's sample), `server/testdata/attachment-page.pdf`, `tests/attachments.test.ts` (`thumbnailFileName` cases), `tests/attachments-fixture.test.ts` (seed id list gains the HEIC id; magic-bytes check takes an offset), `tests/e2e/attachments.spec.ts` (reader: no limit text; seeded HEIC row draws the generated thumbnail, `token=`, `thumb=40x40`, `naturalWidth` > 0); red for the right reason: yes (4 pins pass by design: two guard refusals, the no-thumbnail unit case)
+  - implementer: migration 2100000019 (unreleased, edited in place; verified not on origin/main) gains `thumbnail` (optional, protected, JPEG, `thumbs ['40x40']`); `server/attachment_thumbnails.go` (after-create background job, `thumbnails.CanGenerate`/`Generate` under a timeout, `readonly.WhenWritable`, fresh row, Warn on failure); update guard admits `isThumbnailStored`; `attachmentPreviewSource` sets `thumbnailFileName`; `FileMark` draws `Thumbnail` when `hasThumbnail`; limit text only when `showsAdd`; seeded HEIC row `attexp1002heic1` on expense 1002; spec §2, §3.3, §4, §8 (Cut "no PDF thumbnail rendering" removed). Round 2: `stampAttachmentUpload` drops a client `thumbnail`; the mark is a bordered 40 px tile for every thumbnail. DONE, no disputes
+  - self-declared differences: (1) `server/registrations_test.go` `TestRegister_AttachmentsBindFourHooks` → `TestRegister_AttachmentsBindTheirHooks` (the thumbnail job adds `OnRecordAfterCreateSuccess` 1 and `OnTerminate` 2); an earlier checkpoint's pin edited by the implementer, as the finding asked ("keep … registrations_test.go true"); (2) `attachmentExtensions` slice → `attachmentExtensionTypes` map + `attachmentTypeOf(name)`; (3) fixture rows gain `thumbnail: ''`, helper `hasThumbnail(source)`; (4) `isUploaderCleared` now also refuses an uploader clear that changes the thumbnail
+  - gate 1: tests unedited: yes · pass (`packages:generate`; `tinycld-pkg check` 280 files / 5619 tests; `go test ./...` ok; `-g "attachments:"` 7 passed; `expense-form.spec.ts` 12 passed, since the seed changed expense 1002); after round 2 green again (check 5619; `go test -count=1` ok; `-g "attachments:"` 7 passed)
+  - gate 2: all cp 2 shots re-captured after each round (`docs/plans/attachments-evidence/cp2/`); critic 1: 0 INVALID, 1 BLOCKING (the PDF thumbnail, a white page, made the 40 px box invisible on white) accepted+fixed in round 2 (bordered tile); critic 2: 0 INVALID, 0 BLOCKING, 8 NOTE (Design notes, revise 1 lines)
+  - fix review: round 1: 1 BLOCK (a client could send its own `thumbnail` on create) accepted+fixed in round 2; 2 NOTEs to Design notes; conformance line (migration modified) false positive (unreleased). Round 2: clean. Rounds: 2
+  - deferrals: none (cp 2's HEIC deferral removed) · rebuttals: none · out-of-plan files: none (every file follows from the two corrections)
+  - lessons: two lines added to `docs/helix-lessons.md` (check core before deferring; a hint shows only where its action is offered)
+  - commit: the commit that adds this section
 - native: not executed in this run

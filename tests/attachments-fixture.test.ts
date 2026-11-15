@@ -34,10 +34,14 @@ const ALLOW_LIST = [
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]
 
-const MAGIC: Record<string, number[]> = {
-    'application/pdf': [0x25, 0x50, 0x44, 0x46], // %PDF
-    'image/png': [0x89, 0x50, 0x4e, 0x47], // \x89PNG
-    'image/jpeg': [0xff, 0xd8, 0xff],
+// The bytes a file of each type holds at `offset`.
+const ascii = (text: string) => [...text].map(c => c.charCodeAt(0))
+const MAGIC: Record<string, { offset: number; bytes: number[] }> = {
+    'application/pdf': { offset: 0, bytes: [0x25, 0x50, 0x44, 0x46] }, // %PDF
+    'image/png': { offset: 0, bytes: [0x89, 0x50, 0x4e, 0x47] }, // \x89PNG
+    'image/jpeg': { offset: 0, bytes: [0xff, 0xd8, 0xff] },
+    // An ISO-BMFF box of type ftyp, major brand heic.
+    'image/heic': { offset: 4, bytes: ascii('ftypheic') },
 }
 
 const QUOTA_TEXT =
@@ -90,18 +94,20 @@ describe('attachments fixture', () => {
 
     // The seed's files (spec §4 Seed) plus the W-9 custom-field row, so the e2e proves
     // the section hides a custom File field's row.
-    it('seeds the bill PDF, the packing-slip photo, the W-9 and the expense receipt', () => {
+    it('seeds the bill PDF, the packing-slip photo, the W-9, the expense receipt and the HEIC photo', () => {
         expect([...SEED_ATTACHMENT_IDS]).toEqual([
             ATTACHMENT_IDS.billPdf,
             ATTACHMENT_IDS.billPhoto,
             ATTACHMENT_IDS.billCustomField,
             ATTACHMENT_IDS.expenseReceipt,
+            ATTACHMENT_IDS.expenseHeic,
         ])
         expect([...SEED_ATTACHMENT_IDS]).toEqual([
             'attbill1002pdf1',
             'attbill1002png1',
             'attbill1002w9f1',
             'attexp1003jpg01',
+            'attexp1002heic1',
         ])
     })
 
@@ -116,8 +122,24 @@ describe('attachments fixture', () => {
             expect(bytes.length, id).toBeLessThan(8 * 1024)
             const magic = MAGIC[row.mime_type]
             if (!magic) throw new Error(`no magic bytes for ${row.mime_type}`)
-            expect([...bytes.slice(0, magic.length)], id).toEqual(magic)
+            const head = bytes.slice(magic.offset, magic.offset + magic.bytes.length)
+            expect([...head], id).toEqual(magic.bytes)
         }
+    })
+
+    // Revise 1: core renders a HEIC still, so the e2e reads a generated thumbnail on a
+    // seeded HEIC row. It sits on posted expense 1002 (Pacific Power), which no other
+    // attachments assertion reads, so bill 1002's and expense 1003's lists stay as they are.
+    it('seeds a HEIC photo on posted expense 1002', () => {
+        const row = ATTACHMENTS.find(r => r.id === ATTACHMENT_IDS.expenseHeic)
+        expect(row).toMatchObject({
+            id: 'attexp1002heic1',
+            bill: '',
+            expense: EXPENSE_IDS.pacificPower,
+            field: '',
+            name: 'pacific-power-meter.heic',
+            mime_type: 'image/heic',
+        })
     })
 
     // Core quota.ExceededError's text, sentenized by PocketBase, as Books uploadErrorText

@@ -48,6 +48,9 @@ export const ATTACHMENT_IDS = {
     voidedPdf: 'attbill1001pdf1',
     // Expense 1003, Office Supply World (posted): the card receipt photo.
     expenseReceipt: 'attexp1003jpg01',
+    // Expense 1002, Pacific Power (posted): a meter photo from an iPhone, which the
+    // server gives a generated thumbnail (a browser cannot draw a HEIC).
+    expenseHeic: 'attexp1002heic1',
 } as const
 
 const IDS = ATTACHMENT_IDS
@@ -61,6 +64,8 @@ function attachment(seed: AttachmentSeed): AttachmentFixtureRow {
         expense: '',
         field: '',
         file: seed.name.toLowerCase().replaceAll(' ', '_'),
+        // The server stores a generated thumbnail after the upload; fixture rows have none.
+        thumbnail: '',
         uploaded_by: ATTACHMENT_USER_IDS.ana,
         updated: seed.created,
         ...seed,
@@ -136,6 +141,14 @@ export const ATTACHMENTS = [
         mime_type: 'image/jpeg',
         size: 1_153_434,
         created: '2026-11-12 15:14:00.000Z',
+    }),
+    attachment({
+        id: IDS.expenseHeic,
+        expense: EXPENSE_IDS.pacificPower,
+        name: 'pacific-power-meter.heic',
+        mime_type: 'image/heic',
+        size: 532,
+        created: '2026-11-12 16:02:00.000Z',
     }),
 ] satisfies AttachmentFixtureRow[]
 
@@ -226,12 +239,14 @@ export const ATTACHMENT_REFUSALS = {
 } as const
 
 // The seed's files (spec §4 Seed): one PDF and one PNG on posted bill 1002, the W-9 of a
-// custom File field on the same bill (so the e2e proves the section hides it), and one
-// JPEG receipt on posted expense 1003. lib/attachment-seed-files.ts holds a few KB of
-// bytes of each type.
+// custom File field on the same bill (so the e2e proves the section hides it), one JPEG
+// receipt on posted expense 1003, and one HEIC photo on posted expense 1002 (so the e2e
+// reads the thumbnail the server generates). lib/attachment-seed-files.ts holds a few KB
+// of bytes of each type.
 export const SEED_ATTACHMENT_IDS = [
     IDS.billPdf,
     IDS.billPhoto,
     IDS.billCustomField,
     IDS.expenseReceipt,
+    IDS.expenseHeic,
 ] as const
