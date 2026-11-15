@@ -31,12 +31,25 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 0 · populated-390-*, rate-open-390-*, collapsed-390-*: bottom tab bar — a "Sales Stub" tab shows (the core e2e stub package is installed on the core branch's e2e stack); not in the shipped app.
+- cp 0 · populated-390-*/1280-*: column header row — "TAX NAME" starts about 4 px left of the row labels' inset (x 12 against 16; 336 against 340); the reference has the same offset (core header inset).
+- cp 0 · rate-open-390-*: document row "2026-10-06 · Invoice 1042 · Harborview Hospitali…" — the customer name is cut with an ellipsis on one line; the reference does the same.
+- cp 0 · rate-open-390-*/1280-*: document rows — the date is ISO ("2026-10-06") while the heading writes the period in words; the reference does the same.
+- cp 0 · collapsed-390-*: closed agency rows — "Old county agency" has its figure on the label line, the two longer names on a second line, so the rows have two heights; the reference does the same.
+- cp 0 · reviewer A NOTE: `core/server/reports/rules.go` `unionSelect` stem `"u_" + key with "." → "_"`: keys `a_b.c` and `a.b_c` give the same stem; a statement reading both binds the same param name twice and `mergeParams` stops the run. No package makes such a pair today.
+- cp 0 · reviewer A NOTE: a union row's id is its part record's id (ruling R1): two parts holding the same id join together and give two detail rows with one key. Random client ids cannot collide; fixed seed ids must stay unique across invoices and sales receipts (checkpoint 1's seed).
+- cp 0 · reviewer A NOTE: stub `ReturnForm` (`tests/scripts/reports-stub/screens/index.tsx.txt`) has no `onError`; a failed insert makes `addReturn` time out on "Saved …" instead of naming the cause (test fixture only).
+- cp 0 · reviewer A NOTE: ruling 11 (the phone view draws no cell for a blank amount) — accepted; the e2e pins it at 390.
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+(core repo, checkpoint 0; files the checkpoint's Files block did not name)
+- `core/server/reports/layout.go` — blank cell for a layout computed row that reads a blank-above section (ruling R6/R8 consequence, a whole-branch review finding); fixed again in the fix round (`blankReadLevel`).
+- `core/server/reports/section_percent.go` — refuses `percentOfSection` over a blank-above column (whole-branch review finding).
+- `core/server/reports/lookup.go`, `core/server/reports/run.go` — union lookups bounded per part, topics of every part (core plan R15).
+- `core/reports/lib/__tests__/statements-docs.test.ts` — the brief's "Docs" test bullet (help and packages.md assertions).
+- `tests/e2e/reports-helpers.ts` — `ACTIVITY_SOURCE`, `addReturn` for the union e2e.
+- `tests/e2e/reports-period-pivot.spec.ts` — a step pinning the formula error now shown under the column (builder change from a whole-branch review finding).
+- `tests/scripts/reports-stub/pb-migrations/2090000300_salesstub.js.txt`, `tests/scripts/reports-stub/screens/index.tsx.txt`, `tests/scripts/reports-stub/server/register.go.txt` — the salesstub templates that hold `salesstub_returns` and the union source (core plan R13); `screens/index.tsx.txt` and `scaffold-reports-stub.ts` also reformatted at gate 1 (biome refused the scaffolded files).
 
 ## Phase notes
 - phase 1 (design gate 2026-11-14): no corrections to the intake extractions. Spark 1 (agency total shows the tax alone) accepted as a needs-extension spark → core G2.
@@ -64,6 +77,26 @@ and again at the end)
   - capture manifest `docs/plans/sales-tax-liability-capture.json`; reference `docs/plans/sales-tax-liability-reference/` (7 states × 390/1280 × light/dark).
 - phase 4: review mode C (unattended). Plan `docs/plans/sales-tax-liability-checkpoints.md`, 6 checkpoints (0 core U1+G2; 1 gross snapshot + seed; 2 report by agency; 3 rate rows open, void, phone; 4 Liability report button + help; 5 `detail.open`, only after tinycld#475 merges). Decisions D1–D10 in the plan; the ones later phases must keep: D1 the seed shares October with other Denver posts, so exact figures only for the fixture's own rates; D2 the void e2e posts and voids its own invoice under its own agency and rate; D8 `newSalesTaxEnv`; D10 hidden `agencyKey` / `rateKey` group columns. Spec edits: §3 phone wording "label, then the figures on two lines"; §5 `display` block; §5 seed and e2e void through the test's own invoice. Plan review (`staging/p5-sales-tax-liability/plan-review.md`): all findings fixed. plan-check: 0 errors.
 - review mode switches: none
+
+## Checkpoint 0
+- core plan (Do 1): `tinycld/docs/plans/2026-11-14-report-union-source-and-blank-above.md` (core repo, branch books/p5-sales-tax-liability, uncommitted), 8 tasks, written with writing-plans on core main 58bafaec (no newer core main commits; not on tinycld#475); plan review (sdd-reviewer): 2 blocking/major + 6 minor, all fixed in the plan. Verdict `exclusive` (Q6). Rulings: `core/reports/lib/types.ts` unchanged (R9), `join.go` unchanged (R15), task 8 also edits `tests/scripts/reports-stub/` templates (R13, out of the checkpoint's Files block), no renames of the Produces names. Open questions: none blocking.
+- Do 2 (human review of the core plan): handed to the driver 2026-11-14; tasks not started. Driver decision: no human stop (U1 and G2 approved at the design gate; the core plan accepted as reviewed).
+- Do 3: core plan run by one backend-runner (subagent-driven development, final whole-branch review): PLAN COMPLETE, 8 tasks, each task review clean; final whole-branch review clean after two fix waves. 24 task commits 58bafaec..195c6ecc squashed into one checkpoint commit (local branch `backup/cp0-sdd-195c6ecc` keeps them, not pushed). 15 rulings with costs: staging `rulings.md`. Beyond the plan (from review findings): bind refusals for `having` / `percentOfSection` reading a blank-above column (the builder mirrors both); blankAbove also blanks columns that read the blank-above column (rollups, layout computed rows); union part column types compared by class; the builder offers Totals only on aggregate or formula columns; builder formula errors shown under the column. Task 8's e2e red was argued, not observed (ruled).
+- test writer / implementer: the core plan's tasks (sdd-implementer writes each test first, then the code; sdd-reviewer per task), not the helix roles; test files: `core/server/reports/{union_zoo,union_check,union_run,union_shape,blankabove,blankabove_bind}_test.go`, `core/reports/lib/builder/__tests__/draft.test.ts`, `core/reports/lib/__tests__/statements-docs.test.ts`, `tests/e2e/reports-union-blank-above.spec.ts`.
+- gate 1: core `pnpm run checks` fail → biome format in the scaffolded `salesstub` (`screens/index.tsx` line width, `types.ts` Pick) → root cause: task 8's templates `tests/scripts/reports-stub/screens/index.tsx.txt` and `tests/scripts/scaffold-reports-stub.ts` emit unformatted code → fixed in the templates → pass. `go test ./reports/...` pass; core `tinycld-pkg test` pass. Core e2e one file at a time, all pass: reports-union-blank-above (1), reports-view (11), reports-groups-v2 (13), reports-group-pivot (5), reports-statements (3), reports-formula-layout (4), reports-create (4), reports-shipped (1), reports-period-pivot (5), reports-formulas-v2 (6), reports-formula-leaves (2), reports-source-params (11). Consumers (Do 4): Books `go test ./...` pass, `tinycld-pkg check` pass, e2e trial-balance (13), general-ledger (9), balance-sheet (10), journal-report (11), profit-and-loss (11), all pass.
+- gate 2 capture: `docs/plans/sales-tax-liability-evidence/cp0/capture.json` (populated, rate-open, collapsed × 390/1280 × light/dark), scratch route on the core branch, 12 shots; copied over `sales-tax-liability-reference/{populated,rate-open,collapsed}-*` (Do 6; committed with checkpoint 1).
+- gate 2: invalid shots: none · blocking: none · notes: 5, listed under Design notes (critique `docs/plans/sales-tax-liability-evidence/cp0/critique.md`). No sales figure and no `@currency` cell on an agency row or the Total.
+- gate 3 A (correctness): BLOCK `layout.go` `readsBlankSection` read `blankLevel`, so a non-derived formula column reading a blank-above column sent 0 + `@currency` on a layout computed row → accepted (fix item 1: test-writer case red "row c:gap:[\"USD\"] (computed) carries plus = 0", then source fix `blankReadLevel`). DEFERRAL: a one-collection → union link with part columns named per part was not tested → not a blocker, fixed now (fix item 2: `addZooTreats` maps `animal → pet`; green on the engine as built).
+- gate 3 B (conformance): script lines: 0 real, 2 false positive (the `skipWithoutReportsStub` guard; the salesstub migration is an e2e stub template) · 10 findings, all out-of-plan files → accepted, recorded under Out-of-plan changes.
+- gate 3 A notes: 4 (union stem collision, shared part ids, stub ReturnForm onError, ruling 11 accepted), listed under Design notes; the re-capture note is done (Do 6 above).
+- reviewer-caught deferrals: reviewer A — the one-collection → union link with per-part column names (the plan run did not declare it; its tests mapped the same column name in both parts); fixed now.
+- fix round: findings `cp0-fix.md` (2): test writer wrote both tests first (item 1 red for the right reason, item 2 green), staged; implementer changed `layout.go` only (one line + comment). Gate 1 again: tests unedited: yes · core checks, `go test ./reports/...`, core vitest, e2e reports-union-blank-above (1), reports-formula-layout (4), reports-statements (3), Books `go test ./...` all pass. No shot changed (Go-only fix), no re-capture.
+- fix review: round 1: clean · round count 1.
+- test disputes: none. self-declared differences: none (the rulings R1–R15 are in staging `rulings.md`).
+- commit: core 43cbaa8a (`feat(core): report union sources and blankAbove column totals`, branch books/p5-sales-tax-liability, not pushed; the core PR is the driver's). Produces names unchanged (`reports.SourcePart`, `Source.Parts`, `Column.BlankAbove` / `blankAbove`, `unknown_group` 422).
+- Do 5 (core PR) and the push: the driver's (per the driver's instruction to this runner).
+- left in the books tree for checkpoint 1's commit: the re-captured `sales-tax-liability-reference/{populated,rate-open,collapsed}-*` (Do 6).
+- human: review mode C, no message.
 
 ## Final review
 - eval:

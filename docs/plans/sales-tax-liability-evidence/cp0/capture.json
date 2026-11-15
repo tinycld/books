@@ -1,0 +1,25 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "rate-open",
+            "url": "/a/books/helix-mockup?state=rate-open",
+            "ready": "report-table",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/books/helix-mockup?state=collapsed",
+            "ready": "report-table",
+            "hideLabels": ["New"]
+        }
+    ]
+}
