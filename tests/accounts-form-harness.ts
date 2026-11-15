@@ -23,6 +23,7 @@ import type {
     BooksAccountBalances,
     BooksAccounts,
     BooksAdmins,
+    BooksAttachments,
     BooksBankConnections,
     BooksBankFiles,
     BooksBankImports,
@@ -1097,6 +1098,9 @@ export function seedBooks(
         books_bill_lines: local<BooksBillLines>('books_bill_lines', []),
         books_expense_lines: local<BooksExpenseLines>('books_expense_lines', []),
         books_expenses: local<BooksExpenses>('books_expenses', []),
+        // Read by a bill's or an expense's screen for its Attachments section; empty
+        // unless a test replaces it.
+        books_attachments: local<BooksAttachments>('books_attachments', []),
     })
 }
 

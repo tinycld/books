@@ -1,0 +1,485 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "posted",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "clickText": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "waitFor": "bill-attachments-list"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "./posted",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 2800,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "clickText": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "waitFor": "bill-attachments-list"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "expense",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 2800,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Design desk supplies and cables for the new conference room"
+                },
+                {
+                    "clickText": "Design desk supplies and cables for the new conference room"
+                },
+                {
+                    "waitFor": "expense-attachments-list"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "reader",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1300,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Design desk supplies and cables for the new conference room"
+                },
+                {
+                    "clickText": "Design desk supplies and cables for the new conference room"
+                },
+                {
+                    "waitFor": "expense-attachments-list"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "./reader",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 2800,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Design desk supplies and cables for the new conference room"
+                },
+                {
+                    "clickText": "Design desk supplies and cables for the new conference room"
+                },
+                {
+                    "waitFor": "expense-attachments-list"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "reader-empty",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 2800,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "October managed services"
+                },
+                {
+                    "clickText": "October managed services"
+                },
+                {
+                    "waitFor": "bill-attachments-empty"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "void",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "October rent, suite 210 (entered twice)"
+                },
+                {
+                    "clickText": "October rent, suite 210 (entered twice)"
+                },
+                {
+                    "waitFor": "bill-attachments-empty"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "moved",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                {
+                    "clickText": "Autopay failed; paid by check at the counter."
+                },
+                {
+                    "waitFor": "expense-attachments"
+                },
+                {
+                    "saveUrlId": true
+                },
+                {
+                    "pushPath": "/a/books/expenses/new?replaces=$savedId"
+                },
+                {
+                    "waitFor": "expense-post"
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "click": "expense-post"
+                },
+                {
+                    "waitForHidden": "expense-post"
+                },
+                {
+                    "waitFor": "expense-read-only"
+                },
+                {
+                    "pause": 1000
+                },
+                {
+                    "pushPath": "/a/books/expenses/$savedId"
+                },
+                {
+                    "waitFor": "expense-attachments-moved"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "loading",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1300,
+            "fakeRecords": {
+                "collection": "books_attachments",
+                "hold": true
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "clickText": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "waitFor": "bill-attachments-loading"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "error",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1300,
+            "fakeRecords": {
+                "collection": "books_attachments",
+                "status": 400
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "clickText": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "waitFor": "bill-attachments-error"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "./error",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 2800,
+            "fakeRecords": {
+                "collection": "books_attachments",
+                "status": 400
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "clickText": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "waitFor": "bill-attachments-error"
+                },
+                {
+                    "pause": 1000
+                }
+            ]
+        },
+        {
+            "name": "preview",
+            "widths": [1280],
+            "schemes": ["light"],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 900,
+            "opaque": "file-preview-modal",
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "clickText": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "waitFor": "bill-attachments-list"
+                },
+                {
+                    "clickText": "OSW-invoice-1002.pdf"
+                },
+                {
+                    "waitFor": "file-preview-modal"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "name": "./preview",
+            "widths": [390],
+            "schemes": ["light"],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 844,
+            "opaque": "file-preview-modal",
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "clickText": "Q4 supplies and the back-office access points"
+                },
+                {
+                    "waitFor": "bill-attachments-list"
+                },
+                {
+                    "clickText": "OSW-invoice-1002.pdf"
+                },
+                {
+                    "waitFor": "file-preview-modal"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        }
+    ]
+}

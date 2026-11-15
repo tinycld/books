@@ -16,11 +16,21 @@
   - The add-files target is a calm, wide, dashed area that invites a drop without shouting → expressible (core `DropZone` around `rounded-xl border border-dashed border-border`, `text-muted-foreground`, Lucide `Paperclip` in `useThemeColor('muted-foreground')`; as Books `BankFileDrop`)
 
 ## Deferrals
-(none yet)
+- **agreed:** spec §3.3 "a 40 px thumbnail for an image (core `Thumbnail`, PocketBase `?thumb=80x80`)"; checkpoint 2 Do 4 "40 px `Thumbnail` for `isImageMime`"
+  **built:** JPEG, PNG, GIF and WebP rows draw `Thumbnail`; HEIC and HEIF rows (allowed types, Q2) draw the type icon in the 40 px box (`lib/attachments.ts` `THUMBNAIL_MIME_TYPES`)
+  **reason:** missing dependency
+  **blocker evidence:** the PocketBase fork makes thumbnails only of the types in `tinycld/third_party/pocketbase/tools/filesystem/filesystem.go:515` (`image/png`, `image/jpg`, `image/jpeg`, `image/gif`, `image/webp`, `image/x-icon`, `image/bmp`; no HEIC decoder imported), verified by grep 2026-11-15; for any other type `?thumb=` serves the original file, which Chrome and Firefox cannot draw, so a `Thumbnail` would show a broken image
+  **impact:** a HEIC/HEIF photo (an iPhone camera default) shows the image type icon in the list, not a preview of the photo; it still opens in the preview and downloads
+  **unblock:** core adds a HEIC decoder to the PocketBase fork's thumbnail generator (core maintainer); then add `image/heic`/`image/heif` to `THUMBNAIL_MIME_TYPES`
+  **tracked in:** spec §3.3 (docs/specs/attachments-design.md), this ledger
+  **found by:** reviewer B
+  **checkpoint:** 2
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
+(every reviewer finding rejected in triage is listed here verbatim,
 with the reason, and shown to the human at the end)
+- **finding:** reviewer B, cp 2, finding 3: "`docs/plans/attachments-evidence/cp2/capture.json:280`: the 390 preview shot is named `"./preview"`, but every other shot uses a bare name. This works around the duplicate `preview` name. Fix: use one `preview` entry with `widths: [1280, 390]`, as the other shots do"
+  **rebutted because:** the capture spec loads a shot once, at its first width: "Load at the first width, so a layer that picks its form by breakpoint (a dialog is a sheet on a phone) opens in the form it is captured in." (`tests/e2e/helix-capture.spec.ts`, the `helix capture` test). One entry with `[1280, 390]` would open the `PreviewModal` as a desktop dialog and photograph it at 390, which is not what a phone shows. The `./` name writes the same file name from its own entry (as `docs/plans/bill-form-evidence/cp3/capture.json` does).
 
 ## Design notes
 (gate-2 NOTEs the loop did not act on, as
@@ -32,9 +42,20 @@ and again at the end)
 - cp 1 · reviewer A NOTE 5: `server/attachments.go` `checkAttachmentUpload` requires an allow-listed extension as well as the sniffed type, while spec §3.2's client rule takes the reported type first and the extension only when the type is empty. A file with a correct type but no extension (core `picked-file.ts:44` names a nameless native document asset `document`) passes the client and is refused by the server with the type text. Checkpoint 2's `attachmentIssue` should require the extension too, so both sides agree.
 - cp 1 · reviewer A NOTE 6: `server/attachments.go` size and type checks run in the create-request hook, before PocketBase's create rule, so a read-only member who uploads a 21 MB file reads the size text instead of an access refusal. Leaks nothing.
 
+- cp 2 · reviewer A NOTE 1: `AttachmentsSection.tsx` — the preview holds the open row by its index in `previewRows`, not its id. When realtime removes a row before the open one, the modal moves to the next file; when the open row was the last one, the modal closes but `openIndex` stays set, so a row that later arrives at that index opens the modal with no press. Unreachable in cp 2 (no remove path); a second writer's Remove reaches it from cp 3. Fix: hold `openId`, derive the index by `findIndex`, `-1` = closed. Checkpoint 3 should do it.
+- cp 2 · reviewer A NOTE 3: `tests/attachments.test.ts` drift case checks the 4 server constants with a client text (`TooLarge`, `Type`, `BillLimit`, `ExpenseLimit`); `BillVoid`, `ExpenseVoid`, `OneParent`, `NotChanged` are server-only (the client shows the server's message). A comment naming them would help.
+- cp 2 · reviewer A NOTE 5: `attachments: reader` asserts no `Remove <name>` button, which cannot fail before checkpoint 3 adds Remove; checkpoint 3's writer test must assert Remove shows for a writer, so the reader assertion is not vacuous.
+- cp 2 · void-1280: notes column — the built void bill has no stored file (the seed puts none on void bill 1001), so it shows "No attachments"; the reference shows a void bill with one read-only row. A void document with a stored file has no built shot.
+- cp 2 · moved-1280: notes column — "Moved to 1002 (edited)" is plain text, and two lines below the link "Replaced by 1002 (edited)" says almost the same.
+- cp 2 · moved-1280: action bar — the tooltip "View journal entry j" and the button's hover state are in the shot (capture artefact: the pointer stays on the button after the post).
+- cp 2 · reader-*, reader-empty-390, void-1280, moved-1280: heading row — "Up to 20 MB each" shows where no file can be added (reader, void, moved). The loop follows spec §2 ("the limit text "Up to 20 MB each" … beside it", no condition) and checkpoint Do 4; the approved reference shows no limit text in these states. The spec and the reference disagree: the human decides (critic's view: the text is noise where no add is possible).
+- cp 2 · loading-1280-dark: skeleton row — almost invisible on the dark background (the reference is equally faint).
+- cp 2 · loading-1280: skeleton row — the two bars are about 245 px and 125 px wide; the reference bars fill the column (about 400 px and 135 px), as a real row does.
+
 ## Out-of-plan changes
 - cp 1 · `docs/plans/attachments-capture.json` — biome formatting only (content unchanged); `tinycld-pkg check` refused its format.
 - cp 1 · `server/sales_documents.go`, `server/sales_document_posting.go` — comments only: the `Replace` comments named only the invoice's estimate; they now name the attachments move too.
+- cp 2 · `tests/accounts-form-harness.ts` — registers an empty local `books_attachments` collection; `useDocumentScreen` now reads it, and 13 `tests/document-screen-state.test.ts` cases failed without it ("alias "a" is not a Collection").
 - cp 1 · `tinycld/books/types.ts` — re-exports the generated `BooksAttachments`, which the fixture and `tests/attachments-fixture.test.ts` import from `../types` as the sibling fixtures do.
 
 ## Phase notes
@@ -91,6 +112,23 @@ and again at the end)
 - commit: the commit that adds this row, `feat(books): attachment data, guards, and seed`
 - human: review mode C, no message
 - mistakes: the runner's fix finding 1 named the wrong refused create (the test writer corrected it); the fix test writer disabled the guard in the real source instead of a scratch copy (reverted at once; retro log)
+
+## Checkpoint 2
+- test writer: `tests/attachments.test.ts` (new), `tests/sales-document-kinds.test.ts`, `tests/e2e/attachments.spec.ts` (new), `tests/e2e/attachments-helpers.ts` (new); red for the right reason: yes (unit: missing `lib/attachments` module and no `features.attachments`; e2e 3 red on missing section ids); untestable: none. Note: `attachmentControls` test asserts `isRemoveDisabled` (the checkpoint's "Remove disabled"; the Interfaces block named only three fields).
+- implementer: `DocumentFeatures.attachments`, `lib/attachments.ts`, `useDocumentAttachments` (one query, `materialize` uploader, split by `splitAttachmentRows`), `AttachmentsSection` (section, `AttachmentRow`, `AttachmentsPreview` over core `PreviewModal`), the section under Memo in `ReadFooter` (phone after Memo), recovery merged in `useDocumentScreen`; DONE with 1 dispute
+- test disputes: 1. `attachments: read view` searched invoice memo `October catch-up and Wi-Fi refresh` (fixture), but the e2e seed writes `Seed invoice <key>` (`seed.ts:410-447`), so the search found nothing. Settled for the implementer: the checkpoint says "open an invoice (any seeded one through search)"; the test is wrong → fresh test writer changed only the searched memo (report `cp2-dispute-tests.md`), then `git add` again.
+- self-declared differences: (1) `attachmentControls` also returns `isRemoveDisabled` (the test asks for it); (2) `isImageMime` is true for jpeg/png/gif/webp only (PocketBase makes no HEIC thumbs); (3) the limit text shows only when the add area applies (as the reader/void/moved reference shots); (4) "Moved to" replaces "No attachments" (checkpoint step 4); (5) `uploaderName` flattened by a JS `.map` after the query (a scalar of a `materialize()` row cannot be selected in the same expression); (6) the hook is always called, with no ids for a kind without attachments (query disabled); (7) read mode lists only `rows`; `fromRows` only feeds the form preview list (checkpoint 4); (8) `onRemove?`, `recordId`, `scopeOwner` taken but unused until checkpoint 3; (9) `attachmentIssue` takes `Pick<SalesDocumentKind,'key'>`; (10) extra export `ATTACHMENTS_COLLECTION`; (11) gate-2 capture left to the runner. `attachmentIssue` requires the allow-listed extension too (cp 1 NOTE 5).
+- gate 1: tests unedited: yes (only the settled dispute: the searched invoice memo, and the runner fixed the header comment's "invoice 1004" to 1003) · first e2e run: seed failed `validation_not_unique` → root cause: the previous implementer's background regression e2e (`invoice-form-draft.spec.ts`) was still running on 7210/7211, so two global setups seeded one server → the stale run killed (started from this workspace) → pass: `packages:generate`; `tinycld-pkg check` 280 files / 5616 tests; `-g "attachments:"` 6 passed; `bill-form.spec.ts` 15, `expense-form.spec.ts` 12, `invoice-form-draft.spec.ts` 11 passed.
+- gate 2 capture: `docs/plans/attachments-evidence/cp2/capture.json`, 24 shots. Seeded ids are not kept by the seed (bills get server ids), so each shot opens its document through Journal Entries (All dates, search the memo, open). `moved` is shot on seeded expense 1002 (posted through the UI as a correction of itself), so the capture writes to no bill the other shots read. The scratch capture spec got a general `saveUrlId` action and a `$savedId` path token (to come back to the replaced original).
+- gate 2: first critique 12 INVALID (the section sat under the fixed action bar or past the inner scroller; `fullPage` does not extend an inner scroller) → cause: viewport heights too small → fix: one shot per width, 1280 at 1300 px and 390 at 2800 px high → re-captured; after the fix round all shots re-captured again and a fresh critic: 0 INVALID, 0 BLOCKING, 6 NOTE (Design notes, cp 2 shot lines); one critic dispatch wrote no report file and was dispatched again (retro log)
+- gate 3 A (correctness): 0 BLOCK; NOTEs 1, 3, 5 to Design notes; NOTE 2 (out-of-plan harness) recorded under Out-of-plan changes; NOTE 4 = reviewer B deferral 1, accepted+fixed (fix item 1)
+- gate 3 B (conformance): script lines: 0 · finding 1 (out-of-plan harness) recorded; finding 2 (`materialize()` subquery not narrowed, uploader flattened in JS) accepted+fixed (fix item 2); finding 3 (`./preview` shot name) rebutted (see Rebuttals); deferral 1 (limit text only when add shows; spec §2 and Do 4 put it beside the heading with no condition) accepted+fixed (fix item 1); deferral 2 (HEIC/HEIF rows draw the type icon, not `Thumbnail`) confirmed a missing upstream dependency → Deferrals; note 3 (unused `recordId`, `scopeOwner`, `onRemove?` until checkpoint 3) is the plan's split, not a deferral
+- reviewer-caught deferrals: HEIC/HEIF thumbnails (the implementer declared it as difference 2, not as a deferral)
+- fix review: round 1: fix diff (2 source files: limit text in every state; narrowed uploader subquery) · gate 1 run again green (check 5616 tests; `-g "attachments:"` 6; bill-form 15, expense-form 12, invoice-form-draft 11) · all shots re-captured · fix reviewer: 0 BLOCK, both fixed; NOTE 1 (critique out of date) → a fresh critic ran on the re-captured set; NOTE 2 (declared difference 3 no longer true) → this row records it: difference 3 was removed by fix item 1
+- gate 3 A notes: 3, listed under Design notes
+- commit: the commit that adds this row, `feat(books): attachment list and preview on bill and expense read views`
+- human: review mode C, no message
+- mistakes: a stale implementer e2e run collided with gate 1; one critic dispatch wrote no report (retro log)
 
 ## Final review
 - eval: (pending)
