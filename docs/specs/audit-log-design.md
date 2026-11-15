@@ -116,7 +116,7 @@ Over `books_audit_log`: `created` "Date changed" (`DateTime`, MinMax), `actor` "
 - `filter`: `and( between([created], {param period}), in([actor], {param users}), in([event], {param events}), in([record_type], {param types}) )`.
 - `columns`: `created` "Date changed"; `user` "User" (`[actor_name]`); `event` "Event"; `type` "Record type" (`[record_type]`); `record` "Record" (`[record_label]`).
 - `sort`: `[created]` desc, `[id]` desc. `detail`: `{ label: [created], open: concat("books/history/", [history_type], "/", [history_id]) }`.
-- `display`: `created` and `event` `max-content`; `user` `16ch`; `type` `14ch`; `record` `flexGrow: 2`, `whiteSpace: normal`, `lineClamp: 2`; `layouts`: mobile (created · event; user · type · record), tablet; `oneLine.minWidth` measured in phase 3 pass 2.
+- `display` (as measured in phase 3 pass 2, the fixture's `AUDIT_LOG_DISPLAY`): `created` and `event` `max-content`; `user` and `type` no least width (with one, the phone's second line fell back to core's automatic lines at 390 and 375); `record` `flexGrow: 2`, `whiteSpace: normal`, `lineClamp: 2`, `textOverflow: ellipsis`; `layouts`: mobile, 7 tracks (created 5 · event 2; user 2 · type 2 · record 3), tablet from 600px, 12 tracks (created 4 · user 3 · event 2 · type 3; record 12); `oneLine.minWidth` 760px.
 - Title "Audit Log"; description "Every change people made to Books records: when, who and what."
 
 ### Shares
