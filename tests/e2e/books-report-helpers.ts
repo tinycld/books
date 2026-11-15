@@ -816,6 +816,33 @@ export function tdSnapshot(page: Page, scope?: Locator): Promise<TdSnapshot> {
     }, scope === undefined)
 }
 
+export type TdRow = TdSnapshot['rows'][number]
+
+// A figure's digits, sign and point, without a currency sign or grouping.
+export function figureDigits(text: string | undefined): string {
+    return (text ?? '').replace(/[^0-9.\-−]/g, '')
+}
+
+// The lines of the section headed `label`: the detail rows after its heading, up to the
+// next row that is not a line.
+export function tdLinesOf(snapshot: TdSnapshot, label: string): TdRow[] {
+    const start = snapshot.rows.findIndex(row => row.kind === 'group' && row.label === label)
+    if (start < 0) return []
+    const after = snapshot.rows.slice(start + 1)
+    const end = after.findIndex(row => row.kind !== 'detail')
+    return end < 0 ? after : after.slice(0, end)
+}
+
+// The "Total <label>" row of the section headed `label`.
+export function tdSubtotalOf(snapshot: TdSnapshot, label: string): TdRow | undefined {
+    return snapshot.rows.find(row => row.kind === 'subtotal' && row.label === `Total ${label}`)
+}
+
+// The report's Total row.
+export function tdTotalOf(snapshot: TdSnapshot): TdRow | undefined {
+    return snapshot.rows.find(row => row.kind === 'total')
+}
+
 // --- Statement figures that open Transaction Detail (report drill-down §3). ---
 
 // Presses the figure of `columnId` on the row whose label is exactly `rowLabel`, in the
@@ -839,6 +866,62 @@ export async function figureText(page: Page, columnId: string, rowLabel: string)
     const cell = await cellOf(page, columnId, rowLabel)
     await expect(cell).toBeVisible()
     return (await cell.innerText()).trim()
+}
+
+// --- The drill panel (report drill-down §3, a window of 1360 px or more). ---
+
+// Core's side panel beside the statement (core ReportDrillPanel): every locator that
+// reads or drives the opened report passes it as its scope.
+export function drillPanel(page: Page): Locator {
+    return page.getByTestId('report-drill-panel')
+}
+
+// How a wrapped line of Transaction Detail is drawn, read in ONE pass: whether its Amount
+// sits below its Date (the label), and whether its Date, No. and Amount show their whole
+// text: no element in them is cut (scrollWidth ≤ clientWidth), and their text is drawn on
+// one line (a Date broken into "Jul 14," / "2026" is not whole). With `scope` it reads
+// the line inside the panel.
+export function wrappedLineFit(
+    page: Page,
+    rowId: string,
+    scope?: Locator
+): Promise<{ wraps: boolean; date: boolean; number: boolean; amount: boolean }> {
+    const root = scope ?? page.locator('body')
+    return root.evaluate((element, id) => {
+        const find = (testId: string) => element.querySelector(`[data-testid="${testId}"]`)
+        const isUncut = (node: Element) =>
+            [node, ...node.querySelectorAll('*')].every(
+                e => !(e instanceof HTMLElement) || e.scrollWidth <= e.clientWidth
+            )
+        // Every drawn box of the cell's text lies within one line's height: a text that
+        // breaks onto a second line spans two.
+        const isOneLine = (node: Element) => {
+            const rects: DOMRect[] = []
+            const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
+            for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+                if (!text.textContent?.trim()) continue
+                const range = document.createRange()
+                range.selectNodeContents(text)
+                for (const rect of range.getClientRects()) {
+                    if (rect.width > 0 && rect.height > 0) rects.push(rect)
+                }
+            }
+            if (rects.length === 0) return true
+            const top = Math.min(...rects.map(rect => rect.top))
+            const bottom = Math.max(...rects.map(rect => rect.bottom))
+            const lineHeight = Math.max(...rects.map(rect => rect.height))
+            return bottom - top <= lineHeight + 1
+        }
+        const isWhole = (node: Element | null) => node !== null && isUncut(node) && isOneLine(node)
+        const date = find(`report-row-${id}`)
+        const number = find(`report-cell-number-${id}`)
+        const amount = find(`report-cell-amount-${id}`)
+        const wraps =
+            date !== null &&
+            amount !== null &&
+            amount.getBoundingClientRect().top >= date.getBoundingClientRect().bottom - 1
+        return { wraps, date: isWhole(date), number: isWhole(number), amount: isWhole(amount) }
+    }, rowId)
 }
 
 // The spec's fit (spec §3 "Every width fits"): every column heading and every Amount
@@ -870,7 +953,11 @@ export async function expectTableFits(page: Page, scope?: Locator): Promise<void
                         .filter(node => node.getBoundingClientRect().right > right + 1)
                         .map(node => node.getAttribute('data-testid'))
                     if (outside.length > 0) return `past the table's right edge: ${outside}`
+                    // On a phone the chips ride in the list's top area (core
+                    // report-controls), a strip that scrolls sideways by design; the
+                    // fit is the table's rows and headings.
                     const scrolls = [table, ...table.querySelectorAll('*')]
+                        .filter(node => node.closest('[data-testid="report-controls"]') === null)
                         .filter(node => {
                             const overflowX = getComputedStyle(node).overflowX
                             return node === table || overflowX === 'auto' || overflowX === 'scroll'
