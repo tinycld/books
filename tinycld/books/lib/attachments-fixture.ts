@@ -199,7 +199,7 @@ export const PENDING_ATTACHMENTS: AttachmentDraftRow[] = [
 ]
 
 // A server refusal (the storage quota, a 413) and a transport failure, as the row shows
-// them through Books `uploadErrorText`.
+// them through Books `uploadErrorText` (lib/upload-errors.ts).
 export const FAILED_ATTACHMENTS: AttachmentDraftRow[] = [
     {
         key: 'failed-quota',

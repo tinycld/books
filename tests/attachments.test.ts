@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { uploadFileToPickedFile } from '@tinycld/core/file-viewer/picked-file'
+import { ClientResponseError } from 'pocketbase'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
     attachmentControls,
+    attachmentCount,
     attachmentDetailText,
     attachmentIssue,
     attachmentMimeOf,
@@ -24,7 +27,9 @@ import {
     REFUSED_FILES,
 } from '../tinycld/books/lib/attachments-fixture'
 import { BILL_IDS } from '../tinycld/books/lib/bill-form-fixture'
+import { writeRefusalText } from '../tinycld/books/lib/refusal'
 import { BILL_KIND, EXPENSE_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import { useAttachmentsStore } from '../tinycld/books/stores/attachments-store'
 
 function fixtureRow(id: string) {
     const row = ATTACHMENTS.find(r => r.id === id)
@@ -85,6 +90,60 @@ describe('attachmentIssue', () => {
 
     it('takes the 25th attachment', () => {
         expect(attachmentIssue(PDF, BILL_KIND, 24)).toBeNull()
+    })
+})
+
+// The read view's count (plan checkpoint 3, useAttachmentUpload.addFiles): stored rows +
+// the session's drafts (uploading or failed) − its marked removals, through the same
+// attachmentCount the hook calls.
+describe("attachmentIssue with the read view's count", () => {
+    const sessionKey = 'read:bill-count'
+
+    function readViewCount(stored: number) {
+        return attachmentCount(stored, useAttachmentsStore.getState().sessions[sessionKey])
+    }
+
+    beforeEach(() => {
+        useAttachmentsStore.setState({ sessions: {} })
+        useAttachmentsStore.getState().open(sessionKey)
+    })
+
+    it('refuses the 26th file when 24 are stored and one is uploading', () => {
+        const uploading = uploadFileToPickedFile(new File(['%PDF-1.4'], 'one.pdf'))
+        useAttachmentsStore.getState().add(sessionKey, [
+            {
+                key: 'k1',
+                file: uploading,
+                name: 'one.pdf',
+                mimeType: 'application/pdf',
+                size: uploading.size,
+                state: { kind: 'uploading', percent: 45 },
+            },
+        ])
+        expect(readViewCount(24)).toBe(25)
+        expect(attachmentIssue(PDF, BILL_KIND, readViewCount(24))).toBe(
+            'A bill holds at most 25 attachments.'
+        )
+    })
+
+    it('takes a file when 25 are stored and one is marked for removal', () => {
+        useAttachmentsStore.getState().markRemoval(sessionKey, 'att25')
+        expect(readViewCount(25)).toBe(24)
+        expect(attachmentIssue(PDF, BILL_KIND, readViewCount(25))).toBeNull()
+    })
+})
+
+// A refused delete shows the server's message on the row (plan Decisions "Refusal text on
+// a row"), through writeRefusalText, not uploadErrorText.
+describe('a refused attachment delete', () => {
+    it("shows the server's void refusal as written", () => {
+        const message = "This bill is void. Its attachments can't change."
+        const error = new ClientResponseError({
+            url: 'http://127.0.0.1/api/collections/books_attachments/records/att1',
+            status: 400,
+            response: { code: 400, message, data: {} },
+        })
+        expect(writeRefusalText(error)).toBe(message)
     })
 })
 

@@ -12,6 +12,7 @@ import {
     expiredOnOf,
     storedPartyAddressOf,
 } from '../../hooks/document-data'
+import { useReadAttachmentSession } from '../../hooks/useAttachmentUpload'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
@@ -318,6 +319,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
     const writes = useServerActionState()
+    useReadAttachmentSession(record.id, doc.features.attachments)
     const totals = readTotals(data, record, documentKind)
     const ReadLines = documentKind.ReadLines ?? DocumentReadLines
     // A kind without a message to the customer shows none (an empty detail is not drawn).

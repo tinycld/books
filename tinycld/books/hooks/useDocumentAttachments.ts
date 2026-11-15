@@ -2,7 +2,7 @@ import { eq, or } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { materialize } from 'pbtsdb'
-import { splitAttachmentRows } from '../lib/attachments'
+import { attachmentParentColumn, splitAttachmentRows } from '../lib/attachments'
 import type { LiveRecovery } from '../lib/live-recovery'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 
@@ -25,7 +25,7 @@ interface DocumentAttachmentsInput {
  */
 export function useDocumentAttachments({ kind, recordId, replaces }: DocumentAttachmentsInput) {
     const [attachmentsCollection, usersCollection] = useStore('books_attachments', 'users')
-    const parentColumn = kind.key === 'expense' ? 'expense' : 'bill'
+    const parentColumn = attachmentParentColumn(kind)
     const isEnabled = Boolean(recordId || replaces)
     const query = useLiveQuery({
         query: q => {
