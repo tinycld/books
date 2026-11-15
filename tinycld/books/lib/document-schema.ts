@@ -2,13 +2,17 @@
 // schemas (`FormHostUi.recordSchema`), so every message is a field error of the same
 // resolver. Core already checks each row kind's required cells; these are the rules core
 // cannot read from the host: the quantity's bounds and decimals, the typed rate and
-// percent, the text lengths in code points, an invoice's due date against its date, a
-// sales receipt's Deposit to and Reference no., an estimate's Expiration date, Accepted
-// date and Accepted by, the percent target and the totals. The texts are the kind's (`kind.messages`). The host's
-// columns carry no bounds, so each cell shows one message, from here.
+// percent, the text lengths in code points, an invoice's and a bill's due date against
+// its date, a bill's Vendor's bill no., a sales receipt's Deposit to and Reference no.,
+// an estimate's Expiration date, Accepted date and Accepted by, the percent target and
+// the totals. The texts are the kind's (`kind.messages`). The host's columns carry no
+// bounds, so each cell shows one message, from here.
 //
-// The total rules report at `lines`, so their message shows under the lines table.
-// They run only when every cell parses, as a total of half-typed cells means nothing.
+// Each line table's rows are checked under the table's key; a kind with several tables
+// (a bill's account and product lines) sums them into one set of totals. An account
+// line's typed Amount may be negative, never 0. The total rules report at the first
+// shown table's key (`PostLineRule.tableKey`), so their message shows under it. They run
+// only when every cell parses, as a total of half-typed cells means nothing.
 // The record holds only the tax rate's id, so the form passes the chosen tax; without
 // it the totals checked are the line totals, and the server checks the total with tax.
 
@@ -19,7 +23,8 @@ import { percentTextToPpm } from './document-line-columns'
 import { type DocumentTax, documentTotals, MAX_DOCUMENT_LINES } from './document-lines'
 import { type DocumentMessages, ESTIMATE_MESSAGES, INVOICE_MESSAGES } from './document-messages'
 import { DOCUMENT_NOTE_TOO_LONG } from './document-notes'
-import { documentLinesOf } from './document-values'
+import { ACCOUNT_AMOUNT_MESSAGES, BILL_MESSAGES } from './document-texts'
+import { documentLinesOf, lineTableRows } from './document-values'
 import { acceptanceShown } from './estimate-status'
 import { moneyInputCents } from './money-input'
 import { isWellFormedMoney, maxLineAmount, maxStoredAmount } from './money-text'
@@ -67,7 +72,8 @@ function rateMessage(value: unknown, currency: string, messages: DocumentMessage
         return messages.rateMalformed
     }
     const cents = moneyInputCents(value, currency)
-    return cents === null || Math.abs(cents) > maxLineAmount ? messages.rateTooLarge : null
+    if (cents === null || Math.abs(cents) > maxLineAmount) return messages.rateTooLarge
+    return cents < 0 && messages.rateNegative ? messages.rateNegative : null
 }
 
 // An empty percent is core's "Percent is required" (the Percent kind requires it).
@@ -82,7 +88,20 @@ function percentMessage(value: unknown, messages: DocumentMessages): string | nu
     return null
 }
 
+// An account line's typed Amount: well formed, not 0, and inside the line limit. An
+// empty amount is core's "Amount is required" (the account kind requires it).
+function accountAmountMessage(value: unknown, currency: string): string | null {
+    if (value === null || value === undefined) return null
+    if (typeof value !== 'string') return ACCOUNT_AMOUNT_MESSAGES.malformed
+    if (value.trim() === '') return null
+    if (!isWellFormedMoney(value, currency)) return ACCOUNT_AMOUNT_MESSAGES.malformed
+    const cents = moneyInputCents(value, currency)
+    if (cents === null || Math.abs(cents) > maxLineAmount) return ACCOUNT_AMOUNT_MESSAGES.tooLarge
+    return cents === 0 ? ACCOUNT_AMOUNT_MESSAGES.zero : null
+}
+
 function cellIssues(
+    tableKey: string,
     row: TableRow,
     index: number,
     currency: string,
@@ -90,57 +109,80 @@ function cellIssues(
 ): Issue[] {
     const issues: Issue[] = []
     const add = (column: string, message: string | null) => {
-        if (message !== null) issues.push({ path: ['lines', index, column], message })
+        if (message !== null) issues.push({ path: [tableKey, index, column], message })
     }
     if (row.kind === 'item') {
         add('quantity', quantityMessage(row.quantity, messages))
         add('rate', rateMessage(row.rate, currency, messages))
     }
     if (row.kind === 'percent') add('percent', percentMessage(row.percent, messages))
+    if (row.kind === 'account') add('amount', accountAmountMessage(row.amount, currency))
     if (row.kind !== 'subtotal' && isTooLong(row.description)) {
         add('description', 'Description is too long')
     }
     return issues
 }
 
-function linesOf(value: unknown): TableRow[] {
-    return Array.isArray(value) ? (value as TableRow[]) : []
+// A percent line applies to the line right above it in its own table.
+function percentTargetIssues(
+    tableKey: string,
+    lines: readonly TableRow[],
+    messages: DocumentMessages
+): Issue[] {
+    const totals = documentTotals(documentLinesOf(lines), null)
+    return totals.percentTargetErrors.map(index => ({
+        path: [tableKey, index, 'percent'],
+        message: messages.percentTarget,
+    }))
 }
 
+// The totals over every table's lines, reported at the first table. Run only when every
+// cell parses, as a total of half-typed cells means nothing.
 function totalIssues(
+    path: string,
     lines: readonly TableRow[],
-    cellsParse: boolean,
     tax: DocumentTax,
     messages: DocumentMessages
 ): Issue[] {
     const totals = documentTotals(documentLinesOf(lines), tax)
-    const issues: Issue[] = totals.percentTargetErrors.map(index => ({
-        path: ['lines', index, 'percent'],
-        message: messages.percentTarget,
-    }))
-    if (!cellsParse) return issues
     const overLimit =
         totals.isTooLarge ||
         Math.abs(totals.subtotal) > maxStoredAmount ||
         Math.abs(totals.total) > maxStoredAmount
-    if (overLimit) issues.push({ path: ['lines'], message: messages.totalTooLarge })
-    else if (totals.total < 0) {
-        issues.push({ path: ['lines'], message: messages.totalNegative })
-    }
-    return issues
+    if (overLimit) return [{ path: [path], message: messages.totalTooLarge }]
+    if (totals.total < 0) return [{ path: [path], message: messages.totalNegative }]
+    return []
 }
 
 function dayOf(value: unknown): string {
     return textOf(value).slice(0, 10)
 }
 
-// Only an invoice has a due date.
+// The kinds that have a due date, and their text for one before the document's date.
+const DUE_BEFORE_DATE: Partial<Record<SalesDocumentKind['key'], string>> = {
+    invoice: INVOICE_MESSAGES.dueBeforeDate,
+    bill: BILL_MESSAGES.dueBeforeDate,
+}
+
 function dueDateIssues(kind: SalesDocumentKind, values: Record<string, unknown>): Issue[] {
-    if (kind.key !== 'invoice') return []
+    const message = DUE_BEFORE_DATE[kind.key]
+    if (message === undefined) return []
     const date = dayOf(values.date)
     const due = dayOf(values.due_date)
     if (!isIsoDay(date) || !isIsoDay(due) || due >= date) return []
-    return [{ path: ['due_date'], message: INVOICE_MESSAGES.dueBeforeDate }]
+    return [{ path: ['due_date'], message }]
+}
+
+// The books_bills schema's `ref_no` max, in code points as the server counts it. The
+// server trims the number before it stores it (server/bills.go), so the bound is on the
+// trimmed text.
+const MAX_BILL_REF = 40
+
+// Only a bill has Vendor's bill no.
+function billRefIssues(kind: SalesDocumentKind, values: Record<string, unknown>): Issue[] {
+    const ref = textOf(values.ref_no).trim()
+    if (kind.key !== 'bill' || [...ref].length <= MAX_BILL_REF) return []
+    return [{ path: ['ref_no'], message: BILL_MESSAGES.refTooLong }]
 }
 
 // The books_estimates schema's `accepted_by` max, in code points as the server counts it.
@@ -194,9 +236,20 @@ function paymentIssues(
     return issues
 }
 
-function hasItemLine(lines: readonly TableRow[]): boolean {
-    return lines.some(row => row.kind === 'item' && textOf(row.product).trim() !== '')
+// A line that counts for Post: an item with a product, or an account line with an account.
+function isPostableLine(row: TableRow): boolean {
+    if (row.kind === 'item') return textOf(row.product).trim() !== ''
+    if (row.kind === 'account') return textOf(row.account).trim() !== ''
+    return false
 }
+
+// Post's line-count rule: its text and the table it shows under. The caller names them
+// by the tables its form shows; by default, the kind's needItemLine under its first table.
+// The line-count limit and the total rules show under the same table. `errorKey`, when
+// given, is the key the line-count issue is filed at instead of the table's: a form with
+// several tables draws that error itself, under the tables, rather than in the table's
+// own field cell.
+export type PostLineRule = { message: string; tableKey: string; errorKey?: string }
 
 function documentIssues(
     kind: SalesDocumentKind,
@@ -204,48 +257,68 @@ function documentIssues(
     currency: string,
     mode: DocumentSaveMode,
     tax: DocumentTax,
-    deposit: DepositRule | undefined
+    deposit: DepositRule | undefined,
+    postLineRule: PostLineRule
 ): Issue[] {
     const { messages } = kind
-    const lines = linesOf(values.lines)
-    const cells = lines.flatMap((row, index) => cellIssues(row, index, currency, messages))
+    const tables = kind.lineTables.map(table => ({
+        key: table.key,
+        rows: lineTableRows(values, table.key),
+    }))
+    // The rules over all the lines show under the table the post rule names: the first
+    // table the form shows (a bill may hide its first table).
+    const firstKey = postLineRule.tableKey
+    const lines = tables.flatMap(table => table.rows)
+    const cells = tables.flatMap(table =>
+        table.rows.flatMap((row, index) => cellIssues(table.key, row, index, currency, messages))
+    )
     const issues: Issue[] = [
         ...dueDateIssues(kind, values),
+        ...billRefIssues(kind, values),
         ...paymentIssues(kind, values, deposit),
         ...estimateIssues(kind, values),
         ...cells,
     ]
     if (lines.length > MAX_DOCUMENT_LINES) {
-        issues.push({ path: ['lines'], message: messages.tooManyLines })
+        issues.push({ path: [firstKey], message: messages.tooManyLines })
     }
-    issues.push(...totalIssues(lines, cells.length === 0, tax, messages))
+    issues.push(...tables.flatMap(table => percentTargetIssues(table.key, table.rows, messages)))
+    if (cells.length === 0) issues.push(...totalIssues(firstKey, lines, tax, messages))
     if (isTooLong(values.message)) {
         issues.push({ path: ['message'], message: DOCUMENT_NOTE_TOO_LONG.message })
     }
     if (isTooLong(values.memo)) {
         issues.push({ path: ['memo'], message: DOCUMENT_NOTE_TOO_LONG.memo })
     }
-    if (mode === 'post' && !hasItemLine(lines)) {
-        issues.push({ path: ['lines'], message: messages.needItemLine })
+    if (mode === 'post' && !lines.some(isPostableLine)) {
+        const key = postLineRule.errorKey ?? postLineRule.tableKey
+        issues.push({ path: [key], message: postLineRule.message })
     }
     return issues
 }
 
-// Save draft and Post share every rule; Post adds one: at least one Item line with a
-// product. `tax` is the header's chosen tax; absent, the totals are checked without it.
-// `deposit` is how a sales receipt draws Deposit to; the invoice passes none.
+// Save draft and Post share every rule; Post adds one: at least one line to post (an Item
+// line with a product, or an account line with an account), its text and place from
+// `postLineRule` (default: the kind's needItemLine under its first table). `tax` is the
+// header's chosen tax; absent, the totals are checked without it. `deposit` is how a
+// sales receipt draws Deposit to; the invoice passes none.
 export function documentSchema(
     kind: SalesDocumentKind,
     currency: string,
     mode: DocumentSaveMode,
     tax: DocumentTax = null,
-    deposit?: DepositRule
+    deposit?: DepositRule,
+    postLineRule: PostLineRule = {
+        message: kind.messages.needItemLine,
+        tableKey: kind.lineTables[0]?.key ?? 'lines',
+    }
 ): ZodTypeAny {
     return z
         .object({})
         .passthrough()
         .superRefine((values, ctx) => {
-            for (const issue of documentIssues(kind, values, currency, mode, tax, deposit)) {
+            const issues = documentIssues(kind, values, currency, mode, tax, deposit, postLineRule)
+            for (const issue of issues) {
                 ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
             }
         })

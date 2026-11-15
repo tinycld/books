@@ -4,6 +4,8 @@ const manifest = {
     version: '0.1.0',
     description: 'Double-entry bookkeeping and accounting.',
     routes: { directory: 'screens' },
+    // The customer's estimate page (/p/books/estimates/<token>), outside the auth gate.
+    publicRoutes: { directory: 'public-screens' },
     nav: {
         label: 'Books',
         icon: 'book-open',

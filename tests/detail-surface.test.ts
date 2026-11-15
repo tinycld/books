@@ -8,6 +8,8 @@ import {
     formRowClassFor,
     INDEX_SCREEN_OPTIONS,
     listColumnStyle,
+    listLayoutFor,
+    RECORD_LIST_WIDTH,
     stackContainerStyle,
     stackPointerEvents,
 } from '../tinycld/books/lib/detail-surface'
@@ -46,25 +48,64 @@ describe('stackPointerEvents', () => {
 
 describe('stackContainerStyle', () => {
     it('is a zero-width column with no border on the panel surface with nothing open', () => {
-        const style = stackContainerStyle('panel', false)
+        const style = stackContainerStyle('panel', false, 'panel')
         expect(style.width).toBe(0)
         expect(style.borderLeftWidth ?? 0).toBe(0)
     })
 
     it('is a 480 px column with a 1 px left border on the panel surface with a customer open', () => {
-        const style = stackContainerStyle('panel', true)
+        const style = stackContainerStyle('panel', true, 'panel')
         expect(style.width).toBe(480)
         expect(style.borderLeftWidth).toBe(1)
     })
 
-    it.each([false, true])('covers the content area on the page surface (open: %s)', isOpen => {
-        expectAbsoluteFill(stackContainerStyle('page', isOpen))
+    it('fills the rest of the row with no fixed width for an open record-width page', () => {
+        const style = stackContainerStyle('panel', true, 'record')
+        expect(style.width).toBeUndefined()
+        expect(style).toMatchObject({ flex: 1, minWidth: 0, borderLeftWidth: 1 })
+    })
+
+    it('is a zero-width column at record width with nothing open', () => {
+        expect(stackContainerStyle('panel', false, 'record').width).toBe(0)
+    })
+
+    it.each([
+        [false, 'panel'],
+        [true, 'panel'],
+        [false, 'record'],
+        [true, 'record'],
+    ] as const)('covers the content area on the page surface (open: %s, width: %s)', (isOpen, width) => {
+        expectAbsoluteFill(stackContainerStyle('page', isOpen, width))
     })
 })
 
 describe('listColumnStyle', () => {
-    it('fills the rest of the row and can shrink on the panel surface', () => {
-        expect(listColumnStyle('panel')).toMatchObject({ flex: 1, minWidth: 0 })
+    it('fills the rest of the row and can shrink on the panel surface at panel width', () => {
+        expect(listColumnStyle('panel', 'panel', true)).toEqual({ flex: 1, minWidth: 0 })
+        expect(listColumnStyle('panel', 'panel', false)).toEqual({ flex: 1, minWidth: 0 })
+    })
+
+    it('is a fixed 320 px name column beside an open record-width page', () => {
+        expect(RECORD_LIST_WIDTH).toBe(320)
+        const style = listColumnStyle('panel', 'record', true)
+        expect(style.width).toBe(320)
+        expect(style.flexShrink).toBe(0)
+    })
+
+    it('fills the row at record width while nothing is open', () => {
+        expect(listColumnStyle('panel', 'record', false)).toEqual({ flex: 1, minWidth: 0 })
+    })
+})
+
+describe('listLayoutFor', () => {
+    it('shows only names beside an open record-width page on the panel surface', () => {
+        expect(listLayoutFor('panel', 'record', true)).toBe('names')
+    })
+
+    it('keeps the table on the page surface, at panel width, or with nothing open', () => {
+        expect(listLayoutFor('page', 'record', true)).toBe('table')
+        expect(listLayoutFor('panel', 'panel', true)).toBe('table')
+        expect(listLayoutFor('panel', 'record', false)).toBe('table')
     })
 })
 

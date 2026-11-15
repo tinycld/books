@@ -5,6 +5,7 @@ import {
     DOCUMENT_TAB_KEYS,
     documentReadActions,
 } from '../tinycld/books/lib/document-actions'
+import { BILL_KIND, SALES_FEATURES } from '../tinycld/books/lib/sales-document-kinds'
 
 // The read view's actions by the invoice's status and the user's access (spec §3.6), and
 // the keys the read view registers for them (spec §3.1 key map).
@@ -90,5 +91,42 @@ describe('the sales receipt read view', () => {
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
+    })
+})
+
+// The bill's read view (spec §3.6): the posting lifecycle's actions without Download PDF,
+// as a bill has no PDF (`features.pdf` false, Q10). The kind's features are the third
+// argument; a kind with a PDF passes SALES_FEATURES, or nothing.
+describe('the bill read view', () => {
+    const bill = (status: 'posted' | 'void', canWrite: boolean) =>
+        documentReadActions(status, canWrite, BILL_KIND.features)
+
+    it('has no PDF', () => {
+        expect(BILL_KIND.features.pdf).toBe(false)
+    })
+
+    it('offers a writer Edit, Void, Copy and View journal entry on a posted bill', () => {
+        expect(bill('posted', true)).toEqual(['edit', 'void', 'copy', 'entry'])
+    })
+
+    it('offers a writer Copy and View journal entry on a void bill', () => {
+        expect(bill('void', true)).toEqual(['copy', 'entry'])
+    })
+
+    it('offers a reader View journal entry only', () => {
+        expect(bill('posted', false)).toEqual(['entry'])
+        expect(bill('void', false)).toEqual(['entry'])
+    })
+
+    it('never offers Download PDF', () => {
+        for (const status of ['posted', 'void'] as const) {
+            for (const canWrite of [true, false]) {
+                expect(bill(status, canWrite)).not.toContain('pdf')
+            }
+        }
+    })
+
+    it('keeps Download PDF for a kind that has a PDF', () => {
+        expect(documentReadActions('posted', true, SALES_FEATURES)).toContain('pdf')
     })
 })

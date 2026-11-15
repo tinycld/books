@@ -17,6 +17,7 @@ type documentTotalsVectors struct {
 			Rate       int64   `json:"rate"`
 			PercentPpm int64   `json:"percent_ppm"`
 			Taxable    bool    `json:"taxable"`
+			Amount     int64   `json:"amount"`
 		} `json:"lines"`
 		Components          []int64  `json:"components"`
 		Amounts             []*int64 `json:"amounts"`
@@ -50,7 +51,7 @@ func TestDocumentTotals_Vectors(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			lines := make([]documentLine, len(tc.Lines))
 			for i, l := range tc.Lines {
-				lines[i] = documentLine{Kind: l.Kind, Quantity: l.Quantity, Rate: l.Rate, PercentPpm: l.PercentPpm, Taxable: l.Taxable}
+				lines[i] = documentLine{Kind: l.Kind, Quantity: l.Quantity, Rate: l.Rate, PercentPpm: l.PercentPpm, Taxable: l.Taxable, Amount: l.Amount}
 			}
 			ids := make([]string, len(tc.Components))
 			for i := range tc.Components {
@@ -109,6 +110,40 @@ func TestDocumentTotals_Vectors(t *testing.T) {
 				t.Errorf("too large = %v, want %v", got.TooLarge, tc.TooLarge)
 			}
 		})
+	}
+}
+
+// A bill's account line carries its typed amount, which may be negative, and
+// adds it to the subtotal as an item adds Qty x Rate; with no tax the total is
+// the subtotal.
+func TestDocumentTotals_AccountLinesAddTheirTypedAmount(t *testing.T) {
+	got := documentTotals([]documentLine{
+		{Kind: "account", Amount: 18745},
+		{Kind: "account", Amount: -3890},
+		{Kind: lineKindItem, Quantity: 3, Rate: 12140},
+		{Kind: lineKindItem, Quantity: 12, Rate: 310},
+	}, nil, nil)
+
+	wantAmounts := []int64{18745, -3890, 36420, 3720}
+	for i, want := range wantAmounts {
+		if !got.HasAmount[i] || got.Amounts[i] != want {
+			t.Errorf("line %d amount = %d (has %v), want %d", i+1, got.Amounts[i], got.HasAmount[i], want)
+		}
+	}
+	if got.Subtotal != 54995 || got.TaxTotal != 0 || got.Total != 54995 || len(got.TaxLines) != 0 {
+		t.Errorf("subtotal %d tax %d total %d tax lines %v, want 54995, 0, 54995 and none",
+			got.Subtotal, got.TaxTotal, got.Total, got.TaxLines)
+	}
+	if got.TooLarge || len(got.PercentTargetErrors) != 0 {
+		t.Errorf("too large %v, percent target errors %v, want neither", got.TooLarge, got.PercentTargetErrors)
+	}
+
+	negative := documentTotals([]documentLine{
+		{Kind: "account", Amount: 1000},
+		{Kind: "account", Amount: -1001},
+	}, nil, nil)
+	if negative.Subtotal != -1 || negative.Total != -1 {
+		t.Errorf("subtotal %d total %d, want -1 each: a negative account line counts in full", negative.Subtotal, negative.Total)
 	}
 }
 

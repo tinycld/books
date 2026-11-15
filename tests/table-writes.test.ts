@@ -1,7 +1,11 @@
 import { columnSchema } from '@tinycld/core/lib/forms/definition'
 import type { TableRowWrite, TableWritePlan } from '@tinycld/core/lib/forms/table-rows'
 import { describe, expect, it, vi } from 'vitest'
-import { createTablePlans, tableWriteSteps } from '../tinycld/books/lib/table-writes'
+import {
+    createTablePlans,
+    tablesWriteSteps,
+    tableWriteSteps,
+} from '../tinycld/books/lib/table-writes'
 
 const COLUMNS = columnSchema.array().parse([
     { key: 'label', label: 'Label', kind: 'text', required: true },
@@ -77,6 +81,43 @@ describe('tableWriteSteps', () => {
         const ops = namingOps()
 
         expect(tableWriteSteps(undefined, ops)).toEqual([])
+    })
+})
+
+// A document with more than one line table (a bill) stores every table's lines in one
+// collection, and the server counts them at each insert.
+describe('tablesWriteSteps', () => {
+    const SECOND: TableWritePlan = {
+        insert: [{ row: row('j0', 'Clip', 1), position: 0 }],
+        update: [],
+        remove: ['s1'],
+    }
+
+    it('runs the removes of every table first, then each table in the order given', () => {
+        const steps = tablesWriteSteps([
+            { table: 'parts', plan: PLAN, ops: namingOps() },
+            { table: 'extras', plan: SECOND, ops: namingOps() },
+        ])
+
+        expect(steps.map(step => `${step.table} ${step.run()}`)).toEqual([
+            'parts remove:r1',
+            'parts remove:r2',
+            'extras remove:s1',
+            'parts update:u0@0',
+            'parts update:u2@2',
+            'parts insert:i1@1',
+            'parts insert:i3@3',
+            'extras insert:j0@0',
+        ])
+    })
+
+    it('has no step for a table with no plan', () => {
+        const steps = tablesWriteSteps([
+            { table: 'parts', plan: undefined, ops: namingOps() },
+            { table: 'extras', plan: SECOND, ops: namingOps() },
+        ])
+
+        expect(steps.map(step => step.rowId)).toEqual(['s1', 'j0'])
     })
 })
 

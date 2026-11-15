@@ -26,6 +26,9 @@ export interface NewAction {
     href: string
     column: 'customers' | 'vendors' | 'other'
     available: boolean
+    // A transaction for one customer: the customer page's New transaction menu lists it
+    // and opens it with `?customer=<id>`.
+    takesCustomer?: true
 }
 
 export interface ListEntry {
@@ -100,6 +103,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/invoices/new',
         column: 'customers',
         available: true,
+        takesCustomer: true,
     },
     {
         id: 'estimate',
@@ -107,6 +111,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/estimates/new',
         column: 'customers',
         available: true,
+        takesCustomer: true,
     },
     {
         id: 'sales_receipt',
@@ -114,11 +119,19 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/sales-receipts/new',
         column: 'customers',
         available: true,
+        takesCustomer: true,
     },
     {
         id: 'vendor',
         label: 'Vendor',
         href: 'books/vendors/new',
+        column: 'vendors',
+        available: true,
+    },
+    {
+        id: 'bill',
+        label: 'Bill',
+        href: 'books/bills/new',
         column: 'vendors',
         available: true,
     },
@@ -224,13 +237,13 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
 }
 
-// The entry, customer, vendor, product, transfer, invoice, sales receipt and estimate
-// forms and the entry, transfer, invoice, sales receipt and estimate views own the bottom
-// of the phone screen, so the New button stays off them. `/entries`, `/customers`,
-// `/vendors` and `/products` alone are the lists, which keep them; transfers, invoices,
-// sales receipts and estimates have no list.
+// The entry, customer, vendor, product, transfer, invoice, sales receipt, estimate and
+// bill forms and the entry, transfer, invoice, sales receipt, estimate and bill views own
+// the bottom of the phone screen, so the New button stays off them. `/entries`,
+// `/customers`, `/vendors` and `/products` alone are the lists, which keep them;
+// transfers, invoices, sales receipts, estimates and bills have no list.
 const FAB_FREE_SCREEN =
-    /\/books\/(entries|customers|vendors|products|transfers|invoices|sales-receipts|estimates)\/[^/]+\/?$/
+    /\/books\/(entries|customers|vendors|products|transfers|invoices|sales-receipts|estimates|bills)\/[^/]+\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)

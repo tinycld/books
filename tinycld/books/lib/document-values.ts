@@ -14,6 +14,8 @@ import {
     type DocumentTotals,
     documentTotals,
 } from './document-lines'
+import { parseMoney } from './money-text'
+import type { DocumentLineTable } from './sales-document-kinds'
 
 // The built-ins both kinds' hosts have, keyed as the engine keys them. `replaces` is no
 // built-in: a correction's save writes it with the new document.
@@ -64,18 +66,32 @@ export function linesWithNewIds(lines: readonly DocumentLineRow[]): TableRow[] {
     return tableRowsOf(lines, DOCUMENT_LINE_MAPPER).map(row => ({ ...row, id: newRecordId() }))
 }
 
-// The spec drops an empty trailing Item line (no product, no description) at save, so
-// the line a new form starts with never blocks a save.
+// The spec drops an empty trailing Item line (no product, no description) or account line
+// (no account, no description, no amount) at save, so the line a new form starts with
+// never blocks a save.
 export function documentLinesForSave(lines: TableRow[]): TableRow[] {
     const last = lines[lines.length - 1]
     const isEmptyItem = last?.kind === 'item' && isBlank(last.product) && isBlank(last.description)
-    return isEmptyItem ? lines.slice(0, -1) : lines
+    const isEmptyAccount =
+        last?.kind === 'account' &&
+        isBlank(last.account) &&
+        isBlank(last.description) &&
+        isBlank(last.amount)
+    return isEmptyItem || isEmptyAccount ? lines.slice(0, -1) : lines
 }
 
-// A row as the totals read it: the same conversion the save writes (rate text to
-// cents, percent text to ppm), so the form shows what the server will compute.
+// An account line's typed Amount in cents; 0 while it does not parse (the schema shows
+// why), as a rate that does not parse is written as 0.
+function accountAmountCents(value: unknown): number {
+    return typeof value === 'string' ? (parseMoney(value) ?? 0) : 0
+}
+
+// A row as the totals read it: the same conversion the save writes (rate and amount
+// text to cents, percent text to ppm), so the form shows what the server will compute.
 export function documentLinesOf(rows: readonly TableRow[]): DocumentLineInput[] {
     return rows.map((row, index) => {
+        if (row.kind === 'account')
+            return { kind: 'account', amount: accountAmountCents(row.amount) }
         const record = DOCUMENT_LINE_MAPPER.toRecord(row, index)
         return {
             kind: record.kind,
@@ -92,4 +108,37 @@ export function documentTotalsOf(
     tax: DocumentTax
 ): DocumentTotals {
     return documentTotals(documentLinesOf(values.lines ?? []), tax)
+}
+
+// A form's values: each line table's rows under the table's built-in key.
+export type DocumentLineTableValues = Readonly<Record<string, unknown>>
+
+// One line table's rows; none while the form holds no list there (a table the kind's
+// form does not draw).
+export function lineTableRows(values: DocumentLineTableValues, key: string): TableRow[] {
+    const rows = values[key]
+    return Array.isArray(rows) ? (rows as TableRow[]) : []
+}
+
+// The rows of every line table of a kind, in table order: the rows one set of totals
+// sums.
+export function allLineRows(
+    values: DocumentLineTableValues,
+    tables: readonly DocumentLineTable[]
+): TableRow[] {
+    return tables.flatMap(table => lineTableRows(values, table.key))
+}
+
+// The subtotal of each table that has a subtotal row and a line whose amount is not 0,
+// in table order. A kind with one table has none: its Subtotal row sums that table.
+export function lineTableSubtotals(
+    values: DocumentLineTableValues,
+    tables: readonly DocumentLineTable[]
+): { subtotal: NonNullable<DocumentLineTable['subtotal']>; cents: number }[] {
+    return tables.flatMap(table => {
+        if (!table.subtotal) return []
+        const totals = documentTotals(documentLinesOf(lineTableRows(values, table.key)), null)
+        const hasAmount = totals.amounts.some(amount => amount !== null && amount !== 0)
+        return hasAmount ? [{ subtotal: table.subtotal, cents: totals.subtotal }] : []
+    })
 }

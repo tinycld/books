@@ -6,6 +6,13 @@ export const DETAIL_PANEL_MIN_WINDOW = 1360
 
 export type DetailSurface = 'panel' | 'page'
 
+// How much of the content area an open record takes on the panel surface: a 480 px
+// panel beside the full list, or the rest of the row beside a column of names.
+export type DetailWidth = 'panel' | 'record'
+export const RECORD_LIST_WIDTH = 320
+
+export type ListLayout = 'table' | 'names'
+
 export function detailSurfaceFor(windowWidth: number): DetailSurface {
     return windowWidth >= DETAIL_PANEL_MIN_WINDOW ? 'panel' : 'page'
 }
@@ -19,8 +26,29 @@ export function stackPointerEvents(isWeb: boolean, isDetailOpen: boolean): 'none
     return 'box-none'
 }
 
-export function listColumnStyle(_surface: DetailSurface): ViewStyle {
+function isRecordBesideList(surface: DetailSurface, width: DetailWidth, isOpen: boolean) {
+    return surface === 'panel' && width === 'record' && isOpen
+}
+
+export function listColumnStyle(
+    surface: DetailSurface,
+    width: DetailWidth,
+    isOpen: boolean
+): ViewStyle {
+    if (isRecordBesideList(surface, width, isOpen)) {
+        return { width: RECORD_LIST_WIDTH, flexShrink: 0 }
+    }
     return { flex: 1, minWidth: 0 }
+}
+
+// Beside a record-width page the list has room for the names only.
+export function listLayoutFor(
+    surface: DetailSurface,
+    width: DetailWidth,
+    isOpen: boolean
+): ListLayout {
+    if (isRecordBesideList(surface, width, isOpen)) return 'names'
+    return 'table'
 }
 
 const PAGE_CONTAINER: ViewStyle = {
@@ -33,9 +61,14 @@ const PAGE_CONTAINER: ViewStyle = {
 
 // Only values change between surfaces, never the element tree, so the stack and the
 // open record do not remount when the window crosses DETAIL_PANEL_MIN_WINDOW.
-export function stackContainerStyle(surface: DetailSurface, isDetailOpen: boolean): ViewStyle {
+export function stackContainerStyle(
+    surface: DetailSurface,
+    isDetailOpen: boolean,
+    width: DetailWidth
+): ViewStyle {
     if (surface === 'page') return PAGE_CONTAINER
     if (!isDetailOpen) return { width: 0, overflow: 'hidden' }
+    if (width === 'record') return { flex: 1, minWidth: 0, borderLeftWidth: 1, overflow: 'hidden' }
     return { width: DETAIL_PANEL_WIDTH, borderLeftWidth: 1, overflow: 'hidden' }
 }
 

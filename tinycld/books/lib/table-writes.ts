@@ -45,6 +45,24 @@ export function tableWriteSteps<T>(
     return [...removes, ...updates, ...inserts]
 }
 
+export type TablesWriteStep<T> = TableWriteStep<T> & { table: string }
+
+/**
+ * The plans of several tables whose rows one collection stores, as ordered writes: the
+ * removes of every table, then each table's updates and inserts (tableWriteSteps), the
+ * tables in the order given. All the removes go first because the server counts the
+ * collection's rows at each insert. Each step names its table.
+ */
+export function tablesWriteSteps<T>(
+    tables: readonly { table: string; plan: TableWritePlan | undefined; ops: TableWriteOps<T> }[]
+): TablesWriteStep<T>[] {
+    const steps = tables.flatMap(({ table, plan, ops }) =>
+        tableWriteSteps(plan, ops).map(step => ({ ...step, table }))
+    )
+    const isRemove = (step: TablesWriteStep<T>) => step.itemNumber === null
+    return [...steps.filter(isRemove), ...steps.filter(step => !isRemove(step))]
+}
+
 // A new record has no stored rows, so every row the form holds is an insert.
 export function createTablePlans(
     tables: Record<string, TableRow[]>,

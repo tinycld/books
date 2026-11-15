@@ -44,6 +44,7 @@ function settingsRow(done: boolean): BooksSettings {
         threshold_1099: 200000,
         sales_deposit_account: '',
         default_customer_message: '',
+        purchase_lines: 'both',
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }

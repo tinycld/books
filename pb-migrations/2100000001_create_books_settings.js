@@ -13,7 +13,10 @@
 // the 1099 reporting threshold in integer cents (the row starts it at
 // $2,000.00), edited by admins in Settings → 1099s. default_customer_message
 // is the text a new invoice or sales receipt starts its message with (empty by
-// default, edited in Settings → Sales). The other Sales setting,
+// default, edited in Settings → Sales). purchase_lines is which line tables a
+// new bill shows (both, accounts or products; seeded both, edited by admins in
+// Settings → Purchases under the same update rule); only the client reads it,
+// the server accepts lines of both kinds on every bill. The other Sales setting,
 // sales_deposit_account, is added by 2100000011: it relates to books_accounts,
 // which is created after this migration. v0 keeps one currency;
 // the column exists so multi-currency needs no migration, and it is pinned
@@ -30,7 +33,8 @@
 // Invoices number from 1001 with no prefix (booksseqinvoice); sales receipts
 // number on their own from 1001 with no prefix too (booksseqsalesrc), and so
 // do estimates (booksseqestimat), which take their number when they are created
-// because an estimate never posts.
+// because an estimate never posts. Bills number on their own from 1001 with no
+// prefix (booksseqbill000).
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -89,6 +93,13 @@ migrate(
                     max: 9007199254740991,
                 },
                 { name: 'default_customer_message', type: 'text', max: 4000 },
+                {
+                    name: 'purchase_lines',
+                    type: 'select',
+                    required: true,
+                    maxSelect: 1,
+                    values: ['both', 'accounts', 'products'],
+                },
                 ...AUTODATES,
             ],
         })
@@ -105,6 +116,7 @@ migrate(
         row.set('setup_completed', false)
         row.set('threshold_1099', 200000)
         row.set('default_customer_message', '')
+        row.set('purchase_lines', 'both')
         app.save(row)
 
         const sequences = new Collection({
@@ -122,7 +134,7 @@ migrate(
                     type: 'select',
                     required: true,
                     maxSelect: 1,
-                    values: ['journal', 'transfer', 'invoice', 'sales_receipt', 'estimate'],
+                    values: ['journal', 'transfer', 'invoice', 'sales_receipt', 'estimate', 'bill'],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
                 {
@@ -168,6 +180,12 @@ migrate(
         estimate.set('prefix', '')
         estimate.set('next_number', 1001)
         app.save(estimate)
+        const bill = new Record(sequences)
+        bill.set('id', 'booksseqbill000')
+        bill.set('doc_type', 'bill')
+        bill.set('prefix', '')
+        bill.set('next_number', 1001)
+        app.save(bill)
 
         app.save(
             new Collection({

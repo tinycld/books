@@ -77,3 +77,29 @@ describe('a sales receipt entry', () => {
         expect(actions).not.toContain('reverse')
     })
 })
+
+// A bill's entry (spec §3.10): it opens on its bill, is edited as a correction of it,
+// and is never reversed by itself.
+describe('a bill entry', () => {
+    it('opens on its bill', () => {
+        expect(entryHref(entry('bill', 'document', 'b1'))).toBe('books/bills/b1')
+    })
+
+    it('edits as a correction of its bill', () => {
+        expect(entryEditHref(entry('bill', 'document', 'b1'))).toBe('books/bills/new?replaces=b1')
+    })
+
+    it('opens its void reversal as an entry', () => {
+        expect(entryHref(entry('bill', 'void_reversal'))).toBe('books/entries/a')
+    })
+
+    it('offers Open and Edit, and no Reverse', () => {
+        const actions = entryActions(
+            { status: 'posted', origin: 'document', doc_type: 'bill', isReversed: false },
+            { canWrite: true }
+        )
+        expect(actions).toContain('open')
+        expect(actions).toContain('edit')
+        expect(actions).not.toContain('reverse')
+    })
+})
