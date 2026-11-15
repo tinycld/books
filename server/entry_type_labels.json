@@ -10,7 +10,8 @@
         "transfer": "Transfer",
         "invoice": "Invoice",
         "sales_receipt": "Sales receipt",
-        "bill": "Bill"
+        "bill": "Bill",
+        "expense": "Expense"
     },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

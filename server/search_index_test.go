@@ -58,8 +58,17 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 9 {
-		t.Fatalf("%d indexes, want one per search source (9)", len(searchIndexes))
+	if len(searchIndexes) != 10 {
+		t.Fatalf("%d indexes, want one per search source (10)", len(searchIndexes))
+	}
+	var expenses []string
+	for _, cfg := range searchIndexes {
+		if cfg.Table == "fts_books_expenses" {
+			expenses = append(expenses, cfg.Collection)
+		}
+	}
+	if len(expenses) != 1 || expenses[0] != "books_expenses" {
+		t.Errorf("fts_books_expenses indexes %v, want books_expenses once", expenses)
 	}
 }
 

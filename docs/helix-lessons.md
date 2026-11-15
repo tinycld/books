@@ -37,3 +37,5 @@
 - The Lists tab keeps its pushed stack across tab switches: after Save and new or a Products visit, return to the hub (goBack / the helper) before `openList`. — customer-pages, retro, p2-customer-pages
 - A form with `resetOptions` must pass explicit options to a Discard: `reset(values, { keepDirtyValues: false })`; a bare `reset()` keeps dirty values. — customer-pages, retro, p2-customer-pages
 - A `max-w-[…]` class does not cap a child inside a ScrollView content container; use `style={{ maxWidth }}`. — estimate-public-link, retro, p2-estimate-public-link
+- A new document kind that copies a sibling kind's code checks each copied rule against its own spec and migration (party required or not, required DB fields, which constants are shared) before the test run. — expense-form, retro, p3-expense
+- An e2e test that changes the shared `books_settings` row goes in the `purchase-lines-setting` Playwright project (one worker); `-g` also runs that dependency project, and its red tests skip their dependents. — expense-form, retro, p3-expense

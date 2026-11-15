@@ -384,6 +384,39 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the bill's: server-owned fields below the omit line, no relations
+    // (the expense screen reads its vendor, accounts, products and users
+    // through their own queries).
+    const books_expenses = newCollection('books_expenses', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'total',
+            'revision',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // As the bill's lines: an account line's amount is typed by the writer;
+    // the server computes a product line's.
+    const books_expense_lines = newCollection('books_expense_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     // A view, never written: the server signals its topic when a journal line or
     // an account changes (server/party_balances.go), so an open page follows a
     // post or a void with no reload.
@@ -434,6 +467,8 @@ export function registerCollections(
         books_estimate_responses,
         books_bills,
         books_bill_lines,
+        books_expenses,
+        books_expense_lines,
         books_party_balances,
         books_party_contacts,
     }

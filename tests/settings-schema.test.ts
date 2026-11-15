@@ -245,7 +245,7 @@ describe('defaultMessageSchema', () => {
     })
 })
 
-// Bill form spec §3.11: "Bill lines" is one of three values.
+// Bill form spec §3.11: "Purchase lines" is one of three values.
 describe('purchaseLinesSchema', () => {
     const ok = (purchase_lines: string) => purchaseLinesSchema.safeParse({ purchase_lines }).success
 
