@@ -40,3 +40,5 @@
 - A `max-w-[…]` class does not cap a child inside a ScrollView content container; use `style={{ maxWidth }}`. — estimate-public-link, retro, p2-estimate-public-link
 - A new document kind that copies a sibling kind's code checks each copied rule against its own spec and migration (party required or not, required DB fields, which constants are shared) before the test run. — expense-form, retro, p3-expense
 - An e2e test that changes the shared `books_settings` row goes in the `purchase-lines-setting` Playwright project (one worker); `-g` also runs that dependency project, and its red tests skip their dependents. — expense-form, retro, p3-expense
+- In e2e helpers, wait on the visible screen (`.filter({ visible: true })`), never on the first match of an `or`: Books keeps a list mounted and hidden under an open record. Scope a row lookup to its account section, and read server data through the page's `fetch`, not Node `page.request`. — report-drill-down, retro, p5-drill-down
+- A report drill is set per column; a blank cell (a zero Debit or Credit) has no drill and no link. — report-drill-down, retro, p5-drill-down

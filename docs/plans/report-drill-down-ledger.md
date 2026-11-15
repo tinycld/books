@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/report-drill-down-checkpoints.md
 - reference: docs/plans/report-drill-down-reference/
 - evidence: docs/plans/report-drill-down-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs --screen 2026-11-15; screen e2e covered by CI at 0ef7b62)
 - capture manifest: docs/plans/report-drill-down-capture.json
 - review mode: C — none (unattended)
 - core extension: checkpoint 0 on core branch books/p5-drill-down (from main f201007) — D2 `detail.open`, D1 `columns[].drill`, D3 `from=` back link, D4 report-in-a-panel (`useOpenDrill`, `ReportDrillPanel`, `useReportView` `urlPrefix`/`uiScope`, detail-surface threshold moved to core); human accepted 2026-11-14; `exclusive` taken, then released the same day on the human's word
@@ -152,4 +152,4 @@ and again at the end)
 - commit: this commit (books, on books/p5-drill-down; not pushed).
 
 ## Final review
-- eval:
+- eval: approved by the human 2026-11-15 (unattended eval gate). E2e sha 0ef7b62: books draft PR #52 CI green (4 E2E shards, Typecheck & Unit); core PR #475 green after the main merge. Retro items 1–8 approved. Open items carried: the record-return Back mechanism (human's later deep dive); the Transaction Detail column widths at 1024 (Type wider, Split narrower), given as a revise note but approved without it.
