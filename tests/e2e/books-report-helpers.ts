@@ -676,6 +676,122 @@ export async function chooseAgencies(page: Page, names: readonly string[]): Prom
     )
 }
 
+// The Sales Tax Liability's phone lines (its spec's `mobile` layout): the label on line 1,
+// Gross total and Non-taxable on line 2, Taxable amount and Tax amount on line 3.
+const PHONE_LINE_2 = ['gross', 'nontaxable'] as const
+const PHONE_LINE_3 = ['taxable', 'tax'] as const
+
+type PhoneRect = { top: number; bottom: number; left: number; right: number }
+
+type PhoneLinesRead = {
+    label: PhoneRect | null
+    cells: Record<string, { rect: PhoneRect; text: string; isCut: boolean } | null>
+    tableScrollWidth: number
+    tableClientWidth: number
+}
+
+// Reads the row `rowId`'s label and figure cells, and the report table's widths, in ONE
+// pass. A cell is cut when it, or any element inside it, is wider than its box.
+function readPhoneLines(page: Page, rowId: string): Promise<PhoneLinesRead> {
+    return page.evaluate(
+        ({ id, columns }) => {
+            const rectOf = (element: Element): PhoneRect => {
+                const box = element.getBoundingClientRect()
+                return { top: box.top, bottom: box.bottom, left: box.left, right: box.right }
+            }
+            // A row id holds quotes and brackets (g:["…","…"]), so elements are matched by
+            // their test id's value, not through a selector.
+            const marked = [...document.querySelectorAll('[data-testid^="report-"]')]
+            const byTestId = (testId: string) =>
+                marked.find(element => element.getAttribute('data-testid') === testId) ?? null
+            const label = byTestId(`report-row-${id}`)
+            const cells: PhoneLinesRead['cells'] = {}
+            for (const column of columns) {
+                const cell = byTestId(`report-cell-${column}-${id}`)
+                if (!cell) {
+                    cells[column] = null
+                    continue
+                }
+                const isCut = [cell, ...cell.querySelectorAll('*')].some(
+                    element => element.scrollWidth > element.clientWidth
+                )
+                cells[column] = {
+                    rect: rectOf(cell),
+                    text: (cell as HTMLElement).innerText.trim(),
+                    isCut,
+                }
+            }
+            const table = document.querySelector('[data-testid="report-table"]')
+            return {
+                label: label ? rectOf(label) : null,
+                cells,
+                tableScrollWidth: table?.scrollWidth ?? -1,
+                tableClientWidth: table?.clientWidth ?? -2,
+            }
+        },
+        { id: rowId, columns: [...PHONE_LINE_2, ...PHONE_LINE_3] }
+    )
+}
+
+// What breaks the phone lines on one read; empty when the row is laid out right.
+function phoneLineProblems(read: PhoneLinesRead): string[] {
+    const problems: string[] = []
+    if (!read.label) return ['the row label is not mounted']
+    const label = read.label
+    const columns = [...PHONE_LINE_2, ...PHONE_LINE_3]
+    for (const column of columns) {
+        const cell = read.cells[column]
+        if (!cell) {
+            problems.push(`no ${column} cell`)
+            continue
+        }
+        if (cell.text === '') problems.push(`${column} shows no figure`)
+        if (cell.isCut) problems.push(`${column} "${cell.text}" is cut`)
+        if (cell.rect.top < label.bottom - 1) {
+            problems.push(
+                `${column} (top ${cell.rect.top}) is not below the label (bottom ${label.bottom})`
+            )
+        }
+    }
+    const top = (column: string) => read.cells[column]?.rect.top ?? Number.NaN
+    const bottom = (column: string) => read.cells[column]?.rect.bottom ?? Number.NaN
+    if (Math.abs(top('gross') - top('nontaxable')) > 1) {
+        problems.push(
+            `gross (top ${top('gross')}) and nontaxable (top ${top('nontaxable')}) are not on one line`
+        )
+    }
+    if (Math.abs(top('taxable') - top('tax')) > 1) {
+        problems.push(
+            `taxable (top ${top('taxable')}) and tax (top ${top('tax')}) are not on one line`
+        )
+    }
+    const line2Bottom = Math.max(bottom('gross'), bottom('nontaxable'))
+    if (!(Math.min(top('taxable'), top('tax')) >= line2Bottom - 1)) {
+        problems.push(
+            `line 3 (top ${Math.min(top('taxable'), top('tax'))}) is not below line 2 (bottom ${line2Bottom})`
+        )
+    }
+    if (read.tableScrollWidth !== read.tableClientWidth) {
+        problems.push(
+            `the report table scrolls sideways (scrollWidth ${read.tableScrollWidth}, clientWidth ${read.tableClientWidth})`
+        )
+    }
+    return problems
+}
+
+// Asserts a report row on a phone wraps to the Sales Tax Liability's three lines: the label
+// on line 1 above every figure, Gross total and Non-taxable side by side on line 2,
+// Taxable amount and Tax amount side by side on line 3 below it, each of the four showing
+// a figure that is not cut, and the report table not scrolling sideways. Polled: the
+// layout settles a frame after a resize or a press.
+export async function expectPhoneLines(page: Page, rowId: string): Promise<void> {
+    await expect
+        .poll(async () => phoneLineProblems(await readPhoneLines(page, rowId)), {
+            message: `the phone lines of report row ${rowId}`,
+        })
+        .toEqual([])
+}
+
 // How long a press is watched for a run it starts. An opened row's lines come from a new
 // run (/api/reports/run with the row's path in `expand`), which the press sends at once
 // and which lands well inside this window.

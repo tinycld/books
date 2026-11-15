@@ -46,9 +46,29 @@ func salesTaxLiabilitySpec() *reports.Spec {
 		Sort: []reports.SortKey{
 			{Formula: rec("byAgency", "name")},
 			{Formula: rec("byRate", "name")},
+			// Keys that read a line order the document rows of an opened
+			// rate and leave the groups in name order.
+			{Formula: fld("document", "date")},
+			{Formula: fld("document", "sequence")},
 		},
+		Detail:  &reports.Detail{Label: stlDetailLabel()},
 		Display: stlDisplay(),
 	}
+}
+
+// stlDetailLabel is "<date> · <Invoice|Sales receipt> <number> · <customer>";
+// a document with no customer ends after its number. The kind is a constant
+// select, and a formula reads its value, so the words are written here (D6).
+func stlDetailLabel() *reports.Node {
+	customer := fld("document", "customer", "display_name")
+	return op("concat",
+		fld("document", "date"),
+		lit(" · "),
+		op("if", op("eq", fld("document", "kind"), lit("invoice")), lit("Invoice"), lit("Sales receipt")),
+		lit(" "),
+		fld("document", "number"),
+		op("if", op("isEmpty", customer), lit(""), op("concat", lit(" · "), customer)),
+	)
 }
 
 // stlParams are the Period (Last month by default) and the Agency filter,

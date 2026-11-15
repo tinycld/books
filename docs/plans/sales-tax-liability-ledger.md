@@ -52,6 +52,13 @@
 - cp 2 · reviewer A NOTE: `choosePeriod`'s short-circuit (From/To already the asked days) does not wait for `report-document-period`; correct only when the pre-filled days come from a settled run. No caller reaches the in-flight case; callers assert their own rows after.
 - cp 2 · reviewer A NOTE: until checkpoint 3's `Detail`, a pressed rate opens into one row per tax line labelled with the rate name, in record-id order (known intermediate state).
 - cp 2 · reviewer A NOTE: name order is core's SQLite BINARY collation (case-sensitive: "denver county" sorts after "Old county agency"); a core convention every Books report shares.
+- cp 3 · rate-open-1280-*: document rows — the document label starts about 2 px left of the rate label above it (x 112 against 114), so the nesting shows by weight only; the reference does the same.
+- cp 3 · rate-open-390-*: document rows are about 100 px tall (figure lines about 28 px apart), rate rows 132 px (44 px apart): two line pitches on one page; "Total Colorado state" has the tight pitch and the closed rate rows below it the wide one; the reference does the same.
+- cp 3 · rate-open-390-*: "Total Colorado state" line 2 — its Gross total figure ends about 20 px right of the document rows' Gross total figures above it (in line with Taxable amount below), so the Gross total column does not line up down the opened rate.
+- cp 3 · rate-open-390-*: rate "Scientific and Cultural Facilities District, seven…" is cut with an ellipsis on one line (the reference cuts it at 1280 too); document labels such as "2026-10-06 · Invoice 1005 · Harborview Hospitali…" cut the customer name, the part that tells two documents apart.
+- cp 3 · rate-open-390-*: agency total rows have two heights ("Total Old county agency" has its figure on the label line, the two longer names on a second line), as the cp 0 note on closed agency rows.
+- cp 3 · reviewer A NOTE: no test sees a cut phone label: `readPhoneLines` (`tests/e2e/books-report-helpers.ts`) checks `isCut` only on the four figure cells, and the label regexes read `innerText`, which holds the full text under an ellipsis. The checkpoint asks only that the figures are not cut. Fix offered: measure the row label too; if core cannot wrap a phone label, that is a core gap.
+- cp 3 · reviewer A NOTE: `sequence` is counted per document kind, so an invoice and a sales receipt on one day can share a sequence (Invoice 1001, Sales receipt 1001); the spec gives no order for that tie and the rows fall back to the union's rowid order (stable, not defined). Fix offered: a third sort key on the kind.
 
 ## Out-of-plan changes
 (core repo, checkpoint 0; files the checkpoint's Files block did not name)
@@ -148,6 +155,23 @@
 - gate 3 A notes: 4, listed under Design notes.
 - reviewer-caught deferrals: none.
 - commit: this commit (`feat(books): Sales Tax Liability report by agency and rate`).
+- human: review mode C, no message.
+
+## Checkpoint 3
+- test writer: `server/report_sales_tax_liability_test.go` (`TestSalesTaxLiabilityTopics` gains `collection/books_customers`; `TestSalesTaxLiabilityOpenedRate`), `tests/e2e/books-sales-tax-liability.spec.ts` (e2e 5–8), `tests/e2e/books-report-helpers.ts` (`expectPhoneLines`); red for the right reason: 5 of 6 (Go topics: no `books_customers`; Go opened rate, e2e 5, 7, 8: document rows carry core's default label, the rate name). e2e 6 (post and void refresh) passes before the build: core's live re-run ships and Do 0 names no red for it; it stays as the pin of the refresh. Before the label check, the phone layout passes at 390 and 375. Untestable: none. Report: staging `cp/cp3-tests.md`.
+- plan deviations the test writer flagged, accepted by the runner (each forced by the real UI): (1) e2e 6 picks the new agency with core `chooseParamOption`, not `chooseAgencies` (that helper waits for the agency's rows; the new agency has none yet). (2) e2e 6 voids with `invoice-read-void` directly: on desktop Void is in the bar; `invoice-read-more` exists only on a phone. (3) e2e 7–8 run `expectPhoneLines` on the rate row while it is closed (an open group row draws no figure cells on a phone). (4) e2e 7–8 check "only the Tax amount shows" on "Total City and County of Denver": the agency group row is open on load and draws no figures.
+- implementer: `server/report_sales_tax_liability.go` only: `Detail.Label` (`stlDetailLabel()`, Do 1's formula as written) and sort keys `[document, date]`, `[document, sequence]` after the group keys. DONE with 1 test dispute. Report: staging `cp/cp3-impl.md`.
+- test disputes: (1) `TestSalesTaxLiabilityTopics` asserted `collection/books_customers` on a run with no `Expand` → test wrong: the checkpoint bullet says only "also holds `collection/books_customers`" and names no run; core runs the detail statement only for opened groups and only `Detail.Label` reads the customer (implementer's overlay probe: closed run false, opened run true) → fresh test writer asserts it on a run that opens the rate. (2) Raised by the implementer's self-check, not a dispute: dropping the `[document, sequence]` key left `TestSalesTaxLiabilityOpenedRate` green (tax lines inserted in sequence order), though the bullet asks "two documents on one day in sequence order" → weak test; the same test writer added a correction posted after a later invoice on 2026-10-20 (correction sequence 1003, tax lines written after 1004's); red 3/3 with the key removed (`go test -overlay`), green with it. Rulings `cp/cp3-dispute.md`, report `cp/cp3-fix-tests.md`. Test file staged again.
+- self-declared differences: none.
+- gate 1: tests unedited: yes · `packages:generate`, `go test ./...`, `tinycld-pkg check` pass · e2e `-g "sales-tax-liability:"` 8 passed · ripple, the 7 other importers of `books-report-helpers.ts` (account-register-states, balance-sheet, chart-of-accounts-balance, general-ledger, journal-report, profit-and-loss, trial-balance): 61 passed (staging `cp/cp3-e2e-ripple.log`).
+- gate 2 capture: `docs/plans/sales-tax-liability-evidence/cp3/capture.json` (rate-open × 1280/390 × light/dark; Period Custom 2026-10-01..2026-10-31 from the Books hub row, "Colorado state" opened by a press).
+- gate 2: invalid shots: none · blocking: none · notes: 3 (critique `evidence/cp3/critique.md`); one acted on: the 390 shot (1400 px) ended inside the opened rate, so "Total Colorado state" and the no-customer sales receipt row were not judged → re-captured at 2600 px (whole report in the shot); fresh critic on the re-capture: 0 INVALID, 0 BLOCKING, 4 NOTE (`evidence/cp3/critique-recapture.md`). Notes listed under Design notes.
+- gate 3 A (correctness): 0 BLOCK, 0 DEFERRAL, 2 NOTE (cut phone label not tested; invoice/receipt sequence tie) → Design notes (neither is a one-line comment or text change).
+- gate 3 B (conformance): script lines: 0 · findings: 0 · DEFERRAL: 0.
+- fix review: n/a (no accepted finding asked for a change; no fix round) · rounds: 0.
+- gate 3 A notes: 2, listed under Design notes.
+- reviewer-caught deferrals: none.
+- commit: this commit (`feat(books): Sales Tax Liability rate rows open into their documents`).
 - human: review mode C, no message.
 
 ## Final review

@@ -743,7 +743,8 @@ func TestSalesTaxLiabilityNoAccess(t *testing.T) {
 
 func TestSalesTaxLiabilityTopics(t *testing.T) {
 	b := newSTLBook(t)
-	b.postInvoice(t, mkTaxRate(t, b.app, "Topic rate", 50000, b.agency(t, "Topic agency")), "2026-10-05", b.sale(10000, true))
+	rate := mkTaxRate(t, b.app, "Topic rate", 50000, b.agency(t, "Topic agency"))
+	b.postInvoice(t, rate, "2026-10-05", b.sale(10000, true))
 	res := b.run(t, nil)
 	for _, topic := range []string{
 		"collection/books_invoice_tax_lines",
@@ -757,6 +758,165 @@ func TestSalesTaxLiabilityTopics(t *testing.T) {
 			t.Errorf("topics = %v, want %s (a void or post re-runs the open report)", res.Topics, topic)
 		}
 	}
+
+	// The document label names the customer: a renamed customer re-runs the
+	// report with an opened rate. Only an opened rate reads the label.
+	rateRow, ok := stlGroupRow(res, 2, rate.Id)
+	if !ok {
+		t.Fatalf("no row for Topic rate; rows %q", bsLabels(res))
+	}
+	opened := runSTL(t, b.app, b.reader, nil, reports.Options{
+		Today:    stlToday,
+		Expand:   [][]any{rateRow.GroupKey},
+		Collapse: [][]any{},
+	})
+	if !slices.Contains(opened.Topics, "collection/books_customers") {
+		t.Errorf("topics with Topic rate opened = %v, want collection/books_customers", opened.Topics)
+	}
+}
+
+// stlDetailsUnder are the detail rows of the opened rate row rate, in result
+// order.
+func stlDetailsUnder(res *reports.Result, rate reports.Row) []reports.Row {
+	var out []reports.Row
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindDetail && r.Section == rate.ID {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// stlLineFigures is the four figures of doc's tax line for component: the
+// figures its document row must show.
+func stlLineFigures(t *testing.T, app core.App, doc docRef, component string) stlFig {
+	t.Helper()
+	for _, line := range docTaxLinesOf(t, app, doc.kind, doc.id) {
+		if line.GetString("component") != component {
+			continue
+		}
+		gross, taxable := int64(line.GetInt("gross_amount")), int64(line.GetInt("taxable_amount"))
+		return stlFig{gross, gross - taxable, taxable, int64(line.GetInt("amount"))}
+	}
+	t.Fatalf("%s %s has no tax line for component %s", doc.kind.Collection, doc.id, component)
+	return stlFig{}
+}
+
+func TestSalesTaxLiabilityOpenedRate(t *testing.T) {
+	b := newSTLBook(t)
+	agency := b.agency(t, "Alpha agency")
+	a1 := mkTaxRate(t, b.app, "A rate one", 50000, agency)
+	a2 := mkTaxRate(t, b.app, "A rate two", 20000, agency)
+	pair := mkTaxGroup(t, b.app, "A pair", a1, a2)
+	customer := b.customer.GetString("display_name")
+
+	// Posted first, dated last: the rows follow the date, not the sequence.
+	late := b.postInvoice(t, a1, "2026-10-27", b.sale(1000, true))
+	early := b.postInvoice(t, a1, "2026-10-06", b.sale(10000, true), b.sale(2500, false))
+	// A sales receipt with no customer.
+	draft := b.mkReceipt(t, map[string]any{"customer": "", "tax_rate": a1.Id, "date": "2026-10-14"})
+	mkReceiptLine(t, b.app, draft, 0, b.sale(4000, true))
+	walkIn := mustPostReceipt(t, b.app, draft.Id, b.actor)
+	// Two invoices on one day. The first is then corrected: the correction
+	// keeps the original's sequence but its tax lines are written after the
+	// second invoice's, so only the sequence puts it first.
+	original := b.postInvoice(t, a1, "2026-10-20", b.sale(3000, true))
+	sameDayB := b.postInvoice(t, a1, "2026-10-20", b.sale(6000, true))
+	correction := b.draftInvoice(t, b.customer, a1, "2026-10-20", map[string]any{"replaces": original.Id}, b.sale(3500, true))
+	sameDayA := mustPostInvoice(t, b.app, correction.Id, b.actor)
+	if sameDayA.GetInt("sequence") >= sameDayB.GetInt("sequence") {
+		t.Fatalf("sequences %d, %d: the correction must keep the original's lower sequence",
+			sameDayA.GetInt("sequence"), sameDayB.GetInt("sequence"))
+	}
+	// A group-rate document: one tax line under each of the two rates.
+	grouped := b.postInvoice(t, pair, "2026-10-22", b.sale(20000, true))
+
+	label := func(day, kind string, doc *core.Record, withCustomer bool) string {
+		out := day + " · " + kind + " " + doc.GetString("number")
+		if withCustomer {
+			out += " · " + customer
+		}
+		return out
+	}
+
+	closed := b.run(t, nil)
+	for _, r := range closed.Rows {
+		if r.Kind == reports.KindDetail {
+			t.Errorf("with no Expand, a detail row %q is in the result", r.Label)
+		}
+	}
+	rateOne, ok := stlGroupRow(closed, 2, a1.Id)
+	if !ok {
+		t.Fatalf("no row for A rate one; rows %q", bsLabels(closed))
+	}
+	rateTwo, ok := stlGroupRow(closed, 2, a2.Id)
+	if !ok {
+		t.Fatalf("no row for A rate two; rows %q", bsLabels(closed))
+	}
+
+	// An empty Collapse keeps the agency level open beside Expand, as core's
+	// view sends a press (Ruling R2).
+	opened := runSTL(t, b.app, b.reader, nil, reports.Options{
+		Today:    stlToday,
+		Expand:   [][]any{rateOne.GroupKey, rateTwo.GroupKey},
+		Collapse: [][]any{},
+	})
+	openOne, ok := stlGroupRow(opened, 2, a1.Id)
+	if !ok || !openOne.Expanded {
+		t.Fatalf("A rate one = %+v (found %v), want it opened; rows %q", openOne, ok, bsLabels(opened))
+	}
+	openTwo, ok := stlGroupRow(opened, 2, a2.Id)
+	if !ok || !openTwo.Expanded {
+		t.Fatalf("A rate two = %+v (found %v), want it opened; rows %q", openTwo, ok, bsLabels(opened))
+	}
+
+	type want struct {
+		label string
+		doc   docRef
+	}
+	check := func(rate reports.Row, component string, wants []want) {
+		t.Helper()
+		rows := stlDetailsUnder(opened, rate)
+		got := make([]string, len(rows))
+		for i, r := range rows {
+			got[i] = r.Label
+		}
+		wantLabels := make([]string, len(wants))
+		for i, w := range wants {
+			wantLabels[i] = w.label
+		}
+		if !reflect.DeepEqual(got, wantLabels) {
+			t.Fatalf("%s's document rows =\n%q\nwant\n%q", rate.Label, got, wantLabels)
+		}
+		var sum stlFig
+		for i, w := range wants {
+			fig := stlLineFigures(t, b.app, w.doc, component)
+			if gotFig := stlFigures(t, rows[i]); gotFig != fig {
+				t.Errorf("%s: gross, non-taxable, taxable, tax = %+v, want its tax line's %+v", w.label, gotFig, fig)
+			}
+			sum.gross += fig.gross
+			sum.nontaxable += fig.nontaxable
+			sum.taxable += fig.taxable
+			sum.tax += fig.tax
+		}
+		requireRateFigures(t, opened, "Total "+rate.Label, sum)
+		if got := stlFigures(t, bsRow(t, opened, "Total "+rate.Label)); got != stlFigures(t, rate) {
+			t.Errorf("Total %s = %+v, want the rate row's figures %+v", rate.Label, got, stlFigures(t, rate))
+		}
+	}
+
+	check(openOne, a1.Id, []want{
+		{label("2026-10-06", "Invoice", early, true), docRef{invoiceKind, early.Id}},
+		{label("2026-10-14", "Sales receipt", walkIn, false), docRef{salesReceiptKind, walkIn.Id}},
+		{label("2026-10-20", "Invoice", sameDayA, true), docRef{invoiceKind, sameDayA.Id}},
+		{label("2026-10-20", "Invoice", sameDayB, true), docRef{invoiceKind, sameDayB.Id}},
+		{label("2026-10-22", "Invoice", grouped, true), docRef{invoiceKind, grouped.Id}},
+		{label("2026-10-27", "Invoice", late, true), docRef{invoiceKind, late.Id}},
+	})
+	// The group-rate invoice shows once under each of its two rates.
+	check(openTwo, a2.Id, []want{
+		{label("2026-10-22", "Invoice", grouped, true), docRef{invoiceKind, grouped.Id}},
+	})
 }
 
 // Register ships the Sales Tax Liability; core creates it unpublished, owned
