@@ -7,11 +7,17 @@ import {
     navigateToPackage,
     rowOf,
 } from '@tinycld/core/e2e-helpers'
+import { rangeWords } from '@tinycld/core/reports/lib/dates'
 import {
     PROFIT_AND_LOSS_BY_MONTH_TITLE,
     PROFIT_AND_LOSS_TITLE,
 } from '~/tinycld/books/lib/profit-and-loss-fixture'
 import { TRANSACTION_DETAIL_TITLE } from '~/tinycld/books/lib/report-drill-down-fixture'
+import {
+    SALES_TAX_LIABILITY_FROM,
+    SALES_TAX_LIABILITY_TITLE,
+    SALES_TAX_LIABILITY_TO,
+} from '~/tinycld/books/lib/sales-tax-liability-fixture'
 import { isPhone } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
@@ -393,7 +399,10 @@ export async function voidPostedEntry(page: Page): Promise<void> {
 }
 
 // Sets the Period: a preset applies at once and closes the popover; Custom days apply as
-// they are typed (the URL holds them) and Escape closes the popover.
+// they are typed (the URL holds them) and Escape closes the popover. Core pre-fills the
+// Custom days from the current run's resolved period, so when they already hold the days
+// asked for, the shown run is over those days: filling them fires no change and the URL
+// never gets them, so only Escape is pressed.
 export async function choosePeriod(
     page: Page,
     choice: { preset: 'thisMonthToDate' | 'allDates' } | { from: string; to: string }
@@ -405,12 +414,20 @@ export async function choosePeriod(
         await page.getByTestId(`report-period-preset-${choice.preset}`).click()
     } else {
         await page.getByTestId('report-period-preset-custom').click()
-        await page.getByTestId('report-period-from').fill(choice.from)
-        await page.getByTestId('report-period-to').fill(choice.to)
-        await expect(page.getByTestId('report-period-error')).toHaveCount(0)
-        await expect
-            .poll(() => new URL(page.url()).searchParams.get('p-period'))
-            .toBe(`${choice.from}..${choice.to}`)
+        const fromInput = page.getByTestId('report-period-from')
+        const toInput = page.getByTestId('report-period-to')
+        await expect(fromInput).toBeVisible()
+        const isShown =
+            (await fromInput.inputValue()) === choice.from &&
+            (await toInput.inputValue()) === choice.to
+        if (!isShown) {
+            await fromInput.fill(choice.from)
+            await toInput.fill(choice.to)
+            await expect(page.getByTestId('report-period-error')).toHaveCount(0)
+            await expect
+                .poll(() => new URL(page.url()).searchParams.get('p-period'))
+                .toBe(`${choice.from}..${choice.to}`)
+        }
         await page.keyboard.press('Escape')
     }
     await expect(popover).toHaveCount(0)
@@ -631,6 +648,173 @@ export async function openProfitAndLossByMonth(page: Page): Promise<void> {
         .click()
     await expect(page.getByTestId('report-screen')).toBeVisible()
     await expect(page.getByTestId('report-table')).toBeVisible()
+}
+
+// The shipped Sales Tax Liability from the Books hub, reached as openBalanceSheet reaches
+// the Balance Sheet: through the viewer share Books keeps. It has an empty state, so the
+// table or the empty text shows.
+export async function openSalesTaxLiability(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, SALES_TAX_LIABILITY_TITLE).click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(
+        page.getByTestId('report-table').or(page.getByTestId('report-empty'))
+    ).toBeVisible()
+}
+
+// Sets the Period to October 2026, the month the seed posts its taxed sales in, and waits
+// until the document period names it. In November the default Last month already is
+// October, so choosePeriod changes nothing. Else core keeps the old rows until the new run
+// lands, but the period words and the rows come from the same run result, so the words
+// show October only once October's rows show.
+export async function chooseOctober(page: Page): Promise<void> {
+    await choosePeriod(page, { from: SALES_TAX_LIABILITY_FROM, to: SALES_TAX_LIABILITY_TO })
+    await expect(page.getByTestId('report-document-period')).toHaveText(
+        rangeWords(SALES_TAX_LIABILITY_FROM, SALES_TAX_LIABILITY_TO)
+    )
+}
+
+// Narrows the report to the agencies named, through core's Agency picker. An unset Agency
+// has no chip (core lists an optional param under Add filter), so the first pick starts
+// from Add filter and a later one from the chip. It then waits until the URL holds the
+// agencies and the rows show only those agencies' group rows: a wait on the rows, not on a
+// run response (React Query answers a body it has cached with no request).
+export async function chooseAgencies(page: Page, names: readonly string[]): Promise<void> {
+    const chip = page.getByTestId('report-param-agencies')
+    const from = (await chip.isVisible()) ? 'chip' : 'add-filter'
+    await chooseParamOption(page, 'agencies', {
+        from,
+        search: names.length === 1 ? names[0] : undefined,
+        labels: [...names],
+    })
+    await expect.poll(() => new URL(page.url()).searchParams.get('p-agencies')).not.toBeNull()
+    const wanted = [...names].sort((a, b) => a.localeCompare(b))
+    await snapshotWhen(
+        page,
+        reportSnapshot,
+        snapshot =>
+            snapshot.rows
+                .filter(row => row.kind === 'group' && row.depth === 0)
+                .map(row => row.label)
+                .join('|') === wanted.join('|'),
+        `the rows show only the agencies ${wanted.join(', ')}`
+    )
+}
+
+// The Sales Tax Liability's phone lines (its spec's `mobile` layout): the label on line 1,
+// Gross total and Non-taxable on line 2, Taxable amount and Tax amount on line 3.
+const PHONE_LINE_2 = ['gross', 'nontaxable'] as const
+const PHONE_LINE_3 = ['taxable', 'tax'] as const
+
+type PhoneRect = { top: number; bottom: number; left: number; right: number }
+
+type PhoneLinesRead = {
+    label: PhoneRect | null
+    cells: Record<string, { rect: PhoneRect; text: string; isCut: boolean } | null>
+    tableScrollWidth: number
+    tableClientWidth: number
+}
+
+// Reads the row `rowId`'s label and figure cells, and the report table's widths, in ONE
+// pass. A cell is cut when it, or any element inside it, is wider than its box.
+function readPhoneLines(page: Page, rowId: string): Promise<PhoneLinesRead> {
+    return page.evaluate(
+        ({ id, columns }) => {
+            const rectOf = (element: Element): PhoneRect => {
+                const box = element.getBoundingClientRect()
+                return { top: box.top, bottom: box.bottom, left: box.left, right: box.right }
+            }
+            // A row id holds quotes and brackets (g:["…","…"]), so elements are matched by
+            // their test id's value, not through a selector.
+            const marked = [...document.querySelectorAll('[data-testid^="report-"]')]
+            const byTestId = (testId: string) =>
+                marked.find(element => element.getAttribute('data-testid') === testId) ?? null
+            const label = byTestId(`report-row-${id}`)
+            const cells: PhoneLinesRead['cells'] = {}
+            for (const column of columns) {
+                const cell = byTestId(`report-cell-${column}-${id}`)
+                if (!cell) {
+                    cells[column] = null
+                    continue
+                }
+                const isCut = [cell, ...cell.querySelectorAll('*')].some(
+                    element => element.scrollWidth > element.clientWidth
+                )
+                cells[column] = {
+                    rect: rectOf(cell),
+                    text: (cell as HTMLElement).innerText.trim(),
+                    isCut,
+                }
+            }
+            const table = document.querySelector('[data-testid="report-table"]')
+            return {
+                label: label ? rectOf(label) : null,
+                cells,
+                tableScrollWidth: table?.scrollWidth ?? -1,
+                tableClientWidth: table?.clientWidth ?? -2,
+            }
+        },
+        { id: rowId, columns: [...PHONE_LINE_2, ...PHONE_LINE_3] }
+    )
+}
+
+// What breaks the phone lines on one read; empty when the row is laid out right.
+function phoneLineProblems(read: PhoneLinesRead): string[] {
+    const problems: string[] = []
+    if (!read.label) return ['the row label is not mounted']
+    const label = read.label
+    const columns = [...PHONE_LINE_2, ...PHONE_LINE_3]
+    for (const column of columns) {
+        const cell = read.cells[column]
+        if (!cell) {
+            problems.push(`no ${column} cell`)
+            continue
+        }
+        if (cell.text === '') problems.push(`${column} shows no figure`)
+        if (cell.isCut) problems.push(`${column} "${cell.text}" is cut`)
+        if (cell.rect.top < label.bottom - 1) {
+            problems.push(
+                `${column} (top ${cell.rect.top}) is not below the label (bottom ${label.bottom})`
+            )
+        }
+    }
+    const top = (column: string) => read.cells[column]?.rect.top ?? Number.NaN
+    const bottom = (column: string) => read.cells[column]?.rect.bottom ?? Number.NaN
+    if (Math.abs(top('gross') - top('nontaxable')) > 1) {
+        problems.push(
+            `gross (top ${top('gross')}) and nontaxable (top ${top('nontaxable')}) are not on one line`
+        )
+    }
+    if (Math.abs(top('taxable') - top('tax')) > 1) {
+        problems.push(
+            `taxable (top ${top('taxable')}) and tax (top ${top('tax')}) are not on one line`
+        )
+    }
+    const line2Bottom = Math.max(bottom('gross'), bottom('nontaxable'))
+    if (!(Math.min(top('taxable'), top('tax')) >= line2Bottom - 1)) {
+        problems.push(
+            `line 3 (top ${Math.min(top('taxable'), top('tax'))}) is not below line 2 (bottom ${line2Bottom})`
+        )
+    }
+    if (read.tableScrollWidth !== read.tableClientWidth) {
+        problems.push(
+            `the report table scrolls sideways (scrollWidth ${read.tableScrollWidth}, clientWidth ${read.tableClientWidth})`
+        )
+    }
+    return problems
+}
+
+// Asserts a report row on a phone wraps to the Sales Tax Liability's three lines: the label
+// on line 1 above every figure, Gross total and Non-taxable side by side on line 2,
+// Taxable amount and Tax amount side by side on line 3 below it, each of the four showing
+// a figure that is not cut, and the report table not scrolling sideways. Polled: the
+// layout settles a frame after a resize or a press.
+export async function expectPhoneLines(page: Page, rowId: string): Promise<void> {
+    await expect
+        .poll(async () => phoneLineProblems(await readPhoneLines(page, rowId)), {
+            message: `the phone lines of report row ${rowId}`,
+        })
+        .toEqual([])
 }
 
 // How long a press is watched for a run it starts. An opened row's lines come from a new

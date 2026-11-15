@@ -1,0 +1,12 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/taxes",
+            "ready": "taxes-liability-report",
+            "height": 1500,
+            "widths": [1280, 390]
+        }
+    ]
+}

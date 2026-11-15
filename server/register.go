@@ -44,6 +44,7 @@ func Register(app *pocketbase.PocketBase) {
 	reports.RegisterShipped(profitAndLossShipped())
 	reports.RegisterShipped(profitAndLossByMonthShipped())
 	reports.RegisterShipped(transactionDetailShipped())
+	reports.RegisterShipped(salesTaxLiabilityShipped())
 	registerReportShares(app)
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())

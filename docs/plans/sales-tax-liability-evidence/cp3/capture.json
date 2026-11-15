@@ -1,0 +1,20 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "rate-open",
+            "url": "/a/reports?package=books",
+            "height": 2600,
+            "widths": [1280, 390],
+            "actions": [
+                {
+                    "idFromText": "Sales Tax Liability",
+                    "goto": "/a/reports/$urlId?p-period=2026-10-01..2026-10-31"
+                },
+                { "waitFor": "Total Old county agency" },
+                { "clickText": "Colorado state" },
+                { "waitFor": "Total Colorado state" }
+            ]
+        }
+    ]
+}

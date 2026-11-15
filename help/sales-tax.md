@@ -9,6 +9,8 @@ To collect sales tax, set up each agency that you pay sales tax to, then add the
 
 To open the sales tax setup, choose Taxes in the sidebar. On a phone, swipe in from the left edge of the screen to open the sidebar, then choose Taxes. The page is called Sales tax. A read-only user can see the page, but cannot change it and sees the default as text.
 
+To see the sales tax you charged each agency in a period, press Liability report at the top of the page. See [Sales Tax Liability report](help://books:reports).
+
 ## Add an agency
 
 An agency is the government body that you pay sales tax to, such as a state, a county or a city. To add one, choose Add agency. Type its name and choose its liability account, then choose Add agency in the dialog.

@@ -1,0 +1,50 @@
+{
+    "outDir": "sales-tax-liability-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "rate-open",
+            "url": "/a/books/helix-mockup?state=rate-open",
+            "ready": "report-table",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/books/helix-mockup?state=collapsed",
+            "ready": "report-table",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "report-empty",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "report-loading",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "report-error",
+            "hideLabels": ["New"]
+        }
+    ]
+}

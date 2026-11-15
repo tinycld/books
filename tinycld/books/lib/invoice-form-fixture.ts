@@ -405,12 +405,16 @@ function denverTaxLines(
     taxable: number,
     amounts: readonly [number, number, number]
 ): BooksInvoiceTaxLines[] {
+    const invoice = INVOICES.find(row => row.id === invoiceId)
+    if (!invoice) throw new Error(`invoice fixture: tax lines name an unknown invoice ${invoiceId}`)
     return DENVER_COMPONENTS.map((part, position) => ({
         id: `invt${tag}${position}`.padEnd(15, '0'),
         invoice: invoiceId,
         rate: TAX_IDS.denverCombined,
         ...part,
+        gross_amount: invoice.subtotal,
         taxable_amount: taxable,
+        currency: invoice.currency,
         amount: amounts[position],
         position,
         created: STAMP,
