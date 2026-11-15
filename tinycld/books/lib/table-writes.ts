@@ -12,30 +12,55 @@ export type TableWriteOps<T> = {
     remove(id: string): T
 }
 
-export type TableWriteStep<T> = { itemNumber: number | null; run: () => T }
+export type TableWriteStep<T> = { rowId: string; itemNumber: number | null; run: () => T }
 
 const byPosition = (a: TableRowWrite, b: TableRowWrite) => a.position - b.position
 
 /**
  * A `TableWritePlan` as ordered pbtsdb writes. Removes come first, so a later insert
  * never meets a row the plan drops; then updates and inserts by position. A step's
- * `itemNumber` is its row's place in the table from 1; a removed row has none.
+ * `itemNumber` is its row's place in the table from 1; a removed row has none. A step's
+ * `rowId` is the id of its row, a removed row's too.
  */
 export function tableWriteSteps<T>(
     plan: TableWritePlan | undefined,
     ops: TableWriteOps<T>
 ): TableWriteStep<T>[] {
     if (!plan) return []
-    const removes = plan.remove.map(id => ({ itemNumber: null, run: () => ops.remove(id) }))
+    const removes = plan.remove.map(id => ({
+        rowId: id,
+        itemNumber: null,
+        run: () => ops.remove(id),
+    }))
     const updates = [...plan.update].sort(byPosition).map(write => ({
+        rowId: write.row.id,
         itemNumber: write.position + 1,
         run: () => ops.update(write),
     }))
     const inserts = [...plan.insert].sort(byPosition).map(write => ({
+        rowId: write.row.id,
         itemNumber: write.position + 1,
         run: () => ops.insert(write),
     }))
     return [...removes, ...updates, ...inserts]
+}
+
+export type TablesWriteStep<T> = TableWriteStep<T> & { table: string }
+
+/**
+ * The plans of several tables whose rows one collection stores, as ordered writes: the
+ * removes of every table, then each table's updates and inserts (tableWriteSteps), the
+ * tables in the order given. All the removes go first because the server counts the
+ * collection's rows at each insert. Each step names its table.
+ */
+export function tablesWriteSteps<T>(
+    tables: readonly { table: string; plan: TableWritePlan | undefined; ops: TableWriteOps<T> }[]
+): TablesWriteStep<T>[] {
+    const steps = tables.flatMap(({ table, plan, ops }) =>
+        tableWriteSteps(plan, ops).map(step => ({ ...step, table }))
+    )
+    const isRemove = (step: TablesWriteStep<T>) => step.itemNumber === null
+    return [...steps.filter(isRemove), ...steps.filter(step => !isRemove(step))]
 }
 
 // A new record has no stored rows, so every row the form holds is an insert.

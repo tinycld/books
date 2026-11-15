@@ -581,3 +581,112 @@ func TestDocDeferral_TheMarksDoNotOutliveTheBatch(t *testing.T) {
 		requireNoDeferralMarks(t)
 	})
 }
+
+func docLineUpdateOp(kind salesDocKind, lineID, body string) string {
+	return fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/%s/records/%s","body":%s}`, kind.LinesCollection, lineID, body)
+}
+
+// The client writes updates by position. Stored: a note, an item, a percent
+// line of the item. The note moves to the end. After the first update the item
+// and the note are both at position 0; the item's id sorts first (the ids are
+// fixed for that), so the percent line has the note above it, a state a single
+// write refuses.
+func TestDocDeferral_AMoveThroughAStateThatIsNotValid(t *testing.T) {
+	pe := costEnv(t)
+	inv := pe.mkInvoice(t, nil)
+	withID := func(id string, fields map[string]any) map[string]any {
+		fields["id"] = id
+		return fields
+	}
+	note := mkInvoiceLine(t, pe.app, inv, 0, withID("moveline0000002", descriptionLine("Note")))
+	first := mkInvoiceLine(t, pe.app, inv, 1, withID("moveline0000001", item(pe.service, 1, 5000, false)))
+	percent := mkInvoiceLine(t, pe.app, inv, 2, percentLine(pe.discount, 100000))
+	requireRefused(t, setFields(t, pe.app, "books_invoice_lines", first.Id, map[string]any{"position": 0}),
+		fmt.Sprintf(wantPercentTarget, 3))
+
+	pe.batchAsBookkeeper(t, http.StatusOK, []string{inv.Id},
+		docLineUpdateOp(invoiceKind, first.Id, `{"position":0}`),
+		docLineUpdateOp(invoiceKind, percent.Id, `{"position":1}`),
+		docLineUpdateOp(invoiceKind, note.Id, `{"position":2}`)).run(t, pe.app)
+
+	lines, err := salesDocLines(pe.app, invoiceKind, inv.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 3 || lines[0].Id != first.Id || lines[1].Id != percent.Id || lines[2].Id != note.Id {
+		t.Fatalf("the lines are not in the order item, percent, note")
+	}
+	if got := fmt.Sprint(lineAmountsOf(lines)); got != "[5000 500 0]" {
+		t.Errorf("line amounts = %s, want [5000 500 0]", got)
+	}
+	requireInvoiceTotals(t, pe.app, inv.Id, 5500, 0, 5500)
+}
+
+// Stored: one line of 100.00, not taxable, under the Denver group. The save
+// adds a taxable credit of -95.00 and removes the tax. With the stored tax the
+// credit's own tax takes the total below zero; with no tax the total is 5.00.
+func taxChangeOps(t *testing.T, pe *postingEnv, headerBody func(revision int) string) (*core.Record, int, []string) {
+	t.Helper()
+	inv := pe.mkInvoice(t, map[string]any{"tax_rate": pe.denverByAgency.Id})
+	mkInvoiceLine(t, pe.app, inv, 0, item(pe.service, 1, 10000, false))
+	saw := docRevision(t, pe.app, "books_invoices", inv.Id)
+	return inv, saw, []string{
+		docLineCreateOp(t, invoiceKind, inv.Id, 1, item(pe.service, 1, -9500, true)),
+		docHeaderOp(invoiceKind, inv.Id, headerBody(saw+1)),
+	}
+}
+
+func TestDocDeferral_ATaxChangeWithTheHeaderLast(t *testing.T) {
+	pe := costEnv(t)
+	inv, saw, ops := taxChangeOps(t, pe, func(revision int) string {
+		return fmt.Sprintf(`{"tax_rate":"","revision":%d}`, revision)
+	})
+
+	pe.batchAsBookkeeper(t, http.StatusOK, []string{inv.Id}, ops...).run(t, pe.app)
+
+	requireInvoiceTotals(t, pe.app, inv.Id, 500, 0, 500)
+	if got := docRevision(t, pe.app, "books_invoices", inv.Id); got != saw+1 {
+		t.Errorf("revision = %d, want %d", got, saw+1)
+	}
+}
+
+func TestDocDeferral_ATaxChangeAndThePostWithTheHeaderLast(t *testing.T) {
+	pe := costEnv(t)
+	inv, saw, ops := taxChangeOps(t, pe, func(revision int) string {
+		return fmt.Sprintf(`{"tax_rate":"","status":"posted","revision":%d}`, revision)
+	})
+
+	pe.batchAsBookkeeper(t, http.StatusOK, []string{`"status":"posted"`}, ops...).run(t, pe.app)
+
+	requireInvoiceTotals(t, pe.app, inv.Id, 500, 0, 500)
+	if got := docRevision(t, pe.app, "books_invoices", inv.Id); got != saw+1 {
+		t.Errorf("revision = %d, want %d", got, saw+1)
+	}
+	requireNoDrift(t, pe.app)
+}
+
+// The count of lines runs at each create, on the lines stored then: a save
+// sends its removes before its inserts.
+func TestDocDeferral_AtTheLineLimitTheRemoveGoesFirst(t *testing.T) {
+	ops := func(t *testing.T, pe *postingEnv) (*core.Record, string, string) {
+		t.Helper()
+		inv := bigInvoice(t, pe, maxDocumentLines)
+		lines, err := salesDocLines(pe.app, invoiceKind, inv.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return inv, docLineDeleteOp(invoiceKind, lines[0].Id), invoiceLineCreateOp(inv.Id, pe.service, maxDocumentLines, 200)
+	}
+	t.Run("the remove first is accepted", func(t *testing.T) {
+		pe := costEnv(t)
+		inv, remove, insert := ops(t, pe)
+		pe.batchAsBookkeeper(t, http.StatusOK, []string{inv.Id}, remove, insert).run(t, pe.app)
+		requireLineCount(t, pe.app, inv, maxDocumentLines)
+	})
+	t.Run("the insert first is refused", func(t *testing.T) {
+		pe := costEnv(t)
+		inv, remove, insert := ops(t, pe)
+		pe.batchAsBookkeeper(t, http.StatusBadRequest, []string{wantTooManyLines}, insert, remove).run(t, pe.app)
+		requireLineCount(t, pe.app, inv, maxDocumentLines)
+	})
+}
