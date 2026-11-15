@@ -99,7 +99,8 @@ type salesDocKind struct {
 	// is no step.
 	Withdraw func(tx core.App, doc *core.Record) error
 	// Replace runs when a correction's post sets its original void (an
-	// invoice moves its estimate to the correction); nil is no step.
+	// invoice moves its estimate to the correction, a bill or an expense its
+	// attachments); nil is no step.
 	Replace func(tx core.App, original, correction *core.Record) error
 	// BeforePost runs in the posting transaction before the lines are read;
 	// nil is no step, and a quote has none.

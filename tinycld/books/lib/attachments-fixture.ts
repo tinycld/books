@@ -2,38 +2,25 @@
 // Plain data: it imports other fixtures and types only, because the seed graph runs in
 // plain node (tests/seed-node.test.ts).
 //
-// AttachmentRecord mirrors the spec's Data section (docs/specs/attachments-design.md §4)
-// for the `books_attachments` collection, which does not exist yet. The migration
-// checkpoint that creates the collection must replace this interface with the generated
-// `BooksAttachments` type from '../types' and check ATTACHMENTS with `satisfies`.
+// AttachmentRecord is the generated `books_attachments` row (pb-migrations/
+// 2100000019_create_books_attachments.js): exactly one of `bill` and `expense` is set (a Go
+// guard enforces it); `field` is empty for the Attachments section and a custom File
+// field's key otherwise; `file` is the stored file name PocketBase assigns; `name` is the
+// upload's original name, trimmed to 255 characters by the server.
 //
 // `mime_type` is a fixture column, not a schema field: PocketBase keeps only the stored
 // file name, and the client reads the type from the upload (or from the file name's
-// extension). The seed uses it to generate a small file of that type.
+// extension). The seed sends a small file of that type (lib/attachment-seed-files.ts).
 //
 // The section lists only rows whose `field` is empty; a row with a `field` key belongs to
 // a custom File field on the bill or expense form (spec §3.8).
 
+import type { BooksAttachments } from '../types'
 import { BILL_IDS } from './bill-form-fixture'
 import { EXPENSE_IDS } from './expense-form-fixture'
 import { INVOICE_USER_IDS, INVOICE_USER_NAMES } from './invoice-form-fixture'
 
-export interface AttachmentRecord {
-    id: string
-    // Exactly one of `bill` and `expense` is set (a Go guard enforces it).
-    bill: string
-    expense: string
-    // Empty for the Attachments section; a custom File field's key otherwise.
-    field: string
-    // The stored file name PocketBase assigns (name + random suffix).
-    file: string
-    // The upload's original name, trimmed to 255 characters by the server.
-    name: string
-    size: number
-    uploaded_by: string
-    created: string
-    updated: string
-}
+export type AttachmentRecord = BooksAttachments
 
 export type AttachmentFixtureRow = AttachmentRecord & { mime_type: string }
 
@@ -81,7 +68,7 @@ function attachment(seed: AttachmentSeed): AttachmentFixtureRow {
 }
 
 // Upload order (oldest first) within each document, as the section lists them.
-export const ATTACHMENTS: AttachmentFixtureRow[] = [
+export const ATTACHMENTS = [
     attachment({
         id: IDS.billPdf,
         bill: BILL_IDS.posted,
@@ -150,7 +137,7 @@ export const ATTACHMENTS: AttachmentFixtureRow[] = [
         size: 1_153_434,
         created: '2026-11-12 15:14:00.000Z',
     }),
-]
+] satisfies AttachmentFixtureRow[]
 
 export const EMPTY_ATTACHMENTS: AttachmentFixtureRow[] = []
 
@@ -206,7 +193,11 @@ export const FAILED_ATTACHMENTS: AttachmentDraftRow[] = [
         name: 'managed-services-breakdown-november.xlsx',
         mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         size: 61_440,
-        state: { kind: 'failed', message: 'The organization has used all of its storage.' },
+        state: {
+            kind: 'failed',
+            message:
+                'Organization storage limit exceeded: 10.0 GB used of 10.0 GB limit, 0 B available but 60.0 KB requested.',
+        },
     },
     {
         key: 'failed-transport',
@@ -234,6 +225,13 @@ export const ATTACHMENT_REFUSALS = {
     expenseLimit: 'An expense holds at most 25 attachments.',
 } as const
 
-// The seed's files (spec §4 Seed): one PDF and one PNG on posted bill 1002, one JPEG
-// receipt on posted expense 1003. The seed generates a few KB of each type.
-export const SEED_ATTACHMENT_IDS = [IDS.billPdf, IDS.billPhoto, IDS.expenseReceipt] as const
+// The seed's files (spec §4 Seed): one PDF and one PNG on posted bill 1002, the W-9 of a
+// custom File field on the same bill (so the e2e proves the section hides it), and one
+// JPEG receipt on posted expense 1003. lib/attachment-seed-files.ts holds a few KB of
+// bytes of each type.
+export const SEED_ATTACHMENT_IDS = [
+    IDS.billPdf,
+    IDS.billPhoto,
+    IDS.billCustomField,
+    IDS.expenseReceipt,
+] as const

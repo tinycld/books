@@ -10,6 +10,7 @@ export type {
     BooksAccountBalances,
     BooksAccounts,
     BooksAdmins,
+    BooksAttachments,
     BooksBankConnections,
     BooksBankFileContents,
     BooksBankFiles,
