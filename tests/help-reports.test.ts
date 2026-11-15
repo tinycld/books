@@ -367,6 +367,18 @@ describe('help/reports.md', () => {
             expect(oneSentence(/\bpress\b/i, /\brate\b/i, /\bdocuments?\b/i)).toBe(true)
         })
 
+        it('says a press on a document row opens the invoice or sales receipt', () => {
+            expect(
+                oneSentence(
+                    /\b(press|tap|click)\b/i,
+                    /\bdocument row\b/i,
+                    /\bopens?\b/i,
+                    /\binvoice\b/i,
+                    /\bsales receipt\b/i
+                )
+            ).toBe(true)
+        })
+
         it('says a sale with no tax rate is not in the report', () => {
             expect(oneSentence(/\bno tax rate\b/i, /\b(not|never)\b/i, /\breport\b/i)).toBe(true)
         })

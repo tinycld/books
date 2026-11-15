@@ -67,6 +67,11 @@
 - cp 4 · reviewer A NOTE: the button shows only after the `reports` query lands, often after the page's own queries; on a phone the cards then move down one row after the first paint. Spec §2 asks for the button hidden until the report is found. Fix offered: keep the row's height while the query loads.
 - cp 4 · reviewer A NOTE: `useShippedReportHref` returns `Href | null`, not the brief's `string | null` (core `orgHref` with params returns the object form); declared difference 1 of checkpoint 4. A later user of the hook must expect an `Href`.
 - cp 4 · reviewer A NOTE: no test pins the new help section's place (after "Read the Profit and Loss"); the top-level heading list in `tests/help-reports.test.ts` lacks it. The file has it in the right place. Fix offered: add the heading to the list with an order check.
+- cp 5 · rate-open-1280-*, report-rate-open-1280-*: document rows — drawn as in the reference at rest (plain text, no underline, no icon); the link look is core's hover underline (spec §7, #475), so no shot shows it and nothing at rest says a row opens a document. Only `rate-open-1280-dark` differs in pixels from the earlier reference.
+- cp 5 · rate-open-390-*: document rows — on a phone there is no hover, so a document row carries no sign that a press opens the document (rate rows above have a chevron; document rows have none). Core's view (#475).
+- cp 5 · report-rate-open-390-*: filter bar — a third chip is cut at the screen edge after "Add filter" with no fade (core's bar; as the cp 2 note).
+- cp 5 · reviewer A NOTE: e2e 12 and 13 check the URL against the generic `INVOICE_URL` / `SALES_RECEIPT_URL` patterns, not `/books/sales-receipts/<id>` of the pressed document; the read view's number equal to the row label's number identifies the document, so a wrong id still fails. Fix offered: also assert the URL ends with the id of the document whose number shows.
+- cp 5 · reviewer A NOTE: the fixture's `KIND_ROUTES` / `documentOpen` copies the Go path rule (`stlDetailOpen`) for the static reference; no test ties the two.
 
 ## Out-of-plan changes
 (core repo, checkpoint 0; files the checkpoint's Files block did not name)
@@ -196,6 +201,23 @@
 - gate 3 A notes: 4, listed under Design notes.
 - reviewer-caught deferrals: none (reviewer B's DEFERRAL rebutted).
 - commit: this commit (`feat(books): Liability report button on the Sales tax page and its help`).
+- human: review mode C, no message.
+
+## Checkpoint 5
+- Do 0: tinycld#475 MERGED (core main 92b3077f); core branch books/p5-sales-tax-liability holds it (merge c23cbf6e), no newer core main commit; `pnpm install` at the root. Contract matches Consumes: Go `Detail.Open` (`core/server/reports/spec.go` 85–92), result row `open`, `docs/packages.md` `detail.open` (path starts with the package slug; a relation in it reads as its record id). Books main gained books#52 (p5-drill-down's Books part); this checkpoint uses none of it (Do 2 builds the path in the spec), so no merge.
+- test writer: `server/report_sales_tax_liability_test.go` (`TestSalesTaxLiabilityDocumentOpens`), `tests/help-reports.test.ts` (document-row sentence), `tests/e2e/books-sales-tax-liability.spec.ts` (e2e 12, 13; helpers `WEI_CHEN_RECEIPT`, `documentRow`, `numberIn`); red for the right reason: yes (Go: empty `open`; help: no sentence; e2e: press stays on `/a/reports/<id>`); untestable: none. Report: staging `cp/cp5-tests.md`.
+- implementer: `Detail.Open: stlDetailOpen()` (Do 2 as written), one help sentence, fixture `documentRows` carry `open`; scratch route passes a `drill` to `ReportView` so the static rows draw as links. DONE. Report: staging `cp/cp5-impl.md`.
+- test disputes: none.
+- self-declared differences: (1) the Go comment does not repeat Do 2's claim that #475 refuses a relation in a text formula (core docs say a relation reads as its id); `fld("document","id")` used as Do 2 says; accepted. (2) the scratch route passes a fake `drill` (`hasPanel: false`) because the result alone does not make core draw links; scratch only; accepted. (3) reference not re-captured by the implementer (the runner did it at gate 2); accepted.
+- gate 1: tests unedited: yes · `packages:generate`, `tinycld-pkg check` (272 files / 5343 tests), `go test ./...` pass · e2e `-g "sales-tax-liability:"` 13 passed (staging `cp/cp5-e2e.log`).
+- gate 2 capture: `docs/plans/sales-tax-liability-evidence/cp5/capture.json` (scratch route `populated`, `rate-open`, `collapsed`; shipped report `report-rate-open` from the Books hub row, Period Custom 2026-10-01..2026-10-31, "Colorado state" opened by a press; 390/1280 × light/dark). The scratch shots were copied over `sales-tax-liability-reference/{populated,rate-open,collapsed}-*` after the critique (Do 4).
+- gate 2: invalid shots: none · blocking: none · notes: 3, listed under Design notes (critique `evidence/cp5/critique.md`). Its "For gate 3" item (press opens the read view; rate, agency and total rows open nothing) is pinned by e2e 12–13 and `TestSalesTaxLiabilityDocumentOpens`; the hover underline is core's (#475).
+- gate 3 A (correctness): 0 BLOCK, 0 DEFERRAL, 2 NOTE → Design notes (a test-strength and a mirror note; neither a one-line text change in non-test source).
+- gate 3 B (conformance): script lines: 0 · findings: 0 · DEFERRAL: 0.
+- fix review: n/a (no accepted finding; no fix round) · rounds: 0.
+- gate 3 A notes: 2, listed under Design notes.
+- reviewer-caught deferrals: none.
+- commit: this commit (`feat(books): Sales Tax Liability document rows open their invoice or sales receipt`).
 - human: review mode C, no message.
 
 ## Final review

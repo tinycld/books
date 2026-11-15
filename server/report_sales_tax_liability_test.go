@@ -919,6 +919,56 @@ func TestSalesTaxLiabilityOpenedRate(t *testing.T) {
 	})
 }
 
+// A document row opens its document's read view by kind (core detail.open,
+// the result row's Open); rate rows, agency rows and totals open nothing.
+func TestSalesTaxLiabilityDocumentOpens(t *testing.T) {
+	b := newSTLBook(t)
+	rate := mkTaxRate(t, b.app, "Open rate", 50000, b.agency(t, "Open agency"))
+	customer := b.customer.GetString("display_name")
+	inv := b.postInvoice(t, rate, "2026-10-05", b.sale(10000, true))
+	rct := b.postReceipt(t, rate, "2026-10-06", b.sale(4000, true))
+
+	closed := b.run(t, nil)
+	rateRow, ok := stlGroupRow(closed, 2, rate.Id)
+	if !ok {
+		t.Fatalf("no row for Open rate; rows %q", bsLabels(closed))
+	}
+	opened := runSTL(t, b.app, b.reader, nil, reports.Options{
+		Today:    stlToday,
+		Expand:   [][]any{rateRow.GroupKey},
+		Collapse: [][]any{},
+	})
+	openRate, ok := stlGroupRow(opened, 2, rate.Id)
+	if !ok || !openRate.Expanded {
+		t.Fatalf("Open rate = %+v (found %v), want it opened; rows %q", openRate, ok, bsLabels(opened))
+	}
+
+	want := map[string]string{
+		"2026-10-05 · Invoice " + inv.GetString("number") + " · " + customer:       "books/invoices/" + inv.Id,
+		"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + rct.Id,
+	}
+	got := map[string]string{}
+	for _, r := range stlDetailsUnder(opened, openRate) {
+		got[r.Label] = r.Open
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("document rows (label → open) =\n%q\nwant\n%q", got, want)
+	}
+
+	for _, res := range []*reports.Result{closed, opened} {
+		for _, r := range res.Rows {
+			if r.Kind != reports.KindDetail && r.Open != "" {
+				t.Errorf("%s row %q opens %q, want nothing (only a document row opens)", r.Kind, r.Label, r.Open)
+			}
+		}
+	}
+	for _, label := range []string{"Open agency", "Open rate", "Total Open agency", "Total"} {
+		if !bsHas(opened, label) {
+			t.Errorf("no row %q to check opens nothing; rows %q", label, bsLabels(opened))
+		}
+	}
+}
+
 // Register ships the Sales Tax Liability; core creates it unpublished, owned
 // by the first admin, and Books shares it with every Books reader.
 func TestSalesTaxLiabilityShippedShared(t *testing.T) {

@@ -24,6 +24,7 @@ import {
     pickLineProduct,
     uniqueMemo,
 } from './invoice-helpers'
+import { SALES_RECEIPT_URL } from './sales-receipt-helpers'
 import {
     createAgency,
     createRate,
@@ -190,6 +191,26 @@ function openedLodging(page: Page): Promise<ReportSnapshot> {
             s.rows.some(row => row.kind === 'subtotal' && row.label === `Total ${LODGING}`),
         `${LODGING}'s document rows and its total`
     )
+}
+
+// The fixture's sales receipt under the 0% food rate.
+const WEI_CHEN_RECEIPT = /^2026-10-28 · Sales receipt \d+ · Wei Chen$/
+
+// The one document row under the opened `rate` whose label matches `label`.
+function documentRow(snapshot: ReportSnapshot, rate: string, label: RegExp): Row {
+    const found = reportLinesUnder(snapshot, rate).filter(row => label.test(row.label))
+    if (found.length !== 1) {
+        throw new Error(
+            `${found.length} document rows of ${rate} match ${label} in ${labels(snapshot).join(' | ')}`
+        )
+    }
+    return found[0]
+}
+
+function numberIn(label: string, pattern: RegExp): string {
+    const number = pattern.exec(label)?.[1]
+    if (!number) throw new Error(`no document number in "${label}"`)
+    return number
 }
 
 // The phone run: the report is opened and set to October at the default viewport
@@ -432,6 +453,44 @@ test.describe('sales-tax-liability: report', () => {
             reportLinesUnder(opened, state).map(row => row.label),
             `${state} lists the sales receipt with no customer`
         ).toEqual(expect.arrayContaining([expect.stringMatching(WALK_IN_RECEIPT)]))
+    })
+
+    test('a press on an invoice row opens the invoice', async ({ page }) => {
+        await startBooks(page)
+        await openSalesTaxLiability(page)
+        await chooseOctober(page)
+
+        await openReportAccount(page, LODGING)
+        const lodging = await openedLodging(page)
+        const invoice = documentRow(lodging, LODGING, LODGING_DOCUMENTS[0].label)
+        const number = numberIn(invoice.label, /· Invoice (\d+) ·/)
+
+        await page.getByTestId(`report-row-${invoice.id}`).click()
+        await expect(page).toHaveURL(INVOICE_URL)
+        await expect(page.getByTestId('invoice-read-only')).toBeVisible()
+        await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${number}`)
+    })
+
+    test('a press on a sales receipt row opens the sales receipt', async ({ page }) => {
+        await startBooks(page)
+        await openSalesTaxLiability(page)
+        await chooseOctober(page)
+
+        const food = rateName(TAX_IDS.foodExempt)
+        await openReportAccount(page, food)
+        const opened = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => reportLinesUnder(s, food).some(row => WEI_CHEN_RECEIPT.test(row.label)),
+            `${food}'s document rows`
+        )
+        const receipt = documentRow(opened, food, WEI_CHEN_RECEIPT)
+        const number = numberIn(receipt.label, /· Sales receipt (\d+) ·/)
+
+        await page.getByTestId(`report-row-${receipt.id}`).click()
+        await expect(page).toHaveURL(SALES_RECEIPT_URL)
+        await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
+        await expect(page.getByTestId('sales-receipt-title')).toHaveText(`Sales receipt ${number}`)
     })
 
     test('a post and a void refresh the open report', async ({ page }) => {

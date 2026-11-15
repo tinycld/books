@@ -397,6 +397,14 @@ export function salesTaxRateFigures(rateId: string): Figures {
     return figuresOf(lines)
 }
 
+const KIND_ROUTES: Record<SalesDocumentKind, string> = {
+    invoice: 'books/invoices',
+    sales_receipt: 'books/sales-receipts',
+}
+
+/** The path a document row opens, as the spec's `detail.open` answers it. */
+const documentOpen = (d: SalesDocumentFixture) => `${KIND_ROUTES[d.kind]}/${d.id}`
+
 function documentRows(charged: Charged[], section: string): ResultRow[] {
     const sorted = [...charged].sort(
         (a, b) => a.doc.date.localeCompare(b.doc.date) || a.doc.sequence - b.doc.sequence
@@ -406,6 +414,7 @@ function documentRows(charged: Charged[], section: string): ResultRow[] {
         kind: 'detail',
         depth: 2,
         label: documentLabel(d),
+        open: documentOpen(d),
         section,
         cells: salesCells(figuresOf([line])),
     }))
