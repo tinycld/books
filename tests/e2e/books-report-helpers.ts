@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, type Request, type Response } from '@playwright/test'
 import {
     authStorageKey,
+    cellOf,
     chooseParamOption,
     hubRow,
     navigateToPackage,
@@ -95,23 +96,31 @@ export async function snapshotWhen<T>(
 
 // The heading core's document header prints (useReportView headingOf): the Books business
 // name, else the organization's name. Read-only: books-settings.spec.ts types over the
-// business name and restores it on the shared DB, so it is read when compared.
+// business name and restores it on the shared DB, so it is read when compared. Both reads
+// go through the page's own fetch (same origin, the browser's warm connection): a fresh
+// Node-side request context can spend seconds on its first name lookup of localhost,
+// which would eat the budget of a poll that calls this.
 export async function expectedHeading(page: Page): Promise<string> {
     const key = await authStorageKey(page)
-    const token = await page.evaluate(
-        k => (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? '',
-        key
-    )
-    const settings = await page.request.get(
-        '/api/collections/books_settings/records/bookssettings01',
-        { headers: { Authorization: token } }
-    )
-    expect(settings.ok()).toBe(true)
-    const businessName = ((await settings.json()) as { business_name?: string }).business_name
-    if (businessName?.trim()) return businessName.trim()
-    const org = await page.request.get('/api/org-info')
-    expect(org.ok()).toBe(true)
-    return (((await org.json()) as { name?: string }).name ?? '').trim()
+    const read = await page.evaluate(async k => {
+        const token =
+            (JSON.parse(localStorage.getItem(k) ?? '{}') as { token?: string }).token ?? ''
+        const settings = await fetch('/api/collections/books_settings/records/bookssettings01', {
+            headers: { Authorization: token },
+        })
+        const businessName = settings.ok
+            ? ((await settings.json()) as { business_name?: string }).business_name
+            : undefined
+        if (!settings.ok || businessName?.trim()) {
+            return { settingsOk: settings.ok, orgOk: true, heading: businessName?.trim() ?? '' }
+        }
+        const org = await fetch('/api/org-info')
+        const name = org.ok ? ((await org.json()) as { name?: string }).name : undefined
+        return { settingsOk: true, orgOk: org.ok, heading: (name ?? '').trim() }
+    }, key)
+    expect(read.settingsOk).toBe(true)
+    expect(read.orgOk).toBe(true)
+    return read.heading
 }
 
 // Below core's mobile breakpoint (useBreakpoint) the Books sidebar lives in the drawer.
@@ -478,14 +487,16 @@ export async function openBalanceSheet(page: Page): Promise<void> {
     await expect(page.getByTestId('report-table')).toBeVisible()
 }
 
-const ROWS_LABELS = { nonzero: 'Non-zero', active: 'Active' } as const
+// `all` is the Trial Balance's own choice (server/report_trial_balance.go): every account,
+// with or without a balance.
+const ROWS_LABELS = { nonzero: 'Non-zero', active: 'Active', all: 'All' } as const
 
 // Sets Rows through its chip and waits until the URL holds the new value and the run
 // for it has landed: core keeps the previous run's rows on screen until the new run
 // lands. The run is awaited by its request body, so the choice must be one the page has
 // not run with these params before (React Query answers a body it has cached with no
 // request).
-export async function chooseRows(page: Page, choice: 'nonzero' | 'active'): Promise<void> {
+export async function chooseRows(page: Page, choice: keyof typeof ROWS_LABELS): Promise<void> {
     const landed = page.waitForResponse(response => {
         if (!response.url().includes('/api/reports/run') || !response.ok()) return false
         const body = response.request().postDataJSON() as { params?: { rows?: string } } | null
@@ -803,6 +814,31 @@ export function tdSnapshot(page: Page, scope?: Locator): Promise<TdSnapshot> {
             rows,
         }
     }, scope === undefined)
+}
+
+// --- Statement figures that open Transaction Detail (report drill-down §3). ---
+
+// Presses the figure of `columnId` on the row whose label is exactly `rowLabel`, in the
+// statement (or in `scope`, the drill panel): core's `report-cell-<col>-<row id>`. A
+// figure that opens is a link (core DrillFigure), so the press first checks the role: a
+// figure with no drill would fold its group instead of opening the drill.
+export async function pressFigure(
+    page: Page,
+    columnId: string,
+    rowLabel: string,
+    scope?: Locator
+): Promise<void> {
+    const cell = await cellOf(page, columnId, rowLabel, scope)
+    await expect(cell, `${rowLabel}'s ${columnId} figure is a link`).toHaveRole('link')
+    await cell.click()
+}
+
+// The text of the figure of `columnId` on the row whose label is exactly `rowLabel`, in
+// the statement.
+export async function figureText(page: Page, columnId: string, rowLabel: string): Promise<string> {
+    const cell = await cellOf(page, columnId, rowLabel)
+    await expect(cell).toBeVisible()
+    return (await cell.innerText()).trim()
 }
 
 // The spec's fit (spec §3 "Every width fits"): every column heading and every Amount

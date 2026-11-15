@@ -1,5 +1,12 @@
-import { expect, type Page, test } from '@playwright/test'
-import { login, navigateToPackage, waitForTableFit } from '@tinycld/core/e2e-helpers'
+import { expect, type Locator, type Page, test } from '@playwright/test'
+import {
+    cellOf,
+    login,
+    navigateToPackage,
+    pressToolbar,
+    rowOf,
+    waitForTableFit,
+} from '@tinycld/core/e2e-helpers'
 import { TRANSACTION_DETAIL_TITLE } from '~/tinycld/books/lib/report-drill-down-fixture'
 import { createAccount, openChart } from './account-register-helpers'
 import {
@@ -12,18 +19,26 @@ import {
 } from './bill-helpers'
 import {
     browserToday,
+    chooseAsOf,
     choosePeriod,
+    chooseRows,
     dayWords,
     expectedHeading,
     expectTableFits,
+    figureText,
     filterToAccounts,
     filterToAccountsAndWait,
+    openBalanceSheet,
     openEntriesFromSidebar,
     openGeneralLedger,
     openJournal,
+    openProfitAndLoss,
+    openProfitAndLossByMonth,
     openTransactionDetail,
     openTransactionDetailFromHub,
+    openTrialBalance,
     postEntryOn,
+    pressFigure,
     snapshotWhen,
     type TdSnapshot,
     tdSnapshot,
@@ -48,6 +63,28 @@ const SUMMIT = 'Summit IT Services'
 // holds every spec's entries and mounts only the rows near its view). After 2026-06-30,
 // the close date books-settings.spec.ts holds on the shared DB.
 const JOURNAL_DAY = '2026-07-29'
+// The day of the section-figure test's entry. Other workers post expenses today on the
+// shared DB, so a Total Expenses of today could change between the statement's read and
+// the drilled report's; no spec or seed posts on this day. After 2026-06-30.
+const SECTION_DAY = '2026-07-23'
+const EQUITY = { type: 'Equity', detailType: "Owner's equity" }
+const EXPENSES = 'Expenses'
+const TOTAL_EXPENSES = `Total ${EXPENSES}`
+const RETAINED_EARNINGS = 'Retained earnings'
+const SHORT_MONTHS = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+]
 
 async function startBooks(page: Page) {
     await login(page)
@@ -80,6 +117,18 @@ function monthToDateWords(today: string): string {
     const first = `${today.slice(0, 8)}01`
     if (first === today) return dayWords(today)
     return `${dayWords(first).replace(/, \d{4}$/, '')} – ${dayWords(today)}`
+}
+
+// The Period chip of a Custom range, as core's chip writes it (core/reports/lib/params.ts
+// chipText over dates.ts rangeChipText): one day alone, else the first year dropped when
+// both ends share it.
+function customPeriodChip(from: string, to: string): string {
+    if (from === to) return `Period: ${shortDay(to)}`
+    const fromText =
+        from.slice(0, 4) === to.slice(0, 4)
+            ? shortDay(from).replace(/, \d{4}$/, '')
+            : shortDay(from)
+    return `Period: ${fromText} – ${shortDay(to)}`
 }
 
 // A figure's digits, sign and point, without a currency sign or grouping.
@@ -137,6 +186,75 @@ async function pressHeading(page: Page, id: string): Promise<void> {
     }, stickyId)
     if (isCovered) await page.getByTestId(stickyId).click()
     else await row.click()
+}
+
+// A day in the words a Transaction Detail line's Date shows (core/reports/lib/dates.ts
+// shortDay): "Nov 14, 2026".
+function shortDay(day: string): string {
+    return `${SHORT_MONTHS[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}, ${day.slice(0, 4)}`
+}
+
+function firstOfMonth(day: string): string {
+    return `${day.slice(0, 8)}01`
+}
+
+function firstOfLastMonth(day: string): string {
+    const first = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 2, 1))
+    return first.toISOString().slice(0, 10)
+}
+
+// Collapse all, and waits until the section headed `section` reads folded.
+async function collapseAll(page: Page, section: string): Promise<void> {
+    await pressToolbar(page, 'report-fold-all', 'Collapse all')
+    await expect(rowOf(page, section)).toHaveAttribute('aria-expanded', 'false')
+}
+
+// Folds the statement, then opens the one section the test reads (by its label, the
+// fold toggle) and waits for `label`'s row under it: the shared DB holds every other
+// spec's accounts, so only the rows of that section are mounted near the top.
+async function openSectionTo(page: Page, section: string, label: string): Promise<void> {
+    await collapseAll(page, section)
+    await rowOf(page, section).click()
+    await expect(rowOf(page, section)).toHaveAttribute('aria-expanded', 'true')
+    await expect(rowOf(page, label)).toBeVisible()
+}
+
+// The test id of the element that holds the focus, or of its nearest ancestor with one.
+function focusedTestId(page: Page): Promise<string> {
+    return page.evaluate(
+        () => document.activeElement?.closest('[data-testid]')?.getAttribute('data-testid') ?? ''
+    )
+}
+
+function urlPeriod(page: Page): string | null {
+    return new URL(page.url()).searchParams.get('p-period')
+}
+
+function totalOf(snapshot: TdSnapshot): TdRow | undefined {
+    return snapshot.rows.find(row => row.kind === 'total')
+}
+
+// How long a press is watched for a drill it starts: a drill pushes the opened report's
+// route at once, well inside this window.
+const PRESS_WATCH_MS = 1500
+
+// Presses `target` and proves it opens nothing: over the watch window the URL stays the
+// report's, its title stays `title`, and no drill panel shows.
+async function expectPressStays(page: Page, target: Locator, title: string): Promise<void> {
+    const reportUrl = page.url()
+    await target.click()
+    const until = Date.now() + PRESS_WATCH_MS
+    do {
+        expect(page.url(), `the URL after the press on ${title}`).toBe(reportUrl)
+        await expect(page.getByTestId('report-title')).toHaveText(title)
+        await expect(page.getByTestId('report-drill-panel')).toHaveCount(0)
+    } while (Date.now() < until)
+}
+
+// Checks the screen is Transaction Detail by Account, opened as a separate screen.
+async function expectTransactionDetailScreen(page: Page): Promise<void> {
+    await expect(page.getByTestId('report-title')).toHaveText(TRANSACTION_DETAIL_TITLE)
+    await expect(page.getByTestId('report-drill-panel')).toHaveCount(0)
 }
 
 test.describe('report-drill-down: screen', () => {
@@ -453,5 +571,280 @@ test.describe('report-drill-down: screen', () => {
             '9.00',
             '21.00',
         ])
+    })
+
+    test('an account figure of the Profit and Loss opens its lines in Transaction Detail', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const expense = uniqueName('AA TD1 expense')
+        await createAccounts(page, [{ name: expense, kind: EXPENSE }])
+        const today = await browserToday(page)
+        const memo1 = uniqueName('TD1 first')
+        const memo2 = uniqueName('TD1 second')
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: memo1,
+            lines: [
+                { account: expense, debit: '120.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '120.00' },
+            ],
+        })
+        const number1 = await postedEntryNumber(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: memo2,
+            lines: [
+                { account: expense, debit: '80.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '80.00' },
+            ],
+        })
+        const number2 = await postedEntryNumber(page)
+
+        await openProfitAndLoss(page)
+        await openSectionTo(page, EXPENSES, expense)
+        const shown = await figureText(page, 'amount', expense)
+        expect(figure(shown)).toBe('200.00')
+        const total = await cellOf(page, 'amount', expense)
+        await expect(total).toHaveRole('link')
+        await expect(total).toHaveAccessibleName(`Show transactions: ${expense}, Total, ${shown}`)
+        const source = await tdSnapshot(page)
+        expect(source.chips.period).toContain('This fiscal year to date')
+
+        await pressFigure(page, 'amount', expense)
+        await expectTransactionDetailScreen(page)
+        const detail = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => linesOf(s, expense).length === 2 && subtotalOf(s, expense) !== undefined,
+            `${expense}'s two lines and its total`
+        )
+        expect(detail.chips.period).toBe(source.chips.period)
+        expect(detail.chips.accounts).toContain(expense)
+        const lines = linesOf(detail, expense).map(row => ({
+            date: row.label,
+            type: row.cells.type,
+            number: row.cells.number,
+            description: row.cells.description,
+            split: row.cells.split,
+            amount: figure(row.cells.amount),
+        }))
+        const line = { date: shortDay(today), type: 'Journal entry', split: 'Business Checking' }
+        expect(lines).toEqual([
+            { ...line, number: number1, description: memo1, amount: '120.00' },
+            { ...line, number: number2, description: memo2, amount: '80.00' },
+        ])
+        expect(figure(subtotalOf(detail, expense)?.cells.amount)).toBe('200.00')
+    })
+
+    test('a figure opened by Tab and Enter leads back to the statement as it was left', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const expense = uniqueName('AA TD2 expense')
+        await createAccounts(page, [{ name: expense, kind: EXPENSE }])
+        const today = await browserToday(page)
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('TD2 entry'),
+            lines: [
+                { account: expense, debit: '64.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '64.00' },
+            ],
+        })
+
+        await openProfitAndLoss(page)
+        await choosePeriod(page, { from: firstOfMonth(today), to: today })
+        await openSectionTo(page, EXPENSES, expense)
+        const source = await tdSnapshot(page)
+        const shown = await figureText(page, 'amount', expense)
+        expect(figure(shown)).toBe('64.00')
+        const label = rowOf(page, expense)
+        const rowId = ((await label.getAttribute('data-testid')) ?? '').slice('report-row-'.length)
+        const figureId = `report-cell-amount-${rowId}`
+        await label.focus()
+        for (let tabs = 0; tabs < 4 && (await focusedTestId(page)) !== figureId; tabs++) {
+            await page.keyboard.press('Tab')
+        }
+        expect(await focusedTestId(page), `${expense}'s Total focused within 4 Tabs`).toBe(figureId)
+        const focused = page.getByTestId(figureId)
+        await expect(focused).toHaveRole('link')
+        await expect(focused).toHaveAccessibleName(`Show transactions: ${expense}, Total, ${shown}`)
+        await page.keyboard.press('Enter')
+
+        await expectTransactionDetailScreen(page)
+        expect(urlPeriod(page)).toBe(`${firstOfMonth(today)}..${today}`)
+        await expect(page.getByTestId('report-param-period')).toHaveText(source.chips.period ?? '')
+        const back = page.getByTestId('report-back')
+        await expect(back).toHaveText('Profit and Loss')
+        await back.click()
+        await expect(page.getByTestId('report-title')).toHaveText('Profit and Loss')
+        await expect(page.getByTestId('report-param-period')).toHaveText(source.chips.period ?? '')
+        expect(urlPeriod(page)).toBe(`${firstOfMonth(today)}..${today}`)
+    })
+
+    test('a section total opens every account of its type, and its Total equals it', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const expense = uniqueName('AA TD3 expense')
+        await createAccounts(page, [{ name: expense, kind: EXPENSE }])
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: SECTION_DAY,
+            memo: uniqueName('TD3 entry'),
+            lines: [
+                { account: expense, debit: '57.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '57.00' },
+            ],
+        })
+
+        await openProfitAndLoss(page)
+        await choosePeriod(page, { from: SECTION_DAY, to: SECTION_DAY })
+        await collapseAll(page, EXPENSES)
+        await expect(rowOf(page, TOTAL_EXPENSES)).toBeVisible()
+        const source = await tdSnapshot(page)
+        const totalExpenses = await figureText(page, 'amount', TOTAL_EXPENSES)
+
+        await pressFigure(page, 'amount', TOTAL_EXPENSES)
+        await expectTransactionDetailScreen(page)
+        await expect(page.getByTestId('report-param-accounts')).toContainText(
+            'All Expense accounts'
+        )
+        const detail = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => groupOf(s, expense) !== undefined && totalOf(s) !== undefined,
+            `${expense}'s section and the report Total`
+        )
+        expect(detail.chips.period).toBe(source.chips.period)
+        expect(figure(totalOf(detail)?.cells.amount)).toBe(figure(totalExpenses))
+    })
+
+    test('a month cell of the Profit and Loss by Month opens that month of the period', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const expense = uniqueName('AA TD4 expense')
+        await createAccounts(page, [{ name: expense, kind: EXPENSE }])
+        const today = await browserToday(page)
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('TD4 entry'),
+            lines: [
+                { account: expense, debit: '45.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '45.00' },
+            ],
+        })
+
+        await openProfitAndLossByMonth(page)
+        await choosePeriod(page, { from: firstOfLastMonth(today), to: today })
+        await openSectionTo(page, EXPENSES, expense)
+        // The period's months in order: p0 last month, p1 this month (core assemble.go).
+        const thisMonth = 'amount.p1'
+        const cell = await figureText(page, thisMonth, expense)
+        expect(figure(cell)).toBe('45.00')
+
+        await pressFigure(page, thisMonth, expense)
+        await expectTransactionDetailScreen(page)
+        expect(urlPeriod(page)).toBe(`${firstOfMonth(today)}..${today}`)
+        await expect(page.getByTestId('report-document-period')).toHaveText(monthToDateWords(today))
+        await expect(page.getByTestId('report-param-period')).toHaveText(
+            customPeriodChip(firstOfMonth(today), today)
+        )
+        await expect(page.getByTestId('report-param-accounts')).toContainText(expense)
+        const detail = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => subtotalOf(s, expense) !== undefined,
+            `${expense}'s total`
+        )
+        expect(figure(subtotalOf(detail, expense)?.cells.amount)).toBe(figure(cell))
+    })
+
+    test('a Balance Sheet and a Trial Balance figure open the account up to the day', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const bank = uniqueName('AA TD5 bank')
+        const equity = uniqueName('AA TD5 equity')
+        await createAccounts(page, [
+            { name: bank, kind: BANK },
+            { name: equity, kind: EQUITY },
+        ])
+        const today = await browserToday(page)
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('TD5 capital'),
+            lines: [
+                { account: bank, debit: '300.00' },
+                { account: equity, credit: '300.00' },
+            ],
+        })
+        await postEntryOn(page, {
+            date: today,
+            memo: uniqueName('TD5 move'),
+            lines: [
+                { account: bank, debit: '25.00' },
+                { account: ACCOUNT_LABELS.checking, credit: '25.00' },
+            ],
+        })
+
+        await openBalanceSheet(page)
+        const current = await figureText(page, 'current', bank)
+        expect(figure(current)).toBe('325.00')
+        await pressFigure(page, 'current', bank)
+        await expectTransactionDetailScreen(page)
+        expect(urlPeriod(page)).toBe(`${today}..${today}`)
+        await expect(page.getByTestId('report-document-period')).toHaveText(dayWords(today))
+        await expect(page.getByTestId('report-param-period')).toHaveText(
+            customPeriodChip(today, today)
+        )
+        await expect(page.getByTestId('report-param-accounts')).toContainText(bank)
+        const fromBalance = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => subtotalOf(s, bank) !== undefined,
+            `${bank}'s total from the Balance Sheet`
+        )
+        expect(figure(subtotalOf(fromBalance, bank)?.cells.amount)).toBe('325.00')
+        const back = page.getByTestId('report-back')
+        await expect(back).toHaveText('Balance Sheet')
+        await back.click()
+        await expect(page.getByTestId('report-title')).toHaveText('Balance Sheet')
+
+        await openTrialBalance(page)
+        await chooseAsOf(page, { preset: 'today' })
+        await filterToAccountsAndWait(page, [bank, RETAINED_EARNINGS])
+        const debit = await figureText(page, 'debit', bank)
+        expect(figure(debit)).toBe('325.00')
+        // B's Credit draws no figure, so it is no link.
+        const blankCredit = await cellOf(page, 'credit', bank)
+        await expect(blankCredit).toBeAttached()
+        await expect(blankCredit).not.toHaveRole('link')
+        await pressFigure(page, 'debit', bank)
+        await expectTransactionDetailScreen(page)
+        await expect(page.getByTestId('report-param-accounts')).toContainText(bank)
+        const fromTrial = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => subtotalOf(s, bank) !== undefined,
+            `${bank}'s total from the Trial Balance`
+        )
+        expect(figure(subtotalOf(fromTrial, bank)?.cells.amount)).toBe(figure(debit))
+        await page.getByTestId('report-back').click()
+        await expect(page.getByTestId('report-title')).toHaveText('Trial Balance')
+
+        await chooseRows(page, 'all')
+        for (const column of ['debit', 'credit']) {
+            const cell = await cellOf(page, column, RETAINED_EARNINGS)
+            await expect(cell).toBeVisible()
+            await expect(cell).not.toHaveRole('link')
+            await expectPressStays(page, cell, 'Trial Balance')
+        }
     })
 })
