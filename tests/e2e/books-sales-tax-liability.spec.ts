@@ -24,7 +24,13 @@ import {
     pickLineProduct,
     uniqueMemo,
 } from './invoice-helpers'
-import { createAgency, createRate, openTaxes, uniqueName } from './tax-rates-helpers'
+import {
+    createAgency,
+    createRate,
+    fakeReadOnlyAccess,
+    openTaxes,
+    uniqueName,
+} from './tax-rates-helpers'
 
 // The shipped Sales Tax Liability in core's report view (/a/reports/<id>), read by the e2e
 // user through the viewer share Books keeps. The seed posts the fixture's taxed invoices and
@@ -224,6 +230,15 @@ async function expectPhoneLinesAt(page: Page, size: { width: number; height: num
     )
     await expectPhoneLines(page, firstDocument.id)
     await expectPhoneLines(page, rowOfKind(snapshot, 'subtotal', `Total ${LODGING}`).id)
+}
+
+const REPORT_URL = /\/a\/reports\/[a-z0-9]{15}(\?|$)/
+
+// A press on the Sales tax page's Liability report button, then the report screen.
+async function pressLiabilityReport(page: Page) {
+    await page.getByTestId('taxes-liability-report').click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(page).toHaveURL(REPORT_URL)
 }
 
 const OCTOBER_AGENCIES = [
@@ -481,6 +496,76 @@ test.describe('sales-tax-liability: report', () => {
                 .locator('[data-testid^="report-row-"]')
                 .filter({ has: report.getByText(agency, { exact: true }) })
         ).toHaveCount(0)
+    })
+
+    test('a reader opens the report from the Sales tax page', async ({ page }) => {
+        await fakeReadOnlyAccess(page)
+        await openTaxes(page)
+        await expect(page.getByTestId('taxes-add-agency')).toHaveCount(0)
+        await expect(page.getByTestId('taxes-liability-report')).toHaveText('Liability report')
+
+        await pressLiabilityReport(page)
+        const snapshot = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => s.title !== '',
+            'the report title'
+        )
+        expect(snapshot.title).toBe(SALES_TAX_LIABILITY_TITLE)
+    })
+
+    test('with no shared report the Sales tax page shows no Liability report button', async ({
+        page,
+    }) => {
+        // A read-only stub: the reports list answers with no row, so the reader has no
+        // shipped report to open. Realtime is cut so no row arrives by another path.
+        const asked: string[] = []
+        await page.route('**/api/realtime*', route => route.abort())
+        await page.route('**/api/collections/reports/records**', route => {
+            const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
+            asked.push(filter)
+            return route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    page: 1,
+                    perPage: 0,
+                    totalItems: 0,
+                    totalPages: 0,
+                    items: [],
+                }),
+            })
+        })
+        await openTaxes(page)
+        await expect(page.getByTestId('taxes-title')).toBeVisible()
+        // The page asked for the shipped report and got none: without this the absent
+        // button below would prove nothing.
+        await expect
+            .poll(
+                () =>
+                    asked.some(filter =>
+                        filter.includes(stlFixture.SALES_TAX_LIABILITY_SHIPPED_KEY)
+                    ),
+                'the Sales tax page asks for the shipped Sales Tax Liability'
+            )
+            .toBe(true)
+        await expect(page.getByTestId('taxes-liability-report')).toHaveCount(0)
+    })
+
+    test('on a 390 phone the Liability report button fits and opens the report', async ({
+        page,
+    }) => {
+        await openTaxes(page)
+        await page.setViewportSize({ width: 390, height: 844 })
+        const button = page.getByTestId('taxes-liability-report')
+        await expect(button).toBeVisible()
+        await expect
+            .poll(async () => {
+                const box = await button.boundingBox()
+                return box !== null && box.x >= 0 && box.x + box.width <= 390
+            }, 'the button lies inside the 390 px viewport')
+            .toBe(true)
+        await pressLiabilityReport(page)
     })
 
     test('on a 390 phone each row is its label, then its figures on two lines', async ({
