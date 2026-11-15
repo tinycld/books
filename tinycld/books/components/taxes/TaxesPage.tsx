@@ -4,9 +4,12 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Plus } from 'lucide-react-native'
+import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useShippedReportHref } from '../../hooks/useShippedReportHref'
 import type { useTaxesScreen } from '../../hooks/useTaxesScreen'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
+import { SALES_TAX_LIABILITY_SHIPPED_KEY } from '../../lib/shipped-reports'
 import type { AgencyMenuItem, TaxDeleteTarget, TaxMenuItem } from '../../lib/tax-menu'
 import {
     type AgencyCardView,
@@ -21,6 +24,7 @@ import { AgencyCard } from './AgencyCard'
 import { AgencyMenu } from './AgencyMenu'
 import { DefaultCard } from './DefaultCard'
 import { GroupsCard } from './GroupsCard'
+import { LiabilityReportButton } from './LiabilityReportButton'
 import { TaxDialogs } from './TaxDialogs'
 import { TaxesEmpty } from './TaxesEmpty'
 import { TaxRowMenu } from './TaxRowMenu'
@@ -135,9 +139,13 @@ interface HeaderProps {
     isWide: boolean
 }
 
-// Wide, the actions sit right of the title; on a phone they wrap under it.
+// Wide, the actions sit right of the title; on a phone they wrap under it. The
+// Liability report button is outside Actions: it only navigates, so it shows for a
+// reader without write access and on the empty page too.
 function Header({ showActions, canPressWrites, canAddGroup, isWide }: HeaderProps) {
     const layout = isWide ? 'flex-row items-center justify-between' : ''
+    const liabilityHref = useShippedReportHref(SALES_TAX_LIABILITY_SHIPPED_KEY)
+    const hasButtons = liabilityHref !== null || showActions
     return (
         <View className={`gap-3 ${layout}`}>
             <View className="flex-row items-center gap-2">
@@ -146,13 +154,22 @@ function Header({ showActions, canPressWrites, canAddGroup, isWide }: HeaderProp
                 </Text>
                 <HelpIcon topic="books:sales-tax" />
             </View>
-            <Actions
-                isVisible={showActions}
-                canPressWrites={canPressWrites}
-                canAddGroup={canAddGroup}
-            />
+            <HeaderButtons isVisible={hasButtons}>
+                <LiabilityReportButton href={liabilityHref} />
+                <Actions
+                    isVisible={showActions}
+                    canPressWrites={canPressWrites}
+                    canAddGroup={canAddGroup}
+                />
+            </HeaderButtons>
         </View>
     )
+}
+
+// An empty row would still take the header's gap, so it renders only with a button in it.
+function HeaderButtons({ isVisible, children }: { isVisible: boolean; children: ReactNode }) {
+    if (!isVisible) return null
+    return <View className="flex-row flex-wrap items-center gap-2">{children}</View>
 }
 
 function Loading({ isVisible }: { isVisible: boolean }) {

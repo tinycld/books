@@ -332,6 +332,89 @@ describe('help/reports.md', () => {
         })
     })
 
+    describe('the "Read the Sales Tax Liability report" section', () => {
+        const liability = section('## Read the Sales Tax Liability report')
+        const sentences = liability.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('has the heading', () => {
+            expect(body).toMatch(/^## Read the Sales Tax Liability report$/m)
+        })
+
+        it('says the report is on the accrual basis', () => {
+            expect(oneSentence(/\baccrual basis\b/i)).toBe(true)
+        })
+
+        it('says posted invoices and sales receipts count, and a draft or a void does not', () => {
+            expect(
+                oneSentence(
+                    /\bposted\b/i,
+                    /\binvoices?\b/i,
+                    /\bsales receipts?\b/i,
+                    /\bdrafts?\b/i,
+                    /\bvoid(s|ed)?\b/i,
+                    /\b(no|not|never)\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('says the agency total shows only the tax, and why: a sale taxed by two rates of one agency', () => {
+            expect(oneSentence(/\btotal\b/i, /\bagency\b/i, /\bonly\b/i, /\btax\b/i)).toBe(true)
+            expect(oneSentence(/\btwo rates\b/i, /\bagency\b/i, /\b(twice|double)/i)).toBe(true)
+        })
+
+        it('says to press a rate to see its documents', () => {
+            expect(oneSentence(/\bpress\b/i, /\brate\b/i, /\bdocuments?\b/i)).toBe(true)
+        })
+
+        it('says a press on a document row opens the invoice or sales receipt', () => {
+            expect(
+                oneSentence(
+                    /\b(press|tap|click)\b/i,
+                    /\bdocument row\b/i,
+                    /\bopens?\b/i,
+                    /\binvoice\b/i,
+                    /\bsales receipt\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('says a sale with no tax rate is not in the report', () => {
+            expect(oneSentence(/\bno tax rate\b/i, /\b(not|never)\b/i, /\breport\b/i)).toBe(true)
+        })
+
+        it("says the liability account's balance on the Balance Sheet also holds payments and adjustments", () => {
+            expect(
+                oneSentence(
+                    /\bliability account\b/i,
+                    /\bBalance Sheet\b/,
+                    /\bpayments?\b/i,
+                    /\badjustments?\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('says nothing about cash basis being available', () => {
+            expect(liability).not.toBe('')
+            const cash = sentences.filter(sentence => /\bcash\b/i.test(sentence))
+            expect(cash.filter(sentence => !/\b(no|not|never)\b/i.test(sentence))).toEqual([])
+        })
+    })
+
+    it('"Who sees Books reports" names the Sales Tax Liability', () => {
+        expect(section('## Who sees Books reports')).toContain('Sales Tax Liability')
+    })
+
+    it.each([
+        'Sales tax lines',
+        'Tax agencies',
+        'Tax rates',
+        'Sales documents',
+    ])('"Build your own Books report" names the source "%s"', label => {
+        expect(section('## Build your own Books report')).toContain(label)
+    })
+
     it('"Who sees Books reports" names the Profit and Loss, the Profit and Loss by Month and Transaction Detail by Account', () => {
         const who = section('## Who sees Books reports')
         expect(who).toContain('Profit and Loss by Month')
