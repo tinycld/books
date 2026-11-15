@@ -8,6 +8,8 @@
 // and since every floored slot has one floor-to-weight ratio (document-line-columns.ts),
 // all floors hold or release at one width: each span's edges fall on its slots' edges.
 
+import type { HostTableColumn } from '@tinycld/core/lib/forms/definition'
+import type { HostRowKind } from '@tinycld/core/lib/forms/host'
 import {
     FIELD_CELL_BORDER_WIDTH,
     TABLE_GRID_GAP,
@@ -39,27 +41,35 @@ export const DOCUMENT_FOOTER_MENU_SPACER = {
     flexShrink: 0,
 } as const
 
-function columnOf(key: string) {
-    return DOCUMENT_LINE_COLUMNS.find(column => column.key === key)
-}
+export type FooterSpans = { left: FooterSpan; totals: FooterSpan; right: FooterSpan }
 
 // Core gives a column without `flex` the weight 1 and without `minWidth` the floor 0.
-function spanOf(keys: readonly string[]): FooterSpan {
+function spanOf(columns: readonly HostTableColumn[], keys: readonly string[]): FooterSpan {
+    const columnOf = (key: string) => columns.find(column => column.key === key)
     const weight = keys.reduce((sum, key) => sum + (columnOf(key)?.flex ?? 1), 0)
     const floors = keys.reduce((sum, key) => sum + (columnOf(key)?.minWidth ?? 0), 0)
     const gaps = Math.max(keys.length - 1, 0) * TABLE_GRID_GAP
     return { flexGrow: weight, flexShrink: 1, flexBasis: gaps, minWidth: floors + gaps }
 }
 
-function footerSpans() {
-    const slots = DOCUMENT_ROW_KINDS[0]?.columns ?? []
+/**
+ * The footer spans over one line table's wide grid (its columns and first row kind): left
+ * of Qty, Qty through Amount, and after Amount (the sales lines' Taxable; none on a bill's
+ * product table). A bill lays its footer on its product table, whose Amount slot has the
+ * account table's size and place.
+ */
+export function footerSpansOf(
+    columns: readonly HostTableColumn[],
+    rowKinds: readonly HostRowKind[]
+): FooterSpans {
+    const slots = rowKinds[0]?.columns ?? []
     const first = slots.indexOf(TOTALS_FIRST)
     const last = slots.indexOf(TOTALS_LAST)
     return {
-        left: spanOf(slots.slice(0, first)),
-        totals: spanOf(slots.slice(first, last + 1)),
-        right: spanOf(slots.slice(last + 1)),
+        left: spanOf(columns, slots.slice(0, first)),
+        totals: spanOf(columns, slots.slice(first, last + 1)),
+        right: spanOf(columns, slots.slice(last + 1)),
     }
 }
 
-export const DOCUMENT_FOOTER_SPANS = footerSpans()
+export const DOCUMENT_FOOTER_SPANS = footerSpansOf(DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS)

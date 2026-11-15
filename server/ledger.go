@@ -15,6 +15,7 @@ func registerLedger(app core.App) {
 	registerAccountGuard(app)
 	registerCustomerGuard(app)
 	registerVendorGuard(app)
+	registerPartyContactGuards(app)
 	registerProductGuards(app)
 	registerSalesTaxGuards(app)
 	registerEntryHooks(app)

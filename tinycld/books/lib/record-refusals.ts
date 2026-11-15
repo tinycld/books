@@ -47,6 +47,14 @@ function splitByHidden(fields: Record<string, string>, hidden: ReadonlySet<strin
     return { hiddenMessages, shown }
 }
 
+// The keys of the refused fields that land on a field the form shows: none for a
+// refusal that goes on the root (its own message, or every field hidden).
+export function shownRefusalKeys(error: unknown, hiddenFields: HiddenFields = nothingHidden) {
+    if (messageOnlyRefusal(error) !== null) return []
+    const fields = extractValidationErrors(error)
+    return Object.keys(splitByHidden(fields ?? {}, hiddenFields()).shown)
+}
+
 /**
  * The `onError` of a record save. A refusal with a message and no field (an activation
  * or delete rule, or a generic refusal such as a 403, 404 or 500) goes on the form root,

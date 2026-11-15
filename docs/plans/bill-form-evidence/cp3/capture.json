@@ -1,0 +1,379 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "./new",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "draft",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "fill": "form-input-ref_no", "value": "88419" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "fill": "form-input-memo", "value": "November electricity, main office" },
+                { "click": "bill-save-draft" },
+                { "waitFor": "bill-badge" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "fill": "form-input-ref_no", "value": "OSW-INV-558213" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "fill": "form-input-memo", "value": "Q4 supplies, entered again" },
+                { "click": "bill-save-draft" },
+                { "waitFor": "form-field-ref_no-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./errors",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "fill": "form-input-ref_no", "value": "OSW-INV-558213" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "fill": "form-input-memo", "value": "Q4 supplies, entered again" },
+                { "click": "bill-save-draft" },
+                { "waitFor": "form-field-ref_no-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "no-lines",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "click": "bill-post" },
+                { "waitFor": "bill-line-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "delete",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "opaque": "delete-draft-dialog",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "fill": "form-input-memo", "value": "December electricity, main office" },
+                { "click": "bill-save-draft" },
+                { "waitFor": "bill-badge" },
+                { "pause": 500 },
+                { "click": "bill-more" },
+                { "clickText": "Delete draft" },
+                { "waitFor": "delete-draft-dialog" }
+            ]
+        },
+        {
+            "name": "./delete",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "opaque": "delete-draft-dialog",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "fill": "form-input-memo", "value": "December electricity, main office" },
+                { "click": "bill-save-draft" },
+                { "waitFor": "bill-badge" },
+                { "pause": 500 },
+                { "click": "bill-more" },
+                { "click": "bill-delete-draft" },
+                { "waitFor": "delete-draft-dialog" }
+            ]
+        },
+        {
+            "name": "phone-more",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 844,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Pacific Power" },
+                { "clickMenuItem": "Pacific Power" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "fill": "form-input-memo", "value": "January electricity, main office" },
+                { "click": "bill-save-draft" },
+                { "waitFor": "bill-badge" },
+                { "pause": 500 },
+                { "click": "bill-more" },
+                { "waitFor": "Delete draft" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "fill": "form-input-ref_no", "value": "OSW-INV-558301" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 3" },
+                { "clickMenuItem": "Design software license (annual)" },
+                { "pause": 300 },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                { "click": "bill-post" },
+                { "waitFor": "bill-read-only" },
+                { "waitFor": "bill-posted-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted-phone",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 2600,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "clickLabel": "Line 1 actions" },
+                { "click": "form-table-account_lines-menu-remove" },
+                { "pause": 300 },
+                { "fill": "form-input-ref_no", "value": "OSW-INV-558302" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 2" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 3" },
+                { "clickMenuItem": "Design software license (annual)" },
+                { "pause": 300 },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                { "click": "bill-post" },
+                { "waitFor": "bill-read-only" },
+                { "waitFor": "bill-posted-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "loading",
+            "widths": [390],
+            "url": "/a/books/bills/doesnotexist000",
+            "ready": "bill-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": { "collection": "books_bills", "hold": true }
+        },
+        {
+            "name": "./loading",
+            "widths": [1280],
+            "url": "/a/books/bills/doesnotexist000",
+            "ready": "bill-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": { "collection": "books_bills", "hold": true }
+        },
+        {
+            "name": "error",
+            "widths": [390],
+            "url": "/a/books/bills/doesnotexist000",
+            "ready": "bill-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": { "collection": "books_bills", "status": 400 }
+        },
+        {
+            "name": "./error",
+            "widths": [1280],
+            "url": "/a/books/bills/doesnotexist000",
+            "ready": "bill-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": { "collection": "books_bills", "status": 400 }
+        },
+        {
+            "name": "not-found",
+            "widths": [390],
+            "url": "/a/books/bills/doesnotexist000",
+            "ready": "bill-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "./not-found",
+            "widths": [1280],
+            "url": "/a/books/bills/doesnotexist000",
+            "ready": "bill-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "no-access",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "./no-access",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        }
+    ]
+}

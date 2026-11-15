@@ -1,0 +1,157 @@
+{
+    "outDir": "bill-form-reference",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "new-accounts",
+            "url": "/a/books/helix-mockup?state=new-accounts",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1100
+        },
+        {
+            "name": "new-products",
+            "url": "/a/books/helix-mockup?state=new-products",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1200
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "correction-phone",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 3600
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1500
+        },
+        {
+            "name": "no-lines",
+            "url": "/a/books/helix-mockup?state=no-lines",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1200
+        },
+        {
+            "name": "phone-more",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 844,
+            "actions": [{ "click": "bill-more" }, { "waitFor": "Delete draft" }]
+        },
+        {
+            "name": "delete",
+            "url": "/a/books/helix-mockup?state=delete",
+            "ready": "bill-delete-dialog",
+            "opaque": "bill-delete-dialog",
+            "hideLabels": ["New"],
+            "height": 900
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "bill-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "posted-phone",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "bill-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2600
+        },
+        {
+            "name": "void",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "bill-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1000
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "bill-read-only",
+            "hideLabels": ["New"],
+            "height": 1100
+        },
+        {
+            "name": "settings",
+            "url": "/a/books/helix-mockup?state=settings",
+            "ready": "books-settings",
+            "hideLabels": ["New"],
+            "height": 800
+        },
+        {
+            "name": "settings-readonly",
+            "url": "/a/books/helix-mockup?state=settings-readonly",
+            "ready": "books-settings",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 800
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "helix-mockup",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "helix-mockup",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "bill-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "bill-no-access",
+            "hideLabels": ["New"],
+            "height": 700
+        }
+    ]
+}

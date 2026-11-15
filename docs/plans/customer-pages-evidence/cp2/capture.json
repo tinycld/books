@@ -1,0 +1,119 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "details-dirty",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280, 1600],
+            "height": 1400,
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-form" },
+                { "fill": "form-input-phone", "value": "(206) 555-0199" },
+                { "waitFor": "customer-save-bar" }
+            ]
+        },
+        {
+            "name": "details-read-only",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "height": 1400,
+            "settleMs": 800,
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-form" }
+            ]
+        },
+        {
+            "name": "notes-dirty",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280, 1600],
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-notes" },
+                { "waitFor": "customer-notes-input" },
+                {
+                    "fill": "customer-notes-input",
+                    "value": "Prefers invoices by email. Net 30; call Dana before the first of the month."
+                },
+                { "waitFor": "customer-save-bar" }
+            ]
+        },
+        {
+            "name": "discard",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "opaque": "confirm-dialog-body",
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-tab-notes" },
+                { "fill": "customer-notes-input", "value": "Prefers invoices by email." },
+                { "click": "customer-cancel" },
+                { "waitFor": "confirm-dialog-body" }
+            ]
+        },
+        {
+            "name": "more-menu",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-more" },
+                { "waitFor": "customer-more-delete" }
+            ]
+        },
+        {
+            "name": "more-menu-wide",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1600],
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "click": "customer-more" },
+                { "waitFor": "customer-more-delete" }
+            ]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1600],
+            "actions": [
+                { "fill": "customers-search", "value": "St. Jude Community" },
+                {
+                    "clickText": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "customer-form" }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/customers/loadingcapture1",
+            "ready": "customer-loading",
+            "hideLabels": ["Reconnecting…"],
+            "widths": [390, 1280, 1600],
+            "fakeRecords": { "collection": "books_customers", "hold": true }
+        }
+    ]
+}

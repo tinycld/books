@@ -1,9 +1,18 @@
+import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { describe, expect, it } from 'vitest'
+import { BILL_CURRENCY, BILL_IDS, BILL_LINES } from '../tinycld/books/lib/bill-form-fixture'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import type { CustomerFill } from '../tinycld/books/lib/document-fills'
+import { documentTotals } from '../tinycld/books/lib/document-lines'
+import { shownDocumentTotals } from '../tinycld/books/lib/document-tax'
 import { defaultMessageFor } from '../tinycld/books/lib/document-values'
 import { INVOICE_IDS, INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
 import { copyInvoiceValues, newInvoiceValues } from '../tinycld/books/lib/invoice-values'
+import { centsToText } from '../tinycld/books/lib/money-text'
+import {
+    type DocumentLineTable,
+    SALES_LINE_TABLES,
+} from '../tinycld/books/lib/sales-document-kinds'
 import {
     DEPOSIT_ACCOUNT_IDS,
     SALES_RECEIPT_IDS,
@@ -149,5 +158,143 @@ describe("a copy and a correction keep their source's message", () => {
     it("salesReceiptCorrectionValues keeps the original's message", () => {
         const { receipt, lines } = postedReceipt()
         expect(salesReceiptCorrectionValues(receipt, lines).message).toBe(SOURCE_MESSAGE)
+    })
+})
+
+// Totals over several line tables (plan checkpoint 2, Do 4; spec §3.5). BILL_KIND lands in
+// checkpoint 3, so the bill's two tables are a local list of the same shape.
+const BILL_TABLES: readonly DocumentLineTable[] = [
+    {
+        key: 'account_lines',
+        rowLabel: 'Account line',
+        heading: 'Account details',
+        subtotal: { label: 'Account lines', testId: 'total-account-lines' },
+    },
+    {
+        key: 'item_lines',
+        rowLabel: 'Product line',
+        heading: 'Product and service details',
+        subtotal: { label: 'Products and services', testId: 'total-item-lines' },
+    },
+]
+
+// The 1002 fixture bill's lines as the form holds them: an account line's Amount and an
+// item line's Rate are typed money text.
+function bill1002Rows() {
+    const lines = BILL_LINES.filter(line => line.bill === BILL_IDS.posted).sort(
+        (a, b) => a.position - b.position
+    )
+    const accountRows: TableRow[] = lines
+        .filter(line => line.kind === 'account')
+        .map(line => ({
+            id: line.id,
+            kind: 'account',
+            account: line.account_number,
+            description: line.description,
+            amount: centsToText(line.amount).replace(/,/g, ''),
+        }))
+    const itemRows: TableRow[] = lines
+        .filter(line => line.kind === 'item')
+        .map(line => ({
+            id: line.id,
+            kind: 'item',
+            product: line.product,
+            description: line.description,
+            quantity: line.quantity,
+            rate: centsToText(line.rate).replace(/,/g, ''),
+            amount: null,
+        }))
+    return { accountRows, itemRows }
+}
+
+describe('shownDocumentTotals over several line tables', () => {
+    it('gives one total over both tables, a subtotal row per table, and no Subtotal', () => {
+        const { accountRows, itemRows } = bill1002Rows()
+        const shown = shownDocumentTotals(
+            { account_lines: accountRows, item_lines: itemRows },
+            null,
+            BILL_CURRENCY,
+            BILL_TABLES
+        )
+        expect(shown?.total).toBe(90_995)
+        expect(shown?.subtotal).toBeNull()
+        expect(shown?.tableSubtotals).toEqual([
+            { label: 'Account lines', amount: '$148.55', testId: 'total-account-lines' },
+            { label: 'Products and services', amount: '$761.40', testId: 'total-item-lines' },
+        ])
+    })
+
+    it('gives no subtotal row for a table with no line that has an amount', () => {
+        const { accountRows } = bill1002Rows()
+        const shown = shownDocumentTotals(
+            { account_lines: accountRows, item_lines: [] },
+            null,
+            BILL_CURRENCY,
+            BILL_TABLES
+        )
+        expect(shown?.total).toBe(14_855)
+        expect(shown?.tableSubtotals).toEqual([
+            { label: 'Account lines', amount: '$148.55', testId: 'total-account-lines' },
+        ])
+    })
+
+    // A table whose only line has a zero amount has a line, but none with an amount.
+    it('gives no subtotal row for a table whose only line has a zero amount', () => {
+        const { accountRows, itemRows } = bill1002Rows()
+        const zeroAccount: TableRow = {
+            id: 'rowzeroaccount1',
+            kind: 'account',
+            account: '6200',
+            description: 'Nothing yet',
+            amount: '0.00',
+        }
+        const zeroItem: TableRow = {
+            id: 'rowzeroitem0001',
+            kind: 'item',
+            product: itemRows[0]?.product ?? '',
+            description: 'Nothing yet',
+            quantity: 0,
+            rate: '5.00',
+            amount: null,
+        }
+        const noAccountAmount = shownDocumentTotals(
+            { account_lines: [zeroAccount], item_lines: itemRows },
+            null,
+            BILL_CURRENCY,
+            BILL_TABLES
+        )
+        expect(noAccountAmount?.tableSubtotals).toEqual([
+            { label: 'Products and services', amount: '$761.40', testId: 'total-item-lines' },
+        ])
+        const noItemAmount = shownDocumentTotals(
+            { account_lines: accountRows, item_lines: [zeroItem] },
+            null,
+            BILL_CURRENCY,
+            BILL_TABLES
+        )
+        expect(noItemAmount?.tableSubtotals).toEqual([
+            { label: 'Account lines', amount: '$148.55', testId: 'total-account-lines' },
+        ])
+    })
+
+    it("returns for an invoice's single table what it returned before", () => {
+        const item: TableRow = {
+            id: 'rowitem00000001',
+            kind: 'item',
+            product: 'prodbookkeep001',
+            description: '',
+            quantity: 2,
+            rate: '100.00',
+            amount: null,
+            taxable: true,
+        }
+        const tax = { components: [{ id: 'taxcomponent001', ppm: 87_100 }] }
+        const shown = shownDocumentTotals({ lines: [item] }, tax, 'USD', SALES_LINE_TABLES)
+        expect(shown).toEqual(
+            documentTotals(
+                [{ kind: 'item', quantity: 2, rate: 10_000, percentPpm: 0, taxable: true }],
+                tax
+            )
+        )
     })
 })

@@ -30,13 +30,19 @@ import { centsToText, parseMoney } from './money-text'
 // (document-footer-layout.ts) then resolves to its slots' summed width at every width.
 const FLOOR_PER_WEIGHT = 45
 
-// A floored column's size: the floor and the weight that keeps the shared ratio.
-function floored(minWidth: number) {
+// A floored column's size: the floor and the weight that keeps the shared ratio. The
+// bill's two tables (purchase-line-columns.ts) size their floored columns by it too.
+export function floored(minWidth: number) {
     return { minWidth, flex: minWidth / FLOOR_PER_WEIGHT }
 }
 
 // A Percent line draws its cell in the Rate slot (`columnAt`), so both share one size.
-const RATE_SIZE = floored(90)
+// The bill's product lines (purchase-line-columns.ts) size Qty, Rate and Amount as
+// these.
+export const QUANTITY_SIZE = floored(68)
+export const RATE_SIZE = floored(90)
+// AMOUNT_COLUMN_WIDTH (forms/document-line-cells.tsx) is this floor.
+export const AMOUNT_SIZE = floored(112)
 
 export const DOCUMENT_LINE_COLUMNS: readonly HostTableColumn[] = [
     {
@@ -65,7 +71,7 @@ export const DOCUMENT_LINE_COLUMNS: readonly HostTableColumn[] = [
         hidden: false,
         component: 'LineQuantityCell',
         align: 'end',
-        ...floored(68),
+        ...QUANTITY_SIZE,
     },
     {
         key: 'rate',
@@ -98,7 +104,7 @@ export const DOCUMENT_LINE_COLUMNS: readonly HostTableColumn[] = [
         hidden: false,
         component: 'LineAmountCell',
         align: 'end',
-        ...floored(112),
+        ...AMOUNT_SIZE,
     },
     {
         key: 'taxable',

@@ -27,7 +27,8 @@ const (
 // Refusal texts of the estimate guards. This group is shown by the client
 // too, with the same words. PocketBase adds the final period to a text without
 // one. %s is the customer's name, which refuseNamedField keeps as typed. The
-// customer guards of every kind refuse with msgCustomerInactive (invoices.go).
+// customer guards of every sales kind refuse with msgCustomerInactive
+// (invoices.go).
 const (
 	msgEstimateTotalNegative = "An estimate total cannot be below zero."
 	msgEstimateTotalTooLarge = "The estimate total is more than Books can store."
@@ -66,7 +67,12 @@ var estimateKind = salesDocKind{
 	TaxLinesCollection: "",
 	ParentField:        "estimate",
 	HostKey:            estimateHostKey,
+	LineTables:         []string{salesDocLinesKey},
+	Party:              partyCustomer,
+	PartyCollection:    "books_customers",
+	AddressField:       "bill_to",
 	CustomerRequired:   true,
+	HasTax:             true,
 	Msgs: salesDocMessages{
 		TotalNegative:    msgEstimateTotalNegative,
 		TotalTooLarge:    msgEstimateTotalTooLarge,
@@ -79,6 +85,7 @@ var estimateKind = salesDocKind{
 		LineUnknownKind:  msgEstimateLineUnknownKind,
 		CustomerOnDocs:   msgCustomerOnEstimates,
 		RevisionConflict: msgEstimateRevisionConflict,
+		PartyInactive:    msgCustomerInactive,
 	},
 	CheckHeader:  checkEstimateHeader,
 	CheckDelete:  checkEstimateDelete,
@@ -139,10 +146,12 @@ func checkEstimateHeader(_ core.App, _, r *core.Record) error {
 }
 
 // createQuote guards a quote's create. There is no draft: the create stamps
-// the id and the currency, takes the next number of the kind's sequence, and
-// runs the header guards. It runs inside serialized, so a refusal rolls the
-// sequence back and a refused create takes no number. A person never creates
-// a closed quote.
+// the id, the public token of the customer link and the currency, takes the
+// next number of the kind's sequence, and runs the header guards. It runs
+// inside serialized, so a refusal rolls the sequence back and a refused create
+// takes no number. A person never creates a closed quote. The token is set
+// over any value the record carries: the create rule refuses one in a
+// person's body, and an app save does not choose it either.
 func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 	ensureRecordID(r)
 	if r.GetString("status") == statusClosed {
@@ -151,6 +160,11 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 	if err := checkNewSalesDoc(kind, r); err != nil {
 		return err
 	}
+	token, err := newPublicToken()
+	if err != nil {
+		return err
+	}
+	r.Set("public_token", token)
 	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
@@ -170,8 +184,10 @@ func createQuote(tx core.App, kind salesDocKind, r *core.Record) error {
 // unless Books is converting it (markConverting). Otherwise the status moves
 // freely among pending, accepted and rejected, and the header guards run. A
 // write to an estimate that is not closed takes the transaction's one revision
-// increase (revision.go).
+// increase (revision.go). The public token never changes: every update gets
+// the stored one back first, before any check can return.
 func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) error {
+	r.Set("public_token", stored.GetString("public_token"))
 	converting := isConverting(tx, r.Id)
 	if stored.GetString("status") == statusClosed && !converting {
 		unlinks, err := onlySalesDocUnlinks(tx, stored, r)

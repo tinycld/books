@@ -1,5 +1,3 @@
-import { eq } from '@tanstack/db'
-import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
@@ -10,8 +8,9 @@ import { documentScreenState } from '../lib/document-screen-state'
 import { defaultMessageFor } from '../lib/document-values'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { todayIso } from '../lib/register-range'
+import { DOCUMENT_PARTIES, type DocumentPartyKey } from '../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../stores/document-save-store'
-import type { DocumentScreenInput } from './document-data'
+import { type DocumentScreenInput, documentPartyIdOf } from './document-data'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
 import { useTaxRateOptions } from './useTaxRateOptions'
@@ -20,16 +19,18 @@ export type { DocumentScreenInput } from './document-data'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
-// The customer a new form starts with: a copy's source customer, the estimate's on an
-// invoice made from one, else `?customer`.
-function newCustomerIdOf(
+// The party a new form starts with: a copy's source party, the estimate's customer on an
+// invoice made from one, else the route's party param (`?customer`, or `?vendor` on a
+// kind whose party is a vendor).
+function newPartyIdOf(
     input: DocumentScreenInput,
-    sourceCustomer: string | undefined,
+    partyField: DocumentPartyKey,
+    sourceParty: string | undefined,
     estimateCustomer: string | undefined
 ): string | undefined {
-    if (input.copy) return sourceCustomer
+    if (input.copy) return sourceParty
     if (input.estimate) return estimateCustomer
-    return input.customer
+    return input[partyField]
 }
 
 // A new route's form key: each start mounts its own form.
@@ -47,22 +48,17 @@ function useScreenWriter(): string {
     return writer
 }
 
-// A disabled query reports ready, so the id is checked as well as `isEnabled`.
-function readyOrIdle(id: string, query: { isEnabled: boolean; isReady: boolean }) {
-    return !id || (query.isEnabled && query.isReady)
-}
-
 /**
  * A sales document route's data: access, the Books currency, the kind's reads (the
  * document with the people who posted and voided it, its lines in order with their
  * products, the document a correction replaces or a copy starts from with its lines on a
  * new form, the estimate a new invoice is made from with its lines, the posted tax lines
- * of the read view), the form's customer and the tax
+ * of the read view), the form's party (through the kind's data source) and the tax
  * rates; the screen state they add up to, and one Retry that recovers exactly the reads
  * that failed.
  */
 export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScreenInput) {
-    const [customersCollection, accessCollection] = useStore('books_customers', 'books_access')
+    const [accessCollection] = useStore('books_access')
     const access = useBooksAccess()
     const settings = useBooksSettings()
     const taxOptions = useTaxRateOptions()
@@ -81,22 +77,15 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     // posted invoice was made from (its number names it); undefined otherwise.
     const estimateSource = reads.estimateSource.data
     const isFromEstimate = isNew && Boolean(input.estimate)
-    // The form's customer: the draft's own, `?customer` on a new form, a copy's source
-    // customer (a copy fills the header from its current record), or the estimate's on an
-    // invoice made from one. A live query, not useRecord, so a refused read shows as an
-    // error with Retry.
-    const newCustomerId = newCustomerIdOf(input, source?.customer, estimateSource?.customer)
-    const customerId = (isNew ? newCustomerId : record?.customer) ?? ''
-    const customerQuery = useLiveQuery({
-        query: q => {
-            if (!customerId) return undefined
-            return q
-                .from({ c: customersCollection })
-                .where(({ c }) => eq(c.id, customerId))
-                .findOne()
-        },
-        queryKey: ['books.document.customer', customerId],
-    })
+    // The form's party (DOCUMENT_PARTIES): the draft's own, the route's party param on a
+    // new form, a copy's source party (a copy fills the header from its current record),
+    // or the estimate's customer on an invoice made from one. Read through the kind's data
+    // source, whose live query shows a refused read as an error with Retry.
+    const partyField = DOCUMENT_PARTIES[documentKind.doc.party].field
+    const sourcePartyId = source ? documentPartyIdOf(source) : undefined
+    const newPartyId = newPartyIdOf(input, partyField, sourcePartyId, estimateSource?.customer)
+    const partyId = (isNew ? newPartyId : record && documentPartyIdOf(record)) ?? ''
+    const party = documentKind.data.useParty(partyId)
     const kindReads = [
         reads.record,
         reads.lines,
@@ -112,24 +101,23 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         settings.isReady &&
         taxOptions.isReady &&
         kindReads.every(read => read.isReady) &&
-        readyOrIdle(customerId, customerQuery)
+        party.isReady
     const isError =
         access.isError ||
         settings.hasLoadError ||
         taxOptions.isError ||
         kindReads.some(read => read.isError) ||
-        customerQuery.isError
+        party.isError
     const status = record?.status ?? null
     const sourceStatus = source?.status ?? null
-    const copyCustomer = customerQuery.data
-    // A copy whose customer cannot be read has no values to start from: not found. A
-    // source saved without a customer (a walk-in sales receipt) is copied without one.
-    const hasCopyCustomer = !source?.customer || copyCustomer !== undefined
-    const copyStatus = hasCopyCustomer ? sourceStatus : null
+    const copyParty = party.data
+    // A copy whose party cannot be read has no values to start from: not found. A source
+    // saved without one (a walk-in sales receipt) is copied without one.
+    const hasCopyParty = !sourcePartyId || copyParty !== undefined
+    const copyStatus = hasCopyParty ? sourceStatus : null
     // An estimate that does not exist, or whose customer cannot be read, has no values
     // to start an invoice from: not found.
-    const estimateStatus =
-        estimateSource && copyCustomer !== undefined ? estimateSource.status : null
+    const estimateStatus = estimateSource && copyParty !== undefined ? estimateSource.status : null
     // This mount's own form wrote its draft and its post was refused: that draft closed
     // the estimate, which now names it. The form stays, as through a hold, with the
     // refusal on it; its next save updates that draft. Another mount of the route (Back,
@@ -160,15 +148,15 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     const startValues = useMemo(() => {
         if (!isNew) return undefined
         if (isFromEstimate) {
-            if (!estimateSource || !copyCustomer || !values.fromEstimate) return undefined
+            if (!estimateSource || !copyParty || !values.fromEstimate) return undefined
             const today = todayIso()
             const { message } = estimateSource
-            return values.fromEstimate(estimateSource, estimateLines, today, copyCustomer, message)
+            return values.fromEstimate(estimateSource, estimateLines, today, copyParty, message)
         }
         if (!source || !reads.sourceLines.isReady) return undefined
         if (input.replaces) return values.correction(source, sourceLines)
-        if (input.copy && hasCopyCustomer) {
-            return values.copy(source, sourceLines, todayIso(), copyCustomer ?? null, start)
+        if (input.copy && hasCopyParty) {
+            return values.copy(source, sourceLines, todayIso(), copyParty ?? null, start)
         }
         return undefined
     }, [
@@ -181,8 +169,8 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         reads.sourceLines.isReady,
         input.replaces,
         input.copy,
-        hasCopyCustomer,
-        copyCustomer,
+        hasCopyParty,
+        copyParty,
         values,
         start,
     ])
@@ -191,7 +179,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         access.isError ||
         settings.hasLoadError ||
         taxOptions.isError ||
-        customerQuery.isError ||
+        party.isError ||
         kindReads.some(read => read !== reads.formStart && read.isError)
     const { loadFailed } = documentKind.doc.messages
     const errorText =
@@ -203,10 +191,6 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
 
     // Each part is non-empty only when its own query failed, so one call recovers
     // exactly the failed reads and never empties a collection another screen shows.
-    const customerRecovery: LiveRecovery =
-        customerQuery.isError && customerQuery.collection
-            ? { queries: [customerQuery.collection], sources: [customersCollection] }
-            : NO_RECOVERY
     const accessRecovery: LiveRecovery = access.isError
         ? { queries: [access.collection], sources: [accessCollection] }
         : NO_RECOVERY
@@ -214,7 +198,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         void recoverLiveQueries({
             ...mergeRecoveries([
                 ...kindReads.map(read => read.recovery),
-                customerRecovery,
+                party.recovery,
                 accessRecovery,
                 settings.recovery,
             ]),
@@ -227,7 +211,8 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         state,
         record,
         lines: reads.lines.data,
-        customer: customerQuery.data,
+        // The party's row (a sales kind's customer), read through the kind's data source.
+        party: party.data,
         startValues,
         start,
         deposit,

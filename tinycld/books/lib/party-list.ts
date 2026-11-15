@@ -32,6 +32,10 @@ export const PARTY_TABLE_MIN_WIDTH = 540
 
 export const PARTY_ROW_HEIGHT = 56
 
+// A name-only row, in the narrow list beside a record-width page.
+export const PARTY_NAME_ROW_HEIGHT = 48
+export const PARTY_NAME_ONLY_CELL = { flex: 1, minWidth: 0 } as const
+
 // Pads the header so it lines up with the rows; with the column minimums it stays inside
 // the table's 540 px minimum width. A row puts the same left padding inside its open
 // button (so the press area reaches the row's edge) and the right padding on the row.
