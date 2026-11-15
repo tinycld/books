@@ -146,6 +146,7 @@ with the reason, and shown to the human at the end)
 - fix review: round 1: 0 BLOCK, 1 NOTE (Design notes); conformance line `useAccountDeleteUsage.ts` "several live queries" judged false positive (three collections, one count each, no rows merged).
 - gate 3 A notes: 1 (NOTE 4), listed under Design notes.
 - human: n/a (review mode C)
+- commit: 800375e
 
 ## Final review
 - eval:
