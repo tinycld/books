@@ -14,7 +14,9 @@ func profitAndLossShipped() reports.Shipped {
 		Title:       "Profit and Loss",
 		Description: "Income and expenses for a period, and what is left, on the accrual basis.",
 		Spec:        mustJSON(profitAndLossSpec()),
-		Revision:    1,
+		// 2: opened lines open the transaction that posted them (detail.open),
+		// and its figures open Transaction Detail by Account (drill).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -41,12 +43,16 @@ func profitAndLossSpec() *reports.Spec {
 			reports.SortKey{Formula: fld("entry", "sequence")},
 		),
 		// An opened line reads "<date> · <entry number> · <memo>", with the
-		// entry's memo when the line has none.
-		Detail: &reports.Detail{Label: op("concat",
-			fld("date"), lit(" · "),
-			fld("entry", "number"), lit(" · "),
-			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
-		)},
+		// entry's memo when the line has none; it opens the transaction that
+		// posted it.
+		Detail: &reports.Detail{
+			Label: op("concat",
+				fld("date"), lit(" · "),
+				fld("entry", "number"), lit(" · "),
+				lineDescriptionFormula(),
+			),
+			Open: entryOpenPath(),
+		},
 		Display: profitAndLossDisplay(),
 	}
 }
@@ -102,7 +108,8 @@ func profitAndLossByMonthShipped() reports.Shipped {
 		Title:       "Profit and Loss by Month",
 		Description: "Income and expenses month by month for a period, on the accrual basis.",
 		Spec:        mustJSON(profitAndLossByMonthSpec()),
-		Revision:    1,
+		// 2: its figures open Transaction Detail by Account (drill).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -121,6 +128,13 @@ func profitAndLossByMonthSpec() *reports.Spec {
 			// Profit and Loss.
 			columns[i].Formula = plSigned()
 			columns[i].Aggregate = reports.Sum
+			// A month cell opens that month's lines, cut to the period.
+			columns[i].Drill = plAmountDrill(map[string]reports.DrillValue{
+				"period": {Range: &reports.DrillRange{
+					From: &reports.Node{PivotBound: "from"},
+					To:   &reports.Node{PivotBound: "to"},
+				}},
+			})
 		}
 	}
 	return &reports.Spec{
@@ -201,7 +215,7 @@ func plColumns() []reports.Column {
 	scale := 1
 	return []reports.Column{
 		{ID: "account", Label: "Account", Path: reports.Path{{Link: "account"}}},
-		{ID: "amount", Label: "Total", Formula: op("coalesce", op("sum", plSigned()), lit(0))},
+		{ID: "amount", Label: "Total", Formula: op("coalesce", op("sum", plSigned()), lit(0)), Drill: plAmountDrill(nil)},
 		{
 			ID: "pct", Label: "% of income", Format: "percent",
 			// An opened line shows no percent; only rows of the statement do.
@@ -212,6 +226,18 @@ func plColumns() []reports.Column {
 		// The section key: the layout places each account by its type.
 		{ID: "sec", Hidden: true, Formula: fld("account", "type")},
 	}
+}
+
+// plAmountDrill opens Transaction Detail by Account from a Total: an account
+// row's for that account, a section row's for every account of the section's
+// type, both for the period as the run was given it. pivotCells, on the
+// Profit and Loss by Month, cuts a month cell to that month.
+func plAmountDrill(pivotCells map[string]reports.DrillValue) *reports.Drill {
+	period := reports.DrillValue{Param: "period"}
+	return tdDrillTarget(map[string]map[string]reports.DrillValue{
+		"byAccount": {"period": period, "accounts": tdAccountOf()},
+		"section":   {"period": period, "accounts": {Group: &reports.Node{GroupKey: "section"}}},
+	}, pivotCells)
 }
 
 func plGroups() []reports.Group {

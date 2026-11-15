@@ -16,7 +16,10 @@ import (
 )
 
 // registerBooksSources empties core's report registry and registers Books'
-// sources as Register does, so each test sees only Books' sources.
+// sources as Register does, so each test sees only Books' sources. It also
+// registers the shipped Transaction Detail by Account, the target of the
+// statements' drills: core binds a drill only to a registered shipped key, so
+// a statement spec loads, validates and runs as it does in production.
 func registerBooksSources(t *testing.T) {
 	t.Helper()
 	reports.ResetForTesting()
@@ -24,6 +27,7 @@ func registerBooksSources(t *testing.T) {
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}
+	reports.RegisterShipped(transactionDetailShipped())
 }
 
 // readerInfo is the reader core gives a source's Heading and FiscalStartMonth:
@@ -181,6 +185,8 @@ func expectedCatalog(t *testing.T) []wantSource {
 				text("memo"), money("total"), text("currency"),
 				{key: "auto_reverse_on", typ: reports.Date, textDay: true},
 				{key: "posted_at", typ: reports.DateTime, aggs: reports.MinMax},
+				// The document an entry posted, so a line opens its screen.
+				text("document"),
 			},
 			links: []wantLink{
 				toMany("lines", "books.journal_lines", "entry"),
