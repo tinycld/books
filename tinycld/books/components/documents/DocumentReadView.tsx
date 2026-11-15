@@ -4,18 +4,19 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { router } from 'expo-router'
 import { Pressable, ScrollView, Text, View } from 'react-native'
-import { type DocumentRecord, expiredOnOf } from '../../hooks/document-data'
+import { type DocumentRecord, documentPartyIdOf, expiredOnOf } from '../../hooks/document-data'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
-import { DOCUMENT_NOTE_LABELS } from '../../lib/document-notes'
+import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
 import { documentTaxOf } from '../../lib/document-tax'
 import { NO_CUSTOMER_TEXT } from '../../lib/document-texts'
+import { lineTableSubtotals } from '../../lib/document-values'
 import { stampText } from '../../lib/entry-display'
 import { formatMoney } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
-import type { DocumentLifecycle } from '../../lib/sales-document-kinds'
+import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
@@ -27,6 +28,7 @@ import { DOCUMENT_READ_TRAILING_WIDTH, DocumentReadLines } from './DocumentReadL
 import { DocumentTabs, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import { useDocumentKind } from './document-kind-context'
+import { type DocumentKind, storedLineTableRows } from './document-kinds'
 
 const LINK_STYLE = { minHeight: 44 }
 
@@ -37,12 +39,14 @@ const LINK_STYLE = { minHeight: 44 }
 // a group's components), and the stored tax total. A posting document with a rate but no
 // snapshot rows (no line was taxable) shows the rate's name and the stored tax total, as
 // there is no snapshot percent to show.
+// A kind without sales tax (`features.tax`) has no tax line.
 function readTaxLine(
     data: DocumentScreenData,
     record: DocumentRecord,
-    lifecycle: DocumentLifecycle
+    doc: Pick<SalesDocumentKind, 'lifecycle' | 'features'>
 ): DocumentTotalsView['tax'] {
-    if (!record.tax_rate) return null
+    const { lifecycle } = doc
+    if (!doc.features.tax || !record.tax_rate) return null
     const amount = (cents: number) => formatMoney(cents, data.currency)
     const name = record.taxRateRow?.name ?? 'Tax'
     if (lifecycle === 'quote') {
@@ -55,25 +59,48 @@ function readTaxLine(
     return { label: `${name} (${ratePercentText(ppm)})`, amount: amount(total) }
 }
 
+// The subtotal row of each line table that has one and a line with an amount (a bill's
+// Account lines and Products and services), summed by the shared totals helper over the
+// stored lines, in table order. None for a kind with one table.
+function readTableSubtotals(
+    data: DocumentScreenData,
+    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs'>
+): DocumentTotalsView['tableSubtotals'] {
+    const rows = storedLineTableRows(documentKind, data.lines)
+    return lineTableSubtotals(rows, documentKind.doc.lineTables).map(row => ({
+        label: row.subtotal.label,
+        amount: formatMoney(row.cents, data.currency),
+        testId: row.subtotal.testId,
+    }))
+}
+
 // The last row and the big figure are the total in this unit (spec §3.4), posted or
 // void: payments come later.
 function readTotals(
     data: DocumentScreenData,
     record: DocumentRecord,
-    lifecycle: DocumentLifecycle
+    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs'>
 ): DocumentTotalsView {
+    const { doc } = documentKind
     const money = (cents: number) => formatMoney(cents, data.currency)
     const total = money(record.total)
+    // A kind with more than one line table has no single Subtotal row.
+    const subtotal = doc.lineTables.length > 1 ? null : money(record.subtotal)
     return {
-        subtotal: money(record.subtotal),
-        tax: readTaxLine(data, record, lifecycle),
+        subtotal,
+        tableSubtotals: readTableSubtotals(data, documentKind),
+        tax: readTaxLine(data, record, doc),
         total,
         last: total,
     }
 }
 
-function billToLines(record: DocumentRecord): string[] {
-    return isCustomerAddress(record.bill_to) ? formatAddressLines(record.bill_to) : []
+// The party's address as the document stored it: a sales kind's Bill to, a bill's
+// Mailing address.
+function addressLines(record: DocumentRecord): string[] {
+    const fields = record.kindFields
+    const address = fields.kind === 'bill' ? fields.mailing_address : record.bill_to
+    return isCustomerAddress(address) ? formatAddressLines(address) : []
 }
 
 // The label the kind's forms host gives a built-in, so the read view names a field as
@@ -88,30 +115,41 @@ function useBuiltinLabel(hostKey: string, key: string): string {
 interface BandProps {
     isPhone: boolean
     record: DocumentRecord
-    customer: string
-    billTo: string
+    partyName: string
+    address: string
     date: string
     tax: string
 }
 
-// The band as the form draws it: Customer, Bill to and Email in the left column at full
-// width; the kind's details around the date in one row with Tax under them on the right;
-// then the kind's own ruled row (a sales receipt's Payment). A phone stacks the two
-// columns in flow: a column there has no flex-1, because a zero flex basis in a column of
-// auto height lets the blocks draw on top of each other.
-function ReadBand({ isPhone, record, customer, billTo, date, tax }: BandProps) {
+// The band as the form draws it: the party (Customer or Vendor), its address (Bill to or
+// Mailing address) and Email in the left column at full width; the kind's details around
+// the date in one row with Tax under them on the right; then the kind's own ruled row (a
+// sales receipt's Payment). A phone stacks the two columns in flow: a column there has no
+// flex-1, because a zero flex basis in a column of auto height lets the blocks draw on top
+// of each other.
+function ReadBand({ isPhone, record, partyName, address, date, tax }: BandProps) {
     const { ReadDetails, ReadBandRow, doc } = useDocumentKind()
     const dateLabel = useBuiltinLabel(doc.hostKey, 'date')
+    const party = DOCUMENT_PARTIES[doc.party]
+    // The detail ids follow the party: `customer` / `bill-to`, `vendor` / `mailing-address`.
+    const addressField = party.addressField.replaceAll('_', '-')
     const direction = isPhone ? 'flex-col gap-3' : 'flex-row gap-6'
     const column = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const bandRow = ReadBandRow ? <ReadBandRow record={record} /> : null
+    // A detail with no value is not drawn (DocumentDetail): a kind without an email shows
+    // none, and one without sales tax has no tax line (readTaxLine), so no Tax.
+    const email = doc.features.email ? record.email : ''
     return (
         <View className="gap-3 rounded-xl border border-border bg-surface-secondary p-4">
             <View className={direction}>
                 <View className={column}>
-                    <DocumentDetail field="customer" label="Customer" value={customer} />
-                    <DocumentDetail field="bill-to" label="Bill to" value={billTo} />
-                    <DocumentDetail field="email" label="Email" value={record.email} />
+                    <DocumentDetail field={party.field} label={party.label} value={partyName} />
+                    <DocumentDetail
+                        field={addressField}
+                        label={party.addressLabel}
+                        value={address}
+                    />
+                    <DocumentDetail field="email" label="Email" value={email} />
                 </View>
                 <View className={column}>
                     <View className="flex-row flex-wrap gap-x-6 gap-y-3">
@@ -127,10 +165,11 @@ function ReadBand({ isPhone, record, customer, billTo, date, tax }: BandProps) {
     )
 }
 
-// "No customer" for a document saved without one (a sales receipt's walk-in sale).
-function customerNameOf(data: DocumentScreenData, record: DocumentRecord): string {
-    if (record.customer === '') return NO_CUSTOMER_TEXT
-    return data.customer?.display_name ?? ''
+// The party's name; "No customer" for a document saved without one (a sales receipt's
+// walk-in sale).
+function partyNameOf(data: DocumentScreenData, record: DocumentRecord): string {
+    if (documentPartyIdOf(record) === '') return NO_CUSTOMER_TEXT
+    return data.party?.display_name ?? ''
 }
 
 // Wide: the totals end under the lines' Amount column (the Tax column's width and the
@@ -144,9 +183,10 @@ interface FooterProps {
     totals: DocumentTotalsView
     message: string
     memo: string
+    memoLabel: string
 }
 
-function ReadFooter({ isPhone, totals, message, memo }: FooterProps) {
+function ReadFooter({ isPhone, totals, message, memo, memoLabel }: FooterProps) {
     const notesClass = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const notes = (
         <View className={notesClass}>
@@ -156,12 +196,7 @@ function ReadFooter({ isPhone, totals, message, memo }: FooterProps) {
                 value={message}
                 valueSuffix="message"
             />
-            <DocumentDetail
-                field="memo"
-                label={DOCUMENT_NOTE_LABELS.memo}
-                value={memo}
-                valueSuffix="memo"
-            />
+            <DocumentDetail field="memo" label={memoLabel} value={memo} valueSuffix="memo" />
         </View>
     )
     if (isPhone) {
@@ -264,9 +299,13 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
-    const totals = readTotals(data, record, doc.lifecycle)
-    const billTo = billToLines(record).join('\n')
-    const customerName = customerNameOf(data, record)
+    const totals = readTotals(data, record, documentKind)
+    const ReadLines = documentKind.ReadLines ?? DocumentReadLines
+    // A kind without a message to the customer shows none (an empty detail is not drawn).
+    const message = doc.features.message ? record.message : ''
+    const memoLabel = memoLabelFor(doc.features)
+    const address = addressLines(record).join('\n')
+    const partyName = partyNameOf(data, record)
     const date = record.date ? formatDay(record.date) : ''
     const tax = totals.tax?.label ?? ''
     const title = `${doc.noun} ${record.number}`
@@ -291,21 +330,18 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                         <ReadBand
                             isPhone={isPhone}
                             record={record}
-                            customer={customerName}
-                            billTo={billTo}
+                            partyName={partyName}
+                            address={address}
                             date={date}
                             tax={tax}
                         />
-                        <DocumentReadLines
-                            lines={data.lines}
-                            currency={data.currency}
-                            isPhone={isPhone}
-                        />
+                        <ReadLines lines={data.lines} currency={data.currency} isPhone={isPhone} />
                         <ReadFooter
                             isPhone={isPhone}
                             totals={totals}
-                            message={record.message}
+                            message={message}
                             memo={record.memo}
+                            memoLabel={memoLabel}
                         />
                         <ReadStamps record={record} isPosting={isPosting} />
                     </TabPanel>

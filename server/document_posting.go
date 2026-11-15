@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -21,10 +22,11 @@ import (
 
 // documentPost is one document's posting. Replaces is the journal entry of the
 // posted document this one corrects ("" for none): the new entry replaces it
-// and takes its number. Customer is named on every line.
+// and takes its number. Customer (a sales document's) or Vendor (a purchase
+// document's) is named on every line; the other is empty.
 type documentPost struct {
-	DocType, DocumentID, Date, Memo, Actor, Customer, Replaces string
-	Lines                                                      []postingLine
+	DocType, DocumentID, Date, Memo, Actor, Customer, Vendor, Replaces string
+	Lines                                                              []postingLine
 }
 
 // postingLine is one line of a document's entry: one side is 0.
@@ -34,7 +36,7 @@ type postingLine struct {
 }
 
 // postDocument creates the entry draft and its lines, in order, each naming
-// the customer, posts it as the actor and returns the posted entry. It runs
+// the party, posts it as the actor and returns the posted entry. It runs
 // in the caller's transaction, or opens one: a refusal leaves nothing written.
 func postDocument(tx core.App, p documentPost) (*core.Record, error) {
 	var posted *core.Record
@@ -67,6 +69,7 @@ func postDocument(tx core.App, p documentPost) (*core.Record, error) {
 			line.Set("credit", l.Credit)
 			line.Set("position", i)
 			line.Set("customer", p.Customer)
+			line.Set("vendor", p.Vendor)
 			if err := tx.Save(line); err != nil {
 				return err
 			}
@@ -108,19 +111,55 @@ func boolRank(b bool) int {
 // that number, as ensureRetainedEarnings gives one retained earnings. It
 // runs inside the posting transaction, so a refused post rolls it back.
 func ensureReceivables(tx core.App) (*core.Record, error) {
+	return ensureControlAccount(tx, controlAccount{
+		match: dbx.HashExp{"type": "accounts_receivable"},
+		name:  "Accounts receivable", typ: "accounts_receivable", detailType: "accounts_receivable", number: "1100",
+	})
+}
+
+// ensurePayables returns the active Accounts payable account a bill credits:
+// the first in chart order, as ensureReceivables picks. A chart with none gets
+// "Accounts payable" (or "Accounts payable 2" when an inactive one holds the
+// name), numbered 2000 when no account holds that number. It runs inside the
+// posting transaction, so a refused post rolls it back.
+func ensurePayables(tx core.App) (*core.Record, error) {
+	return ensureControlAccount(tx, controlAccount{
+		match: dbx.HashExp{"type": "accounts_payable"},
+		name:  "Accounts payable", typ: "accounts_payable", detailType: "accounts_payable", number: "2000",
+	})
+}
+
+// controlAccount is an account Books creates when a posting needs it and the
+// chart has none: the accounts that match, and what a new one is.
+type controlAccount struct {
+	match                         dbx.HashExp
+	name, typ, detailType, number string
+}
+
+// ensureControlAccount returns the first active account that matches a, in
+// chart order (by number, unnumbered last, then id; accounts have no sort
+// key), or creates one in tx: named a.name (a.name 2 when an inactive
+// top-level account keeps the name), numbered a.number when no account holds
+// that number, else unnumbered.
+func ensureControlAccount(tx core.App, a controlAccount) (*core.Record, error) {
+	match := dbx.HashExp{"inactive": false}
+	for k, v := range a.match {
+		match[k] = v
+	}
 	found := &core.Record{}
 	err := tx.RecordQuery("books_accounts").
-		AndWhere(dbx.HashExp{"type": "accounts_receivable", "inactive": false}).
+		AndWhere(match).
 		OrderBy("[[number]] = '' ASC", "[[number]] ASC", "[[id]] ASC").
 		Limit(1).
 		One(found)
 	if err == nil {
 		return found, nil
 	}
+	label := strings.ToLower(a.name)
 	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("books: read the accounts receivable account: %w", err)
+		return nil, fmt.Errorf("books: read the %s account: %w", label, err)
 	}
-	number := "1100"
+	number := a.number
 	taken, err := tx.CountRecords("books_accounts", dbx.HashExp{"number": number})
 	if err != nil {
 		return nil, fmt.Errorf("books: read account numbers: %w", err)
@@ -128,8 +167,7 @@ func ensureReceivables(tx core.App) (*core.Record, error) {
 	if taken > 0 {
 		number = ""
 	}
-	// An inactive top-level "Accounts receivable" keeps its name.
-	name, err := freeTopLevelName(tx, "Accounts receivable")
+	name, err := freeTopLevelName(tx, a.name)
 	if err != nil {
 		return nil, err
 	}
@@ -139,11 +177,11 @@ func ensureReceivables(tx core.App) (*core.Record, error) {
 	}
 	r := core.NewRecord(col)
 	r.Set("name", name)
-	r.Set("type", "accounts_receivable")
-	r.Set("detail_type", "accounts_receivable")
+	r.Set("type", a.typ)
+	r.Set("detail_type", a.detailType)
 	r.Set("number", number)
 	if err := tx.Save(r); err != nil {
-		return nil, fmt.Errorf("books: create the accounts receivable account: %w", err)
+		return nil, fmt.Errorf("books: create the %s account: %w", label, err)
 	}
 	return r, nil
 }
@@ -158,41 +196,8 @@ func ensureReceivables(tx core.App) (*core.Record, error) {
 // receipt path does: a sales receipt posts to its Deposit to account and never
 // creates one.
 func ensureUndepositedFunds(tx core.App) (*core.Record, error) {
-	found := &core.Record{}
-	err := tx.RecordQuery("books_accounts").
-		AndWhere(dbx.HashExp{"detail_type": "undeposited_funds", "inactive": false}).
-		OrderBy("[[number]] = '' ASC", "[[number]] ASC", "[[id]] ASC").
-		Limit(1).
-		One(found)
-	if err == nil {
-		return found, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("books: read the undeposited funds account: %w", err)
-	}
-	number := "1200"
-	taken, err := tx.CountRecords("books_accounts", dbx.HashExp{"number": number})
-	if err != nil {
-		return nil, fmt.Errorf("books: read account numbers: %w", err)
-	}
-	if taken > 0 {
-		number = ""
-	}
-	name, err := freeTopLevelName(tx, "Undeposited funds")
-	if err != nil {
-		return nil, err
-	}
-	col, err := tx.FindCachedCollectionByNameOrId("books_accounts")
-	if err != nil {
-		return nil, err
-	}
-	r := core.NewRecord(col)
-	r.Set("name", name)
-	r.Set("type", "other_current_asset")
-	r.Set("detail_type", "undeposited_funds")
-	r.Set("number", number)
-	if err := tx.Save(r); err != nil {
-		return nil, fmt.Errorf("books: create the undeposited funds account: %w", err)
-	}
-	return r, nil
+	return ensureControlAccount(tx, controlAccount{
+		match: dbx.HashExp{"detail_type": "undeposited_funds"},
+		name:  "Undeposited funds", typ: "other_current_asset", detailType: "undeposited_funds", number: "1200",
+	})
 }

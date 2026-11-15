@@ -21,8 +21,15 @@
 //
 // SERVER-OWNED FIELDS are pinned with `@request.body.x:isset = false`: the
 // number and sequence (assigned when the estimate is created), the three
-// totals, the currency, the invoice made from it and sort_key on the estimate;
-// amount on a line.
+// totals, the currency, the invoice made from it, the public token and
+// sort_key on the estimate; amount on a line.
+//
+// PUBLIC TOKEN. public_token is the credential of the estimate's customer link
+// (/p/books/estimates/<token>, 2100000014): 43 URL-safe characters (256 random
+// bits) that the Go create (createQuote, server/estimates.go) sets before
+// PocketBase validates the record, so the field is required. No write changes
+// it afterwards (transitionQuote puts the stored token back). The unique index
+// serves the token lookups of the public view and the public PDF route.
 //
 // ACCEPTANCE. accepted_by and accepted_date describe who accepted the estimate
 // and when. Books clears them when the status moves to pending or rejected,
@@ -47,6 +54,7 @@ const unset = (...fields) => fields.map(f => `@request.body.${f}:isset = false`)
 const DAY = '^\\d{4}-\\d{2}-\\d{2}$'
 const OPTIONAL_DAY = '^(\\d{4}-\\d{2}-\\d{2})?$'
 const OPTIONAL_CURRENCY = '^([A-Z]{3})?$'
+const PUBLIC_TOKEN = '^[A-Za-z0-9_-]{43}$'
 // 2^53-1: the largest whole number of cents a number field stores exactly.
 const MAX_STORED = 9007199254740991
 // The largest line amount, as on journal lines.
@@ -60,6 +68,7 @@ const ESTIMATE_SERVER_FIELDS = [
     'total',
     'currency',
     'invoice',
+    'public_token',
     'sort_key',
 ]
 const LINE_SERVER_FIELDS = ['amount']
@@ -142,10 +151,18 @@ migrate(
                         maxSelect: 1,
                     },
                     { name: 'fields', type: 'json', maxSize: 1000000 },
+                    {
+                        name: 'public_token',
+                        type: 'text',
+                        required: true,
+                        max: 43,
+                        pattern: PUBLIC_TOKEN,
+                    },
                     { name: 'sort_key', type: 'text', hidden: true, max: 200 },
                     ...AUTODATES,
                 ],
                 indexes: [
+                    'CREATE UNIQUE INDEX idx_books_estimates_public_token ON books_estimates (public_token)',
                     'CREATE INDEX idx_books_estimates_customer ON books_estimates (customer)',
                     'CREATE INDEX idx_books_estimates_status_date ON books_estimates (status, date)',
                     'CREATE INDEX idx_books_estimates_tax_rate ON books_estimates (tax_rate)',

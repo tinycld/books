@@ -1,11 +1,13 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     backgroundOf,
+    contentArea,
     createCustomer,
     customerEntry,
     customerHelpers,
     customerIdOf,
+    customerPath,
     DESKTOP,
     discardDialog,
     edges,
@@ -27,24 +29,26 @@ import {
 } from './customer-form-helpers'
 import { nameOnDraftLine } from './journal-entries-helpers'
 
-// The customer side panel: at a window of 1360 px or more a customer opens in a 480 px
-// panel beside the list, and a resize moves the open customer between the panel and the
-// page without losing anything. The open, dirty customer can be deleted from its row menu
-// beside the panel. Every customer this spec opens for editing or deletes it creates
-// with a unique name; it reads the seeded Old Mill Bakery and Northwind customers only.
-// The delete refusal is the server's own: another tab puts the customer on a line of a
-// draft journal entry, and deletes that draft before the delete that goes through. The
-// last step holds a delete through `page.route` while the user goes to the Lists hub.
+// The customer surfaces at a window of 1360 px or more: a new customer opens in a 480 px
+// panel beside the full list, and an existing customer's page fills the content area
+// beside a 320 px column of names. A resize moves the open customer between that and the
+// page surface without losing anything. The open, dirty customer can be deleted from its
+// page's More menu. Every customer this spec opens for editing or deletes it creates with
+// a unique name; it reads the seeded Old Mill Bakery and Northwind customers only. The
+// delete refusal is the server's own: another tab puts the customer on a line of a draft
+// journal entry, and deletes that draft before the delete that goes through. The last
+// step holds a delete through `page.route` while the user goes to the Lists hub.
 //
 // Not covered here: there is no 390 run, because the panel surface does not exist below
 // a 1360 px window (spec Surfaces: `panel` at 1360 px or more, `page` below). The phone
-// flows this test touches are covered by the phone loops of checkpoints 4 and 5 (Back to
-// the list after opening a customer, Escape, the Discard changes? question, browser Back,
+// flows this test touches are covered by the phone loops of the save spec (Back to the
+// list after opening a customer, Escape, the Discard changes? question, browser Back,
 // reload). The replace rule cannot occur on a phone, where no list row is reachable while
 // a page is open. Native animation and swipe are not run. A read-only user cannot be
 // driven, because the seed has no read-only Books member.
 
 const PANEL_HEADER_HEIGHT = 52
+const RECORD_LIST_WIDTH = 320
 const OLD_MILL = 'Old Mill Bakery'
 
 const cityLineFits = (page: Page) => customerHelpers.cityLineFits(page, 'billing_address')
@@ -52,6 +56,32 @@ const cityLineFits = (page: Page) => customerHelpers.cityLineFits(page, 'billing
 const UNSAVED_DELETE_WARNING = 'Unsaved changes to this customer will be lost.'
 
 const jumpToBooksLists = customerHelpers.jumpToLists
+
+// The id of the customer whose page is open, read from the URL.
+function openCustomerId(page: Page) {
+    return new URL(page.url()).pathname.split('/').pop() ?? ''
+}
+
+// Opens a customer from its list row and shows its Details tab.
+async function openRowDetails(page: Page, row: Locator) {
+    await row.click()
+    await page.getByTestId('customer-tab-details').click()
+}
+
+// The page beside a 320 px list column, the page at the right of the content area.
+async function recordPlacement(page: Page) {
+    const [record, list, content] = await Promise.all([
+        edges(page.getByTestId('customer-panel')),
+        edges(page.getByTestId('customers-list')),
+        contentArea(page),
+    ])
+    if (!record || !list || !content) return null
+    return {
+        listIs320: Math.abs(list.width - RECORD_LIST_WIDTH) <= 1,
+        atContentRight: Math.abs(record.right - content.right) <= 1,
+        listToItsLeft: list.right <= record.left + 1,
+    }
+}
 
 test.describe('customer-form: side panel', () => {
     test('opens customers beside the list and survives a resize', async ({ page }) => {
@@ -61,7 +91,7 @@ test.describe('customer-form: side panel', () => {
         const panel = page.getByTestId('customer-panel')
         const customerPage = page.getByTestId('customer-page')
         const title = page.getByTestId('customer-title')
-        const close = page.getByTestId('customer-close')
+        const cancel = page.getByTestId('customer-cancel')
         const list = page.getByTestId('customers-list')
         const dialog = discardDialog(page)
         const errorText = 'Display name is required'
@@ -125,25 +155,30 @@ test.describe('customer-form: side panel', () => {
         await expect(sidebarToggle).toHaveAccessibleName('Hide sidebar')
         await expect.poll(() => leftEdgeOf(list)).toBe(listLeftOpen)
 
-        // (4) Two customers created through the panel; each Save closes it.
+        // (4) Two customers created through the panel; each Save opens the new customer's
+        // page beside a 320 px column of names, with no back button.
         const prefix = uniqueName(`Panel ${viewportName(page)}`)
         const nameA = `${prefix} A`
         const nameB = `${prefix} B`
         for (const name of [nameA, nameB]) {
             await createCustomer(page, { name })
-            await expect(panel).toBeHidden()
-            await expect(page).toHaveURL(/\/books\/customers$/)
+            await expect(panel).toBeVisible()
+            await expect(page.getByTestId('customer-back')).toBeHidden()
+            await expect
+                .poll(() => recordPlacement(page))
+                .toEqual({ listIs320: true, atContentRight: true, listToItsLeft: true })
         }
 
-        // (5) A row opens its customer in the panel and is marked; the list stays usable.
+        // (5) A row opens its customer beside the list and is marked; the list stays usable.
+        await openCustomersList(page)
         await searchCustomers(page, prefix)
         const idA = await customerIdOf(page, nameA)
         const idB = await customerIdOf(page, nameB)
         const rowA = page.getByTestId(`customer-row-${idA}`)
         const rowB = page.getByTestId(`customer-row-${idB}`)
-        const urlA = new RegExp(`/books/customers/${idA}$`)
-        const urlB = new RegExp(`/books/customers/${idB}$`)
-        await rowA.click()
+        const urlA = customerPath(idA)
+        const urlB = customerPath(idB)
+        await openRowDetails(page, rowA)
         await expect(panel).toBeVisible()
         await expect(page).toHaveURL(urlA)
         await expect(field(page, 'display_name')).toHaveValue(nameA)
@@ -159,7 +194,7 @@ test.describe('customer-form: side panel', () => {
 
         // (6) Another row, then New customer, replace the open customer; Back returns
         // to the list.
-        await rowB.click()
+        await openRowDetails(page, rowB)
         await expect(page).toHaveURL(urlB)
         await expect(field(page, 'display_name')).toHaveValue(nameB)
         await page.getByTestId('customer-new-header').click()
@@ -169,8 +204,8 @@ test.describe('customer-form: side panel', () => {
         await expect(page).toHaveURL(/\/books\/customers$/)
         await expect(panel).toBeHidden()
 
-        // (7) Escape closes the panel.
-        await rowA.click()
+        // (7) Escape on a clean page leaves it.
+        await openRowDetails(page, rowA)
         await expect(field(page, 'display_name')).toHaveValue(nameA)
         await pressEscapeOutsideInputs(page)
         await expect(panel).toBeHidden()
@@ -178,7 +213,7 @@ test.describe('customer-form: side panel', () => {
 
         // (8) A dirty customer is not replaced without asking.
         const typedCompany = `${prefix} Co`
-        await rowA.click()
+        await openRowDetails(page, rowA)
         await expect(field(page, 'display_name')).toHaveValue(nameA)
         await field(page, 'company').fill(typedCompany)
         await rowB.click()
@@ -193,11 +228,12 @@ test.describe('customer-form: side panel', () => {
         await dialog.discard.click()
         await expect(dialog.title).toBeHidden()
         await expect(page).toHaveURL(urlB)
+        await page.getByTestId('customer-tab-details').click()
         await expect(field(page, 'display_name')).toHaveValue(nameB)
 
-        // (9) A resize moves the open customer between panel and page with its typed
-        // values, its field error and an open Discard changes? question.
-        await rowA.click()
+        // (9) A resize moves the open customer between the record width and the page with
+        // its typed values, its field error and an open Discard changes? question.
+        await openRowDetails(page, rowA)
         await expect(page).toHaveURL(urlA)
         await expect(field(page, 'display_name')).toHaveValue(nameA)
         await field(page, 'company').fill(typedCompany)
@@ -237,7 +273,7 @@ test.describe('customer-form: side panel', () => {
         await expect(nameCell).toContainText(errorText)
         await expect(page).toHaveURL(urlA)
 
-        await close.click()
+        await cancel.click()
         await expect(dialog.title).toBeVisible()
         await page.setViewportSize(DESKTOP)
         await expect(dialog.title).toBeVisible()
@@ -260,91 +296,96 @@ test.describe('customer-form: side panel', () => {
         await expect(parentSearch).toBeHidden()
         await page.setViewportSize(WIDE)
         await expect(panel).toBeVisible()
-        await close.click()
+        await cancel.click()
         await expect(dialog.title).toBeVisible()
         await dialog.discard.click()
+        await expect(page.getByTestId('customer-save-bar')).toBeHidden()
+        await pressEscapeOutsideInputs(page)
         await expect(panel).toBeHidden()
         await expect(page).toHaveURL(/\/books\/customers$/)
-        // With the panel closed no row stays drawn as selected.
+        // With the page closed no row stays drawn as selected.
         await page.mouse.move(0, 0)
         await expect
             .poll(async () => (await backgroundOf(rowA)) === (await backgroundOf(rowB)))
             .toBe(true)
 
-        // (11) A reload of a customer's URL shows it in the panel beside the list.
+        // (11) A reload of a customer's URL shows its page beside the list of names.
         await rowB.click()
         await expect(page).toHaveURL(urlB)
         await page.reload()
         await expect(panel).toBeVisible()
+        await page.getByTestId('customer-tab-details').click()
         await expect(field(page, 'display_name')).toHaveValue(nameB)
         await expect(list).toBeVisible()
         await expect
-            .poll(() => panelPlacement(page))
-            .toEqual({ widthIs480: true, atContentRight: true, listToItsLeft: true })
+            .poll(() => recordPlacement(page))
+            .toEqual({ listIs320: true, atContentRight: true, listToItsLeft: true })
 
-        // (12) The list beside the panel still filters by Show inactive.
+        // (12) The list beside the New customer panel still filters by Show inactive.
+        await page.getByTestId('customer-new-header').click()
+        await expect(title).toHaveText('New customer')
         const showInactive = page.getByTestId('customers-show-inactive')
         await expect(showInactive).toHaveAttribute('aria-checked', 'false')
         await showInactive.click()
         await expect(showInactive).toHaveAttribute('aria-checked', 'true')
         await searchCustomers(page, OLD_MILL)
         await expect(customerEntry(page, OLD_MILL)).toBeVisible()
-        await expect(field(page, 'display_name')).toHaveValue(nameB)
+        await expect(title).toHaveText('New customer')
         await showInactive.click()
         await expect(showInactive).toHaveAttribute('aria-checked', 'false')
         await expect(customerEntry(page, OLD_MILL)).toHaveCount(0)
         await expect(panel).toBeVisible()
 
-        // (13) The open, dirty customer deleted from its own row menu beside the panel:
-        // the dialog warns of the unsaved changes, a refusal keeps the panel and its typed
-        // notes, and the delete closes the panel with no second question and no not-found.
+        // (13) The open, dirty customer deleted from its page's More menu: the dialog warns
+        // of the unsaved changes, a refusal keeps the page and its typed notes, and the
+        // delete leaves the page with no second question and no not-found.
         const nameD = `${prefix} D`
         const typedNotes = `${prefix} notes`
+        const notesInput = page.getByTestId('customer-notes-input')
         await createCustomer(page, { name: nameD })
-        await searchCustomers(page, nameD)
-        const idD = await customerIdOf(page, nameD)
-        await page.getByTestId(`customer-row-${idD}`).click()
         await expect(panel).toBeVisible()
-        await expect(field(page, 'display_name')).toHaveValue(nameD)
-        await field(page, 'notes').fill(typedNotes)
+        await page.getByTestId('customer-tab-notes').click()
+        await notesInput.fill(typedNotes)
         await watchForNotFoundAndDiscard(page)
 
         const deleteDialog = page.getByTestId('delete-customer-dialog')
         const deleteBody = page.getByTestId('delete-customer-dialog-body')
         const deleteConfirm = page.getByTestId('delete-customer-confirm')
-        const openDeleteFromRow = async () => {
-            await page.getByTestId(`customer-menu-${idD}`).click()
-            await page.getByTestId('customer-menu-delete').click()
+        const openDeleteFromMore = async () => {
+            await page.getByTestId('customer-more').click()
+            await page.getByTestId('customer-more-delete').click()
             await expect(deleteDialog).toBeVisible()
-            await expect(deleteBody).toContainText(UNSAVED_DELETE_WARNING)
         }
         // Another tab puts D on a line of a draft journal entry, so the server refuses
         // the delete (server/lines.go msgPartyOnLines).
         const namedOnDraft = await nameOnDraftLine(page, nameD)
-        await openDeleteFromRow()
+        await openDeleteFromMore()
+        await expect(deleteBody).toContainText(UNSAVED_DELETE_WARNING)
         await deleteConfirm.click()
         await expect(deleteBody).toContainText(
             `${nameD} is on journal lines. Make it inactive instead.`
         )
         await expect(page.getByTestId('customer-not-found')).toHaveCount(0)
         await expect(panel).toBeVisible()
-        await expect(field(page, 'display_name')).toHaveValue(nameD)
-        await expect(field(page, 'notes')).toHaveValue(typedNotes)
+        await expect(title).toHaveText(nameD)
+        await expect(notesInput).toHaveValue(typedNotes)
         // Escape closes the dialog only; the click moves focus off any input first.
         await deleteBody.click()
         await page.keyboard.press('Escape')
         await expect(deleteDialog).toBeHidden()
         await expect(panel).toBeVisible()
-        await expect(field(page, 'notes')).toHaveValue(typedNotes)
+        await expect(notesInput).toHaveValue(typedNotes)
         // The other tab deletes the draft entry; no line names D now.
         await namedOnDraft.release()
 
-        await openDeleteFromRow()
+        await openDeleteFromMore()
+        await expect(deleteBody).toContainText(UNSAVED_DELETE_WARNING)
         await deleteConfirm.click()
         await expect(deleteDialog).toBeHidden()
         await expect(panel).toBeHidden()
         await expect(page).toHaveURL(/\/books\/customers$/)
         await expect(dialog.title).toBeHidden()
+        await searchCustomers(page, nameD)
         await expect(customerEntry(page, nameD)).toHaveCount(0)
         expect(await seenNotFoundOrDiscard(page)).toEqual({ notFound: false, discard: false })
 
@@ -353,14 +394,11 @@ test.describe('customer-form: side panel', () => {
         // leaves them there.
         const nameE = `${prefix} E`
         await createCustomer(page, { name: nameE })
-        await searchCustomers(page, nameE)
-        const idE = await customerIdOf(page, nameE)
-        await page.getByTestId(`customer-row-${idE}`).click()
         await expect(panel).toBeVisible()
-        await expect(field(page, 'display_name')).toHaveValue(nameE)
+        const idE = openCustomerId(page)
         const heldDelete = await holdRecordWrite(page, idE, 'DELETE')
-        await page.getByTestId(`customer-menu-${idE}`).click()
-        await page.getByTestId('customer-menu-delete').click()
+        await page.getByTestId('customer-more').click()
+        await page.getByTestId('customer-more-delete').click()
         await expect(deleteDialog).toBeVisible()
         await deleteConfirm.click()
         await heldDelete.arrived

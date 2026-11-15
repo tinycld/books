@@ -57,6 +57,12 @@ describe('help/settings.md', () => {
         expect(body).toContain('(help://books:sales-receipts)')
     })
 
+    // Bill form checkpoint 5: Settings → Purchases and its Bill lines setting (spec §3.11).
+    it('covers the Purchases section and its Bill lines setting', () => {
+        expect(body).toMatch(/Settings → Purchases|the Purchases section|#+ Purchases\s*$/m)
+        expect(body).toContain('Bill lines')
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)

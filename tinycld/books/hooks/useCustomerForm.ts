@@ -12,18 +12,23 @@ import { applyPatch } from '../lib/record-save'
 import type { BooksCustomers } from '../types'
 import { useCustomerNavigation } from './useCustomerNavigation'
 import { useRecordForm } from './useRecordForm'
-import { useRecordSave } from './useRecordSave'
+import { type RecordSaveFollowUps, useRecordSave } from './useRecordSave'
 
 // The edited record is the row `useRecord` holds for the route.
 export type CustomerFormTarget =
     | { mode: 'new'; parentId: string }
     | { mode: 'edit'; record: BooksCustomers }
 
+// What the customer page does after its Details save, in place of leaving.
+export type CustomerPageSave = Pick<RecordSaveFollowUps, 'afterEdit' | 'afterWrite' | 'onRefused'>
+
 /**
  * The open customer's form. A new customer starts with the parent from `?parent` and
- * its shipping address folded into billing (null).
+ * its shipping address folded into billing (null); its Save opens the new customer's
+ * page (a replace of `customers/new`). An existing customer's form is the customer
+ * page's Details, which passes what follows its save (`page`).
  */
-export function useCustomerForm(target: CustomerFormTarget) {
+export function useCustomerForm(target: CustomerFormTarget, page: CustomerPageSave = {}) {
     const record = target.mode === 'edit' ? target.record : undefined
     const parentId = target.mode === 'new' ? target.parentId : ''
     const base = useRecordForm({
@@ -35,8 +40,16 @@ export function useCustomerForm(target: CustomerFormTarget) {
     })
     // A new customer's title follows the Parent customer field, not `?parent`.
     const chosenParent = useWatch({ control: base.form.control, name: 'parent' })
-    const { leave } = useCustomerNavigation()
+    const navigation = useCustomerNavigation()
     const [customersCollection] = useStore('books_customers')
+    const followUps: RecordSaveFollowUps =
+        target.mode === 'new'
+            ? { afterCreate: id => navigation.open(id) }
+            : {
+                  afterEdit: page.afterEdit,
+                  afterWrite: page.afterWrite,
+                  onRefused: page.onRefused,
+              }
     const saver = useRecordSave(
         {
             columnsFrom: customerColumnsFrom,
@@ -53,9 +66,10 @@ export function useCustomerForm(target: CustomerFormTarget) {
             create: base.create,
             edit: base.edit,
             recordId: record?.id ?? '',
-            leave,
+            leave: navigation.leave,
             host: base.host,
             context: base.context,
+            ...followUps,
         }
     )
     const title = customerTitle({

@@ -13,9 +13,9 @@ import (
 )
 
 // auditedCollections are the Books collections a person writes. Left out:
-// books_account_balances, which only Books writes, and the books_access view,
-// which nobody writes. Core's audit hooks are request hooks, so they log what
-// a person asked for (a post, a void); the reversal Books writes inside it is
+// books_account_balances, which only Books writes, and the books_access and
+// books_party_balances views, which nobody writes. Core's audit hooks are
+// request hooks, so they log what a person asked for (a post, a void); the reversal Books writes inside it is
 // part of that same logged update. The auto-reverse sweep makes no request,
 // so it writes its own row (logAutoReversal, auto_reverse.go).
 // registrations_test.go fails when a new collection is neither here nor
@@ -24,19 +24,23 @@ import (
 // books_bank_transactions is here because a person may move a transaction's status
 // between For review and Excluded; Go writes every other part of it.
 //
-// It takes the app because five labels read another row: an admin grant is
-// labeled by the user it grants, a line by its account, a bundle row by its
-// bundle and product, a bank connection by its account, and a bank import by its file.
+// It takes the app because these labels read another row: an admin grant is
+// labeled by the user it grants, a line by its account or its document, a
+// bundle row by its bundle and product, a bank connection by its account, a
+// bank import by its file, and a customer's response by its estimate.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
-// The labels read no redacted field, because core does not redact the label.
+// An estimate's public_token is redacted too: it is the credential of the
+// customer link, and a copy in the log would be a second key to it. The labels
+// read no redacted field, because core does not redact the label.
 func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
 		"books_accounts":        {ExtractLabel: auditAccountLabel},
 		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"sort_key"}},
 		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id", "sort_key"}},
 		"books_products":        {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
+		"books_party_contacts":  {ExtractLabel: audit.LabelFromField("name")},
 		"books_bundle_items":    {ExtractLabel: func(r *core.Record) string { return bundleItemLabel(app, r) }},
 		"books_tax_agencies":    {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_tax_rates":       {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
@@ -48,9 +52,16 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_sales_receipt_lines": {
 			ExtractLabel: func(r *core.Record) string { return salesReceiptLineLabel(app, r) },
 		},
-		"books_estimates": {ExtractLabel: estimateLabel, Redact: []string{"sort_key"}},
+		"books_estimates": {ExtractLabel: estimateLabel, Redact: []string{"sort_key", "public_token"}},
 		"books_estimate_lines": {
 			ExtractLabel: func(r *core.Record) string { return estimateLineLabel(app, r) },
+		},
+		"books_estimate_responses": {
+			ExtractLabel: func(r *core.Record) string { return estimateResponseLabel(app, r) },
+		},
+		"books_bills": {ExtractLabel: billLabel, Redact: []string{"sort_key"}},
+		"books_bill_lines": {
+			ExtractLabel: func(r *core.Record) string { return billLineLabel(app, r) },
 		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
@@ -158,6 +169,33 @@ func estimateLineLabel(app core.App, r *core.Record) string {
 		estimate = estimateLabel(rec)
 	}
 	return fmt.Sprintf("%s: line %d", estimate, r.GetInt("position")+1)
+}
+
+// billLabel names a bill by its number: "Bill 1003". A draft has no number:
+// "Draft bill".
+func billLabel(r *core.Record) string {
+	noun, _, draft := entryNouns(docTypeBill)
+	if n := r.GetString("number"); n != "" {
+		return noun + " " + n
+	}
+	return draft
+}
+
+// billLineLabel names a bill's line as the form and the refusals do, by its
+// table and its place among that table's lines: "Bill 1003: Account line 2".
+// r is placed among the bill's stored lines, so a deleted line keeps its
+// place. Lines that cannot be read fall back to the line's position, so the
+// audit row is still written.
+func billLineLabel(app core.App, r *core.Record) string {
+	bill := r.GetString("bill")
+	if rec, err := app.FindRecordById("books_bills", bill); err == nil {
+		bill = billLabel(rec)
+	}
+	lines, err := salesDocLines(app, billKind, r.GetString("bill"))
+	if err != nil {
+		return fmt.Sprintf("%s: line %d", bill, r.GetInt("position")+1)
+	}
+	return bill + ": " + lineRowLabel(billKind, withLine(lines, r), r)
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office

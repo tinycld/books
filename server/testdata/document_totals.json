@@ -1,5 +1,5 @@
 {
-    "comment": "Line amounts and totals of a sales document (invoice). Read by server/document_totals_test.go and tests/document-lines.test.ts, so the Go and TS functions cannot drift. Money is integer cents; quantity has at most 2 decimals; percent_ppm is parts per million of the line above (-10% = -100000). components are the ppm of each tax component of the header rate ([] = no tax). amounts holds null for a line that has no amount (a description line, or a percent line with no item or subtotal right above it). tax is one amount per component.",
+    "comment": "Line amounts and totals of a document of the shared layer (invoice, bill). An account line (a bill's) carries its typed amount in cents in amount (may be negative); other kinds leave amount out. Read by server/document_totals_test.go and tests/document-lines.test.ts, so the Go and TS functions cannot drift. Money is integer cents; quantity has at most 2 decimals; percent_ppm is parts per million of the line above (-10% = -100000). components are the ppm of each tax component of the header rate ([] = no tax). amounts holds null for a line that has no amount (a description line, or a percent line with no item or subtotal right above it). tax is one amount per component.",
     "cases": [
         {
             "name": "the fixture's every-kind lines with Denver combined",
@@ -232,6 +232,52 @@
             "tax": [450],
             "total": 14450,
             "too_large": false
+        },
+        {
+            "name": "account lines each inside the line limit whose sum passes maxStoredAmount are too large",
+            "lines": [
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": 1000000000000000 }
+            ],
+            "components": [],
+            "amounts": [1000000000000000, 1000000000000000, 1000000000000000, 1000000000000000, 1000000000000000, 1000000000000000, 1000000000000000, 1000000000000000, 1000000000000000, 1000000000000000],
+            "percentTargetErrors": [],
+            "subtotal": 10000000000000000,
+            "taxable_total": 0,
+            "tax": [],
+            "total": 10000000000000000,
+            "too_large": true
+        },
+        {
+            "name": "account lines whose sum is below minus maxStoredAmount are too large (the limit is on the absolute value)",
+            "lines": [
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 },
+                { "kind": "account", "quantity": 0, "rate": 0, "percent_ppm": 0, "taxable": false, "amount": -1000000000000000 }
+            ],
+            "components": [],
+            "amounts": [-1000000000000000, -1000000000000000, -1000000000000000, -1000000000000000, -1000000000000000, -1000000000000000, -1000000000000000, -1000000000000000, -1000000000000000, -1000000000000000],
+            "percentTargetErrors": [],
+            "subtotal": -10000000000000000,
+            "taxable_total": 0,
+            "tax": [],
+            "total": -10000000000000000,
+            "too_large": true
         }
     ]
 }

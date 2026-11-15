@@ -37,8 +37,18 @@ func seedLedgerRows(t testing.TB, app core.App) ledgerRows {
 	return ledgerRows{account, posted, draft, postedLine, draftLine, balance}
 }
 
+// booksPublicPaths are Books' deliberate no-login paths: an estimate's
+// customer link (spec §4.2, §4.3). Each needs the estimate's share token in
+// the X-Share-Token header, and opens that one estimate only.
+var booksPublicPaths = []rlstest.PublicPath{
+	{Collection: "books_estimate_public", Kind: "list", Reason: "the customer link reads its own estimate by its share token"},
+	{Collection: "books_estimate_public", Kind: "view", Reason: "the customer link reads its own estimate by its share token"},
+	{Collection: "books_estimate_responses", Kind: "create", Reason: "the customer link answers its own estimate by its share token"},
+}
+
 func TestLedgerRules_EveryPathRequiresLogin(t *testing.T) {
-	rlstest.RequireAuthGuardOnAccessRules(t, newBooksApp(t), rlstest.CorePublicPaths()...)
+	allow := append(rlstest.CorePublicPaths(), booksPublicPaths...)
+	rlstest.RequireAuthGuardOnAccessRules(t, newBooksApp(t), allow...)
 }
 
 func TestLedgerRules_ReadByLevel(t *testing.T) {
