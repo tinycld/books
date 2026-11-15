@@ -1,5 +1,4 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
-import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import {
     createCustomer,
     customerPageUrl,
@@ -17,13 +16,8 @@ import {
     stampDigits,
     uniqueName,
 } from './customer-form-helpers'
-import {
-    INVOICE_URL,
-    invoiceIdFromUrl,
-    lineCellTestId,
-    localToday,
-    pickLineProduct,
-} from './invoice-helpers'
+import { localToday } from './invoice-helpers'
+import { fillInvoice, postInvoice } from './receive-payment-helpers'
 import { holdLoads } from './record-form-helpers'
 
 // The customer page's Open and Overdue figures and its New transaction menu
@@ -41,15 +35,13 @@ import { holdLoads } from './record-form-helpers'
 
 const BALANCES_URL = '**/api/collections/books_party_balances/records**'
 const INVOICES_URL = '**/api/collections/books_invoices/records**'
-const MENU_ITEMS = ['customer-new-invoice', 'customer-new-estimate', 'customer-new-sales-receipt']
+const MENU_ITEMS = [
+    'customer-new-invoice',
+    'customer-new-estimate',
+    'customer-new-sales-receipt',
+    'customer-new-receive-payment',
+]
 const PAGE_GUTTER = 16
-
-// A seeded Service: not taxable, so an invoice's total is its line amount.
-function nonTaxableService() {
-    const row = PRODUCTS.find(p => p.id === PRODUCT_IDS.taxPrep)
-    if (!row || row.taxable) throw new Error('no non-taxable tax prep service in the fixture')
-    return row.name
-}
 
 // The id of the customer whose page is open, read from the URL.
 function openCustomerId(page: Page) {
@@ -88,17 +80,9 @@ function refusedResponse(page: Page, collection: string) {
 }
 
 // A new invoice from the open menu's Invoice row, for the customer whose page is open.
-async function postInvoice(page: Page, input: { rate: string; date?: string; dueDate: string }) {
-    if (input.date !== undefined) await page.getByTestId('form-input-date').fill(input.date)
-    await page.getByTestId('form-input-due_date').fill(input.dueDate)
-    const rowId = await pickLineProduct(page, 0, nonTaxableService())
-    await page.getByTestId(lineCellTestId(rowId, 'rate')).fill(input.rate)
-    await expect(page.getByTestId(lineCellTestId(rowId, 'amount'))).toContainText(`$${input.rate}`)
-    await page.getByTestId('invoice-post').click()
-    await expect(page).toHaveURL(INVOICE_URL)
-    await expect(page.getByTestId('invoice-read-only')).toBeVisible()
-    await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
-    return invoiceIdFromUrl(page)
+async function postNewInvoice(page: Page, input: { rate: string; date?: string; dueDate: string }) {
+    await fillInvoice(page, input)
+    return (await postInvoice(page)).id
 }
 
 async function widthOf(locator: Locator) {
@@ -156,7 +140,7 @@ test.describe('customer-pages: balance and new transaction', () => {
 
         // Overdue since 2026-11-02: Open and Overdue both move, on the page kept under the
         // invoice with its unsaved phone.
-        await postInvoice(page, {
+        await postNewInvoice(page, {
             rate: '100.00',
             date: '2026-11-01',
             dueDate: '2026-11-02',
@@ -172,7 +156,7 @@ test.describe('customer-pages: balance and new transaction', () => {
         await page.getByTestId('customer-new-transaction').click()
         await page.getByTestId('customer-new-invoice').click()
         await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${idS}$`))
-        const secondId = await postInvoice(page, {
+        const secondId = await postNewInvoice(page, {
             rate: '250.00',
             dueDate: await localToday(page),
         })
