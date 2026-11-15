@@ -1,16 +1,15 @@
+import entryRoutes from '../../../server/entry_routes.json'
 import type { BooksJournalEntries } from '../types'
 
 // Paths without the org prefix; callers pass them through `useOrgHref`.
 type RoutedEntry = Pick<BooksJournalEntries, 'id' | 'doc_type' | 'origin' | 'document'>
 
-// The screen of each posting document type, by the entry's doc_type. An estimate
-// posts no entry, so it has none.
-const DOCUMENT_ROUTES = new Map<string, string>([
-    ['invoice', 'books/invoices'],
-    ['sales_receipt', 'books/sales-receipts'],
-    ['bill', 'books/bills'],
-    ['expense', 'books/expenses'],
-])
+// The screen of each posting document type, by the entry's doc_type, from the one
+// table the server's report links read too (entryOpenPath in
+// server/report_spec_helpers.go). An estimate posts no entry, so it has none.
+export const DOCUMENT_ROUTES = new Map<string, string>(
+    Object.entries(entryRoutes).map(([type, route]) => [type, `books/${route}`])
+)
 
 // A document's entry (origin 'document') is posted from its document and opens there:
 // the document's route, or null for an entry no document screen owns.

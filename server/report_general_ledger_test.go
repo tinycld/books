@@ -288,8 +288,8 @@ func TestGeneralLedgerSpecLoads(t *testing.T) {
 	if shipped.Description != "Every posted line, grouped by account, for a period." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 2 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(generalLedgerSpec())
 	if err != nil {
@@ -1082,7 +1082,7 @@ func TestGeneralLedgerShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "General Ledger" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "General Ledger" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1219,19 +1219,56 @@ func TestGeneralLedgerLayouts(t *testing.T) {
 // account label and blankZero move to the shared helpers the Journal uses
 // (journal-report spec §5). The golden is mustJSON(generalLedgerSpec()) taken
 // before the move.
+//
+// Report drill-down checkpoint 1 adds only detail.open (entryOpenPath()), and
+// the accounts param moves to accountsParam() with no change to its JSON.
 func TestGeneralLedgerSpecUnchanged(t *testing.T) {
+	if entryOpenPath() == nil {
+		t.Fatalf("entryOpenPath() = nil, want the entry route formula on the General Ledger's lines")
+	}
+	const detail = `"detail":{"label":{"path":[{"field":"date"}]}}`
+	if !strings.Contains(generalLedgerSpecGolden, detail) {
+		t.Fatalf("the golden has no %s", detail)
+	}
+	golden := strings.Replace(generalLedgerSpecGolden, detail,
+		`"detail":{"label":{"path":[{"field":"date"}]},"open":`+string(mustJSON(entryOpenPath()))+`}`, 1)
 	got := string(mustJSON(generalLedgerSpec()))
-	if got == generalLedgerSpecGolden {
+	if got == golden {
 		return
 	}
 	at := 0
-	for at < len(got) && at < len(generalLedgerSpecGolden) && got[at] == generalLedgerSpecGolden[at] {
+	for at < len(got) && at < len(golden) && got[at] == golden[at] {
 		at++
 	}
 	from := max(at-80, 0)
 	t.Errorf("the General Ledger spec JSON changed at byte %d (%d bytes, golden %d):\n got  …%s…\n want …%s…",
-		at, len(got), len(generalLedgerSpecGolden),
-		got[from:min(at+80, len(got))], generalLedgerSpecGolden[from:min(at+80, len(generalLedgerSpecGolden))])
+		at, len(got), len(golden),
+		got[from:min(at+80, len(got))], golden[from:min(at+80, len(golden))])
+}
+
+// A posted journal entry's line opens the entry's read view; the beginning
+// balance, the section heading and subtotal, and the Total do not open.
+func TestGeneralLedgerLineOpens(t *testing.T) {
+	b := newGLBook(t)
+	operating := b.account(t, "Operating", "1000", "bank", "checking")
+	rent := b.account(t, "Office rent", "6000", "expense", "rent_lease")
+	b.post(t, "2026-07-10", ln{rent, 1000, 0}, ln{operating, 0, 1000}) // a beginning balance for August
+	entry := b.postEntry(t, "2026-08-04", "Office rent",
+		glLine{account: rent, debit: 4000}, glLine{account: operating, credit: 4000})
+
+	res := runGL(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-08-01", "2026-08-31")}, reports.Options{Today: glToday})
+	row := lineRow(t, res, entryLineOn(t, b.app, entry.Id, rent))
+	if want := "books/entries/" + entry.Id; row.Open != want {
+		t.Errorf("the entry's Office rent line opens %q, want %q", row.Open, want)
+	}
+	if s := sectionFor(t, res, rent); s.opening == nil {
+		t.Fatalf("Office rent has no beginning-balance row; kinds %v", s.kinds)
+	}
+	for _, r := range res.Rows {
+		if r.Kind != reports.KindDetail && r.Open != "" {
+			t.Errorf("%s row %q opens %q, want no open", r.Kind, r.Label, r.Open)
+		}
+	}
 }
 
 const generalLedgerSpecGolden = "" +

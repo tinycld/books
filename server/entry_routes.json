@@ -1,0 +1,6 @@
+{
+    "invoice": "invoices",
+    "sales_receipt": "sales-receipts",
+    "bill": "bills",
+    "expense": "expenses"
+}

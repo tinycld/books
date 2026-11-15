@@ -14,7 +14,8 @@ func generalLedgerShipped() reports.Shipped {
 		Title:       "General Ledger",
 		Description: "Every posted line, grouped by account, for a period.",
 		Spec:        mustJSON(generalLedgerSpec()),
-		Revision:    1,
+		// 2: lines open the transaction that posted them (detail.open).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -40,17 +41,7 @@ func generalLedgerSpec() *reports.Spec {
 				},
 				Default: mustJSON("active"),
 			},
-			{
-				ID: "accounts", Type: reports.ParamChoice, Label: "Accounts", Multiple: true,
-				OptionsFrom: &reports.OptionsFrom{
-					Source:     "books.accounts",
-					Value:      path("id"),
-					Label:      path("full_name"),
-					Group:      path("type"),
-					GroupLabel: "All {group} accounts",
-					GroupOrder: &reports.GroupOrder{By: reports.GroupOrderDeclared},
-				},
-			},
+			accountsParam(),
 		},
 		Filter: op("and",
 			op("eq", fld("posted"), lit(true)),
@@ -59,10 +50,10 @@ func generalLedgerSpec() *reports.Spec {
 		),
 		Columns: []reports.Column{
 			{ID: "account", Label: "Account / Date", Path: reports.Path{{Link: "account"}}},
-			{ID: "type", Label: "Type", Formula: entryTypeLabel(func(n ...string) *reports.Node { return fld(append([]string{"entry"}, n...)...) })},
+			{ID: "type", Label: "Type", Formula: lineEntryTypeLabel()},
 			{ID: "number", Label: "No.", Formula: fld("entry", "number")},
-			{ID: "name", Label: "Name", Formula: op("coalesce", fld("customer", "display_name"), fld("vendor", "display_name"))},
-			{ID: "description", Label: "Description", Formula: op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo"))},
+			{ID: "name", Label: "Name", Formula: lineName()},
+			{ID: "description", Label: "Description", Formula: lineDescriptionFormula()},
 			{ID: "split", Label: "Split", Formula: splitCase()},
 			// A zero side is blank on a line; group and total rows add the side.
 			{ID: "debit", Label: "Debit", Formula: blankZero(fld("debit")), Rollup: op("sum", fld("debit"))},
@@ -102,7 +93,7 @@ func generalLedgerSpec() *reports.Spec {
 			{Formula: fld("entry", "posted_at")},
 			{Formula: fld("position")},
 		},
-		Detail:  &reports.Detail{Label: fld("date")},
+		Detail:  &reports.Detail{Label: fld("date"), Open: entryOpenPath()},
 		Display: generalLedgerDisplay(),
 	}
 }

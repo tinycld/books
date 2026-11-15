@@ -1,0 +1,61 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "statement",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "screen-section",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-fold-all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "Total Expenses" },
+                { "clickLabel": "Show transactions: Total Expenses, Total" },
+                { "waitFor": "report-back" },
+                { "waitFor": "report-param-accounts" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "screen-month",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Profit and Loss by Month" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-fold-all" },
+                { "pause": 800 },
+                { "clickText": "Expenses" },
+                { "waitFor": "6100 Rent" },
+                { "clickLabel": "Show transactions: 6100 Rent, Jan" },
+                { "waitFor": "report-back" },
+                { "waitFor": "report-param-accounts" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 1000 }
+            ]
+        }
+    ]
+}

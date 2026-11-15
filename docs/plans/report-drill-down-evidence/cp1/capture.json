@@ -1,0 +1,90 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "screen",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1000,
+            "actions": [
+                { "clickText": "Transaction Detail by Account" },
+                { "waitFor": "report-param-period" },
+                { "pause": 1500 },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-accounts" },
+                { "waitFor": "report-filter-picker" },
+                { "fill": "report-filter-search", "value": "Rent" },
+                { "clickRole": "checkbox", "name": "Rent" },
+                { "click": "report-filter-apply" },
+                { "waitFor": "report-param-accounts" },
+                { "click": "report-param-period" },
+                { "waitFor": "report-period-popover" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2026-01-01" },
+                { "fill": "report-period-to", "value": "2026-11-30" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "screen",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "height": 1000,
+            "actions": [
+                { "clickText": "Transaction Detail by Account" },
+                { "waitFor": "report-param-period" },
+                { "pause": 1500 },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-accounts" },
+                { "waitFor": "report-filter-picker" },
+                { "fill": "report-filter-search", "value": "Rent" },
+                { "clickRole": "checkbox", "name": "Rent" },
+                { "click": "report-filter-apply" },
+                { "waitFor": "report-param-accounts" },
+                { "click": "report-param-period" },
+                { "waitFor": "report-period-popover" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2026-01-01" },
+                { "fill": "report-period-to", "value": "2026-11-30" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "screen-empty",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Transaction Detail by Account" },
+                { "waitFor": "report-param-period" },
+                { "pause": 1500 },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-accounts" },
+                { "waitFor": "report-filter-picker" },
+                { "fill": "report-filter-search", "value": "Rent" },
+                { "clickRole": "checkbox", "name": "Rent" },
+                { "click": "report-filter-apply" },
+                { "waitFor": "report-param-accounts" },
+                { "click": "report-param-period" },
+                { "waitFor": "report-period-popover" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2026-01-03" },
+                { "fill": "report-period-to", "value": "2026-01-03" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        }
+    ]
+}
