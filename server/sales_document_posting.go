@@ -448,7 +448,7 @@ func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals d
 // voidReplacedSalesDoc sets the original of a posted correction void with
 // replaced_by. Its entry is already void: the correction's entry replaced it.
 // The kind's Replace then hands on what the original held (an invoice's
-// estimate).
+// estimate, a bill's or an expense's attachments).
 func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original, correction *core.Record, actor string, now time.Time) error {
 	done := markReplacing(tx, kind, original.Id)
 	defer done()

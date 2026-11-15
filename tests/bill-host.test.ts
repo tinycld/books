@@ -177,6 +177,49 @@ describe('books:bill forms host', () => {
         expect(column('item_lines', 'amount').component).toBe('LineItemAmountCell')
     })
 
+    // Spec §3.8, §4: a custom File field on a bill form stores its files in
+    // books_attachments, keyed by the bill; no column is added to books_bills.
+    it('stores custom File fields in books_attachments, with its columns unchanged', () => {
+        const host = hosts.find(h => h.key === BILL_HOST_KEY)
+        expect(host?.files).toEqual({
+            collection: 'books_attachments',
+            recordColumn: 'bill',
+            fieldColumn: 'field',
+            sizeColumn: 'size',
+            uploaderColumn: 'uploaded_by',
+            nameColumn: 'name',
+            fileColumn: 'file',
+        })
+        expect(host?.columns).toEqual([
+            'id',
+            'vendor',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'due_date',
+            'terms',
+            'mailing_address',
+            'ref_no',
+            'memo',
+            'subtotal',
+            'total',
+            'currency',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ])
+    })
+
     it('puts Vendor and Mailing address on halves and Terms to the bill no. on quarters', () => {
         const definition = defaultDefinitionFor(billHost())
         expect(definition.pages.map(p => p.title)).toEqual(['Bill'])

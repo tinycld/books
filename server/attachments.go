@@ -1,0 +1,309 @@
+// Attachments are the files a writer keeps with a bill or an expense (the
+// vendor's bill, a receipt), and the files of a custom File field on the bill
+// and expense forms (books_attachments, 2100000019). The rules decide who may
+// act; the hooks here decide whether the write is valid.
+
+package books
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"slices"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/core/validators"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
+)
+
+const (
+	attachmentsCollection = "books_attachments"
+	// maxAttachmentBytes is the file field's maxSize in 2100000019, checked
+	// here first so the refusal is a message the client keeps.
+	maxAttachmentBytes = 20 << 20
+	// maxAttachmentsPerDocument counts every row of a document: the
+	// Attachments section's and its custom File fields'.
+	maxAttachmentsPerDocument = 25
+	// attachmentMoveMark marks a row that moveAttachments re-points, the one
+	// update an attachment takes.
+	attachmentMoveMark = "attachment-move"
+)
+
+// attachmentMimeTypes is the file field's mimeTypes list in 2100000019. HTML,
+// SVG and executables are not on it, because a stored file opens from the
+// app's own origin. TestAttachments_Schema fails when the two drift.
+var attachmentMimeTypes = []string{
+	"application/pdf",
+	"image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif",
+	"text/plain", "text/csv",
+	"application/vnd.ms-excel",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	"application/msword",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+// attachmentExtensions are the file name extensions of the allow-list's
+// types, compared lower-cased; the client checks the same list when a file
+// reports no type.
+var attachmentExtensions = []string{
+	".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif",
+	".txt", ".csv", ".xls", ".xlsx", ".doc", ".docx",
+}
+
+// Refusal texts of the attachment guards. The client shows the size, type,
+// limit and void texts with the same words. Each ends with a period, so
+// PocketBase adds none; a text that starts with a file name goes through
+// refuseNamed, which keeps the name as it was uploaded.
+const (
+	msgAttachmentTooLarge     = "%s is larger than 20 MB."
+	msgAttachmentType         = "%s is not a file type Books keeps. Attach a PDF, an image, or an office or text file."
+	msgAttachmentBillLimit    = "A bill holds at most 25 attachments."
+	msgAttachmentExpenseLimit = "An expense holds at most 25 attachments."
+	msgAttachmentBillVoid     = "This bill is void. Its attachments can't change."
+	msgAttachmentExpenseVoid  = "This expense is void. Its attachments can't change."
+	msgAttachmentOneParent    = "An attachment belongs to one bill or one expense."
+	msgAttachmentNotChanged   = "An attachment is not changed. Remove it and attach the file again."
+)
+
+// attachmentTexts are the void and limit refusals of a parent kind.
+func attachmentTexts(kind salesDocKind) (void, limit string) {
+	if kind.Collection == expensesCollection {
+		return msgAttachmentExpenseVoid, msgAttachmentExpenseLimit
+	}
+	return msgAttachmentBillVoid, msgAttachmentBillLimit
+}
+
+// registerAttachments binds the attachment hooks.
+//
+// The create-request hook checks and stamps the upload: it reads the request's
+// file and user, which exist only on a request. The create guard is a model
+// hook inside serialized, so a Go caller's create is checked too, and the
+// count and the write run in one transaction: two uploads at once cannot both
+// pass a count of 24.
+//
+// The delete guard is a request hook, because Delete draft removes the draft's
+// attachments through the relation cascade, which runs the model hooks and not
+// the request hooks: a model hook would refuse the cascade of a draft the
+// guard has no reason to stop.
+//
+// An attachment never changes. The update guard lets through only Books' own
+// move of a corrected document's files (moveAttachments) and PocketBase's
+// clearing of the uploader when that user is deleted.
+func registerAttachments(app core.App) {
+	app.OnRecordCreateRequest(attachmentsCollection).BindFunc(stampAttachmentUpload)
+	app.OnRecordCreate(attachmentsCollection).BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error { return checkAttachmentCreate(tx, e.Record) })
+	})
+	app.OnRecordDeleteRequest(attachmentsCollection).BindFunc(func(e *core.RecordRequestEvent) error {
+		return serializedRequest(e, func(tx core.App) error { return checkAttachmentDelete(tx, e.Record) })
+	})
+	app.OnRecordUpdate(attachmentsCollection).BindFunc(func(e *core.RecordEvent) error {
+		if hasTxMark(e.App, attachmentMoveMark, e.Record.Id) || isUploaderCleared(e.Record) {
+			return e.Next()
+		}
+		return refuse(msgAttachmentNotChanged)
+	})
+}
+
+// stampAttachmentUpload checks an uploaded file's size and type and stamps
+// what the row says about it, whatever the client sent. It runs before
+// PocketBase's own field validation, because core's uploadRecordWithFile keeps
+// only a response's top-level message: the schema's maxSize or mimeTypes error
+// would reach the person as "Failed to create record.". A missing file is left
+// to the schema's required rule.
+func stampAttachmentUpload(e *core.RecordRequestEvent) error {
+	if files := e.Record.GetUnsavedFiles("file"); len(files) > 0 {
+		f := files[0]
+		if err := checkAttachmentUpload(f); err != nil {
+			return err
+		}
+		e.Record.Set("name", truncateRunes(f.OriginalName, 255))
+		e.Record.Set("size", f.Size)
+		// PocketBase stores the original name as file metadata cut to 255
+		// bytes, which can split a rune and fail the upload; the name column
+		// keeps the full stamp above. This waits on a core fix: the fork cuts
+		// original-filename by bytes in
+		// tinycld/third_party/pocketbase/tools/filesystem/filesystem.go:290-294.
+		// When core cuts on a rune boundary, remove this rewrite and
+		// truncateUTF8Bytes.
+		f.OriginalName = truncateUTF8Bytes(f.OriginalName, 255)
+	}
+	// A superuser keeps the uploader it sent, which the seed uses.
+	stampActor(e.Record, "uploaded_by", e.Auth)
+	return e.Next()
+}
+
+// checkAttachmentUpload refuses a file over the limit, and a file whose name
+// has no allow-listed extension or whose bytes are not an allow-listed type
+// (PocketBase's own detection, as the schema's mimeTypes check reads it). The
+// server has no type the client reported, and a renamed executable has a
+// .pdf name, so both the name and the bytes are checked.
+func checkAttachmentUpload(f *filesystem.File) error {
+	if f.Size > maxAttachmentBytes {
+		return refuseNamed(msgAttachmentTooLarge, f.OriginalName)
+	}
+	if !slices.Contains(attachmentExtensions, strings.ToLower(filepath.Ext(f.OriginalName))) {
+		return refuseNamed(msgAttachmentType, f.OriginalName)
+	}
+	if validators.UploadedFileMimeType(attachmentMimeTypes)(f) != nil {
+		return refuseNamed(msgAttachmentType, f.OriginalName)
+	}
+	return nil
+}
+
+// truncateUTF8Bytes cuts s to at most max bytes, never inside a rune.
+func truncateUTF8Bytes(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
+}
+
+// attachmentParent is the kind and the row of the document r belongs to,
+// refusing a row that names both a bill and an expense, or neither.
+func attachmentParent(tx core.App, r *core.Record) (kind salesDocKind, parent *core.Record, err error) {
+	bill, expense := r.GetString("bill"), r.GetString("expense")
+	switch {
+	case (bill == "") == (expense == ""):
+		return salesDocKind{}, nil, refuse(msgAttachmentOneParent)
+	case bill != "":
+		kind = billKind
+	default:
+		kind = expenseKind
+	}
+	parent, err = tx.FindRecordById(kind.Collection, r.GetString(kind.ParentField))
+	if err != nil {
+		return kind, nil, err
+	}
+	return kind, parent, nil
+}
+
+// checkAttachmentCreate refuses a row with no single parent, a row on a void
+// document, and the 26th row of a document. A correction counts the rows of
+// the document it replaces too, because they move to it when it posts; for
+// the same reason a document counts the rows of each draft correction that
+// replaces it. The move itself never refuses: an attachment does not block
+// Post.
+func checkAttachmentCreate(tx core.App, r *core.Record) error {
+	kind, parent, err := attachmentParent(tx, r)
+	if errors.Is(err, sql.ErrNoRows) {
+		// The schema refuses a parent that does not exist.
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	void, limit := attachmentTexts(kind)
+	if parent.GetString("status") == statusVoid {
+		return refuse("%s", void)
+	}
+	count, err := tx.CountRecords(attachmentsCollection, dbx.HashExp{kind.ParentField: parent.Id})
+	if err != nil {
+		return fmt.Errorf("books: count the document's attachments: %w", err)
+	}
+	if replaces := parent.GetString("replaces"); replaces != "" {
+		moving, err := tx.CountRecords(attachmentsCollection, dbx.HashExp{kind.ParentField: replaces})
+		if err != nil {
+			return fmt.Errorf("books: count the replaced document's attachments: %w", err)
+		}
+		count += moving
+	}
+	corrections, err := tx.FindAllRecords(kind.Collection, dbx.HashExp{"replaces": parent.Id, "status": statusDraft})
+	if err != nil {
+		return fmt.Errorf("books: read the document's draft corrections: %w", err)
+	}
+	for _, correction := range corrections {
+		pending, err := tx.CountRecords(attachmentsCollection, dbx.HashExp{kind.ParentField: correction.Id})
+		if err != nil {
+			return fmt.Errorf("books: count a draft correction's attachments: %w", err)
+		}
+		count += pending
+	}
+	if count >= maxAttachmentsPerDocument {
+		return refuse("%s", limit)
+	}
+	return nil
+}
+
+// checkAttachmentDelete refuses to remove a void document's file. A row whose
+// document is gone passes.
+func checkAttachmentDelete(tx core.App, r *core.Record) error {
+	kind, parent, err := attachmentParent(tx, r)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if parent.GetString("status") == statusVoid {
+		void, _ := attachmentTexts(kind)
+		return refuse("%s", void)
+	}
+	return nil
+}
+
+// isUploaderCleared reports whether an update only empties uploaded_by:
+// PocketBase's unset of the relation when the uploading user is deleted.
+// Every other column is as stored.
+func isUploaderCleared(r *core.Record) bool {
+	stored := r.Original()
+	for _, field := range []string{"bill", "expense", "field", "file", "name"} {
+		if r.GetString(field) != stored.GetString(field) {
+			return false
+		}
+	}
+	return r.GetInt("size") == stored.GetInt("size") && r.GetString("uploaded_by") == ""
+}
+
+// moveAttachments re-points every row whose parentField is from to to: the
+// files of a corrected bill or expense move to its correction when the
+// correction posts (spec §3.6). The rows keep their ids and stored files. It
+// runs in tx's transaction (the posting's), or in its own when tx has none,
+// so the move commits with the post or not at all.
+func moveAttachments(tx core.App, parentField, from, to string) error {
+	return tx.RunInTransaction(func(tx core.App) error {
+		rows, err := tx.FindAllRecords(attachmentsCollection, dbx.HashExp{parentField: from})
+		if err != nil {
+			return fmt.Errorf("books: read the attachments to move: %w", err)
+		}
+		for _, r := range rows {
+			r.Set(parentField, to)
+			done := setTxMark(tx, attachmentMoveMark, r.Id)
+			err := tx.Save(r)
+			done()
+			if err != nil {
+				return fmt.Errorf("books: move %s to the correction: %w", r.GetString("name"), err)
+			}
+		}
+		return nil
+	})
+}
+
+// attachmentLabel names an attachment in the audit log by its file and its
+// document: "Attachment receipt.jpg on Bill 1003", "Attachment receipt.jpg on
+// Draft expense". A document that cannot be read (the cascade of Delete draft
+// removed it first) gives "Attachment receipt.jpg", so the audit row is still
+// written.
+func attachmentLabel(app core.App, r *core.Record) string {
+	label := "Attachment " + r.GetString("name")
+	if id := r.GetString("bill"); id != "" {
+		if bill, err := app.FindRecordById(billKind.Collection, id); err == nil {
+			return label + " on " + billLabel(bill)
+		}
+		return label
+	}
+	if id := r.GetString("expense"); id != "" {
+		if expense, err := app.FindRecordById(expenseKind.Collection, id); err == nil {
+			return label + " on " + expenseLabel(expense)
+		}
+	}
+	return label
+}
