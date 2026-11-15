@@ -323,6 +323,10 @@ test.describe('journal-entries: save and post (desktop)', () => {
 
         await page.getByTestId('entry-save-draft').dblclick()
 
+        // The new-entry form shows the same Draft badge, so wait for the saved draft's own
+        // screen: a Back press that spans the replace to `entries/<id>` is lost.
+        await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
+        await expect(page.getByTestId('entry-title')).toHaveText('Journal entry')
         await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
         await backToList(page)
         await expect(listItems(page, memo)).toHaveCount(1)
