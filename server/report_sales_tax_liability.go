@@ -58,11 +58,12 @@ func salesTaxLiabilitySpec() *reports.Spec {
 
 // stlDetailOpen is the read view of a document row's invoice or sales
 // receipt, by the document's kind and id. Only detail rows carry it: rate,
-// agency and total rows open nothing.
+// agency and total rows open nothing. The route segments come from
+// entry_routes.json, the one list of document screens.
 func stlDetailOpen() *reports.Node {
 	return op("if", op("eq", fld("document", "kind"), lit("invoice")),
-		op("concat", lit("books/invoices/"), fld("document", "id")),
-		op("concat", lit("books/sales-receipts/"), fld("document", "id")),
+		op("concat", lit("books/"+entryRoutes["invoice"]+"/"), fld("document", "id")),
+		op("concat", lit("books/"+entryRoutes["sales_receipt"]+"/"), fld("document", "id")),
 	)
 }
 
