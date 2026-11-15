@@ -3,9 +3,12 @@ import { documentTotals } from '../tinycld/books/lib/document-lines'
 import { bigFigureText } from '../tinycld/books/lib/document-messages'
 import { maxLineAmount } from '../tinycld/books/lib/money-text'
 import {
+    BILL_KIND,
     DOCUMENT_PARTIES,
     ESTIMATE_KIND,
+    EXPENSE_KIND,
     INVOICE_KIND,
+    PURCHASE_LINE_TABLES,
     SALES_LINE_TABLES,
     SALES_RECEIPT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -21,9 +24,60 @@ describe('the sales kinds: party, line tables and features', () => {
             expect(kind.lineTables).toEqual([
                 { key: 'lines', rowLabel: 'Line', heading: null, subtotal: null },
             ])
-            expect(kind.features).toEqual({ tax: true, message: true, email: true, pdf: true })
+            expect(kind.features).toEqual({
+                tax: true,
+                message: true,
+                email: true,
+                pdf: true,
+                partyAddress: true,
+            })
         })
     }
+})
+
+// The party address flag (spec §3.1): the four existing kinds keep their address; only a
+// kind without it (the expense) drops the address and its links.
+describe('features.partyAddress', () => {
+    for (const kind of [INVOICE_KIND, SALES_RECEIPT_KIND, ESTIMATE_KIND, BILL_KIND]) {
+        it(`is on for ${kind.key}`, () => {
+            expect(kind.features.partyAddress).toBe(true)
+        })
+    }
+
+    it('leaves the bill with no tax, message, email or PDF', () => {
+        expect(BILL_KIND.features).toEqual({
+            tax: false,
+            message: false,
+            email: false,
+            pdf: false,
+            partyAddress: true,
+        })
+    })
+})
+
+// The purchase line tables (spec §3.1, plan Decisions "Renames"): the bill's two tables
+// under their purchase name, unchanged.
+describe('PURCHASE_LINE_TABLES', () => {
+    it('are the bill kind line tables', () => {
+        expect(BILL_KIND.lineTables).toBe(PURCHASE_LINE_TABLES)
+    })
+
+    it('keep the account and product tables, their headings and subtotals', () => {
+        expect(PURCHASE_LINE_TABLES).toEqual([
+            {
+                key: 'account_lines',
+                rowLabel: 'Account line',
+                heading: 'Account details',
+                subtotal: { label: 'Account lines', testId: 'total-account-lines' },
+            },
+            {
+                key: 'item_lines',
+                rowLabel: 'Product line',
+                heading: 'Product and service details',
+                subtotal: { label: 'Products and services', testId: 'total-item-lines' },
+            },
+        ])
+    })
 })
 
 describe('DOCUMENT_PARTIES', () => {
@@ -117,6 +171,42 @@ describe('ESTIMATE_KIND', () => {
 
     it('names its PDF by its number', () => {
         expect(ESTIMATE_KIND.pdfStem('1001')).toBe('estimate-1001')
+    })
+})
+
+// The expense kind (expense spec §3.1-§3.5; plan Decisions "TS names").
+describe('EXPENSE_KIND', () => {
+    it('has an optional vendor and the purchase line tables', () => {
+        expect(EXPENSE_KIND.key).toBe('expense')
+        expect(EXPENSE_KIND.party).toBe('vendor')
+        expect(EXPENSE_KIND.customerRequired).toBe(false)
+        expect(EXPENSE_KIND.lineTables).toBe(PURCHASE_LINE_TABLES)
+    })
+
+    it('has no tax, message, email, PDF or party address', () => {
+        expect(EXPENSE_KIND.features).toEqual({
+            tax: false,
+            message: false,
+            email: false,
+            pdf: false,
+            partyAddress: false,
+        })
+    })
+
+    it('shows Amount paid as the big figure and draws no last totals row', () => {
+        expect(EXPENSE_KIND.figure).toEqual({ label: 'Amount paid', testId: 'amount-paid' })
+        expect(EXPENSE_KIND.lastTotal).toBeNull()
+    })
+
+    it('posts, splits the band at Payment method and groups its keys under "Expense"', () => {
+        expect(EXPENSE_KIND.lifecycle).toBe('posting')
+        expect(EXPENSE_KIND.bandSplitAt).toBe('payment_method')
+        expect(EXPENSE_KIND.shortcutGroup).toBe('Expense')
+    })
+
+    it('keeps empty lines on a refused save and opens its own help topic', () => {
+        expect(EXPENSE_KIND.keepsEmptyLinesOnRefusal).toBe(true)
+        expect(EXPENSE_KIND.helpTopic).toBe('books:expenses')
     })
 })
 

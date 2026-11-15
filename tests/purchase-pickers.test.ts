@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
-    BILL_ACCOUNT_EMPTY_TEXT,
-    billAccountOptions,
-    PURCHASE_PRODUCT_EMPTY_TEXT,
-    purchaseProductOptions,
-    purchaseProductSuffix,
-    VENDOR_PICKER_EMPTY_TEXT,
-    vendorPickerOptions,
-} from '../tinycld/books/lib/bill-pickers'
-import {
     ALL_INACTIVE_PRODUCTS,
     PRODUCT_IDS,
     PRODUCTS,
 } from '../tinycld/books/lib/products-services-fixture'
+import {
+    PURCHASE_ACCOUNT_EMPTY_TEXT,
+    PURCHASE_PRODUCT_EMPTY_TEXT,
+    purchaseAccountOptions,
+    purchaseProductOptions,
+    purchaseProductSuffix,
+    VENDOR_PICKER_EMPTY_TEXT,
+    vendorPickerOptions,
+} from '../tinycld/books/lib/purchase-pickers'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { ALL_INACTIVE_VENDORS, VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 
-// The pure option builders of the bill's pickers (spec §3.4): the Account cell, the
-// Product or service cell and the Vendor field.
+// The pure option builders of the purchase pickers (spec §3.4), shared by the bill and
+// the expense: the Account cell, the Product or service cell and the Vendor field.
 
 const idOf = (number: string) => `acc-${number}`
 
@@ -57,9 +57,9 @@ const ACCOUNTS = [
     },
 ]
 
-describe('billAccountOptions', () => {
+describe('purchaseAccountOptions', () => {
     it('lists only active expense, other expense and cost of goods accounts, in chart order, indented', () => {
-        expect(billAccountOptions(ACCOUNTS, '')).toEqual([
+        expect(purchaseAccountOptions(ACCOUNTS, '')).toEqual([
             { id: idOf('5000'), label: '5000 Cost of goods sold', indent: 0 },
             { id: idOf('6100'), label: '6100 Rent', indent: 0 },
             { id: idOf('6200'), label: '6200 Software Subscriptions', indent: 0 },
@@ -69,13 +69,13 @@ describe('billAccountOptions', () => {
     })
 
     it('never lists Office Equipment (a fixed asset) or the inactive Old Petty Cash', () => {
-        const labels = billAccountOptions(ACCOUNTS, '').map(option => option.label)
+        const labels = purchaseAccountOptions(ACCOUNTS, '').map(option => option.label)
         expect(labels).not.toContain('1500 Office Equipment')
         expect(labels).not.toContain('6900 Old Petty Cash')
     })
 
     it('adds a stored inactive account, marked inactive', () => {
-        const labels = billAccountOptions(ACCOUNTS, idOf('6900')).map(option => option.label)
+        const labels = purchaseAccountOptions(ACCOUNTS, idOf('6900')).map(option => option.label)
         expect(labels).toContain('6900 Old Petty Cash (inactive)')
         expect(labels).toContain('6100 Rent')
     })
@@ -86,8 +86,8 @@ describe('billAccountOptions', () => {
                 !['expense', 'other_expense', 'cost_of_goods_sold'].includes(account.type) ||
                 account.inactive
         )
-        expect(billAccountOptions(noExpense, '')).toEqual([])
-        expect(BILL_ACCOUNT_EMPTY_TEXT).toBe('No expense accounts')
+        expect(purchaseAccountOptions(noExpense, '')).toEqual([])
+        expect(PURCHASE_ACCOUNT_EMPTY_TEXT).toBe('No expense accounts')
     })
 })
 
@@ -164,6 +164,15 @@ describe('vendorPickerOptions', () => {
         const labels = vendorPickerOptions(VENDORS, VENDOR_IDS.coastalCoffee).map(o => o.label)
         expect(labels).toContain('Coastal Coffee Roasters (inactive)')
         expect(labels).not.toContain('Old Town Print Shop (inactive)')
+    })
+
+    // "No vendor" is SearchPicker's `noneOption` (spec §3.1), never a row of the options:
+    // the bill's required vendor keeps a list with no none row.
+    it('has no none row: no empty id and no "No vendor" label', () => {
+        const options = vendorPickerOptions(VENDORS, '')
+        expect(options.map(option => option.id)).not.toContain('')
+        expect(options.map(option => option.label)).not.toContain('No vendor')
+        expect(vendorPickerOptions(VENDORS, VENDOR_IDS.coastalCoffee)[0]?.id).not.toBe('')
     })
 
     it('is empty with no active vendor, and the picker then says so', () => {

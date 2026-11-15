@@ -31,7 +31,12 @@ import {
     ExpirationDateField,
 } from './estimate-fields'
 import { MoneyField } from './money-fields'
-import { DepositAccountField, PaymentMethodField } from './payment-fields'
+import {
+    DepositAccountField,
+    PaymentAccountField,
+    PaymentMethodField,
+    RequiredPaymentMethodField,
+} from './payment-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
 import {
     LineAccountCell,
@@ -81,7 +86,9 @@ const ui: FormHostUi = {
         LineAmountCell,
         LineTaxableCell,
         PaymentMethodField,
+        RequiredPaymentMethodField,
         DepositAccountField,
+        PaymentAccountField,
         EstimateStatusField,
         ExpirationDateField,
         AcceptedByField,

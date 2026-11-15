@@ -45,12 +45,17 @@ Books needs exactly one Retained earnings account in every chart. If a chart has
 
 ## Delete an account
 
-To delete an account, open the menu on its row and choose Delete. An account that has journal lines or sub-accounts cannot be deleted. For those two, the dialog tells you why and offers Make inactive instead.
+To delete an account, open the menu on its row and choose Delete. The dialog checks first whether the account can be deleted. If it cannot, the dialog tells you why and offers Make inactive instead. The dialog does this for these cases, and shows the first one that applies:
 
-Books also refuses to delete an account in these cases, and tells you why:
+- An account line of a bill uses the account, in any status: draft, posted or void. The dialog tells you how many bills use it.
+- An account line of an expense uses the account, in any status. The dialog tells you how many expenses use it.
+- The account is the Paid from account of an expense, in any status. The dialog tells you how many expenses the account paid.
+- The account has journal lines.
+- The account has sub-accounts.
+
+When you choose Delete, Books also refuses to delete an account in these cases, and tells you why:
 
 - A product or service uses the account as its income or expense account. Make the account inactive instead, or first choose another account on each product or service.
-- An account line of a draft bill uses the account. Make the account inactive instead. The dialog tells you how many bills use it. A posted or void bill has journal lines on the account, so for it the dialog tells you how many journal lines use the account.
 - A tax agency uses the account as its liability account. This is true for an active or an inactive agency. First choose another account for each agency that uses it.
 - The account is the Retained earnings account. Books needs exactly one, so rename it instead.
 

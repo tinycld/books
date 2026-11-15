@@ -1,0 +1,128 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "void",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1000,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Summit IT Services" },
+                { "clickMenuItem": "Summit IT Services" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "click": "form-input-paid_from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "pause": 300 },
+                { "fill": "form-input-reference_no", "value": "3011" },
+                { "fillLabel": "Description, row 1", "value": "Network switch install, November" },
+                { "fillLabel": "Amount, row 1", "value": "240.00" },
+                { "fill": "form-input-memo", "value": "Paid the wrong vendor; voided" },
+                { "click": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "waitFor": "expense-posted-by" },
+                { "pause": 500 },
+                { "click": "expense-read-void" },
+                { "waitFor": "void-dialog" },
+                { "click": "void-confirm" },
+                { "waitFor": "expense-voided-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "new-accounts",
+            "widths": [1280],
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-purchase-lines",
+            "hideLabels": ["New"],
+            "height": 1100,
+            "actions": [
+                { "click": "books-settings-purchase-lines" },
+                { "clickMenuItem": "Accounts only" },
+                { "click": "books-settings-purchase-lines-save" },
+                { "waitFor": "Saved." },
+                { "waitForHidden": "Saved." },
+                { "pushPath": "/a/books/expenses/new" },
+                { "waitFor": "expense-form" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "new-products",
+            "widths": [390],
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-purchase-lines",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "books-settings-purchase-lines" },
+                { "clickMenuItem": "Products only" },
+                { "click": "books-settings-purchase-lines-save" },
+                { "waitFor": "Saved." },
+                { "waitForHidden": "Saved." },
+                { "pushPath": "/a/books/expenses/new" },
+                { "waitFor": "expense-form" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./new-products",
+            "widths": [1280],
+            "url": "/a/books/expenses/new",
+            "ready": "expense-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "settings",
+            "widths": [390],
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-purchase-lines",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [
+                { "click": "books-settings-purchase-lines" },
+                { "clickMenuItem": "Accounts and products" },
+                { "click": "books-settings-purchase-lines-save" },
+                { "waitFor": "Saved." },
+                { "waitForHidden": "Saved." },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "./settings",
+            "widths": [1280],
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-purchase-lines",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "settings-readonly",
+            "widths": [1280],
+            "url": "/a/books/settings/purchases",
+            "ready": "books-settings-purchase-lines-readonly",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 900,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        }
+    ]
+}
