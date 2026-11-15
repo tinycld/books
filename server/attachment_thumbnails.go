@@ -100,16 +100,22 @@ func generateAttachmentThumbnail(ctx context.Context, app core.App, row *core.Re
 }
 
 // storeAttachmentThumbnail sets f on a fresh copy of the row, so a move made
-// while the thumbnail rendered or waited is not undone. The update guard
-// admits this one change (isThumbnailStored).
+// while the thumbnail rendered or waited is not undone. The read and the save
+// run in one transaction: the read then takes the one write connection, so it
+// waits for a posting that is moving the row and sees the move's commit, and
+// no move can commit between the read and the save. The update guard admits
+// this one change (isThumbnailStored).
 func storeAttachmentThumbnail(ctx context.Context, app core.App, id string, f *filesystem.File) {
-	fresh, err := app.FindRecordById(attachmentsCollection, id)
+	err := app.RunInTransaction(func(tx core.App) error {
+		fresh, err := tx.FindRecordById(attachmentsCollection, id)
+		if err != nil {
+			log.WarnContext(ctx, "attachment thumbnail: the attachment is gone", "attachment", id, "err", err)
+			return nil
+		}
+		fresh.Set("thumbnail", f)
+		return tx.Save(fresh)
+	})
 	if err != nil {
-		log.WarnContext(ctx, "attachment thumbnail: the attachment is gone", "attachment", id, "err", err)
-		return
-	}
-	fresh.Set("thumbnail", f)
-	if err := app.Save(fresh); err != nil {
 		log.WarnContext(ctx, "attachment thumbnail: store", "attachment", id, "err", err)
 	}
 }

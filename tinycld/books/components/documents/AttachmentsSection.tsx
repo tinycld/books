@@ -28,6 +28,7 @@ import {
     DROP_OVERLAY,
     DROP_PROMPT_NATIVE,
     DROP_PROMPT_WEB,
+    fromDocumentText,
     hasThumbnail,
     movedText,
     NO_ATTACHMENTS_TEXT,
@@ -47,6 +48,8 @@ const BOX_STYLE = { width: 40, height: 40 }
 const RETRY_STYLE = { minHeight: 36 }
 const ICON_BUTTON_STYLE = { minWidth: 44, minHeight: 44 }
 const NO_DRAFTS: AttachmentDraft[] = []
+const NO_REMOVALS: string[] = []
+const NO_REFUSALS: Record<string, string> = {}
 const NO_ACTION = () => {}
 const DROP_PROMPT = Platform.OS === 'web' ? DROP_PROMPT_WEB : DROP_PROMPT_NATIVE
 
@@ -221,13 +224,16 @@ interface DraftRowProps {
     prefix: string
     // Writes are unavailable: Retry and Remove are disabled.
     isDisabled: boolean
+    // A failed file can upload at once: its document is stored. A new form that wrote
+    // nothing has no Retry; its Save draft and Post retry.
+    canRetry: boolean
     onRetry: () => void
     onRemove: () => void
 }
 
-// A file that is not stored: uploading with its progress, or failed with its error,
-// Retry and Remove. It does not open, so it is not a button.
-function DraftRow({ draft, prefix, isDisabled, onRetry, onRemove }: DraftRowProps) {
+// A file that is not stored: pending in a form, uploading with its progress, or failed
+// with its error, Retry and Remove. It does not open, so it is not a button.
+function DraftRow({ draft, prefix, isDisabled, canRetry, onRetry, onRemove }: DraftRowProps) {
     const { state } = draft
     const isFailed = state.kind === 'failed'
     const isUploading = state.kind === 'uploading'
@@ -249,7 +255,7 @@ function DraftRow({ draft, prefix, isDisabled, onRetry, onRemove }: DraftRowProp
                 </View>
             </View>
             <RetryButton
-                isVisible={isFailed}
+                isVisible={isFailed && canRetry}
                 isDisabled={isDisabled}
                 onPress={onRetry}
                 testID={`${prefix}-attachment-retry-${draft.key}`}
@@ -460,6 +466,15 @@ function MutedLine({ text, testID }: { text: string; testID?: string }) {
     )
 }
 
+// The label over a correction's group of the original's files: "From Bill 1003".
+function GroupLabel({ text, testID }: { text: string; testID: string }) {
+    return (
+        <Text testID={testID} className="pt-2 pb-1 text-xs text-muted-foreground">
+            {text}
+        </Text>
+    )
+}
+
 function RowList({ rows, testID }: { rows: ReactNode[]; testID: string }) {
     if (rows.length === 0) return null
     return <View testID={testID}>{rows}</View>
@@ -477,6 +492,12 @@ interface AttachmentsSectionProps {
     // Writes are unavailable: add, Retry and Remove are disabled.
     isDisabled: boolean
     mode: 'read' | 'form'
+    // A form's attachments session (DocumentScreen's `form:<formKey>`); a read view's is
+    // its own (readSessionKey).
+    formSession?: string
+    // A correction's form: the number of the document it replaces, for the label over
+    // that document's files ("From Bill 1003"); '' otherwise.
+    replacesNumber?: string
     // The screen's shortcut scope, for Attach files.
     scopeOwner: ScopeOwner
     // The screen's one Retry over its merged recoveries.
@@ -486,10 +507,16 @@ interface AttachmentsSectionProps {
 /**
  * The Attachments section of a bill or an expense (spec §3): the heading with the count,
  * and the limit where a file can be added; one skeleton row while the rows load; the
- * error with Retry when they fail; the list, each stored row opening core PreviewModal
- * and a writer's Remove asking first, then the files still uploading or failed; the add
- * area with its refusal line; "No attachments" when there are none and no add area
- * shows; and, on a replaced original, "Moved to <number> (edited)" instead.
+ * error with Retry when they fail; the list, each stored row opening core PreviewModal,
+ * then the files not stored yet; the add area with its refusal line; "No attachments"
+ * when there are none and no add area shows; and, on a replaced original, "Moved to
+ * <number> (edited)" instead.
+ *
+ * In a read view a file uploads at once and a writer's Remove asks first. In a form (new,
+ * draft, correction, copy) a file is pending until the save, and Remove of a stored row
+ * needs no confirm: the row hides and the save deletes it (useDocumentSave's attachments
+ * step); Cancel's Discard restores it. A correction's form lists the original's files
+ * first, under "From <noun> <number>", open only.
  */
 export function AttachmentsSection({
     kind,
@@ -500,26 +527,35 @@ export function AttachmentsSection({
     canWrite,
     isDisabled,
     mode,
+    formSession = '',
+    replacesNumber = '',
     scopeOwner,
     onRetry,
 }: AttachmentsSectionProps) {
     const [openId, setOpenId] = useState<string | null>(null)
     const [removeId, setRemoveId] = useState<string | null>(null)
     const prefix = kind.testId
-    const { rows, isLoading, isError } = attachments
-    // The read view screen opens and drops this session (useReadAttachmentSession), so
-    // it outlives the section across a tab switch. '' (no session) for a form until it
-    // gets its own.
-    const sessionKey = mode === 'read' && recordId ? readSessionKey(recordId) : ''
+    const { isLoading, isError } = attachments
+    const isForm = mode === 'form'
+    // The screen opens and drops the session (useReadAttachmentSession, DocumentScreen's
+    // form session), so it outlives the section: a read view's across a tab switch, a
+    // form's across a conflict reload.
+    const readSession = recordId ? readSessionKey(recordId) : ''
+    const sessionKey = isForm ? formSession : readSession
     const drafts = useAttachmentsStore(s => s.sessions[sessionKey]?.drafts) ?? NO_DRAFTS
+    const removals = useAttachmentsStore(s => s.sessions[sessionKey]?.removals) ?? NO_REMOVALS
     const refusal = useAttachmentsStore(s => s.sessions[sessionKey]?.refusal) ?? null
+    const removalRefusals =
+        useAttachmentsStore(s => s.sessions[sessionKey]?.removalRefusals) ?? NO_REFUSALS
     const upload = useAttachmentUpload({ kind, recordId, sessionKey, count: attachments.allCount })
     const remove = useAttachmentRemove()
-    // Only a correction's form lists the original's files (checkpoint 4); a read view
-    // shows the document's own.
-    const fromRows = mode === 'form' ? attachments.fromRows : []
-    const controls = attachmentControls({ canWrite, isVoid, isDisabled, isLoading })
     const isReady = !isLoading && !isError
+    // A form hides the rows its save will delete.
+    const rows = attachments.rows.filter(row => !removals.includes(row.id))
+    // Only a correction's form lists the original's files; a read view shows the
+    // document's own.
+    const fromRows = isForm && isReady ? attachments.fromRows : []
+    const controls = attachmentControls({ canWrite, isVoid, isDisabled, isLoading })
     // The preview holds the open row by id, so a row removed or added while it is open
     // never moves it to another file; a row that went away closes it.
     const previewRows = [...fromRows, ...rows]
@@ -530,9 +566,34 @@ export function AttachmentsSection({
     const removing = rows.find(row => row.id === removeId)
     const closeRemove = () => setRemoveId(null)
     const refusedId = remove.refusedId
+    // A read view's refused delete is its Remove's; a form's is its save's (the save
+    // step's refuseRemoval).
+    const rowRefusal = (id: string) => {
+        if (isForm) return removalRefusals[id] ?? ''
+        return id === refusedId ? remove.refusal : ''
+    }
     // The confirm closes as the delete starts, so Remove waits for it: a second confirm
     // would send a second delete of the same row.
     const isStoredRemoveDisabled = controls.isRemoveDisabled || remove.isPending
+    const askRemove = (id: string) => setRemoveId(id)
+    const markRemoval = (id: string) => useAttachmentsStore.getState().markRemoval(sessionKey, id)
+    const removeStored = isForm ? markRemoval : askRemove
+    const fromLabel =
+        fromRows.length > 0 ? (
+            <GroupLabel
+                key="from"
+                text={fromDocumentText(kind.noun, replacesNumber)}
+                testID={`${prefix}-attachments-from`}
+            />
+        ) : null
+    const fromItems = fromRows.map(row => (
+        <AttachmentRow
+            key={row.id}
+            row={row}
+            testId={`${prefix}-attachment-${row.id}`}
+            onOpen={() => setOpenId(row.id)}
+        />
+    ))
     const listRows = isReady
         ? rows.map(row => (
               <AttachmentRow
@@ -541,25 +602,30 @@ export function AttachmentsSection({
                   testId={`${prefix}-attachment-${row.id}`}
                   removeTestId={`${prefix}-attachment-remove-${row.id}`}
                   onOpen={() => setOpenId(row.id)}
-                  onRemove={controls.showsRemove ? () => setRemoveId(row.id) : undefined}
+                  onRemove={controls.showsRemove ? () => removeStored(row.id) : undefined}
                   isRemoveDisabled={isStoredRemoveDisabled}
-                  refusal={row.id === refusedId ? remove.refusal : ''}
+                  refusal={rowRefusal(row.id)}
               />
           ))
         : []
+    // A read view's document is always stored; a form's once it is (its own, or the
+    // draft a new form wrote).
+    const canRetry = recordId !== undefined
     const draftRows = drafts.map(draft => (
         <DraftRow
             key={draft.key}
             draft={draft}
             prefix={prefix}
             isDisabled={controls.isAddDisabled}
+            canRetry={canRetry}
             onRetry={() => upload.retry(draft.key)}
             onRemove={() => upload.discardDraft(draft.key)}
         />
     ))
-    const shownRows = [...listRows, ...draftRows]
-    const heading = attachmentsHeading(shownRows.length)
-    const isEmpty = isReady && shownRows.length === 0
+    const fileRows = [...fromItems, ...listRows, ...draftRows]
+    const shownRows = fromLabel ? [fromLabel, ...fileRows] : fileRows
+    const heading = attachmentsHeading(fileRows.length)
+    const isEmpty = isReady && fileRows.length === 0
     const moved = isEmpty && replacedByNumber !== '' ? movedText(replacedByNumber) : ''
     const empty = isEmpty && moved === '' && !controls.showsAdd ? NO_ATTACHMENTS_TEXT : ''
     // The limit shows only where a file can be added: a writer on a document that is not
@@ -586,7 +652,7 @@ export function AttachmentsSection({
             <AddArea
                 isVisible={showsAddArea}
                 kind={kind}
-                isCompact={shownRows.length > 0}
+                isCompact={fileRows.length > 0}
                 isDisabled={controls.isAddDisabled}
                 onFiles={dropFiles}
                 onPick={upload.pick}

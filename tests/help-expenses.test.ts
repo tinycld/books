@@ -41,6 +41,11 @@ describe('help/expenses.md', () => {
         ).toBeDefined()
     })
 
+    // Attachments spec §3.9: the expense topic links the attachments topic.
+    it('links the attachments topic', () => {
+        expect(body).toContain('help://books:attachments')
+    })
+
     it('explains Paid from and its balance', () => {
         expect(
             lineWith(/\bPaid from\b/, /\bbalance\b/i),
