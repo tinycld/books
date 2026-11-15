@@ -16,7 +16,12 @@ import {
     type FormHostDefInput,
     hostDefSchema,
 } from '@tinycld/core/lib/forms/host'
-import type { Forms, OrgPkgAccess } from '@tinycld/core/types/pbSchema'
+import type {
+    BooksPaymentApplications,
+    BooksPayments,
+    Forms,
+    OrgPkgAccess,
+} from '@tinycld/core/types/pbSchema'
 import { ACCOUNTS, BALANCES } from '../tinycld/books/lib/chart-of-accounts-fixture'
 import type {
     BooksAccess,
@@ -1097,6 +1102,14 @@ export function seedBooks(
         books_bill_lines: local<BooksBillLines>('books_bill_lines', []),
         books_expense_lines: local<BooksExpenseLines>('books_expense_lines', []),
         books_expenses: local<BooksExpenses>('books_expenses', []),
+        // No hook under these tests reads them today; they are here so a hook that asks
+        // useStore for them gets an empty collection, not undefined. The deposit-account
+        // check of an account delete runs on the server (checkAccountDelete).
+        books_payments: local<BooksPayments>('books_payments', []),
+        books_payment_applications: local<BooksPaymentApplications>(
+            'books_payment_applications',
+            []
+        ),
     })
 }
 

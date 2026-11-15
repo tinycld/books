@@ -609,6 +609,18 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	if receipts > 1 {
 		return refuse(msgAccountDepositOfReceipts, receipts)
 	}
+	// A payment's deposit_to is optional, so PocketBase would clear it on a
+	// draft and refuse the unlink on a posted payment. Drafts count too.
+	payments, err := app.CountRecords(paymentsCollection, dbx.HashExp{"deposit_to": r.Id})
+	if err != nil {
+		return err
+	}
+	if payments == 1 {
+		return refuse(msgAccountDepositOfOnePayment)
+	}
+	if payments > 1 {
+		return refuse(msgAccountDepositOfPayments, payments)
+	}
 	children, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": r.Id})
 	if err != nil {
 		return err

@@ -6,6 +6,7 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     estimate: { label: 'Estimates', noun: 'estimate' },
     bill: { label: 'Bills', noun: 'bill' },
     expense: { label: 'Expenses', noun: 'expense' },
+    payment: { label: 'Payments', noun: 'payment' },
 }
 
 export function docTypeLabel(docType: string): string {

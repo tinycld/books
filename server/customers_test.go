@@ -841,6 +841,42 @@ func TestCustomer_DeleteRefusedWhileOnSalesReceipts(t *testing.T) {
 	})
 }
 
+// Receive payment spec §3.9: a customer on any payment, draft or posted,
+// cannot be deleted. The payment check comes after the sales receipt one.
+func TestCustomer_DeleteRefusedWhileOnPayments(t *testing.T) {
+	wantOnPayments := func(name string) string { return name + " is on payments. Make it inactive instead." }
+	wantOnReceipts := func(name string) string { return name + " is on sales receipts. Make it inactive instead." }
+
+	t.Run("on one draft payment and no sales document", func(t *testing.T) {
+		app := newGuardedApp(t)
+		cust := mkCustomer(t, app, "Old Mill Bakery", "")
+		mkPaymentRow(t, app, cust, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnPayments("Old Mill Bakery"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on a sales receipt and a payment gets the sales receipt text", func(t *testing.T) {
+		app := newGuardedApp(t)
+		undeposited := mkNumberedAccount(t, app, "Undeposited funds", "1200", "other_current_asset", "undeposited_funds")
+		cust := mkCustomer(t, app, "Alvarez Family", "")
+		mkReceiptRow(t, app, undeposited, map[string]any{"customer": cust.Id})
+		mkPaymentRow(t, app, cust, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnReceipts("Alvarez Family"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on another customer's payment only deletes", func(t *testing.T) {
+		app := newGuardedApp(t)
+		mkPaymentRow(t, app, mkCustomer(t, app, "Paying Customer", ""), nil)
+		cust := mkCustomer(t, app, "Unused Customer", "")
+		if err := app.Delete(reload(t, app, "books_customers", cust.Id)); err != nil {
+			t.Fatalf("delete a customer on no payment: %v", err)
+		}
+	})
+}
+
 // Spec §3.11: a customer on any estimate cannot be deleted. The estimate check
 // comes after the invoice and receipt ones.
 func TestCustomer_DeleteRefusedWhileOnEstimates(t *testing.T) {

@@ -57,7 +57,9 @@ func salesDocName(kind salesDocKind, r *core.Record) string {
 // the tax snapshot of a kind with tax, posts the journal entry through
 // postDocument (the kind's debit or credit account for the total, its line
 // accounts on the other side, every line naming the party), and copies the
-// entry's number. A correction voids its original.
+// entry's number. A correction voids its original. A kind that tracks a
+// balance (an invoice) then writes it: the total less the posted payments that
+// apply to it.
 func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
 	original, err := correctedSalesDoc(tx, kind, doc)
 	if err != nil {
@@ -136,10 +138,17 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	doc.Set("entry", entry.Id)
 	doc.Set("posted_at", now)
 	doc.Set("sort_key", salesDocSortKey(doc))
-	if original == nil {
+	if original != nil {
+		if err := voidReplacedSalesDoc(tx, kind, original, doc, actor, now); err != nil {
+			return err
+		}
+	}
+	if !kind.TracksBalance {
 		return nil
 	}
-	return voidReplacedSalesDoc(tx, kind, original, doc, actor, now)
+	// After the Replace step: a correction's balance is its total less the
+	// payments it took over from its original.
+	return setPostedInvoiceBalance(tx, doc, totals.Total)
 }
 
 // correctedSalesDoc is the posted document a correction replaces, nil for a
@@ -460,6 +469,9 @@ func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original, correction *
 	fresh.Set("replaced_by", correction.Id)
 	fresh.Set("voided_by", actor)
 	fresh.Set("voided_at", now)
+	if kind.TracksBalance {
+		clearInvoiceBalance(fresh)
+	}
 	if err := tx.Save(fresh); err != nil {
 		return err
 	}
@@ -489,6 +501,10 @@ func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 		return err
 	}
 	doc.Set("voided_at", now)
+	if kind.TracksBalance {
+		// CheckVoid refused a void while posted payments apply to it.
+		clearInvoiceBalance(doc)
+	}
 	if kind.Withdraw == nil {
 		return nil
 	}

@@ -6,15 +6,12 @@
 // server writes at posting (applied = sum of the applications, credited = amount −
 // applied); an invoice's `balance` is its total less the posted applications that name it.
 //
-// PaymentRecord, PaymentApplicationRecord and the `balance` column of OpenInvoiceRecord
-// mirror spec §4.1 by hand: the collections do not exist yet. The migration checkpoint
-// (`<next>_create_books_payments.js`) must replace PaymentRecord with the generated
-// BooksPayments, PaymentApplicationRecord with BooksPaymentApplications, and
-// OpenInvoiceRecord with BooksInvoices (which then carries `balance`), so a fixture row
-// that drifts from the schema fails tsc.
+// The record types are the generated ones (2100000019_create_books_payments.js), so a
+// fixture row that drifts from the schema fails tsc.
 
-import type { BooksInvoices } from '../types'
+import type { BooksInvoices, BooksPaymentApplications, BooksPayments } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
+import { INVOICE_IDS } from './invoice-form-fixture'
 import type { PaymentMethodKey } from './payment-methods'
 import {
     DEPOSIT_ACCOUNT_IDS,
@@ -36,47 +33,10 @@ export const DEPOSIT_ACCOUNTS_NO_UNDEPOSITED: DepositAccountRow[] = DEPOSIT_ACCO
     account => account.id !== DEPOSIT_ACCOUNT_IDS.undeposited
 )
 
-// Spec §4.1, by hand until the migration checkpoint (see the header).
-export type PaymentStatus = 'draft' | 'posted' | 'void'
-
-export interface PaymentRecord {
-    id: string
-    customer: string
-    status: PaymentStatus
-    number: string
-    sequence: number
-    date: string
-    payment_method: PaymentMethodKey | ''
-    reference_no: string
-    deposit_to: string
-    amount: number
-    applied: number
-    credited: number
-    memo: string
-    currency: string
-    entry: string
-    replaces: string
-    replaced_by: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    sort_key: string
-    created: string
-    updated: string
-}
-
-export interface PaymentApplicationRecord {
-    id: string
-    payment: string
-    invoice: string
-    amount: number
-    position: number
-    created: string
-    updated: string
-}
-
-export type OpenInvoiceRecord = BooksInvoices & { balance: number }
+export type PaymentRecord = BooksPayments
+export type PaymentStatus = PaymentRecord['status']
+export type PaymentApplicationRecord = BooksPaymentApplications
+export type OpenInvoiceRecord = BooksInvoices
 
 // The users the read view names in "Posted by" and "Voided by".
 export const PAYMENT_USER_IDS = { ana: 'userpayanaruiz1', omar: 'userpayomarbel1' } as const
@@ -552,3 +512,40 @@ export const PAYMENT_TEXTS = {
     invoiceVoidRefused: 'Payments are applied to this invoice. Void or edit those payments first.',
     createdOnPost: 'Undeposited funds (created when you post)',
 } as const
+
+/**
+ * The two payments seed.ts posts on seeded invoices (spec §4.5): `full` pays the
+ * tax-exempt invoice (`INVOICE_IDS.exempt`) in full to 1200 Undeposited funds, `partial`
+ * pays part of the no-tax invoice (`INVOICE_IDS.noTax`) to 1000 Business Checking, and
+ * `INVOICE_IDS.posted` stays open. `amount: 'total'` is the
+ * invoice's posted total, read from the seeded invoice. The days are in October 2026,
+ * after each invoice's date, and no report spec reads a fixed day there.
+ */
+export const PAYMENT_SEED: readonly {
+    key: 'full' | 'partial'
+    invoice: string
+    amount: number | 'total'
+    date: string
+    payment_method: PaymentMethodKey
+    reference_no: string
+    depositNumber: string
+}[] = [
+    {
+        key: 'full',
+        invoice: INVOICE_IDS.exempt,
+        amount: 'total',
+        date: '2026-10-17',
+        payment_method: 'check',
+        reference_no: '4417',
+        depositNumber: '1200',
+    },
+    {
+        key: 'partial',
+        invoice: INVOICE_IDS.noTax,
+        amount: 50_000,
+        date: '2026-10-25',
+        payment_method: 'bank_transfer',
+        reference_no: 'ACH 5521-0193',
+        depositNumber: '1000',
+    },
+]
