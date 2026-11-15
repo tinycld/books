@@ -131,6 +131,64 @@ export async function postExpense(page: Page): Promise<string> {
     return expenseNumberOf(page)
 }
 
+// An expense's search option title (expense spec §3.11): "Draft expense · <Vendor>" or
+// "Expense <n> · <Vendor>" ("Expense <n> (void) · <Vendor>" for a void one), with no
+// "· <Vendor>" part when the expense has no vendor.
+const EXPENSE_OPTION_TITLE = /^(Draft expense|Expense \d+( \(void\))?)( · \S.*)?$/
+
+function escapeRegExp(text: string) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// The palette's options whose title line is the whole title: "Expense 12" never matches
+// "Expense 112 · …", and an option's subtitle never counts.
+function optionsTitled(page: Page, title: RegExp) {
+    return page.getByRole('option').filter({ has: page.getByText(title) })
+}
+
+// Opens core's search palette (`/`) and searches the term. Waits for the search answer.
+async function searchPalette(page: Page, term: string) {
+    await page.keyboard.press('/')
+    // The palette focuses its input a frame after it shows; keys typed before that frame
+    // are lost.
+    const input = page.getByRole('dialog', { name: 'Search' }).getByRole('textbox')
+    await expect(input).toBeFocused()
+    const searched = page.waitForResponse(
+        r =>
+            r.url().includes('/api/search') &&
+            r.status() === 200 &&
+            new URL(r.url()).searchParams.get('q') === term
+    )
+    await page.keyboard.type(term)
+    await searched
+}
+
+// Searches the term and picks the one option whose title is exactly `title`. Waits only
+// for the expense's route, not for it to load.
+export async function searchToExpense(page: Page, term: string, title: string) {
+    await searchPalette(page, term)
+    const option = optionsTitled(page, new RegExp(`^${escapeRegExp(title)}$`))
+    await expect(option).toHaveCount(1)
+    await option.click()
+    await expect(page).toHaveURL(EXPENSE_URL)
+}
+
+// Reopens an expense through core's search palette (`/`), by a term only one expense
+// matches (a unique memo): a draft in the form, a posted or void expense in the read view.
+export async function openExpenseBySearch(page: Page, term: string) {
+    await searchPalette(page, term)
+    const option = optionsTitled(page, EXPENSE_OPTION_TITLE)
+    await expect(option).toHaveCount(1)
+    await option.click()
+    await expect(page).toHaveURL(EXPENSE_URL)
+    await expect(
+        page
+            .getByTestId('expense-form')
+            .or(page.getByTestId('expense-read-only'))
+            .filter({ visible: true })
+    ).toBeVisible()
+}
+
 // Desktop. Reopens the saved draft on screen without search: leaves through the sidebar's
 // Journal Entries item, then Back (a same-document popstate) returns to the draft's form.
 export async function reopenExpenseByBack(page: Page) {

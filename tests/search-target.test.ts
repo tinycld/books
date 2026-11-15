@@ -73,6 +73,15 @@ describe('searchTarget', () => {
         expect(searchTarget('bill:')).toBeNull()
     })
 
+    // Expense form spec §3.11: an expense hit (kind expense) opens the expense.
+    it('routes an expense hit to the expense screen', () => {
+        expect(searchTarget('expense:abc')).toEqual({
+            path: 'books/expenses/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('expense:')).toBeNull()
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('quote:1')).toBeNull()
         expect(searchTarget('invoice:')).toBeNull()

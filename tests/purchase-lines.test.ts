@@ -6,7 +6,7 @@ import {
     purchaseTablesShown,
 } from '../tinycld/books/lib/purchase-lines'
 
-// The Bill lines setting and the tables a bill form shows (spec §3.11): a table shows when
+// The Purchase lines setting and the tables a bill form shows (spec §3.11): a table shows when
 // the setting includes it, or when the bill the form opens with already has a line in it,
 // so editing an older bill never loses lines. Table order is kept.
 describe('purchaseTablesShown', () => {

@@ -394,7 +394,7 @@ function billVendorOf(party: DocumentPartyRow | null) {
     return vendor
 }
 
-// The bill's start: the Bill lines setting a new form starts from and whether the Account
+// The bill's start: the Purchase lines setting a new form starts from and whether the Account
 // picker lists the `?vendor` vendor's default expense account. A form given no start (a
 // unit test's) shows both tables, the setting's default, and lists no vendor account.
 function billStartOf(start: DocumentStart | undefined): {

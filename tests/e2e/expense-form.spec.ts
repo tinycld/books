@@ -2,7 +2,15 @@ import { expect, type Locator, type Page, type Request, test } from '@playwright
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { EXPENSE_REFUSALS } from '../../tinycld/books/lib/expense-form-fixture'
 import { formatDay } from '../../tinycld/books/lib/register-range'
-import { createAccount, openChart, PHONE } from './account-register-helpers'
+import {
+    accountItem,
+    createAccount,
+    DESKTOP,
+    openChart,
+    openRegister,
+    PHONE,
+} from './account-register-helpers'
+import { openPurchasesSettings, SETTINGS_ROW_PATH, setPurchaseLines } from './bill-helpers'
 import { batchAnswered, refuseBatchWrite } from './document-batch-helpers'
 import {
     clickNewExpense,
@@ -13,6 +21,7 @@ import {
     expenseItemLineRows,
     expenseLineRowId,
     NEW_EXPENSE_URL,
+    openExpenseBySearch,
     openNewExpense,
     pickExpenseLineAccount,
     pickExpenseLineProduct,
@@ -21,10 +30,12 @@ import {
     pickSelectOption,
     postExpense,
     reopenExpenseByBack,
+    searchToExpense,
 } from './expense-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
-import { batchOperations } from './journal-entries-helpers'
+import { batchOperations, openEntriesList, searchEntries } from './journal-entries-helpers'
 import { isDisabled } from './record-form-helpers'
+import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
 
 // The expense form and its read view (expense spec §3.1–§3.9), checkpoint 3. Every expense
 // is made by driving the form with a unique memo (and a unique Ref no. where a check
@@ -874,5 +885,465 @@ test.describe('expense-form: phone', () => {
         await page.getByTestId('delete-draft-confirm').click()
         await expect(page).not.toHaveURL(draftUrl)
         await expect(page.getByTestId('expense-form')).toHaveCount(0)
+    })
+})
+
+// Expenses across Books (expense spec §3.6, §3.8, §3.11), checkpoint 4: search, the
+// revision conflict, the journal entry's links back to the expense, and void.
+const EXPENSE_CONFLICT =
+    'This expense changed after you opened it. Load the current expense, then review it before you save or post.'
+const VOID_BODY = 'A reversing entry is posted in the original period. The number is kept.'
+// The Journal Entries list's rows, without their row menu buttons.
+const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
+
+function entryIdFromUrl(page: Page): string {
+    const match = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
+    const id = match?.[1]
+    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
+    return id
+}
+
+// The entry read view's lines, in one snapshot: account label, debit, credit and name.
+function readEntryLines(page: Page) {
+    return page.getByTestId('entry-read-only').evaluate(root => {
+        const text = (id: string) =>
+            (root.querySelector(`[data-testid="${id}"]`)?.textContent ?? '').trim()
+        const count = root.querySelectorAll('[data-testid^="entry-line-account-"]').length
+        return Array.from({ length: count }, (_, i) => ({
+            account: text(`entry-line-account-${i}`),
+            debit: text(`entry-line-debit-${i}`),
+            credit: text(`entry-line-credit-${i}`),
+            name: text(`entry-line-party-${i}`),
+        }))
+    })
+}
+
+// The Journal Entries list row of this memo's entries whose Type cell is exactly `type`
+// and whose status is `status`; returns its entry id.
+async function entryRowId(page: Page, type: RegExp, status: RegExp): Promise<string> {
+    const row = page
+        .locator(ROWS)
+        .filter({ has: page.locator('[data-testid^="entries-cell-type-"]', { hasText: type }) })
+        .filter({ has: page.locator('[data-testid^="entries-status-"]', { hasText: status }) })
+    await expect(row).toHaveCount(1)
+    return ((await row.getAttribute('data-testid')) ?? '').replace(/^entries-row-/, '')
+}
+
+// The row id of account line `index` inside one mounted expense form (the stack may keep
+// an earlier form of the same draft mounted and hidden).
+async function formLineRowId(form: Locator, index: number): Promise<string> {
+    const prefix = 'form-table-account_lines-row-'
+    const testId = await form
+        .locator(`[data-testid^="${prefix}"]`)
+        .nth(index)
+        .getAttribute('data-testid')
+    if (!testId) throw new Error(`no account line ${index + 1}`)
+    return testId.slice(prefix.length)
+}
+
+// A second session opens the draft by its memo, sets account line 1's amount to 50.00
+// and saves it.
+async function saveOtherAmount(other: Page, memo: string) {
+    await openBooks(other)
+    await openExpenseBySearch(other, memo)
+    const form = other.getByTestId('expense-form').filter({ visible: true })
+    await expect(form.getByTestId('form-input-memo')).toHaveValue(memo)
+    const otherLine = await expenseLineRowId(other, 'account_lines', 0)
+    await other.getByTestId(expenseCellTestId('account_lines', otherLine, 'amount')).fill('50.00')
+    await form.getByTestId('expense-title').click()
+    await expect(form.getByTestId('expense-total')).toContainText(money(5_000))
+    const saved = batchAnswered(other, 'books_expenses', 'PATCH', 200)
+    await form.getByTestId('expense-save-draft').click()
+    await saved
+}
+
+test.describe('expense-form: across Books', () => {
+    test('finds expenses through search', async ({ page, browser }) => {
+        const postedMemo = uniqueMemo('Expense search posted')
+        const draftMemo = uniqueMemo('Expense search draft')
+        const ref = uniqueRef('SRCH')
+        await openBooks(page)
+
+        await openNewExpense(page)
+        await pickExpenseVendor(page, SUMMIT)
+        await pickPaidFrom(page, CHECKING)
+        await page.getByTestId('form-input-reference_no').fill(ref)
+        const line1 = await expenseLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(expenseCellTestId('account_lines', line1, 'amount')).fill('72.00')
+        await page.getByTestId('form-input-memo').fill(postedMemo)
+        const number = await postExpense(page)
+        const postedId = expenseIdFromUrl(page)
+
+        // A draft with no vendor.
+        await openNewExpense(page)
+        await pickPaidFrom(page, CHECKING)
+        await pickExpenseLineAccount(page, 0, '6100 Rent')
+        const draftLine = await expenseLineRowId(page, 'account_lines', 0)
+        await page
+            .getByTestId(expenseCellTestId('account_lines', draftLine, 'amount'))
+            .fill('30.00')
+        await page.getByTestId('form-input-memo').fill(draftMemo)
+        await page.getByTestId('expense-save-draft').click()
+        await expect(page).toHaveURL(EXPENSE_URL)
+        const draftForm = page.getByTestId('expense-form')
+        await expect(draftForm.getByTestId('expense-title')).toHaveText('Draft expense')
+        const draftId = expenseIdFromUrl(page)
+
+        // By the posted expense's Ref no.: its read view. Out of the text fields first, so
+        // `/` opens the search palette.
+        await draftForm.getByTestId('expense-title').click()
+        await searchToExpense(page, ref, `Expense ${number} · ${SUMMIT}`)
+        await expect(page).toHaveURL(DRAFT_URL_OF(postedId))
+        // The draft's form stays mounted under the pushed read view: scope to the screen.
+        const readView = page.getByTestId('expense-read-only')
+        await expect(readView).toBeVisible()
+        await expect(readView.getByTestId('expense-title')).toHaveText(`Expense ${number}`)
+
+        // By the draft's memo: its form.
+        await searchToExpense(page, draftMemo, 'Draft expense')
+        await expect(page).toHaveURL(DRAFT_URL_OF(draftId))
+        const form = page.getByTestId('expense-form').filter({ visible: true })
+        await expect(form).toBeVisible()
+        await expect(form.getByTestId('form-input-memo')).toHaveValue(draftMemo)
+
+        // The revision conflict: a second session saves the draft after this one opened it.
+        const ownLine = await formLineRowId(form, 0)
+        const ownAmount = form.getByTestId(expenseCellTestId('account_lines', ownLine, 'amount'))
+        await expect(ownAmount).toHaveValue('30.00')
+
+        // This session changes its memo first: what it typed stays from here.
+        const changedMemo = `${draftMemo} changed`
+        await form.getByTestId('form-input-memo').fill(changedMemo)
+        await form.getByTestId('expense-title').click()
+        const context = await browser.newContext()
+        try {
+            await saveOtherAmount(await context.newPage(), draftMemo)
+
+            // This session saves: refused, with its URL and typed memo kept.
+            await form.getByTestId('expense-save-draft').click()
+            const conflict = page.getByTestId('expense-conflict').filter({ visible: true })
+            await expect(conflict).toContainText(EXPENSE_CONFLICT)
+            await expect(page).toHaveURL(DRAFT_URL_OF(draftId))
+            await expect(form.getByTestId('form-input-memo')).toHaveValue(changedMemo)
+
+            // Load the current expense: the notice goes and the stored expense replaces what was typed.
+            const reload = page.getByTestId('expense-conflict-reload').filter({ visible: true })
+            await expect(reload).toHaveText('Load the current expense')
+            await reload.click()
+            await expect(conflict).toHaveCount(0)
+            const reloadedLine = await formLineRowId(form, 0)
+            await expect(
+                form.getByTestId(expenseCellTestId('account_lines', reloadedLine, 'amount'))
+            ).toHaveValue('50.00')
+            await expect(form.getByTestId('expense-total')).toContainText(money(5_000))
+            await expect(form.getByTestId('form-input-memo')).toHaveValue(draftMemo)
+        } finally {
+            await context.close()
+        }
+    })
+
+    test("links an expense's journal entry back to the expense", async ({ page }) => {
+        const memo = uniqueMemo('Expense entry link')
+        await openBooks(page)
+        await openNewExpense(page)
+        await pickExpenseVendor(page, SUMMIT)
+        await pickPaidFrom(page, CHECKING)
+        const line1 = await expenseLineRowId(page, 'account_lines', 0)
+        const account1 = cellOf(page, 'account_lines', line1)
+        await expect(account1('account')).toContainText('6200 Software Subscriptions')
+        await account1('amount').fill('150.00')
+        await page.getByTestId('form-input-memo').fill(memo)
+        const number = await postExpense(page)
+        const id = expenseIdFromUrl(page)
+
+        // J: the entry, typed Expense with the expense's number; it debits 6200 and credits
+        // 1000 Business Checking, each line naming the vendor.
+        await page.keyboard.press('j')
+        await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
+        const entryId = entryIdFromUrl(page)
+        const entry = page.getByTestId('entry-read-only')
+        await expect(entry).toBeVisible()
+        await expect(entry.getByTestId('entry-detail-type')).toContainText('Expense')
+        await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
+        await expect
+            .poll(async () => {
+                const lines = await readEntryLines(page)
+                const expense = lines.find(l => l.account === '6200 Software Subscriptions')
+                const paidFrom = lines.find(l => l.account === CHECKING)
+                return {
+                    count: lines.length,
+                    expenseDebit: expense?.debit,
+                    paidFromCredit: paidFrom?.credit,
+                    names: [...new Set(lines.map(l => l.name))],
+                }
+            })
+            .toEqual({
+                count: 2,
+                expenseDebit: money(15_000),
+                paidFromCredit: money(15_000),
+                names: [SUMMIT],
+            })
+
+        // Journal Entries: Type and No.; the row menu offers Open and Edit, and no Reverse.
+        // Open goes to the expense.
+        await openEntriesList(page)
+        await searchEntries(page, memo)
+        await expect(page.getByTestId(`entries-cell-type-${entryId}`)).toHaveText('Expense')
+        await expect(page.getByTestId(`entries-cell-number-${entryId}`)).toHaveText(number)
+        await page.getByTestId(`entries-row-menu-${entryId}`).click()
+        await expect(page.getByTestId('entries-menu-edit')).toBeVisible()
+        await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
+        await page.getByTestId('entries-menu-open').click()
+        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expect(page.getByTestId('expense-read-only')).toBeVisible()
+
+        // Edit opens the correction; Post it with $160.00.
+        await openEntriesList(page)
+        await searchEntries(page, memo)
+        await page.getByTestId(`entries-row-menu-${entryId}`).click()
+        const editUrl = new RegExp(`/books/expenses/new\\?replaces=${id}$`)
+        await page.getByTestId('entries-menu-edit').click()
+        await expect(page).toHaveURL(editUrl)
+        await expect(page.getByTestId('expense-title')).toHaveText(`Edit ${number}`)
+        const line = await expenseLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(expenseCellTestId('account_lines', line, 'amount')).fill('160.00')
+        await page.getByTestId('expense-post').click()
+        await expect(page).toHaveURL(EXPENSE_URL)
+        expect(expenseIdFromUrl(page)).not.toBe(id)
+        await expect(page.getByTestId('expense-title')).toHaveText(`Expense ${number}`)
+        await expect(page.getByTestId('expense-total')).toContainText(money(16_000))
+
+        // The search keeps the rows of this memo (the original and the correction); the
+        // original is the Void one typed "Expense", and Open reaches it.
+        await openEntriesList(page)
+        await searchEntries(page, memo)
+        const originalEntry = await entryRowId(page, /^Expense$/, /^Void$/)
+        await page.getByTestId(`entries-row-menu-${originalEntry}`).click()
+        await page.getByTestId('entries-menu-open').click()
+        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expect(page.getByTestId('expense-badge')).toHaveText('Void')
+        await expect(page.getByTestId('expense-replaced-by')).toHaveText(
+            `Replaced by ${number} (edited)`
+        )
+    })
+
+    test('voids a posted expense', async ({ page }) => {
+        const memo = uniqueMemo('Expense void')
+        const cardName = uniqueMemo('Expense void card')
+        await openBooks(page)
+        // A credit card account no other test posts to, so its register holds only this
+        // expense's entry and its void reversal.
+        await openChart(page)
+        await createAccount(page, cardName, { type: 'Credit card', detailType: 'Credit card' })
+        await page.getByTestId('books-nav-lists').click()
+        await openNewExpense(page)
+        await pickExpenseVendor(page, SUMMIT)
+        await pickPaidFrom(page, cardName)
+        const line1 = await expenseLineRowId(page, 'account_lines', 0)
+        await page.getByTestId(expenseCellTestId('account_lines', line1, 'amount')).fill('64.00')
+        await page.getByTestId('form-input-memo').fill(memo)
+        const number = await postExpense(page)
+
+        // V: the void dialog; confirming voids the expense.
+        await page.keyboard.press('v')
+        const dialog = page.getByTestId('void-dialog')
+        await expect(dialog).toBeVisible()
+        await expect(dialog).toContainText(VOID_BODY)
+        await page.getByTestId('void-confirm').click()
+        await expect(dialog).toHaveCount(0)
+        await expect(page.getByTestId('expense-badge')).toHaveText('Void')
+        await expect(page.getByTestId('expense-voided-by')).toContainText('Voided by')
+
+        // A void expense offers Copy and View journal entry only.
+        await expect(page.getByTestId('expense-read-copy')).toBeVisible()
+        await expect(page.getByTestId('expense-read-entry')).toBeVisible()
+        await expect(page.getByTestId('expense-read-edit')).toHaveCount(0)
+        await expect(page.getByTestId('expense-read-void')).toHaveCount(0)
+
+        // The void reversal of this expense's entry names its number and links back to the expense.
+        const expenseUrl = page.url()
+        await page.keyboard.press('j')
+        await expect(page).toHaveURL(/\/books\/entries\//)
+        await page.getByTestId('entry-link-reversed-by').click()
+        await expect(page.getByTestId('entry-detail-type')).toContainText('Void reversal')
+        const reverses = page.getByTestId('entry-link-reverses')
+        await expect(reverses).toHaveText(`Reverses ${number}`)
+        await reverses.click()
+        await expect(page).toHaveURL(expenseUrl)
+        await expect(page.getByTestId('expense-badge')).toHaveText('Void')
+
+        // The Paid from account's register names the reversal "Void reversal of <n>" (spec
+        // §3.11).
+        await openRegister(page, cardName)
+        const reversalType = page
+            .locator('[data-testid^="register-cell-type-"]')
+            .filter({ hasText: new RegExp(`^Void reversal of ${number}$`) })
+        await expect(reversalType).toHaveCount(1)
+
+        // Delete on the Paid from account of a void expense: the dialog gives the expense
+        // text, not the journal-lines one (spec §3.11, server order).
+        await openChart(page)
+        await accountItem(page, cardName).locator('[data-testid^="account-menu-"]').click()
+        await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
+        await expect(page.getByTestId('delete-account-dialog-body')).toContainText(
+            'This account paid 1 expense and cannot be deleted. Make it inactive instead.'
+        )
+    })
+})
+
+// Settings → Purchases → Purchase lines (expense spec §3.10). The setting is the shared
+// books_settings row: these tests and bill-form.spec.ts's "lines setting" tests run in
+// their own Playwright project before every other test (playwright.config.ts), in file
+// order on one worker, and each stores "Accounts and products" again in `afterEach` (a
+// `finally` would not run once a step waits out the test timeout).
+const SAVE_REFUSAL = 'Books could not save this setting.'
+const ITEM_HEADING = 'Product and service details'
+const PURCHASE_LINES_NOTE =
+    'Which line tables new bills and expenses show. A form still shows a table its record already has lines in.'
+
+// Every line row of a table anywhere on the page, so a table that is not drawn counts 0.
+function anyLineRows(page: Page, table: 'account_lines' | 'item_lines') {
+    return page.locator(`[data-testid^="form-table-${table}-row-"]`)
+}
+
+test.describe('expense-form: purchase lines setting', () => {
+    test.afterEach(async ({ page }) => {
+        await page.unrouteAll({ behavior: 'wait' })
+        await page.setViewportSize(DESKTOP)
+        await setPurchaseLines(page, 'Accounts and products')
+    })
+
+    test("Accounts only hides the product table but keeps an expense's product lines", async ({
+        page,
+    }) => {
+        const memo = uniqueMemo('Purchase lines accounts only')
+        await openBooks(page)
+        // Under the default: a posted expense with one product line (no vendor, so account
+        // line 1 stays empty and is dropped).
+        await openNewExpense(page)
+        await pickPaidFrom(page, CHECKING)
+        await page.getByTestId('form-table-item_lines-add').click()
+        const productLine = await pickExpenseLineProduct(page, 0, PATCH_CABLE)
+        const item = cellOf(page, 'item_lines', productLine)
+        await expect(item('rate')).toHaveValue('3.10')
+        await item('quantity').fill('5')
+        await page.getByTestId('form-input-memo').fill(memo)
+        const number = await postExpense(page)
+        const originalId = expenseIdFromUrl(page)
+        await expect(page.getByTestId('expense-read-only')).toContainText(PATCH_CABLE)
+
+        // The card, the select and the note name bills and expenses.
+        await openPurchasesSettings(page)
+        await expect(
+            page.getByText('Bills and expenses', { exact: true }).filter({ visible: true })
+        ).toBeVisible()
+        await expect(
+            page.getByText('Purchase lines', { exact: true }).filter({ visible: true })
+        ).toBeVisible()
+        await expect(
+            page.getByText(PURCHASE_LINES_NOTE, { exact: true }).filter({ visible: true })
+        ).toBeVisible()
+
+        // A refused save shows the server's text and keeps the chosen value.
+        const select = visibleTestId(page, 'books-settings-purchase-lines')
+        const save = visibleTestId(page, 'books-settings-purchase-lines-save')
+        await expect(select).toContainText('Accounts and products')
+        await page.route(`**${SETTINGS_ROW_PATH}*`, route =>
+            route.request().method() === 'PATCH'
+                ? route.fulfill({
+                      status: 400,
+                      contentType: 'application/json',
+                      body: JSON.stringify({ message: SAVE_REFUSAL, data: {} }),
+                  })
+                : route.fallback()
+        )
+        await select.click()
+        const accountsOnly = page.getByRole('menuitem', { name: 'Accounts only', exact: true })
+        await accountsOnly.click()
+        await expect(accountsOnly).toHaveCount(0)
+        await save.click()
+        await expect(visibleTestId(page, 'books-settings-purchase-lines-error')).toContainText(
+            SAVE_REFUSAL
+        )
+        await expect(select).toContainText('Accounts only')
+
+        // Saved once the server answers.
+        await page.unrouteAll({ behavior: 'wait' })
+        const stored = page.waitForResponse(
+            response =>
+                response.request().method() === 'PATCH' &&
+                new URL(response.url()).pathname === SETTINGS_ROW_PATH
+        )
+        await save.click()
+        expect((await stored).status()).toBe(200)
+        await expect(save).toBeDisabled()
+
+        // The section list (the phone rows; the wide rail draws no summaries).
+        await page.setViewportSize(PHONE)
+        await visibleTestId(page, 'books-settings-back').click()
+        await expect(visibleTestId(page, 'books-settings-section-purchases')).toContainText(
+            'Purchase lines: Accounts only'
+        )
+        await page.setViewportSize(DESKTOP)
+        await leaveSettings(page)
+
+        // New → Expense: Account details with one empty account line, no product table.
+        await openNewExpense(page)
+        await expect(page.getByTestId('expense-account-lines-heading')).toHaveText(
+            'Account details'
+        )
+        await expect(expenseAccountLineRows(page)).toHaveCount(1)
+        const line1 = await expenseLineRowId(page, 'account_lines', 0)
+        await expect(cellOf(page, 'account_lines', line1)('amount')).toHaveValue('')
+        await expect(page.getByTestId('expense-item-lines-heading')).toHaveCount(0)
+        await expect(
+            page.getByTestId('expense-form').getByText(ITEM_HEADING, { exact: true })
+        ).toHaveCount(0)
+        await expect(page.getByTestId('form-table-item_lines-add')).toHaveCount(0)
+
+        // ⌥P adds nothing: the product table registers no keys while it is not shown.
+        const rowMenu = page.getByTestId(`form-table-account_lines-menu-${line1}`)
+        await rowMenu.focus()
+        await expect(rowMenu).toBeFocused()
+        await page.keyboard.press('Alt+p')
+        await expect(anyLineRows(page, 'item_lines')).toHaveCount(0)
+        await expect(page.getByTestId('expense-item-lines-heading')).toHaveCount(0)
+        await expect(expenseAccountLineRows(page)).toHaveCount(1)
+
+        // Tab from the row menu: Add account line, then Memo (no product table stops).
+        const addAccount = page.getByTestId('form-table-account_lines-add')
+        await tabTo(page, addAccount)
+        await expect(addAccount).toContainText('Add account line')
+        await tabTo(page, page.getByTestId('form-input-memo'))
+        await page.getByTestId('expense-cancel').click()
+        await expect(page).not.toHaveURL(NEW_EXPENSE_URL)
+
+        // The earlier expense's read view shows every table that has lines.
+        await openExpenseBySearch(page, memo)
+        const readView = page.getByTestId('expense-read-only')
+        await expect(readView).toBeVisible()
+        await expect(readView).toContainText(ITEM_HEADING)
+        await expect(readView).toContainText(PATCH_CABLE)
+
+        // E: the correction still shows the product table with its line.
+        await page.keyboard.press('e')
+        await expect(page).toHaveURL(new RegExp(`/books/expenses/new\\?replaces=${originalId}$`))
+        await expect(page.getByTestId('expense-title')).toHaveText(`Edit ${number}`)
+        await expect(page.getByTestId('expense-item-lines-heading')).toHaveText(ITEM_HEADING)
+        await expect(expenseItemLineRows(page)).toHaveCount(1)
+        const correctionLine = await expenseLineRowId(page, 'item_lines', 0)
+        await expect(cellOf(page, 'item_lines', correctionLine)('product')).toContainText(
+            PATCH_CABLE
+        )
+
+        // Once shown in a form session a table stays shown, even after its last line is
+        // removed.
+        await page.getByTestId(`form-table-item_lines-menu-${correctionLine}`).click()
+        await page.getByRole('menuitem', { name: /^Remove/ }).click()
+        await expect(expenseItemLineRows(page)).toHaveCount(0)
+        await expect(page.getByTestId('expense-item-lines-heading')).toHaveText(ITEM_HEADING)
+        await expect(page.getByTestId('form-table-item_lines-add')).toContainText(
+            'Add product line'
+        )
     })
 })

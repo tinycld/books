@@ -1,7 +1,7 @@
 ---
 title: Settings
-summary: Company details, the close date and overrides, sales deposits and the default message, bill lines, document numbering, 1099s, and who can open Books.
-tags: [settings, close date, override, sales, default message, purchases, bill lines, numbering, 1099s, access]
+summary: Company details, the close date and overrides, sales deposits and the default message, purchase lines, document numbering, 1099s, and who can open Books.
+tags: [settings, close date, override, sales, default message, purchases, purchase lines, numbering, 1099s, access]
 order: 20
 ---
 
@@ -28,13 +28,13 @@ For more, see [Sales receipts](help://books:sales-receipts).
 
 ## Purchases
 
-To choose which line tables a new bill shows, open Settings and choose Purchases. Everyone with Books access sees the section; only a Books admin can change it. The Bills card has one setting, **Bill lines**, with its own Save button:
+To choose which line tables new bills and expenses show, open Settings and choose Purchases. Everyone with Books access sees the section; only a Books admin can change it. The Bills and expenses card has one setting, **Purchase lines**, with its own Save button:
 
-- Accounts and products (the default): a new bill shows Account details and Product and service details.
-- Accounts only: a new bill shows Account details only.
-- Products only: a new bill shows Product and service details only.
+- Accounts and products (the default): a new bill or expense shows Account details and Product and service details.
+- Accounts only: a new bill or expense shows Account details only.
+- Products only: a new bill or expense shows Product and service details only.
 
-A table that the setting hides still shows on a bill that already has lines in it, so editing an older bill never loses lines. For more, see [Bills](help://books:bills).
+A table that the setting hides still shows on a bill or expense that already has lines in it, so editing an older one never loses lines. For more, see [Bills](help://books:bills) and [Expenses](help://books:expenses).
 
 ## Numbering
 

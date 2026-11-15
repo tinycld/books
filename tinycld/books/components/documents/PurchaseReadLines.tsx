@@ -173,7 +173,7 @@ function ReadTable({ table, lines, currency, isPhone }: TableProps) {
 
 /**
  * A posted or void bill's lines, read only, with the amounts the server stored: one table
- * per line table that has lines (whatever the Bill lines setting), under the form's
+ * per line table that has lines (whatever the Purchase lines setting), under the form's
  * heading ("Account details", "Product and service details"), each line in the table of
  * its row kind. A grid on a wide screen, a card per line on a phone.
  */

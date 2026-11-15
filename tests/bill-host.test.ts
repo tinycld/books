@@ -81,8 +81,8 @@ describe('books:bill forms host', () => {
         expect(builtin('terms').locked).toBe(true)
     })
 
-    // A required built-in cannot be hidden, and the form hides the table the Bill lines
-    // setting leaves out.
+    // A required built-in cannot be hidden, and the form hides the table the Purchase
+    // lines setting leaves out.
     it('does not require either line table, so either may be hidden', () => {
         expect(builtin('account_lines').required).toBe(false)
         expect(builtin('item_lines').required).toBe(false)

@@ -22,7 +22,7 @@ import {
     reopenByBack,
     SETTINGS_ROW_PATH,
     searchToBill,
-    setBillLines,
+    setPurchaseLines,
 } from './bill-helpers'
 import { batchAnswered, refuseBatchWrite } from './document-batch-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
@@ -965,7 +965,7 @@ test.describe('bill-form: phone', () => {
 
 // Two refusals help/bills.md tells users about, through the real server (merge review A,
 // item 3). They live in this file, not in sales-documents-conflict.spec.ts, because every
-// new bill depends on the shared Bill lines setting, which this file's last tests change:
+// new bill depends on the shared Purchase lines setting, which this file's last tests change:
 // another file running beside them could get a bill with no account table.
 const BILL_CONFLICT =
     'This bill changed after you opened it. Load the current bill, then review it before you save or post.'
@@ -1141,9 +1141,10 @@ test.describe('bill-form: refusals from the server', () => {
     })
 })
 
-// Settings → Purchases → Bill lines (spec §3.11), checkpoint 5. The setting is the shared
-// books_settings row: only this file changes it, its tests run in order on one worker,
-// and each test stores "Accounts and products" again before it ends. The restore runs in
+// Settings → Purchases → Purchase lines (spec §3.11; renamed by expense spec §3.10). The
+// setting is the shared books_settings row: only the "lines setting" tests of this file and
+// expense-form.spec.ts change it, they run in their own Playwright project before every
+// other test, and each test stores "Accounts and products" again before it ends. The restore runs in
 // `afterEach`, not a `finally`: a step that waits out the test timeout closes the page
 // before a `finally` runs, so the restore then fails and hides the first error; an
 // `afterEach` gets its own time on the still open page.
@@ -1154,15 +1155,15 @@ function anyLineRows(page: Page, table: 'account_lines' | 'item_lines') {
     return page.locator(`[data-testid^="form-table-${table}-row-"]`)
 }
 
-async function restoreBillLines(page: Page) {
+async function restorePurchaseLines(page: Page) {
     await page.unrouteAll({ behavior: 'wait' })
     await page.setViewportSize(DESKTOP)
-    await setBillLines(page, 'Accounts and products')
+    await setPurchaseLines(page, 'Accounts and products')
 }
 
 test.describe('bill-form: bill lines setting', () => {
     test.afterEach(async ({ page }) => {
-        await restoreBillLines(page)
+        await restorePurchaseLines(page)
     })
 
     test("Accounts only hides the product table but keeps a bill's product lines", async ({
@@ -1186,8 +1187,8 @@ test.describe('bill-form: bill lines setting', () => {
 
         // A refused save shows the server's text and keeps the chosen value.
         await openPurchasesSettings(page)
-        const select = visibleTestId(page, 'books-settings-bill-lines')
-        const save = visibleTestId(page, 'books-settings-bill-lines-save')
+        const select = visibleTestId(page, 'books-settings-purchase-lines')
+        const save = visibleTestId(page, 'books-settings-purchase-lines-save')
         await expect(select).toContainText('Accounts and products')
         await page.route(`**${SETTINGS_ROW_PATH}*`, route =>
             route.request().method() === 'PATCH'
@@ -1203,7 +1204,7 @@ test.describe('bill-form: bill lines setting', () => {
         await accountsOnly.click()
         await expect(accountsOnly).toHaveCount(0)
         await save.click()
-        await expect(visibleTestId(page, 'books-settings-bill-lines-error')).toContainText(
+        await expect(visibleTestId(page, 'books-settings-purchase-lines-error')).toContainText(
             SAVE_REFUSAL
         )
         await expect(select).toContainText('Accounts only')
@@ -1218,13 +1219,13 @@ test.describe('bill-form: bill lines setting', () => {
         await save.click()
         expect((await stored).status()).toBe(200)
         await expect(save).toBeDisabled()
-        await expect(visibleTestId(page, 'books-settings-bill-lines-error')).toHaveCount(0)
+        await expect(visibleTestId(page, 'books-settings-purchase-lines-error')).toHaveCount(0)
 
         // The section list (the phone rows; the wide rail draws no summaries).
         await page.setViewportSize(PHONE)
         await visibleTestId(page, 'books-settings-back').click()
         await expect(visibleTestId(page, 'books-settings-section-purchases')).toContainText(
-            'Bill lines: Accounts only'
+            'Purchase lines: Accounts only'
         )
         await page.setViewportSize(DESKTOP)
         await leaveSettings(page)
@@ -1294,7 +1295,7 @@ test.describe('bill-form: bill lines setting', () => {
     test('Products only starts with a product line', async ({ page }) => {
         const memo = uniqueMemo('Bill lines products only')
         await openBooks(page)
-        await setBillLines(page, 'Products only')
+        await setPurchaseLines(page, 'Products only')
         await leaveSettings(page)
 
         // New → Bill: one empty product line and no account table.
