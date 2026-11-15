@@ -844,15 +844,15 @@ func setSalesDocTotals(kind salesDocKind, r *core.Record, totals documentTotalsR
 }
 
 // validateSalesDocLine checks one line write of an editable document (a draft,
-// a quote that is not closed): the line stays on its
-// document, the document holds at most maxDocumentLines lines, the line's kind
-// has its own cells and no others, a product the write chooses is active and
-// not a bundle, and the document's lines with this write still have a target
-// for every percent line and totals Books can store. It sets the line's
-// amount: Books computes it, so a write that sends one is refused, except on
-// an account line, which keeps the amount typed. While restateSalesDoc writes the document's lines, an update
-// that changes only the amount passes and any other update is refused. stored
-// is the record before an update, nil on a create.
+// a quote that is not closed): the line stays on its document, the document
+// holds at most maxDocumentLines lines, the line's kind has its own cells and
+// no others, a product the write chooses is active and not a bundle, and the
+// document's lines with this write still have a target for every percent line
+// and totals Books can store. It sets the line's amount: Books computes it, so
+// a write that sends one is refused, except on an account line, which keeps
+// the amount typed. While restateSalesDoc writes the document's lines, an
+// update that changes only the amount passes and any other update is refused.
+// stored is the record before an update, nil on a create.
 func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	docID := r.GetString(kind.ParentField)
 	if stored != nil && stored.GetString(kind.ParentField) != docID {

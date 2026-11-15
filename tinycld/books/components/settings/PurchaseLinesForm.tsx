@@ -8,30 +8,31 @@ import { purchaseLinesSchema, purchaseLinesValues } from '../../lib/settings-sch
 import type { BooksSettings } from '../../types'
 import { FieldNote, ReadOnlyRow } from './SectionCard'
 
-export const BILL_LINES_NOTE =
-    'The line tables a new bill starts with. A bill that already has lines of a hidden table still shows that table.'
+export const PURCHASE_LINES_NOTE =
+    'Which line tables new bills and expenses show. A form still shows a table its record already has lines in.'
 
-interface BillLinesFormProps {
+interface PurchaseLinesFormProps {
     settings: BooksSettings
     isAdmin: boolean
 }
 
-// "Bill lines" (bill form spec §3.11): an admin edits it on the card's own Save; everyone
-// else reads it (the books_settings update rule is admin-only).
-export function BillLinesForm({ settings, isAdmin }: BillLinesFormProps) {
+// "Purchase lines" (expense form spec §3.10): one setting for the line tables of new bills
+// and expenses. An admin edits it on the card's own Save; everyone else reads it (the
+// books_settings update rule is admin-only).
+export function PurchaseLinesForm({ settings, isAdmin }: PurchaseLinesFormProps) {
     if (!isAdmin) {
         return (
             <ReadOnlyRow
-                label="Bill lines"
+                label="Purchase lines"
                 value={PURCHASE_LINES_LABELS[settings.purchase_lines]}
-                testID="books-settings-bill-lines-readonly"
+                testID="books-settings-purchase-lines-readonly"
             />
         )
     }
-    return <BillLinesEditor settings={settings} />
+    return <PurchaseLinesEditor settings={settings} />
 }
 
-function BillLinesEditor({ settings }: { settings: BooksSettings }) {
+function PurchaseLinesEditor({ settings }: { settings: BooksSettings }) {
     const { form, submit, isPending, isDirty } = useSettingsForm({
         schema: purchaseLinesSchema,
         values: purchaseLinesValues(settings),
@@ -46,21 +47,21 @@ function BillLinesEditor({ settings }: { settings: BooksSettings }) {
                 <SelectInput
                     control={control}
                     name="purchase_lines"
-                    label="Bill lines"
+                    label="Purchase lines"
                     options={PURCHASE_LINES_OPTIONS}
-                    testID="books-settings-bill-lines"
+                    testID="books-settings-purchase-lines"
                 />
             </View>
-            <FieldNote text={BILL_LINES_NOTE} />
+            <FieldNote text={PURCHASE_LINES_NOTE} />
             <FormErrorSummary
-                testID="books-settings-bill-lines-error"
+                testID="books-settings-purchase-lines-error"
                 errors={rootErrorOnly(errors)}
                 showFieldNames={false}
                 isEnabled={isSubmitted}
             />
             <View className="flex-row">
                 <ServerActionButton
-                    testID="books-settings-bill-lines-save"
+                    testID="books-settings-purchase-lines-save"
                     isDisabled={isSaveDisabled}
                     onPress={submit}
                 >

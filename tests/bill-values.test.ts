@@ -20,8 +20,8 @@ import { BILL_KIND } from '../tinycld/books/lib/sales-document-kinds'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 
-// A bill form's start values (spec §3.3, §3.4, §3.6): a new form's by the Bill lines
-// setting, what a vendor pick fills, a copy's and a correction's.
+// A bill form's start values (spec §3.3, §3.4, §3.6): a new form's by the Purchase
+// lines setting, what a vendor pick fills, a copy's and a correction's.
 
 const idOf = (number: string) => `acc-${number}`
 

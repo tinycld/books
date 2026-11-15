@@ -26,7 +26,7 @@ A writer records money already paid — from a bank or credit card account, by c
 - On new, draft, correction and copy the Vendor picker has focus (web, every width). Vendor, Account and Product are Books `SearchPicker`s and open by typing (web); Paid from and Payment method are core `SelectInput`s (↑/↓, first-letter typeahead, Enter picks); native opens every picker by tap.
 - Tab order: Vendor → Paid from → Payment date → Payment method → Ref no. → custom fields → account line 1 (Account → Description → Amount → row menu) → … → "Add account line" → product line 1 (Product → Description → Qty → Rate → row menu) → … → "Add product line" → Memo → action bar. A table that is not shown (§3.10) has no Tab stops. Picking a vendor moves focus to Paid from.
 - Enter in Amount of the last account line adds an account line and focuses its Account picker; Enter in Rate of the last product line adds a product line and focuses its Product picker (core `addOnSubmit`; the native return key the same).
-- Keys, ⇧? group "Expense": Post ⌘↵, Post & new ⌘⇧↵, Save draft ⌘S, Cancel Esc, Delete draft ⌘⌫ (`FORM_KEYS`); Add account line ⌥↵ and Add product line ⌥P (each registered only while its table shows); the core row keys on the focused line. Read view: Edit E, Void V, Copy C, View journal entry J.
+- Keys, ⇧? group "Expense": Post ⌘↵, Post & new ⌘⇧↵, Save draft ⌘S, Cancel Esc, Delete draft ⌘⌫ (`FORM_KEYS`). ⇧? group "Lines" (core's table group): Add account line ⌥↵ and Add product line ⌥P (each registered only while its table shows) and the core row keys on the focused line. Read view: Edit E, Void V, Copy C, View journal entry J.
 - Every action button that has a key is a core `ShortcutButton` with `scopeOwner` from the screen's `useShortcutScope`.
 
 ### 3.3 Header band

@@ -1,9 +1,10 @@
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { Text } from 'react-native'
 import type { useAccountActions } from '../../hooks/useAccountActions'
+import { useAccountDeleteUsage } from '../../hooks/useAccountDeleteUsage'
 import type { AccountRow } from '../../hooks/useAccountsQuery'
-import { useAccountUsage } from '../../hooks/useAccountUsage'
-import { deleteBlockedMessage } from '../../lib/account-messages'
+import { deleteBlockedMessage, deleteReasonNeedsHint } from '../../lib/account-messages'
+import { ListBanner } from '../ListBanner'
 
 type Actions = ReturnType<typeof useAccountActions>
 
@@ -41,7 +42,7 @@ function DeleteAccountBody({
     actions,
     onClose,
 }: DeleteAccountDialogProps & { account: AccountRow }) {
-    const usage = useAccountUsage(account.id)
+    const usage = useAccountDeleteUsage(account.id)
     const blocked = usage.isReady ? deleteBlockedMessage(usage) : null
     const confirm = confirmFor(usage.isReady, blocked, account.inactive)
 
@@ -66,6 +67,7 @@ function DeleteAccountBody({
             hasCloseButton={false}
         >
             <Dialog.Body testID="delete-account-dialog-body">
+                <UsageLoadError isVisible={usage.loadFailed} onRetry={usage.retry} />
                 <BlockedExplanation reason={blocked} />
                 <Text className="text-sm text-foreground">{account.name}</Text>
                 <ActionError message={actions.actionError} />
@@ -98,15 +100,37 @@ function ConfirmButton({
     )
 }
 
+// Until the usage reads load the button stays at Checking..., so a failed read is
+// the only way out besides Cancel.
+function UsageLoadError({ isVisible, onRetry }: { isVisible: boolean; onRetry: () => void }) {
+    if (!isVisible) return null
+    return (
+        <ListBanner
+            testIdPrefix="delete-account-usage"
+            message="Books could not check where this account is used."
+            onRetry={onRetry}
+            isFlush
+        />
+    )
+}
+
 function BlockedExplanation({ reason }: { reason: string | null }) {
     if (!reason) return null
+    const needsHint = deleteReasonNeedsHint(reason)
     return (
         <>
             <Text className="text-sm font-medium text-foreground">{reason}</Text>
-            <Text className="text-sm text-muted-foreground">
-                It cannot be deleted. Make it inactive to hide it from lists.
-            </Text>
+            <BlockedHint isVisible={needsHint} />
         </>
+    )
+}
+
+function BlockedHint({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return (
+        <Text className="text-sm text-muted-foreground">
+            It cannot be deleted. Make it inactive to hide it from lists.
+        </Text>
     )
 }
 

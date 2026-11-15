@@ -1,6 +1,7 @@
 import { count, eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import type { LiveRecovery } from '../lib/live-recovery'
 
 // What stops an account's type from changing or the account from being deleted:
 // journal lines posted to it and sub-accounts under it (active or not, as the
@@ -29,9 +30,19 @@ export function useAccountUsage(accountId: string | null) {
                 .select(({ child }) => ({ children: count(child.id) }))
         },
     })
+    // Each part is non-empty only when its own query failed, so a retry restarts only
+    // the failed reads.
+    const recoveries: LiveRecovery[] = [
+        lineUsage.isError ? { queries: [lineUsage.collection], sources: [linesCollection] } : null,
+        childUsage.isError
+            ? { queries: [childUsage.collection], sources: [accountsCollection] }
+            : null,
+    ].filter(part => part !== null)
     return {
         lines: lineUsage.data?.[0]?.lines ?? 0,
         children: childUsage.data?.[0]?.children ?? 0,
         isReady: accountId === null || (lineUsage.isReady && childUsage.isReady),
+        loadFailed: lineUsage.isError || childUsage.isError,
+        recoveries,
     }
 }

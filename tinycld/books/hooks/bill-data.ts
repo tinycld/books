@@ -107,7 +107,7 @@ function useVendorAccountQuery(vendorId: string) {
 }
 
 /**
- * The form start of a bill: the Bill lines setting (Settings → Purchases), which decides
+ * The form start of a bill: the Purchase lines setting (Settings → Purchases), which decides
  * the tables a new form shows, and on a new form opened with `?vendor` whether the Account
  * picker lists the vendor's default expense account (isPurchaseAccountListed), which then
  * starts the first account line. The settings row is the screen's own read (its readiness,

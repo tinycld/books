@@ -176,11 +176,12 @@ export function copyNeedsPartyRow(
 
 // A kind's own input to its new form's values and to a copy's, which its data source
 // reads: none for an invoice or an estimate; for a sales receipt, how Deposit to is
-// chosen; for a bill, the Bill lines setting (which tables a new form shows) and, on a new
-// form opened with `?vendor`, whether the Account picker lists that vendor's default
-// expense account (only then does the first account line start with it; undefined
-// without `?vendor`); for an expense, the same and the ids of the active bank and credit
-// card accounts (a copy keeps its source's Paid from only when it is one of them).
+// chosen; for a bill, the Purchase lines setting (which tables a new form shows) and,
+// on a new form opened with `?vendor`, whether the Account picker lists that vendor's
+// default expense account (only then does the first account line start with it;
+// undefined without `?vendor`); for an expense, the same and the ids of the active bank
+// and credit card accounts (a copy keeps its source's Paid from only when it is one of
+// them).
 export type DocumentStart =
     | { kind: 'invoice' }
     | { kind: 'sales_receipt'; deposit: CopyDeposit }

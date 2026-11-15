@@ -279,8 +279,9 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     const status = useWatch({ control: chosen.form.control, name: 'status' })
     const isAcceptanceHidden =
         kind.lifecycle === 'quote' && !acceptanceShown(typeof status === 'string' ? status : '')
-    // A line table the form does not show (a bill's, by the Bill lines setting) is hidden
-    // the same way; host line tables that may be hidden are not required.
+    // A line table the form does not show (a bill's or an expense's, by the Purchase
+    // lines setting) is hidden the same way; host line tables that may be hidden are not
+    // required.
     const hiddenTables = useMemo(
         () => kind.lineTables.map(table => table.key).filter(key => !shownTables.includes(key)),
         [kind, shownTables]
