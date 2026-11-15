@@ -382,7 +382,12 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
             .click()
         await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
         await chooseAction(page, 'Edit')
+        await expect(page).toHaveURL(/\/entries\/new\?replaces=/)
         await page.getByTestId('entry-save-draft').click()
+        // The edit form shows the same badge and title, so wait for the saved draft's own
+        // screen (a new id, not the posted entry's) before pressing anything on it.
+        await expect(page).toHaveURL(/\/entries\/(?!new)[^/?#]+$/)
+        await expect.poll(() => entryIdOf(page)).not.toBe(replacementId)
         await expect(page.getByTestId('entry-badge')).toHaveText('Draft')
         await expect(page.getByTestId('entry-title')).toHaveText(`Edit ${number}`)
         await expect(page.getByTestId('entry-number')).toHaveText(number)

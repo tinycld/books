@@ -1083,3 +1083,99 @@ func TestSearch_FindsBills(t *testing.T) {
 	requireOnly([]string{"tamsin"}, "bill:"+posted.Id, "bill:"+voided.Id)
 	requireOnly([]string{"summit"})
 }
+
+func expenseRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "expense:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Spec §3.11: search finds expenses, drafts included, by number, Ref no.,
+// memo and the vendor's name. A row opens the expense (id expense:<id>, kind
+// expense) and is titled "Expense <n> · <Vendor>" or "Draft expense ·
+// <Vendor>", with no "· <vendor>" part when the expense has none. A void
+// expense stays findable, and a renamed vendor finds its expenses with no
+// reindex.
+func TestSearch_FindsExpenses(t *testing.T) {
+	env := newSearchEnv(t)
+	registerSalesDocGuards(env.app, expenseKind)
+	bindHostsByKey(t, env.app, expenseKind.HostKey)
+	ee := expenseEnvOn(t, env)
+	app, actor := env.app, env.users.bookkeeper.Id
+
+	postedDraft := ee.mkExpense(t, map[string]any{"vendor": ee.summit.Id, "reference_no": "zq73019", "memo": "rack ocelot wiring"})
+	mkExpenseLine(t, app, postedDraft, 0, accountLine(ee.software, 12500))
+	posted := mustPostExpense(t, app, postedDraft.Id, actor)
+	draft := ee.mkExpense(t, map[string]any{"vendor": ee.officeSupply.Id, "memo": "toner pangolin reorder"})
+	mkExpenseLine(t, app, draft, 0, accountLine(ee.designTools, 4000))
+	noVendorDraft := ee.mkExpense(t, map[string]any{"memo": "parking narwhal meter"})
+	mkExpenseLine(t, app, noVendorDraft, 0, accountLine(ee.software, 1800))
+	noVendor := mustPostExpense(t, app, noVendorDraft.Id, actor)
+	noVendorUnposted := ee.mkExpense(t, map[string]any{"memo": "coffee axolotl beans"})
+	mkExpenseLine(t, app, noVendorUnposted, 0, accountLine(ee.designTools, 2200))
+	voidedDraft := ee.mkExpense(t, map[string]any{"vendor": ee.summit.Id, "memo": "duplicate capybara charge"})
+	mkExpenseLine(t, app, voidedDraft, 0, accountLine(ee.software, 3000))
+	mustPostExpense(t, app, voidedDraft.Id, actor)
+	if err := voidExpenseAs(app, voidedDraft.Id, actor); err != nil {
+		t.Fatalf("void expense: %v", err)
+	}
+	voided := reload(t, app, "books_expenses", voidedDraft.Id)
+
+	postedNumber, noVendorNumber, voidedNumber := posted.GetString("number"), noVendor.GetString("number"), voided.GetString("number")
+	if postedNumber == "" || noVendorNumber == "" || voidedNumber == "" || voided.GetString("status") != statusVoid {
+		t.Fatalf("numbers %q, %q and %q, voided status %q: want three numbered expenses, one void",
+			postedNumber, noVendorNumber, voidedNumber, voided.GetString("status"))
+	}
+	titles := map[string]string{
+		"expense:" + posted.Id:           "Expense " + postedNumber + " · Summit IT Services",
+		"expense:" + draft.Id:            "Draft expense · Office Supply World",
+		"expense:" + noVendor.Id:         "Expense " + noVendorNumber,
+		"expense:" + noVendorUnposted.Id: "Draft expense",
+		"expense:" + voided.Id:           "Expense " + voidedNumber + " (void) · Summit IT Services",
+	}
+
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, env.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := expenseRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found expense rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "expense" {
+				t.Errorf("%q row %s title %q kind %v, want %q, expense", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"summit", postedNumber}, "expense:"+posted.Id)
+	requireOnly([]string{"summit"}, "expense:"+posted.Id, "expense:"+voided.Id)
+	requireOnly([]string{"office", "supply"}, "expense:"+draft.Id)
+	requireOnly([]string{noVendorNumber}, "expense:"+noVendor.Id)
+	requireOnly([]string{"zq73019"}, "expense:"+posted.Id)
+	requireOnly([]string{"ocelot"}, "expense:"+posted.Id)
+	requireOnly([]string{"pangolin"}, "expense:"+draft.Id)
+	requireOnly([]string{"narwhal"}, "expense:"+noVendor.Id)
+	requireOnly([]string{"axolotl"}, "expense:"+noVendorUnposted.Id)
+	requireOnly([]string{"capybara"}, "expense:"+voided.Id)
+
+	// A renamed vendor finds its expenses by the new name, with the new name
+	// in the title; the old name finds none.
+	setField(t, app, ee.summit, "display_name", "Tamsin Networks")
+	titles["expense:"+posted.Id] = "Expense " + postedNumber + " · Tamsin Networks"
+	titles["expense:"+voided.Id] = "Expense " + voidedNumber + " (void) · Tamsin Networks"
+	requireOnly([]string{"tamsin"}, "expense:"+posted.Id, "expense:"+voided.Id)
+	requireOnly([]string{"summit"})
+}

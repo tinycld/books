@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, sales tax liability]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability]
 order: 60
 ---
 
@@ -32,7 +32,9 @@ To change which accounts show, press the Rows chip and pick one:
 
 To show only some accounts, press Add filter, then Accounts. Type in Search to find an account by name, and pick one or more accounts. To pick all the accounts of one type, pick "All <type> accounts", for example "All Expense accounts". The types show in the order of the chart of accounts. Press Apply. To remove the filter, press the × on the Accounts chip. When the filter hides every row, press Clear filters.
 
-To see the lines of an account, press its row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Debit or Credit by its sign. The No. column stays blank on the lines. To open every account, press Expand all. When an account is open, the same button reads Collapse all.
+To see the lines of an account, press its row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Debit or Credit by its sign. The No. column stays blank on the lines. Press a line to open the transaction that posted it. To open every account, press Expand all. When an account is open, the same button reads Collapse all.
+
+To see the transactions behind the Debit or Credit of an account, press the figure (see "See the transactions behind an amount" below).
 
 When no account shows on the day, the report shows "No rows as of" and the day. To move the day to the end of the last fiscal year, press Show end of last fiscal year.
 
@@ -48,7 +50,7 @@ The sections show in the order of the chart of accounts. Each section has the ac
 
 - The first row of a section is Beginning balance. It shows the balance of the account on the day before the period starts. Asset, liability and equity accounts count all earlier posted lines. Income and expense accounts count only the lines from the start of the fiscal year that holds the first day of the period. The retained earnings account also counts the income and expense lines of earlier fiscal years. With All dates, every beginning balance is 0.00.
 - Each line of the section shows its date, Type (for example Journal entry, Transfer or "Void reversal of JE-12"), No. (the entry number), Name (the customer or vendor on the line), Description (the line memo, or the entry memo when the line has none), Split, Debit and Credit. Split shows the other account of the entry. When the entry has more than two lines, Split shows "-Split-".
-- The lines show in date order, then in the order they were posted.
+- The lines show in date order, then in the order they were posted. Press a line to open the transaction that posted it.
 - Balance is the running balance of the account after each line, by the normal side of the account. Asset and expense accounts add debits and subtract credits. Liability, equity and income accounts add credits and subtract debits. Thus a credit card or a loan shows a positive balance when you owe money on it, as in its register.
 - The Total row of a section shows the Debit and Credit totals of the section and, in Balance, the ending balance of the account.
 - The Total row at the end adds the Debit and Credit of every line that shows.
@@ -108,6 +110,8 @@ To change which accounts show, press the Rows chip and pick one:
 
 To see the lines of an account, press its account row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo. Current shows the amount of the line. Prior year shows the amount when the line is on or before the Prior year day, and 0.00 when it is not. Change and % change stay blank on the lines. Retained earnings and Net income do not open.
 
+To see the transactions behind the Current or Prior year figure of an account, press the figure (see "See the transactions behind an amount" below).
+
 To change how the numbers look, press Customize. You can divide by 1000, show amounts without cents, show negative numbers as -100 or (100) or in red, and hide the Current, Prior year, Change or % change column. The report opens with all four columns shown. Customize never changes the figures.
 
 On a phone, each row wraps onto two lines in the table: the account, then Current, Prior year and Change. A phone does not show % change. The table does not scroll sideways. On a narrow window, the account name gets shorter and ends in "…", and the figures always show in full.
@@ -120,7 +124,7 @@ The Journal shows every posted entry of a period with its debit and credit lines
 
 Each posted entry is one block in the report. The heading of a block shows the entry number and type, for example "JE-41 · Journal entry" or "TR-7 · Transfer". An entry with no number shows its type alone. The blocks show in date order, then in the order the entries were posted. All blocks are open when the report opens.
 
-- Each line of a block shows its date, Account (the account number and full name), Name (the customer or vendor on the line), Description (the line memo, or the entry memo when the line has none), Debit and Credit. A blank Debit or Credit is zero. The lines show in the order of the lines in the entry.
+- Each line of a block shows its date, Account (the account number and full name), Name (the customer or vendor on the line), Description (the line memo, or the entry memo when the line has none), Debit and Credit. A blank Debit or Credit is zero. The lines show in the order of the lines in the entry. Press a line to open the transaction that posted it.
 - Each block ends in its total row, for example "Total JE-41 · Journal entry", and the block total has an equal Debit and Credit.
 - The Total row at the end of the report adds the Debit and Credit of every line that shows, and they are equal.
 - Only posted entries show. Drafts never show. A voided entry and its void reversal both show, each as its own block, for example "JE-12 · Void reversal of JE-12".
@@ -169,7 +173,9 @@ To change which accounts show, press the Rows chip and pick one:
 - Non-zero shows the accounts with an amount for the period that is not zero. This is the default.
 - Active shows the accounts with a posted line in the period, also when the amount is zero.
 
-To see the lines of an account, press the account row. Its posted lines in the period open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Total. % of income stays blank on the lines. The computed rows, such as Gross profit, do not open.
+To see the lines of an account, press the account row. Its posted lines in the period open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Total. % of income stays blank on the lines. Press a line to open the transaction that posted it. The computed rows, such as Gross profit, do not open.
+
+To see the transactions behind the Total of an account or a section, or behind a month of the Profit and Loss by Month, press the figure (see "See the transactions behind an amount" below).
 
 To change how the numbers look, press Customize. You can divide by 1000, show amounts without cents, show negative numbers as -100 or (100) or in red, and hide the % of income column. Customize never changes the figures.
 
@@ -177,7 +183,42 @@ The report stays current. When someone posts or voids an entry, changes an accou
 
 On a phone, each row of the Profit and Loss wraps onto two lines in the table: the account; then Total and % of income. The table does not scroll sideways.
 
-The Profit and Loss by Month shows every month of the period in its own column, headed by the month, for example "Jan 2026". A month with no line reads 0.00. After the months come Total, for the whole period, and % of income, which is the share of Total in Total Income. A period can show at most 36 months. When the period is longer, the first 36 months show, and a notice tells how many months are left out. Total and % of income still count the whole period. With All dates, only the months that have a posted line show. The rows of the Profit and Loss by Month do not open. When the window is too narrow for all the columns on one line, each row shows the account and the first months on its first line, then the other figures on the lines below, in column order. The table does not scroll sideways.
+The Profit and Loss by Month shows every month of the period in its own column, headed by the month, for example "Jan 2026". A month with no line reads 0.00. After the months come Total, for the whole period, and % of income, which is the share of Total in Total Income. A period can show at most 36 months. When the period is longer, the first 36 months show, and a notice tells how many months are left out. Total and % of income still count the whole period. With All dates, only the months that have a posted line show. The rows of the Profit and Loss by Month do not open their lines, but each month figure and each Total figure of an account or a section opens its transactions. When the window is too narrow for all the columns on one line, each row shows the account and the first months on its first line, then the other figures on the lines below, in column order. The table does not scroll sideways.
+
+## See the transactions behind an amount
+
+To see the transactions behind an amount, press it. Books opens Transaction Detail by Account with the posted lines that make up the amount. On the web, the pointer underlines an amount that opens.
+
+These amounts open:
+
+- Profit and Loss: the Total of an account, and the Total of a section on its heading row and on its "Total <section>" row, for example "Total Expenses". % of income and the computed rows, such as Gross profit and Net income, do not open.
+- Profit and Loss by Month: each month and the Total of an account or a section. A month opens the lines of that month inside the period, so a period that starts on March 10 opens March 10 – 31 from the March column.
+- Balance Sheet: Current and Prior year of an account. Change, % change, the totals, Retained earnings and Net income do not open.
+- Trial Balance: Debit or Credit of an account. The retained earnings row and the Total row do not open.
+- The General Ledger, the Journal and Transaction Detail by Account show the lines already, so their amounts do not open.
+
+On a section heading of the Profit and Loss or the Profit and Loss by Month, press the name to fold the section, and press an amount to see its transactions.
+
+On a window that is 1360 px wide or more, the transactions show in a panel beside the statement, and the amount that you pressed stays marked. On a narrower window and on a phone, they open as their own report. When you narrow the window while the panel is open, the panel covers the statement, and its back link closes it.
+
+The panel shows its own Period and Accounts chips, its heading and its lines. In the panel and on a phone, each line wraps onto three lines: the date, Type and No.; then Name and Description; then Split and Amount. A change to a chip in the panel runs only the panel's report. After you change a chip in the panel, no amount of the statement stays marked. Press a line in the panel to open its transaction; Back on the transaction returns to the statement with the panel open. Press another amount to show its transactions in the same panel. To see the report with Customize, Share, Save as and Copy link, press Open as full report. To close the panel, press Close (✕) or Escape. When you open Customize, the panel closes.
+
+Transaction Detail by Account shows:
+
+- Period and Accounts chips that the press set. Period is the period of the statement, or the part of it that the amount covers, such as one month or the days up to the As of day. Accounts is the one account, or "All <type> accounts" for a section, for example "All Expense accounts".
+- One section for each account, in the order of the chart of accounts. Each line shows its date, Type, No., Name, Description, Split and Amount.
+- Amount is each line by the normal side of its account, so an expense reads positive and a refund to it reads negative.
+- The total of each section, and the Total of the report, equals the amount that you pressed, because they add the same posted lines. From a Trial Balance Credit of an asset or expense account, the total reads as a negative amount, for example -50.00.
+
+When you pick accounts of different types by hand, the Total adds the amount of each line by the normal side of its account type.
+
+The back link at the top of Transaction Detail by Account shows the name of the statement that you came from, for example "Profit and Loss". Press it, or Back in your browser or on your phone, to go back to the statement as you left it.
+
+Press a line to open its transaction. An invoice, sales receipt or bill line opens the document, a transfer line opens the transfer, and any other line opens the journal entry. Back on the transaction returns to the report.
+
+Transaction Detail by Account also opens from Reports, like the other Books reports. From Reports, it shows the lines of every account for This month to date until you pick accounts.
+
+On the web, ⌘-click or middle-click an amount to open Transaction Detail by Account in a new tab.
 
 ## Read the Sales Tax Liability report
 
@@ -210,7 +251,7 @@ On a phone, each row wraps onto three lines in the table: the name; then Gross t
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month and the Sales Tax Liability, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account and the Sales Tax Liability, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 

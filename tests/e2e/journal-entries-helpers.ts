@@ -43,8 +43,13 @@ export async function openEntriesList(page: Page) {
     // Wait on a screen, never on the desktop sidebar toggle: it shows on every Books route,
     // so it cannot say which screen a lazy route is about to mount. The Lists hub keeps its
     // cards mounted but hidden on desktop, so there its attached card is the landing signal.
+    // A record opened from the list (an entry, transfer, bill or expense) keeps the list
+    // mounted but hidden under it, ahead of the record's Back in the DOM, so only the visible
+    // one of the two is the screen on top.
     await expect(entries.or(back).or(listCard).first()).toBeAttached()
-    if (!(await listCard.count())) await expect(entries.or(back).first()).toBeVisible()
+    if (!(await listCard.count())) {
+        await expect(entries.or(back).filter({ visible: true }).first()).toBeVisible()
+    }
     if (await entries.isVisible()) return
     if (await back.isVisible()) {
         await back.click()

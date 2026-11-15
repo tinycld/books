@@ -127,7 +127,7 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await expect(row(page, marketing)).toHaveCount(0)
 
         // An account with journal activity cannot be deleted.
-        await openRowMenu(page, 'Business Checking')
+        await openRowMenu(page, "Owner's Equity")
         await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
         const blocked = page.getByTestId('delete-account-dialog-body')
         await expect(blocked).toBeVisible()
@@ -135,7 +135,7 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await expect(page.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0)
         await page.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(blocked).toHaveCount(0)
-        await expect(row(page, 'Business Checking')).toBeVisible()
+        await expect(row(page, "Owner's Equity")).toBeVisible()
 
         // A new, unused account can be deleted through the dialog.
         await createAccount(page, 'E2E Disposable', 'Income', 'Service income')

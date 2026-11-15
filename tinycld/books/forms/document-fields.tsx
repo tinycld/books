@@ -28,12 +28,6 @@ import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { customerPartyOf } from '../hooks/document-data'
 import { useDocumentCustomerOptions } from '../hooks/useDocumentCustomerOptions'
 import { type CustomerAddress, formatAddressLines } from '../lib/address'
-import {
-    isBillAccountListed,
-    VENDOR_PICKER_EMPTY_TEXT,
-    vendorPickerOptions,
-} from '../lib/bill-pickers'
-import { vendorBillFills } from '../lib/bill-values'
 import { PICKER_LIMIT } from '../lib/customer-tree'
 import { dueDateFor } from '../lib/document-dates'
 import {
@@ -42,12 +36,23 @@ import {
     defaultTaxRateId,
     lineTaxableDefaults,
 } from '../lib/document-fills'
-import { EMPTY_ADDRESS_TEXT, NO_CUSTOMER_TEXT, VENDOR_REF_HINT } from '../lib/document-texts'
+import {
+    EMPTY_ADDRESS_TEXT,
+    NO_CUSTOMER_TEXT,
+    NO_PARTY_TEXT,
+    NO_VENDOR_TEXT,
+    VENDOR_REF_HINT,
+} from '../lib/document-texts'
+import { textOf } from '../lib/form-values'
 import type { PaymentTermKey } from '../lib/payment-terms'
+import {
+    isPurchaseAccountListed,
+    VENDOR_PICKER_EMPTY_TEXT,
+    vendorPickerOptions,
+} from '../lib/purchase-pickers'
 import { DOCUMENT_PARTIES, type DocumentParty, ESTIMATE_KIND } from '../lib/sales-document-kinds'
 import { useDocumentBandStore } from '../stores/document-band-store'
 import { EmailField } from './contact-fields'
-import { isTableRow } from './document-line-cells'
 import { TaxRateField } from './tax-fields'
 import { PaymentTermsField } from './vendor-fields'
 
@@ -58,10 +63,6 @@ import { PaymentTermsField } from './vendor-fields'
 // DocumentForm's scope.
 
 const DIRTY = { shouldDirty: true } as const
-
-function textOf(value: unknown): string {
-    return typeof value === 'string' ? value : ''
-}
 
 // The stored terms key, or '' for anything else.
 function termsOf(value: unknown): PaymentTermKey {
@@ -150,7 +151,8 @@ function partyNounOf(party: DocumentParty): string {
 
 function partyTriggerLabel(value: string, scope: ReturnType<typeof useDocumentFormScope>) {
     const noun = partyNounOf(DOCUMENT_PARTIES[scope.kind.party])
-    if (!value) return scope.kind.customerRequired ? `Choose a ${noun}` : NO_CUSTOMER_TEXT
+    if (!value)
+        return scope.kind.customerRequired ? `Choose a ${noun}` : NO_PARTY_TEXT[scope.kind.party]
     if (scope.party) return scope.party.display_name
     return scope.isPartyLoading ? '…' : `Unknown ${noun}`
 }
@@ -386,25 +388,21 @@ function useVendorOptions(term: string, isOpen: boolean, storedId: string) {
     return { options, isLoading, loadFailed, retry, emptyText }
 }
 
-function rowsOf(value: unknown): TableRow[] {
-    if (!Array.isArray(value)) return []
-    const list: unknown[] = value
-    return list.filter(isTableRow)
-}
-
 /**
  * A vendor pick reads the vendor, and its default expense account when it has one, then
- * fills Mailing address, Terms and Due date, and the first account line's empty Account
- * when the Account picker lists that account (vendorBillFills). A read that fails leaves
- * the form as it was and shows the load error with Retry under the picker.
+ * sets each field the kind's `partyFills` returns (a bill's Mailing address, Terms, Due
+ * date, and the first account line's empty Account when the Account picker lists that
+ * account); a kind without `partyFills` fills nothing. "No vendor" (a kind whose vendor
+ * is optional) clears the vendor and fills nothing. A read that fails leaves the form as
+ * it was and shows the load error with Retry under the picker.
  */
 function useVendorPick(value: string, onChange: (value: unknown) => void) {
     const [vendorsCollection, accountsCollection] = useStore('books_vendors', 'books_accounts')
     const { getValues, setValue } = useFormContext<FormValues>()
-    const { kind } = useDocumentFormScope()
+    const { kind, partyFills } = useDocumentFormScope()
     // The last pick's read failed: local UI state that only this field shows.
     const [pickFailed, setPickFailed] = useState(false)
-    // The Account picker's own rule (isBillAccountListed, as billAccountOptions).
+    // The Account picker's own rule (isPurchaseAccountListed, as purchaseAccountOptions).
     const isListedAccount = async (id: string) => {
         if (id === '') return false
         const account = await queryOnce({
@@ -414,11 +412,15 @@ function useVendorPick(value: string, onChange: (value: unknown) => void) {
                     .where(({ a }) => eq(a.id, id))
                     .findOne(),
         })
-        return isBillAccountListed(account)
+        return isPurchaseAccountListed(account)
     }
     const pick = async (id: string) => {
-        if (id === value || id === '') return
+        if (id === value) return
         setPickFailed(false)
+        if (id === '') {
+            onChange('')
+            return
+        }
         try {
             const vendor = await queryOnce({
                 query: q =>
@@ -429,15 +431,9 @@ function useVendorPick(value: string, onChange: (value: unknown) => void) {
             })
             if (!vendor) throw new Error(`vendor ${id} not found`)
             const accountIsListed = await isListedAccount(vendor.expense_account)
-            const fills = vendorBillFills(vendor, accountIsListed, {
-                date: textOf(getValues('date')),
-                account_lines: rowsOf(getValues('account_lines')),
-            })
+            const fills = partyFills?.(vendor, accountIsListed, getValues()) ?? {}
             onChange(id)
-            setValue('mailing_address', fills.mailing_address, DIRTY)
-            setValue('terms', fills.terms, DIRTY)
-            setValue('due_date', fills.due_date, DIRTY)
-            if (fills.account_lines) setValue('account_lines', fills.account_lines, DIRTY)
+            for (const [key, fill] of Object.entries(fills)) setValue(key, fill, DIRTY)
         } catch (error) {
             log.warn(`books.${kind.key}`, 'vendor pick could not read the vendor', {
                 vendor: id,
@@ -450,10 +446,12 @@ function useVendorPick(value: string, onChange: (value: unknown) => void) {
 }
 
 /**
- * Vendor on a bill: a picker over active vendors by name. A stored vendor that is now
- * inactive shows by name with "(inactive)". Picking one fills the band (useVendorPick)
- * and moves focus on to Terms (the band's links are no field controls). Focused once at
- * open (usePartyFocus), on web only; native opens it by tap.
+ * Vendor on a purchase kind: a picker over active vendors by name. A stored vendor that
+ * is now inactive shows by name with "(inactive)". Picking one fills the band
+ * (useVendorPick) and moves focus on to the next field control (the band's links are no
+ * field controls). A kind whose vendor is optional offers "No vendor" first, and its
+ * empty trigger reads "No vendor" muted. Focused once at open (usePartyFocus), on web
+ * only; native opens it by tap.
  */
 export function VendorField({ value, onChange, disabled, label }: BuiltinFieldProps) {
     const id = textOf(value)
@@ -473,6 +471,9 @@ export function VendorField({ value, onChange, disabled, label }: BuiltinFieldPr
     const testID = `${scope.kind.testId}-${fieldKey}`
     const accessibilityLabel = `${label}: ${id ? triggerLabel : 'none'}`
     const showsLoadError = pickFailed || scope.partyLoadFailed
+    const noneOption = scope.kind.customerRequired
+        ? undefined
+        : { label: NO_VENDOR_TEXT, testID: `form-input-${fieldKey}-none` }
     return (
         <View testID={testID}>
             <SearchPicker
@@ -490,6 +491,7 @@ export function VendorField({ value, onChange, disabled, label }: BuiltinFieldPr
                 optionTestIdPrefix={`form-input-${fieldKey}-option`}
                 value={id}
                 onChange={onPick}
+                noneOption={noneOption}
                 isLoading={options.isLoading}
                 loadFailed={options.loadFailed}
                 onRetry={options.retry}

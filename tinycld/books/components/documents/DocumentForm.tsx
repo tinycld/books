@@ -28,6 +28,7 @@ import {
     type FooterSpans,
     footerSpansOf,
 } from '../../lib/document-footer-layout'
+import { documentFormTitle } from '../../lib/document-form-title'
 import { canDeleteStatus, type DocumentStatus, quoteStatusOf } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
@@ -497,20 +498,6 @@ function FooterRightSpan({ span }: { span: FooterSpan }) {
     return <View style={span} />
 }
 
-// A quote: its new title until the first save, then "Estimate 1001" by the
-// stored number. A posting kind: "Edit 1004" for a correction, new or saved; the kind's
-// draft title once the draft is stored; else its new title.
-export function documentFormTitle(
-    kind: SalesDocumentKind,
-    replacesNumber: string,
-    isStored: boolean,
-    number: string
-): string {
-    if (kind.lifecycle === 'quote') return isStored ? `${kind.noun} ${number}` : kind.newTitle
-    if (replacesNumber) return `Edit ${replacesNumber}`
-    return isStored ? kind.draftTitle : kind.newTitle
-}
-
 // A correction says what posting it does to the document it replaces.
 function ReplaceNote({ kind, number }: { kind: SalesDocumentKind; number: string }) {
     if (!number) return null
@@ -679,9 +666,11 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
     // opened later starts with them folded.
     const instanceId = useId()
     const bandKey = `${data.formKey}#${instanceId}`
+    const partyFills = documentKind.partyFills
     const scope = useMemo<DocumentFormScope>(
         () => ({
             kind,
+            partyFills,
             bandKey,
             currency: data.currency,
             party: formParty.party,
@@ -695,6 +684,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         }),
         [
             kind,
+            partyFills,
             bandKey,
             data.currency,
             data.taxOptions.rows,

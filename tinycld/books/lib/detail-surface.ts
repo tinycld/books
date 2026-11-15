@@ -1,10 +1,14 @@
+import { DETAIL_PANEL_WIDTH, type DetailSurface } from '@tinycld/core/lib/detail-surface'
 import type { ViewStyle } from 'react-native'
 
-export const DETAIL_PANEL_WIDTH = 480
-// Below this window width a 480 px panel leaves the list too narrow, so the record is a page.
-export const DETAIL_PANEL_MIN_WINDOW = 1360
-
-export type DetailSurface = 'panel' | 'page'
+// The panel-or-page rule is core's, so a Books record and a report drill switch to a
+// panel at the same window width.
+export {
+    DETAIL_PANEL_MIN_WINDOW,
+    DETAIL_PANEL_WIDTH,
+    type DetailSurface,
+    detailSurfaceFor,
+} from '@tinycld/core/lib/detail-surface'
 
 // How much of the content area an open record takes on the panel surface: a 480 px
 // panel beside the full list, or the rest of the row beside a column of names.
@@ -12,10 +16,6 @@ export type DetailWidth = 'panel' | 'record'
 export const RECORD_LIST_WIDTH = 320
 
 export type ListLayout = 'table' | 'names'
-
-export function detailSurfaceFor(windowWidth: number): DetailSurface {
-    return windowWidth >= DETAIL_PANEL_MIN_WINDOW ? 'panel' : 'page'
-}
 
 // Web: CSS pointer-events is inherited, so `none` on the container reaches every layer
 // the navigator draws (the transparent index screen would otherwise take every click on

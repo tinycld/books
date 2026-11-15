@@ -36,6 +36,7 @@ describe('help/reports.md', () => {
         '## Read the Trial Balance',
         '## Who sees Books reports',
         '## Build your own Books report',
+        '## See the transactions behind an amount',
     ])('has the heading "%s"', heading => {
         expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
     })
@@ -414,10 +415,86 @@ describe('help/reports.md', () => {
         expect(section('## Build your own Books report')).toContain(label)
     })
 
-    it('"Who sees Books reports" names the Profit and Loss and the Profit and Loss by Month', () => {
+    it('"Who sees Books reports" names the Profit and Loss, the Profit and Loss by Month and Transaction Detail by Account', () => {
         const who = section('## Who sees Books reports')
         expect(who).toContain('Profit and Loss by Month')
         expect(who.replaceAll('Profit and Loss by Month', '')).toContain('Profit and Loss')
+        expect(who).toContain('Transaction Detail by Account')
+    })
+
+    describe('the "See the transactions behind an amount" section', () => {
+        const see = section('## See the transactions behind an amount')
+        const sentences = see.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        // "Profit and Loss by Month" holds "Profit and Loss", so the P&L is looked for in
+        // the text without it.
+        it('names "Profit and Loss" apart from "Profit and Loss by Month"', () => {
+            expect(see.replaceAll('Profit and Loss by Month', '')).toContain('Profit and Loss')
+        })
+
+        it.each([
+            'Profit and Loss by Month',
+            'Balance Sheet',
+            'Trial Balance',
+            'Transaction Detail by Account',
+            'Open as full report',
+            'Close',
+            'Back',
+            'Period',
+            'Accounts',
+            'Reports',
+        ])('names "%s"', phrase => {
+            expect(see).toContain(phrase)
+        })
+
+        it("says in one sentence that the opened report's total equals the figure", () => {
+            expect(
+                oneSentence(/\btotal\b/i, /\b(equals?|same as|matches)\b/i, /\b(figure|amount)\b/i)
+            ).toBe(true)
+        })
+
+        it('says where the transactions show: beside the statement, else as their own report', () => {
+            expect(oneSentence(/\bbeside\b/i)).toBe(true)
+            expect(oneSentence(/\bown (report|screen)\b/i)).toBe(true)
+        })
+
+        it('says in one sentence that a line opens its transaction', () => {
+            expect(oneSentence(/\blines?\b/i, /\bopens?\b/i, /\btransaction\b/i)).toBe(true)
+        })
+
+        it('says that accounts of different types added by hand add their normal-side amounts', () => {
+            expect(oneSentence(/normal side/i, /\btypes?\b/i)).toBe(true)
+        })
+
+        it('writes no shortcut as "Ctrl" or "Cmd"', () => {
+            expect(see).not.toBe('')
+            expect(body).not.toMatch(/\b(Ctrl|Cmd)\b/)
+        })
+    })
+
+    it.each([
+        '## Read the Trial Balance',
+        '## Read the Balance Sheet',
+        '## Read the Profit and Loss',
+    ])('"%s" points to "See the transactions behind an amount"', heading => {
+        expect(section(heading)).toContain('See the transactions behind an amount')
+    })
+
+    it.each([
+        '## Read the General Ledger',
+        '## Read the Journal',
+    ])('"%s" says in one sentence that a line opens its transaction', heading => {
+        const sentences = section(heading).split(/(?<=[.!?])\s+/)
+        expect(
+            sentences.some(
+                sentence =>
+                    /\blines?\b/i.test(sentence) &&
+                    /\bopens?\b/i.test(sentence) &&
+                    /\btransaction\b/i.test(sentence)
+            )
+        ).toBe(true)
     })
 
     it('"Who sees Books reports" names the Journal with the Trial Balance and the General Ledger', () => {
