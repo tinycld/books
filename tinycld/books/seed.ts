@@ -39,8 +39,21 @@ import {
     SALES_RECEIPT_SEED_IDS,
     SALES_RECEIPTS,
 } from './lib/sales-receipt-form-fixture'
+import {
+    SALES_TAX_DOCUMENTS,
+    SALES_TAX_LIABILITY_VOID_TARGET,
+    type SalesDocumentFixture,
+    salesTaxLiabilitySeedMemo,
+} from './lib/sales-tax-liability-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
-import { CUSTOMER_TAX_PATCHES, TAX_AGENCIES, TAX_IDS, TAX_RATE_ROWS } from './lib/tax-rates-fixture'
+import {
+    CUSTOMER_TAX_PATCHES,
+    TAX_AGENCIES,
+    TAX_GROUPS,
+    TAX_IDS,
+    TAX_RATE_ROWS,
+    TAX_RATES,
+} from './lib/tax-rates-fixture'
 import { TRANSFER_SEED } from './lib/transfer-fixture'
 import { PRIOR_YEAR_SEED } from './lib/trial-balance-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
@@ -207,6 +220,9 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedSalesTax(pb, accountIds, customerIds)
     await seedInvoices(pb, ctx, customerIds)
     await seedSalesReceipts(pb, ctx, accountIds, customerIds)
+    // After the earlier seeded documents, so they keep their numbers.
+    await seedSalesTaxLiability(pb, ctx, accountIds, customerIds)
+    await retireSeededTax(pb)
     await seedEstimates(pb, customerIds)
     await seedPartyContacts(pb, customerIds)
     await seedDeclinedEstimates(pb, customerIds)
@@ -340,10 +356,11 @@ export async function seed1099(pb: PocketBase, accountIds: Map<string, string>):
 }
 
 // The fixture ids are valid PocketBase ids, so the seed sends them. Every
-// agency is created active, then the rates and groups (rates first, so each
-// group's components exist), and the inactive agencies are made inactive last:
-// the rate guard refuses a rate whose agency is inactive when the rate is
-// created, and an agency may go inactive once its rates are inactive.
+// agency, rate and group is created active (rates first, so each group's
+// components exist): the rate guard refuses a rate whose agency is inactive,
+// and the document guard refuses a document under an inactive rate, so the
+// sales tax liability documents under Retired rate and Old county rate post
+// first. retireSeededTax makes the fixture's inactive rows inactive after them.
 // `accountIds` maps a seed account number to the created account's id;
 // `customerIds` maps a customer-form fixture id to the created customer's id.
 export async function seedSalesTax(
@@ -361,7 +378,7 @@ export async function seedSalesTax(
         await pb.collection('books_tax_agencies').create({ id, name, inactive: false, account })
     }
     for (const row of TAX_RATE_ROWS) {
-        const { id, type, name, rate_ppm, agency, components, is_default, inactive } = row
+        const { id, type, name, rate_ppm, agency, components, is_default } = row
         await pb.collection('books_tax_rates').create({
             id,
             type,
@@ -370,11 +387,8 @@ export async function seedSalesTax(
             agency,
             components,
             is_default,
-            inactive,
+            inactive: false,
         })
-    }
-    for (const agency of TAX_AGENCIES.filter(a => a.inactive)) {
-        await pb.collection('books_tax_agencies').update(agency.id, { inactive: true })
     }
     // Customers are created before the tax rows exist, so their tax columns are
     // written after, by update, as a person would set them.
@@ -522,6 +536,109 @@ export async function seedSalesReceipts(
         await postSeedDocument(pb, 'books_sales_receipts', created, ctx.user.id)
     }
     await createSeedSalesReceipt(pb, accountIds, customerIds, SALES_RECEIPT_SEED_DRAFT_ID)
+}
+
+// Creates a sales tax liability fixture document as a draft, through the writes the
+// invoice and sales receipt forms make. The fixture ids are valid PocketBase ids and
+// are sent; the server numbers each document, so the fixture's numbers are not sent.
+async function createSalesTaxDocument(
+    pb: PocketBase,
+    fixture: SalesDocumentFixture,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const customer =
+        fixture.customer_fixture_id === '' ? '' : customerIds.get(fixture.customer_fixture_id)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: sales tax document ${fixture.id} names customer ${fixture.customer_fixture_id}, which was not created`
+        )
+    }
+    const header = {
+        id: fixture.id,
+        customer,
+        status: 'draft',
+        date: fixture.date,
+        tax_rate: fixture.tax_rate,
+        memo: salesTaxLiabilitySeedMemo(fixture.id),
+    }
+    if (fixture.kind === 'invoice') {
+        await pb
+            .collection('books_invoices')
+            .create({ ...header, due_date: fixture.date, terms: 'due_on_receipt' })
+    } else {
+        const depositTo = accountIds.get('1000')
+        if (depositTo === undefined) {
+            throw new Error(
+                `seed: sales tax receipt ${fixture.id} deposits to 1000, which was not created`
+            )
+        }
+        await pb
+            .collection('books_sales_receipts')
+            .create({ ...header, deposit_to: depositTo, payment_method: 'cash' })
+    }
+    // A line's own taxable flag decides its tax, not the product's.
+    const nonTaxable = fixture.subtotal - fixture.taxable
+    const lines = [
+        { rate: fixture.taxable, taxable: true },
+        { rate: nonTaxable, taxable: false },
+    ].filter(line => line.rate > 0)
+    const linesCollection =
+        fixture.kind === 'invoice' ? 'books_invoice_lines' : 'books_sales_receipt_lines'
+    const parentField = fixture.kind === 'invoice' ? 'invoice' : 'sales_receipt'
+    for (const [position, line] of lines.entries()) {
+        await pb.collection(linesCollection).create({
+            [parentField]: fixture.id,
+            position,
+            kind: 'item',
+            product: 'prodbookkeep001',
+            quantity: 1,
+            rate: line.rate,
+            taxable: line.taxable,
+        })
+    }
+}
+
+// Posts the SALES_TAX_DOCUMENTS fixture documents in order (spec §5: October 2026,
+// a group rate over two agencies, a sales receipt with no customer, a 0% rate, a
+// document with no taxable line), keeps the draft a draft, and voids
+// SALES_TAX_LIABILITY_VOID_TARGET after its post, so a dev book shows a void drop out.
+// The void is the update the invoice read view's Void sends: no revision (the server
+// refuses a void that sends one). `accountIds` maps a seed account number to the
+// created account's id; `customerIds` maps a customer-form fixture id to the created
+// customer's id.
+export async function seedSalesTaxLiability(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const fixture of SALES_TAX_DOCUMENTS) {
+        await createSalesTaxDocument(pb, fixture, accountIds, customerIds)
+        if (fixture.status === 'draft') continue
+        const collection = fixture.kind === 'invoice' ? 'books_invoices' : 'books_sales_receipts'
+        await postSeedDocument(pb, collection, fixture.id, ctx.user.id)
+        if (fixture.id === SALES_TAX_LIABILITY_VOID_TARGET) {
+            await pb
+                .collection(collection)
+                .update(fixture.id, { status: 'void', voided_by: ctx.user.id })
+        }
+    }
+}
+
+// Makes the fixture's inactive tax rows inactive once the documents under them are
+// posted: groups, then rates, then agencies, because the rate guard refuses a rate in
+// an active group and the agency guard an agency with active rates.
+export async function retireSeededTax(pb: PocketBase): Promise<void> {
+    for (const row of TAX_GROUPS.filter(g => g.inactive)) {
+        await pb.collection('books_tax_rates').update(row.id, { inactive: true })
+    }
+    for (const row of TAX_RATES.filter(r => r.inactive)) {
+        await pb.collection('books_tax_rates').update(row.id, { inactive: true })
+    }
+    for (const agency of TAX_AGENCIES.filter(a => a.inactive)) {
+        await pb.collection('books_tax_agencies').update(agency.id, { inactive: true })
+    }
 }
 
 // Creates the ESTIMATE_SEED_IDS fixture estimates, in order, through the writes the

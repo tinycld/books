@@ -75,17 +75,17 @@ export type SalesDocumentFixture = Pick<BooksInvoices, DocumentColumn> &
         taxable: number
     }
 
-type TaxLineColumn = 'component' | 'agency' | 'rate_ppm' | 'taxable_amount' | 'amount'
+type TaxLineColumn =
+    | 'component'
+    | 'agency'
+    | 'rate_ppm'
+    | 'gross_amount'
+    | 'taxable_amount'
+    | 'amount'
+    | 'currency'
 
-// gross_amount and currency do not exist yet: the migration checkpoint
-// (`<N>_add_books_tax_line_gross.js`, spec §5) adds them to both tax-line collections.
-// That checkpoint replaces this local addition with the generated
-// BooksInvoiceTaxLines / BooksSalesReceiptTaxLines fields.
 export type SalesTaxLineFixture = Pick<BooksInvoiceTaxLines, TaxLineColumn> &
-    Pick<BooksSalesReceiptTaxLines, TaxLineColumn> & {
-        gross_amount: number
-        currency: string
-    }
+    Pick<BooksSalesReceiptTaxLines, TaxLineColumn>
 
 function rateRow(id: string) {
     const row = TAX_RATE_ROWS.find(r => r.id === id)
@@ -266,6 +266,14 @@ export const SALES_TAX_DOCUMENTS: SalesDocumentFixture[] = [
         status: 'draft',
     }),
 ]
+
+// The document the seed posts and then voids, so a dev book shows a void drop out.
+export const SALES_TAX_LIABILITY_VOID_TARGET = 'stlinv000001046'
+
+/** The memo the seed gives a fixture document. */
+export function salesTaxLiabilitySeedMemo(id: string): string {
+    return `Seed sales tax ${id}`
+}
 
 /** The `<date> · <Invoice|Sales receipt> <number>[ · <customer>]` label of a document row. */
 export function documentLabel(d: SalesDocumentFixture): string {

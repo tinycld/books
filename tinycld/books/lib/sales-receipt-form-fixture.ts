@@ -428,12 +428,18 @@ function denverTaxLines(
     taxable: number,
     amounts: readonly [number, number, number]
 ): SalesReceiptTaxLineRecord[] {
+    const receipt = SALES_RECEIPTS.find(row => row.id === receiptId)
+    if (!receipt) {
+        throw new Error(`sales receipt fixture: tax lines name an unknown receipt ${receiptId}`)
+    }
     return DENVER_COMPONENTS.map((part, position) => ({
         id: `srct${tag}${position}`.padEnd(15, '0'),
         sales_receipt: receiptId,
         rate: TAX_IDS.denverCombined,
         ...part,
+        gross_amount: receipt.subtotal,
         taxable_amount: taxable,
+        currency: receipt.currency,
         amount: amounts[position],
         position,
         created: STAMP,

@@ -27,8 +27,8 @@
   **checkpoint:** none (decided at the design gate, before checkpoints)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, checkpoint 1, DEFERRAL: "Do step 5 (the ripple e2e run) was not done. … The other 19 specs … are still not run. … The driver must run them before the checkpoint is closed."
+  **rebutted because:** the runner ran Do 5 as part of gate 1 before the reviewers were dispatched; the implementer's prompt gave Do 5 to the runner. All 20 specs of Do 5 ran once on ports 7220/7221 in three runs, all green: `customer-pages-balance`, `customer-pages-transactions`, `customer-form-page`, `customer-form-list`, `invoice-form-post`, `sales-receipt-form`, `tax-rates-page` (21 passed); `tax-rates-actions`, `tax-rates-dialogs`, `list-paging`, `account-register-drawer`, `account-register-navigation`, `account-register-states`, `account-register-table` (25 passed); `chart-of-accounts-balance`, `general-ledger`, `journal-report`, `profit-and-loss`, `trial-balance`, `balance-sheet` (55 passed) — staging `cp/cp1-e2e-{1,2,3}.log`. Reviewer A read the same logs ("Ripple e2e logs cp1-e2e-1/2/3: 21, 25, 55 passed, no failure").
 
 ## Design notes
 - cp 0 · populated-390-*, rate-open-390-*, collapsed-390-*: bottom tab bar — a "Sales Stub" tab shows (the core e2e stub package is installed on the core branch's e2e stack); not in the shipped app.
@@ -40,6 +40,9 @@ with the reason, and shown to the human at the end)
 - cp 0 · reviewer A NOTE: a union row's id is its part record's id (ruling R1): two parts holding the same id join together and give two detail rows with one key. Random client ids cannot collide; fixed seed ids must stay unique across invoices and sales receipts (checkpoint 1's seed).
 - cp 0 · reviewer A NOTE: stub `ReturnForm` (`tests/scripts/reports-stub/screens/index.tsx.txt`) has no `onError`; a failed insert makes `addReturn` time out on "Saved …" instead of naming the cause (test fixture only).
 - cp 0 · reviewer A NOTE: ruling 11 (the phone view draws no cell for a blank amount) — accepted; the e2e pins it at 390.
+- cp 1 · reviewer A NOTE: the server numbers the seeded documents, so a seeded row's number and sequence are not the fixture's `number` / `sequence` (1040, 1042, …), and `documentLabel(fixture)` does not match a seeded row's label. Checkpoints 2 and 3 must not assert seeded document labels or date-then-number order from the fixture's numbers: read them from the snapshot, or assert only the documents the e2e creates.
+- cp 1 · reviewer A NOTE: `seed.ts` `seedSalesTaxLiability` sends `terms: 'due_on_receipt'` as a literal; the value is the one `seedInvoices` sends for the Due-on-receipt fixture invoice (`invoice-form-fixture.ts` 172/188/208), but no shared constant names it.
+- cp 1 · reviewer A/B NOTE: the gate-3 script lists the Files block's glob paths (`docs/plans/sales-tax-liability-reference/populated-*` …) as out-of-plan; it does not match `*` patterns (helix script, not this feature).
 
 ## Out-of-plan changes
 (core repo, checkpoint 0; files the checkpoint's Files block did not name)
@@ -50,6 +53,9 @@ with the reason, and shown to the human at the end)
 - `tests/e2e/reports-helpers.ts` — `ACTIVITY_SOURCE`, `addReturn` for the union e2e.
 - `tests/e2e/reports-period-pivot.spec.ts` — a step pinning the formula error now shown under the column (builder change from a whole-branch review finding).
 - `tests/scripts/reports-stub/pb-migrations/2090000300_salesstub.js.txt`, `tests/scripts/reports-stub/screens/index.tsx.txt`, `tests/scripts/reports-stub/server/register.go.txt` — the salesstub templates that hold `salesstub_returns` and the union source (core plan R13); `screens/index.tsx.txt` and `scaffold-reports-stub.ts` also reformatted at gate 1 (biome refused the scaffolded files).
+
+(books, checkpoint 1)
+- `tinycld/books/lib/invoice-form-fixture.ts`, `tinycld/books/lib/sales-receipt-form-fixture.ts` — their `denverTaxLines` build the generated `BooksInvoiceTaxLines` / sales-receipt tax-line type, which now requires `gross_amount` and `currency`, so tsc refused them; each now reads its document from `INVOICES` / `SALES_RECEIPTS` by id and sets `gross_amount` = its `subtotal`, `currency` = its `currency` (throws on an unknown id). Found by reviewers A and B; accepted.
 
 ## Phase notes
 - phase 1 (design gate 2026-11-14): no corrections to the intake extractions. Spark 1 (agency total shows the tax alone) accepted as a needs-extension spark → core G2.
@@ -96,6 +102,21 @@ with the reason, and shown to the human at the end)
 - commit: core 43cbaa8a (`feat(core): report union sources and blankAbove column totals`, branch books/p5-sales-tax-liability, not pushed; the core PR is the driver's). Produces names unchanged (`reports.SourcePart`, `Source.Parts`, `Column.BlankAbove` / `blankAbove`, `unknown_group` 422).
 - Do 5 (core PR) and the push: the driver's (per the driver's instruction to this runner).
 - left in the books tree for checkpoint 1's commit: the re-captured `sales-tax-liability-reference/{populated,rate-open,collapsed}-*` (Do 6).
+- human: review mode C, no message.
+
+## Checkpoint 1
+- test writer: `server/sales_tax_env_test.go` (`newSalesTaxEnv`, `docTaxLinesOf`; both document kinds bind on one app, no refusal), `server/tax_snapshot_gross_test.go` (`TestTaxSnapshotGrossAndCurrency`, `TestTaxSnapshotGrossFollowsCorrection`, `TestTaxLineGrossSchema`); red for the right reason: yes (the subtests read `gross_amount` 0 and `currency` "", the schema test accepted 1.5 and "usd": no such fields); untestable: none.
+- implementer: migration `pb-migrations/2100000017_add_books_tax_line_gross.js`; `writeTaxSnapshot` sets `gross_amount` (subtotal) and `currency`; fixture on the generated tax-line types with `SALES_TAX_LIABILITY_VOID_TARGET` and `salesTaxLiabilitySeedMemo`; `seed.ts` `seedSalesTax` all active, new `seedSalesTaxLiability` (private helper `createSalesTaxDocument`) and `retireSeededTax`, called after `seedSalesReceipts`, before `seedEstimates`. Seed ids: no other seed path sends an invoice or sales receipt id; the 11 fixture ids are distinct. DONE.
+- test disputes: none.
+- self-declared differences: (1) the seeded void sends `{ status: 'void', voided_by: ctx.user.id }`, not bare `{ status: 'void' }` — the seed runs as superuser and `stampActor` (`server/fields.go`) keeps the body value for a superuser, so a bare void leaves `voided_by` blank; no revision is sent (as the bills seed's void, `seed.ts`); accepted (reviewers A and B agree). (2) private helper `createSalesTaxDocument`. (3) the two fixture files under Out-of-plan changes. (4) a one-line comment above the two new calls in `seed()`.
+- gate 1: tests unedited: yes · `packages:generate`, `tinycld-pkg check` (biome, tsc, vitest 272 files / 5327 tests incl. `tests/seed-node.test.ts`), `go test ./...` pass · Do 5 ripple e2e, all 20 specs once, pass (21 + 25 + 55 passed; staging `cp/cp1-e2e-{1,2,3}.log`); no spec changed.
+- gate 2: n/a (nothing renders).
+- gate 3 A (correctness): 0 BLOCK, 0 DEFERRAL, 5 NOTE — out-of-plan PNGs (false positive: the Files block names them), the two fixture files (recorded under Out-of-plan changes), the void's `voided_by` (declared difference 1, accepted), seeded numbers differ from the fixture's and the `terms` literal (Design notes).
+- gate 3 B (conformance): script lines: 0 · finding 1 out-of-plan fixture files → accepted, recorded under Out-of-plan changes (no code change) · finding 2 void body departs from Do 4's letter → accepted as declared difference 1 (no code change) · DEFERRAL "Do 5 not run" → rebutted (see Rebuttals: the runner ran all 20 specs, green).
+- fix review: n/a (no accepted finding asked for a code change; no fix round) · rounds: 0.
+- gate 3 A notes: 3, listed under Design notes.
+- reviewer-caught deferrals: none (reviewer B's DEFERRAL rebutted).
+- commit: this commit (`feat(books): tax lines carry gross and currency; seed the sales tax liability documents`); it also holds checkpoint 0's re-captured `sales-tax-liability-reference/{populated,rate-open,collapsed}-*`.
 - human: review mode C, no message.
 
 ## Final review
