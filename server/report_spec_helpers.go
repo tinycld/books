@@ -61,6 +61,48 @@ func entryOpenPath() *reports.Node {
 	return op("case", append(args, op("concat", lit("books/entries/"), fld("entry", "id")))...)
 }
 
+// tdDrillTarget is a statement column's drill into Transaction Detail by
+// Account: the target's params per drilled group level, and on a pivot report
+// the values each month cell lays over them (nil on any other report).
+func tdDrillTarget(levels map[string]map[string]reports.DrillValue, pivotCells map[string]reports.DrillValue) *reports.Drill {
+	return &reports.Drill{Report: transactionDetailKey, Levels: levels, PivotCells: pivotCells}
+}
+
+// tdAccount is the account of a statement's account row: the id of the
+// byAccount group's record, the one item of Transaction Detail's Accounts.
+func tdAccount() *reports.Node { return rec("byAccount", "id") }
+
+// tdAccountOf is tdAccount as a drill value.
+func tdAccountOf() reports.DrillValue { return reports.DrillValue{Formula: tdAccount()} }
+
+// firstLine is the day of the account row's first posted line on or before
+// day d: where a drill's range starts, so it holds every line a balance on d
+// sums. No value when the account has no such line.
+func firstLine(d *reports.Node) *reports.Node {
+	return firstLineWhere(d)
+}
+
+// firstLineFY is firstLine inside the fiscal year that holds d: an income or
+// expense balance sums that fiscal year's lines only.
+func firstLineFY(d *reports.Node) *reports.Node {
+	return firstLineWhere(d, op("eq", op("fiscalYear", fld("date")), op("fiscalYear", d)))
+}
+
+func firstLineWhere(d *reports.Node, more ...*reports.Node) *reports.Node {
+	where := append([]*reports.Node{
+		op("eq", link("account"), tdAccount()),
+		op("eq", fld("posted"), lit(true)),
+		op("lte", fld("date"), d),
+	}, more...)
+	return &reports.Node{
+		Op:     "lookup",
+		Source: "books.journal_lines",
+		Where:  op("and", where...),
+		Value:  mustJSON(fld("date")),
+		Pick:   "min",
+	}
+}
+
 // accountsParam is the Accounts param of the Trial Balance, the General
 // Ledger and Transaction Detail by Account: any number of accounts, picked
 // one by one or a whole type at a time, with no default, so a report with no

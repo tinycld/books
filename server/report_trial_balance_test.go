@@ -281,6 +281,14 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 		t.Fatalf("the golden does not hold %s once", detailEnd)
 	}
 	golden := strings.Replace(trialBalanceGolden, detailEnd, `},"open":`+string(mustJSON(entryOpenPath()))+detailEnd[1:], 1)
+	// Report drill-down checkpoint 2 adds only the drill of Debit and Credit,
+	// the last key of each of those two columns (Debit first).
+	const figureEnd = `"total":"rows"}`
+	if strings.Count(golden, figureEnd) != 2 {
+		t.Fatalf("the golden does not hold %s twice (Debit and Credit)", figureEnd)
+	}
+	golden = strings.Replace(golden, figureEnd, `"total":"rows","drill":`+trialBalanceDebitDrillGolden+`}`, 1)
+	golden = strings.Replace(golden, figureEnd, `"total":"rows","drill":`+trialBalanceCreditDrillGolden+`}`, 1)
 	if got := string(mustJSON(trialBalanceSpec())); got != golden {
 		t.Errorf("the Trial Balance spec changed:\n got %s\nwant %s", got, golden)
 	}
@@ -895,3 +903,34 @@ func TestTrialBalanceLineOpens(t *testing.T) {
 // No./Debit/Credit max-content; general-ledger checkpoint 3, column-fit decision 3;
 // three lines since bill-form checkpoint 1, human decision 2026-11-13).
 const trialBalanceGolden = `{"version":4,"source":"books.journal_lines","params":[{"id":"asOf","type":"asOf","label":"As of","default":{"preset":"endOfLastMonth"}},{"id":"rows","type":"choice","label":"Rows","default":"nonzero","options":[{"value":"nonzero","label":"Non-zero"},{"value":"active","label":"Active"},{"value":"all","label":"All"}]},{"id":"accounts","type":"choice","label":"Accounts","optionsFrom":{"source":"books.accounts","value":[{"field":"id"}],"label":[{"field":"full_name"}],"group":[{"field":"type"}],"groupOrder":{"by":"declared"},"groupLabel":"All {group} accounts"},"multiple":true}],"columns":[{"id":"account","label":"Account","formula":{"op":"if","args":[{"op":"and","args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"asOf"}]}]}]},{"op":"lookup","value":{"path":[{"field":"id"}]},"where":{"op":"eq","args":[{"path":[{"field":"detail_type"}]},{"value":"retained_earnings"}]},"source":"books.accounts","pick":"min"},{"path":[{"link":"account"}]}]}},{"id":"number","label":"No.","formula":{"path":[{"field":"number"}],"record":"byAccount"},"detail":"blank"},{"id":"debit","label":"Debit","formula":{"op":"if","args":[{"op":"eq","args":[{"op":"count","args":[{"path":[{"field":"id"}]}]},{"value":0}]},{"value":null},{"op":"if","args":[{"op":"gte","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":0}]},{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":null}]}]},"total":"rows"},{"id":"credit","label":"Credit","formula":{"op":"if","args":[{"op":"lt","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":0}]},{"op":"sub","args":[{"value":0},{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]}]},{"value":null}]},"total":"rows"}],"filter":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"lte","args":[{"path":[{"field":"date"}]},{"param":"asOf"}]},{"op":"in","args":[{"col":"account"},{"param":"accounts"}]}]},"sort":[{"formula":{"op":"case","args":[{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"bank"}]},{"value":1},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"accounts_receivable"}]},{"value":2},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_current_asset"}]},{"value":3},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"fixed_asset"}]},{"value":4},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_asset"}]},{"value":5},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"accounts_payable"}]},{"value":6},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"credit_card"}]},{"value":7},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_current_liability"}]},{"value":8},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"long_term_liability"}]},{"value":9},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"equity"}]},{"value":10},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"income"}]},{"value":11},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_income"}]},{"value":12},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"cost_of_goods_sold"}]},{"value":13},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"expense"}]},{"value":14},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_expense"}]},{"value":15},{"value":16}]}},{"col":"number"},{"formula":{"path":[{"field":"full_name"}],"record":"byAccount"}},{"formula":{"path":[{"field":"date"}]}},{"formula":{"path":[{"link":"entry"},{"field":"sequence"}]}}],"groups":[{"id":"byAccount","col":"account","label":{"path":[{"field":"full_name"}],"record":"byAccount"},"fill":{"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"inactive"}]},{"value":false}]},{"op":"in","args":[{"path":[{"field":"id"}]},{"param":"accounts"}]}]}},"having":{"op":"or","args":[{"op":"eq","args":[{"param":"rows"},{"value":"all"}]},{"op":"and","args":[{"op":"eq","args":[{"param":"rows"},{"value":"active"}]},{"op":"gt","args":[{"op":"count","args":[{"path":[{"field":"id"}]}]},{"value":0}]}]},{"op":"ne","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":0}]}]}}],"detail":{"label":{"op":"concat","args":[{"path":[{"field":"date"}]},{"value":" · "},{"path":[{"link":"entry"},{"field":"number"}]},{"value":" · "},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"field":"memo"}]}]},{"path":[{"link":"entry"},{"field":"memo"}]},{"path":[{"field":"memo"}]}]}]}},"display":{"columns":{"account":{"minWidth":"5ch","whiteSpace":"normal","lineClamp":3},"credit":{"minWidth":"max-content"},"debit":{"minWidth":"max-content"},"number":{"minWidth":"max-content"}}}}`
+
+// The drills of Debit and Credit (report drill-down spec §5, checkpoint 2), written
+// out by hand: Transaction Detail by Account from the account's first posted line
+// (an income or expense account's first in the as-of day's fiscal year) to the as-of
+// day, for that one account. Accounts is blank, so the cell opens nothing, on the
+// retained-earnings row and on the side whose figure the column's own sign test
+// leaves blank: Debit opens when the net is 0 or more, Credit when it is below 0.
+const (
+	tbDrillNetGolden     = `{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]}`
+	tbDrillAccountGolden = `{"path":[{"field":"id"}],"record":"byAccount"}`
+	tbDrillLineWhere     = `{"op":"eq","args":[{"path":[{"link":"account"}]},` + tbDrillAccountGolden + `]},` +
+		`{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},` +
+		`{"op":"lte","args":[{"path":[{"field":"date"}]},{"param":"asOf"}]}`
+	tbDrillFirstLine   = `{"op":"lookup","value":{"path":[{"field":"date"}]},"where":{"op":"and","args":[` + tbDrillLineWhere + `]},"source":"books.journal_lines","pick":"min"}`
+	tbDrillFirstLineFY = `{"op":"lookup","value":{"path":[{"field":"date"}]},"where":{"op":"and","args":[` + tbDrillLineWhere +
+		`,{"op":"eq","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"asOf"}]}]}` +
+		`]},"source":"books.journal_lines","pick":"min"}`
+	tbDrillPeriod = `{"range":{"from":{"op":"if","args":[` +
+		`{"op":"in","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},` +
+		tbDrillFirstLineFY + `,` + tbDrillFirstLine + `]},"to":{"param":"asOf"}}}`
+	tbDrillRetained = `{"op":"eq","args":[{"path":[{"field":"detail_type"}],"record":"byAccount"},{"value":"retained_earnings"}]}`
+
+	trialBalanceDebitDrillGolden = `{"report":"books.transaction_detail","levels":{"byAccount":{` +
+		`"accounts":{"op":"if","args":[` + tbDrillRetained + `,{"value":null},` +
+		`{"op":"if","args":[{"op":"gte","args":[` + tbDrillNetGolden + `,{"value":0}]},` + tbDrillAccountGolden + `,{"value":null}]}]},` +
+		`"period":` + tbDrillPeriod + `}}}`
+	trialBalanceCreditDrillGolden = `{"report":"books.transaction_detail","levels":{"byAccount":{` +
+		`"accounts":{"op":"if","args":[` + tbDrillRetained + `,{"value":null},` +
+		`{"op":"if","args":[{"op":"lt","args":[` + tbDrillNetGolden + `,{"value":0}]},` + tbDrillAccountGolden + `,{"value":null}]}]},` +
+		`"period":` + tbDrillPeriod + `}}}`
+)
