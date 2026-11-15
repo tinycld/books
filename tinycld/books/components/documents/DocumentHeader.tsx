@@ -3,7 +3,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { Text, View } from 'react-native'
 import { type DocumentStatus, statusBadgeOf } from '../../lib/document-lifecycle'
 import { StatusBadge } from '../StatusBadge'
-import { useDocumentKind } from './document-kind-context'
+import { useDocumentChrome } from './document-chrome'
 
 interface DocumentHeaderProps {
     title: string
@@ -23,7 +23,7 @@ function ExpiredBadge({ isVisible, testID }: { isVisible: boolean; testID: strin
 // The status in the kind's lifecycle's words and tone; nothing for a status the
 // lifecycle does not have.
 function HeaderBadge({ status, testID }: { status: DocumentStatus; testID: string }) {
-    const { doc } = useDocumentKind()
+    const doc = useDocumentChrome()
     const badge = statusBadgeOf(doc.lifecycle, status)
     if (!badge) return null
     return <StatusBadge label={badge.label} tone={badge.tone} testID={testID} />
@@ -32,7 +32,7 @@ function HeaderBadge({ status, testID }: { status: DocumentStatus; testID: strin
 // Title, badges and help at the left; the kind's big figure at the right (under the title
 // on a phone).
 export function DocumentHeader({ title, status, figure, isExpired }: DocumentHeaderProps) {
-    const { doc } = useDocumentKind()
+    const doc = useDocumentChrome()
     const isPhone = useBreakpoint() === 'mobile'
     const layout = isPhone ? 'gap-2' : 'flex-row items-start justify-between gap-4'
     const figureClass = isPhone ? '' : 'items-end'

@@ -122,6 +122,14 @@ export const NEW_ACTIONS: NewAction[] = [
         takesCustomer: true,
     },
     {
+        id: 'receive_payment',
+        label: 'Receive payment',
+        href: 'books/payments/new',
+        column: 'customers',
+        available: true,
+        takesCustomer: true,
+    },
+    {
         id: 'vendor',
         label: 'Vendor',
         href: 'books/vendors/new',
@@ -244,13 +252,14 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
 }
 
-// The entry, customer, vendor, product, transfer, invoice, sales receipt, estimate, bill
-// and expense forms and the entry, transfer, invoice, sales receipt, estimate, bill and
-// expense views own the bottom of the phone screen, so the New button stays off them.
-// `/entries`, `/customers`, `/vendors` and `/products` alone are the lists, which keep
-// them; transfers, invoices, sales receipts, estimates, bills and expenses have no list.
+// The entry, customer, vendor, product, transfer, invoice, sales receipt, estimate, bill,
+// expense and payment forms and the entry, transfer, invoice, sales receipt, estimate,
+// bill, expense and payment views own the bottom of the phone screen, so the New button
+// stays off them. `/entries`, `/customers`, `/vendors` and `/products` alone are the
+// lists, which keep them; transfers, invoices, sales receipts, estimates, bills, expenses
+// and payments have no list.
 const FAB_FREE_SCREEN =
-    /\/books\/(entries|customers|vendors|products|transfers|invoices|sales-receipts|estimates|bills|expenses)\/[^/]+\/?$/
+    /\/books\/(entries|customers|vendors|products|transfers|invoices|sales-receipts|estimates|bills|expenses|payments)\/[^/]+\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)

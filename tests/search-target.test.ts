@@ -82,6 +82,15 @@ describe('searchTarget', () => {
         expect(searchTarget('expense:')).toBeNull()
     })
 
+    // Receive payment spec §3.9: a payment hit (kind payment) opens the payment.
+    it('routes a payment hit to the payment screen', () => {
+        expect(searchTarget('payment:abc')).toEqual({
+            path: 'books/payments/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('payment:')).toBeNull()
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('quote:1')).toBeNull()
         expect(searchTarget('invoice:')).toBeNull()
