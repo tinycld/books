@@ -1,0 +1,138 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "void",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1000,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Summit IT Services" },
+                { "clickMenuItem": "Summit IT Services" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "pause": 500 },
+                {
+                    "fillSelector": "input[data-testid^=\"form-table-account_lines-\"][data-testid$=\"-amount\"]",
+                    "value": "1280.00"
+                },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                {
+                    "fill": "form-input-memo",
+                    "value": "October managed services and one access point"
+                },
+                { "click": "bill-post" },
+                { "waitFor": "bill-read-only" },
+                { "waitFor": "bill-posted-by" },
+                { "click": "bill-read-void" },
+                { "waitFor": "void-dialog" },
+                { "click": "void-confirm" },
+                { "waitFor": "bill-voided-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Office Supply World" },
+                { "clickMenuItem": "Office Supply World" },
+                { "waitForHidden": "form-input-vendor-search" },
+                { "pause": 500 },
+                {
+                    "fillSelector": "input[data-testid^=\"form-table-account_lines-\"][data-testid$=\"-amount\"]",
+                    "value": "245.60"
+                },
+                { "fill": "form-input-ref_no", "value": "OSW-INV-558410" },
+                { "click": "form-table-item_lines-add" },
+                { "clickLabel": "Product or service, row 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "pause": 300 },
+                { "fill": "form-input-memo", "value": "Q4 design tools and patch cables" },
+                { "click": "bill-post" },
+                { "waitFor": "bill-read-only" },
+                { "waitFor": "bill-posted-by" },
+                { "click": "bill-read-edit" },
+                { "waitFor": "bill-form" },
+                { "waitFor": "bill-replace-note" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "reader",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1100,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "pause": 500 },
+                { "press": "/" },
+                { "pause": 500 },
+                { "type": "Office Supply World" },
+                { "pause": 1500 },
+                { "clickOption": "Bill 1002" },
+                { "waitFor": "bill-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./reader",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1100,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "pause": 500 },
+                { "press": "/" },
+                { "pause": 500 },
+                { "type": "Office Supply World" },
+                { "pause": 1500 },
+                { "clickOption": "Bill 1002" },
+                { "waitFor": "bill-read-only" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

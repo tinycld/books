@@ -32,6 +32,11 @@ export type RecordKind = {
     newTitle: string
     deleteTitle: string
     discardMessage: string
+    // Where a save lands: back on the list (default), or on the record's own page
+    // (customers: a create opens the new customer's page, an edit stays on it).
+    afterSave?: 'list' | 'record'
+    // A test id clicked after a record opens, when its form sits on a tab of the page.
+    formTab?: string
 }
 
 // Wide enough for the panel surface (DETAIL_PANEL_MIN_WINDOW is 1360).
@@ -270,24 +275,39 @@ export async function returnToBooks(page: Page) {
 }
 
 // Holds every load of `url`, so what it answers is not ready. `held` lists the held
-// loads; `release` lets them through.
+// loads; `release` lets them through, or, given `{ status }`, answers each held load
+// with that PocketBase-shaped error instead (a load seen loading, then failing).
 export async function holdLoads(page: Page, url: string) {
     let open = () => {}
     const released = new Promise<void>(resolve => {
         open = resolve
     })
     const held: string[] = []
+    let answer: { status: number } | undefined
     const handler = async (route: Route) => {
         held.push(route.request().url())
         await released
-        await route.continue()
+        if (answer === undefined) {
+            await route.continue()
+            return
+        }
+        await route.fulfill({
+            status: answer.status,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                status: answer.status,
+                message: 'Something went wrong.',
+                data: {},
+            }),
+        })
     }
     await page.route(url, handler)
     return {
         held,
         // Waits for the held handlers: removing a route under a pending handler hands
         // its request on, and the handler's own `continue` then fails.
-        release: async () => {
+        release: async (refusal?: { status: number }) => {
+            answer = refusal
             open()
             await page.unrouteAll({ behavior: 'wait' })
         },
@@ -436,7 +456,9 @@ export function recordFormHelpers(kind: RecordKind) {
         const pageBack = page.getByTestId(`${recordPrefix}-back`)
         const panelClose = page.getByTestId(`${recordPrefix}-close`)
         const notFoundBack = page.getByTestId(`${recordPrefix}-not-found-back`)
-        const listCard = page.getByTestId(kind.listCard)
+        // The shown hub's card: a Lists hub that a later screen covers stays mounted below
+        // it, so a second Lists press can leave two hubs in the stack.
+        const listCard = page.getByTestId(kind.listCard).filter({ visible: true })
         // A fresh page may reopen Books at its last route (the list, or a record), and
         // pressing the nav item over either would stack a second screen.
         await expect(
@@ -450,10 +472,16 @@ export function recordFormHelpers(kind: RecordKind) {
         // reading both again on each poll, instead of trusting one read of the URL.
         const recordPath = new RegExp(`/books/${kind.pathSegment}/[^/]+$`)
         const wayOut = pageBack.or(panelClose).or(notFoundBack).filter({ visible: true }).first()
+        // A record page beside the list (very wide window) has no back button: its title
+        // shows that it arrived.
+        const recordTitle = page.getByTestId(`${recordPrefix}-title`)
+        const hasRecordPage = kind.afterSave === 'record'
         await expect
             .poll(
                 async () =>
-                    (await wayOut.isVisible()) || !recordPath.test(new URL(page.url()).pathname)
+                    (await wayOut.isVisible()) ||
+                    !recordPath.test(new URL(page.url()).pathname) ||
+                    (hasRecordPage && (await recordTitle.isVisible()))
             )
             .toBe(true)
 
@@ -468,6 +496,15 @@ export function recordFormHelpers(kind: RecordKind) {
                 await leave.click()
                 await expect(leave).toBeHidden()
             }
+        }
+        // The page beside the list leaves on Escape while nothing is dirty.
+        if (
+            hasRecordPage &&
+            recordPath.test(new URL(page.url()).pathname) &&
+            (await recordTitle.isVisible())
+        ) {
+            await pressEscapeOutsideInputs(page)
+            await expect(page).not.toHaveURL(recordPath)
         }
         if (await list.isVisible()) return
 
@@ -509,6 +546,10 @@ export function recordFormHelpers(kind: RecordKind) {
         await search(page, name)
         await entry(page, name).click()
         await expect(surface(page)).toBeVisible()
+        if (kind.formTab) {
+            await page.getByTestId(kind.formTab).click()
+            await expect(page.getByTestId(kind.formTab)).toHaveAttribute('aria-selected', 'true')
+        }
     }
 
     // The input of a form field: core text kinds and ContactInput use `form-input-<key>`.
@@ -524,7 +565,11 @@ export function recordFormHelpers(kind: RecordKind) {
         await expect(page.getByTestId(`${recordPrefix}-title`)).toHaveText(kind.newTitle)
     }
 
-    // Creates a record through the New form and waits for the list to show again.
+    // A record's own URL (`<pathSegment>/<15-char id>`), with or without a tab param.
+    const recordPageUrl = new RegExp(`/books/${kind.pathSegment}/(?!new)[a-z0-9]{15}(\\?|$)`)
+
+    // Creates a record through the New form and waits for where a save lands: the list
+    // again, or (`afterSave: 'record'`) the new record's page with its name as the title.
     async function create(
         page: Page,
         values: { name: string; company?: string; email?: string; phone?: string }
@@ -539,6 +584,23 @@ export function recordFormHelpers(kind: RecordKind) {
             if (value !== undefined) await field(page, key).fill(value)
         }
         await page.getByTestId(`${recordPrefix}-save`).click()
+        if (kind.afterSave === 'record') {
+            await expect(page).toHaveURL(recordPageUrl)
+            await expect(page.getByTestId(`${recordPrefix}-title`)).toHaveText(values.name)
+            return
+        }
+        await expect(page.getByTestId(`${listPrefix}-list`)).toBeVisible()
+        await expect(surface(page)).toBeHidden()
+    }
+
+    // After an edit's Save: the list again, or (`afterSave: 'record'`) the page's save
+    // bar gone with the page still open.
+    async function expectEditSaved(page: Page) {
+        if (kind.afterSave === 'record') {
+            await expect(page.getByTestId(`${recordPrefix}-save-bar`)).toBeHidden()
+            await expect(page).toHaveURL(recordPageUrl)
+            return
+        }
         await expect(page.getByTestId(`${listPrefix}-list`)).toBeVisible()
         await expect(surface(page)).toBeHidden()
     }
@@ -772,6 +834,8 @@ export function recordFormHelpers(kind: RecordKind) {
         field,
         openNew,
         create,
+        expectEditSaved,
+        recordPageUrl,
         discardDialog,
         base,
         holdRecordWrite,

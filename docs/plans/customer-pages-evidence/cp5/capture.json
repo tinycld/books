@@ -1,0 +1,81 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "contacts",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280, 1600],
+            "height": 1000,
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-contacts" },
+                { "click": "customer-tab-contacts" },
+                { "waitForHidden": "customer-contacts-loading" },
+                { "waitFor": "customer-contacts" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "contacts-empty",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "actions": [
+                { "click": "customers-show-inactive" },
+                { "fill": "customers-search", "value": "Boise" },
+                { "clickText": "Northwind Boise (closed)" },
+                { "waitFor": "customer-tab-contacts" },
+                { "click": "customer-tab-contacts" },
+                { "waitFor": "customer-contacts-empty" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "contact-dialog",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [390, 1280],
+            "opaque": "contact-dialog",
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-contacts" },
+                { "click": "customer-tab-contacts" },
+                { "waitFor": "customer-contacts" },
+                { "clickLabel": "Actions for Dana Whitfield" },
+                { "click": "customer-contact-edit" },
+                { "waitFor": "contact-dialog" }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "settleMs": 800,
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-contacts" },
+                { "click": "customer-tab-contacts" },
+                { "waitForHidden": "customer-contacts-loading" },
+                { "waitFor": "customer-contacts" }
+            ]
+        }
+    ]
+}

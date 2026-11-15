@@ -1,0 +1,161 @@
+{
+    "outDir": "estimate-public-link-reference",
+    "shots": [
+        {
+            "name": "pending",
+            "url": "/a/books/helix-mockup?state=pending",
+            "ready": "estimate-public",
+            "hideLabels": ["New"],
+            "height": 1200
+        },
+        {
+            "name": "long",
+            "url": "/a/books/helix-mockup?state=long",
+            "ready": "estimate-public",
+            "hideLabels": ["New"],
+            "height": 1400
+        },
+        {
+            "name": "bare",
+            "url": "/a/books/helix-mockup?state=bare",
+            "ready": "estimate-public",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 1000
+        },
+        {
+            "name": "accept",
+            "url": "/a/books/helix-mockup?state=accept",
+            "ready": "estimate-public-accept-step",
+            "hideLabels": ["New"],
+            "height": 1200
+        },
+        {
+            "name": "accept-error",
+            "url": "/a/books/helix-mockup?state=accept-empty",
+            "ready": "estimate-public-accept-step",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                { "click": "estimate-public-accept-confirm" },
+                { "waitFor": "Enter your name." }
+            ]
+        },
+        {
+            "name": "accept-sending",
+            "url": "/a/books/helix-mockup?state=accept-sending",
+            "ready": "estimate-public-accept-step",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1200
+        },
+        {
+            "name": "accept-refused",
+            "url": "/a/books/helix-mockup?state=accept-refused",
+            "ready": "estimate-public-refusal",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "decline",
+            "url": "/a/books/helix-mockup?state=decline",
+            "ready": "estimate-public-decline-step",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "decline-typed",
+            "url": "/a/books/helix-mockup?state=decline-typed",
+            "ready": "estimate-public-decline-step",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 1400
+        },
+        {
+            "name": "decline-sending",
+            "url": "/a/books/helix-mockup?state=decline-sending",
+            "ready": "estimate-public-decline-step",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "decline-network",
+            "url": "/a/books/helix-mockup?state=decline-network",
+            "ready": "estimate-public-refusal",
+            "hideLabels": ["New"],
+            "height": 1400
+        },
+        {
+            "name": "accepted",
+            "url": "/a/books/helix-mockup?state=accepted",
+            "ready": "estimate-public-accepted",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "declined",
+            "url": "/a/books/helix-mockup?state=declined",
+            "ready": "estimate-public-declined",
+            "hideLabels": ["New"],
+            "height": 900
+        },
+        {
+            "name": "closed",
+            "url": "/a/books/helix-mockup?state=closed",
+            "ready": "estimate-public-closed",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "expired",
+            "url": "/a/books/helix-mockup?state=expired",
+            "ready": "estimate-public-expired",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "estimate-public-loading",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "estimate-public-not-found",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "load-error",
+            "url": "/a/books/helix-mockup?state=load-error",
+            "ready": "estimate-public-error",
+            "hideLabels": ["New"],
+            "height": 700
+        },
+        {
+            "name": "books-note",
+            "url": "/a/books/helix-mockup?state=books-note",
+            "ready": "estimate-decline-note",
+            "hideLabels": ["New"],
+            "height": 800
+        },
+        {
+            "name": "books-note-empty",
+            "url": "/a/books/helix-mockup?state=books-note-empty",
+            "ready": "estimate-decline-note",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 700
+        },
+        {
+            "name": "books-read-note",
+            "url": "/a/books/helix-mockup?state=books-read-note",
+            "ready": "estimate-read-decline-note",
+            "hideLabels": ["New"],
+            "height": 900
+        }
+    ]
+}

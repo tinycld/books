@@ -1,4 +1,4 @@
-// Line amounts and totals of a sales document (an invoice). The server recomputes
+// Line amounts and totals of a sales or purchase document. The server recomputes
 // them with the Go mirror in server/document_totals.go at every draft write;
 // server/testdata/document_totals.json is run by both sides so the two stay equal.
 //
@@ -13,14 +13,20 @@
 import { maxLineAmount, maxStoredAmount } from './money-text'
 import { MAX_RATE_PPM, taxOn } from './sales-tax'
 
-export type DocumentLineKind = 'item' | 'description' | 'subtotal' | 'percent'
+// `account` is a bill's account line, whose amount is typed rather than computed.
+export type DocumentLineKind = 'item' | 'description' | 'subtotal' | 'percent' | 'account'
 
+// A field a line's kind does not read may be left out: an item reads quantity and rate,
+// a percent line percentPpm, an account line amount; only an item or a percent line is
+// taxable.
 export type DocumentLineInput = {
     kind: DocumentLineKind
-    quantity: number
-    rate: number
-    percentPpm: number
-    taxable: boolean
+    quantity?: number
+    rate?: number
+    percentPpm?: number
+    taxable?: boolean
+    // An account line's typed amount in cents; may be negative.
+    amount?: number
 }
 
 // The header tax: the rate, or each component of the group, in parts per million.
@@ -37,9 +43,9 @@ export type DocumentTotals = {
     taxLines: { componentId: string; ppm: number; amount: number }[]
     taxTotal: number
     total: number
-    // A line amount past maxLineAmount, or a header tax that cannot be computed (a
-    // taxable total past 2^53-1, or a rate outside 0..100%). The total's own limit
-    // (maxStoredAmount) is the caller's check.
+    // A line amount past maxLineAmount, a subtotal or total past maxStoredAmount, or a
+    // header tax that cannot be computed (a taxable total past 2^53-1, or a rate outside
+    // 0..100%).
     isTooLarge: boolean
 }
 
@@ -101,16 +107,23 @@ function absolute(value: bigint) {
     return value < 0n ? -value : value
 }
 
-// The amount of each line in order: an item is Qty x Rate; a subtotal sums the item
-// and percent amounts since the previous subtotal; a percent line takes its percent
-// of the item or subtotal right above it.
+// The amount of each line in order: an item is Qty x Rate; an account line is its typed
+// amount (negative allowed); a subtotal sums the item, account and percent amounts since
+// the previous subtotal; a percent line takes its percent of the item or subtotal right
+// above it.
 function lineAmounts(lines: readonly DocumentLineInput[]) {
     const amounts: (bigint | null)[] = []
     const percentTargetErrors: number[] = []
     let sinceSubtotal = 0n
     lines.forEach((line, index) => {
         if (line.kind === 'item') {
-            const amount = lineAmountBig(line.quantity, line.rate)
+            const amount = lineAmountBig(line.quantity ?? 0, line.rate ?? 0)
+            sinceSubtotal += amount
+            amounts.push(amount)
+            return
+        }
+        if (line.kind === 'account') {
+            const amount = wholeCents(line.amount ?? 0, 'Amount')
             sinceSubtotal += amount
             amounts.push(amount)
             return
@@ -128,7 +141,7 @@ function lineAmounts(lines: readonly DocumentLineInput[]) {
                 amounts.push(null)
                 return
             }
-            const amount = percentAmountBig(line.percentPpm, base)
+            const amount = percentAmountBig(line.percentPpm ?? 0, base)
             sinceSubtotal += amount
             amounts.push(amount)
             return
@@ -150,7 +163,7 @@ export function documentTotals(
         const amount = amounts[index]
         if (amount === null || amount === undefined) return
         if (absolute(amount) > MAX_LINE) isTooLarge = true
-        if (line.kind !== 'item' && line.kind !== 'percent') return
+        if (line.kind === 'description' || line.kind === 'subtotal') return
         subtotal += amount
         if (line.taxable) taxable += amount
     })
@@ -168,6 +181,9 @@ export function documentTotals(
           }))
         : []
     const taxTotal = taxLines.reduce((sum, line) => sum + BigInt(line.amount), 0n)
+    if (absolute(subtotal) > MAX_STORED || absolute(subtotal + taxTotal) > MAX_STORED) {
+        isTooLarge = true
+    }
 
     return {
         amounts: amounts.map(amount => (amount === null ? null : Number(amount))),

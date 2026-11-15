@@ -14,6 +14,13 @@ interface DocumentSaveState {
     wrote: (writer: string, id: string) => void
     // The screen mount is gone: its written draft is no one's to keep.
     forget: (writer: string) => void
+    // The line tables a new form showed when its first save replaced the route with the
+    // saved draft's, keyed by that draft's id (the form key of the screen it lands on). The
+    // draft's form starts from them, so a table shown in the form session stays shown.
+    shownTables: Readonly<Record<string, readonly string[]>>
+    keepShownTables: (id: string, tables: readonly string[]) => void
+    // The draft's form is gone: its form session ended.
+    forgetShownTables: (id: string) => void
 }
 
 // Posting flips the document's status optimistically, and deleting removes its row, both
@@ -33,5 +40,14 @@ export const useDocumentSaveStore = create<DocumentSaveState>()(set => ({
             if (!(writer in s.written)) return s
             const { [writer]: _gone, ...rest } = s.written
             return { written: rest }
+        }),
+    shownTables: {},
+    keepShownTables: (id, tables) =>
+        set(s => ({ shownTables: { ...s.shownTables, [id]: tables } })),
+    forgetShownTables: id =>
+        set(s => {
+            if (!(id in s.shownTables)) return s
+            const { [id]: _gone, ...rest } = s.shownTables
+            return { shownTables: rest }
         }),
 }))

@@ -1,0 +1,18 @@
+{
+    "outDir": ".",
+    "widths": [375, 390, 1280],
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "trial-balance",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "height": 1200,
+            "actions": [
+                { "waitFor": "Trial Balance" },
+                { "clickText": "Trial Balance" },
+                { "waitFor": "report-table" }
+            ]
+        }
+    ]
+}

@@ -5,7 +5,11 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+
+	"tinycld.org/core/audit"
 )
 
 // startReceiptsAt moves the sales receipt sequence forward, so the next
@@ -75,6 +79,120 @@ func TestAudit_LabelsAnEstimateAndItsLines(t *testing.T) {
 	}
 	if got, want := lines.ExtractLabel(reload(t, ee.app, "books_estimate_lines", line.Id)), "Estimate 1001: line 2"; got != want {
 		t.Errorf("estimate line label = %q, want %q", got, want)
+	}
+}
+
+// A customer's answer through the link is audited, named by its estimate and
+// its decision ("Estimate 1001: declined").
+func TestAudit_LabelsAnEstimateResponse(t *testing.T) {
+	pe := newPublicEnv(t)
+	responses, ok := auditedCollections(pe.app)["books_estimate_responses"]
+	if !ok {
+		t.Fatal("books_estimate_responses is not audited")
+	}
+	declined := mustSaveResponse(t, pe.app, pe.a.Id, "declined", "", "Too early")
+	accepted := mustSaveResponse(t, pe.app, pe.b.Id, "accepted", "Dana Whitfield", "")
+	for _, tc := range []struct {
+		r    *core.Record
+		want string
+	}{
+		{reload(t, pe.app, "books_estimate_responses", declined.Id), "Estimate 1001: declined"},
+		{reload(t, pe.app, "books_estimate_responses", accepted.Id), "Estimate 1002: accepted"},
+	} {
+		if got := responses.ExtractLabel(tc.r); got != tc.want {
+			t.Errorf("audit label = %q, want %q", got, tc.want)
+		}
+		if got := estimateResponseLabel(pe.app, tc.r); got != tc.want {
+			t.Errorf("estimateResponseLabel = %q, want %q", got, tc.want)
+		}
+	}
+}
+
+// The public token is a credential: a change of it is logged redacted, and a
+// deleted estimate's snapshot does not hold it.
+func TestAudit_RedactsTheEstimatePublicToken(t *testing.T) {
+	ee := newEstimateEnv(t)
+	config, ok := auditedCollections(ee.app)["books_estimates"]
+	if !ok {
+		t.Fatal("books_estimates is not audited")
+	}
+	est := ee.mkEstimate(t, nil)
+	stored := reload(t, ee.app, "books_estimates", est.Id)
+	token := stored.GetString("public_token")
+	if token == "" {
+		t.Fatal("the estimate has no public token")
+	}
+	changed := stored.Clone()
+	changed.Set("public_token", publicUnknownToken)
+	changes := audit.ComputeDiff(stored, changed, config.Redact...)
+	if !reflect.DeepEqual(changes["public_token"], redactedChange) {
+		t.Errorf("changes.public_token = %#v, want %#v", changes["public_token"], redactedChange)
+	}
+
+	registerAudit(&pocketbase.PocketBase{App: ee.app})
+	apiReq{
+		method: http.MethodDelete,
+		url:    "/api/collections/books_estimates/records/" + est.Id,
+		token:  tokenFor(t, ee.users.bookkeeper),
+		want:   http.StatusNoContent,
+		after: func(t testing.TB, app *tests.TestApp) {
+			row := awaitAuditRow(t, app, "books_estimates", "deleted", est.Id)
+			snapshot := auditJSONField(t, row, "snapshot")
+			if snapshot["public_token"] != audit.RedactedValue {
+				t.Errorf("snapshot.public_token = %#v, want %q", snapshot["public_token"], audit.RedactedValue)
+			}
+			requireNoLeak(t, row, token)
+		},
+	}.run(t, ee.app)
+}
+
+// Spec §3.10: a bill's audit row is "Bill 1003", or "Draft bill" while it has
+// no number; a line's row follows its bill and names its table and its place
+// in that table, as the refusals do ("Bill 1003: Account line 2", "Bill 1003:
+// Product line 1"; settled in checkpoint 1, reviewer B 7).
+func TestAudit_LabelsABillAndItsLines(t *testing.T) {
+	be := newBillEnv(t)
+	audited := auditedCollections(be.app)
+	bills, ok := audited["books_bills"]
+	if !ok {
+		t.Fatal("books_bills is not audited")
+	}
+	lines, ok := audited["books_bill_lines"]
+	if !ok {
+		t.Fatal("books_bill_lines is not audited")
+	}
+	bill := mkBill(t, be.app, be.summit, nil)
+	mkBillLine(t, be.app, bill, 0, accountLine(be.software, 12500))
+	accountLine2 := mkBillLine(t, be.app, bill, 1, accountLine(be.designTools, 2500))
+	productLine1 := mkBillLine(t, be.app, bill, 2, productLine(be.patchCable, 2, 310))
+
+	label := func(collection string, id string) string {
+		t.Helper()
+		r := reload(t, be.app, collection, id)
+		if collection == "books_bills" {
+			return bills.ExtractLabel(r)
+		}
+		return lines.ExtractLabel(r)
+	}
+	if got, want := label("books_bills", bill.Id), "Draft bill"; got != want {
+		t.Errorf("draft bill label = %q, want %q", got, want)
+	}
+	if got, want := label("books_bill_lines", accountLine2.Id), "Draft bill: Account line 2"; got != want {
+		t.Errorf("draft bill line label = %q, want %q", got, want)
+	}
+
+	if err := setFields(t, be.app, "books_doc_sequences", "booksseqbill000", map[string]any{"next_number": 1003}); err != nil {
+		t.Fatalf("move the bill sequence to 1003: %v", err)
+	}
+	mustPostBill(t, be.app, bill.Id, be.users.bookkeeper.Id)
+	if got, want := label("books_bills", bill.Id), "Bill 1003"; got != want {
+		t.Errorf("posted bill label = %q, want %q", got, want)
+	}
+	if got, want := label("books_bill_lines", accountLine2.Id), "Bill 1003: Account line 2"; got != want {
+		t.Errorf("posted bill account line label = %q, want %q", got, want)
+	}
+	if got, want := label("books_bill_lines", productLine1.Id), "Bill 1003: Product line 1"; got != want {
+		t.Errorf("posted bill product line label = %q, want %q", got, want)
 	}
 }
 

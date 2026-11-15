@@ -5,10 +5,13 @@ import {
     customerEntries,
     customerEntry,
     customerIdOf,
+    customerPageUrl,
+    customerPath,
     customerSurface,
     customersBase,
     DESKTOP,
     discardDialog,
+    expectCustomerEditSaved,
     field,
     holdLoads,
     insertAnswered,
@@ -36,13 +39,14 @@ import {
     WIDE,
 } from './customer-form-helpers'
 
-// Save, Save and new (also for a sub-customer), an edit save, server refusals on a field
+// Save (opens the new customer's page), Save and new (also for a sub-customer), an edit
+// save on the customer page's Details tab (stays on the page), server refusals on a field
 // and on the form, the "Discard changes?" guard on Cancel, Escape, the page's back button
-// and the browser's Back button, the leave paths held while a save is in flight, a refusal
-// that arrives after the page closed or after the user went to another package (a toast),
-// an edit typed during a successful save (kept, still guarded), a save or a create that
-// lands after the user went to another package, a save that lands after another customer
-// opened in the wide panel (that customer stays open), and no footer while the form loads.
+// and the browser's Back button, a refusal that arrives after the page closed or after
+// the user went to another package (a toast), an edit typed during a successful save
+// (kept, still guarded), a save or a create that lands after the user went to another
+// package, a save that lands after another customer opened beside the list on a very wide
+// window (that customer stays open), and no footer while the New form loads.
 //
 // Each test proves one of these flows on its own: it logs in and creates, through the
 // form, the customers it needs, each with a unique name. No test reads another test's
@@ -74,10 +78,11 @@ const FORM_RECORDS = '**/api/collections/forms/records**'
 // ready.
 const holdFormLoads = (page: Page) => holdLoads(page, FORM_RECORDS)
 
-// Creates a customer through the New customer form and returns its id, read from its
-// list entry. The list is left searched for the customer's name.
+// Creates a customer through the New customer form (Save opens its page) and returns its
+// id, read from its list entry. The list is left searched for the customer's name.
 async function createListedCustomer(page: Page, values: NewCustomerValues) {
     await createCustomer(page, values)
+    await openCustomersList(page)
     await searchCustomers(page, values.name)
     return customerIdOf(page, values.name)
 }
@@ -149,8 +154,8 @@ test.describe('customer-form: save and discard', () => {
             await expect(customerEntry(page, name)).toBeVisible()
             const id = await customerIdOf(page, name)
             await openCustomer(page, name)
-            await expect(page).toHaveURL(new RegExp(`/books/customers/${id}$`))
-            await expect(title).toHaveText('Edit customer')
+            await expect(page).toHaveURL(customerPath(id))
+            await expect(title).toHaveText(name)
             await expect(field(page, 'company')).toHaveValue('Helix Co')
             await expect(field(page, 'phone')).toHaveValue(phone)
             await expect(page.getByTestId('form-input-billing_address-city')).toHaveValue(
@@ -196,7 +201,10 @@ test.describe('customer-form: save and discard', () => {
             await expect(page).toHaveURL(/\/new$/)
             await field(page, 'email').fill(`helix.${digits}.two@example.com`)
             await save.click()
-            await expectListShown(page)
+            // Save opens the new customer's page.
+            await expect(page).toHaveURL(customerPageUrl)
+            await expect(page.getByTestId('customer-title')).toHaveText(secondName)
+            await openCustomersList(page)
             await searchCustomers(page, prefix)
             await expect(customerEntry(page, name)).toBeVisible()
             await expect(customerEntry(page, secondName)).toBeVisible()
@@ -261,8 +269,8 @@ test.describe('customer-form: save and discard', () => {
 
             // The browser's Back button is held while dirty.
             await openCustomer(page, name)
-            await expect(page).toHaveURL(new RegExp(`/books/customers/${id}$`))
-            await expect(title).toHaveText('Edit customer')
+            await expect(page).toHaveURL(customerPath(id))
+            await expect(title).toHaveText(name)
             await expect(field(page, 'phone')).toHaveValue(phone)
 
             const newPhone = `(555) 011-${digits}`
@@ -273,15 +281,15 @@ test.describe('customer-form: save and discard', () => {
             await expect(dialog.title).toBeHidden()
             await page.goBack()
             await expect(dialog.title).toBeVisible()
-            await expect(page).toHaveURL(new RegExp(`/books/customers/${id}$`))
+            await expect(page).toHaveURL(customerPath(id))
             await dialog.keepEditing.click()
             await expect(dialog.title).toBeHidden()
-            await expect(page).toHaveURL(new RegExp(`/books/customers/${id}$`))
+            await expect(page).toHaveURL(customerPath(id))
             await expect(customerSurface(page)).toBeVisible()
             await expect(field(page, 'phone')).toHaveValue(newPhone)
         })
 
-        test(`holds the leave paths while an edit save is in flight, and a refusal after the page closed is a toast (${sizeName})`, async ({
+        test(`a refused edit save keeps the page and its edit, and a refusal after the page closed is a toast (${sizeName})`, async ({
             page,
         }) => {
             await openBooks(page, size)
@@ -296,11 +304,10 @@ test.describe('customer-form: save and discard', () => {
             await openCustomer(page, name)
             await field(page, 'phone').fill(newPhone)
 
-            // While an edit save is in flight, Cancel, the back button and Escape cannot
-            // leave, so the refusal finds the form: a refusal with no field shows in the
-            // form's summary.
+            // A refusal with no field, on the Details tab, shows in the form's summary;
+            // the page stays open with the edit.
             const recordUrl = isRecordUrl(id)
-            const recordPath = new RegExp(`/books/customers/${id}$`)
+            const recordPath = customerPath(id)
             const patches = refusedPatches()
             const cancel = page.getByTestId('customer-cancel')
             const back = page.getByTestId('customer-back')
@@ -308,10 +315,12 @@ test.describe('customer-form: save and discard', () => {
             patches.hold()
             await save.click()
             await expect.poll(() => patches.urls.length).toBe(1)
-            await expect.poll(() => isDisabled(cancel)).toBe(true)
-            await expect.poll(() => isDisabled(back)).toBe(true)
-            await pressEscapeOutsideInputs(page)
             await expect(customerSurface(page)).toBeVisible()
+            await expect(page).toHaveURL(recordPath)
+            // While the write is held, Cancel is off and Escape neither asks nor leaves.
+            await expect.poll(() => isDisabled(cancel)).toBe(true)
+            await pressEscapeOutsideInputs(page)
+            await expect(dialog.title).toBeHidden()
             await expect(page).toHaveURL(recordPath)
             patches.release()
             await expect(summary).toBeVisible()
@@ -329,8 +338,8 @@ test.describe('customer-form: save and discard', () => {
             await expect(page).toHaveURL(recordPath)
             await expect(field(page, 'phone')).toHaveValue(newPhone)
 
-            // The browser's Back is the one way out while a save is in flight; the refusal
-            // that arrives after the page closed shows as a toast.
+            // A save in flight turns the leave guard off, so the browser's Back leaves at
+            // once; the refusal that arrives after the page closed shows as a toast.
             patches.hold()
             await save.click()
             await expect.poll(() => patches.urls.length).toBe(2)
@@ -360,7 +369,7 @@ test.describe('customer-form: save and discard', () => {
             const newPhone = `(555) 011-${digits}`
             const id = await createListedCustomer(page, { name, phone })
             const recordUrl = isRecordUrl(id)
-            const recordPath = new RegExp(`/books/customers/${id}$`)
+            const recordPath = customerPath(id)
             const patches = refusedPatches()
             await page.route(recordUrl, patches.handler)
 
@@ -399,8 +408,9 @@ test.describe('customer-form: save and discard', () => {
             await expect(field(page, 'phone')).toHaveValue(phone)
             await field(page, 'phone').fill(newPhone)
             await save.click()
-            await expectListShown(page)
+            await expectCustomerEditSaved(page)
             await expect(dialog.title).toBeHidden()
+            await openCustomersList(page)
             await searchCustomers(page, name)
             await expect(customerEntry(page, name)).toContainText(newPhone)
         })
@@ -419,7 +429,7 @@ test.describe('customer-form: save and discard', () => {
             const newPhone = `(555) 011-${digits}`
             const id = await createListedCustomer(page, { name, phone })
             const recordUrl = isRecordUrl(id)
-            const recordPath = new RegExp(`/books/customers/${id}$`)
+            const recordPath = customerPath(id)
 
             // An edit typed while a save is in flight is kept when the save succeeds: the
             // page stays open with it, and leaving still asks.
@@ -532,7 +542,7 @@ test.describe('customer-form: save and discard', () => {
             const digits = stampDigits()
             await createCustomer(page, { name: secondName })
             const id = await createListedCustomer(page, { name })
-            const recordPath = new RegExp(`/books/customers/${id}$`)
+            const recordPath = customerPath(id)
 
             // On an edit, a sibling's name is a field refusal too, and the page stays.
             await openCustomer(page, name)
@@ -546,14 +556,16 @@ test.describe('customer-form: save and discard', () => {
             await expect(page).toHaveURL(recordPath)
             await field(page, 'display_name').fill(name)
 
-            // A saved form leaves without asking.
-            const notes = `Saved notes ${digits}`
-            await field(page, 'notes').fill(notes)
+            // A save stays on the page and leaves it clean: Back then leaves without asking.
+            const company = `Saved company ${digits}`
+            await field(page, 'company').fill(company)
             await save.click()
+            await expectCustomerEditSaved(page)
+            await page.getByTestId('customer-back').click()
             await expectListShown(page)
             await expect(dialog.title).toBeHidden()
             await openCustomer(page, name)
-            await expect(field(page, 'notes')).toHaveValue(notes)
+            await expect(field(page, 'company')).toHaveValue(company)
             await page.getByTestId('customer-back').click()
             await expectListShown(page)
             await expect(dialog.title).toBeHidden()
@@ -577,22 +589,29 @@ test.describe('customer-form: save and discard', () => {
             await page.keyboard.type(name)
             await searched
             await page.getByRole('option').filter({ hasText: name }).click()
-            await expect(title).toHaveText('Edit customer')
-            await expect(page).toHaveURL(new RegExp(`/books/customers/${id}$`))
+            await expect(title).toHaveText(name)
+            await expect(page).toHaveURL(customerPath(id))
+            // The hit opens the customer's page on its default tab, Transactions.
+            await expect(page.getByTestId('customer-tab-transactions')).toHaveAttribute(
+                'aria-selected',
+                'true'
+            )
             await page.goBack()
             await expect(hubCard).toBeVisible()
             await expect(customerSurface(page)).toBeHidden()
         })
     }
 
-    // The wide panel sits beside the list, so another customer can be opened while a save
-    // is in flight. Only a window this wide shows the panel, so the test runs at one size.
-    test('a save that lands after another customer opened in the wide panel leaves that customer open (wide)', async ({
+    // On a very wide window the customer's page sits beside the list of names, so another
+    // customer can be opened while a save is in flight (the save turns the leave guard off).
+    // Only a window this wide shows the list beside the page, so the test runs at one size.
+    test('a save that lands after another customer opened beside the list leaves that customer open (wide)', async ({
         page,
     }) => {
         await openBooks(page, DESKTOP)
         const title = page.getByTestId('customer-title')
         const save = page.getByTestId('customer-save')
+        const detailsTab = page.getByTestId('customer-tab-details')
         const prefix = uniqueName(`Panel ${viewportName(page)}`)
         const name = `${prefix} one`
         const secondName = `${prefix} two`
@@ -601,7 +620,7 @@ test.describe('customer-form: save and discard', () => {
         const newPhone = `(555) 011-${digits}`
         await createCustomer(page, { name: secondName })
         const id = await createListedCustomer(page, { name, phone })
-        const recordPath = new RegExp(`/books/customers/${id}$`)
+        const recordPath = customerPath(id)
         const recordUrl = isRecordUrl(id)
         const passed = refusedPatches()
         await page.route(recordUrl, passed.handler)
@@ -610,16 +629,18 @@ test.describe('customer-form: save and discard', () => {
         await page.setViewportSize(WIDE)
         await openCustomersList(page)
         await searchCustomers(page, prefix)
-        const secondPath = new RegExp(`/books/customers/${await customerIdOf(page, secondName)}$`)
+        const secondPath = customerPath(await customerIdOf(page, secondName))
         await customerEntry(page, name).click()
         await expect(page).toHaveURL(recordPath)
+        await detailsTab.click()
         await field(page, 'phone').fill(newPhone)
         passed.hold()
         await save.click()
         await expect.poll(() => passed.urls.length).toBe(1)
         await customerEntry(page, secondName).click()
         await expect(page).toHaveURL(secondPath)
-        await expect(title).toHaveText('Edit customer')
+        await expect(title).toHaveText(secondName)
+        await detailsTab.click()
         await expect(field(page, 'display_name')).toHaveValue(secondName)
         const landed = patchAnswered(page, id)
         passed.release('pass')

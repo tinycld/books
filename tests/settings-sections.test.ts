@@ -6,6 +6,7 @@ import {
 } from '../tinycld/books/lib/sales-receipt-form-fixture'
 import {
     form1099Summary,
+    purchasesSummary,
     SETTINGS_SECTIONS,
     salesSummary,
     sectionSummary,
@@ -28,11 +29,21 @@ describe('visibleSections', () => {
         expect(visibleSections(false).map(s => s.id)).toContain('sales')
     })
 
-    it('shows the 1099s section to a non-admin, after Numbering', () => {
+    // Bill form spec §3.11: Purchases follows Sales and every Books user sees it.
+    it('shows Purchases to a non-admin after Sales, and 1099s after Numbering', () => {
+        expect(visibleSections(false).map(s => s.label)).toEqual([
+            'Company',
+            'Accounting',
+            'Sales',
+            'Purchases',
+            'Numbering',
+            '1099s',
+        ])
         expect(visibleSections(false).map(s => s.id)).toEqual([
             'company',
             'accounting',
             'sales',
+            'purchases',
             'numbering',
             'form-1099',
         ])
@@ -40,15 +51,24 @@ describe('visibleSections', () => {
 })
 
 describe('SETTINGS_SECTIONS', () => {
-    it('puts Sales between Accounting and Numbering, and 1099s between Numbering and Access', () => {
+    it('puts Sales and Purchases between Accounting and Numbering, and 1099s between Numbering and Access', () => {
         expect(SETTINGS_SECTIONS.map(s => s.id)).toEqual([
             'company',
             'accounting',
             'sales',
+            'purchases',
             'numbering',
             'form-1099',
             'access',
         ])
+    })
+
+    it('labels the Purchases entry Purchases and does not limit it to admins', () => {
+        expect(SETTINGS_SECTIONS.find(s => s.id === 'purchases')).toEqual({
+            id: 'purchases',
+            label: 'Purchases',
+            adminOnly: false,
+        })
     })
 
     it('labels the 1099s entry 1099s and does not limit it to admins', () => {
@@ -136,6 +156,33 @@ describe('salesSummary', () => {
                 depositAccounts: DEPOSIT_ACCOUNTS,
             })
         ).toBe('Sales deposited to 1200 Undeposited funds')
+    })
+})
+
+// Bill form spec §3.11: the Purchases section-list line names the Bill lines setting.
+describe('purchasesSummary', () => {
+    it('names each Bill lines setting by its label', () => {
+        expect(purchasesSummary({ purchase_lines: 'both' })).toBe(
+            'Bill lines: Accounts and products'
+        )
+        expect(purchasesSummary({ purchase_lines: 'accounts' })).toBe('Bill lines: Accounts only')
+        expect(purchasesSummary({ purchase_lines: 'products' })).toBe('Bill lines: Products only')
+    })
+
+    it('says Bill lines while the settings load or after they fail', () => {
+        expect(purchasesSummary(undefined)).toBe('Bill lines')
+    })
+
+    it('is what sectionSummary shows for the purchases section', () => {
+        expect(
+            sectionSummary('purchases', {
+                settings: { ...COMPANY_SETTINGS, purchase_lines: 'accounts' },
+                sequenceCount: 1,
+            })
+        ).toBe('Bill lines: Accounts only')
+        expect(sectionSummary('purchases', { settings: undefined, sequenceCount: 1 })).toBe(
+            'Bill lines'
+        )
     })
 })
 

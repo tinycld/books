@@ -39,7 +39,7 @@ func TestEntryTypeLabels_Parse(t *testing.T) {
 	if !reflect.DeepEqual(entryTypeLabels.Origins, wantOriginLabels) {
 		t.Errorf("origin labels = %v, want %v", entryTypeLabels.Origins, wantOriginLabels)
 	}
-	if want := map[string]string{"transfer": "Transfer", "invoice": "Invoice", "sales_receipt": "Sales receipt"}; !reflect.DeepEqual(entryTypeLabels.DocTypes, want) {
+	if want := map[string]string{"transfer": "Transfer", "invoice": "Invoice", "sales_receipt": "Sales receipt", "bill": "Bill"}; !reflect.DeepEqual(entryTypeLabels.DocTypes, want) {
 		t.Errorf("docTypes = %v, want %v", entryTypeLabels.DocTypes, want)
 	}
 	// The single "transfer" key is gone: docTypes replaces it, in the file and

@@ -1,0 +1,134 @@
+{
+    "outDir": "customer-pages-reference",
+    "shots": [
+        {
+            "name": "transactions",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "customer-transaction-cpinv0000001042",
+            "widths": [390, 1280, 1600],
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "customer-page",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "customer-balance-error",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty-inactive-sub",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "customer-transactions-empty",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filter-empty",
+            "url": "/a/books/helix-mockup?state=filter-empty",
+            "ready": "customer-transactions-no-match",
+            "widths": [1280]
+        },
+        {
+            "name": "credit",
+            "url": "/a/books/helix-mockup?state=credit",
+            "ready": "customer-balance-open",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/helix-mockup?state=long",
+            "ready": "customer-balance-open",
+            "widths": [390, 1600],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "customer-transactions-table",
+            "widths": [1280]
+        },
+        {
+            "name": "new-menu",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "customer-new-transaction",
+            "widths": [1280],
+            "actions": [
+                { "click": "customer-new-transaction" },
+                { "waitFor": "customer-new-sales-receipt" }
+            ]
+        },
+        {
+            "name": "new-menu-phone",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "customer-new-transaction",
+            "widths": [390],
+            "stable": "customer-new-sales-receipt",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "customer-new-transaction" },
+                { "waitFor": "customer-new-sales-receipt" }
+            ]
+        },
+        {
+            "name": "more-menu",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "customer-more",
+            "widths": [1280],
+            "actions": [{ "click": "customer-more" }, { "waitFor": "customer-more-delete" }]
+        },
+        {
+            "name": "contacts",
+            "url": "/a/books/helix-mockup?state=populated&tab=contacts",
+            "ready": "customer-contacts",
+            "widths": [390, 1280, 1600],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "contacts-empty",
+            "url": "/a/books/helix-mockup?state=empty&tab=contacts",
+            "ready": "customer-contacts-empty",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "contact-dialog",
+            "url": "/a/books/helix-mockup?state=contact-dialog&tab=contacts",
+            "ready": "contact-dialog",
+            "opaque": "contact-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "details-dirty",
+            "url": "/a/books/helix-mockup?state=dirty&tab=details",
+            "ready": "customer-save-bar",
+            "widths": [390, 1280, 1600],
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "details-read-only",
+            "url": "/a/books/helix-mockup?state=read-only&tab=details",
+            "ready": "customer-page",
+            "widths": [1280],
+            "height": 1400,
+            "settleMs": 800
+        },
+        {
+            "name": "notes-dirty",
+            "url": "/a/books/helix-mockup?state=dirty&tab=notes",
+            "ready": "customer-notes",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "discard",
+            "url": "/a/books/helix-mockup?state=discard&tab=notes",
+            "ready": "confirm-dialog-body",
+            "opaque": "confirm-dialog-body",
+            "widths": [1280]
+        }
+    ]
+}
