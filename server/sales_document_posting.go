@@ -417,8 +417,9 @@ func accountSums(tx core.App, sums map[string]int64, firstLine map[string]docume
 }
 
 // writeTaxSnapshot stores the posted tax of each component of the header rate
-// (the tax-rates contract): a later change to a rate never changes what a
-// posted document charged.
+// (the tax-rates contract), with the document's gross (its subtotal), taxable
+// amount and currency: a later change to a rate never changes what a posted
+// document charged, and the Sales Tax Liability report reads these figures.
 func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult, taxes []componentTax) error {
 	defer markSnapshotting(tx, kind, doc.Id)()
 	col, err := tx.FindCachedCollectionByNameOrId(kind.TaxLinesCollection)
@@ -432,7 +433,9 @@ func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals d
 		r.Set("component", t.ComponentID)
 		r.Set("agency", t.agency)
 		r.Set("rate_ppm", t.Ppm)
+		r.Set("gross_amount", totals.Subtotal)
 		r.Set("taxable_amount", totals.TaxableTotal)
+		r.Set("currency", doc.GetString("currency"))
 		r.Set("amount", t.Amount)
 		r.Set("position", i)
 		if err := tx.Save(r); err != nil {
