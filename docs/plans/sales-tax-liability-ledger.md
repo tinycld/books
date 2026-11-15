@@ -29,6 +29,8 @@
 ## Rebuttals
 - **finding:** reviewer B, checkpoint 1, DEFERRAL: "Do step 5 (the ripple e2e run) was not done. … The other 19 specs … are still not run. … The driver must run them before the checkpoint is closed."
   **rebutted because:** the runner ran Do 5 as part of gate 1 before the reviewers were dispatched; the implementer's prompt gave Do 5 to the runner. All 20 specs of Do 5 ran once on ports 7220/7221 in three runs, all green: `customer-pages-balance`, `customer-pages-transactions`, `customer-form-page`, `customer-form-list`, `invoice-form-post`, `sales-receipt-form`, `tax-rates-page` (21 passed); `tax-rates-actions`, `tax-rates-dialogs`, `list-paging`, `account-register-drawer`, `account-register-navigation`, `account-register-states`, `account-register-table` (25 passed); `chart-of-accounts-balance`, `general-ledger`, `journal-report`, `profit-and-loss`, `trial-balance`, `balance-sheet` (55 passed) — staging `cp/cp1-e2e-{1,2,3}.log`. Reviewer A read the same logs ("Ripple e2e logs cp1-e2e-1/2/3: 21, 25, 55 passed, no failure").
+- **finding:** reviewer B, checkpoint 4, DEFERRAL: "Do step 4 (agreed): after the header change, run `tax-rates-page.spec.ts` and `tax-rates-actions.spec.ts` once. What exists: the implementer did not run them (cp4-impl.md, \"Not run\"). … Fix: run both specs on the e2e ports (one file each) and fix any red at the source."
+  **rebutted because:** the runner ran them at gate 1, on the tree the reviewers judged, before the reviewers were dispatched (the implementer's prompt gave them to the runner): `pnpm exec tinycld-pkg test:e2e -- tax-rates-page.spec.ts tax-rates-actions.spec.ts` on ports 7220/7221, "6 passed (16.5s)" — all 6 tests of the two files (3 + 3) — staging `cp/cp4-e2e-ripple.log`.
 
 ## Design notes
 - cp 0 · populated-390-*, rate-open-390-*, collapsed-390-*: bottom tab bar — a "Sales Stub" tab shows (the core e2e stub package is installed on the core branch's e2e stack); not in the shipped app.
@@ -59,6 +61,12 @@
 - cp 3 · rate-open-390-*: agency total rows have two heights ("Total Old county agency" has its figure on the label line, the two longer names on a second line), as the cp 0 note on closed agency rows.
 - cp 3 · reviewer A NOTE: no test sees a cut phone label: `readPhoneLines` (`tests/e2e/books-report-helpers.ts`) checks `isCut` only on the four figure cells, and the label regexes read `innerText`, which holds the full text under an ellipsis. The checkpoint asks only that the figures are not cut. Fix offered: measure the row label too; if core cannot wrap a phone label, that is a core gap.
 - cp 3 · reviewer A NOTE: `sequence` is counted per document kind, so an invoice and a sales receipt on one day can share a sequence (Invoice 1001, Sales receipt 1001); the spec gives no order for that tie and the rows fall back to the union's rowid order (stable, not defined). Fix offered: a third sort key on the kind.
+- cp 4 · populated-1280-*: header action row — "Liability report" is the first button, left of the primary "Add agency"; a navigation button before the page's primary action (after "Add group" or nearest the title would keep the write actions' order).
+- cp 4 · populated-390-*: header — "Liability report" sits alone on its own row above "Add agency", "Add group", "Show inactive" (it cannot fit on the action row at 390); the header is one row taller than the reference (first card at y≈156 against 112), and a secondary button sits above the primary action.
+- cp 4 · reviewer A NOTE: `TaxesPage.tsx` `HeaderButtons` holds the button and the `Actions` view as two flex items, so on a phone the actions wrap as one block under the lone button (the same line as the gate-2 note above). Fix offered: render the Actions items in the same wrap row, or keep the split as navigation vs. write actions.
+- cp 4 · reviewer A NOTE: the button shows only after the `reports` query lands, often after the page's own queries; on a phone the cards then move down one row after the first paint. Spec §2 asks for the button hidden until the report is found. Fix offered: keep the row's height while the query loads.
+- cp 4 · reviewer A NOTE: `useShippedReportHref` returns `Href | null`, not the brief's `string | null` (core `orgHref` with params returns the object form); declared difference 1 of checkpoint 4. A later user of the hook must expect an `Href`.
+- cp 4 · reviewer A NOTE: no test pins the new help section's place (after "Read the Profit and Loss"); the top-level heading list in `tests/help-reports.test.ts` lacks it. The file has it in the right place. Fix offered: add the heading to the list with an order check.
 
 ## Out-of-plan changes
 (core repo, checkpoint 0; files the checkpoint's Files block did not name)
@@ -172,6 +180,22 @@
 - gate 3 A notes: 2, listed under Design notes.
 - reviewer-caught deferrals: none.
 - commit: this commit (`feat(books): Sales Tax Liability rate rows open into their documents`).
+- human: review mode C, no message.
+
+## Checkpoint 4
+- test writer: `tests/help-reports.test.ts` (the "Read the Sales Tax Liability report" section, "Who sees Books reports", "Build your own Books report"), `tests/help-sales-tax.test.ts` (link `help://books:reports`), `tests/e2e/books-sales-tax-liability.spec.ts` (e2e 9–11); red for the right reason: yes (14 vitest, 3 e2e: no `taxes-liability-report`, no help section). Untestable: none. Deviation accepted by the runner: e2e 10 alone (count 0) passed before the build, so the test writer added a poll that the page asked the stubbed reports list for `books.sales_tax_liability` (and cut realtime so no row arrives by another path). Report: staging `cp/cp4-tests.md`.
+- implementer: `lib/shipped-reports.ts`, `hooks/useShippedReportHref.ts`, `components/taxes/LiabilityReportButton.tsx` (outline, sm, as Add group), `TaxesPage.tsx` `Header` (new `HeaderButtons` row holding the button and `Actions`), the fixture re-exports the key; `help/reports.md`, `help/sales-tax.md`. DONE. Report: staging `cp/cp4-impl.md`.
+- test disputes: none.
+- self-declared differences: (1) `useShippedReportHref` returns `Href | null` and `LiabilityReportButton` takes `href: Href | null` (the brief's Interfaces said `string | null`): core `orgHref('reports/[id]', { id })` returns the object `Href`; accepted — later checkpoints and units that reuse the hook get an `Href`, not a string. (2) `HeaderButtons` wraps the button and `Actions`, rendered only when one shows (no empty gap for a reader with no share); accepted. (3) `help/sales-tax.md` has two sentences, not one line; (4) "Build your own Books report" also says a voided document keeps its tax lines, so a custom report filters on status; (5) the new section adds the columns, inactive agencies and rates, the 0% and no-taxable-line cases, the controls; no document-opening sentence (D5). (3)–(5) accepted (the implementer checked each claim against the code; no reviewer found a wrong claim).
+- gate 1: tests unedited: yes · `packages:generate`, `tinycld-pkg check` (272 files / 5342 tests) pass · e2e `-g "sales-tax-liability:"` 11 passed (staging `cp/cp4-e2e.log`) · Do 4 ripple `tax-rates-page.spec.ts` + `tax-rates-actions.spec.ts`: 6 passed (staging `cp/cp4-e2e-ripple.log`).
+- gate 2 capture: `docs/plans/sales-tax-liability-evidence/cp4/capture.json` (`/a/books/taxes` as the seeded e2e user, 1280 and 390 × light/dark, height 1500).
+- gate 2: invalid shots: none · blocking: none · notes: 2, listed under Design notes (critique `evidence/cp4/critique.md`).
+- gate 3 A (correctness): 0 BLOCK, 0 DEFERRAL, 4 NOTE → Design notes (none is a one-line comment or text change).
+- gate 3 B (conformance): script lines: 0 · findings: 0 · DEFERRAL "Do 4 ripple specs not run" → rebutted (see Rebuttals).
+- fix review: n/a (no accepted finding asked for a change; no fix round) · rounds: 0.
+- gate 3 A notes: 4, listed under Design notes.
+- reviewer-caught deferrals: none (reviewer B's DEFERRAL rebutted).
+- commit: this commit (`feat(books): Liability report button on the Sales tax page and its help`).
 - human: review mode C, no message.
 
 ## Final review

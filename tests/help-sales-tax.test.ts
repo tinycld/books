@@ -102,6 +102,10 @@ describe('help/sales-tax.md', () => {
         }
     })
 
+    it('links the Sales Tax Liability report in the reports topic', () => {
+        expect(body).toContain('[Sales Tax Liability report](help://books:reports)')
+    })
+
     it('names no seeded agency, rate or group', () => {
         for (const { name } of [...TAX_AGENCIES, ...TAX_RATE_ROWS]) {
             expect(body, name).not.toContain(name)

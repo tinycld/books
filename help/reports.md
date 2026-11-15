@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, sales tax liability]
 order: 60
 ---
 
@@ -179,12 +179,43 @@ On a phone, each row of the Profit and Loss wraps onto two lines in the table: t
 
 The Profit and Loss by Month shows every month of the period in its own column, headed by the month, for example "Jan 2026". A month with no line reads 0.00. After the months come Total, for the whole period, and % of income, which is the share of Total in Total Income. A period can show at most 36 months. When the period is longer, the first 36 months show, and a notice tells how many months are left out. Total and % of income still count the whole period. With All dates, only the months that have a posted line show. The rows of the Profit and Loss by Month do not open. When the window is too narrow for all the columns on one line, each row shows the account and the first months on its first line, then the other figures on the lines below, in column order. The table does not scroll sideways.
 
+## Read the Sales Tax Liability report
+
+To see the sales tax you owe each agency, open the Sales Tax Liability report. Choose Reports in Books (the sidebar, or the Books menu on a phone), then press Sales Tax Liability, or press Liability report at the top of the Sales tax page. The heading shows your business name, Sales Tax Liability, and the period, for example "October 1 – 31, 2026".
+
+The report shows the sales tax that you charged in the period, by agency and then by rate. The agencies show in name order, and inside each agency its rates show in name order. An inactive agency or rate with tax in the period shows like an active one.
+
+- Only posted invoices and posted sales receipts count: a draft does not count, and a voided document does not count. When you edit a posted document, Books voids the original, so only the new version counts.
+- Books reports sales tax on the accrual basis: a sale counts in the period of its own date, not the day it is paid. This report has no cash basis.
+- Gross total is the sale before tax. Taxable amount is the part of the sale that the tax was calculated on. Non-taxable is Gross total minus Taxable amount. Tax amount is the tax of the rate.
+- Each figure is the one Books stored when the document was posted. A later change to a rate, to a product's Taxable setting or to a customer's exemption does not change the report.
+- A rate row adds the figures of the documents that charged that rate.
+- The total row of each agency ("Total" and the agency name) and the Total row at the end show only the Tax amount. The sales columns are blank there, because a sale taxed by two rates of one agency would be counted twice.
+- A sale with no tax rate, for example a sale to an exempt customer, has no sales tax, so it is not in the report.
+- A sale with a tax rate and no taxable line shows under that rate: its sales are Non-taxable, and its tax is 0.00. A rate of 0% shows its sales with tax 0.00.
+
+The agencies are open when the report opens, and the rates are folded. To see the documents that charged a rate, press the rate row. Its documents open below it, in date order, then by number. Each document shows its date, its type and number, and its customer, for example "2026-10-14 · Invoice 1042 · Harborview Dental", with its four figures. A sales receipt with no customer ends after its number. To fold or open all levels, press Collapse all or Expand all.
+
+To change the dates, press the Period chip. The default is Last month. Pick a preset, such as This month or Last quarter, or pick Custom and type the first and last day. When no posted sale was taxed in the period, the report shows "No rows for" and the period.
+
+To show only some agencies, press Add filter, then Agency. Pick one or more agencies, inactive agencies included, then press Apply. To remove the filter, press the × on the Agency chip.
+
+The balance of an agency's liability account on the Balance Sheet also holds the payments and adjustments that you post to it, which this report does not show. Thus the report is the tax you charged, not what you still owe after a payment.
+
+To change how the numbers look, press Customize. Customize never changes the figures.
+
+The report stays current. When someone posts or voids an invoice or a sales receipt, the report runs again.
+
+On a phone, each row wraps onto three lines in the table: the name; then Gross total and Non-taxable; then Taxable amount and Tax amount. The table does not scroll sideways.
+
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss and the Profit and Loss by Month, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month and the Sales Tax Liability, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
 ## Build your own Books report
 
 To make your own report from Books data, such as accounts, journal entries, journal lines, monthly account balances or customers, see [Build, share and publish reports](help://core:reports).
+
+The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices and the sales receipts together. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.

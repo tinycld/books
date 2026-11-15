@@ -21,10 +21,11 @@ import type {
     BooksSalesReceiptTaxLines,
 } from '../types'
 import { CUSTOMERS } from './customer-form-fixture'
+import { SALES_TAX_LIABILITY_SHIPPED_KEY } from './shipped-reports'
 import { TAX_AGENCIES, TAX_IDS, TAX_RATE_ROWS } from './tax-rates-fixture'
 
+export { SALES_TAX_LIABILITY_SHIPPED_KEY }
 export const SALES_TAX_LIABILITY_TITLE = 'Sales Tax Liability'
-export const SALES_TAX_LIABILITY_SHIPPED_KEY = 'books.sales_tax_liability'
 export const SALES_TAX_LIABILITY_DESCRIPTION =
     'The sales tax you charged on posted invoices and sales receipts, by agency and rate (accrual basis).'
 // The Books source heading: the seeded business name (books-settings-fixture.ts).
