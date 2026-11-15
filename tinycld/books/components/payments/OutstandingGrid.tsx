@@ -1,11 +1,13 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { Pressable, ScrollView, Text, type TextInputInstance, View } from 'react-native'
+import { useOpenDocument } from '../../hooks/useOpenDocument'
 import { useTableMinWidth } from '../../hooks/useTableMinWidth'
 import { formatMoney } from '../../lib/money'
 import { entryCents, type OutstandingRow, type Payments } from '../../lib/payment-allocation'
 import { PAYMENT_COLUMNS, PAYMENT_GRID_MIN_WIDTH } from '../../lib/payment-columns'
 import { formatDay } from '../../lib/register-range'
+import { INVOICE_KIND } from '../../lib/sales-document-kinds'
 import { SelectBox, type SelectBoxState } from '../SelectBox'
 import { PaymentCell } from './PaymentCell'
 
@@ -45,24 +47,43 @@ export function invoiceLabel(row: { number: string; date: string }): string {
     return `Invoice ${row.number} · ${formatDay(row.date)}`
 }
 
-// Opens the invoice (pushed). A press target only: the row's one Tab stop is its cell.
-export function InvoiceLink({
-    invoiceId,
-    label,
-    testID,
-}: {
+interface InvoiceLinkProps {
     invoiceId: string
     label: string
     testID: string
-}) {
+}
+
+// Opens the invoice (pushed), so Back returns to the form with its edits. A press target
+// only: the row's one Tab stop is its cell.
+export function InvoiceLink({ invoiceId, label, testID }: InvoiceLinkProps) {
     const orgHref = useOrgHref()
     const open = () => router.push(orgHref(`books/invoices/${invoiceId}`))
+    return <InvoiceLinkText label={label} testID={testID} onPress={open} />
+}
+
+// The read view's link to an applied invoice: back to the invoice's screen when it is
+// below the payment (the payment was received from it), so the stack keeps one copy of
+// it (helix lesson 15); else pushed.
+export function AppliedInvoiceLink({ invoiceId, label, testID }: InvoiceLinkProps) {
+    const open = useOpenDocument(INVOICE_KIND, invoiceId)
+    return <InvoiceLinkText label={label} testID={testID} onPress={open} />
+}
+
+function InvoiceLinkText({
+    label,
+    testID,
+    onPress,
+}: {
+    label: string
+    testID: string
+    onPress: () => void
+}) {
     return (
         <Pressable
             testID={testID}
             accessibilityRole="link"
             tabIndex={-1}
-            onPress={open}
+            onPress={onPress}
             className="justify-center self-start"
             style={TAP}
         >

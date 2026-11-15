@@ -52,6 +52,14 @@ describe('help/customer-pages.md', () => {
         expect(body).toMatch(/no (phone|calling) app|no app for phone/i)
     })
 
+    // Receive payment §3.9: the Transactions tab's fourth kind, its chip and its statuses.
+    it('names the Payment kind, its Payments chip and its statuses', () => {
+        expect(exists).toBe(true)
+        for (const word of ['Payment', 'Payments', 'Applied', 'Partly paid']) {
+            expect(body, word).toMatch(new RegExp(`\\b${word}\\b`))
+        }
+    })
+
     it('is linked from help/customers.md', () => {
         expect(customers.body).toContain('(help://books:customer-pages)')
     })

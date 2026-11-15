@@ -11,6 +11,7 @@ import {
     invoiceRow,
     mergeTransactions,
     type PartyTransactionRow,
+    paymentRow,
     salesReceiptRow,
     TRANSACTION_PAGE,
     type TransactionFilter,
@@ -26,8 +27,8 @@ function runs(filter: TransactionFilter, kind: TransactionKind) {
 }
 
 /**
- * One customer's invoices, estimates and sales receipts, newest first, `n` at a time
- * (spec §3.5). Three live queries, each this customer's first `n` rows of its kind by date
+ * One customer's invoices, estimates, sales receipts and payments, newest first, `n` at a
+ * time (spec §3.5). Four live queries, each this customer's first `n` rows of its kind by date
  * desc then created desc, feed the pure merge; a filter other than `all` runs only its
  * kind's query. A void original that a correction replaced is left out in the query, so
  * each source's `n` rows are all listed rows. `loadMore` grows the window by 50 while a
@@ -35,16 +36,14 @@ function runs(filter: TransactionFilter, kind: TransactionKind) {
  * Totals draw in the Books settings' currency, so that read is one more the tab waits for.
  */
 export function useCustomerTransactions(customerId: string, filter: TransactionFilter) {
-    const [invoicesCollection, estimatesCollection, receiptsCollection] = useStore(
-        'books_invoices',
-        'books_estimates',
-        'books_sales_receipts'
-    )
+    const [invoicesCollection, estimatesCollection, receiptsCollection, paymentsCollection] =
+        useStore('books_invoices', 'books_estimates', 'books_sales_receipts', 'books_payments')
     const [n, setN] = useState(TRANSACTION_PAGE)
     const today = todayIso()
     const runsInvoices = runs(filter, 'invoice')
     const runsEstimates = runs(filter, 'estimate')
     const runsReceipts = runs(filter, 'sales_receipt')
+    const runsPayments = runs(filter, 'payment')
 
     const invoicesQuery = useLiveQuery({
         query: q => {
@@ -92,10 +91,28 @@ export function useCustomerTransactions(customerId: string, filter: TransactionF
         },
         queryKey: ['books.customer-page.sales-receipts', customerId, runsReceipts, n],
     })
+    const paymentsQuery = useLiveQuery({
+        query: q => {
+            if (!runsPayments) return undefined
+            return q
+                .from({ p: paymentsCollection })
+                .where(({ p }) =>
+                    and(
+                        eq(p.customer, customerId),
+                        or(not(eq(p.status, 'void')), eq(p.replaced_by, ''))
+                    )
+                )
+                .orderBy(({ p }) => p.date, 'desc')
+                .orderBy(({ p }) => p.created, 'desc')
+                .limit(n)
+        },
+        queryKey: ['books.customer.payments', customerId, runsPayments, n],
+    })
 
     const invoices = runsInvoices ? invoicesQuery.data : undefined
     const estimates = runsEstimates ? estimatesQuery.data : undefined
     const receipts = runsReceipts ? receiptsQuery.data : undefined
+    const payments = runsPayments ? paymentsQuery.data : undefined
     const merged = useMemo(
         () =>
             mergeTransactions(
@@ -103,10 +120,11 @@ export function useCustomerTransactions(customerId: string, filter: TransactionF
                     (invoices ?? []).map(row => invoiceRow(row, today)),
                     (estimates ?? []).map(row => estimateRow(row, today)),
                     (receipts ?? []).map(row => salesReceiptRow(row)),
+                    (payments ?? []).map(row => paymentRow(row)),
                 ],
                 n
             ),
-        [invoices, estimates, receipts, today, n]
+        [invoices, estimates, receipts, payments, today, n]
     )
 
     const settings = useBooksSettings()
@@ -114,17 +132,21 @@ export function useCustomerTransactions(customerId: string, filter: TransactionF
     const invoicesError = runsInvoices && invoicesQuery.isError
     const estimatesError = runsEstimates && estimatesQuery.isError
     const receiptsError = runsReceipts && receiptsQuery.isError
-    const anyError = invoicesError || estimatesError || receiptsError || settings.hasLoadError
+    const paymentsError = runsPayments && paymentsQuery.isError
+    const anyError =
+        invoicesError || estimatesError || receiptsError || paymentsError || settings.hasLoadError
     const isPending =
         (runsInvoices && !invoicesQuery.isReady && !invoicesQuery.isError) ||
         (runsEstimates && !estimatesQuery.isReady && !estimatesQuery.isError) ||
         (runsReceipts && !receiptsQuery.isReady && !receiptsQuery.isError) ||
+        (runsPayments && !paymentsQuery.isReady && !paymentsQuery.isError) ||
         (!settings.isReady && !settings.hasLoadError)
     // The settings read gives the currency every total draws in, so the rows wait for it.
     const isReady =
         (!runsInvoices || invoicesQuery.isReady) &&
         (!runsEstimates || estimatesQuery.isReady) &&
         (!runsReceipts || receiptsQuery.isReady) &&
+        (!runsPayments || paymentsQuery.isReady) &&
         settings.isReady
 
     // A larger window is a new query: the rows of the last ready window stay on screen
@@ -159,12 +181,16 @@ export function useCustomerTransactions(customerId: string, filter: TransactionF
     const receiptsRecovery: LiveRecovery = receiptsError
         ? { queries: [receiptsQuery.collection], sources: [receiptsCollection] }
         : NO_RECOVERY
+    const paymentsRecovery: LiveRecovery = paymentsError
+        ? { queries: [paymentsQuery.collection], sources: [paymentsCollection] }
+        : NO_RECOVERY
     const retry = () => {
         void recoverLiveQueries({
             ...mergeRecoveries([
                 invoicesRecovery,
                 estimatesRecovery,
                 receiptsRecovery,
+                paymentsRecovery,
                 settings.recovery,
             ]),
             onError: err => log.warn('books.customer-page', 'retry failed', { err }),

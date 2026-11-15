@@ -81,6 +81,13 @@
 - cp 3 · find-miss-1280-light (re-capture): the focused Find invoice no. field draws a blue 2 px ring while the focused Customer trigger draws a teal one — two focus colours on one form (core `TextInput` focus style vs the picker trigger).
 - cp 3 · fix review NOTE: new text `Invoice no. can be at most 40 characters` (`findTooLong`, `lib/payment-texts.ts`) for the find field's 40-character rule (the `books_invoices.number` limit); no spec or plan text exists; it follows the Reference no. wording.
 - cp 3 · new text `No open invoice starts with <text>` (`payment-filter-empty`, fix item 2) for a filter that keeps no row; no spec or plan text exists; it follows the spec's `No open invoice 1099`.
+- cp 5 · invoice-1280: action bar — Receive payment is the first, primary (filled) button and Edit secondary; the reference has Edit primary. The order is the plan's (`receive_payment` before `edit`); the emphasis follows from it. At 390 Edit is the bar button and Receive payment is in More, so the primary action differs between widths.
+- cp 5 · invoice-*: totals — no rule above Balance due (the reference has one above Total and one above Balance due), so the result is not set apart from the Payments row.
+- cp 5 · invoice-1280: totals values end ~13 px left of the Amount column values (1191 vs 1204); the rule ends at the Amount column edge (existing totals panel).
+- cp 5 · customer-390: the new Payments chip is cut off at the right edge of the chip row (it scrolls; the filter cannot be read without a scroll).
+- cp 5 · reviewer A NOTE: the Payments row and block come from the client's applications while Balance due comes from the server's `balance`, so for a moment after a post (optimistic `posted` under a mounted invoice view, or before the payment row is filed) they can disagree; both settle.
+- cp 5 · reviewer A NOTE: a void invoice's big figure now reads "Balance due $0.00" (the server clears `balance` on void), where it showed the total before; spec §3.9 gives no void exception. No test pins the void figure.
+- cp 5 · reviewer A NOTE: a posted $0.00 invoice reads "Paid" in the badge and the Transactions tab (spec: "Paid when the balance is zero").
 - cp 2 · core change request: `tinycld/core/components/search-palette/useSearchResults.ts` keeps the debounced query for 300 ms after the palette closes, so a reopen within that time refetches the old query (found through the cp 2 test dispute).
 
 ## Out-of-plan changes
@@ -98,6 +105,10 @@
 - cp 4 · `tinycld/books/hooks/useDocumentReadActions.ts`: void `onError: () => {}` (fix 6; the dialog shows the refusal, core otherwise toasts it again)
 - cp 4 · `tinycld/books/stores/payment-save-store.ts`, `tinycld/books/hooks/usePaymentSave.ts`: `correcting` for the correction form's own post (fix 3)
 - cp 4 · `docs/plans/receive-payment-evidence/cp4/capture-390.json`: second capture manifest, loaded at 390 (lesson 16)
+- cp 5 · `tests/use-invoice-save.test.ts`: its hand-built `DocumentRecord` gains `balance` (the invoice variant now requires it); no assertion changed
+- cp 5 · `tinycld/books/hooks/bill-data.ts`, `estimate-data.ts`, `expense-data.ts`, `sales-receipt-data.ts`: spread `NO_INVOICE_PAYMENTS` (the shared `DocumentScreenReads` gains a required `invoicePayments` read); no behavior change
+- cp 5 · `tinycld/books/hooks/useDocumentScreen.ts`: the invoice payments read joins the read view's loading, error and merged Retry (Do step 1 asks for it; the plan did not name the file)
+- cp 5 · `tinycld/books/components/payments/OutstandingGrid.tsx`, `AppliedInvoices.tsx`, `AppliedInvoiceCards.tsx`: cp 2 behavior change — the payment read view's applied Invoice link (`AppliedInvoiceLink`) uses `useOpenDocument(INVOICE_KIND, id)`, popping back to the invoice when it is right below and pushing otherwise (lesson 15; the e2e met two `invoice-read-only`); the form's row link still pushes
 
 ## Phase notes
 - phase 1: design packet generated unattended (staging p2-receive-payment/packet.md); no human corrections.
@@ -181,6 +192,24 @@
 - fix review: round 2: clean (cp4-fix-review-2.md); 2 rounds used (cap)
 - gate 3 A notes: 2 (saved correction draft title; fix review one-frame drop), listed under Design notes
 - reviewer-caught deferrals: reviewer B 1 (Open balance cell not asserted, test 1) → fixed (fix 1); the test writer had not declared it
+- commit: (this commit)
+- human: none (review mode C)
+
+## Checkpoint 5
+- test writer: tests/document-lifecycle, document-actions, party-transactions, party-balance, help-invoices, help-customer-pages .test.ts; help-receive-payment.test.ts and e2e receive-payment-elsewhere.spec.ts (new); red for the right reason: yes (missing exports and keys; e2e test 1 red at the R press, test 2 red at Overdue `$0.00`); 8 "else" guards green by design (they state existing behavior); untestable: none (report cp5-tests.md)
+- implementer: two dispatches by layer (>15 files): (1) pure libs + help topics (cp5-impl-1.md); (2) hooks and components, gate-1 runs (cp5-impl-2.md); DONE ×2
+- test disputes: none
+- self-declared differences: (1) `overdueCents` rows carry `total` for the test's literals (→ fix 3, 6) · `balance <= 0` reads Paid · `invoiceBadge` takes the invoice's status type · minimum caller changes in useDocumentReadActions/usePartyBalance · help adds the paid-invoice edit rules, R in Who can do what, payments in customers.md. (2) `canReceivePayment` computed in `useDocumentReadActions` (→ fix 4 moves it to lib) · payments query key carries the enabled flag, as the other kinds · invoice payments read only for a posted or void invoice the form does not hold · four data sources spread `NO_INVOICE_PAYMENTS` · a void invoice's Balance due shows `balance` (0) · the payment read view's applied Invoice link pops back to an invoice below it (`useOpenDocument`, lesson 15; the e2e met two `invoice-read-only`) · Receive payment is the first, primary read action on wide; on a phone it sits in More and Edit keeps the bar
+- gate 1: tests unedited: yes · pass (packages:generate, tinycld-pkg check 290 files 5731 tests; e2e `receive-payment:` 13 passed, invoice-form-post 8, customer-pages-balance 6, customer-pages-transactions 5)
+- gate 2 capture: `capture.json` (390 + 1280): invoice (seeded partly paid invoice 1001, reached through the entries search "Seed invoice noTax"), customer (Marisol Alvarez, Transactions tab; no reference, critiqued on its own) → 8 shots, first run
+- gate 2: invalid shots: none · blocking: none · notes: 5 (4 listed under Design notes; the fifth, Receive payment not on the 390 bar, is the same entry as the action-bar note) · critic's gate-3 items: Receive payment in More at 390 (implementer 2: `phoneButtonOf` keeps Edit, the rest in More; help now says so, fix 8) · the chip row scrolls to Payments (existing horizontal chip row, unchanged)
+- gate 3 A (correctness): 0 BLOCK · NOTE 1 + DEFERRAL 2 test id `invoice-read-receive_payment` vs the brief's `invoice-read-receive-payment` → accepted (fix 2, 5) · NOTE 2 + DEFERRAL 1 the posted-with-balance rule untested, the sales-receipt case passes only through the default → accepted (fix 1, 4) · NOTE 6 help lacks "in More on a phone" → accepted (fix 8) · NOTE 7 comment wrap → accepted (fix 9) · NOTEs 3–5 → Design notes · out-of-plan files → recorded
+- gate 3 B (conformance): script lines: 0 · #1–#4 out-of-plan files → recorded (Out-of-plan changes) · #5 `overdueCents` type widened for a test → accepted (fix 3, 6) · #6 comment wrap → accepted (fix 9) · #7 dead `slice(0, 10)` → accepted (fix 7) · DEFERRALS: none · the Files block names `DocumentReadActions.tsx`, unchanged (it registers R from `DOCUMENT_READ_ACTION_KEYS`)
+- fix round: findings file cp5-fix.md, 9 items (causes: weak-test 4, spec-logic 1, conformance 1, help-text 1, other: dead code 1, other: comment wrap 1). Test writer items 1–3 (cp5-fix-tests.md): 4 `receivePaymentOffered` unit tests red (missing export); e2e test 1 asserts `invoice-read-receive-payment` before R and on the Partly paid invoice; `overdueCents` rows carry only `balance`, plus a case whose `total` differs (tsc red until item 6). Implementer items 4–9 fixed (cp5-fix-impl.md): `receivePaymentOffered(kind, status, balance)` in lib/document-actions.ts, read-action test id `read-receive-payment`, `overdueCents` typed `{ balance }` and the query selects only `balance`, `formatDay(payment.date)`, help "on a phone it is in More" in invoices.md and receive-payment.md, comments re-wrapped. Differences: none. Test disputes: none.
+- gate 1 (after fixes): tests unedited: yes · pass (packages:generate, tinycld-pkg check 5736 tests; e2e `receive-payment:` 13 passed, invoice-form-post 8, customer-pages-balance 6, customer-pages-transactions 5). No re-capture: no fix changed what a screen looks like (a test id, help text, comments, the same date text).
+- fix review: round 1: clean (cp5-fix-review.md)
+- gate 3 A notes: 3, listed under Design notes
+- reviewer-caught deferrals: reviewer A 2 (the sales-receipt "none" case proved nothing; the agreed test id) → both fixed (fix 1, 2, 4, 5); the implementer had not declared them
 - commit: (this commit)
 - human: none (review mode C)
 

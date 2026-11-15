@@ -1,4 +1,4 @@
-import { and, eq, lt } from '@tanstack/db'
+import { and, eq, gt, lt } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
@@ -12,8 +12,9 @@ const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
 /**
  * One customer's Open and Overdue figures, in cents. Open is the customer's row of the
- * `books_party_balances` view (no row: no posted A/R line, so 0); Overdue sums the totals
- * of the customer's posted invoices due before today. Both are `null` until both reads
+ * `books_party_balances` view (no row: no posted A/R line, so 0); Overdue sums the open
+ * balances (`balance`) of the customer's posted invoices due before today that are not
+ * paid in full. Both are `null` until both reads
  * and the Books settings (the currency) load; a failure of any of the three is `isError`,
  * and `retry` restarts the failed ones.
  * The view is live through its change signal, so a post or void anywhere in Books moves
@@ -38,9 +39,14 @@ export function usePartyBalance(customerId: string) {
             q
                 .from({ i: invoicesCollection })
                 .where(({ i }) =>
-                    and(eq(i.customer, customerId), eq(i.status, 'posted'), lt(i.due_date, today))
+                    and(
+                        eq(i.customer, customerId),
+                        eq(i.status, 'posted'),
+                        lt(i.due_date, today),
+                        gt(i.balance, 0)
+                    )
                 )
-                .select(({ i }) => ({ total: i.total })),
+                .select(({ i }) => ({ balance: i.balance })),
         queryKey: ['books.customer-page.overdue', customerId, today],
     })
     const settings = useBooksSettings()

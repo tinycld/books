@@ -45,7 +45,8 @@ export function balanceFigures({
     }
 }
 
-// The sum of the overdue invoices' totals, in cents.
-export function overdueCents(rows: readonly { total: number }[]): number {
-    return rows.reduce((sum, row) => sum + row.total, 0)
+// The sum of the overdue invoices' open balances, in cents (receive-payment spec §3.9),
+// so a part payment lowers it. The rows are the overdue query's invoices.
+export function overdueCents(rows: readonly { balance: number }[]): number {
+    return rows.reduce((sum, row) => sum + row.balance, 0)
 }

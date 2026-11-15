@@ -24,6 +24,8 @@ import type {
     BooksExpenses,
     BooksInvoices,
     BooksInvoiceTaxLines,
+    BooksPaymentApplications,
+    BooksPayments,
     BooksProducts,
     BooksSalesReceipts,
     BooksTaxRates,
@@ -113,11 +115,16 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 
 // The header row as the screen reads it: who posted and voided it, and its tax rate (the
 // read view's tax line names it). A sales receipt's own fields add its deposit account,
-// which its payment line names; an invoice's the estimate it was made from ("From
-// estimate <n>"); an estimate's the invoice made from it ("Converted to invoice <n>").
+// which its payment line names. An invoice's own fields add the estimate it was made from
+// ("From estimate <n>") and its open balance (Balance due, the badge). An estimate's own
+// fields add the invoice that was made from it ("Converted to invoice <n>").
 export type DocumentRecord = SharedColumns & {
     kindFields:
-        | (InvoiceKindFields & { estimateRow: Pick<BooksEstimates, 'number'> | undefined })
+        | (InvoiceKindFields & {
+              estimateRow: Pick<BooksEstimates, 'number'> | undefined
+              // The open amount the server keeps (total less the posted payments).
+              balance: BooksInvoices['balance']
+          })
         | (SalesReceiptKindFields & {
               depositRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
           })
@@ -243,6 +250,12 @@ export function isSalesReadLine(line: DocumentReadLine): line is SalesReadLine {
 // A tax line the server wrote at posting (the tax-rates snapshot).
 export type DocumentTaxLine = Pick<BooksInvoiceTaxLines, 'id' | 'rate_ppm' | 'amount'>
 
+// A posted payment applied to an invoice, flattened from its application row: the
+// application's id and amount (what the payment pays on this invoice) with the payment's
+// id, number and date.
+export type InvoicePayment = Pick<BooksPaymentApplications, 'id' | 'amount' | 'payment'> &
+    Pick<BooksPayments, 'number' | 'date'>
+
 // One read's state: ready (a disabled read is ready), failed, and what Retry recovers
 // (empty unless it failed).
 export type DocumentRead<T> = {
@@ -267,6 +280,9 @@ export type DocumentScreenReads = {
     estimateSource: DocumentRead<EstimateSource | undefined>
     estimateSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
+    // On a posted or void invoice: the posted payments applied to it, oldest first. Idle
+    // (ready and empty) on every other form and kind.
+    invoicePayments: DocumentRead<InvoicePayment[]>
     // `errorText` is the error state's text when only this read failed.
     formStart: DocumentRead<DocumentFormStart> & { errorText?: string }
 }
@@ -367,6 +383,11 @@ export const NO_ESTIMATE_SOURCE: Pick<
 > = {
     estimateSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
     estimateSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
+}
+
+// The payment read of every kind but the invoice: ready, empty, never failed.
+export const NO_INVOICE_PAYMENTS: Pick<DocumentScreenReads, 'invoicePayments'> = {
+    invoicePayments: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
 }
 
 // The number of the estimate an invoice names, for "From estimate <n>": the stored

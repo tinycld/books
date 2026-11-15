@@ -11,23 +11,32 @@ To see what a customer owes, open the customer from the Customers list. The cust
 
 The page shows two figures:
 
-- **Open** is what the customer owes you in all: the customer's balance on Accounts receivable, from every posted entry that names the customer. When you post or void an invoice anywhere in Books, the figure changes at once.
-- **Overdue** is the total of the customer's posted invoices whose due date is before today.
+- **Open** is what the customer owes you in all: the customer's balance on Accounts receivable, from every posted entry that names the customer. When you post or void an invoice or a payment anywhere in Books, the figure changes at once.
+- **Overdue** is what is still open on the customer's posted invoices whose due date is before today: their Balance due, not their total, so a part payment lowers it and a paid invoice drops out.
 
-If the balance is in the customer's favour (you owe the customer), the first figure shows as a negative amount, such as −$120.00, with the label **Credit** in place of Open. A parent customer's figures are its own only; each sub-customer has its own page. If the figures cannot load, the page shows "Balance unavailable"; choose Retry to load them again.
+If the balance is in the customer's favour (you owe the customer, for example after a payment that was more than the open invoices), the first figure shows as a negative amount, such as −$120.00, with the label **Credit** in place of Open. A parent customer's figures are its own only; each sub-customer has its own page. If the figures cannot load, the page shows "Balance unavailable"; choose Retry to load them again.
 
 ## Start a transaction for the customer
 
-To start an invoice, an estimate or a sales receipt for this customer, choose **New transaction**, or press ⌥N, and pick the type. The new document opens with the customer filled in. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
+To start an invoice, an estimate, a sales receipt or a payment for this customer, choose **New transaction**, or press ⌥N, and pick the type. To record money the customer sent, pick Receive payment: see [Receive payment](help://books:receive-payment). The new document opens with the customer filled in. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
 
 ## The tabs
 
 The page has four tabs. To select one from anywhere on the page, press ⌥1 to ⌥4.
 
-- **Transactions** (⌥1) lists the customer's invoices, estimates and sales receipts, newest first. Choose a row to open it.
+- **Transactions** (⌥1) lists the customer's invoices, estimates, sales receipts and payments, newest first. Choose a row to open it.
 - **Contacts** (⌥2) lists the people at the customer.
 - **Details** (⌥3) is the customer form: names, addresses, terms, sales tax and custom fields.
 - **Notes** (⌥4) holds your notes about the customer.
+
+## Invoice and payment statuses
+
+In the Transactions tab, each row shows its type and its status:
+
+- An invoice is Draft, Paid (nothing open), Partly paid (part of the total open), Overdue (all of the total open, due before today), Open or Void.
+- A Payment is Draft, Applied (all of it paid invoices), Credit with the amount kept as a credit (such as Credit $100.00), or Void.
+
+To see the payments only, choose the **Payments** chip above the list. Choose a payment's row to open the payment.
 
 ## Edit in place
 
