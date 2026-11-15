@@ -12,6 +12,27 @@ import type { SalesDocumentKind } from './sales-document-kinds'
 
 export const ATTACHMENTS_COLLECTION = 'books_attachments'
 
+// The relation column an attachment of this kind's document sets.
+export function attachmentParentColumn(kind: Pick<SalesDocumentKind, 'key'>): 'bill' | 'expense' {
+    return kind.key === 'expense' ? 'expense' : 'bill'
+}
+
+// Whether an upload's answer is a stored attachment row, before it goes to the store.
+export function isAttachmentRow(value: unknown): value is BooksAttachments {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'id' in value &&
+        typeof value.id === 'string' &&
+        'file' in value &&
+        typeof value.file === 'string' &&
+        'name' in value &&
+        typeof value.name === 'string' &&
+        'created' in value &&
+        typeof value.created === 'string'
+    )
+}
+
 // The extensions Books keeps, lower case, and the type each one is. The server checks
 // the same list (attachmentExtensions in server/attachments.go).
 export const ATTACHMENT_EXTENSIONS: Readonly<Record<string, string>> = {
@@ -98,6 +119,16 @@ export function attachmentIssue(
             : `A bill holds at most ${MAX_ATTACHMENTS_PER_DOCUMENT} attachments.`
     }
     return null
+}
+
+// The document's attachment count that the next add is checked against: its stored rows,
+// plus the session's files not stored yet (pending, uploading or failed), less the stored
+// rows the session marked for removal.
+export function attachmentCount(
+    stored: number,
+    session: { drafts: readonly unknown[]; removals: readonly string[] }
+): number {
+    return stored + session.drafts.length - session.removals.length
 }
 
 export function attachmentsHeading(count: number): string {
