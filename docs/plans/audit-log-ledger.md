@@ -29,7 +29,7 @@ with the reason, and shown to the human at the end)
 and again at the end)
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- cp 0 (core): `docs/plans/2026-11-15-report-zone-times-and-record-panel-part-1.md` and `-part-2.md` — the Files block names only the outline file; the task bodies are in two part files (written in parallel, as the earlier core plans `2026-11-14-report-drill-down-part-*.md` are).
 
 ## Phase notes
 - phase 1: unattended; no corrections to the extractions (intake in the staging folder). The design gate (2026-11-15) answered the packet's questions below.
@@ -60,6 +60,15 @@ and again at the end)
   - open money-field list → closed by the field-map test; live record and relation reads → loading/error rules (P11, Do 4–5); More item while access loads → Do 2.
   - accepted as decisions: P10 (view sources are the line collections), P13 (no-access hub/link is Go + core e2e), P14 (Show 50 more proven by the hook test).
 - review mode switches: none
+
+## Checkpoint 0
+- core plan: `tinycld` branch `books/p5-audit-log` (from main 9cc926c0, no newer main), `docs/plans/2026-11-15-report-zone-times-and-record-panel.md` (outline) + `-part-1.md` (Tasks 1–6: T3, T1 ×2, T2 ×2, D5 generator) + `-part-2.md` (Tasks 7–11: D5 rules, D5 view, docs and help, salesstub stub, e2e), commit 066ea78f (not pushed; the driver pushes). Written with writing-plans: one agent wrote the outline, two wrote the parts in parallel. 11 tasks, 19 rulings (R1–R19), 3 open questions (Q1–Q3), verdict MAJOR, no `exclusive` (Q8), spec version 4, no bump (Q9).
+- plan review: two reviewers (coverage: 3 BLOCK, 5 NOTE; code accuracy, with `go test -overlay` on scratch copies: 2 BLOCK, 9 NOTE) → 17 items accepted and fixed (staging `cp/cp0-plan-fix.md`). Main fixes: the outline brought in line with the parts' 12 corrections; a core comment that named Books replaced by a fictional package; 12 one-time mutations in Task 11 Step 3 (and the `reportLink` vitest) so each e2e assertion is seen red; a Customize-closes-the-panel step; the Go statement-equality tests compare after `sameShape` (PocketBase names rule placeholders at random); the panel title is keyed by record path (a second row opening the same record blanked it); `readerZone` reads the client's UTC names; `isTwelveHour` falls back to `hour12`; a failed panel chunk retries (`reloadableChunk`); docs state the typed-day limit (Q3). Not fixed: code NOTE 7 (a period pivot or month group of a DateTime buckets by the UTC day even when the period is zoned) — decided by spec Q7; checkpoint 1's display must not pivot the audit log by month. Fix review: round 1 → 1 BLOCK (`sameShape` kept a param PocketBase binds but inlines, so `TestZoneUnknownOrLocalIsUTC` failed 3/3) fixed by the runner with the reviewer's verified code (passes `-count=5` on the reviewer's scratch overlay), 3 NOTE (R12 name and Task 8 Step 12 setup comment fixed; item 13 wording needs no change). Rounds: 1.
+- open questions for the human (in the core plan): Q1 the row mark after a reload or a pasted link (recommended: the row id stays in the UI store; after a reload the panel shows with no row marked); Q2 the device zone read once per app start (recommended yes); Q3 a DateTime compared with a typed day stays UTC while a period chip is zoned (recommended: accept for now, documented).
+- names changed versus the plan's Produces: none renamed; added names N1–N5 (outline "Names changed"; e.g. `ReportViewModel.zoneWords: string | null` required, `RECORD_KEY = 'dr'`, `clearedDrillKeys` also clears `dr`, stub panel path `panel`, stub files under `components/` and `screens/panel/[id]`).
+- Books plan changes the core plan reports back (amend before checkpoint 1): B1 every computed column of the audit view needs `CAST(… AS TEXT)` (PocketBase types an uncast expression as json, which Select and Text refuse; `created` stays a bare `a.created`); B2 the row mark is not kept over a reload (Q1), so checkpoint 3's e2e asserts the mark only after a press; B3 below 1360 px with `dr` in the URL the panel is a page over the report with a back link (`report-record-panel-back`) and no ✕; B4 the scratch route's static model passes `zoneWords`; B5 `segments` for `books/history/<collection>/<id>` are `[<collection>, <id>]`; B6 the `reportPanels` entry works as planned; B7 a panel open closes Customize and Customize closes the panel.
+- stopped: Do step 2 — the human's review of the core plan. Resume: fold the human's answers into the core plan, then subagent-driven development (Do step 3), Do 4 (Books consumers), Do 6 (gate 2, books side). Do 5 (the core PR) is the driver's.
+- test writer, implementer, gates 1–3: not started (Do 3 onward).
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
