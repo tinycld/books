@@ -1,0 +1,35 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "invoice",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1600,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice noTax" },
+                { "clickText": "Seed invoice noTax" },
+                { "waitFor": "invoice-read-only" },
+                { "waitFor": "invoice-payments" },
+                { "click": "invoice-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "customer",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1200,
+            "hideLabels": ["New", "Reconnecting…"],
+            "actions": [
+                { "clickText": "Marisol Alvarez" },
+                { "waitFor": "customer-transactions" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

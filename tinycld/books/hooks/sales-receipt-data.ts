@@ -27,6 +27,7 @@ import {
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
+    NO_INVOICE_PAYMENTS,
     salesLineMapperOf,
     useHeldRecord,
 } from './document-data'
@@ -194,6 +195,7 @@ function useSalesReceiptScreenReads(
         ),
         // A sales receipt is never made from an estimate.
         ...NO_ESTIMATE_SOURCE,
+        ...NO_INVOICE_PAYMENTS,
         taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),

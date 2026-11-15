@@ -67,6 +67,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_expense_lines": {
 			ExtractLabel: func(r *core.Record) string { return expenseLineLabel(app, r) },
 		},
+		"books_payments": {ExtractLabel: paymentLabel, Redact: []string{"sort_key"}},
+		"books_payment_applications": {
+			ExtractLabel: func(r *core.Record) string { return paymentApplicationLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -224,6 +228,28 @@ func expenseLineLabel(app core.App, r *core.Record) string {
 		return fmt.Sprintf("%s: line %d", expense, r.GetInt("position")+1)
 	}
 	return expense + ": " + lineRowLabel(expenseKind, withLine(lines, r), r)
+}
+
+// paymentLabel names a payment by its number: "Payment 1004". A draft has no
+// number: "Draft payment".
+func paymentLabel(r *core.Record) string {
+	return paymentName(r)
+}
+
+// paymentApplicationLabel names an application by its payment and its
+// invoice: "Payment 1004: Invoice 1009". A payment or an invoice that cannot be
+// read (deleted with its applications) falls back to its id, so the audit row
+// is still written.
+func paymentApplicationLabel(app core.App, r *core.Record) string {
+	payment := r.GetString("payment")
+	if p, err := app.FindRecordById(paymentsCollection, payment); err == nil {
+		payment = paymentLabel(p)
+	}
+	invoice := r.GetString("invoice")
+	if inv, err := app.FindRecordById("books_invoices", invoice); err == nil {
+		invoice = invoiceLabel(inv)
+	}
+	return payment + ": " + invoice
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office

@@ -94,6 +94,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         reads.estimateSource,
         reads.estimateSourceLines,
         reads.taxLines,
+        reads.invoicePayments,
         reads.formStart,
     ]
     const isReady =
@@ -221,6 +222,8 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         errorText,
         replacesNumber,
         taxLines: reads.taxLines.data,
+        // The posted payments applied to a posted or void invoice; empty for other kinds.
+        invoicePayments: reads.invoicePayments.data,
         estimateSource,
         retry,
         canWrite: access.canWrite,

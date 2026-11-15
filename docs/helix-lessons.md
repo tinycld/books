@@ -42,3 +42,5 @@
 - An e2e test that changes the shared `books_settings` row goes in the `purchase-lines-setting` Playwright project (one worker); `-g` also runs that dependency project, and its red tests skip their dependents. — expense-form, retro, p3-expense
 - In e2e helpers, wait on the visible screen (`.filter({ visible: true })`), never on the first match of an `or`: Books keeps a list mounted and hidden under an open record. Scope a row lookup to its account section, and read server data through the page's `fetch`, not Node `page.request`. — report-drill-down, retro, p5-drill-down
 - A report drill is set per column; a blank cell (a zero Debit or Credit) has no drill and no link. — report-drill-down, retro, p5-drill-down
+- A pick that fills a form (a lookup, a find) keeps a value the user typed and re-applies it by the spec's rule; never reset a "typed" flag to make the pick simpler. — receive-payment, driver, cp 3
+- Every action a wide layout offers by a control (a header tick box, Pay all) has a touch control on the phone layout too; a key alone is not a path on native. — receive-payment, driver, cp 3
