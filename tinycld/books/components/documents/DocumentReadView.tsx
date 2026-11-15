@@ -13,6 +13,7 @@ import {
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
+import { invoiceBadge } from '../../lib/document-lifecycle'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
 import { documentTaxOf } from '../../lib/document-tax'
@@ -34,6 +35,7 @@ import { DocumentTabs, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import { useDocumentKind } from './document-kind-context'
 import { type DocumentKind, storedLineTableRows } from './document-kinds'
+import { InvoicePayments } from './InvoicePayments'
 
 const LINK_STYLE = { minHeight: 44 }
 
@@ -79,8 +81,14 @@ function readTableSubtotals(
     }))
 }
 
-// The last row and the big figure are the total in this unit (spec §3.4), posted or
-// void: payments come later.
+// The sum the posted payments apply to an invoice, in cents; 0 for every other kind.
+function appliedCents(data: DocumentScreenData): number {
+    return data.invoicePayments.reduce((sum, payment) => sum + payment.amount, 0)
+}
+
+// The last row and the big figure: an invoice's Balance due is its open balance, which
+// the server keeps (receive-payment spec §3.9), with a Payments row above it while any
+// posted payment applies; every other kind's is its total, posted or void.
 function readTotals(
     data: DocumentScreenData,
     record: DocumentRecord,
@@ -91,13 +99,28 @@ function readTotals(
     const total = money(record.total)
     // A kind with more than one line table has no single Subtotal row.
     const subtotal = doc.lineTables.length > 1 ? null : money(record.subtotal)
+    const fields = record.kindFields
+    const last = fields.kind === 'invoice' ? money(fields.balance) : total
+    const applied = appliedCents(data)
+    const payments = applied > 0 ? `−${money(applied)}` : null
     return {
         subtotal,
         tableSubtotals: readTableSubtotals(data, documentKind),
         tax: readTaxLine(data, record, doc),
         total,
-        last: total,
+        payments,
+        last,
     }
+}
+
+// An invoice's badge follows its open balance (Paid, Partly paid); undefined for every
+// other kind, whose header shows its status's badge.
+function readBadgeOf(record: DocumentRecord) {
+    const fields = record.kindFields
+    const { status } = record
+    if (fields.kind !== 'invoice') return undefined
+    if (status !== 'draft' && status !== 'posted' && status !== 'void') return undefined
+    return invoiceBadge(status, fields.balance, record.total)
 }
 
 // The party's address as the document stored it (storedPartyAddressOf: a sales kind's
@@ -298,10 +321,11 @@ interface DocumentReadViewProps {
  * A posted or void sales document, or a quote shown read only (a closed estimate, or any
  * estimate for a reader): the header, Customer, Bill to, Email, the date and the kind's
  * own details, Tax, the lines with their stored amounts, the stored totals with the tax
- * snapshot, Message and Memo, the kind's line under them (ReadStampRow) and, for the
- * posting lifecycle only, the Posted by / Voided by stamps around it and, for a replaced
- * original, the link to its replacement; or, on the PDF
- * view tab, its PDF. The bar's actions follow the lifecycle's read actions for the user's
+ * snapshot (an invoice's with its Payments row and its Balance due from its open balance),
+ * Message and Memo, an invoice's Payments block, the kind's line under them (ReadStampRow)
+ * and, for the posting lifecycle only, the Posted by / Voided by stamps around it and, for
+ * a replaced original, the link to its replacement; or, on the PDF view tab, its PDF. The
+ * bar's actions follow the lifecycle's read actions for the user's
  * access (useDocumentReadActions); their keys are in this screen's `compose` scope.
  */
 export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
@@ -325,6 +349,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const isPosting = doc.lifecycle === 'posting'
     const isExpired = expiredOnOf(record, todayIso()) !== null
     const readOnlyId = `${doc.testId}-read-only`
+    const badge = readBadgeOf(record)
     return (
         <ScopeProvider owner={scopeOwner}>
             <View testID={readOnlyId} className="flex-1 bg-background">
@@ -335,6 +360,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                         status={record.status}
                         figure={totals.last}
                         isExpired={isExpired}
+                        badge={badge}
                     />
                     <DocumentTabs selected={tab} firstLabel="Details" scopeOwner={scopeOwner} />
                     <TabPanel isVisible={isDetailsTab}>
@@ -354,6 +380,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             memo={record.memo}
                             memoLabel={memoLabel}
                         />
+                        <InvoicePayments payments={data.invoicePayments} currency={data.currency} />
                         <ReadStamps record={record} isPosting={isPosting} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>

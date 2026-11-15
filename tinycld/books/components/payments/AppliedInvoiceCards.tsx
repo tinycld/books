@@ -3,7 +3,7 @@ import type { PaymentApplicationRow } from '../../hooks/usePaymentRecord'
 import { formatMoney } from '../../lib/money'
 import { formatDay } from '../../lib/register-range'
 import { CARD, CardPair } from './OutstandingCards'
-import { InvoiceLink } from './OutstandingGrid'
+import { AppliedInvoiceLink } from './OutstandingGrid'
 
 function AppliedCard({
     application,
@@ -20,7 +20,7 @@ function AppliedCard({
     const applied = formatMoney(application.amount, currency)
     return (
         <View testID={`payment-applied-${application.invoice}`} className={CARD}>
-            <InvoiceLink
+            <AppliedInvoiceLink
                 invoiceId={application.invoice}
                 label={label}
                 testID={`payment-read-link-${application.invoice}`}

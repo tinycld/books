@@ -11,6 +11,9 @@ export type DocumentTotalsView = {
     // Null with no tax chosen: no tax line shows.
     tax: { label: string; amount: string } | null
     total: string
+    // The sum the posted payments apply ("−$100.00"), above the last row; null or left out
+    // when none applies (every form, and every kind but the invoice).
+    payments?: string | null
     // The kind's last row (Balance due on an invoice).
     last: string
 }
@@ -50,6 +53,11 @@ function TaxRow({ tax, testID }: { tax: DocumentTotalsView['tax']; testID: strin
     return <TotalRow label={tax.label} amount={tax.amount} testID={testID} />
 }
 
+function PaymentsRow({ amount, testID }: { amount: string | null; testID: string }) {
+    if (amount === null) return null
+    return <TotalRow label="Payments" amount={amount} testID={testID} />
+}
+
 // The kind's last row (Balance due on an invoice); a kind with none (an estimate) draws
 // nothing.
 function LastRow({ amount }: { amount: string }) {
@@ -74,8 +82,9 @@ function TableSubtotalRows({ rows }: { rows: DocumentTableSubtotal[] }) {
     return <>{drawn}</>
 }
 
-// Subtotal (or each table's subtotal), the header tax's one line, Total and the kind's
-// last row, right-aligned so the figures end where the lines' Amount column ends.
+// Subtotal (or each table's subtotal), the header tax's one line, Total, the payments
+// applied (an invoice's read view) and the kind's last row, right-aligned so the figures
+// end where the lines' Amount column ends.
 export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) {
     const { doc } = useDocumentKind()
     const testId = doc.testId
@@ -84,7 +93,9 @@ export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) 
         subtotal: `${testId}-total-subtotal`,
         tax: `${testId}-total-tax`,
         total: `${testId}-total`,
+        payments: `${testId}-total-payments`,
     }
+    const payments = totals.payments ?? null
     return (
         <View testID={ids.totals}>
             <SubtotalRow amount={totals.subtotal} testID={ids.subtotal} />
@@ -93,6 +104,7 @@ export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) 
             <View className="border-t border-border">
                 <TotalRow label="Total" amount={totals.total} testID={ids.total} isStrong />
             </View>
+            <PaymentsRow amount={payments} testID={ids.payments} />
             <LastRow amount={totals.last} />
         </View>
     )

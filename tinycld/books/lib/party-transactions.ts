@@ -1,14 +1,21 @@
-// One customer's sales documents as one list (spec §3.5): invoices, estimates and sales
-// receipts mapped to one row shape with their status badge, merged newest first. Pure, so
-// each rule is unit-tested; the hook (hooks/useCustomerTransactions.ts) feeds it.
+// One customer's sales documents as one list (spec §3.5): invoices, estimates, sales
+// receipts and payments mapped to one row shape with their status badge, merged newest
+// first. Pure, so each rule is unit-tested; the hook (hooks/useCustomerTransactions.ts)
+// feeds it.
 
-import type { BooksEstimates, BooksInvoices, BooksSalesReceipts } from '../types'
+import type { BooksEstimates, BooksInvoices, BooksPayments, BooksSalesReceipts } from '../types'
 import type { StatusTone } from './document-lifecycle'
 import { statusBadgeOf } from './document-lifecycle'
 import { estimateStatusLabel, isExpired } from './estimate-status'
-import { ESTIMATE_KIND, INVOICE_KIND, SALES_RECEIPT_KIND } from './sales-document-kinds'
+import { formatMoney } from './money'
+import {
+    ESTIMATE_KIND,
+    INVOICE_KIND,
+    SALES_RECEIPT_KIND,
+    type SalesDocumentKind,
+} from './sales-document-kinds'
 
-export type TransactionKind = 'invoice' | 'estimate' | 'sales_receipt'
+export type TransactionKind = 'invoice' | 'estimate' | 'sales_receipt' | 'payment'
 
 export type TransactionFilter = 'all' | TransactionKind
 
@@ -32,6 +39,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionKind, string> = {
     invoice: 'Invoice',
     estimate: 'Estimate',
     sales_receipt: 'Sales receipt',
+    payment: 'Payment',
 }
 
 // The chips, in strip order.
@@ -40,21 +48,24 @@ export const TRANSACTION_FILTERS: readonly { key: TransactionFilter; label: stri
     { key: 'invoice', label: 'Invoices' },
     { key: 'estimate', label: 'Estimates' },
     { key: 'sales_receipt', label: 'Sales receipts' },
+    { key: 'payment', label: 'Payments' },
 ]
 
-// The document route of each kind, for `documentHref`.
+// The route of each kind, for `documentHref`. A payment is not a sales-document kind
+// (receive-payment spec §2), so it gives only its route.
 export const TRANSACTION_DOC_KINDS: Record<
     TransactionKind,
-    typeof INVOICE_KIND | typeof ESTIMATE_KIND | typeof SALES_RECEIPT_KIND
+    Pick<SalesDocumentKind, 'routeBase'>
 > = {
     invoice: INVOICE_KIND,
     estimate: ESTIMATE_KIND,
     sales_receipt: SALES_RECEIPT_KIND,
+    payment: { routeBase: 'books/payments' },
 }
 
 type InvoiceInput = Pick<
     BooksInvoices,
-    'id' | 'status' | 'number' | 'date' | 'due_date' | 'total' | 'currency' | 'created'
+    'id' | 'status' | 'number' | 'date' | 'due_date' | 'total' | 'balance' | 'currency' | 'created'
 >
 type EstimateInput = Pick<
     BooksEstimates,
@@ -64,15 +75,23 @@ type SalesReceiptInput = Pick<
     BooksSalesReceipts,
     'id' | 'status' | 'number' | 'date' | 'total' | 'currency' | 'created'
 >
+type PaymentInput = Pick<
+    BooksPayments,
+    'id' | 'status' | 'number' | 'date' | 'amount' | 'credited' | 'currency' | 'created'
+>
 
 const DRAFT = { label: 'Draft', tone: 'muted' } as const
 const VOID = { label: 'Void', tone: 'muted' } as const
 
-// Draft and Void are muted; a posted invoice is Overdue when due before today, else Open.
-// Days are YYYY-MM-DD text, so they compare as strings.
+// Draft and Void are muted. A posted invoice's status follows its open balance
+// (receive-payment spec §3.9), the first rule that applies winning: Paid when nothing is
+// open, Partly paid while part of the total is open, Overdue when due before today, else
+// Open. Days are YYYY-MM-DD text, so they compare as strings.
 function invoiceStatus(row: InvoiceInput, today: string): PartyTransactionRow['status'] {
     if (row.status === 'draft') return { ...DRAFT }
     if (row.status === 'void') return { ...VOID }
+    if (row.balance <= 0) return { label: 'Paid', tone: 'success' }
+    if (row.balance < row.total) return { label: 'Partly paid', tone: 'warning' }
     if (row.due_date !== '' && row.due_date < today)
         return { label: 'Overdue', tone: 'destructive' }
     return { label: 'Open', tone: 'warning' }
@@ -94,6 +113,16 @@ function receiptStatus(row: SalesReceiptInput): PartyTransactionRow['status'] {
     if (row.status === 'draft') return { ...DRAFT }
     if (row.status === 'void') return { ...VOID }
     return { label: 'Paid', tone: 'success' }
+}
+
+// A posted payment reads Applied when nothing was kept as a credit, else Credit $x.
+function paymentStatus(row: PaymentInput): PartyTransactionRow['status'] {
+    if (row.status === 'draft') return { ...DRAFT }
+    if (row.status === 'void') return { ...VOID }
+    if (row.credited > 0) {
+        return { label: `Credit ${formatMoney(row.credited, row.currency)}`, tone: 'warning' }
+    }
+    return { label: 'Applied', tone: 'success' }
 }
 
 export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRow {
@@ -138,6 +167,21 @@ export function salesReceiptRow(row: SalesReceiptInput): PartyTransactionRow {
     }
 }
 
+// A payment's amount received is its total.
+export function paymentRow(row: PaymentInput): PartyTransactionRow {
+    return {
+        id: row.id,
+        kind: 'payment',
+        number: row.number,
+        date: row.date,
+        dueDate: '',
+        total: row.amount,
+        currency: row.currency,
+        created: row.created,
+        status: paymentStatus(row),
+    }
+}
+
 // A void original that a correction replaced is left out: the correction carries its
 // number. A plain void stays. The hook's query applies this rule in its `where`, before
 // `.limit(n)`, so each window holds only listed rows; this function states it for the tests.
@@ -167,6 +211,7 @@ const EMPTY_NOUNS: Record<TransactionKind, string> = {
     invoice: 'invoices',
     estimate: 'estimates',
     sales_receipt: 'sales receipts',
+    payment: 'payments',
 }
 
 export function emptyText(filter: TransactionFilter): string {

@@ -10,7 +10,7 @@ import {
 } from '../../lib/payment-columns'
 import { formatDay } from '../../lib/register-range'
 import { AppliedInvoiceCards } from './AppliedInvoiceCards'
-import { InvoiceLink, invoiceLabel } from './OutstandingGrid'
+import { AppliedInvoiceLink, invoiceLabel } from './OutstandingGrid'
 
 const HEAD = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const MONEY_CELL = 'text-right text-sm text-foreground tabular-nums'
@@ -40,7 +40,7 @@ function AppliedRow({
             className="flex-row items-center gap-3 border-b border-border px-2"
         >
             <View style={COL.invoice}>
-                <InvoiceLink
+                <AppliedInvoiceLink
                     invoiceId={application.invoice}
                     label={label}
                     testID={`payment-read-link-${application.invoice}`}

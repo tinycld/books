@@ -13,10 +13,14 @@ import {
     invoiceRow,
     isListedTransaction,
     mergeTransactions,
+    paymentRow,
     salesReceiptRow,
     TRANSACTION_DOC_KINDS,
+    TRANSACTION_FILTERS,
     TRANSACTION_PAGE,
+    TRANSACTION_TYPE_LABELS,
 } from '../tinycld/books/lib/party-transactions'
+import { PAYMENT_IDS, PAYMENTS } from '../tinycld/books/lib/receive-payment-fixture'
 import {
     ESTIMATE_KIND,
     INVOICE_KIND,
@@ -100,6 +104,119 @@ describe('invoiceRow', () => {
     it('a posted invoice due today is not overdue', () => {
         const row = invoice('cpinv0000001035')
         expect(invoiceRow(row, row.due_date).status).toEqual({ label: 'Open', tone: 'warning' })
+    })
+})
+
+// Receive payment §3.9: a posted invoice's status follows its open balance. The first rule
+// that applies wins, in the spec's order: Paid, Partly paid, Overdue, Open.
+describe('invoiceRow with payments applied', () => {
+    const overdue = invoice('cpinv0000001035')
+    const notDue = invoice('cpinv0000001041')
+
+    it('a posted invoice with no balance is Paid, success, even when due before today', () => {
+        expect(overdue.due_date < today).toBe(true)
+        expect(invoiceRow({ ...overdue, balance: 0 }, today).status).toEqual({
+            label: 'Paid',
+            tone: 'success',
+        })
+        expect(invoiceRow({ ...notDue, balance: 0 }, today).status).toEqual({
+            label: 'Paid',
+            tone: 'success',
+        })
+    })
+
+    it('a posted invoice partly paid is Partly paid, warning, before the overdue check', () => {
+        expect(invoiceRow({ ...overdue, balance: 100_000 }, today).status).toEqual({
+            label: 'Partly paid',
+            tone: 'warning',
+        })
+        expect(invoiceRow({ ...notDue, balance: 1 }, today).status).toEqual({
+            label: 'Partly paid',
+            tone: 'warning',
+        })
+    })
+
+    it('a posted invoice with its whole total open and due before today is Overdue', () => {
+        expect(invoiceRow({ ...overdue, balance: overdue.total }, today).status).toEqual({
+            label: 'Overdue',
+            tone: 'destructive',
+        })
+    })
+
+    it('a posted invoice with its whole total open and not yet due is Open', () => {
+        expect(invoiceRow({ ...notDue, balance: notDue.total }, today).status).toEqual({
+            label: 'Open',
+            tone: 'warning',
+        })
+    })
+
+    it('a draft or a void invoice keeps its status whatever the balance', () => {
+        expect(invoiceRow({ ...invoice('cpinv0000001042'), balance: 0 }, today).status).toEqual({
+            label: 'Draft',
+            tone: 'muted',
+        })
+        expect(invoiceRow({ ...invoice('cpinv0000001027'), balance: 0 }, today).status).toEqual({
+            label: 'Void',
+            tone: 'muted',
+        })
+    })
+})
+
+// The customer page's fourth kind (receive-payment spec §3.9).
+describe('paymentRow', () => {
+    function payment(id: string) {
+        const row = PAYMENTS.find(p => p.id === id)
+        if (!row) throw new Error(`no fixture payment ${id}`)
+        return row
+    }
+
+    it('maps a payment to one transaction row of kind payment, its amount as the total', () => {
+        const row = payment(PAYMENT_IDS.paidInFull)
+        expect(paymentRow(row)).toMatchObject({
+            id: row.id,
+            kind: 'payment',
+            number: row.number,
+            date: row.date,
+            dueDate: '',
+            total: row.amount,
+            currency: row.currency,
+            created: row.created,
+        })
+    })
+
+    it('a draft payment is Draft, muted', () => {
+        expect(paymentRow(payment(PAYMENT_IDS.draft)).status).toEqual({
+            label: 'Draft',
+            tone: 'muted',
+        })
+    })
+
+    it('a posted payment with nothing credited is Applied, success', () => {
+        const row = payment(PAYMENT_IDS.paidInFull)
+        expect(row.credited).toBe(0)
+        expect(paymentRow(row).status).toEqual({ label: 'Applied', tone: 'success' })
+    })
+
+    it('a posted payment with an amount credited is Credit $x, warning', () => {
+        const row = { ...payment(PAYMENT_IDS.overpayment), credited: 1500 }
+        expect(paymentRow(row).status).toEqual({ label: 'Credit $15.00', tone: 'warning' })
+    })
+
+    it('a void payment is Void, muted', () => {
+        expect(paymentRow(payment(PAYMENT_IDS.voided)).status).toEqual({
+            label: 'Void',
+            tone: 'muted',
+        })
+    })
+
+    it('has the type label Payment and the chip Payments', () => {
+        expect(TRANSACTION_TYPE_LABELS.payment).toBe('Payment')
+        expect(TRANSACTION_FILTERS).toContainEqual({ key: 'payment', label: 'Payments' })
+        expect(filterTestId('payment')).toBe('customer-transactions-filter-payment')
+    })
+
+    it('opens books/payments/<id>', () => {
+        expect(TRANSACTION_DOC_KINDS.payment.routeBase).toBe('books/payments')
     })
 })
 
@@ -259,10 +376,9 @@ describe('filterTestId and TRANSACTION_DOC_KINDS', () => {
     })
 
     it('opens each kind on its own document route', () => {
-        expect(TRANSACTION_DOC_KINDS).toEqual({
-            invoice: INVOICE_KIND,
-            estimate: ESTIMATE_KIND,
-            sales_receipt: SALES_RECEIPT_KIND,
-        })
+        expect(TRANSACTION_DOC_KINDS.invoice).toEqual(INVOICE_KIND)
+        expect(TRANSACTION_DOC_KINDS.estimate).toEqual(ESTIMATE_KIND)
+        expect(TRANSACTION_DOC_KINDS.sales_receipt).toEqual(SALES_RECEIPT_KIND)
+        expect(TRANSACTION_DOC_KINDS.payment).toMatchObject({ routeBase: 'books/payments' })
     })
 })
