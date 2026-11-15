@@ -14,7 +14,8 @@ func journalShipped() reports.Shipped {
 		Title:       "Journal",
 		Description: "Every posted entry with its debit and credit lines, for a period.",
 		Spec:        mustJSON(journalSpec()),
-		Revision:    1,
+		// 2: lines open the transaction that posted them (detail.open).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -58,7 +59,9 @@ func journalSpec() *reports.Spec {
 			// leaves the blocks alone.
 			{Formula: fld("position")},
 		},
-		Detail:  &reports.Detail{Label: fld("date")},
+		// A line opens the transaction that posted it; the block's heading row
+		// keeps its fold.
+		Detail:  &reports.Detail{Label: fld("date"), Open: entryOpenPath()},
 		Display: journalDisplay(),
 	}
 }
@@ -126,8 +129,8 @@ func journalColumns() []reports.Column {
 	return []reports.Column{
 		{ID: "entry", Label: "Entry / Date", Path: reports.Path{{Link: "entry"}}},
 		{ID: "account", Label: "Account", Formula: accountLabel(func(n ...string) *reports.Node { return fld(append([]string{"account"}, n...)...) })},
-		{ID: "name", Label: "Name", Formula: op("coalesce", fld("customer", "display_name"), fld("vendor", "display_name"))},
-		{ID: "description", Label: "Description", Formula: op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo"))},
+		{ID: "name", Label: "Name", Formula: lineName()},
+		{ID: "description", Label: "Description", Formula: lineDescriptionFormula()},
 		// A zero side is blank on a line; block and total rows add the side.
 		{ID: "debit", Label: "Debit", Formula: blankZero(fld("debit")), Rollup: op("sum", fld("debit"))},
 		{ID: "credit", Label: "Credit", Formula: blankZero(fld("credit")), Rollup: op("sum", fld("credit"))},

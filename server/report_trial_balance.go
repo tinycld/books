@@ -14,7 +14,8 @@ func trialBalanceShipped() reports.Shipped {
 		Title:       "Trial Balance",
 		Description: "Each account's balance on one day, as a debit or a credit.",
 		Spec:        mustJSON(trialBalanceSpec()),
-		Revision:    1,
+		// 2: opened lines open the transaction that posted them (detail.open).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -50,19 +51,7 @@ func trialBalanceSpec() *reports.Spec {
 				},
 				Default: mustJSON("nonzero"),
 			},
-			{
-				ID: "accounts", Type: reports.ParamChoice, Label: "Accounts", Multiple: true,
-				OptionsFrom: &reports.OptionsFrom{
-					Source:     "books.accounts",
-					Value:      path("id"),
-					Label:      path("full_name"),
-					Group:      path("type"),
-					GroupLabel: "All {group} accounts",
-					// Chart order (the type select's declared order), not
-					// alphabetical, so the picker reads like the chart.
-					GroupOrder: &reports.GroupOrder{By: reports.GroupOrderDeclared},
-				},
-			},
+			accountsParam(),
 		},
 		Filter: op("and",
 			op("eq", fld("posted"), lit(true)),
@@ -111,11 +100,14 @@ func trialBalanceSpec() *reports.Spec {
 			{Formula: fld("date")},
 			{Formula: fld("entry", "sequence")},
 		},
-		Detail: &reports.Detail{Label: op("concat",
-			fld("date"), lit(" · "),
-			fld("entry", "number"), lit(" · "),
-			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
-		)},
+		Detail: &reports.Detail{
+			Label: op("concat",
+				fld("date"), lit(" · "),
+				fld("entry", "number"), lit(" · "),
+				lineDescriptionFormula(),
+			),
+			Open: entryOpenPath(),
+		},
 		// A long account name wraps onto up to three lines on a phone rather
 		// than losing its end to an ellipsis (column-fit decision 3; three
 		// lines fit "Software Subscriptions:Design Tools" at 390 px).

@@ -20,7 +20,7 @@
             "url": "/a/books/helix-mockup?state=panel",
             "ready": "report-drill-panel",
             "widths": [1440],
-            "height": 900,
+            "height": 1100,
             "hideLabels": ["New"]
         },
         {

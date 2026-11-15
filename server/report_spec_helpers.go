@@ -1,6 +1,7 @@
 package books
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -8,6 +9,92 @@ import (
 
 	"tinycld.org/core/reports"
 )
+
+// entry_routes.json is the one table of the screens that show a document's
+// entry: doc type → the Books route of that document. entryOpenPath builds the
+// report lines' open path from it, and tinycld/books/lib/entry-route.ts reads
+// it for DOCUMENT_ROUTES (tests/entry-route.test.ts checks entryHref against
+// it), so a new document type adds one row here.
+//
+//go:embed entry_routes.json
+var entryRoutesJSON []byte
+
+var entryRoutes = mustParseEntryRoutes(entryRoutesJSON)
+
+func mustParseEntryRoutes(raw []byte) map[string]string {
+	var out map[string]string
+	if err := json.Unmarshal(raw, &out); err != nil {
+		panic("books: entry_routes.json: " + err.Error())
+	}
+	if len(out) == 0 {
+		panic("books: entry_routes.json holds no route")
+	}
+	return out
+}
+
+// entryOpenPath is the path a journal line opens: the screen of the
+// transaction that posted it (entryHref in lib/entry-route.ts). A document
+// entry with a document id and a doc type entry_routes.json names opens that
+// document, a manual transfer opens the transfer, and any other entry (a
+// reversal of a document included) opens the entry's read view. Paths start
+// at a journal line.
+func entryOpenPath() *reports.Node {
+	var args []*reports.Node
+	// Sorted, so the spec's JSON does not move with map order.
+	for _, docType := range slices.Sorted(maps.Keys(entryRoutes)) {
+		args = append(args,
+			op("and",
+				op("eq", fld("entry", "origin"), lit("document")),
+				op("eq", fld("entry", "doc_type"), lit(docType)),
+				op("not", op("isEmpty", fld("entry", "document"))),
+			),
+			op("concat", lit("books/"+entryRoutes[docType]+"/"), fld("entry", "document")),
+		)
+	}
+	args = append(args,
+		op("and",
+			op("eq", fld("entry", "doc_type"), lit("transfer")),
+			op("eq", fld("entry", "origin"), lit("manual")),
+		),
+		op("concat", lit("books/transfers/"), fld("entry", "id")),
+	)
+	return op("case", append(args, op("concat", lit("books/entries/"), fld("entry", "id")))...)
+}
+
+// accountsParam is the Accounts param of the Trial Balance, the General
+// Ledger and Transaction Detail by Account: any number of accounts, picked
+// one by one or a whole type at a time, with no default, so a report with no
+// account chosen lists every account.
+func accountsParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "accounts", Type: reports.ParamChoice, Label: "Accounts", Multiple: true,
+		OptionsFrom: &reports.OptionsFrom{
+			Source:     "books.accounts",
+			Value:      path("id"),
+			Label:      path("full_name"),
+			Group:      path("type"),
+			GroupLabel: "All {group} accounts",
+			// Chart order (the type select's declared order), not
+			// alphabetical, so the picker reads like the chart.
+			GroupOrder: &reports.GroupOrder{By: reports.GroupOrderDeclared},
+		},
+	}
+}
+
+// lineName is a line's customer or vendor.
+func lineName() *reports.Node {
+	return op("coalesce", fld("customer", "display_name"), fld("vendor", "display_name"))
+}
+
+// lineDescriptionFormula is a line's memo, else its entry's memo.
+func lineDescriptionFormula() *reports.Node {
+	return op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo"))
+}
+
+// lineEntryTypeLabel is entryTypeLabel over a line's entry.
+func lineEntryTypeLabel() *reports.Node {
+	return entryTypeLabel(func(n ...string) *reports.Node { return fld(append([]string{"entry"}, n...)...) })
+}
 
 // The builders the shipped Books report specs (Trial Balance, General Ledger,
 // Balance Sheet, Journal) are written with, so a spec reads close to its JSON.

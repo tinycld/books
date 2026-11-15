@@ -11,6 +11,8 @@ import type { ChoiceLabels, ParamValue } from '@tinycld/core/reports/lib/params'
 import type { DisplayLayout, ParamDef, ReportSpec } from '@tinycld/core/reports/lib/spec'
 import type {
     CellValue,
+    DrillParams,
+    DrillTarget,
     ResolvedParam,
     ResultColumn,
     ResultRow,
@@ -23,6 +25,8 @@ import {
     PROFIT_AND_LOSS_FROM,
     PROFIT_AND_LOSS_HEADING,
     PROFIT_AND_LOSS_TODAY,
+    type ProfitAndLossInput,
+    profitAndLossResult,
 } from './profit-and-loss-fixture'
 
 export const TRANSACTION_DETAIL_TITLE = 'Transaction Detail by Account'
@@ -36,18 +40,8 @@ const CHECKING = 'Cash and bank:Business checking'
 const PAYABLE = 'Accounts payable'
 const CARD = 'Credit card'
 
-// --- The drill (core D1). Core's report types have no drill yet: checkpoint 0 adds
-// `ResultColumn.drill` and the `<col>@drill` cells. Replace these local interfaces with
-// core's types in checkpoint 0. ---
-
-/** What a drilled column carries when the reader can view the target (`ResultColumn.drill`). */
-export interface DrillTarget {
-    reportId: string
-    title: string
-}
-
-/** A drilled cell's target params, in the run endpoint's JSON form (`<col>@drill`). */
-export type DrillParams = Record<string, unknown>
+// --- The drill (core D1): what a drilled column carries when the reader can view the
+// target (`ResultColumn.drill`). ---
 
 export const TRANSACTION_DETAIL_REPORT_ID = 'rptxndetail0001'
 export const TRANSACTION_DETAIL_TARGET: DrillTarget = {
@@ -425,9 +419,11 @@ export const TRANSACTION_DETAIL_TABLET_LAYOUT: DisplayLayout = {
 // The one line is tried only from this row width: below it the seven columns cut
 // Name, Description and Split to a few characters. Phase 3 pass 2 (lesson 30): at a
 // 956 px row (1280 window with the Books sidebar) core's fit drew the tablet layout,
-// so one line does not fit there; 390 and the 480 panel draw the phone layout. The
-// gate is checked again on core's report route (no package sidebar) once the report
-// ships.
+// so one line does not fit there; 390 and the 480 panel draw the phone layout. On
+// core's report route (no package sidebar) a 1280 window gives a 1216 px row, which
+// draws one line with Date, No. and Amount whole (only a long Description ends in an
+// ellipsis), and a 1024 window gives a 960 px row, which draws the tablet layout.
+// Server: transactionDetailDisplay in server/report_transaction_detail.go.
 export const TRANSACTION_DETAIL_ONE_LINE_MIN_WIDTH = '960px'
 
 export const TRANSACTION_DETAIL_DISPLAY: NonNullable<ReportSpec['display']> = {
@@ -561,7 +557,11 @@ export function transactionDetailResult(input: TransactionDetailInput): RunResul
 
 // --- What a drill sets: the Profit and Loss row's figure, and its target params. ---
 
-/** The source's own period: a figure over the whole period keeps it (spec §3). */
+/**
+ * The source's own period: a figure over the whole period keeps it (spec §3). The
+ * drill's `{ param: "period" }` copies the period as the run was given it, else its
+ * default (core drill.go givenParam): the P&L's default preset.
+ */
 const PL_PERIOD_JSON = { preset: 'thisFiscalYearToDate' }
 export const PL_PERIOD_VALUE: ParamValue = { kind: 'preset', preset: 'thisFiscalYearToDate' }
 
@@ -584,7 +584,9 @@ export function sectionDrillValues(type: PlType): Record<string, ParamValue> {
 /**
  * The Profit and Loss run's `amount@drill` cells by row id (spec §5 "Drills added"):
  * every account row, and every section's heading and subtotal. Computed rows and
- * % of income have none.
+ * % of income have none. Each value is in the run request's JSON form, as core's
+ * engine writes it (drill.go drillParams): the one item of the multiple-choice
+ * Accounts as a list of one id, a `{ group }` pick as `[{ group: <type> }]`.
  */
 export function profitAndLossDrillCells(rows: readonly ResultRow[]): Record<string, DrillParams> {
     const out: Record<string, DrillParams> = {}
@@ -597,6 +599,36 @@ export function profitAndLossDrillCells(rows: readonly ResultRow[]): Record<stri
         }
     }
     return out
+}
+
+/** The P&L's Total column, whose figures open Transaction Detail by Account. */
+const PL_DRILLED_COLUMN = 'amount'
+
+// A `@drill` cell is not a CellValue (core types.ts R12): the row carries it as the
+// server sends it, and core reads it only through drillCellParams.
+function withDrillCell(row: ResultRow, drill: DrillParams | undefined): ResultRow {
+    if (!drill) return row
+    const cells: Record<string, unknown> = { ...row.cells, [`${PL_DRILLED_COLUMN}@drill`]: drill }
+    return { ...row, cells: cells as ResultRow['cells'] }
+}
+
+/**
+ * The Profit and Loss run as core's engine sends it to a reader who can view
+ * Transaction Detail by Account: the Total column carries the drill target, and each
+ * account row, section heading and section total its `amount@drill` cell.
+ */
+export function profitAndLossDrilledResult(input: ProfitAndLossInput = {}): RunResult {
+    const result = profitAndLossResult(input)
+    const cells = profitAndLossDrillCells(result.rows)
+    return {
+        ...result,
+        columns: result.columns.map(column =>
+            column.id === PL_DRILLED_COLUMN
+                ? { ...column, drill: TRANSACTION_DETAIL_TARGET }
+                : column
+        ),
+        rows: result.rows.map(row => withDrillCell(row, cells[row.id])),
+    }
 }
 
 /** The opened figure of the reference: 6600 Rent or lease's Total, 18,000.00. */
