@@ -1,3 +1,4 @@
+import { liveViewOptions } from '@tinycld/core/lib/change-signal'
 import type { CoreStores } from '@tinycld/core/lib/pocketbase'
 import type { Schema } from '@tinycld/core/types/pbSchema'
 import type { createCollection } from 'pbtsdb/core'
@@ -303,10 +304,11 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
-    // As the invoice's: server-owned fields below the omit line (the number when
-    // the estimate is created, the totals at every write, the invoice made from
-    // it by the invoice guards), no relations (the estimate screen reads its
-    // customer, tax rate and invoice through its own queries).
+    // As the invoice's: server-owned fields below the omit line (the number and
+    // the public token when the estimate is created, the totals at every write,
+    // the invoice made from it by the invoice guards), no relations (the
+    // estimate screen reads its customer, tax rate and invoice through its own
+    // queries).
     const books_estimates = newCollection('books_estimates', {
         omitOnInsert: [
             'created',
@@ -319,6 +321,7 @@ export function registerCollections(
             'revision',
             'currency',
             'invoice',
+            'public_token',
             'sort_key',
         ] as const,
         ...onDemand,
@@ -328,6 +331,22 @@ export function registerCollections(
     // amount is recomputed by the server at every line write.
     const books_estimate_lines = newCollection('books_estimate_lines', {
         omitOnInsert: ['created', 'updated', 'amount'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A view the signed-out customer page reads by its token (the X-Share-Token
+    // header). Nothing inserts into it, and it has no autodates to omit (as
+    // books_access).
+    const books_estimate_public = newCollection('books_estimate_public', {
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A customer's Accept or Decline: the page sends every column but the
+    // autodates, and the server's guard sets the estimate's status.
+    const books_estimate_responses = newCollection('books_estimate_responses', {
+        omitOnInsert: ['created', 'updated'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
@@ -365,6 +384,56 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the bill's: server-owned fields below the omit line, no relations
+    // (the expense screen reads its vendor, accounts, products and users
+    // through their own queries).
+    const books_expenses = newCollection('books_expenses', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'total',
+            'revision',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // As the bill's lines: an account line's amount is typed by the writer;
+    // the server computes a product line's.
+    const books_expense_lines = newCollection('books_expense_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A view, never written: the server signals its topic when a journal line or
+    // an account changes (server/party_balances.go), so an open page follows a
+    // post or a void with no reload.
+    const books_party_balances = newCollection('books_party_balances', {
+        ...onDemand,
+        ...liveViewOptions('books_party_balances'),
+        collectionOptions: indexed,
+    })
+
+    // No relations: the customer page reads one customer's contacts with its
+    // own query. The server clears is_primary on a party's other contacts.
+    const books_party_contacts = newCollection('books_party_contacts', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_accounts,
         books_bank_connections,
@@ -394,7 +463,13 @@ export function registerCollections(
         books_sales_receipt_tax_lines,
         books_estimates,
         books_estimate_lines,
+        books_estimate_public,
+        books_estimate_responses,
         books_bills,
         books_bill_lines,
+        books_expenses,
+        books_expense_lines,
+        books_party_balances,
+        books_party_contacts,
     }
 }

@@ -555,6 +555,14 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		entry := mustPostBill(t, pe.app, bill.Id, pe.users.bookkeeper.Id).GetString("entry")
 		return tdPosted{pe.app, pe.users.readOnly, entry, pe.software, bill.Id}
 	},
+	"expense": func(t *testing.T) tdPosted {
+		ee := newExpenseEnv(t)
+		registerBooksSources(t)
+		exp := ee.mkExpense(t, map[string]any{"vendor": ee.officeSupply.Id, "paid_from": ee.card2100.Id, "payment_method": "credit_card"})
+		mkExpenseLine(t, ee.app, exp, 0, accountLine(ee.designTools, 6418))
+		entry := mustPostExpense(t, ee.app, exp.Id, ee.users.bookkeeper.Id).GetString("entry")
+		return tdPosted{ee.app, ee.users.readOnly, entry, ee.designTools, exp.Id}
+	},
 }
 
 // requireOnlyDetailsOpen fails on a row other than a detail row that has an

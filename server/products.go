@@ -60,14 +60,18 @@ var productReferences = []productReference{
 	{collection: "books_sales_receipt_lines", field: "product", distinct: "sales_receipt", message: productOnSalesReceiptsMessage},
 	{collection: "books_estimate_lines", field: "product", distinct: "estimate", message: productOnEstimatesMessage},
 	{collection: billLinesCollection, field: "product", distinct: "bill", message: productOnBillsMessage},
+	{collection: expenseLinesCollection, field: "product", distinct: "expense", message: productOnExpensesMessage},
 }
 
 // The delete refusals of a product on invoice lines, counted by invoice, on
 // sales receipt lines, counted by sales receipt, on estimate lines, counted
-// by estimate, and on bill lines, counted by bill.
+// by estimate, on bill lines, counted by bill, and on expense lines, counted
+// by expense.
 const (
 	msgProductOnOneBill         = "This product or service is on 1 bill. Make it inactive instead."
 	msgProductOnBills           = "This product or service is on %d bills. Make it inactive instead."
+	msgProductOnOneExpense      = "This product or service is on 1 expense. Make it inactive instead."
+	msgProductOnExpenses        = "This product or service is on %d expenses. Make it inactive instead."
 	msgProductOnOneInvoice      = "This product or service is on 1 invoice. Make it inactive instead."
 	msgProductOnInvoices        = "This product or service is on %d invoices. Make it inactive instead."
 	msgProductOnOneSalesReceipt = "This product or service is on 1 sales receipt. Make it inactive instead."
@@ -305,6 +309,15 @@ func productOnBillsMessage(count int) string {
 		return msgProductOnOneBill
 	}
 	return fmt.Sprintf(msgProductOnBills, count)
+}
+
+// productOnExpensesMessage counts expenses, draft, posted or void, not their
+// product lines.
+func productOnExpensesMessage(count int) string {
+	if count == 1 {
+		return msgProductOnOneExpense
+	}
+	return fmt.Sprintf(msgProductOnExpenses, count)
 }
 
 // productTypeLabel is a product type as a person reads it; an unknown type

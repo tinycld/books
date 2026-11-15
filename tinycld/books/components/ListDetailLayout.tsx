@@ -4,6 +4,7 @@ import { type ReactNode, useMemo } from 'react'
 import { Platform, View } from 'react-native'
 import { useDetailSurface } from '../hooks/useDetailSurface'
 import {
+    type DetailWidth,
     detailScreenOptions,
     INDEX_SCREEN_OPTIONS,
     listColumnStyle,
@@ -15,6 +16,7 @@ interface ListDetailLayoutProps {
     list: ReactNode
     isDetailOpen: boolean
     detailScreens: readonly string[]
+    detailWidth: DetailWidth
 }
 
 // The navigator paints every card screen with the theme's background, which a
@@ -31,20 +33,27 @@ function useTransparentStackTheme() {
 // A list with its records in a child stack: beside the list in a panel on a very wide
 // window, over it as a page otherwise. The element tree is the same on both surfaces
 // and only style values change, so the stack and the open record never remount when
-// the window crosses the threshold.
-export function ListDetailLayout({ list, isDetailOpen, detailScreens }: ListDetailLayoutProps) {
+// the window crosses the threshold, or when the route changes the detail width.
+export function ListDetailLayout({
+    list,
+    isDetailOpen,
+    detailScreens,
+    detailWidth,
+}: ListDetailLayoutProps) {
     const surface = useDetailSurface()
     const stackTheme = useTransparentStackTheme()
     const options = detailScreenOptions(surface)
     const screens = detailScreens.map(name => (
         <Stack.Screen key={name} name={name} options={options} />
     ))
+    const listStyle = listColumnStyle(surface, detailWidth, isDetailOpen)
+    const stackStyle = stackContainerStyle(surface, isDetailOpen, detailWidth)
     return (
         <View className="flex-1 flex-row" style={{ position: 'relative' }}>
-            <View style={listColumnStyle(surface)}>{list}</View>
+            <View style={listStyle}>{list}</View>
             <View
                 className="border-border"
-                style={stackContainerStyle(surface, isDetailOpen)}
+                style={stackStyle}
                 pointerEvents={stackPointerEvents(Platform.OS === 'web', isDetailOpen)}
             >
                 <ThemeProvider value={stackTheme}>

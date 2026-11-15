@@ -198,7 +198,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	// Estimates never post, so only the sequences know the estimate doc type.
 	// The lists are compared sorted: where a new doc type lands in the select
 	// is not a rule.
-	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill"}
+	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense"}
 	want := map[string][]string{
 		"books_journal_entries": slices.Sorted(slices.Values(entryTypes)),
 		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate"))),

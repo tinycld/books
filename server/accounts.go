@@ -20,30 +20,48 @@ const (
 	msgAccountUsedByProducts   = "This account is used by %d products and services and cannot be deleted. Make it inactive instead."
 )
 
-// accountLineReference is a document line table whose rows name an account.
-// An account that any row names cannot be deleted: one or many says why,
-// given the count of distinct values of the distinct column among those rows
-// (many takes the count).
+// accountLineReference is a document table whose rows name an account: a line
+// table, or a document header column such as an expense's Paid from. An
+// account that any row names cannot be deleted: one or many says why, given
+// the count of distinct values of the distinct column among those rows (many
+// takes the count).
 type accountLineReference struct {
 	collection, field, distinct, one, many string
 }
 
-// accountLineReferences are the document line tables that hold an account.
-// Later purchase documents (expenses, vendor credits) append their line
-// tables here. A bill's product line names no account (its account is the
-// product's expense account, which the product guard holds).
+// The delete refusals of an account that is the Paid from of expenses,
+// counted by expense.
+const (
+	msgAccountPaidOneExpense = "This account paid 1 expense and cannot be deleted. Make it inactive instead."
+	msgAccountPaidExpenses   = "This account paid %d expenses and cannot be deleted. Make it inactive instead."
+)
+
+// accountLineReferences are the document tables that hold an account. Later
+// purchase documents (vendor credits) append theirs here. A bill's or an
+// expense's product line names no account (its account is the product's
+// expense account, which the product guard holds).
 var accountLineReferences = []accountLineReference{
 	{
 		collection: billLinesCollection, field: "account", distinct: "bill",
 		one:  "This account is on 1 bill and cannot be deleted. Make it inactive instead.",
 		many: "This account is on %d bills and cannot be deleted. Make it inactive instead.",
 	},
+	{
+		collection: expenseLinesCollection, field: "account", distinct: "expense",
+		one:  "This account is on 1 expense and cannot be deleted. Make it inactive instead.",
+		many: "This account is on %d expenses and cannot be deleted. Make it inactive instead.",
+	},
+	{
+		collection: expensesCollection, field: "paid_from", distinct: "id",
+		one: msgAccountPaidOneExpense, many: msgAccountPaidExpenses,
+	},
 }
 
 // refuseAccountOnLines refuses deleting an account that a row of any
 // accountLineReferences table names, draft or posted. PocketBase would
-// otherwise clear the line's optional relation, and the draft would lose its
-// account silently.
+// otherwise clear a line's optional relation, and the draft would lose its
+// account silently, or refuse the delete of a required one (Paid from) with a
+// generic reference error.
 func refuseAccountOnLines(app core.App, r *core.Record) error {
 	for _, ref := range accountLineReferences {
 		var n int
@@ -539,6 +557,12 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	if set == r.Id {
 		return refuse(msgAccountIsSalesDeposit)
 	}
+	// Before the journal lines check, as checkVendorDelete counts bills first:
+	// a posted bill or expense has journal lines on its accounts, and the
+	// document text says what holds the account.
+	if err := refuseAccountOnLines(app, r); err != nil {
+		return err
+	}
 	lines, err := app.CountRecords("books_journal_lines", dbx.HashExp{"account": r.Id})
 	if err != nil {
 		return err
@@ -571,9 +595,6 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if agencies > 1 {
 		return refuse(msgAccountUsedByAgencies, agencies)
-	}
-	if err := refuseAccountOnLines(app, r); err != nil {
-		return err
 	}
 	// A receipt's deposit_to is a required relation, so PocketBase refuses the
 	// delete with a generic message; this one says what to do instead. Drafts

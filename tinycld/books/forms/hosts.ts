@@ -2,10 +2,10 @@ import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
 import { DOCUMENT_NOTE_LABELS, MEMO_ONLY_LABEL } from '../lib/document-notes'
-import { VENDOR_REF_HINT } from '../lib/document-texts'
+import { EXPENSE_REF_HINT, VENDOR_REF_HINT } from '../lib/document-texts'
 import {
     ACCOUNT_ROW_KIND,
-    BILL_ACCOUNT_COLUMNS,
+    PURCHASE_ACCOUNT_COLUMNS,
     PURCHASE_ITEM_COLUMNS,
     PURCHASE_ITEM_ROW_KIND,
 } from '../lib/purchase-line-columns'
@@ -206,6 +206,26 @@ const BILL_LAYOUT = {
     rules: [],
 } satisfies FormHostDefInput['layout']
 
+export const EXPENSE_HOST_KEY = 'books:expense'
+
+// The default Expense form (spec §3.3): one page. The header band's first row holds
+// Vendor, Paid from and Payment date; its second holds Payment method and Ref no.; a
+// third each, the full row below 640 px. Custom fields follow Ref no.; the account
+// lines, the product lines and the internal memo follow. An expense has no address,
+// terms, due date or message.
+export const EXPENSE_LAYOUT = {
+    pages: [{ key: 'main', title: 'Expense' }],
+    fields: {
+        vendor: { width: 'third', narrowWidth: 'full' },
+        paid_from: { width: 'third', narrowWidth: 'full' },
+        date: { width: 'third', narrowWidth: 'full' },
+        payment_method: { width: 'third', narrowWidth: 'full' },
+        reference_no: { width: 'third', narrowWidth: 'full', description: EXPENSE_REF_HINT },
+        memo: { description: MEMO_HINT },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
 // The lines built-in the sales documents share: the same columns, row kinds and keys,
 // so the server's line guard checks an invoice, receipt or estimate line alike.
 const DOCUMENT_LINES_BUILTIN = {
@@ -221,6 +241,38 @@ const DOCUMENT_LINES_BUILTIN = {
     // row menu's "Insert line below" names that key.
     insertShortcuts: { below: 'Alt+Enter' },
 } satisfies FormHostDefInput['builtin'][number]
+
+// The two line tables the purchase documents (a bill, an expense) share: the same
+// columns, row kinds and keys, so the server's line guard checks a bill or expense line
+// alike. Not required, unlike the sales `lines`: the Purchase lines setting hides one
+// table, and a required built-in cannot be hidden. The kind's schema holds the post's
+// line-count rule. The server's line guard finds a line's row kind in either table.
+const PURCHASE_LINE_BUILTINS = [
+    {
+        key: 'account_lines',
+        label: 'Account details',
+        kind: 'table',
+        storage: 'rows',
+        required: false,
+        columns: [...PURCHASE_ACCOUNT_COLUMNS],
+        rowKinds: [ACCOUNT_ROW_KIND],
+        rowShortcuts: true,
+        // The account kind's Alt+Enter adds a line after the focused one, so the row
+        // menu's "Insert line below" names that key.
+        insertShortcuts: { below: ACCOUNT_ROW_KIND.shortcut },
+    },
+    {
+        key: 'item_lines',
+        label: 'Product and service details',
+        kind: 'table',
+        storage: 'rows',
+        required: false,
+        columns: [...PURCHASE_ITEM_COLUMNS],
+        rowKinds: [PURCHASE_ITEM_ROW_KIND],
+        rowShortcuts: true,
+        insertShortcuts: { below: PURCHASE_ITEM_ROW_KIND.shortcut },
+    },
+] satisfies FormHostDefInput['builtin']
 
 // Pure data: the generator imports this in Node (server/form_hosts.json). Keys of
 // column built-ins ARE the column names; their order is the default form's field
@@ -993,6 +1045,7 @@ const hosts: FormHostDefInput[] = [
             'invoice',
             'form',
             'fields',
+            'public_token',
             'sort_key',
             'created',
             'updated',
@@ -1207,34 +1260,7 @@ const hosts: FormHostDefInput[] = [
                 // bare: core draws a bare cell only on a stored record, never on a new one.
                 chrome: 'cell',
             },
-            // Not required, unlike the sales `lines`: the Bill lines setting hides one
-            // table, and a required built-in cannot be hidden. The bill's schema holds
-            // the post's line-count rule. The server's line guard finds a line's row
-            // kind in either table.
-            {
-                key: 'account_lines',
-                label: 'Account details',
-                kind: 'table',
-                storage: 'rows',
-                required: false,
-                columns: [...BILL_ACCOUNT_COLUMNS],
-                rowKinds: [ACCOUNT_ROW_KIND],
-                rowShortcuts: true,
-                // The account kind's Alt+Enter adds a line after the focused one, so the
-                // row menu's "Insert line below" names that key.
-                insertShortcuts: { below: ACCOUNT_ROW_KIND.shortcut },
-            },
-            {
-                key: 'item_lines',
-                label: 'Product and service details',
-                kind: 'table',
-                storage: 'rows',
-                required: false,
-                columns: [...PURCHASE_ITEM_COLUMNS],
-                rowKinds: [PURCHASE_ITEM_ROW_KIND],
-                rowShortcuts: true,
-                insertShortcuts: { below: PURCHASE_ITEM_ROW_KIND.shortcut },
-            },
+            ...PURCHASE_LINE_BUILTINS,
             {
                 key: 'memo',
                 label: MEMO_ONLY_LABEL,
@@ -1245,6 +1271,105 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'account_lines',
         layout: BILL_LAYOUT,
+    },
+    {
+        key: EXPENSE_HOST_KEY,
+        label: 'Expense',
+        collection: 'books_expenses',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column.
+        columns: [
+            'id',
+            'vendor',
+            'paid_from',
+            'payment_method',
+            'reference_no',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'memo',
+            'subtotal',
+            'total',
+            'currency',
+            'revision',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            // Optional: an expense may be paid to no vendor ("No vendor").
+            {
+                key: 'vendor',
+                label: 'Vendor',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'VendorField',
+                chrome: 'cell',
+            },
+            {
+                key: 'paid_from',
+                label: 'Paid from',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'PaymentAccountField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Payment date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'payment_method',
+                label: 'Payment method',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                component: 'RequiredPaymentMethodField',
+                chrome: 'cell',
+            },
+            // No maxLength: core would add its own "Ref no. is too long" beside the record
+            // schema's 40-character text (EXPENSE_MESSAGES.referenceTooLong), as the bill's
+            // ref_no. The migration holds the same 40 bound.
+            {
+                key: 'reference_no',
+                label: 'Ref no.',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+            },
+            ...PURCHASE_LINE_BUILTINS,
+            {
+                key: 'memo',
+                label: MEMO_ONLY_LABEL,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'account_lines',
+        layout: EXPENSE_LAYOUT,
     },
 ]
 

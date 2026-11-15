@@ -5,7 +5,7 @@ import { readHelpTopic } from './help-topic'
 
 // The bill help topic `books:bills` (bill form spec §3.12, checkpoint 5): entering a bill,
 // its two line tables, saving and posting, the read view's actions, the duplicate bill
-// no. refusal, the Bill lines setting and the key map of §3.2, in the Mac glyphs the help
+// no. refusal, the Purchase lines setting and the key map of §3.2, in the Mac glyphs the help
 // renderer translates.
 const helpDir = path.resolve(__dirname, '../help')
 const { exists, source, frontmatter, body } = readHelpTopic('bills')
@@ -47,9 +47,19 @@ describe('help/bills.md', () => {
         'Void',
         'Copy',
         'Settings → Purchases',
-        'Bill lines',
+        'Purchase lines',
     ])('names %s', text => {
         expect(body).toContain(text)
+    })
+
+    // Expense form spec §3.10: the setting covers bills and expenses, so its old name is gone.
+    it('names the setting Purchase lines, never Bill lines', () => {
+        expect(body).not.toContain('Bill lines')
+    })
+
+    // Expense form spec §3.12: bills and expenses link each other.
+    it('links the expenses topic', () => {
+        expect(body).toContain('help://books:expenses')
     })
 
     it('explains account lines and product lines', () => {
@@ -71,8 +81,8 @@ describe('help/bills.md', () => {
         ).toBeDefined()
     })
 
-    it('says only an admin changes Bill lines', () => {
-        expect(lineWith(/Bill lines|Settings → Purchases/, /\badmin/i)).toBeDefined()
+    it('says only an admin changes Purchase lines', () => {
+        expect(lineWith(/Purchase lines|Settings → Purchases/, /\badmin/i)).toBeDefined()
     })
 
     it('says a hidden table still shows on a bill that has its lines', () => {

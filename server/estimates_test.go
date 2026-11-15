@@ -105,8 +105,15 @@ func mkEstimateLine(t testing.TB, app core.App, estimate *core.Record, position 
 // products and tax rates), with the fields given over a valid row.
 func mkEstimateRow(t testing.TB, app core.App, customer *core.Record, fields map[string]any) *core.Record {
 	t.Helper()
+	// The token is a required field that createQuote sets; with no guard
+	// bound, the row takes one here.
+	token, err := newPublicToken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	all := map[string]any{
 		"customer": customer.Id, "status": "pending", "date": estimateTestDay, "currency": "USD",
+		"public_token": token,
 	}
 	for k, v := range fields {
 		all[k] = v
