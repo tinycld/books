@@ -4,14 +4,19 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { router } from 'expo-router'
 import { Pressable, ScrollView, Text, View } from 'react-native'
-import { type DocumentRecord, documentPartyIdOf, expiredOnOf } from '../../hooks/document-data'
+import {
+    type DocumentRecord,
+    documentPartyIdOf,
+    expiredOnOf,
+    storedPartyAddressOf,
+} from '../../hooks/document-data'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
 import { documentTaxOf } from '../../lib/document-tax'
-import { NO_CUSTOMER_TEXT } from '../../lib/document-texts'
+import { NO_PARTY_TEXT } from '../../lib/document-texts'
 import { lineTableSubtotals } from '../../lib/document-values'
 import { stampText } from '../../lib/entry-display'
 import { formatMoney } from '../../lib/money'
@@ -95,11 +100,13 @@ function readTotals(
     }
 }
 
-// The party's address as the document stored it: a sales kind's Bill to, a bill's
-// Mailing address.
-function addressLines(record: DocumentRecord): string[] {
-    const fields = record.kindFields
-    const address = fields.kind === 'bill' ? fields.mailing_address : record.bill_to
+// The party's address as the document stored it (storedPartyAddressOf: a sales kind's
+// Bill to, a bill's Mailing address); none for a kind without a party address.
+function addressLines(
+    record: DocumentRecord,
+    doc: Pick<SalesDocumentKind, 'party' | 'features'>
+): string[] {
+    const address = storedPartyAddressOf(record, doc)
     return isCustomerAddress(address) ? formatAddressLines(address) : []
 }
 
@@ -165,10 +172,14 @@ function ReadBand({ isPhone, record, partyName, address, date, tax }: BandProps)
     )
 }
 
-// The party's name; "No customer" for a document saved without one (a sales receipt's
-// walk-in sale).
-function partyNameOf(data: DocumentScreenData, record: DocumentRecord): string {
-    if (documentPartyIdOf(record) === '') return NO_CUSTOMER_TEXT
+// The party's name; the party's none text for a document saved without one (a sales
+// receipt's walk-in sale: "No customer").
+function partyNameOf(
+    data: DocumentScreenData,
+    record: DocumentRecord,
+    doc: Pick<SalesDocumentKind, 'party'>
+): string {
+    if (documentPartyIdOf(record) === '') return NO_PARTY_TEXT[doc.party]
     return data.party?.display_name ?? ''
 }
 
@@ -304,8 +315,8 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     // A kind without a message to the customer shows none (an empty detail is not drawn).
     const message = doc.features.message ? record.message : ''
     const memoLabel = memoLabelFor(doc.features)
-    const address = addressLines(record).join('\n')
-    const partyName = partyNameOf(data, record)
+    const address = addressLines(record, doc).join('\n')
+    const partyName = partyNameOf(data, record, doc)
     const date = record.date ? formatDay(record.date) : ''
     const tax = totals.tax?.label ?? ''
     const title = `${doc.noun} ${record.number}`

@@ -1,4 +1,4 @@
-// The fixed list of ways a customer pays on a sales receipt (spec §3.3). The
+// The fixed list of ways a customer pays on a sales receipt, or an expense is paid. The
 // server holds the same list in server/payment_methods.json;
 // tests/payment-methods.test.ts fails when the two drift.
 
@@ -33,10 +33,14 @@ export function paymentMethodLabel(key: string): string {
     return LABELS.get(key) ?? ''
 }
 
-// The Payment method select's options: "None" (the empty value) first.
-export function paymentMethodOptions(): { value: string; label: string }[] {
-    return [
-        { value: '', label: 'None' },
-        ...PAYMENT_METHODS.map(m => ({ value: m.key, label: m.label })),
-    ]
+// The Payment method select's options: the fixed list, with "None" (the empty value)
+// first when the field may be empty (a sales receipt's; an expense's is required).
+export function paymentMethodOptions({
+    allowNone,
+}: {
+    allowNone: boolean
+}): { value: string; label: string }[] {
+    const methods = PAYMENT_METHODS.map(m => ({ value: m.key, label: m.label }))
+    if (!allowNone) return methods
+    return [{ value: '', label: 'None' }, ...methods]
 }

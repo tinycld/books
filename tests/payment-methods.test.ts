@@ -42,7 +42,7 @@ describe('payment methods', () => {
     })
 
     it('offer None first, then every method in order', () => {
-        expect(paymentMethodOptions()).toEqual([
+        expect(paymentMethodOptions({ allowNone: true })).toEqual([
             { value: '', label: 'None' },
             { value: 'cash', label: 'Cash' },
             { value: 'check', label: 'Check' },
@@ -51,5 +51,19 @@ describe('payment methods', () => {
             { value: 'bank_transfer', label: 'Bank transfer' },
             { value: 'other', label: 'Other' },
         ])
+    })
+
+    // The expense's required Payment method (spec §3.3) drops the None choice.
+    it('offer only the six methods, in order, with no None, when None is not allowed', () => {
+        const options = paymentMethodOptions({ allowNone: false })
+        expect(options).toEqual([
+            { value: 'cash', label: 'Cash' },
+            { value: 'check', label: 'Check' },
+            { value: 'credit_card', label: 'Credit card' },
+            { value: 'debit_card', label: 'Debit card' },
+            { value: 'bank_transfer', label: 'Bank transfer' },
+            { value: 'other', label: 'Other' },
+        ])
+        expect(options.map(option => option.value)).not.toContain('')
     })
 })

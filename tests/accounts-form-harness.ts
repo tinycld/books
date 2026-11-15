@@ -27,9 +27,12 @@ import type {
     BooksBankFiles,
     BooksBankImports,
     BooksBankTransactions,
+    BooksBillLines,
     BooksCloseOverrides,
     BooksCustomers,
     BooksDocSequences,
+    BooksExpenseLines,
+    BooksExpenses,
     BooksJournalEntries,
     BooksJournalLines,
     BooksSettings,
@@ -1089,6 +1092,11 @@ export function seedBooks(
         // replaces them.
         books_customers: local<BooksCustomers>('books_customers', []),
         books_vendors: local<BooksVendors>('books_vendors', []),
+        // Read by the delete dialog's document usage; no bill or expense holds an
+        // account unless a test replaces them.
+        books_bill_lines: local<BooksBillLines>('books_bill_lines', []),
+        books_expense_lines: local<BooksExpenseLines>('books_expense_lines', []),
+        books_expenses: local<BooksExpenses>('books_expenses', []),
     })
 }
 

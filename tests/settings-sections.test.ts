@@ -159,18 +159,23 @@ describe('salesSummary', () => {
     })
 })
 
-// Bill form spec §3.11: the Purchases section-list line names the Bill lines setting.
+// Expense form spec §3.10: the one setting covers bills and expenses, so the Purchases
+// section-list line names the Purchase lines setting.
 describe('purchasesSummary', () => {
-    it('names each Bill lines setting by its label', () => {
+    it('names each Purchase lines setting by its label', () => {
         expect(purchasesSummary({ purchase_lines: 'both' })).toBe(
-            'Bill lines: Accounts and products'
+            'Purchase lines: Accounts and products'
         )
-        expect(purchasesSummary({ purchase_lines: 'accounts' })).toBe('Bill lines: Accounts only')
-        expect(purchasesSummary({ purchase_lines: 'products' })).toBe('Bill lines: Products only')
+        expect(purchasesSummary({ purchase_lines: 'accounts' })).toBe(
+            'Purchase lines: Accounts only'
+        )
+        expect(purchasesSummary({ purchase_lines: 'products' })).toBe(
+            'Purchase lines: Products only'
+        )
     })
 
-    it('says Bill lines while the settings load or after they fail', () => {
-        expect(purchasesSummary(undefined)).toBe('Bill lines')
+    it('says Purchase lines while the settings load or after they fail', () => {
+        expect(purchasesSummary(undefined)).toBe('Purchase lines')
     })
 
     it('is what sectionSummary shows for the purchases section', () => {
@@ -179,9 +184,9 @@ describe('purchasesSummary', () => {
                 settings: { ...COMPANY_SETTINGS, purchase_lines: 'accounts' },
                 sequenceCount: 1,
             })
-        ).toBe('Bill lines: Accounts only')
+        ).toBe('Purchase lines: Accounts only')
         expect(sectionSummary('purchases', { settings: undefined, sequenceCount: 1 })).toBe(
-            'Bill lines'
+            'Purchase lines'
         )
     })
 })

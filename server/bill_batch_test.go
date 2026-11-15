@@ -62,7 +62,7 @@ func TestBillBatch_NamesTheLineByItsTable(t *testing.T) {
 		docLineCreateOp(t, billKind, bill.Id, 1, accountLine(be.designTools, 0)),
 	}
 	batchAs(t, be.users.bookkeeper, http.StatusBadRequest,
-		[]string{fmt.Sprintf(msgBillAccountAmountZero, 2)}, ops...).run(t, be.app)
+		[]string{fmt.Sprintf(msgPurchaseAccountAmountZero, 2)}, ops...).run(t, be.app)
 	requireBillLineCount(t, be.app, bill, 0)
 }
 
@@ -86,7 +86,7 @@ func TestBillBatch_NamesAMovedLineByItsNewPosition(t *testing.T) {
 		fmt.Sprintf(`{"method":"PATCH","url":"/api/collections/books_bill_lines/records/%s","body":{"position":1}}`, first["id"]),
 	}
 	batchAs(t, be.users.bookkeeper, http.StatusBadRequest,
-		[]string{fmt.Sprintf(msgBillAccountAmountZero, 1)}, ops...).run(t, be.app)
+		[]string{fmt.Sprintf(msgPurchaseAccountAmountZero, 1)}, ops...).run(t, be.app)
 	requireBillLineCount(t, be.app, bill, 2)
 	requireBillTotal(t, be.app, bill.Id, 18745+3890)
 }

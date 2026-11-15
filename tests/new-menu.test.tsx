@@ -73,6 +73,24 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Expense follows Bill in the Vendors column (expense spec §2).
+    it('draws Expense right after Bill and opens books/expenses/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const bill = byTestId(document.body, 'books-new-bill')
+        const expense = byTestId(document.body, 'books-new-expense')
+        expect(bill).not.toBeNull()
+        expect(expense).not.toBeNull()
+        if (!bill || !expense) return
+        expect(expense.textContent).toContain('Expense')
+        expect(
+            bill.compareDocumentPosition(expense) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(expense)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'expense', href: 'books/expenses/new' })
+        )
+    })
+
     it('draws only the heading of a single non-empty column', () => {
         renderOpenMenu(columns.filter(column => column.heading === 'Vendors'))
         expect(screen.getByText('Vendors')).toBeTruthy()

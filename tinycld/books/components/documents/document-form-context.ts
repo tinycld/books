@@ -3,6 +3,7 @@ import type { DocumentPartyRow } from '../../hooks/document-data'
 import type { useTaxRateOptions } from '../../hooks/useTaxRateOptions'
 import type { LineAmountView } from '../../lib/document-tax'
 import { INVOICE_KIND, type SalesDocumentKind } from '../../lib/sales-document-kinds'
+import type { PartyFills } from './document-kinds'
 
 // What a sales document's header fields and line cells read beyond their own value: core
 // hands a host component only its value and onChange. Server data the screen already
@@ -10,6 +11,9 @@ import { INVOICE_KIND, type SalesDocumentKind } from '../../lib/sales-document-k
 export type DocumentFormScope = {
     // The kind of the document: its test ids, texts and log context.
     kind: SalesDocumentKind
+    // The fields a vendor pick sets (DocumentKind.partyFills); none for a kind that fills
+    // nothing, and outside a document form.
+    partyFills: PartyFills | undefined
     // This mounted form: which form the band store's flag names.
     bandKey: string
     currency: string
@@ -39,6 +43,7 @@ export const DocumentFormContext = createContext<DocumentFormScope | null>(null)
 // they read an empty scope, with the invoice's kind.
 const EMPTY_SCOPE: DocumentFormScope = {
     kind: INVOICE_KIND,
+    partyFills: undefined,
     bandKey: '',
     currency: 'USD',
     party: undefined,

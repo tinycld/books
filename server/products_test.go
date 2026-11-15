@@ -983,3 +983,21 @@ func TestProduct_DeleteRefusedWhileOnBillLines(t *testing.T) {
 		"This product or service is on 2 bills. Make it inactive instead.")
 	reload(t, be.app, "books_products", be.patchCable.Id)
 }
+
+// Spec §3.11: a product on an expense line cannot be deleted; the count is of
+// expenses, not of lines.
+func TestProduct_DeleteRefusedWhileOnExpenseLines(t *testing.T) {
+	ee := newExpenseEnv(t)
+	first := ee.mkExpense(t, nil)
+	mkExpenseLine(t, ee.app, first, 0, productLine(ee.patchCable, 1, 310))
+	mkExpenseLine(t, ee.app, first, 1, productLine(ee.patchCable, 2, 310))
+	requireMessageOnlyRefusal(t, ee.app.Delete(reload(t, ee.app, "books_products", ee.patchCable.Id)),
+		"This product or service is on 1 expense. Make it inactive instead.")
+	reload(t, ee.app, "books_products", ee.patchCable.Id)
+
+	second := ee.mkExpense(t, map[string]any{"vendor": ee.officeSupply.Id})
+	mkExpenseLine(t, ee.app, second, 0, productLine(ee.patchCable, 12, 310))
+	requireMessageOnlyRefusal(t, ee.app.Delete(reload(t, ee.app, "books_products", ee.patchCable.Id)),
+		"This product or service is on 2 expenses. Make it inactive instead.")
+	reload(t, ee.app, "books_products", ee.patchCable.Id)
+}
