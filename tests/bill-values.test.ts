@@ -7,7 +7,6 @@ import {
     BILLS,
     type BillLineFixtureRecord,
 } from '../tinycld/books/lib/bill-form-fixture'
-import { billAccountOptions } from '../tinycld/books/lib/bill-pickers'
 import {
     billCorrectionValues,
     copyBillValues,
@@ -16,12 +15,13 @@ import {
 } from '../tinycld/books/lib/bill-values'
 import { lineTableSubtotals } from '../tinycld/books/lib/document-values'
 import type { PurchaseLineRow } from '../tinycld/books/lib/purchase-line-columns'
+import { purchaseAccountOptions } from '../tinycld/books/lib/purchase-pickers'
 import { BILL_KIND } from '../tinycld/books/lib/sales-document-kinds'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 
-// A bill form's start values (spec §3.3, §3.4, §3.6): a new form's by the Bill lines
-// setting, what a vendor pick fills, a copy's and a correction's.
+// A bill form's start values (spec §3.3, §3.4, §3.6): a new form's by the Purchase
+// lines setting, what a vendor pick fills, a copy's and a correction's.
 
 const idOf = (number: string) => `acc-${number}`
 
@@ -43,7 +43,7 @@ const ACCOUNTS = SEED_ACCOUNTS.map(account => ({
 
 // Whether the Account picker lists the vendor's default expense account (spec §3.3).
 function isListed(accountId: string): boolean {
-    return billAccountOptions(ACCOUNTS, '').some(option => option.id === accountId)
+    return purchaseAccountOptions(ACCOUNTS, '').some(option => option.id === accountId)
 }
 
 function vendorOf(id: string) {

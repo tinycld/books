@@ -1,5 +1,6 @@
 import type { HostTableColumn } from '@tinycld/core/lib/forms/definition'
 import type { HostRowKind } from '@tinycld/core/lib/forms/host'
+import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { type TableRowMapper, tableRowsOf } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import type { ComponentType, ReactNode } from 'react'
@@ -18,6 +19,7 @@ import {
     vendorPartyOf,
 } from '../../hooks/document-data'
 import { ESTIMATE_DATA } from '../../hooks/estimate-data'
+import { EXPENSE_DATA } from '../../hooks/expense-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
 import { billColumnsFrom, EMPTY_BILL_COLUMNS } from '../../lib/bill-columns'
@@ -26,6 +28,7 @@ import {
     billCorrectionValues,
     copyBillValues,
     newBillValues,
+    vendorBillFills,
 } from '../../lib/bill-values'
 import type { TaxRateFill } from '../../lib/document-fills'
 import {
@@ -38,6 +41,15 @@ import {
 import type { DocumentFormValuesBase } from '../../lib/document-values'
 import { EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../../lib/estimate-columns'
 import { copyEstimateValues, newEstimateValues } from '../../lib/estimate-values'
+import { EMPTY_EXPENSE_COLUMNS, expenseColumnsFrom } from '../../lib/expense-columns'
+import {
+    copyExpenseValues,
+    type ExpenseFormValues,
+    expenseCorrectionValues,
+    expenseVendorFills,
+    newExpenseValues,
+} from '../../lib/expense-values'
+import { rowsOf, textOf } from '../../lib/form-values'
 import { EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../../lib/invoice-columns'
 import {
     copyInvoiceValues,
@@ -47,7 +59,7 @@ import {
 } from '../../lib/invoice-values'
 import {
     ACCOUNT_ROW_KIND,
-    BILL_ACCOUNT_COLUMNS,
+    PURCHASE_ACCOUNT_COLUMNS,
     PURCHASE_ITEM_COLUMNS,
     PURCHASE_ITEM_ROW_KIND,
     PURCHASE_LINE_MAPPER,
@@ -59,6 +71,7 @@ import type { ColumnsParse } from '../../lib/record-columns'
 import {
     BILL_KIND,
     ESTIMATE_KIND,
+    EXPENSE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
@@ -73,9 +86,11 @@ import {
     newSalesReceiptValues,
     salesReceiptCorrectionValues,
 } from '../../lib/sales-receipt-values'
+import type { BooksVendors } from '../../types'
 import { BillReadDetails } from './BillReadDetails'
 import type { DocumentReadLinesProps } from './DocumentReadLines'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
+import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { PurchaseReadLines } from './PurchaseReadLines'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
@@ -113,10 +128,11 @@ const SALES_LINE_SPECS: Record<string, DocumentLineSpec> = {
 
 const PURCHASE_MAPPER: DocumentLineMapper = { ...PURCHASE_LINE_MAPPER, lines: 'purchase' }
 
-// The bill's two tables (BILL_LINE_TABLES), both stored in books_bill_lines.
-const BILL_LINE_SPECS: Record<string, DocumentLineSpec> = {
+// A purchase kind's two tables (PURCHASE_LINE_TABLES), both stored in the kind's one lines
+// collection.
+export const PURCHASE_LINE_SPECS: Record<string, DocumentLineSpec> = {
     account_lines: {
-        columns: BILL_ACCOUNT_COLUMNS,
+        columns: PURCHASE_ACCOUNT_COLUMNS,
         rowKinds: [ACCOUNT_ROW_KIND],
         mapper: PURCHASE_MAPPER,
     },
@@ -155,9 +171,18 @@ export function storedLineTableRows(
     return Object.fromEntries(entries)
 }
 
-// A form's start values: a sales kind's, or a bill's (its party is `vendor` and it has two
-// line tables).
-export type DocumentStartValues = DocumentFormValuesBase | BillFormValues
+// A form's start values: a sales kind's, or a purchase kind's (a bill's or an expense's:
+// its party is `vendor` and it has two line tables).
+export type DocumentStartValues = DocumentFormValuesBase | BillFormValues | ExpenseFormValues
+
+// What a vendor pick fills besides the vendor itself, keyed by built-in; the Vendor field
+// sets each returned key. `accountIsListed` says whether the Account picker lists the
+// vendor's default expense account; `current` is the form's values at the pick.
+export type PartyFills = (
+    vendor: Pick<BooksVendors, 'id' | 'address' | 'terms' | 'expense_account'>,
+    accountIsListed: boolean,
+    current: FormValues
+) => Partial<FormValues>
 
 /**
  * A sales document kind as the screen runs it: its words and ids (`doc`), its reads and
@@ -217,6 +242,8 @@ export type DocumentKind = {
     lineSpecs: Record<string, DocumentLineSpec>
     // The read view's lines; DocumentReadLines when absent.
     ReadLines?: ComponentType<DocumentReadLinesProps>
+    // What a vendor pick fills (a vendor kind's); a kind without it fills nothing.
+    partyFills?: PartyFills
 }
 
 // The source row with the invoice's own columns back at the top level. The invoice's
@@ -367,7 +394,7 @@ function billVendorOf(party: DocumentPartyRow | null) {
     return vendor
 }
 
-// The bill's start: the Bill lines setting a new form starts from and whether the Account
+// The bill's start: the Purchase lines setting a new form starts from and whether the Account
 // picker lists the `?vendor` vendor's default expense account. A form given no start (a
 // unit test's) shows both tables, the setting's default, and lists no vendor account.
 function billStartOf(start: DocumentStart | undefined): {
@@ -413,5 +440,79 @@ export const BILL_DOCUMENT: DocumentKind = {
     },
     ReadDetails: BillReadDetails,
     ReadLines: PurchaseReadLines,
-    lineSpecs: BILL_LINE_SPECS,
+    lineSpecs: PURCHASE_LINE_SPECS,
+    // Mailing address, Terms and Due date, and the first account line's empty Account.
+    partyFills: (vendor, accountIsListed, current) =>
+        vendorBillFills(vendor, accountIsListed, {
+            date: textOf(current.date),
+            account_lines: rowsOf(current.account_lines),
+        }),
+}
+
+// The source row with the expense's own columns back at the top level, as invoiceRowOf.
+function expenseRowOf(source: DocumentSource) {
+    const fields = source.kindFields
+    if (fields.kind !== 'expense') throw new Error(`an expense source has ${fields.kind} columns`)
+    return { ...source, ...fields }
+}
+
+// The expense's start: the Purchase lines setting a new form starts from, whether the
+// Account picker lists the `?vendor` vendor's default expense account, and the active
+// Paid from accounts a copy may keep. A form given no start (a unit test's) shows both
+// tables, the setting's default, lists no vendor account and keeps no Paid from.
+function expenseStartOf(start: DocumentStart | undefined): {
+    purchaseLines: PurchaseLines
+    accountIsListed: boolean
+    activePaidFromIds: ReadonlySet<string>
+} {
+    if (!start) {
+        return { purchaseLines: 'both', accountIsListed: false, activePaidFromIds: new Set() }
+    }
+    if (start.kind !== 'expense') throw new Error(`an expense form has a ${start.kind} start`)
+    return {
+        purchaseLines: start.purchaseLines,
+        accountIsListed: start.vendorAccountListed ?? false,
+        activePaidFromIds: start.activePaidFromIds,
+    }
+}
+
+// Money paid from a bank or credit card account (spec §3.1): the party is an optional
+// vendor, the lines are the bill's two tables, and it has no tax, message, email, PDF or
+// party address. A copied vendor, account or product that is now inactive stays in the
+// form, and Post refuses it with the purchase texts; a copied Paid from that is now
+// inactive is left empty (copyExpenseValues).
+export const EXPENSE_DOCUMENT: DocumentKind = {
+    doc: EXPENSE_KIND,
+    data: EXPENSE_DATA,
+    columnsFrom: expenseColumnsFrom,
+    emptyColumns: EMPTY_EXPENSE_COLUMNS,
+    values: {
+        // `?vendor` fills the first account line's Account with the vendor's default
+        // expense account when the Account picker lists it (the start read it,
+        // EXPENSE_DATA).
+        new: ({ party, today, start }) => {
+            const { purchaseLines, accountIsListed } = expenseStartOf(start)
+            return newExpenseValues({
+                today,
+                purchaseLines,
+                accountIsListed,
+                vendor: vendorPartyOf(party),
+            })
+        },
+        copy: (source, lines, today, _party, start) =>
+            copyExpenseValues(
+                expenseRowOf(source),
+                lines.filter(isPurchaseLine),
+                today,
+                expenseStartOf(start).activePaidFromIds
+            ),
+        correction: (source, lines) =>
+            expenseCorrectionValues(expenseRowOf(source), lines.filter(isPurchaseLine)),
+    },
+    ReadDetails: ExpenseReadDetails,
+    ReadBandRow: ExpensePaymentRow,
+    ReadLines: PurchaseReadLines,
+    lineSpecs: PURCHASE_LINE_SPECS,
+    // The first account line's empty Account; nothing in the band.
+    partyFills: expenseVendorFills,
 }

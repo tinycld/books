@@ -2,8 +2,8 @@
 // each row id with its kind; the screens below are the account register, the
 // journal entry screen, the transfer screen, the customer screen, the vendor
 // screen, the product screen, the invoice screen, the sales receipt screen
-// (drafts included for both documents), the estimate screen and the bill
-// screen (drafts included).
+// (drafts included for both documents), the estimate screen, and the bill and
+// expense screens (drafts included).
 export interface SearchTarget {
     path: string
     id: string
@@ -22,6 +22,7 @@ const PATHS = new Map([
     ['sales_receipt', 'books/sales-receipts/[id]'],
     ['estimate', 'books/estimates/[id]'],
     ['bill', 'books/bills/[id]'],
+    ['expense', 'books/expenses/[id]'],
 ])
 
 export function searchTarget(rowId: string): SearchTarget | null {

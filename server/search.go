@@ -13,9 +13,9 @@ import (
 )
 
 // searchSource contributes accounts, journal entries, customers, vendors,
-// products, invoices, sales receipts, estimates and bills to core's federated
-// /api/search. Each kind is read from its FTS5
-// index (server/search_index.go). Rows are shaped here so the palette and the
+// products, invoices, sales receipts, estimates, bills and expenses to core's
+// federated /api/search. Each kind is read from its FTS5 index
+// (server/search_index.go). Rows are shaped here so the palette and the
 // CLI show the same thing; the client adapter
 // (tinycld/books/search-adapter.ts) only navigates.
 func searchSource() search.Source {
@@ -91,9 +91,13 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates, bills)
+	expenses, expenseTotal, err := searchSalesDocs(ctx, app, expenseSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates, bills, expenses)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
-		estimateTotal + billTotal
+		estimateTotal + billTotal + expenseTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -383,13 +387,22 @@ var billSearch = salesDocSearch{
 	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
 }
 
+// expenseSearch names its vendor when it has one: "Expense 1004 · Pacific
+// Power" / "Draft expense · Pacific Power", or "Expense 1004" / "Draft
+// expense" with no vendor. A word matches the expense's number, Ref no. and
+// memo, or the vendor's display name, company, email and legal name.
+var expenseSearch = salesDocSearch{
+	table: expensesCollection, index: expensesIndex, docType: docTypeExpense, kind: "expense",
+	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
+}
+
 // salesDocTermMatch is true when one query word matches a document's own
-// index row (number, memo, message; a sales receipt's reference no. and a
-// bill's vendor's bill no. too) or its party's (a customer's display name,
-// company, email; a vendor's legal name too). Reading the party's row at
-// query time lets a renamed party find its documents with no reindex. %[1]s
-// is the bound word, %[2]s the document's index, %[3]s the party column and
-// %[4]s the party's index.
+// index row (number, memo, message; a sales receipt's and an expense's
+// reference no. and a bill's vendor's bill no. too) or its party's (a
+// customer's display name, company, email; a vendor's legal name too).
+// Reading the party's row at query time lets a renamed party find its
+// documents with no reindex. %[1]s is the bound word, %[2]s the document's
+// index, %[3]s the party column and %[4]s the party's index.
 const salesDocTermMatch = `(c.id IN (SELECT record_id FROM %[2]s WHERE %[2]s MATCH {:%[1]s})
 	OR c.%[3]s IN (SELECT record_id FROM %[4]s WHERE %[4]s MATCH {:%[1]s}))`
 
@@ -400,9 +413,9 @@ const salesDocTermMatch = `(c.id IN (SELECT record_id FROM %[2]s WHERE %[2]s MAT
 // word drops a document when it matches either row. Drafts are included:
 // search is how a person reopens a draft (spec Q13). A void document stays
 // findable, as a void entry does. The party is a LEFT JOIN: a sales receipt
-// may have no customer (an invoice always has one and a bill a vendor, so
-// their rows are the same as an inner join's). Only the bound words vary;
-// every identifier is a constant of this file.
+// may have no customer and an expense no vendor (an invoice always has one
+// and a bill a vendor, so their rows are the same as an inner join's). Only
+// the bound words vary; every identifier is a constant of this file.
 func (s salesDocSearch) from(include, exclude []string) (string, dbx.Params) {
 	params := dbx.Params{}
 	var conds []string
@@ -437,9 +450,9 @@ func queryWords(parts []string) []string {
 // searchSalesDocs counts every hit of one sales document kind and returns the
 // first window of them, newest first, as entries are ordered. The title is
 // "Invoice 1003 · Customer" / "Draft sales receipt · Customer" / "Bill 1003 ·
-// Vendor", with no "· <party>" when the document has none. The caller has
-// checked that the include words leave FTS5 a term, so the WHERE is never
-// empty.
+// Vendor" / "Expense 1004 · Vendor", with no "· <party>" when the document has
+// none. The caller has checked that the include words leave FTS5 a term, so
+// the WHERE is never empty.
 func searchSalesDocs(ctx context.Context, app core.App, s salesDocSearch, include, exclude []string, window int) ([]search.Row, int, error) {
 	from, params := s.from(include, exclude)
 	var total int

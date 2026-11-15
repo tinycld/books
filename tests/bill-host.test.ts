@@ -19,7 +19,7 @@ import ui from '../tinycld/books/forms/ui'
 import { floored } from '../tinycld/books/lib/document-line-columns'
 import {
     ACCOUNT_ROW_KIND,
-    BILL_ACCOUNT_COLUMNS,
+    PURCHASE_ACCOUNT_COLUMNS,
     PURCHASE_ITEM_COLUMNS,
     PURCHASE_ITEM_ROW_KIND,
 } from '../tinycld/books/lib/purchase-line-columns'
@@ -81,8 +81,8 @@ describe('books:bill forms host', () => {
         expect(builtin('terms').locked).toBe(true)
     })
 
-    // A required built-in cannot be hidden, and the form hides the table the Bill lines
-    // setting leaves out.
+    // A required built-in cannot be hidden, and the form hides the table the Purchase
+    // lines setting leaves out.
     it('does not require either line table, so either may be hidden', () => {
         expect(builtin('account_lines').required).toBe(false)
         expect(builtin('item_lines').required).toBe(false)
@@ -121,7 +121,7 @@ describe('books:bill forms host', () => {
         })
         expect(table.insertShortcuts).toEqual({ below: 'Alt+Enter' })
         expect(table.columns?.map(c => c.key)).toEqual(['account', 'description', 'amount'])
-        expect(table.columns).toEqual(BILL_ACCOUNT_COLUMNS)
+        expect(table.columns).toEqual(PURCHASE_ACCOUNT_COLUMNS)
     })
 
     it('gives Product and service details one item row kind, keyed ⌥P, added by "Add product line"', () => {
