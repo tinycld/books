@@ -377,6 +377,25 @@ export function chargedLines(input: { from: string; to: string; agencies?: strin
     )
 }
 
+// The rates only this fixture charges: no other seed or spec charges them in October
+// 2026, so an e2e may assert their exact figures on the shared database (plan D1).
+export const SALES_TAX_LIABILITY_OWN_RATES = [
+    TAX_IDS.oldCountyRate,
+    TAX_IDS.adams,
+    TAX_IDS.retired,
+    TAX_IDS.lodging,
+    TAX_IDS.foodExempt,
+    TAX_IDS.culturalDistrict,
+] as const
+
+/** A rate row's four figures in October (cents): the posted tax lines of that component. */
+export function salesTaxRateFigures(rateId: string): Figures {
+    const lines = chargedLines({ from: SALES_TAX_LIABILITY_FROM, to: SALES_TAX_LIABILITY_TO })
+        .map(c => c.line)
+        .filter(line => line.component === rateId)
+    return figuresOf(lines)
+}
+
 function documentRows(charged: Charged[], section: string): ResultRow[] {
     const sorted = [...charged].sort(
         (a, b) => a.doc.date.localeCompare(b.doc.date) || a.doc.sequence - b.doc.sequence

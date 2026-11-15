@@ -1,0 +1,790 @@
+package books
+
+import (
+	"context"
+	"encoding/json"
+	"reflect"
+	"slices"
+	"testing"
+
+	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/core"
+
+	"tinycld.org/core/reports"
+)
+
+// stlToday is the reader's day in every run: the default Period, Last month,
+// is then October 2026.
+const stlToday = "2026-11-14"
+
+// The four report sources the Sales Tax Liability reads (spec §5).
+var stlSourceKeys = []string{
+	"books.tax_agencies", "books.tax_rates", "books.sales_documents", "books.sales_tax_lines",
+}
+
+// runSTLErr loads the shipped Sales Tax Liability and runs it as reader, as
+// core's run endpoint does: Load, then Run with the posted params.
+func runSTLErr(t *testing.T, app core.App, reader *core.Record, params map[string]any, opts reports.Options) (*reports.Result, error) {
+	t.Helper()
+	spec, info, err := reports.Load(salesTaxLiabilityShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	given := map[string]json.RawMessage{}
+	for id, v := range params {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("param %s: %v", id, err)
+		}
+		given[id] = raw
+	}
+	return reports.Run(context.Background(), app, reports.Request{
+		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: reader,
+	})
+}
+
+func runSTL(t *testing.T, app core.App, reader *core.Record, params map[string]any, opts reports.Options) *reports.Result {
+	t.Helper()
+	res, err := runSTLErr(t, app, reader, params, opts)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return res
+}
+
+// stlBook is one book of posted invoices and sales receipts (newSalesTaxEnv,
+// D8), Books' report sources, a Books read-only reader and the poster.
+type stlBook struct {
+	*receiptEnv
+	reader *core.Record
+	actor  string
+}
+
+func newSTLBook(t *testing.T) stlBook {
+	t.Helper()
+	env := newSalesTaxEnv(t)
+	registerBooksSources(t)
+	reader := mkUser(t, env.app, "member")
+	setPkgAccess(t, env.app, reader, "readonly")
+	return stlBook{receiptEnv: env, reader: reader, actor: env.users.bookkeeper.Id}
+}
+
+func (b stlBook) run(t *testing.T, params map[string]any) *reports.Result {
+	t.Helper()
+	return runSTL(t, b.app, b.reader, params, reports.Options{Today: stlToday})
+}
+
+// agency saves an agency over a liability account of its own.
+func (b stlBook) agency(t *testing.T, name string) *core.Record {
+	t.Helper()
+	return mkTaxAgency(t, b.app, name, mkLiabilityAccount(t, b.app, name+" payable"))
+}
+
+// sale is one line of the taxable service product, its taxable flag given.
+func (b stlBook) sale(cents int64, taxable bool) map[string]any {
+	return item(b.service, 1, cents, taxable)
+}
+
+// draftInvoice saves a draft invoice for customer dated day (due the same
+// day) under rate (none when nil), with its lines.
+func (b stlBook) draftInvoice(t *testing.T, customer, rate *core.Record, day string, extra map[string]any, lines ...map[string]any) *core.Record {
+	t.Helper()
+	fields := map[string]any{"date": day, "due_date": day}
+	if rate != nil {
+		fields["tax_rate"] = rate.Id
+	}
+	for k, v := range extra {
+		fields[k] = v
+	}
+	inv, err := newInvoice(b.app, customer, fields)
+	if err != nil {
+		t.Fatalf("save a draft invoice dated %s: %v", day, err)
+	}
+	for i, l := range lines {
+		mkInvoiceLine(t, b.app, inv, i, l)
+	}
+	return inv
+}
+
+func (b stlBook) postInvoice(t *testing.T, rate *core.Record, day string, lines ...map[string]any) *core.Record {
+	t.Helper()
+	return mustPostInvoice(t, b.app, b.draftInvoice(t, b.customer, rate, day, nil, lines...).Id, b.actor)
+}
+
+func (b stlBook) draftReceipt(t *testing.T, rate *core.Record, day string, lines ...map[string]any) *core.Record {
+	t.Helper()
+	r := b.mkReceipt(t, map[string]any{"tax_rate": rate.Id, "date": day})
+	for i, l := range lines {
+		mkReceiptLine(t, b.app, r, i, l)
+	}
+	return r
+}
+
+func (b stlBook) postReceipt(t *testing.T, rate *core.Record, day string, lines ...map[string]any) *core.Record {
+	t.Helper()
+	return mustPostReceipt(t, b.app, b.draftReceipt(t, rate, day, lines...).Id, b.actor)
+}
+
+// stlFig is a rate row's four figures, in minor units.
+type stlFig struct{ gross, nontaxable, taxable, tax int64 }
+
+func stlFigures(t *testing.T, r reports.Row) stlFig {
+	t.Helper()
+	return stlFig{amt(t, r, "gross"), amt(t, r, "nontaxable"), amt(t, r, "taxable"), amt(t, r, "tax")}
+}
+
+func requireRateFigures(t *testing.T, res *reports.Result, label string, want stlFig) {
+	t.Helper()
+	if got := stlFigures(t, bsRow(t, res, label)); got != want {
+		t.Errorf("%s: gross, non-taxable, taxable, tax = %+v, want %+v", label, got, want)
+	}
+}
+
+// requireTaxOnly asserts the row shows the tax and no sales figure: no
+// gross, non-taxable or taxable cell, and no currency cell for them
+// (blankAbove "byRate", core G2).
+func requireTaxOnly(t *testing.T, r reports.Row) {
+	t.Helper()
+	for _, c := range []string{"gross", "nontaxable", "taxable"} {
+		if v := r.Cells[c]; v != nil {
+			t.Errorf("%s (%s) %s = %#v, want blank above the rate level", r.Label, r.Kind, c, v)
+		}
+		if v, ok := r.Cells[c+"@currency"]; ok {
+			t.Errorf("%s (%s) has a %s@currency cell %#v, want none above the rate level", r.Label, r.Kind, c, v)
+		}
+	}
+	amt(t, r, "tax")
+}
+
+type stlShape struct {
+	Label    string
+	Kind     string
+	Depth    int
+	Expanded bool
+}
+
+func stlShapes(res *reports.Result) []stlShape {
+	out := make([]stlShape, len(res.Rows))
+	for i, r := range res.Rows {
+		out[i] = stlShape{r.Label, r.Kind, r.Depth, r.Expanded}
+	}
+	return out
+}
+
+// stlGroupRow is the group row of level (1 agency, 2 rate) whose key holds
+// id.
+func stlGroupRow(res *reports.Result, level int, id string) (reports.Row, bool) {
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindGroup && r.Level == level && slices.Contains(r.GroupKey, any(id)) {
+			return r, true
+		}
+	}
+	return reports.Row{}, false
+}
+
+func stlGroupRows(res *reports.Result) []reports.Row {
+	var out []reports.Row
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindGroup {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// docRef is one posted document, by kind.
+type docRef struct {
+	kind salesDocKind
+	id   string
+}
+
+// lineSums adds the stored tax lines of docs by component: the figures a
+// rate row must show (spec §3: the figures stored at posting).
+func lineSums(t *testing.T, app core.App, docs ...docRef) map[string]stlFig {
+	t.Helper()
+	out := map[string]stlFig{}
+	for _, d := range docs {
+		for _, line := range docTaxLinesOf(t, app, d.kind, d.id) {
+			f := out[line.GetString("component")]
+			gross, taxable := int64(line.GetInt("gross_amount")), int64(line.GetInt("taxable_amount"))
+			f.gross += gross
+			f.taxable += taxable
+			f.nontaxable += gross - taxable
+			f.tax += int64(line.GetInt("amount"))
+			out[line.GetString("component")] = f
+		}
+	}
+	return out
+}
+
+func TestSalesTaxLiabilitySpecLoads(t *testing.T) {
+	b := newSTLBook(t)
+	if err := reports.CheckSources(b.app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+	refused := reports.Refused(b.app)
+	accepted := map[string]bool{}
+	for _, s := range reports.Sources(b.app) {
+		accepted[s.Key] = true
+	}
+	for _, key := range stlSourceKeys {
+		if reason, bad := refused[key]; bad {
+			t.Errorf("source %s refused: %s", key, reason)
+		}
+		if !accepted[key] {
+			t.Errorf("source %s is not registered and accepted", key)
+		}
+	}
+
+	shipped := salesTaxLiabilityShipped()
+	if salesTaxLiabilityKey != "books.sales_tax_liability" || shipped.Key != salesTaxLiabilityKey {
+		t.Errorf("key = %q (const %q), want books.sales_tax_liability", shipped.Key, salesTaxLiabilityKey)
+	}
+	if shipped.Title != "Sales Tax Liability" {
+		t.Errorf("title = %q, want Sales Tax Liability", shipped.Title)
+	}
+	if shipped.Description != "The sales tax you charged on posted invoices and sales receipts, by agency and rate (accrual basis)." {
+		t.Errorf("description = %q", shipped.Description)
+	}
+	if shipped.Revision != 1 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	}
+	built, err := json.Marshal(salesTaxLiabilitySpec())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !jsonEqual(t, shipped.Spec, string(built)) {
+		t.Errorf("the shipped spec is not salesTaxLiabilitySpec()")
+	}
+
+	spec, _, err := reports.Load(shipped.Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if spec.Version != reports.CurrentVersion {
+		t.Errorf("version %d, want %d", spec.Version, reports.CurrentVersion)
+	}
+	if spec.Source != "books.sales_tax_lines" {
+		t.Errorf("source = %q, want books.sales_tax_lines", spec.Source)
+	}
+	if err := reports.Validate(b.app, spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	paramIDs := make([]string, len(spec.Params))
+	for i, p := range spec.Params {
+		paramIDs[i] = p.ID
+	}
+	if !reflect.DeepEqual(paramIDs, []string{"period", "agencies"}) {
+		t.Fatalf("params = %v, want period, agencies (the chips' order)", paramIDs)
+	}
+	period := paramOf(t, spec, "period")
+	if period.Type != reports.ParamDateRange || period.Label != "Period" || !jsonEqual(t, period.Default, `{"preset":"lastMonth"}`) {
+		t.Errorf("period = %+v (default %s), want a date range labelled Period, default Last month", period, period.Default)
+	}
+	agencies := paramOf(t, spec, "agencies")
+	if agencies.Type != reports.ParamChoice || agencies.Label != "Agency" || !agencies.Multiple {
+		t.Errorf("agencies = %+v, want a multiple choice labelled Agency", agencies)
+	}
+	of := agencies.OptionsFrom
+	if of == nil || of.Source != "books.tax_agencies" ||
+		!reflect.DeepEqual(of.Value, reports.Path{{Field: "id"}}) || !reflect.DeepEqual(of.Label, reports.Path{{Field: "name"}}) {
+		t.Errorf("agencies optionsFrom = %+v, want source books.tax_agencies, value [id], label [name]", of)
+	}
+
+	type colShape struct {
+		ID, Label  string
+		Hidden     bool
+		BlankAbove string
+	}
+	gotCols := make([]colShape, len(spec.Columns))
+	for i, c := range spec.Columns {
+		gotCols[i] = colShape{c.ID, c.Label, c.Hidden, c.BlankAbove}
+	}
+	wantCols := []colShape{
+		{ID: "name", Label: "Tax name"},
+		{ID: "gross", Label: "Gross total", BlankAbove: "byRate"},
+		{ID: "nontaxable", Label: "Non-taxable", BlankAbove: "byRate"},
+		{ID: "taxable", Label: "Taxable amount", BlankAbove: "byRate"},
+		{ID: "tax", Label: "Tax amount"},
+		{ID: "agencyKey", Hidden: true},
+		{ID: "rateKey", Hidden: true},
+	}
+	// The hidden key columns' labels are not pinned.
+	for i := range gotCols {
+		if gotCols[i].Hidden {
+			gotCols[i].Label = ""
+		}
+	}
+	if !reflect.DeepEqual(gotCols, wantCols) {
+		t.Errorf("columns =\n%+v\nwant\n%+v", gotCols, wantCols)
+	}
+
+	type groupShape struct {
+		ID, Col         string
+		Open, Subtotals bool
+	}
+	gotGroups := make([]groupShape, len(spec.Groups))
+	for i, g := range spec.Groups {
+		gotGroups[i] = groupShape{g.ID, g.Col, g.Open, g.Subtotals}
+	}
+	wantGroups := []groupShape{
+		{ID: "byAgency", Col: "agencyKey", Open: true, Subtotals: true},
+		{ID: "byRate", Col: "rateKey", Open: false, Subtotals: true},
+	}
+	if !reflect.DeepEqual(gotGroups, wantGroups) {
+		t.Errorf("groups = %+v\nwant %+v", gotGroups, wantGroups)
+	}
+
+	// The fixture's SALES_TAX_LIABILITY_DISPLAY, written out.
+	d := spec.Display
+	if d == nil {
+		t.Fatal("the shipped spec has no display: a phone cuts a document label to its date")
+	}
+	if d.OneLine == nil || d.OneLine.MinWidth != "600px" {
+		t.Errorf("display.oneLine = %+v, want minWidth 600px", d.OneLine)
+	}
+	if want := map[string]reports.ColumnFit{"name": {MinWidth: "12ch"}}; !reflect.DeepEqual(d.Columns, want) {
+		t.Errorf("display.columns = %+v, want %+v", d.Columns, want)
+	}
+	type layoutShape struct {
+		Width    string
+		MinWidth string
+		Tracks   int
+		Cells    []bsCell
+	}
+	gotLayouts := make([]layoutShape, len(d.Layouts))
+	for i, l := range d.Layouts {
+		gotLayouts[i] = layoutShape{l.Width, l.MinWidth, l.Tracks, bsCells(l.Cells)}
+	}
+	wantLayouts := []layoutShape{{Width: "mobile", Tracks: 2, Cells: []bsCell{
+		{Col: "name", Line: 1, Span: 2, Lines: 1},
+		{Col: "gross", Line: 2, Span: 1, Lines: 1},
+		{Col: "nontaxable", Line: 2, Span: 1, Lines: 1},
+		{Col: "taxable", Line: 3, Span: 1, Lines: 1},
+		{Col: "tax", Line: 3, Span: 1, Lines: 1},
+	}}}
+	if !reflect.DeepEqual(gotLayouts, wantLayouts) {
+		t.Errorf("display.layouts = %+v\nwant %+v", gotLayouts, wantLayouts)
+	}
+
+	// A run shows the five visible columns only; the group keys stay hidden.
+	agency := b.agency(t, "Alpha agency")
+	b.postInvoice(t, mkTaxRate(t, b.app, "A rate one", 50000, agency), "2026-10-05", b.sale(10000, true))
+	res := b.run(t, nil)
+	ids := make([]string, len(res.Columns))
+	for i, c := range res.Columns {
+		ids[i] = c.ID
+	}
+	if !reflect.DeepEqual(ids, []string{"name", "gross", "nontaxable", "taxable", "tax"}) {
+		t.Errorf("result columns = %v, want name, gross, nontaxable, taxable, tax", ids)
+	}
+	if len(stlGroupRows(res)) == 0 {
+		t.Fatalf("the run has no group rows; rows %q", bsLabels(res))
+	}
+	for _, r := range res.Rows {
+		for _, key := range []string{"agencyKey", "rateKey"} {
+			if v, ok := r.Cells[key]; ok {
+				t.Errorf("%s (%s) carries a %s cell %#v", r.Label, r.Kind, key, v)
+			}
+		}
+	}
+}
+
+func TestSalesTaxLiabilityTotals(t *testing.T) {
+	b := newSTLBook(t)
+	// Saved out of name order, so the rows' order is the names'.
+	agencyB := b.agency(t, "Beta agency")
+	agencyA := b.agency(t, "Alpha agency")
+	a2 := mkTaxRate(t, b.app, "A rate two", 20000, agencyA)
+	a1 := mkTaxRate(t, b.app, "A rate one", 50000, agencyA)
+	b1 := mkTaxRate(t, b.app, "B rate one", 10000, agencyB)
+	mixed := mkTaxGroup(t, b.app, "Mixed group", a2, b1)
+	pair := mkTaxGroup(t, b.app, "A pair", a1, a2)
+
+	inv1 := b.postInvoice(t, a1, "2026-10-05", b.sale(10000, true), b.sale(2000, false))
+	inv2 := b.postInvoice(t, mixed, "2026-10-10", b.sale(20000, true))
+	rct := b.postReceipt(t, mixed, "2026-10-12", b.sale(5000, true), b.sale(1000, false))
+	// One document taxed by two rates of agency A: once per component.
+	inv3 := b.postInvoice(t, pair, "2026-10-15", b.sale(10000, true))
+
+	res := b.run(t, nil)
+	g, s, tot := reports.KindGroup, reports.KindSubtotal, reports.KindTotal
+	want := []stlShape{
+		{"Alpha agency", g, 0, true},
+		{"A rate one", g, 1, false},
+		{"A rate two", g, 1, false},
+		{"Total Alpha agency", s, 0, false},
+		{"Beta agency", g, 0, true},
+		{"B rate one", g, 1, false},
+		{"Total Beta agency", s, 0, false},
+		{"Total", tot, 0, false},
+	}
+	if got := stlShapes(res); !reflect.DeepEqual(got, want) {
+		t.Fatalf("rows (label, kind, depth, expanded) =\n%v\nwant\n%v", got, want)
+	}
+
+	// Hand sums: a1 = inv1 (12000 gross, 10000 taxable, 500) + inv3 (10000,
+	// 10000, 500); a2 = inv2 (20000, 20000, 400) + rct (6000, 5000, 100) + inv3
+	// (10000, 10000, 200); b1 = inv2 (20000, 20000, 200) + rct (6000, 5000, 50).
+	requireRateFigures(t, res, "A rate one", stlFig{22000, 2000, 20000, 1000})
+	requireRateFigures(t, res, "A rate two", stlFig{36000, 1000, 35000, 700})
+	requireRateFigures(t, res, "B rate one", stlFig{26000, 1000, 25000, 250})
+
+	sums := lineSums(t, b.app,
+		docRef{invoiceKind, inv1.Id}, docRef{invoiceKind, inv2.Id},
+		docRef{salesReceiptKind, rct.Id}, docRef{invoiceKind, inv3.Id})
+	for label, rate := range map[string]*core.Record{"A rate one": a1, "A rate two": a2, "B rate one": b1} {
+		if got := stlFigures(t, bsRow(t, res, label)); got != sums[rate.Id] {
+			t.Errorf("%s = %+v, want the sums of its documents' tax lines %+v", label, got, sums[rate.Id])
+		}
+	}
+
+	for _, label := range []string{"Alpha agency", "Total Alpha agency", "Beta agency", "Total Beta agency", "Total"} {
+		requireTaxOnly(t, bsRow(t, res, label))
+	}
+	totalA := amt(t, bsRow(t, res, "Total Alpha agency"), "tax")
+	totalB := amt(t, bsRow(t, res, "Total Beta agency"), "tax")
+	if want := amt(t, bsRow(t, res, "A rate one"), "tax") + amt(t, bsRow(t, res, "A rate two"), "tax"); totalA != want || totalA != 1700 {
+		t.Errorf("Total Alpha agency tax = %d, want a1 + a2 = %d (1700)", totalA, want)
+	}
+	if want := sums[a1.Id].tax + sums[a2.Id].tax; totalA != want {
+		t.Errorf("Total Alpha agency tax = %d, want each document's tax once per component of A = %d", totalA, want)
+	}
+	if got := amt(t, bsRow(t, res, "Alpha agency"), "tax"); got != totalA {
+		t.Errorf("Alpha agency tax = %d, want its total %d", got, totalA)
+	}
+	if totalB != 250 {
+		t.Errorf("Total Beta agency tax = %d, want 250", totalB)
+	}
+	if got := amt(t, bsRow(t, res, "Total"), "tax"); got != totalA+totalB {
+		t.Errorf("Total tax = %d, want Total Alpha agency + Total Beta agency = %d", got, totalA+totalB)
+	}
+}
+
+func TestSalesTaxLiabilityPostedOnly(t *testing.T) {
+	b := newSTLBook(t)
+	rate := mkTaxRate(t, b.app, "Posted rate", 50000, b.agency(t, "Posted agency"))
+	draftRate := mkTaxRate(t, b.app, "Draft rate", 50000, b.agency(t, "Draft agency"))
+
+	b.draftInvoice(t, b.customer, draftRate, "2026-10-03", nil, b.sale(9900, true))
+	b.draftReceipt(t, draftRate, "2026-10-03", b.sale(9800, true))
+	b.postInvoice(t, rate, "2026-10-05", b.sale(10000, true))
+	b.postReceipt(t, rate, "2026-10-06", b.sale(4000, true))
+	voidInv := b.postInvoice(t, rate, "2026-10-07", b.sale(7000, true))
+	voidRct := b.postReceipt(t, rate, "2026-10-08", b.sale(3000, true))
+	original := b.postInvoice(t, rate, "2026-10-09", b.sale(8000, true))
+
+	// Every posted document counts: invoices and sales receipts alike.
+	before := b.run(t, nil)
+	requireRateFigures(t, before, "Posted rate", stlFig{32000, 0, 32000, 1600})
+
+	if err := voidInvoiceAs(b.app, voidInv.Id, b.actor); err != nil {
+		t.Fatalf("void the invoice: %v", err)
+	}
+	if err := voidReceiptAs(b.app, voidRct.Id, b.actor); err != nil {
+		t.Fatalf("void the sales receipt: %v", err)
+	}
+	// A correction (Edit of a posted invoice) voids the original.
+	correction := b.draftInvoice(t, b.customer, rate, "2026-10-09", map[string]any{"replaces": original.Id, "memo": "Corrected"}, b.sale(9000, true))
+	mustPostInvoice(t, b.app, correction.Id, b.actor)
+	if s := reload(t, b.app, "books_invoices", original.Id).GetString("status"); s != statusVoid {
+		t.Fatalf("the corrected original's status = %q, want void", s)
+	}
+
+	res := b.run(t, nil)
+	for _, label := range []string{"Draft agency", "Draft rate"} {
+		if bsHas(res, label) {
+			t.Errorf("a row is labelled %q: a draft has no tax lines", label)
+		}
+	}
+	// 10000 invoice + 4000 receipt + 9000 correction; the voids and the
+	// original drop out.
+	requireRateFigures(t, res, "Posted rate", stlFig{23000, 0, 23000, 1150})
+	for _, label := range []string{"Posted agency", "Total Posted agency", "Total"} {
+		if got := amt(t, bsRow(t, res, label), "tax"); got != 1150 {
+			t.Errorf("%s tax = %d, want 1150 (posted documents only)", label, got)
+		}
+	}
+}
+
+func TestSalesTaxLiabilityPeriod(t *testing.T) {
+	b := newSTLBook(t)
+	rate := mkTaxRate(t, b.app, "Period rate", 100000, b.agency(t, "Period agency"))
+	post := func(day, due string, cents int64) {
+		t.Helper()
+		inv := b.draftInvoice(t, b.customer, rate, day, map[string]any{"due_date": due}, b.sale(cents, true))
+		mustPostInvoice(t, b.app, inv.Id, b.actor)
+	}
+	// Due inside October, dated before it: out (accrual: its own date).
+	post("2026-09-30", "2026-10-30", 1000)
+	post("2026-10-01", "2026-10-01", 2000)
+	b.postReceipt(t, rate, "2026-10-31", b.sale(4000, true))
+	post("2026-11-01", "2026-11-01", 8000)
+	// Dated inside October, due after it: in.
+	post("2026-10-20", "2026-11-20", 16000)
+
+	res := b.run(t, nil)
+	var resolved *reports.ResolvedParam
+	for i, p := range res.Params {
+		if p.ID == "period" {
+			resolved = &res.Params[i]
+		}
+	}
+	if resolved == nil || resolved.From != "2026-10-01" || resolved.To != "2026-10-31" {
+		t.Errorf("period resolved to %+v, want 2026-10-01..2026-10-31 (Last month of %s)", resolved, stlToday)
+	}
+	requireRateFigures(t, res, "Period rate", stlFig{22000, 0, 22000, 2200})
+
+	november := b.run(t, map[string]any{"period": glPeriod("2026-11-01", "2026-11-30")})
+	requireRateFigures(t, november, "Period rate", stlFig{8000, 0, 8000, 800})
+}
+
+func TestSalesTaxLiabilityAgencies(t *testing.T) {
+	b := newSTLBook(t)
+	alpha := b.agency(t, "Alpha agency")
+	beta := b.agency(t, "Beta agency")
+	gamma := b.agency(t, "Gamma agency")
+	if err := setTaxAgency(t, b.app, gamma.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Gamma agency inactive: %v", err)
+	}
+	b.postInvoice(t, mkTaxRate(t, b.app, "Alpha rate", 50000, alpha), "2026-10-05", b.sale(10000, true))
+	b.postInvoice(t, mkTaxRate(t, b.app, "Beta rate", 10000, beta), "2026-10-06", b.sale(20000, true))
+
+	only := b.run(t, map[string]any{"agencies": []string{beta.Id}})
+	if got, want := bsLabels(only), []string{"Beta agency", "Beta rate", "Total Beta agency", "Total"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Agency = Beta agency: rows %q, want %q", got, want)
+	}
+	if got := amt(t, bsRow(t, only, "Total"), "tax"); got != 200 {
+		t.Errorf("Agency = Beta agency: Total tax = %d, want Beta's 200", got)
+	}
+
+	every := b.run(t, nil)
+	for _, label := range []string{"Alpha agency", "Alpha rate", "Beta agency", "Beta rate"} {
+		if !bsHas(every, label) {
+			t.Errorf("Agency unset: no row %q; rows %q", label, bsLabels(every))
+		}
+	}
+	if got := amt(t, bsRow(t, every, "Total"), "tax"); got != 700 {
+		t.Errorf("Agency unset: Total tax = %d, want 700", got)
+	}
+
+	spec, _, err := reports.Load(salesTaxLiabilityShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	options, err := reports.ReadParamOptions(context.Background(), b.app, reports.OptionsRequest{
+		Spec: spec, Param: "agencies", Auth: b.reader, Today: stlToday,
+	})
+	if err != nil {
+		t.Fatalf("the agencies param's options: %v", err)
+	}
+	labels := []string{}
+	for _, o := range options.Options {
+		labels = append(labels, o.Label)
+		if o.Label == "Gamma agency" && o.Value != gamma.Id {
+			t.Errorf("Gamma agency's option value = %q, want its id %q", o.Value, gamma.Id)
+		}
+	}
+	for _, name := range []string{"Alpha agency", "Beta agency", "Gamma agency"} {
+		if !slices.Contains(labels, name) {
+			t.Errorf("the Agency picker lists %q, want %s (inactive agencies included)", labels, name)
+		}
+	}
+}
+
+func TestSalesTaxLiabilityEdges(t *testing.T) {
+	b := newSTLBook(t)
+	echo := b.agency(t, "Echo agency")
+	foxtrot := b.agency(t, "Foxtrot agency")
+	golf := b.agency(t, "Golf agency")
+	five := mkTaxRate(t, b.app, "Echo five", 50000, echo)
+	zero := mkTaxRate(t, b.app, "Echo zero", 0, echo)
+	moving := mkTaxRate(t, b.app, "Echo moving", 50000, echo)
+	golfRate := mkTaxRate(t, b.app, "Golf rate", 20000, golf)
+
+	// A rate and no taxable line: Non-taxable sales, tax 0.
+	b.postInvoice(t, five, "2026-10-05", b.sale(3000, false))
+	// A 0% rate: taxable sales, tax 0.
+	b.postReceipt(t, zero, "2026-10-06", b.sale(4000, true))
+	b.postInvoice(t, moving, "2026-10-07", b.sale(10000, true))
+	b.postInvoice(t, golfRate, "2026-10-08", b.sale(5000, true))
+	before := b.run(t, nil)
+	requireRateFigures(t, before, "Echo five", stlFig{3000, 3000, 0, 0})
+	requireRateFigures(t, before, "Echo zero", stlFig{4000, 0, 4000, 0})
+	requireRateFigures(t, before, "Echo moving", stlFig{10000, 0, 10000, 500})
+	requireRateFigures(t, before, "Golf rate", stlFig{5000, 0, 5000, 100})
+
+	// A document with no tax rate has no tax line: no row, no figure moves.
+	walkIn := mkCustomer(t, b.app, "Walk-in buyer", "")
+	untaxed := mustPostInvoice(t, b.app, b.draftInvoice(t, walkIn, nil, "2026-10-09", nil, b.sale(6000, true)).Id, b.actor)
+	if lines := docTaxLinesOf(t, b.app, invoiceKind, untaxed.Id); len(lines) != 0 {
+		t.Fatalf("an invoice with no tax rate has %d tax lines, want none", len(lines))
+	}
+	noRate := b.run(t, nil)
+	if !reflect.DeepEqual(noRate.Rows, before.Rows) {
+		t.Errorf("an invoice with no tax rate changed the rows:\n%+v\nwant\n%+v", noRate.Rows, before.Rows)
+	}
+
+	// After posting: an inactive rate and agency, a renamed rate moved to
+	// another agency with a new percent, a product no longer taxable and a
+	// customer made exempt.
+	if err := setTaxRate(t, b.app, golfRate.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Golf rate inactive: %v", err)
+	}
+	if err := setTaxAgency(t, b.app, golf.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatalf("make Golf agency inactive: %v", err)
+	}
+	if err := setTaxRate(t, b.app, moving.Id, map[string]any{"name": "Renamed rate", "rate_ppm": 90000, "agency": foxtrot.Id}); err != nil {
+		t.Fatalf("rename, re-rate and move Echo moving: %v", err)
+	}
+	if err := setFields(t, b.app, "books_products", b.service.Id, map[string]any{"taxable": false}); err != nil {
+		t.Fatalf("make the product not taxable: %v", err)
+	}
+	if err := setCustomer(t, b.app, b.customer.Id, map[string]any{"tax_exempt": true, "exemption_reason": "resale"}); err != nil {
+		t.Fatalf("make the customer exempt: %v", err)
+	}
+
+	after := b.run(t, nil)
+	golfRow, ok := stlGroupRow(after, 2, golfRate.Id)
+	if !ok || golfRow.Label != "Golf rate" {
+		t.Errorf("the inactive Golf rate's row = %+v (found %v), want it shown like an active one", golfRow, ok)
+	}
+	if row, ok := stlGroupRow(after, 1, golf.Id); !ok || row.Label != "Golf agency" {
+		t.Errorf("the inactive Golf agency's row = %+v (found %v), want it shown like an active one", row, ok)
+	}
+	movedRow, ok := stlGroupRow(after, 2, moving.Id)
+	if !ok {
+		t.Fatalf("no row for the renamed rate; rows %q", bsLabels(after))
+	}
+	if movedRow.Label != "Renamed rate" {
+		t.Errorf("the renamed rate's row is labelled %q, want its new name Renamed rate", movedRow.Label)
+	}
+	if !slices.Contains(movedRow.GroupKey, any(echo.Id)) || slices.Contains(movedRow.GroupKey, any(foxtrot.Id)) {
+		t.Errorf("the moved rate's row key = %v, want it under Echo agency (the agency on its tax lines), not Foxtrot", movedRow.GroupKey)
+	}
+	if bsHas(after, "Foxtrot agency") {
+		t.Errorf("Foxtrot agency has a row; it has no tax lines")
+	}
+	labels := bsLabels(after)
+	echoAt, movedAt, echoTotalAt := slices.Index(labels, "Echo agency"), slices.Index(labels, "Renamed rate"), slices.Index(labels, "Total Echo agency")
+	if echoAt < 0 || movedAt <= echoAt || echoTotalAt <= movedAt {
+		t.Errorf("rows %q: want Renamed rate between Echo agency and Total Echo agency", labels)
+	}
+	requireRateFigures(t, after, "Renamed rate", stlFig{10000, 0, 10000, 500})
+	requireRateFigures(t, after, "Echo five", stlFig{3000, 3000, 0, 0})
+	requireRateFigures(t, after, "Echo zero", stlFig{4000, 0, 4000, 0})
+	requireRateFigures(t, after, "Golf rate", stlFig{5000, 0, 5000, 100})
+	// Every figure is the one stored at posting.
+	cellsByID := map[string]map[string]any{}
+	for _, r := range after.Rows {
+		cellsByID[r.ID] = r.Cells
+	}
+	for _, r := range before.Rows {
+		got, ok := cellsByID[r.ID]
+		if !ok {
+			t.Errorf("row %s (%s) is gone after the changes", r.ID, r.Label)
+			continue
+		}
+		if !reflect.DeepEqual(got, r.Cells) {
+			t.Errorf("row %s (%s) cells = %v after the changes, want the posted %v", r.ID, r.Label, got, r.Cells)
+		}
+	}
+}
+
+func TestSalesTaxLiabilityEmpty(t *testing.T) {
+	b := newSTLBook(t)
+	b.postInvoice(t, mkTaxRate(t, b.app, "October rate", 50000, b.agency(t, "October agency")), "2026-10-05", b.sale(10000, true))
+	if len(stlGroupRows(b.run(t, nil))) == 0 {
+		t.Fatal("October has no group rows: the book must hold a posted taxed sale")
+	}
+
+	res := b.run(t, map[string]any{"period": glPeriod("2026-09-01", "2026-09-30")})
+	if groups := stlGroupRows(res); len(groups) != 0 {
+		t.Errorf("a period with no posted taxed sale has group rows %q", labelsOf(groups))
+	}
+	totals := 0
+	for _, r := range res.Rows {
+		if r.Kind != reports.KindTotal {
+			t.Errorf("row %q (%s) in an empty period, want the Total only", r.Label, r.Kind)
+			continue
+		}
+		totals++
+		if v := r.Cells["tax"]; v != nil {
+			t.Errorf("the empty period's Total tax = %#v, want no figure", v)
+		}
+	}
+	if totals != 1 {
+		t.Errorf("an empty period has %d Total rows, want exactly 1", totals)
+	}
+}
+
+func TestSalesTaxLiabilityNoAccess(t *testing.T) {
+	b := newSTLBook(t)
+	b.postInvoice(t, mkTaxRate(t, b.app, "Seen rate", 50000, b.agency(t, "Seen agency")), "2026-10-05", b.sale(10000, true))
+	// The reader sees the sale, so the outsider's empty run is the rule's doing.
+	if !bsHas(b.run(t, nil), "Seen rate") {
+		t.Fatal("the Books reader does not see the posted sale")
+	}
+
+	res, err := runSTLErr(t, b.app, b.users.none, nil, reports.Options{Today: stlToday})
+	if err != nil {
+		t.Fatalf("the run of a user with Books level none was refused (%v); core runs it with the rule's rows", err)
+	}
+	if groups := stlGroupRows(res); len(groups) != 0 {
+		t.Errorf("a user with Books level none sees rows %q", labelsOf(groups))
+	}
+	for _, r := range res.Rows {
+		if v := r.Cells["tax"]; v != nil && v != int64(0) {
+			t.Errorf("a user with Books level none: %s (%s) tax = %#v, want 0 or empty", r.Label, r.Kind, v)
+		}
+	}
+}
+
+func TestSalesTaxLiabilityTopics(t *testing.T) {
+	b := newSTLBook(t)
+	b.postInvoice(t, mkTaxRate(t, b.app, "Topic rate", 50000, b.agency(t, "Topic agency")), "2026-10-05", b.sale(10000, true))
+	res := b.run(t, nil)
+	for _, topic := range []string{
+		"collection/books_invoice_tax_lines",
+		"collection/books_sales_receipt_tax_lines",
+		"collection/books_invoices",
+		"collection/books_sales_receipts",
+		"collection/books_tax_rates",
+		"collection/books_tax_agencies",
+	} {
+		if !slices.Contains(res.Topics, topic) {
+			t.Errorf("topics = %v, want %s (a void or post re-runs the open report)", res.Topics, topic)
+		}
+	}
+}
+
+// Register ships the Sales Tax Liability; core creates it unpublished, owned
+// by the first admin, and Books shares it with every Books reader.
+func TestSalesTaxLiabilityShippedShared(t *testing.T) {
+	reports.ResetForTesting()
+	t.Cleanup(reports.ResetForTesting)
+	app, _ := newRegisteredApp(t)
+	mkUser(t, app, "owner")
+	reader := mkUser(t, app, "guest")
+	setPkgAccess(t, app, reader, "readonly")
+	outsider := mkUser(t, app, "guest")
+	if err := reports.ReconcileShipped(app); err != nil {
+		t.Fatalf("ReconcileShipped: %v", err)
+	}
+	row, err := app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": salesTaxLiabilityKey})
+	if err != nil {
+		t.Fatalf("no reports row with shipped_key %s: %v", salesTaxLiabilityKey, err)
+	}
+	if row.GetBool("published") || row.GetString("published_by") != "" {
+		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
+	}
+	if row.GetString("title") != "Sales Tax Liability" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.sales_tax_lines" {
+		t.Errorf("row = %v", row.PublicExport())
+	}
+	if err := reconcileBooksReportShares(app); err != nil {
+		t.Fatalf("reconcileBooksReportShares: %v", err)
+	}
+	requireViewer(t, app, row, reader, "a guest with Books readonly access")
+	requireNoShare(t, app, row, outsider, "a guest without Books access")
+}

@@ -6,10 +6,16 @@ import {
     navigateToPackage,
     rowOf,
 } from '@tinycld/core/e2e-helpers'
+import { rangeWords } from '@tinycld/core/reports/lib/dates'
 import {
     PROFIT_AND_LOSS_BY_MONTH_TITLE,
     PROFIT_AND_LOSS_TITLE,
 } from '~/tinycld/books/lib/profit-and-loss-fixture'
+import {
+    SALES_TAX_LIABILITY_FROM,
+    SALES_TAX_LIABILITY_TITLE,
+    SALES_TAX_LIABILITY_TO,
+} from '~/tinycld/books/lib/sales-tax-liability-fixture'
 import { isPhone } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
@@ -370,7 +376,10 @@ export async function voidPostedEntry(page: Page): Promise<void> {
 }
 
 // Sets the Period: a preset applies at once and closes the popover; Custom days apply as
-// they are typed (the URL holds them) and Escape closes the popover.
+// they are typed (the URL holds them) and Escape closes the popover. Core pre-fills the
+// Custom days from the current run's resolved period, so when they already hold the days
+// asked for, the shown run is over those days: filling them fires no change and the URL
+// never gets them, so only Escape is pressed.
 export async function choosePeriod(
     page: Page,
     choice: { preset: 'thisMonthToDate' | 'allDates' } | { from: string; to: string }
@@ -382,12 +391,20 @@ export async function choosePeriod(
         await page.getByTestId(`report-period-preset-${choice.preset}`).click()
     } else {
         await page.getByTestId('report-period-preset-custom').click()
-        await page.getByTestId('report-period-from').fill(choice.from)
-        await page.getByTestId('report-period-to').fill(choice.to)
-        await expect(page.getByTestId('report-period-error')).toHaveCount(0)
-        await expect
-            .poll(() => new URL(page.url()).searchParams.get('p-period'))
-            .toBe(`${choice.from}..${choice.to}`)
+        const fromInput = page.getByTestId('report-period-from')
+        const toInput = page.getByTestId('report-period-to')
+        await expect(fromInput).toBeVisible()
+        const isShown =
+            (await fromInput.inputValue()) === choice.from &&
+            (await toInput.inputValue()) === choice.to
+        if (!isShown) {
+            await fromInput.fill(choice.from)
+            await toInput.fill(choice.to)
+            await expect(page.getByTestId('report-period-error')).toHaveCount(0)
+            await expect
+                .poll(() => new URL(page.url()).searchParams.get('p-period'))
+                .toBe(`${choice.from}..${choice.to}`)
+        }
         await page.keyboard.press('Escape')
     }
     await expect(popover).toHaveCount(0)
@@ -606,6 +623,57 @@ export async function openProfitAndLossByMonth(page: Page): Promise<void> {
         .click()
     await expect(page.getByTestId('report-screen')).toBeVisible()
     await expect(page.getByTestId('report-table')).toBeVisible()
+}
+
+// The shipped Sales Tax Liability from the Books hub, reached as openBalanceSheet reaches
+// the Balance Sheet: through the viewer share Books keeps. It has an empty state, so the
+// table or the empty text shows.
+export async function openSalesTaxLiability(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, SALES_TAX_LIABILITY_TITLE).click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(
+        page.getByTestId('report-table').or(page.getByTestId('report-empty'))
+    ).toBeVisible()
+}
+
+// Sets the Period to October 2026, the month the seed posts its taxed sales in, and waits
+// until the document period names it. In November the default Last month already is
+// October, so choosePeriod changes nothing. Else core keeps the old rows until the new run
+// lands, but the period words and the rows come from the same run result, so the words
+// show October only once October's rows show.
+export async function chooseOctober(page: Page): Promise<void> {
+    await choosePeriod(page, { from: SALES_TAX_LIABILITY_FROM, to: SALES_TAX_LIABILITY_TO })
+    await expect(page.getByTestId('report-document-period')).toHaveText(
+        rangeWords(SALES_TAX_LIABILITY_FROM, SALES_TAX_LIABILITY_TO)
+    )
+}
+
+// Narrows the report to the agencies named, through core's Agency picker. An unset Agency
+// has no chip (core lists an optional param under Add filter), so the first pick starts
+// from Add filter and a later one from the chip. It then waits until the URL holds the
+// agencies and the rows show only those agencies' group rows: a wait on the rows, not on a
+// run response (React Query answers a body it has cached with no request).
+export async function chooseAgencies(page: Page, names: readonly string[]): Promise<void> {
+    const chip = page.getByTestId('report-param-agencies')
+    const from = (await chip.isVisible()) ? 'chip' : 'add-filter'
+    await chooseParamOption(page, 'agencies', {
+        from,
+        search: names.length === 1 ? names[0] : undefined,
+        labels: [...names],
+    })
+    await expect.poll(() => new URL(page.url()).searchParams.get('p-agencies')).not.toBeNull()
+    const wanted = [...names].sort((a, b) => a.localeCompare(b))
+    await snapshotWhen(
+        page,
+        reportSnapshot,
+        snapshot =>
+            snapshot.rows
+                .filter(row => row.kind === 'group' && row.depth === 0)
+                .map(row => row.label)
+                .join('|') === wanted.join('|'),
+        `the rows show only the agencies ${wanted.join(', ')}`
+    )
 }
 
 // How long a press is watched for a run it starts. An opened row's lines come from a new

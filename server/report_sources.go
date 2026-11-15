@@ -140,6 +140,30 @@ func reportSources() []reports.Source {
 				{Key: "inactive", Label: "Inactive", Type: reports.Bool},
 			},
 		},
+		{
+			Key: "books.tax_agencies", Collection: "books_tax_agencies", Label: "Tax agencies",
+			Fields: []reports.Field{
+				{Key: "name", Label: "Name", Type: reports.Text, Aggregates: reports.MinMax},
+				{Key: "inactive", Label: "Inactive", Type: reports.Bool},
+			},
+		},
+		{
+			Key: "books.tax_rates", Collection: "books_tax_rates", Label: "Tax rates",
+			Fields: []reports.Field{
+				{Key: "type", Label: "Type", Type: reports.Select, Options: []reports.Option{
+					{Value: "rate", Label: "Rate"},
+					{Value: "group", Label: "Group"},
+				}},
+				{Key: "name", Label: "Name", Type: reports.Text, Aggregates: reports.MinMax},
+				{Key: "rate_ppm", Label: "Rate (ppm)", Type: reports.Number},
+				{Key: "inactive", Label: "Inactive", Type: reports.Bool},
+			},
+			Links: []reports.Link{
+				{Key: "agency", Label: "Agency", Target: "books.tax_agencies", Cardinality: reports.ToOne, Field: "agency"},
+			},
+		},
+		salesDocumentsSource(),
+		salesTaxLinesSource(),
 	}
 	for i := range sources {
 		sources[i].FiscalStartMonth = booksFiscalStart
@@ -150,6 +174,90 @@ func reportSources() []reports.Source {
 		}
 	}
 	return sources
+}
+
+// salesDocumentColumns are the columns invoices and sales receipts share, by
+// the same name in both collections.
+var salesDocumentColumns = []string{
+	"date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry",
+}
+
+// sameNames maps each key to the column of the same name.
+func sameNames(keys ...string) map[string]string {
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		out[k] = k
+	}
+	return out
+}
+
+// salesDocumentsSource is every invoice and sales receipt, one union of the
+// two collections (core SourcePart); kind is each part's constant, so a
+// report can tell the two apart and label a row by its kind.
+func salesDocumentsSource() reports.Source {
+	return reports.Source{
+		Key: "books.sales_documents", Label: "Sales documents",
+		Parts: []reports.SourcePart{
+			{Collection: "books_invoices", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "invoice"}},
+			{Collection: "books_sales_receipts", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "sales_receipt"}},
+		},
+		Fields: []reports.Field{
+			{Key: "kind", Label: "Kind", Type: reports.Select, Options: []reports.Option{
+				{Value: "invoice", Label: "Invoice"},
+				{Value: "sales_receipt", Label: "Sales receipt"},
+			}},
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "status", Label: "Status", Type: reports.Select, Options: []reports.Option{
+				{Value: statusDraft, Label: "Draft"},
+				{Value: statusPosted, Label: "Posted"},
+				{Value: statusVoid, Label: "Void"},
+			}},
+			{Key: "number", Label: "Number", Type: reports.Text, Aggregates: reports.MinMax},
+			// The posting order behind number, which sorts as text.
+			{Key: "sequence", Label: "Sequence", Type: reports.Number},
+			{Key: "subtotal", Label: "Subtotal", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "tax_total", Label: "Tax", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "total", Label: "Total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+		},
+		Links: []reports.Link{
+			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
+			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
+		},
+	}
+}
+
+// salesTaxLinesSource is every tax line posting wrote, one union of the
+// invoice and sales receipt tax lines: one row per document and tax
+// component, with the figures stored at posting. The document link reads each
+// part's own parent column.
+func salesTaxLinesSource() reports.Source {
+	shared := []string{"gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"}
+	part := func(collection, parent string) reports.SourcePart {
+		columns := sameNames(shared...)
+		columns["document"] = parent
+		return reports.SourcePart{Collection: collection, Columns: columns}
+	}
+	return reports.Source{
+		Key: "books.sales_tax_lines", Label: "Sales tax lines",
+		Parts: []reports.SourcePart{
+			part("books_invoice_tax_lines", "invoice"),
+			part("books_sales_receipt_tax_lines", "sales_receipt"),
+		},
+		Fields: []reports.Field{
+			{Key: "gross_amount", Label: "Gross total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "taxable_amount", Label: "Taxable amount", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "amount", Label: "Tax amount", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "rate_ppm", Label: "Rate (ppm)", Type: reports.Number},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+		},
+		Links: []reports.Link{
+			{Key: "document", Label: "Document", Target: "books.sales_documents", Cardinality: reports.ToOne, Field: "document"},
+			{Key: "rate", Label: "Tax rate", Target: "books.tax_rates", Cardinality: reports.ToOne, Field: "rate"},
+			{Key: "component", Label: "Component rate", Target: "books.tax_rates", Cardinality: reports.ToOne, Field: "component"},
+			{Key: "agency", Label: "Agency", Target: "books.tax_agencies", Cardinality: reports.ToOne, Field: "agency"},
+		},
+	}
 }
 
 func hasMoney(src reports.Source) bool {

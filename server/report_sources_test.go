@@ -47,6 +47,10 @@ var booksSourceKeys = []string{
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
+	"books.sales_documents",
+	"books.sales_tax_lines",
+	"books.tax_agencies",
+	"books.tax_rates",
 	"books.vendors",
 }
 
@@ -83,6 +87,17 @@ type wantField struct {
 	textDay  bool
 	label    string // "" leaves the label unpinned
 	options  []reports.Option
+	// anyAggs leaves the aggregates unpinned (the plan names none).
+	anyAggs bool
+	// optionValues, when set, pins only the option values, in order.
+	optionValues []string
+}
+
+// wantPart is one collection of a union source (core SourcePart).
+type wantPart struct {
+	collection string
+	columns    map[string]string
+	values     map[string]any
 }
 
 type wantLink struct {
@@ -95,6 +110,18 @@ type wantSource struct {
 	key, collection, label string
 	fields                 []wantField
 	links                  []wantLink
+	// parts makes the source a union: it names no collection, each part
+	// maps its own columns, and core sets each field's Column to its Key.
+	parts []wantPart
+}
+
+// identity maps each key to the column of the same name.
+func identity(keys ...string) map[string]string {
+	out := map[string]string{}
+	for _, k := range keys {
+		out[k] = k
+	}
+	return out
 }
 
 func text(key string) wantField { return wantField{key: key, typ: reports.Text} }
@@ -236,7 +263,97 @@ func expectedCatalog(t *testing.T) []wantSource {
 				boolField("inactive"),
 			},
 		},
+		{
+			key: "books.tax_agencies", collection: "books_tax_agencies", label: "Tax agencies",
+			fields: []wantField{textMinMax("name"), boolField("inactive")},
+		},
+		{
+			key: "books.tax_rates", collection: "books_tax_rates", label: "Tax rates",
+			fields: []wantField{
+				{key: "type", typ: reports.Select, options: []reports.Option{
+					{Value: "rate", Label: "Rate"}, {Value: "group", Label: "Group"},
+				}},
+				textMinMax("name"),
+				{key: "rate_ppm", typ: reports.Number, anyAggs: true},
+				boolField("inactive"),
+			},
+			links: []wantLink{toOne("agency", "books.tax_agencies", "agency")},
+		},
+		{
+			// A union (core SourcePart) of the two sales document kinds; kind
+			// is each part's constant.
+			key: "books.sales_documents", label: "Sales documents",
+			fields: []wantField{
+				{key: "kind", typ: reports.Select, options: []reports.Option{
+					{Value: "invoice", Label: "Invoice"}, {Value: "sales_receipt", Label: "Sales receipt"},
+				}},
+				{key: "date", typ: reports.Date, textDay: true, anyAggs: true},
+				{key: "status", typ: reports.Select, optionValues: []string{"draft", "posted", "void"}},
+				{key: "number", typ: reports.Text, anyAggs: true},
+				{key: "sequence", typ: reports.Number, anyAggs: true},
+				money("subtotal"), money("tax_total"), money("total"),
+				text("currency"),
+			},
+			links: []wantLink{
+				toOne("customer", "books.customers", "customer"),
+				toOne("entry", "books.journal_entries", "entry"),
+			},
+			parts: []wantPart{
+				{
+					collection: "books_invoices",
+					columns:    identity("date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry"),
+					values:     map[string]any{"kind": "invoice"},
+				},
+				{
+					collection: "books_sales_receipts",
+					columns:    identity("date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry"),
+					values:     map[string]any{"kind": "sales_receipt"},
+				},
+			},
+		},
+		{
+			// A union of the two tax line collections; the document link reads
+			// each part's own parent column.
+			key: "books.sales_tax_lines", label: "Sales tax lines",
+			fields: []wantField{
+				money("gross_amount"), money("taxable_amount"), money("amount"),
+				{key: "rate_ppm", typ: reports.Number, anyAggs: true},
+				text("currency"),
+			},
+			links: []wantLink{
+				toOne("document", "books.sales_documents", "document"),
+				toOne("rate", "books.tax_rates", "rate"),
+				toOne("component", "books.tax_rates", "component"),
+				toOne("agency", "books.tax_agencies", "agency"),
+			},
+			parts: []wantPart{
+				{
+					collection: "books_invoice_tax_lines",
+					columns: mergeColumns(
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"),
+						map[string]string{"document": "invoice"},
+					),
+				},
+				{
+					collection: "books_sales_receipt_tax_lines",
+					columns: mergeColumns(
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"),
+						map[string]string{"document": "sales_receipt"},
+					),
+				},
+			},
+		},
 	}
+}
+
+func mergeColumns(maps ...map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, m := range maps {
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // aggsOf reads nil as count only, as the registry does.
@@ -288,7 +405,10 @@ func TestReportSourcesCatalog(t *testing.T) {
 				t.Errorf("collection, label = %q, %q; want %q, %q", src.Collection, src.Label, want.collection, want.label)
 			}
 			wantCurrency := ""
-			if slices.Contains([]string{"books.journal_entries", "books.journal_lines", "books.account_balances"}, want.key) {
+			if slices.Contains([]string{
+				"books.journal_entries", "books.journal_lines", "books.account_balances",
+				"books.sales_documents", "books.sales_tax_lines",
+			}, want.key) {
 				wantCurrency = "USD"
 			}
 			gotCurrency := ""
@@ -309,7 +429,15 @@ func TestReportSourcesCatalog(t *testing.T) {
 			}
 			checkFields(t, src, want.fields)
 			checkLinks(t, src, want.links)
-			checkLeftOut(t, app, src, users.Id)
+			if len(want.parts) == 0 {
+				if len(src.Parts) != 0 {
+					t.Errorf("source %s has %d parts, want a one-collection source", want.key, len(src.Parts))
+				}
+				checkLeftOut(t, app, src, users.Id)
+				return
+			}
+			checkParts(t, src, want.parts)
+			checkPartsLeftOut(t, app, src, users.Id)
 		})
 	}
 }
@@ -347,6 +475,49 @@ func TestReportSourcesDocTypesMatchTheMigration(t *testing.T) {
 	}
 }
 
+// checkParts compares a union source's parts with want, in order.
+func checkParts(t *testing.T, src reports.Source, want []wantPart) {
+	t.Helper()
+	if len(src.Parts) != len(want) {
+		t.Fatalf("parts = %d, want %d (%v)", len(src.Parts), len(want), want)
+	}
+	for i, w := range want {
+		p := src.Parts[i]
+		if p.Collection != w.collection {
+			t.Errorf("part %d collection = %q, want %q", i, p.Collection, w.collection)
+		}
+		if !reflect.DeepEqual(p.Columns, w.columns) {
+			t.Errorf("part %s columns = %v\nwant %v", w.collection, p.Columns, w.columns)
+		}
+		if (len(p.Values) != 0 || len(w.values) != 0) && !reflect.DeepEqual(p.Values, w.values) {
+			t.Errorf("part %s values = %v, want %v", w.collection, p.Values, w.values)
+		}
+	}
+}
+
+// checkPartsLeftOut is checkLeftOut over each part's collection and the
+// columns it maps.
+func checkPartsLeftOut(t *testing.T, app core.App, src reports.Source, usersID string) {
+	t.Helper()
+	for _, p := range src.Parts {
+		col, err := app.FindCollectionByNameOrId(p.Collection)
+		if err != nil {
+			t.Fatalf("find %s: %v", p.Collection, err)
+		}
+		for key, column := range p.Columns {
+			if slices.Contains(leftOut, key) || slices.Contains(leftOut, column) {
+				t.Errorf("part %s maps %s (column %s), which the spec leaves out", p.Collection, key, column)
+			}
+			if col.Fields.GetByName(column) == nil {
+				t.Errorf("part %s maps %s to %q, which is not a column of the collection", p.Collection, key, column)
+			}
+			if rel, ok := col.Fields.GetByName(column).(*core.RelationField); ok && rel.CollectionId == usersID {
+				t.Errorf("part %s maps %s to a user relation", p.Collection, key)
+			}
+		}
+	}
+}
+
 func checkFields(t *testing.T, src reports.Source, want []wantField) {
 	t.Helper()
 	fields := map[string]reports.Field{}
@@ -373,13 +544,14 @@ func checkFields(t *testing.T, src reports.Source, want []wantField) {
 		if !ok {
 			continue
 		}
+		// Core sets a union field's Column to its Key, so both kinds read the key.
 		if f.Column != w.key {
 			t.Errorf("field %s reads column %q, want %q", w.key, f.Column, w.key)
 		}
 		if f.Type != w.typ {
 			t.Errorf("field %s type = %s, want %s", w.key, f.Type, w.typ)
 		}
-		if !reflect.DeepEqual(aggsOf(f.Aggregates), aggsOf(w.aggs)) {
+		if !w.anyAggs && !reflect.DeepEqual(aggsOf(f.Aggregates), aggsOf(w.aggs)) {
 			t.Errorf("field %s aggregates = %v, want %v", w.key, aggsOf(f.Aggregates), aggsOf(w.aggs))
 		}
 		if f.Currency != w.currency {
@@ -391,7 +563,15 @@ func checkFields(t *testing.T, src reports.Source, want []wantField) {
 		if w.label != "" && f.Label != w.label {
 			t.Errorf("field %s label = %q, want %q", w.key, f.Label, w.label)
 		}
-		if !reflect.DeepEqual(f.Options, w.options) {
+		if w.optionValues != nil {
+			values := make([]string, len(f.Options))
+			for i, o := range f.Options {
+				values[i] = o.Value
+			}
+			if !slices.Equal(values, w.optionValues) {
+				t.Errorf("field %s option values = %v, want %v", w.key, values, w.optionValues)
+			}
+		} else if !reflect.DeepEqual(f.Options, w.options) {
 			t.Errorf("field %s options = %v, want %v", w.key, f.Options, w.options)
 		}
 	}
