@@ -1,4 +1,4 @@
-import { expect, type Page, type Request } from '@playwright/test'
+import { expect, type Locator, type Page, type Request, type Response } from '@playwright/test'
 import {
     authStorageKey,
     chooseParamOption,
@@ -10,6 +10,7 @@ import {
     PROFIT_AND_LOSS_BY_MONTH_TITLE,
     PROFIT_AND_LOSS_TITLE,
 } from '~/tinycld/books/lib/profit-and-loss-fixture'
+import { TRANSACTION_DETAIL_TITLE } from '~/tinycld/books/lib/report-drill-down-fixture'
 import { isPhone } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
@@ -224,20 +225,33 @@ export async function chooseAsOf(
     )
 }
 
+const FILTER_OPTION_PREFIX = 'report-filter-option-'
+
 // Narrows the report to the accounts named (full names), picked one by one through the
-// Accounts picker under Add filter: a search per name, its option checked, then Apply.
-export async function filterToAccounts(page: Page, names: readonly string[]): Promise<void> {
-    await page.getByTestId('report-add-filter').click()
-    await page.getByTestId('report-add-filter-accounts').click()
+// Accounts picker under Add filter (opened here unless the test already opened it): a
+// search per name, its option checked, then Apply. Returns the picked account ids, read
+// from each option's test id (core ParamPickerParts `report-filter-option-<id>`).
+export async function filterToAccounts(page: Page, names: readonly string[]): Promise<string[]> {
+    const entry = page.getByTestId('report-add-filter-accounts')
+    if (!(await entry.isVisible())) await page.getByTestId('report-add-filter').click()
+    await entry.click()
     const picker = page.getByTestId('report-filter-picker')
     await expect(picker).toBeVisible()
+    const ids: string[] = []
     for (const name of names) {
         await picker.getByTestId('report-filter-search').fill(name)
-        await picker.getByRole('checkbox', { name, exact: true }).click()
+        const option = picker.getByRole('checkbox', { name, exact: true })
+        const testId = (await option.getAttribute('data-testid')) ?? ''
+        if (!testId.startsWith(FILTER_OPTION_PREFIX)) {
+            throw new Error(`the option ${name} has no account id: ${testId}`)
+        }
+        ids.push(testId.slice(FILTER_OPTION_PREFIX.length))
+        await option.click()
     }
     await picker.getByTestId('report-filter-apply').click()
     await expect(picker).toBeHidden()
     await expect(page.getByTestId('report-param-accounts')).toBeVisible()
+    return ids
 }
 
 // Every mounted row of the report table, top to bottom, with its No., Debit and Credit
@@ -646,4 +660,190 @@ export async function expectPressOpensNothing(page: Page, label: string): Promis
     } finally {
         page.off('request', watch)
     }
+}
+
+// --- Transaction Detail by Account (report drill-down). ---
+
+// The shipped Transaction Detail by Account from the Books hub, reached as
+// openTrialBalance reaches the Trial Balance, with no account chosen: Accounts is
+// under Add filter until set (D8). The period stays This month to date.
+export async function openTransactionDetailFromHub(page: Page): Promise<void> {
+    await openBooksReports(page)
+    await hubRow(page, TRANSACTION_DETAIL_TITLE)
+        .filter({ has: page.getByText(TRANSACTION_DETAIL_TITLE, { exact: true }) })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(
+        page.getByTestId('report-table').or(page.getByTestId('report-empty'))
+    ).toBeVisible()
+}
+
+// The accounts a run asked for, sorted: the ids of `params.accounts` in its body.
+function runAccountIds(response: Response): string[] | null {
+    const body = response.request().postDataJSON() as { params?: { accounts?: unknown } } | null
+    const accounts = body?.params?.accounts
+    if (!Array.isArray(accounts) || !accounts.every(id => typeof id === 'string')) return null
+    return [...accounts].sort()
+}
+
+// Narrows the open report to the accounts named (full names) and waits until a run that
+// asks for exactly the picked account ids has landed and the Accounts chip names every
+// one: core keeps the previous run's rows on screen until the new run lands. The run is
+// awaited by its body, so the choice must be one the page has not run before (React Query
+// answers a cached body with no request). A chip names at most two choices (core
+// NAMED_CHOICES), so pass at most two names.
+export async function filterToAccountsAndWait(page: Page, names: readonly string[]): Promise<void> {
+    const runs: string[] = []
+    const watch = (response: Response) => {
+        if (!response.url().includes('/api/reports/run') || !response.ok()) return
+        const ids = runAccountIds(response)
+        if (ids) runs.push(JSON.stringify(ids))
+    }
+    page.on('response', watch)
+    try {
+        const picked = [...(await filterToAccounts(page, names))].sort()
+        await expect
+            .poll(() => runs.includes(JSON.stringify(picked)), {
+                message: `a run with the accounts ${picked.join(', ')} landed`,
+            })
+            .toBe(true)
+    } finally {
+        page.off('response', watch)
+    }
+    const chip = page.getByTestId('report-param-accounts')
+    for (const name of names) await expect(chip).toContainText(name)
+}
+
+// Transaction Detail by Account narrowed to `opts.accounts` (full names), opened from
+// the Books sidebar's Reports hub.
+export async function openTransactionDetail(
+    page: Page,
+    opts: { accounts: readonly string[] }
+): Promise<void> {
+    await openTransactionDetailFromHub(page)
+    await filterToAccountsAndWait(page, opts.accounts)
+}
+
+export type TdSnapshot = {
+    title: string
+    // The period the document header prints (report-document-period).
+    header: string
+    // Each param chip's text by param id (report-param-<id>).
+    chips: Record<string, string>
+    // Each column heading's text by column id (report-heading-<col>), before CSS uppercase.
+    headings: Record<string, string>
+    rows: {
+        id: string
+        kind: 'group' | 'detail' | 'subtotal' | 'total'
+        label: string
+        // Each cell's text by column id.
+        cells: Record<string, string>
+    }[]
+}
+
+// The document header, the chips, the headings and every mounted row of one report
+// view, top to bottom, read in ONE pass so no re-render lands between two reads. With no
+// `scope` it reads the statement on the page and leaves out the drill panel; with the
+// panel (`report-drill-panel`) as scope it reads only the panel.
+export function tdSnapshot(page: Page, scope?: Locator): Promise<TdSnapshot> {
+    const root = scope ?? page.locator('body')
+    return root.evaluate((element, excludePanel) => {
+        const PANEL = '[data-testid="report-drill-panel"]'
+        const all = (selector: string) =>
+            [...element.querySelectorAll(selector)].filter(
+                node => !excludePanel || node.closest(PANEL) === null
+            )
+        const first = (selector: string) => all(selector)[0]
+        const textOf = (node: Element | null | undefined) =>
+            (node as HTMLElement | null | undefined)?.innerText.trim() ?? ''
+        const testIdOf = (node: Element) => node.getAttribute('data-testid') ?? ''
+        const chips: Record<string, string> = {}
+        for (const chip of all('[data-testid^="report-param-"]')) {
+            chips[testIdOf(chip).slice('report-param-'.length)] = textOf(chip)
+        }
+        const headings: Record<string, string> = {}
+        for (const heading of all('[data-testid^="report-heading-"]')) {
+            const id = testIdOf(heading).slice('report-heading-'.length)
+            if (id === 'row') continue
+            headings[id] = (heading.textContent ?? '').replace(/\s+/g, ' ').trim()
+        }
+        const table = first('[data-testid="report-table"]')
+        const cells = new Map<string, Record<string, string>>()
+        for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {
+            const rest = testIdOf(cell).slice('report-cell-'.length)
+            const dash = rest.indexOf('-')
+            const row = cells.get(rest.slice(dash + 1)) ?? {}
+            row[rest.slice(0, dash)] = textOf(cell)
+            cells.set(rest.slice(dash + 1), row)
+        }
+        const kindOf = (id: string): TdSnapshot['rows'][number]['kind'] | null => {
+            if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('d:')) return 'detail'
+            if (id.startsWith('s:')) return 'subtotal'
+            if (id.startsWith('total')) return 'total'
+            return null
+        }
+        const rows: TdSnapshot['rows'] = []
+        const labels = [...(table?.querySelectorAll('[data-testid^="report-row-"]') ?? [])]
+            .map(node => ({
+                id: testIdOf(node).slice('report-row-'.length),
+                label: textOf(node),
+                top: node.getBoundingClientRect().top,
+            }))
+            .sort((a, b) => a.top - b.top)
+        for (const { id, label } of labels) {
+            const kind = kindOf(id)
+            if (kind) rows.push({ id, kind, label, cells: cells.get(id) ?? {} })
+        }
+        return {
+            title: textOf(first('[data-testid="report-document-title"]')),
+            header: textOf(first('[data-testid="report-document-period"]')),
+            chips,
+            headings,
+            rows,
+        }
+    }, scope === undefined)
+}
+
+// The spec's fit (spec §3 "Every width fits"): every column heading and every Amount
+// ends inside the table's right edge, and nothing in the table scrolls sideways. With no
+// `scope` it measures the statement; with the panel as scope, the panel's table.
+export async function expectTableFits(page: Page, scope?: Locator): Promise<void> {
+    const root = scope ?? page.locator('body')
+    await expect
+        .poll(
+            () =>
+                root.evaluate((element, excludePanel) => {
+                    const PANEL = '[data-testid="report-drill-panel"]'
+                    const inScope = (node: Element) => !excludePanel || node.closest(PANEL) === null
+                    const table = [
+                        ...element.querySelectorAll('[data-testid="report-table"]'),
+                    ].find(inScope)
+                    if (!table) return 'no report-table'
+                    const right = table.getBoundingClientRect().right
+                    const visible = (node: Element) => {
+                        const box = node.getBoundingClientRect()
+                        return box.width > 0 && box.height > 0
+                    }
+                    const measured = [
+                        ...element.querySelectorAll('[data-testid^="report-heading-"]'),
+                        ...table.querySelectorAll('[data-testid^="report-cell-amount-"]'),
+                    ].filter(node => inScope(node) && visible(node))
+                    if (measured.length === 0) return 'no heading or Amount measured'
+                    const outside = measured
+                        .filter(node => node.getBoundingClientRect().right > right + 1)
+                        .map(node => node.getAttribute('data-testid'))
+                    if (outside.length > 0) return `past the table's right edge: ${outside}`
+                    const scrolls = [table, ...table.querySelectorAll('*')]
+                        .filter(node => {
+                            const overflowX = getComputedStyle(node).overflowX
+                            return node === table || overflowX === 'auto' || overflowX === 'scroll'
+                        })
+                        .filter(node => node.scrollWidth !== node.clientWidth)
+                    if (scrolls.length > 0) return `${scrolls.length} element(s) scroll sideways`
+                    return 'fits'
+                }, scope === undefined),
+            { message: 'the report table fits its width' }
+        )
+        .toBe('fits')
 }

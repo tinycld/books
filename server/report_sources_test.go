@@ -181,6 +181,8 @@ func expectedCatalog(t *testing.T) []wantSource {
 				text("memo"), money("total"), text("currency"),
 				{key: "auto_reverse_on", typ: reports.Date, textDay: true},
 				{key: "posted_at", typ: reports.DateTime, aggs: reports.MinMax},
+				// The document an entry posted, so a line opens its screen.
+				text("document"),
 			},
 			links: []wantLink{
 				toMany("lines", "books.journal_lines", "entry"),

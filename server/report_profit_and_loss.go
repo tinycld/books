@@ -14,7 +14,8 @@ func profitAndLossShipped() reports.Shipped {
 		Title:       "Profit and Loss",
 		Description: "Income and expenses for a period, and what is left, on the accrual basis.",
 		Spec:        mustJSON(profitAndLossSpec()),
-		Revision:    1,
+		// 2: opened lines open the transaction that posted them (detail.open).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -41,12 +42,16 @@ func profitAndLossSpec() *reports.Spec {
 			reports.SortKey{Formula: fld("entry", "sequence")},
 		),
 		// An opened line reads "<date> · <entry number> · <memo>", with the
-		// entry's memo when the line has none.
-		Detail: &reports.Detail{Label: op("concat",
-			fld("date"), lit(" · "),
-			fld("entry", "number"), lit(" · "),
-			op("if", op("isEmpty", fld("memo")), fld("entry", "memo"), fld("memo")),
-		)},
+		// entry's memo when the line has none; it opens the transaction that
+		// posted it.
+		Detail: &reports.Detail{
+			Label: op("concat",
+				fld("date"), lit(" · "),
+				fld("entry", "number"), lit(" · "),
+				lineDescriptionFormula(),
+			),
+			Open: entryOpenPath(),
+		},
 		Display: profitAndLossDisplay(),
 	}
 }

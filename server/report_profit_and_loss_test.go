@@ -279,8 +279,8 @@ func TestProfitAndLossSpecLoads(t *testing.T) {
 	if shipped.Description != "Income and expenses for a period, and what is left, on the accrual basis." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 2 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(profitAndLossSpec()))) {
 		t.Errorf("the shipped spec is not profitAndLossSpec()")
@@ -826,13 +826,36 @@ func TestProfitAndLossShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Profit and Loss" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Profit and Loss" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
 		t.Fatalf("reconcileBooksReportShares: %v", err)
 	}
 	requireViewer(t, app, row, reader, "a Books reader")
+}
+
+// An opened account's line opens the entry's read view; the section, account,
+// subtotal, computed and total rows do not open.
+func TestProfitAndLossLineOpens(t *testing.T) {
+	b := newPLBook(t)
+	rent := plAccount(t, b.app, "Rent or lease", "6600", "expense", "rent_lease", "")
+	entry := b.postLine(t, plLine{date: "2026-03-05", entryMemo: "March rent", account: rent, other: b.checking, debit: 1000})
+
+	closed := b.run(t, map[string]any{"period": plMarch})
+	open := runPL(t, b.app, profitAndLossShipped(), b.reader, map[string]any{"period": plMarch}, plOpening(plRowFor(t, closed, rent)))
+	lines := plLinesOf(open, plRowFor(t, open, rent))
+	if len(lines) != 1 {
+		t.Fatalf("Rent or lease's opened lines = %v, want one", plRowTexts(lines))
+	}
+	if want := "books/entries/" + entry.Id; lines[0].Open != want {
+		t.Errorf("the opened line opens %q, want %q", lines[0].Open, want)
+	}
+	for _, r := range open.Rows {
+		if r.Kind != reports.KindDetail && r.Open != "" {
+			t.Errorf("%s row %q opens %q, want no open", r.Kind, r.Label, r.Open)
+		}
+	}
 }
 
 // plLine is one posted entry of two lines: account takes debit (or credit,

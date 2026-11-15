@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { entryActions } from '../tinycld/books/lib/entry-actions'
-import { entryEditHref, entryHref } from '../tinycld/books/lib/entry-route'
+import { DOCUMENT_ROUTES, entryEditHref, entryHref } from '../tinycld/books/lib/entry-route'
 import type { BooksJournalEntries } from '../tinycld/books/types'
 
 const entry = (
@@ -25,6 +27,52 @@ describe('entryHref', () => {
 
     it("opens an invoice's void reversal on the entry screen", () => {
         expect(entryHref(entry('invoice', 'void_reversal'))).toBe('books/entries/a')
+    })
+})
+
+// server/entry_routes.json is the one table of document routes (Go reads it for the
+// reports' open path); read here, so a row added to it is covered with no test change.
+function entryRoutesFile(): Record<string, string> {
+    const file = join(__dirname, '..', 'server', 'entry_routes.json')
+    return JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>
+}
+
+describe('entry routes match server/entry_routes.json', () => {
+    it('routes each document type in the JSON to books/<route>', () => {
+        const routes = entryRoutesFile()
+        expect(Object.keys(routes).length).toBeGreaterThan(0)
+        for (const [docType, route] of Object.entries(routes)) {
+            expect(DOCUMENT_ROUTES.get(docType)).toBe(`books/${route}`)
+            const documentEntry = {
+                id: 'e1',
+                doc_type: docType as BooksJournalEntries['doc_type'],
+                origin: 'document' as const,
+                document: 'd1',
+            }
+            expect(entryHref(documentEntry)).toBe(`books/${route}/d1`)
+        }
+    })
+
+    it('has exactly the JSON keys', () => {
+        expect([...DOCUMENT_ROUTES.keys()].sort()).toEqual(Object.keys(entryRoutesFile()).sort())
+    })
+
+    it('opens a manual transfer, a journal entry and an unrouted document entry by the entry', () => {
+        // An estimate posts no entry, so the JSON has no route for it.
+        expect(Object.keys(entryRoutesFile())).not.toContain('estimate')
+        expect(entryHref({ id: 'e1', doc_type: 'transfer', origin: 'manual', document: '' })).toBe(
+            'books/transfers/e1'
+        )
+        expect(entryHref({ id: 'e1', doc_type: 'journal', origin: 'manual', document: '' })).toBe(
+            'books/entries/e1'
+        )
+        const unrouted = {
+            id: 'e1',
+            doc_type: 'estimate' as BooksJournalEntries['doc_type'],
+            origin: 'document' as const,
+            document: 'd1',
+        }
+        expect(entryHref(unrouted)).toBe('books/entries/e1')
     })
 })
 

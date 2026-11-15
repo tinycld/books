@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -258,8 +259,8 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 	if shipped.Description != "Each account's balance on one day, as a debit or a credit." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 2 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(trialBalanceSpec())
 	if err != nil {
@@ -270,8 +271,18 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 	}
 	// The helpers moved to report_spec_helpers.go (general-ledger checkpoint 2);
 	// the Trial Balance's spec stays byte for byte what it was before the move.
-	if got := string(mustJSON(trialBalanceSpec())); got != trialBalanceGolden {
-		t.Errorf("the Trial Balance spec changed:\n got %s\nwant %s", got, trialBalanceGolden)
+	// Report drill-down checkpoint 1 adds only detail.open (entryOpenPath()), the
+	// last key of detail, and moves accounts to accountsParam() unchanged.
+	if entryOpenPath() == nil {
+		t.Errorf("entryOpenPath() = nil, want the entry route formula on the Trial Balance's opened lines")
+	}
+	const detailEnd = `}},"display":{`
+	if strings.Count(trialBalanceGolden, detailEnd) != 1 {
+		t.Fatalf("the golden does not hold %s once", detailEnd)
+	}
+	golden := strings.Replace(trialBalanceGolden, detailEnd, `},"open":`+string(mustJSON(entryOpenPath()))+detailEnd[1:], 1)
+	if got := string(mustJSON(trialBalanceSpec())); got != golden {
+		t.Errorf("the Trial Balance spec changed:\n got %s\nwant %s", got, golden)
 	}
 
 	spec, _, err := reports.Load(shipped.Spec)
@@ -841,8 +852,40 @@ func TestTrialBalanceShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Trial Balance" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Trial Balance" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
+	}
+}
+
+// An opened account's line opens the entry's read view; the account rows and
+// the Total do not open.
+func TestTrialBalanceLineOpens(t *testing.T) {
+	b := newTBBook(t)
+	checking := b.account(t, "Checking", "1000", "bank", "checking")
+	supplies := b.account(t, "Supplies", "6100", "expense", "office_general")
+	entry := b.postMemo(t, "2026-03-10", "Paper", memoLine{account: supplies, debit: 2500}, memoLine{account: checking, credit: 2500})
+	opts := reports.Options{Today: tbToday}
+
+	closed := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
+	opts.Expand = [][]any{rowFor(t, closed, supplies).GroupKey}
+	open := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
+	opened := rowFor(t, open, supplies)
+	var lines []reports.Row
+	for _, r := range open.Rows {
+		if r.Kind == reports.KindDetail && r.Section == opened.ID {
+			lines = append(lines, r)
+		}
+	}
+	if len(lines) != 1 {
+		t.Fatalf("Supplies' opened lines = %v, want one", labelsOf(lines))
+	}
+	if want := "books/entries/" + entry.Id; lines[0].Open != want {
+		t.Errorf("the opened line opens %q, want %q", lines[0].Open, want)
+	}
+	for _, r := range open.Rows {
+		if r.Kind != reports.KindDetail && r.Open != "" {
+			t.Errorf("%s row %q opens %q, want no open", r.Kind, r.Label, r.Open)
+		}
 	}
 }
 

@@ -1,3 +1,8 @@
+import {
+    DETAIL_PANEL_MIN_WINDOW as CORE_DETAIL_PANEL_MIN_WINDOW,
+    DETAIL_PANEL_WIDTH as CORE_DETAIL_PANEL_WIDTH,
+    detailSurfaceFor as coreDetailSurfaceFor,
+} from '@tinycld/core/lib/detail-surface'
 import type { ViewStyle } from 'react-native'
 import { describe, expect, it } from 'vitest'
 import {
@@ -20,6 +25,13 @@ describe('detailSurfaceFor', () => {
     it('has a 480 px panel from a 1360 px window', () => {
         expect(DETAIL_PANEL_WIDTH).toBe(480)
         expect(DETAIL_PANEL_MIN_WINDOW).toBe(1360)
+    })
+
+    // The surface rule is core's (report drill-down spec §6): Books re-exports it.
+    it("is core's surface rule", () => {
+        expect(DETAIL_PANEL_WIDTH).toBe(CORE_DETAIL_PANEL_WIDTH)
+        expect(DETAIL_PANEL_MIN_WINDOW).toBe(CORE_DETAIL_PANEL_MIN_WINDOW)
+        expect(detailSurfaceFor).toBe(coreDetailSurfaceFor)
     })
 
     it.each([
