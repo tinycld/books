@@ -55,6 +55,19 @@ test.describe('receive-payment: phone and find', () => {
         await expect(paymentRow(page, first.id)).toHaveCount(0)
         await expect(paymentRow(page, second.id)).toHaveCount(0)
 
+        // The cards have their own Pay all control: it pays every card, and Amount received
+        // follows; pressed again, it clears every card and the amount it set.
+        const tickAll = page.getByTestId('payment-tick-all')
+        await expect(tickAll).toBeVisible()
+        await tickAll.click()
+        await expect(card1.getByTestId(`payment-row-amount-${first.id}`)).toHaveValue('300.00')
+        await expect(card2.getByTestId(`payment-row-amount-${second.id}`)).toHaveValue('200.00')
+        await expect(page.getByTestId('payment-amount')).toHaveValue('500.00')
+        await tickAll.click()
+        await expect(card1.getByTestId(`payment-row-amount-${first.id}`)).toHaveValue('')
+        await expect(card2.getByTestId(`payment-row-amount-${second.id}`)).toHaveValue('')
+        await expect(page.getByTestId('payment-amount')).toHaveValue('')
+
         // Ticking card 1 pays its open balance, and Amount received follows.
         await card1.getByTestId(`payment-row-tick-${first.id}`).click()
         await expect(card1.getByTestId(`payment-row-amount-${first.id}`)).toHaveValue('300.00')
@@ -137,5 +150,21 @@ test.describe('receive-payment: phone and find', () => {
         await expect(filterEmpty).toHaveCount(0)
         await expect(paymentRow(page, invoice.id)).toBeVisible()
         await expect(rowAmount(page, invoice.id)).toHaveValue('125.00')
+
+        // On a fresh form, an Amount received typed before the lookup is kept and applied
+        // to the found invoice, up to its open balance.
+        await page.getByTestId('payment-cancel').click()
+        await expect(page.getByTestId('discard-dialog')).toBeVisible()
+        await page.getByTestId('discard-confirm').click()
+        await expect(page).not.toHaveURL(/\/books\/payments\//)
+        await openNewPayment(page)
+        await expect(page.getByTestId('payment-choose-customer')).toBeVisible()
+        await page.getByTestId('payment-amount').fill('100.00')
+        await find.fill(invoice.number)
+        await find.press('Enter')
+        await expect(page.getByTestId('payment-customer')).toContainText(name)
+        await expect(rowAmount(page, invoice.id)).toHaveValue('100.00')
+        await expect(page.getByTestId('payment-amount')).toHaveValue('100.00')
+        await expect(page.getByTestId('payment-over')).toHaveCount(0)
     })
 })
