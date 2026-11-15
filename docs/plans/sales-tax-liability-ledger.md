@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/sales-tax-liability-checkpoints.md
 - reference: docs/plans/sales-tax-liability-reference/
 - evidence: docs/plans/sales-tax-liability-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-15)
 - capture manifest: docs/plans/sales-tax-liability-capture.json
 - review mode: C — none (unattended)
 - core extension: U1 union source (`reports.Source.Parts`) and G2 `columns[].blankAbove` at spec version 4 (no bump; spec §4) — checkpoint 0, core PR on branch books/p5-sales-tax-liability, merges at the next design gate, before the package PR; the lane holds `exclusive` (Q6, design gate 2026-11-14). Depends on p5-drill-down's core `detail.open` (not merged at the gate; the human added p5-drill-down to this unit's manifest depends, Q3).
@@ -221,7 +221,7 @@
 - human: review mode C, no message.
 
 ## Final review
-- eval:
+- eval: approved 2026-11-15 (CI green on books#53 at 9b4c7c0, core#476 green)
 - human comments and what changed
 - native: not executed in this run
 
