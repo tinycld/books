@@ -21,15 +21,28 @@ const TEST_DIR = path.join(WS_ROOT, 'node_modules', '@tinycld', 'books', 'tests'
 // workers would run them side by side, each changing the setting under the other's form.
 const PURCHASE_LINES_SETTING = /: (bill|purchase) lines setting/
 
+// The collaborator's Books level is one row of the shared e2e database too. A test that
+// changes it, or signs in as the collaborator and expects a level, ends its title in
+// "(collaborator level)" and runs here, on one worker, before the rest: a test signed in as
+// the collaborator while another worker sets them to None would fail at random. Both setup
+// projects save the one shared books_settings row, so this one waits for the other.
+const COLLABORATOR_LEVEL = /\(collaborator level\)/
+
 export default defineConfig({
     ...appConfig,
     testDir: TEST_DIR,
     projects: [
         { name: 'purchase-lines-setting', grep: PURCHASE_LINES_SETTING, workers: 1 },
         {
-            name: 'books',
-            grepInvert: PURCHASE_LINES_SETTING,
+            name: 'books-access-level',
+            grep: COLLABORATOR_LEVEL,
+            workers: 1,
             dependencies: ['purchase-lines-setting'],
+        },
+        {
+            name: 'books',
+            grepInvert: [PURCHASE_LINES_SETTING, COLLABORATOR_LEVEL],
+            dependencies: ['purchase-lines-setting', 'books-access-level'],
         },
     ],
 })

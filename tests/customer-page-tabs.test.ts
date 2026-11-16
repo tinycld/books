@@ -51,50 +51,60 @@ describe('CUSTOMER_TABS', () => {
     })
 })
 
+// A writer can read Books too: canWrite never comes without canRead.
+const WRITER = { canRead: true, canWrite: true }
+const READER = { canRead: true, canWrite: false }
+const NO_ACCESS = { canRead: false, canWrite: false }
+
 describe('customerPageControls', () => {
     it('a writer on an active top-level customer gets More, Add sub-customer and Make inactive', () => {
-        const controls = customerPageControls({ canWrite: true, inactive: false, isTopLevel: true })
+        const controls = customerPageControls({ ...WRITER, inactive: false, isTopLevel: true })
         expect(controls.showMore).toBe(true)
+        expect(controls.showWriteItems).toBe(true)
         expect(controls.showAddSub).toBe(true)
         expect(controls.inactiveLabel).toBe('Make inactive')
     })
 
     it('a writer on an inactive top-level customer gets no Add sub-customer and Make active', () => {
-        const controls = customerPageControls({ canWrite: true, inactive: true, isTopLevel: true })
+        const controls = customerPageControls({ ...WRITER, inactive: true, isTopLevel: true })
         expect(controls.showMore).toBe(true)
         expect(controls.showAddSub).toBe(false)
         expect(controls.inactiveLabel).toBe('Make active')
     })
 
     it('a writer on an active sub-customer gets no Add sub-customer', () => {
-        const controls = customerPageControls({
-            canWrite: true,
-            inactive: false,
-            isTopLevel: false,
-        })
+        const controls = customerPageControls({ ...WRITER, inactive: false, isTopLevel: false })
         expect(controls.showMore).toBe(true)
         expect(controls.showAddSub).toBe(false)
     })
 
-    it('a reader gets no More menu and no New transaction', () => {
-        const controls = customerPageControls({
-            canWrite: false,
-            inactive: false,
-            isTopLevel: true,
-        })
-        expect(controls.showMore).toBe(false)
+    // Audit history is offered to every reader (spec §3 "Entry points"), so a reader gets
+    // More with that item alone: none of the write items.
+    it('a reader gets More without its write items, and no New transaction', () => {
+        const controls = customerPageControls({ ...READER, inactive: false, isTopLevel: true })
+        expect(controls.showMore).toBe(true)
+        expect(controls.showWriteItems).toBe(false)
         expect(controls.showAddSub).toBe(false)
         expect(controls.showNewTransaction).toBe(false)
     })
 
+    // One place decides More: a user who cannot read Books (or whose access is still
+    // loading, so canRead is false) gets no More, as it would hold nothing.
+    it('a user who cannot read Books gets no More and no write items', () => {
+        const controls = customerPageControls({ ...NO_ACCESS, inactive: false, isTopLevel: true })
+        expect(controls.showMore).toBe(false)
+        expect(controls.showWriteItems).toBe(false)
+        expect(controls.showNewTransaction).toBe(false)
+    })
+
     it('a writer on an inactive customer gets a disabled New transaction', () => {
-        const controls = customerPageControls({ canWrite: true, inactive: true, isTopLevel: true })
+        const controls = customerPageControls({ ...WRITER, inactive: true, isTopLevel: true })
         expect(controls.showNewTransaction).toBe(true)
         expect(controls.newTransactionDisabled).toBe(true)
     })
 
     it('a writer on an active customer gets an enabled New transaction', () => {
-        const controls = customerPageControls({ canWrite: true, inactive: false, isTopLevel: true })
+        const controls = customerPageControls({ ...WRITER, inactive: false, isTopLevel: true })
         expect(controls.showNewTransaction).toBe(true)
         expect(controls.newTransactionDisabled).toBe(false)
     })

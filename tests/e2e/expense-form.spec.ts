@@ -333,7 +333,8 @@ test.describe('expense-form: keyboard', () => {
         await tabTo(page, page.getByTestId('form-table-item_lines-add'))
         await tabTo(page, page.getByTestId('form-input-memo'))
         await page.keyboard.type(memo)
-        // The bar follows Memo.
+        // Attach files follows Memo (a new expense has no attachment rows), then the bar.
+        await tabTo(page, page.getByTestId('expense-attachments-attach'))
         await tabTo(page, page.getByTestId('expense-cancel'))
 
         // Post; the empty product line 2 is dropped.

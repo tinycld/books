@@ -57,6 +57,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // A bill's or an expense's file. A row is created by core's uploadRecordWithFile (the
+    // file bytes), never by an insert here; the server stamps name, size and uploaded_by
+    // from the upload.
+    const books_attachments = newCollection('books_attachments', {
+        omitOnInsert: ['created', 'updated', 'name', 'size', 'uploaded_by'] as const,
+        ...onDemand,
+        relations: { uploaded_by: coreStores.users },
+        collectionOptions: indexed,
+    })
+
     // One row per stored file, written by the server's upload hook: the file's rows
     // as text cells, which the import mapping screen reads. Nothing inserts it here.
     const books_bank_file_contents = newCollection('books_bank_file_contents', {
@@ -508,6 +518,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // A view over core's audit_logs, never written: the server signals its topic when an
+    // audit row is written or a line it reads a parent from changes
+    // (server/register.go), so an open report or history follows a change with no
+    // reload.
+    const books_audit_log = newCollection('books_audit_log', {
+        ...onDemand,
+        ...liveViewOptions('books_audit_log'),
+        collectionOptions: indexed,
+    })
+
     // No relations: the customer page reads one customer's contacts with its
     // own query. The server clears is_primary on a party's other contacts.
     const books_party_contacts = newCollection('books_party_contacts', {
@@ -520,6 +540,7 @@ export function registerCollections(
         books_accounts,
         books_bank_connections,
         books_bank_files,
+        books_attachments,
         books_bank_file_contents,
         books_bank_imports,
         books_bank_transactions,
@@ -559,5 +580,6 @@ export function registerCollections(
         books_cash_basis_tax_lines,
         books_party_balances,
         books_party_contacts,
+        books_audit_log,
     }
 }

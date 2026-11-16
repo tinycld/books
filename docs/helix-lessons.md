@@ -42,5 +42,15 @@
 - An e2e test that changes the shared `books_settings` row goes in the `purchase-lines-setting` Playwright project (one worker); `-g` also runs that dependency project, and its red tests skip their dependents. — expense-form, retro, p3-expense
 - In e2e helpers, wait on the visible screen (`.filter({ visible: true })`), never on the first match of an `or`: Books keeps a list mounted and hidden under an open record. Scope a row lookup to its account section, and read server data through the page's `fetch`, not Node `page.request`. — report-drill-down, retro, p5-drill-down
 - A report drill is set per column; a blank cell (a zero Debit or Credit) has no drill and no link. — report-drill-down, retro, p5-drill-down
+- Before a test asserts how core's report view behaves (row ids, open group rows, union fields, labels shared with the picker), read the core code or the built shot first. — sales-tax-liability, retro, p5-sales-tax-liability
+- An e2e period helper must not depend on today's date: when Custom pre-fills the asked days, wait for the settled run, not for a change. — sales-tax-liability, retro, p5-sales-tax-liability
+- Before you capture a report at 390, give it a phone `display.layouts` and check that each track fits core's 374 px row (at most about three figures on a line). — sales-tax-liability, retro, p5-sales-tax-liability
+- After `page.setViewportSize` across a breakpoint, assert an element of the new layout before the next action; the old layout's controls detach on the resize. — customers, retro, p2-customer-pages
+- List `pb-migrations/` before you name a new migration number; never assume the next free one. — audit-log, retro, p5-audit-log
+- A core bug found during a run is fixed in core (an approved core task), never worked around in Books; a fork change follows `tinycld/third_party/pocketbase/FORK.md` (new `*_tinycld.go` files, `// fork:` call lines, a FORK.md row). — attachments, human, eval p3-attachments
+- Before deferring for a missing capability, check core for one that exists (e.g. core `thumbnails`/omnidoc renders HEIC, HEIF and documents; drive uses it); a deferral names what was searched in core. — attachments, human, eval revise 1
+- A hint that explains an action (a size limit beside an add area) shows only where that action is offered: not for a reader, on a void document, or on a replaced original. — attachments, human, eval revise 1
 - A pick that fills a form (a lookup, a find) keeps a value the user typed and re-applies it by the spec's rule; never reset a "typed" flag to make the pick simpler. — receive-payment, driver, cp 3
 - Every action a wide layout offers by a control (a header tick box, Pay all) has a touch control on the phone layout too; a key alone is not a path on native. — receive-payment, driver, cp 3
+- An e2e that finds a seeded record reads its values from `seed.ts` (what the DB holds), never from the fixture file. — attachments, retro, p3-attachments
+- State that must survive a tab switch (an upload session, a failed row) lives above the tabbed area; check what unmounts a component before you put state in it. — attachments, retro, p3-attachments

@@ -2,7 +2,9 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useFormHost } from '@tinycld/core/lib/forms/use-form-hosts'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
+import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import {
     type DocumentRecord,
@@ -10,8 +12,11 @@ import {
     expiredOnOf,
     storedPartyAddressOf,
 } from '../../hooks/document-data'
+import { useReadAttachmentSession } from '../../hooks/useAttachmentUpload'
+import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
+import { useOpenHistory } from '../../hooks/useOpenHistory'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { invoiceBadge } from '../../lib/document-lifecycle'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
@@ -20,12 +25,15 @@ import { documentTaxOf } from '../../lib/document-tax'
 import { NO_PARTY_TEXT } from '../../lib/document-texts'
 import { lineTableSubtotals } from '../../lib/document-values'
 import { stampText } from '../../lib/entry-display'
+import { DOCUMENT_COLLECTIONS } from '../../lib/history-route'
 import { formatMoney } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
 import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
+import { AttachmentsSection } from './AttachmentsSection'
+import type { DocumentMoreItem } from './DocumentActionBar'
 import { DocumentDetail } from './DocumentDetail'
 import { DocumentHeader } from './DocumentHeader'
 import { DocumentPdfView } from './DocumentPdfView'
@@ -218,9 +226,12 @@ interface FooterProps {
     message: string
     memo: string
     memoLabel: string
+    // The Attachments section, under Memo in the notes column (a phone stacks it after
+    // Memo); null for a kind without it.
+    attachments: ReactNode
 }
 
-function ReadFooter({ isPhone, totals, message, memo, memoLabel }: FooterProps) {
+function ReadFooter({ isPhone, totals, message, memo, memoLabel, attachments }: FooterProps) {
     const notesClass = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const notes = (
         <View className={notesClass}>
@@ -231,6 +242,7 @@ function ReadFooter({ isPhone, totals, message, memo, memoLabel }: FooterProps) 
                 valueSuffix="message"
             />
             <DocumentDetail field="memo" label={memoLabel} value={memo} valueSuffix="memo" />
+            {attachments}
         </View>
     )
     if (isPhone) {
@@ -284,6 +296,22 @@ function ReplacedByLink({ record, isVisible }: { record: DocumentRecord; isVisib
 // The read view has no unsaved state: its PDF view never offers a save.
 const NO_SAVE = () => {}
 
+// More → Audit history for a Books reader (spec §3 "Entry points"), test id
+// `<kind>-read-history`. While the access read loads there is no item, so More shows only
+// for the other actions; a failed access read is the screen's own error state.
+function useHistoryItem(kind: Pick<SalesDocumentKind, 'key'>, id: string): DocumentMoreItem | null {
+    const { canRead } = useBooksAccess()
+    const openHistory = useOpenHistory(DOCUMENT_COLLECTIONS[kind.key], id)
+    if (!canRead) return null
+    return {
+        id: 'read-history',
+        label: 'Audit history',
+        keys: '',
+        isDisabled: false,
+        onSelect: openHistory,
+    }
+}
+
 interface StampsProps {
     record: DocumentRecord
     // Only the posting lifecycle posts, voids and replaces.
@@ -334,6 +362,9 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
+    const historyItem = useHistoryItem(doc, record.id)
+    const writes = useServerActionState()
+    useReadAttachmentSession(record.id, doc.features.attachments)
     const totals = readTotals(data, record, documentKind)
     const ReadLines = documentKind.ReadLines ?? DocumentReadLines
     // A kind without a message to the customer shows none (an empty detail is not drawn).
@@ -349,6 +380,20 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const isPosting = doc.lifecycle === 'posting'
     const isExpired = expiredOnOf(record, todayIso()) !== null
     const readOnlyId = `${doc.testId}-read-only`
+    const attachments = doc.features.attachments ? (
+        <AttachmentsSection
+            kind={doc}
+            attachments={data.attachments}
+            recordId={record.id}
+            isVoid={record.status === 'void'}
+            replacedByNumber={record.replaced_by ? record.number : ''}
+            canWrite={data.canWrite}
+            isDisabled={writes.isDisabled}
+            mode="read"
+            scopeOwner={scopeOwner}
+            onRetry={data.retry}
+        />
+    ) : null
     const badge = readBadgeOf(record)
     return (
         <ScopeProvider owner={scopeOwner}>
@@ -379,6 +424,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             message={message}
                             memo={record.memo}
                             memoLabel={memoLabel}
+                            attachments={attachments}
                         />
                         <InvoicePayments payments={data.invoicePayments} currency={data.currency} />
                         <ReadStamps record={record} isPosting={isPosting} />
@@ -395,6 +441,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                 </ScrollView>
                 <DocumentReadActions
                     actions={read.actions}
+                    historyItem={historyItem}
                     isPhone={isPhone}
                     isBusy={read.voidDialog.isPending}
                     hasPdf={doc.features.pdf}

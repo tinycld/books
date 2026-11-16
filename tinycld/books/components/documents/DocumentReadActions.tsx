@@ -4,11 +4,14 @@ import { useId, useMemo, useRef } from 'react'
 import { View } from 'react-native'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
 import { DOCUMENT_PDF_KEY, DOCUMENT_READ_ACTION_KEYS } from '../../lib/document-actions'
-import { DocumentMoreMenu } from './DocumentActionBar'
+import { type DocumentMoreItem, DocumentMoreMenu } from './DocumentActionBar'
 import { type DocumentChrome, useDocumentChrome } from './document-chrome'
 
 interface DocumentReadActionsProps {
     actions: DocumentReadItem[]
+    // Audit history, for a Books reader: always the last More row, and never a key (it
+    // only opens a screen), so useMoreKeys never sees it.
+    historyItem: DocumentMoreItem | null
     isPhone: boolean
     // A void runs: More does not open.
     isBusy: boolean
@@ -133,11 +136,14 @@ function phoneButtonOf(
  * action when there is one, else Edit on a posting document and the first action on a
  * quote) and the rest in a More menu whose rows
  * show their keys. A reader gets View journal entry and Download PDF on a posting
- * document, Download PDF on a quote; a hidden action's key is not registered. It reads
- * the chrome (test ids, shortcut group, lifecycle), so a payment's read view draws it too.
+ * document, Download PDF on a quote; a hidden action's key is not registered. Audit
+ * history (`historyItem`) is the last More row at every width, so a wide bar shows More
+ * holding it alone, and a reader with no action still gets the bar. It reads the chrome
+ * (test ids, shortcut group, lifecycle), so a payment's read view draws it too.
  */
 export function DocumentReadActions({
     actions,
+    historyItem,
     isPhone,
     isBusy,
     hasPdf = false,
@@ -149,7 +155,9 @@ export function DocumentReadActions({
     const inMore = isPhone ? actions.filter(item => item !== phoneButton) : []
     useMoreKeys(doc, inMore, scopeOwner)
     usePdfKeyWhileBusy(doc, hasPdf, actions, scopeOwner)
-    if (actions.length === 0) return null
+    if (actions.length === 0 && historyItem === null) return null
+    const historyRows = historyItem ? [historyItem] : []
+    const moreItems: DocumentMoreItem[] = [...inMore, ...historyRows]
     const buttons = inBar.map((item, index) => (
         <ReadButton key={item.id} item={item} isPrimary={index === 0} scopeOwner={scopeOwner} />
     ))
@@ -157,7 +165,7 @@ export function DocumentReadActions({
     const moreId = `${doc.testId}-read-more`
     return (
         <View testID={barId} className={BAR}>
-            <DocumentMoreMenu items={inMore} isDisabled={isBusy} testID={moreId} />
+            <DocumentMoreMenu items={moreItems} isDisabled={isBusy} testID={moreId} />
             {buttons}
         </View>
     )

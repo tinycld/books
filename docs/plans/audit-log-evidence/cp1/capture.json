@@ -1,0 +1,102 @@
+{
+    "outDir": ".",
+    "setup": "auditRows",
+    "shots": [
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1440],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1024],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [800],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [390],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [375],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report-filtered",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "actions": [
+                { "chooseParam": "events", "from": "add-filter", "labels": ["Changed"] },
+                { "auditRowsAll": { "event": "Changed" } },
+                { "click": "report-document-title" }
+            ]
+        },
+        {
+            "name": "report-empty",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "actions": [
+                { "chooseParam": "users", "from": "add-filter", "labels": ["Test User"] },
+                { "chooseParam": "events", "from": "add-filter", "labels": ["Deleted"] },
+                { "waitFor": "report-empty" }
+            ]
+        },
+        {
+            "name": "report-empty",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [390],
+            "hideLabels": ["New"],
+            "actions": [
+                { "chooseParam": "users", "from": "add-filter", "labels": ["Test User"] },
+                { "chooseParam": "events", "from": "add-filter", "labels": ["Deleted"] },
+                { "waitFor": "report-empty" }
+            ]
+        },
+        {
+            "name": "report-empty-month",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-lastMonth" },
+                { "waitFor": "report-empty" }
+            ]
+        }
+    ]
+}

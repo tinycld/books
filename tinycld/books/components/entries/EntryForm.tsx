@@ -6,6 +6,7 @@ import { useAccountOptions } from '../../hooks/useAccountOptions'
 import { useEntryForm } from '../../hooks/useEntryForm'
 import { useEntryFormShortcuts } from '../../hooks/useEntryFormShortcuts'
 import { type SaveOutcome, useEntrySubmit } from '../../hooks/useEntrySubmit'
+import { useOpenHistory } from '../../hooks/useOpenHistory'
 import type { EntryFormLine, LineTotals } from '../../lib/entry-lines'
 import type { EntryFormValues } from '../../lib/entry-schema'
 import { DiscardDialog } from './DiscardDialog'
@@ -33,9 +34,11 @@ interface EntryFormProps {
     onSaved(id: string, outcome: SaveOutcome): void
     onCancel(): void
     onBusyChange?(isBusy: boolean): void
-    // A saved draft's delete, for the ⌘⌫ key only: the journal draft keeps Delete draft in
-    // its header menu, so the action bar does not change.
+    // A saved draft's delete: the ⌘⌫ key, and Delete draft in the action bar's More (the
+    // header menu keeps its own Delete draft too).
     onDeleteDraft?: () => void
+    // A saved draft's id: the action bar's More then ends with Audit history.
+    auditHistoryId?: string
 }
 
 // A form with no saved draft (new, or an edit of a posted entry) has nothing to delete; its
@@ -136,8 +139,11 @@ export function EntryForm({
     onCancel,
     onBusyChange,
     onDeleteDraft,
+    auditHistoryId,
 }: EntryFormProps) {
     const isWide = useBreakpoint() !== 'mobile'
+    const openHistory = useOpenHistory('books_journal_entries', auditHistoryId ?? '')
+    const onAuditHistory = auditHistoryId ? openHistory : undefined
     const entryForm = useEntryForm({ initial, currency })
     const { options } = useAccountOptions()
     const submit = useEntrySubmit({
@@ -202,6 +208,8 @@ export function EntryForm({
                         onSaveDraft={submit.saveDraft}
                         onPost={submit.post}
                         onPostAndNew={submit.postAndNew}
+                        onDeleteDraft={onDeleteDraft}
+                        onAuditHistory={onAuditHistory}
                     />
                     <DiscardDialog
                         isVisible={submit.isDiscardOpen}

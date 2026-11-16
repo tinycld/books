@@ -62,6 +62,10 @@ To start a new expense from one that you already have, open it and choose Copy. 
 
 To see the entry an expense posted, open it and choose View journal entry. A posted expense also shows in Journal Entries with the Type Expense and its number, and each line names the vendor.
 
+## Attach the receipt
+
+To keep the receipt (a PDF or a photo) with the expense, add it in the Attachments section under Memo, on the form or on a posted expense. On a phone, Attach files can take a photo of a paper receipt. An edit moves the original's files to the posted edit; a copy starts with none. See [Attachments](help://books:attachments).
+
 ## The Purchase lines setting
 
 To choose which tables a new expense shows, open Settings → Purchases and set **Purchase lines** on the Bills and expenses card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new bill. Only a Books admin can change Purchase lines; everyone else sees the setting.
@@ -81,6 +85,7 @@ On the expense form (a new expense, a draft, an edit or a copy):
 | Delete draft (a saved draft only; in More) | ⌘⌫ |
 | Add an account line (while Account details shows) | ⌥↵ |
 | Add a product line (while Product and service details shows) | ⌥P |
+| Attach files | ⌥A |
 
 With the cursor in a line:
 
@@ -97,8 +102,9 @@ On a posted or void expense:
 - V: Void
 - C: Copy to a new expense
 - J: View journal entry
+- ⌥A: Attach files (a posted expense only)
 
-The form keys also work while the cursor is in a text box. E, V, C and J do not. A key does nothing while its action is not offered (for example, Delete draft on a new expense). If a menu or dialog is open, Esc first closes it, and the other keys do nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys and ⌥A also work while the cursor is in a text box. E, V, C and J do not. A key does nothing while its action is not offered (for example, Delete draft on a new expense). If a menu or dialog is open, Esc first closes it, and the other keys do nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 

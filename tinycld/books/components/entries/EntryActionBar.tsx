@@ -10,9 +10,11 @@ interface EntryActionBarProps {
     onSaveDraft(): void
     onPost(): void
     onPostAndNew(): void
-    // A saved draft's delete; it adds More with "Delete draft" (wide shows More too). The
-    // journal entry form never passes it.
+    // A saved draft's delete; it adds More with "Delete draft" (wide shows More too).
     onDeleteDraft?: () => void
+    // More → Audit history, the last row; it adds More too (wide shows it). The journal
+    // entry form passes it for a saved draft; the transfer form never does.
+    onAuditHistory?: () => void
     // The journal entry form keeps `entry-*`; the transfer form's bar is `transfer-*`.
     testIDPrefix?: 'entry' | 'transfer'
 }
@@ -62,16 +64,35 @@ function DeleteDraftItem({
     )
 }
 
-// On a phone More holds Post & new, then Delete draft; wide shows it only for a draft,
-// holding Delete draft alone (Post & new is a button there).
+// Opens a screen only, so it is not gated on writes.
+function AuditHistoryItem({
+    onAuditHistory,
+    prefix,
+}: {
+    onAuditHistory?: () => void
+    prefix: Prefix
+}) {
+    if (!onAuditHistory) return null
+    return (
+        <Menu.Item testID={`${prefix}-history`} label="Audit history" onSelect={onAuditHistory} />
+    )
+}
+
+// On a phone More holds Post & new, then Delete draft, then Audit history; wide shows it
+// only for a saved draft, holding Delete draft and Audit history (Post & new is a button
+// there).
 function MoreMenu({
     isVisible,
     isWide,
     isPending,
     onPostAndNew,
     onDeleteDraft,
+    onAuditHistory,
     prefix,
-}: Pick<EntryActionBarProps, 'isWide' | 'isPending' | 'onPostAndNew' | 'onDeleteDraft'> & {
+}: Pick<
+    EntryActionBarProps,
+    'isWide' | 'isPending' | 'onPostAndNew' | 'onDeleteDraft' | 'onAuditHistory'
+> & {
     isVisible: boolean
     prefix: Prefix
 }) {
@@ -98,6 +119,7 @@ function MoreMenu({
                 prefix={prefix}
             />
             <DeleteDraftItem onDeleteDraft={onDeleteDraft} prefix={prefix} />
+            <AuditHistoryItem onAuditHistory={onAuditHistory} prefix={prefix} />
         </Menu>
     )
 }
@@ -135,10 +157,11 @@ export function EntryActionBar({
     onPost,
     onPostAndNew,
     onDeleteDraft,
+    onAuditHistory,
     testIDPrefix = 'entry',
 }: EntryActionBarProps) {
     const layout = isWide ? 'justify-end' : 'justify-between'
-    const isMoreVisible = !isWide || onDeleteDraft !== undefined
+    const isMoreVisible = !isWide || onDeleteDraft !== undefined || onAuditHistory !== undefined
     return (
         <View
             testID={`${testIDPrefix}-actions`}
@@ -182,6 +205,7 @@ export function EntryActionBar({
                 isPending={isPending}
                 onPostAndNew={onPostAndNew}
                 onDeleteDraft={onDeleteDraft}
+                onAuditHistory={onAuditHistory}
                 prefix={testIDPrefix}
             />
         </View>

@@ -1,0 +1,185 @@
+{
+    "outDir": "audit-log-reference",
+    "shots": [
+        {
+            "name": "report",
+            "url": "/a/books/helix-mockup?state=report",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/books/helix-mockup?state=report",
+            "ready": "report-table",
+            "widths": [1440],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/books/helix-mockup?state=report",
+            "ready": "report-table",
+            "widths": [1024],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/books/helix-mockup?state=report",
+            "ready": "report-table",
+            "widths": [390],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/books/helix-mockup?state=report",
+            "ready": "report-table",
+            "widths": [375],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "panel",
+            "url": "/a/books/helix-mockup?state=panel",
+            "ready": "history-panel",
+            "widths": [1440],
+            "height": 900,
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report-filtered",
+            "url": "/a/books/helix-mockup?state=report-filtered",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report-empty",
+            "url": "/a/books/helix-mockup?state=report-empty",
+            "ready": "report-empty",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "report-empty",
+            "url": "/a/books/helix-mockup?state=report-empty",
+            "ready": "report-empty",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "report-empty-month",
+            "url": "/a/books/helix-mockup?state=report-empty-month",
+            "ready": "report-empty",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "report-loading",
+            "url": "/a/books/helix-mockup?state=report-loading",
+            "ready": "report-loading",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "report-error",
+            "url": "/a/books/helix-mockup?state=report-error",
+            "ready": "report-error",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "report-error",
+            "url": "/a/books/helix-mockup?state=report-error",
+            "ready": "report-error",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history",
+            "url": "/a/books/helix-mockup?state=history",
+            "ready": "history-events",
+            "widths": [1280],
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history",
+            "url": "/a/books/helix-mockup?state=history",
+            "ready": "history-events",
+            "widths": [390],
+            "fullPage": true,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-more",
+            "url": "/a/books/helix-mockup?state=history-more",
+            "ready": "history-show-more",
+            "widths": [1280],
+            "fullPage": true,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-deleted",
+            "url": "/a/books/helix-mockup?state=history-deleted",
+            "ready": "history-events",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-deleted",
+            "url": "/a/books/helix-mockup?state=history-deleted",
+            "ready": "history-events",
+            "widths": [390],
+            "fullPage": true,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-vendor",
+            "url": "/a/books/helix-mockup?state=history-vendor",
+            "ready": "history-events",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-loading",
+            "url": "/a/books/helix-mockup?state=history-loading",
+            "ready": "history-loading",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-error",
+            "url": "/a/books/helix-mockup?state=history-error",
+            "ready": "history-error",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-empty",
+            "url": "/a/books/helix-mockup?state=history-empty",
+            "ready": "history-empty",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-no-access",
+            "url": "/a/books/helix-mockup?state=history-no-access",
+            "ready": "history-no-access",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-no-access",
+            "url": "/a/books/helix-mockup?state=history-no-access",
+            "ready": "history-no-access",
+            "widths": [390],
+            "hideLabels": ["New"]
+        }
+    ]
+}
