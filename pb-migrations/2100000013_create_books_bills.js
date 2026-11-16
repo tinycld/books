@@ -21,8 +21,9 @@
 // cents.
 //
 // SERVER-OWNED FIELDS are pinned with `@request.body.x:isset = false`: the
-// number and sequence (assigned at posting), the two totals, the currency, the
-// journal entry, replaced_by, who and when, and sort_key on the bill. A line's
+// number and sequence (assigned at posting), the two totals, the open balance,
+// the currency, the journal entry, replaced_by, who and when, and sort_key on
+// the bill. A line's
 // amount is not pinned by the rules: an account line's amount is typed by the
 // writer, and Go refuses an amount sent on a product line (Books computes
 // quantity x rate there). Books recomputes the product line amounts and the
@@ -70,6 +71,7 @@ const BILL_SERVER_FIELDS = [
     'voided_by',
     'voided_at',
     'sort_key',
+    'balance',
 ]
 
 const AUTODATES = [
@@ -134,6 +136,10 @@ migrate(
                     { name: 'memo', type: 'text', max: 4000 },
                     { name: 'subtotal', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    // The open amount: a posted bill's total less the lines of
+                    // posted bill payments (0 on a draft or a void bill). Only
+                    // server/document_balance.go writes it.
+                    { name: 'balance', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
                     // Counts the transactions that changed the draft or its lines. A
                     // save or a post states the value it saw (server/revision.go).
                     { name: 'revision', type: 'number', onlyInt: true, min: 0 },
@@ -174,6 +180,7 @@ migrate(
             'CREATE INDEX idx_books_bills_vendor ON books_bills (vendor, ref_no)',
             'CREATE INDEX idx_books_bills_status_date ON books_bills (status, date)',
             'CREATE INDEX idx_books_bills_form ON books_bills (form)',
+            'CREATE INDEX idx_books_bills_vendor_open ON books_bills (vendor, status, balance)',
         ]
         app.save(bills)
 

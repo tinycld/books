@@ -26,9 +26,11 @@ const (
 // entry) writes new lines, so a new line there may keep an inactive party that
 // a line of the replaced entry names; the user did not choose it again. Books
 // writes the lines of a reversal, copied from posted lines, so their party is
-// not checked for inactive (an inactive party must not block a void); a line
-// that names both is refused first, on any entry. A party id that is no
-// record is left to PocketBase's relation validation.
+// not checked for inactive (an inactive party must not block a void), and nor
+// are a bill payment's (only its post writes them, and an inactive vendor's
+// posted bills still get paid, pay-bills spec §4.2); a line that names both is
+// refused first, on any entry. A party id that is no record is left to
+// PocketBase's relation validation.
 func checkLineParty(tx core.App, stored, line *core.Record) error {
 	customer, vendor := line.GetString("customer"), line.GetString("vendor")
 	if customer == "" && vendor == "" {
@@ -44,7 +46,7 @@ func checkLineParty(tx core.App, stored, line *core.Record) error {
 	if err != nil {
 		return err
 	}
-	if entry.GetString("reverses") != "" {
+	if entry.GetString("reverses") != "" || entry.GetString("doc_type") == docTypeBillPayment {
 		return nil
 	}
 	field, collection, id := "customer", "books_customers", customer

@@ -33,17 +33,31 @@ export function nonTaxableService() {
     return row.name
 }
 
+// The seeded single rate a taxable invoice charges: one component, so its tax shows under
+// one rate row of the Sales Tax Liability.
+const TAXABLE_INVOICE_RATE = /^Colorado state\b/
+
 // The open invoice form: date (unless the default today), due date, one service line at
-// `rate`.
+// `rate`. A `taxable` invoice charges the seeded Colorado state rate and turns the line's
+// Tax switch on.
 export async function fillInvoice(
     page: Page,
-    input: { date?: string; dueDate: string; rate: string }
+    input: { date?: string; dueDate: string; rate: string; taxable?: boolean }
 ) {
     if (input.date !== undefined) await page.getByTestId('form-input-date').fill(input.date)
     await page.getByTestId('form-input-due_date').fill(input.dueDate)
     const rowId = await pickLineProduct(page, 0, nonTaxableService())
     await page.getByTestId(lineCellTestId(rowId, 'rate')).fill(input.rate)
     await expect(page.getByTestId(lineCellTestId(rowId, 'amount'))).toContainText(`$${input.rate}`)
+    if (!input.taxable) return
+    await page.getByTestId('form-input-tax_rate').click()
+    const rate = page.getByRole('menuitem', { name: TAXABLE_INVOICE_RATE })
+    await rate.click()
+    await expect(rate).toHaveCount(0)
+    const taxSwitch = page.getByTestId(lineCellTestId(rowId, 'taxable')).getByRole('switch')
+    await taxSwitch.click()
+    await expect(taxSwitch).toBeChecked()
+    await expect(page.getByTestId('invoice-total-tax')).toBeVisible()
 }
 
 // The number in an invoice read view's title, "Invoice <n>".
@@ -76,13 +90,15 @@ export function localDay(page: Page, days: number): Promise<string> {
 
 /**
  * Books must be open at desktop width. Creates a customer with a unique name and, from its
- * page's New transaction menu, posts one invoice per input: the non-taxable service at
- * `rate`, due `dueDate`. An invoice due before today is dated on its due date (an invoice
- * cannot be due before its date); the others keep today. Leaves the page on the customer.
+ * page's New transaction menu, posts one invoice per input: the service at `rate`, due
+ * `dueDate`. An invoice is dated `date` when given; otherwise one due before today is dated
+ * on its due date (an invoice cannot be due before its date) and the others keep today. A
+ * `taxable` invoice charges sales tax (see `fillInvoice`); by default the line is not
+ * taxable. Leaves the page on the customer.
  */
 export async function customerWithInvoices(
     page: Page,
-    invoices: readonly { rate: string; dueDate: string }[]
+    invoices: readonly { rate: string; dueDate: string; date?: string; taxable?: boolean }[]
 ): Promise<{ name: string; customerId: string; invoices: { id: string; number: string }[] }> {
     const name = uniqueName('Payer')
     await createCustomer(page, { name })
@@ -93,8 +109,13 @@ export async function customerWithInvoices(
         await page.getByTestId('customer-new-transaction').click()
         await page.getByTestId('customer-new-invoice').click()
         await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${customerId}$`))
-        const date = invoice.dueDate < today ? invoice.dueDate : undefined
-        await fillInvoice(page, { date, dueDate: invoice.dueDate, rate: invoice.rate })
+        const pastDue = invoice.dueDate < today ? invoice.dueDate : undefined
+        await fillInvoice(page, {
+            date: invoice.date ?? pastDue,
+            dueDate: invoice.dueDate,
+            rate: invoice.rate,
+            taxable: invoice.taxable,
+        })
         posted.push(await postInvoice(page))
         await page.goBack()
         await expect(page).toHaveURL(customerPath(customerId))
@@ -137,7 +158,7 @@ export async function pickPaymentCustomerOnPhone(page: Page, name: string, custo
     await expect(trigger).toContainText(name)
 }
 
-// A listed invoice's phone card (spec §3.3: the form is narrower than 640 px).
+// A listed invoice's card (spec §3.3: the list is narrower than the grid's least width).
 export function paymentCard(page: Page, invoiceId: string) {
     return page.getByTestId(`payment-card-${invoiceId}`)
 }

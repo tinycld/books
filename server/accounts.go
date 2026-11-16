@@ -36,8 +36,16 @@ const (
 	msgAccountPaidExpenses   = "This account paid %d expenses and cannot be deleted. Make it inactive instead."
 )
 
-// accountLineReferences are the document tables that hold an account. Later
-// purchase documents (vendor credits) append theirs here. A bill's or an
+// The delete refusals of an account that is the Paid from of bill payments,
+// counted by bill payment, posted or void.
+const (
+	msgAccountPaidOneBillPayment = "This account paid 1 bill payment and cannot be deleted. Make it inactive instead."
+	msgAccountPaidBillPayments   = "This account paid %d bill payments and cannot be deleted. Make it inactive instead."
+)
+
+// accountLineReferences are the document tables that hold an account, in the
+// order their refusals are checked. Later purchase documents (vendor credits)
+// append theirs here. A bill's or an
 // expense's product line names no account (its account is the product's
 // expense account, which the product guard holds).
 var accountLineReferences = []accountLineReference{
@@ -54,6 +62,10 @@ var accountLineReferences = []accountLineReference{
 	{
 		collection: expensesCollection, field: "paid_from", distinct: "id",
 		one: msgAccountPaidOneExpense, many: msgAccountPaidExpenses,
+	},
+	{
+		collection: billPaymentsCollection, field: "paid_from", distinct: "id",
+		one: msgAccountPaidOneBillPayment, many: msgAccountPaidBillPayments,
 	},
 }
 

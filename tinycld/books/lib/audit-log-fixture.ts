@@ -695,6 +695,7 @@ export function auditLogResult(filter: AuditLogFilter = {}): RunResult {
         rows: AUDIT_LOG_ROWS.filter(row => isKept(row, filter)).map(detailRow),
         notices: [],
         topics: AUDIT_LOG_TOPICS,
+        headerLines: [],
         heading: AUDIT_LOG_HEADING,
         page: null,
         params: resolvedParams(filter),

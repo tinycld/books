@@ -91,9 +91,58 @@ func TestInvoiceCorrection_TakesOverTheApplications(t *testing.T) {
 	}
 	requireApplicationsName(t, pe.app, payment, draft)
 	requireInvoiceBalance(t, pe.app, corrected, 15000)
-	if got, err := invoiceBalance(pe.app, draft.Id); err != nil || got != 15000 {
-		t.Errorf("invoiceBalance of the correction = %d, err %v; want 15000", got, err)
+	if got, err := documentBalance(pe.app, invoiceBalanceKind, draft.Id); err != nil || got != 15000 {
+		t.Errorf("documentBalance of the correction = %d, err %v; want 15000", got, err)
 	}
+	requireNoDrift(t, pe.app)
+}
+
+// A void payment's application stays on the original invoice: the correction
+// takes over only what still pays the sale, so a void payment never names an
+// invoice of another customer (cp3 item 1; the bill side is
+// TestBillCorrection_LeavesAVoidPaymentOnTheOriginal).
+func TestInvoiceCorrection_LeavesAVoidPaymentOnTheOriginal(t *testing.T) {
+	pe := newPaymentEnv(t)
+	inv, payment := pe.paidInvoice(t)
+	if err := voidPaymentAs(pe.app, payment.Id, pe.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void the payment: %v", err)
+	}
+	requireInvoiceBalance(t, pe.app, inv, 50000)
+	northwind := mkCustomer(t, pe.app, "Northwind Traders", "")
+	draft := pe.correctionOf(t, inv, northwind, 45000)
+
+	corrected := mustPostInvoice(t, pe.app, draft.Id, pe.users.bookkeeper.Id)
+	if corrected.GetString("customer") != northwind.Id {
+		t.Errorf("correction customer %q, want Northwind Traders %q", corrected.GetString("customer"), northwind.Id)
+	}
+	requireApplicationsName(t, pe.app, payment, inv)
+	requireInvoiceBalance(t, pe.app, corrected, 45000)
+	requireNoDrift(t, pe.app)
+}
+
+// With a void, a posted and a draft payment on the original, the posted and
+// the draft payments' applications move to the correction and the void one's
+// stays on the original.
+func TestInvoiceCorrection_MovesLivePaymentsAndLeavesAVoidOne(t *testing.T) {
+	pe := newPaymentEnv(t)
+	actor := pe.users.bookkeeper.Id
+	inv, voided := pe.paidInvoice(t)
+	if err := voidPaymentAs(pe.app, voided.Id, actor); err != nil {
+		t.Fatalf("void the payment: %v", err)
+	}
+	posted := pe.mkPayment(t, map[string]any{"amount": 10000})
+	mkApplication(t, pe.app, posted, inv, 0, 10000)
+	mustPostPayment(t, pe.app, posted.Id, actor)
+	draftPayment := pe.mkPayment(t, map[string]any{"amount": 5000})
+	mkApplication(t, pe.app, draftPayment, inv, 0, 5000)
+	requireInvoiceBalance(t, pe.app, inv, 40000)
+	draft := pe.correctionOf(t, inv, pe.customer, 45000)
+
+	corrected := mustPostInvoice(t, pe.app, draft.Id, actor)
+	requireApplicationsName(t, pe.app, voided, inv)
+	requireApplicationsName(t, pe.app, posted, draft)
+	requireApplicationsName(t, pe.app, draftPayment, draft)
+	requireInvoiceBalance(t, pe.app, corrected, 35000)
 	requireNoDrift(t, pe.app)
 }
 

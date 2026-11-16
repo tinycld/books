@@ -1250,3 +1250,86 @@ func TestSearch_FindsPayments(t *testing.T) {
 	requireOnly([]string{"yv80316"}, "payment:"+draft.Id)
 	requireOnly([]string{"wombat"}, "payment:"+draft.Id)
 }
+
+func billPaymentRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "bill_payment:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// newBillPaySearchEnv is newBillPayEnv on an app whose search indexes sync.
+func newBillPaySearchEnv(t *testing.T) *billPayEnv {
+	t.Helper()
+	env := newSearchEnv(t)
+	registerSalesDocGuards(env.app, billKind)
+	registerSalesDocGuards(env.app, expenseKind)
+	bindHostsByKey(t, env.app, billKind.HostKey, expenseKind.HostKey)
+	registerBillPaymentGuards(env.app)
+	enableBatch(t, env.app)
+	bp := &billPayEnv{expenseEnv: expenseEnvOn(t, env)}
+	bp.payable = mkNumberedAccount(t, bp.app, "Accounts Payable", "2000", "accounts_payable", "accounts_payable")
+	return bp
+}
+
+// Pay-bills spec §3.11: search finds bill payments by number, Ref no. and the
+// vendor's name. A row opens the bill payment (id bill_payment:<id>, kind
+// bill_payment) and is titled "Bill payment <n> · <Vendor>". A void bill
+// payment stays findable, titled as a void bill is: "Bill payment <n> (void) ·
+// <Vendor>".
+func TestSearch_FindsBillPayments(t *testing.T) {
+	bp := newBillPaySearchEnv(t)
+	summitBill := bp.postedBill(t, bp.summit, 30000)
+	officeBill := bp.postedBill(t, bp.officeSupply, 12000)
+
+	posted := bp.pay(t, bp.summit, map[string]any{"reference_no": "zq73019"}, payLine{summitBill, 30000})
+	voided := bp.pay(t, bp.officeSupply, map[string]any{
+		"payment_method": "bank_transfer", "reference_no": "yk40528",
+	}, payLine{officeBill, 12000})
+	if err := voidBillPaymentAs(bp.app, voided.Id, bp.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void bill payment: %v", err)
+	}
+	voided = reload(t, bp.app, billPaymentsCol, voided.Id)
+
+	postedNumber, voidedNumber := posted.GetString("number"), voided.GetString("number")
+	if postedNumber == "" || voidedNumber == "" || voided.GetString("status") != statusVoid {
+		t.Fatalf("numbers %q and %q, voided status %q: want two numbered bill payments, one void",
+			postedNumber, voidedNumber, voided.GetString("status"))
+	}
+	titles := map[string]string{
+		"bill_payment:" + posted.Id: "Bill payment " + postedNumber + " · Summit IT Services",
+		"bill_payment:" + voided.Id: "Bill payment " + voidedNumber + " (void) · Office Supply World",
+	}
+
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(bp.app, bp.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := billPaymentRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found bill payment rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "bill_payment" {
+				t.Errorf("%q row %s title %q kind %v, want %q, bill_payment", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{postedNumber}, "bill_payment:"+posted.Id)
+	requireOnly([]string{"zq73019"}, "bill_payment:"+posted.Id)
+	requireOnly([]string{"summit"}, "bill_payment:"+posted.Id)
+	requireOnly([]string{voidedNumber}, "bill_payment:"+voided.Id)
+	requireOnly([]string{"yk40528"}, "bill_payment:"+voided.Id)
+	requireOnly([]string{"office", "supply"}, "bill_payment:"+voided.Id)
+}

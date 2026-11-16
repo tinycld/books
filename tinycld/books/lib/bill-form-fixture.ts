@@ -78,6 +78,8 @@ function bill(seed: BillSeed): BillRecord {
         memo: '',
         subtotal: 0,
         total: 0,
+        // The open amount: the whole total of a posted bill (no seeded payment pays these).
+        balance: seed.status === 'posted' ? (seed.total ?? 0) : 0,
         revision: 1,
         currency: BILL_CURRENCY,
         entry: '',

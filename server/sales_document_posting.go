@@ -57,9 +57,10 @@ func salesDocName(kind salesDocKind, r *core.Record) string {
 // the tax snapshot of a kind with tax, posts the journal entry through
 // postDocument (the kind's debit or credit account for the total, its line
 // accounts on the other side, every line naming the party), and copies the
-// entry's number. A correction voids its original. A kind that tracks a
-// balance (an invoice) then writes it: the total less the posted payments that
-// apply to it.
+// entry's number. A correction voids its original. A deferred kind (a bill,
+// an invoice; cash_basis.go) rebuilds the cash-basis rows of the document and
+// of its original. A kind that tracks a balance (an invoice, a bill) then
+// writes it: the total less the posted payments that apply to it.
 func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
 	original, err := correctedSalesDoc(tx, kind, doc)
 	if err != nil {
@@ -138,17 +139,24 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	doc.Set("entry", entry.Id)
 	doc.Set("posted_at", now)
 	doc.Set("sort_key", salesDocSortKey(doc))
+	originalID := ""
 	if original != nil {
+		originalID = original.Id
 		if err := voidReplacedSalesDoc(tx, kind, original, doc, actor, now); err != nil {
 			return err
 		}
+	}
+	// After the Replace step, which moved the original's payments: both
+	// documents' entries and payments have changed.
+	if err := rebuildCashBasisOf(tx, kind.Collection, doc.Id, originalID); err != nil {
+		return err
 	}
 	if !kind.TracksBalance {
 		return nil
 	}
 	// After the Replace step: a correction's balance is its total less the
 	// payments it took over from its original.
-	return setPostedInvoiceBalance(tx, doc, totals.Total)
+	return setPostedDocumentBalance(tx, kind.balanceKind(), doc, totals.Total)
 }
 
 // correctedSalesDoc is the posted document a correction replaces, nil for a
@@ -429,6 +437,8 @@ func accountSums(tx core.App, sums map[string]int64, firstLine map[string]docume
 // (the tax-rates contract), with the document's gross (its subtotal), taxable
 // amount and currency: a later change to a rate never changes what a posted
 // document charged, and the Sales Tax Liability report reads these figures.
+// Each line carries the document date, the day the report counts it on the
+// accrual basis (an invoice's cash-basis tax rows carry their own days).
 func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult, taxes []componentTax) error {
 	defer markSnapshotting(tx, kind, doc.Id)()
 	col, err := tx.FindCachedCollectionByNameOrId(kind.TaxLinesCollection)
@@ -446,6 +456,7 @@ func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals d
 		r.Set("taxable_amount", totals.TaxableTotal)
 		r.Set("currency", doc.GetString("currency"))
 		r.Set("amount", t.Amount)
+		r.Set("date", doc.GetString("date"))
 		r.Set("position", i)
 		if err := tx.Save(r); err != nil {
 			return fmt.Errorf("books: write the document's tax line: %w", err)
@@ -470,7 +481,7 @@ func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original, correction *
 	fresh.Set("voided_by", actor)
 	fresh.Set("voided_at", now)
 	if kind.TracksBalance {
-		clearInvoiceBalance(fresh)
+		clearDocumentBalance(fresh)
 	}
 	if err := tx.Save(fresh); err != nil {
 		return err
@@ -484,8 +495,9 @@ func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original, correction *
 // voidSalesDoc voids a posted document's entry while the document moves from
 // posted to void, inside the update's transaction: the entry's own hook posts
 // the void reversal in the original period under the same number (voidEntry),
-// and the close date applies to it as to any post. The kind's Withdraw then
-// undoes what the document held (an invoice reopens its estimate).
+// and the close date applies to it as to any post. A deferred kind rebuilds
+// the document's cash-basis rows. The kind's Withdraw then undoes what the
+// document held (an invoice reopens its estimate).
 func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
 	entryID := doc.GetString("entry")
 	if entryID == "" {
@@ -503,7 +515,11 @@ func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	doc.Set("voided_at", now)
 	if kind.TracksBalance {
 		// CheckVoid refused a void while posted payments apply to it.
-		clearInvoiceBalance(doc)
+		clearDocumentBalance(doc)
+	}
+	// The void reversal is taken out too, so the document counts for nothing.
+	if err := rebuildCashBasisOf(tx, kind.Collection, doc.Id); err != nil {
+		return err
 	}
 	if kind.Withdraw == nil {
 		return nil

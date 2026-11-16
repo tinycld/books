@@ -43,6 +43,7 @@ const WRITE = `${AUTH} && ${ME} && @collection.books_access:me.can_write ?= true
 const unset = (...fields) => fields.map(f => `@request.body.${f}:isset = false`).join(' && ')
 
 const DAY = '^\\d{4}-\\d{2}-\\d{2}$'
+const OPTIONAL_DAY = '^(\\d{4}-\\d{2}-\\d{2})?$'
 const OPTIONAL_CURRENCY = '^([A-Z]{3})?$'
 // 2^53-1: the largest whole number of cents a number field stores exactly.
 const MAX_STORED = 9007199254740991
@@ -296,6 +297,9 @@ migrate(
                     },
                     { name: 'amount', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'position', type: 'number', onlyInt: true, min: 0 },
+                    // The receipt's date, written at posting, so a tax report
+                    // filters the ledger and the cash-basis tax lines alike.
+                    { name: 'date', type: 'text', max: 10, pattern: OPTIONAL_DAY },
                     ...AUTODATES,
                 ],
                 indexes: [

@@ -12,23 +12,24 @@ func profitAndLossShipped() reports.Shipped {
 	return reports.Shipped{
 		Key:         profitAndLossKey,
 		Title:       "Profit and Loss",
-		Description: "Income and expenses for a period, and what is left, on the accrual basis.",
+		Description: "Income and expenses for a period, and what is left.",
 		Spec:        mustJSON(profitAndLossSpec()),
 		// 2: opened lines open the transaction that posted them (detail.open),
 		// and its figures open Transaction Detail by Account (drill).
-		Revision:    2,
+		// 3: the Method param (Accrual or Cash) over books.basis_lines.
+		Revision:    3,
 		Unpublished: true,
 	}
 }
 
 // profitAndLossSpec is the statement for a period: the posted lines of the
 // income and expense accounts, one row per account by its normal side, in
-// five fixed sections with the four computed rows between them. Paths start
-// at a journal line.
+// five fixed sections with the four computed rows between them, on the run's
+// method. Paths start at a line of books.basis_lines.
 func profitAndLossSpec() *reports.Spec {
 	return &reports.Spec{
 		Version: reports.CurrentVersion,
-		Source:  "books.journal_lines",
+		Source:  "books.basis_lines",
 		Params:  plParams(),
 		Filter:  plFilter(),
 		Columns: plColumns(),
@@ -106,10 +107,11 @@ func profitAndLossByMonthShipped() reports.Shipped {
 	return reports.Shipped{
 		Key:         profitAndLossByMonthKey,
 		Title:       "Profit and Loss by Month",
-		Description: "Income and expenses month by month for a period, on the accrual basis.",
+		Description: "Income and expenses month by month for a period.",
 		Spec:        mustJSON(profitAndLossByMonthSpec()),
 		// 2: its figures open Transaction Detail by Account (drill).
-		Revision:    2,
+		// 3: the Method param (Accrual or Cash) over books.basis_lines.
+		Revision:    3,
 		Unpublished: true,
 	}
 }
@@ -139,7 +141,7 @@ func profitAndLossByMonthSpec() *reports.Spec {
 	}
 	return &reports.Spec{
 		Version: reports.CurrentVersion,
-		Source:  "books.journal_lines",
+		Source:  "books.basis_lines",
 		Params:  plParams(),
 		Filter:  plFilter(),
 		Columns: columns,
@@ -167,9 +169,10 @@ func profitAndLossByMonthDisplay() *reports.Display {
 }
 
 // plFilter keeps the posted lines of the income and expense accounts dated
-// in the period.
+// in the period, on the run's method.
 func plFilter() *reports.Node {
 	return op("and",
+		basisFilter(),
 		op("eq", fld("posted"), lit(true)),
 		op("between", fld("date"), prm("period")),
 		op("in", fld("account", "type"), lit(profitAndLossTypes())),
@@ -200,6 +203,7 @@ func plParams() []reports.ParamDef {
 			ID: "period", Type: reports.ParamDateRange, Label: "Period",
 			Default: mustJSON(map[string]string{"preset": "thisFiscalYearToDate"}),
 		},
+		methodParam(),
 		{
 			ID: "rows", Type: reports.ParamChoice, Label: "Rows",
 			Options: []reports.Option{
@@ -230,13 +234,14 @@ func plColumns() []reports.Column {
 
 // plAmountDrill opens Transaction Detail by Account from a Total: an account
 // row's for that account, a section row's for every account of the section's
-// type, both for the period as the run was given it. pivotCells, on the
-// Profit and Loss by Month, cuts a month cell to that month.
+// type, both for the period and on the method as the run was given them.
+// pivotCells, on the Profit and Loss by Month, cuts a month cell to that
+// month.
 func plAmountDrill(pivotCells map[string]reports.DrillValue) *reports.Drill {
 	period := reports.DrillValue{Param: "period"}
 	return tdDrillTarget(map[string]map[string]reports.DrillValue{
-		"byAccount": {"period": period, "accounts": tdAccountOf()},
-		"section":   {"period": period, "accounts": {Group: &reports.Node{GroupKey: "section"}}},
+		"byAccount": {"period": period, "method": methodDrill(), "accounts": tdAccountOf()},
+		"section":   {"period": period, "method": methodDrill(), "accounts": {Group: &reports.Node{GroupKey: "section"}}},
 	}, pivotCells)
 }
 
