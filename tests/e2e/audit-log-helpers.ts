@@ -82,6 +82,27 @@ export async function waitForAuditRow(
     return found.row
 }
 
+// Waits for the row with this record and event, presses its Date changed link (the row's
+// label, core `report-row-<row id>`) and waits for the record's history as a screen:
+// `history-screen` on top and the URL `books/history/<collection>/<id>`.
+export async function openHistoryFromRow(
+    page: Page,
+    match: { record: string; event: string }
+): Promise<void> {
+    const row = await waitForAuditRow(page, match)
+    await page.getByTestId(`report-row-${row.id}`).click()
+    await expect(page.getByTestId('history-screen').filter({ visible: true })).toBeVisible()
+    await expect(page).toHaveURL(/\/books\/history\/books_[a-z_]+\/[a-z0-9]{15}$/)
+}
+
+// The events of the history on screen, newest first.
+export function historyEvents(page: Page) {
+    return page
+        .getByTestId('history-events')
+        .filter({ visible: true })
+        .locator('[data-testid^="history-event-"]')
+}
+
 // The browser's "Nov 14, 2026, 4:07 PM" for now (or `minutesAgo` minutes before now), in
 // the page's own zone, as the report writes a Date changed.
 export function localMinute(page: Page, minutesAgo = 0): Promise<string> {

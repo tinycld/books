@@ -165,7 +165,18 @@
             { "formula": { "path": [{ "field": "created" }] }, "dir": "desc" },
             { "formula": { "path": [{ "field": "id" }] }, "dir": "desc" }
         ],
-        "detail": { "label": { "path": [{ "field": "created" }] } },
+        "detail": {
+            "label": { "path": [{ "field": "created" }] },
+            "open": {
+                "op": "concat",
+                "args": [
+                    { "value": "books/history/" },
+                    { "path": [{ "field": "history_type" }] },
+                    { "value": "/" },
+                    { "path": [{ "field": "history_id" }] }
+                ]
+            }
+        },
         "display": {
             "oneLine": { "minWidth": "760px" },
             "columns": {

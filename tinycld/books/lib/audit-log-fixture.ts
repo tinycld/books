@@ -18,9 +18,15 @@ import type {
     ResultColumn,
     ResultRow,
     RunResult,
-    SelectOption,
 } from '@tinycld/core/reports/lib/types'
-import type { BooksAuditLog } from '../types'
+import {
+    AUDIT_EVENT_OPTIONS,
+    AUDIT_RECORD_TYPE_OPTIONS,
+    type AuditEvent,
+    type AuditFieldChange,
+    type AuditLogRow,
+    recordTypeLabel,
+} from './audit-log'
 
 export const AUDIT_LOG_SHIPPED_KEY = 'books.audit_log'
 export const AUDIT_LOG_TITLE = 'Audit Log'
@@ -36,73 +42,15 @@ export const AUDIT_LOG_TIME_ZONE = 'America/Chicago'
 // The document header's zone line (core T1).
 export const AUDIT_LOG_ZONE_WORDS = 'Times in Central Time'
 
-// --- The view row. ---
+// --- The view row and its options: the app's own (lib/audit-log.ts), re-exported. ---
 
-export type AuditEvent = 'added' | 'changed' | 'posted' | 'voided' | 'deleted'
-
-/** One changed field, as core's audit ComputeDiff writes it. */
-export type AuditFieldChange =
-    | { before: CellValue; after: CellValue }
-    | { before: '[redacted]'; after: '[redacted]'; redacted: true }
-
-/**
- * A row of the `books_audit_log` view (spec §5): the generated record type, with
- * the computed `event` and the JSON columns narrowed. The generator types a JSON
- * column as `any`, and `any` in an intersection swallows the narrowing, so those
- * columns are omitted first.
- */
-export type AuditLogRow = Omit<BooksAuditLog, 'event' | 'changes' | 'snapshot'> & {
-    event: AuditEvent
-    changes: Record<string, AuditFieldChange> | null
-    snapshot: Record<string, CellValue> | null
-}
-
-// --- Options (the Go source's select options; server/audit.go builds the same). ---
-
-export const AUDIT_EVENT_OPTIONS: SelectOption[] = [
-    { value: 'added', label: 'Added' },
-    { value: 'changed', label: 'Changed' },
-    { value: 'posted', label: 'Posted' },
-    { value: 'voided', label: 'Voided' },
-    { value: 'deleted', label: 'Deleted' },
-]
-
-// In the order of the Record type param: Documents, Lines, Lists, Banking, Settings
-// and access (auditRecordTypeOptions in server/audit.go).
-export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
-    { value: 'books_invoices', label: 'Invoice' },
-    { value: 'books_sales_receipts', label: 'Sales receipt' },
-    { value: 'books_estimates', label: 'Estimate' },
-    { value: 'books_estimate_responses', label: 'Estimate response' },
-    { value: 'books_bills', label: 'Bill' },
-    { value: 'books_expenses', label: 'Expense' },
-    { value: 'books_journal_entries', label: 'Journal entry' },
-    { value: 'books_invoice_lines', label: 'Invoice line' },
-    { value: 'books_sales_receipt_lines', label: 'Sales receipt line' },
-    { value: 'books_estimate_lines', label: 'Estimate line' },
-    { value: 'books_bill_lines', label: 'Bill line' },
-    { value: 'books_expense_lines', label: 'Expense line' },
-    { value: 'books_journal_lines', label: 'Journal line' },
-    { value: 'books_accounts', label: 'Account' },
-    { value: 'books_customers', label: 'Customer' },
-    { value: 'books_vendors', label: 'Vendor' },
-    { value: 'books_party_contacts', label: 'Contact' },
-    { value: 'books_products', label: 'Product or service' },
-    { value: 'books_bundle_items', label: 'Bundle item' },
-    { value: 'books_tax_agencies', label: 'Tax agency' },
-    { value: 'books_tax_rates', label: 'Tax rate' },
-    { value: 'books_bank_connections', label: 'Bank connection' },
-    { value: 'books_bank_files', label: 'Bank file' },
-    { value: 'books_bank_imports', label: 'Bank import' },
-    { value: 'books_bank_transactions', label: 'Bank transaction' },
-    { value: 'books_settings', label: 'Books settings' },
-    { value: 'books_doc_sequences', label: 'Document numbering' },
-    { value: 'books_close_overrides', label: 'Close date override' },
-    { value: 'books_admins', label: 'Books admin' },
-]
-
-export function recordTypeLabel(collection: string): string {
-    return AUDIT_RECORD_TYPE_OPTIONS.find(o => o.value === collection)?.label ?? collection
+export {
+    AUDIT_EVENT_OPTIONS,
+    AUDIT_RECORD_TYPE_OPTIONS,
+    type AuditEvent,
+    type AuditFieldChange,
+    type AuditLogRow,
+    recordTypeLabel,
 }
 
 // --- The people. ---
@@ -170,7 +118,7 @@ function central(day: string, hour: number, minute: number): string {
 
 // --- The rows, newest first. ---
 
-interface RowInput {
+export interface RowInput {
     n: number
     day: string
     at: [number, number]
@@ -184,7 +132,7 @@ interface RowInput {
     snapshot?: Record<string, CellValue>
 }
 
-function auditRow(input: RowInput): AuditLogRow {
+export function auditRow(input: RowInput): AuditLogRow {
     const user = AUDIT_USERS[input.who]
     const parent = input.parent ?? { type: '', id: '' }
     return {
