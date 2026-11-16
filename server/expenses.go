@@ -4,9 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -107,8 +105,9 @@ func init() {
 // checkExpenseHeader is the expense's own header guard on a draft write: the
 // payment date is a real day, Paid from is a bank or credit card account (an
 // inactive one passes here; Post refuses it), and a check number is not on
-// another expense (checkExpenseCheckNo). payment_method and reference_no are
-// held by the schema (a PAYMENT_METHODS key, required; at most 40 characters).
+// another expense or bill payment (checkCheckNo). payment_method and
+// reference_no are held by the schema (a PAYMENT_METHODS key, required; at
+// most 40 characters).
 func checkExpenseHeader(tx core.App, _, r *core.Record) error {
 	if _, err := parseDay(r.GetString("date")); err != nil {
 		return refuseDocumentDay("date", err)
@@ -116,7 +115,7 @@ func checkExpenseHeader(tx core.App, _, r *core.Record) error {
 	if _, err := checkExpensePaidFrom(tx, r, false); err != nil {
 		return err
 	}
-	return checkExpenseCheckNo(tx, r)
+	return checkCheckNo(tx, expensesCollection, r)
 }
 
 // isPaymentAccount reports whether an expense may be paid from account: a
@@ -153,47 +152,6 @@ func checkExpensePaidFrom(tx core.App, r *core.Record, requireActive bool) (*cor
 		return nil, refuseNamedField("paid_from", msgExpensePaidFromInactive, accountDisplayName(account))
 	}
 	return account, nil
-}
-
-// checkExpenseCheckNo stores the Ref no. trimmed and, on a Check expense,
-// refuses a number that another expense from the same Paid from account,
-// method Check, already has, unless that expense is void or is the posted
-// expense this one corrects (the correction takes its place). An empty Ref
-// no. never clashes. It runs inside the header guard's transaction, so no
-// other write commits between the check and the write.
-func checkExpenseCheckNo(tx core.App, r *core.Record) error {
-	ref := strings.TrimSpace(r.GetString("reference_no"))
-	r.Set("reference_no", ref)
-	paidFrom := r.GetString("paid_from")
-	if ref == "" || paidFrom == "" || r.GetString("payment_method") != "check" {
-		return nil
-	}
-	others, err := tx.FindRecordsByFilter(expensesCollection,
-		"paid_from = {:paidFrom} && payment_method = {:check} && reference_no = {:ref} && status != {:void} && id != {:id} && id != {:replaces}",
-		"-sequence,id", 1, 0, dbx.Params{
-			"paidFrom": paidFrom, "check": "check", "ref": ref, "void": statusVoid,
-			"id": r.Id, "replaces": r.GetString("replaces"),
-		})
-	if err != nil {
-		return fmt.Errorf("books: read the expenses of the Paid from account: %w", err)
-	}
-	if len(others) == 0 {
-		return nil
-	}
-	account, err := tx.FindRecordById("books_accounts", paidFrom)
-	if errors.Is(err, sql.ErrNoRows) {
-		// The schema refuses an account that does not exist.
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("books: read the expense's Paid from account: %w", err)
-	}
-	other := expenseDraftName
-	if n := others[0].GetString("number"); n != "" {
-		noun, _, _ := entryNouns(docTypeExpense)
-		other = noun + " " + n
-	}
-	return refuseNamedField("reference_no", msgExpenseDuplicateCheckNo, ref, accountDisplayName(account), other)
 }
 
 // expenseBeforePost is the expense's BeforePost: the purchase line checks of

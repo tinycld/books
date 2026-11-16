@@ -205,7 +205,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 					{Value: "journal", Label: "Journal entry"}, {Value: "transfer", Label: "Transfer"},
 					{Value: "invoice", Label: "Invoice"}, {Value: "sales_receipt", Label: "Sales receipt"},
 					{Value: "bill", Label: "Bill"}, {Value: "expense", Label: "Expense"},
-					{Value: "payment", Label: "Payment"},
+					{Value: "payment", Label: "Payment"}, {Value: "bill_payment", Label: "Bill payment"},
 				}},
 				textMinMax("number"),
 				// The posting order behind number, so opened lines sort 9 before 10.

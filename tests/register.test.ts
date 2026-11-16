@@ -570,6 +570,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             bill: 'Bill',
             expense: 'Expense',
             payment: 'Payment',
+            bill_payment: 'Bill payment',
         })
     })
 
@@ -577,6 +578,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
         const docTypes = Object.entries(server.docTypes ?? {})
         expect(docTypes.map(([docType]) => docType).sort()).toEqual([
             'bill',
+            'bill_payment',
             'expense',
             'invoice',
             'payment',

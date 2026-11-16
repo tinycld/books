@@ -98,7 +98,7 @@ func applicationField(application *core.Record) string {
 // posted (postPayment), a posted payment is voided (voidPayment) or replaced
 // by its correction's post, and a draft alone is deleted. Its applications
 // change only while it is a draft, except when an invoice correction moves
-// them (moveApplications).
+// them (moveLines).
 func registerPaymentGuards(app core.App) {
 	bindSerializedGuard(app, paymentsCollection, func(tx core.App, stored, r *core.Record) error {
 		if stored == nil {
@@ -334,7 +334,7 @@ func refuseInactivePaymentCustomer(tx core.App, r *core.Record) error {
 // payment, which is a draft; it names a posted invoice of the payment's
 // customer that the payment does not already name, with an amount above 0;
 // and a payment holds at most maxPaymentApplications. While an invoice
-// correction moves its original's applications (isMovingApplications), an
+// correction moves its original's applications (isMovingLines), an
 // update that changes only the invoice passes. The sum and the invoices' open
 // balances are checked when the payment posts (postPayment): a draft writes
 // its header and applications as separate records. stored is the row before
@@ -344,7 +344,7 @@ func validatePaymentApplication(tx core.App, stored, r *core.Record) error {
 	if stored != nil && stored.GetString("payment") != paymentID {
 		return refuseField("payment", msgPaymentApplicationStays)
 	}
-	if stored != nil && isMovingApplications(tx, paymentID) &&
+	if stored != nil && isMovingLines(tx, invoiceBalanceKind, paymentID) &&
 		len(changedFields(stored, r, map[string]bool{"invoice": true})) == 0 {
 		return nil
 	}
