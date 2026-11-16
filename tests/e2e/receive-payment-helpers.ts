@@ -33,6 +33,14 @@ export function nonTaxableService() {
     return row.name
 }
 
+// A plain dollar rate ("1250.00") as the line's amount cell writes it ("$1,250.00").
+const usdAmount = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+})
+
 // The open invoice form: date (unless the default today), due date, one service line at
 // `rate`.
 export async function fillInvoice(
@@ -43,7 +51,9 @@ export async function fillInvoice(
     await page.getByTestId('form-input-due_date').fill(input.dueDate)
     const rowId = await pickLineProduct(page, 0, nonTaxableService())
     await page.getByTestId(lineCellTestId(rowId, 'rate')).fill(input.rate)
-    await expect(page.getByTestId(lineCellTestId(rowId, 'amount'))).toContainText(`$${input.rate}`)
+    await expect(page.getByTestId(lineCellTestId(rowId, 'amount'))).toContainText(
+        usdAmount.format(Number(input.rate))
+    )
 }
 
 // The number in an invoice read view's title, "Invoice <n>".

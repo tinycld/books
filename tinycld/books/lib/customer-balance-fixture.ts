@@ -11,12 +11,45 @@ import type {
     RunResult,
 } from '@tinycld/core/reports/lib/types'
 import type { BooksCustomers } from '../types'
-import { CUSTOMERS } from './customer-form-fixture'
+import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 
 // "Today" for the reference captures: the As of param's default.
 export const CUSTOMER_BALANCE_TODAY = '2026-11-16'
 export const CUSTOMER_BALANCE_HEADING = 'Harbor Lane Design LLC'
 export const CUSTOMER_BALANCE_TITLE = 'Customer Balance'
+// The shipped report's description (server/report_customer_balance.go).
+export const CUSTOMER_BALANCE_DESCRIPTION =
+    'What each customer owes on one day, from posted transactions on Accounts receivable accounts.'
+
+// What seedCustomerBalance (seed.ts) posts in the seeded book (plan D2): an invoice for
+// the sub-customer Harborview Kitchen, an invoice for the long-named St. Jude gala (a
+// three-line name and label on a phone), an Accounts receivable entry that names no
+// customer, and one that names the inactive Old Mill Bakery (a muted row). Cents.
+export const CUSTOMER_BALANCE_SEED = {
+    kitchenInvoice: {
+        customer: CUSTOMER_IDS.harborviewKitchen,
+        date: '2026-10-27',
+        memo: 'Seed customer balance: table tents and takeaway menus',
+        cents: 80000,
+    },
+    galaInvoice: {
+        customer: CUSTOMER_IDS.stJudeGala,
+        date: '2026-10-22',
+        memo: 'Seed customer balance: programs, bid sheets, table numbers and sponsor boards for the Annual Spring Gala',
+        cents: 987525,
+    },
+    noCustomerEntry: {
+        date: '2026-10-05',
+        memo: 'Seed customer balance: receivable with no customer',
+        cents: 100000,
+    },
+    inactiveEntry: {
+        customer: CUSTOMER_IDS.oldMill,
+        date: '2026-10-08',
+        memo: 'Seed customer balance: holiday box labels',
+        cents: 48000,
+    },
+} as const
 // A day before every posted Accounts receivable line: the empty report.
 export const CUSTOMER_BALANCE_EMPTY_DAY = '2025-12-31'
 const CURRENCY = 'USD'
