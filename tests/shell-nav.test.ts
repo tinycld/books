@@ -119,7 +119,23 @@ describe('registries', () => {
             'receive_payment',
         ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
-        expect(columns[1]?.actions.map(a => a.id)).toEqual(['vendor', 'bill', 'expense'])
+        expect(columns[1]?.actions.map(a => a.id)).toEqual([
+            'vendor',
+            'bill',
+            'pay_bills',
+            'expense',
+        ])
+    })
+
+    // Pay bills spec §2: + New → Vendors → "Pay bills", after "Bill".
+    it('NEW_ACTIONS has an available Pay bills action in the vendors column at books/pay-bills', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'pay_bills')).toEqual({
+            id: 'pay_bills',
+            label: 'Pay bills',
+            href: 'books/pay-bills',
+            column: 'vendors',
+            available: true,
+        })
     })
 
     it('NEW_ACTIONS has an available Expense action in the vendors column at books/expenses/new', () => {
@@ -142,9 +158,14 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Vendors column lists Vendor, Bill, then Expense', () => {
+    it('the New menu Vendors column lists Vendor, Bill, Pay bills, then Expense', () => {
         const vendors = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Vendors')
-        expect(vendors?.actions.map(a => a.label)).toEqual(['Vendor', 'Bill', 'Expense'])
+        expect(vendors?.actions.map(a => a.label)).toEqual([
+            'Vendor',
+            'Bill',
+            'Pay bills',
+            'Expense',
+        ])
     })
 
     it('the New menu puts an available Invoice right after Customer in the Customers column', () => {
@@ -504,6 +525,8 @@ describe('hidesNewFab', () => {
         '/a/books/vendors/',
         '/a/books/products',
         '/a/books/products/',
+        '/a/books/bills',
+        '/a/books/bills/',
     ])('keeps the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(false)
     })
@@ -538,6 +561,11 @@ describe('hidesNewFab', () => {
         '/a/books/payments/new',
         '/a/books/payments/x',
         '/a/acme/books/payments/abc123/',
+        '/a/books/pay-bills',
+        '/a/books/pay-bills/',
+        '/a/acme/books/pay-bills',
+        '/a/books/bill-payments/x',
+        '/a/acme/books/bill-payments/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

@@ -1,11 +1,18 @@
+import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { formatMoney } from '../../lib/money'
+import {
+    cardDocumentLabel,
+    type OutstandingDocument,
+    outstandingTexts,
+    rowTickLabel,
+} from '../../lib/outstanding-documents'
 import { entryCents } from '../../lib/payment-allocation'
 import { SelectBox, type SelectBoxState } from '../SelectBox'
 import {
+    DocumentLink,
     DueText,
     type GridRowProps,
-    InvoiceLink,
     type OutstandingGridProps,
 } from './OutstandingGrid'
 import { PaymentCell } from './PaymentCell'
@@ -22,7 +29,34 @@ export function CardPair({ label, value }: { label: string; value: string }) {
 
 export const CARD = 'gap-2 rounded-xl border border-border bg-background p-3'
 
-function InvoiceCard({
+// The card's top line: a bill card names its vendor beside the tick box and puts the link
+// under it; an invoice card (one customer's list) puts the link there.
+function CardTitle({
+    doc,
+    party,
+    link,
+}: {
+    doc: OutstandingDocument
+    party: string
+    link: ReactNode
+}) {
+    if (doc.party === 'none') return <View className="min-w-0 flex-1">{link}</View>
+    return (
+        <Text className="min-w-0 flex-1 text-sm font-semibold text-foreground" numberOfLines={1}>
+            {party}
+        </Text>
+    )
+}
+
+// The link under the top line, on a card with a party; nothing on an invoice card, whose
+// link is on the top line.
+function CardLinkLine({ doc, link }: { doc: OutstandingDocument; link: ReactNode }) {
+    if (doc.party === 'none') return null
+    return <View className="min-w-0">{link}</View>
+}
+
+function DocumentCard({
+    doc,
     row,
     payments,
     error,
@@ -36,39 +70,44 @@ function InvoiceCard({
     onFocusRow,
     rowRef,
 }: GridRowProps) {
+    const prefix = doc.testIdPrefix
+    const texts = outstandingTexts(doc)
     const entry = payments[row.id]
     const tick: SelectBoxState = entryCents(entry, currency) > 0 ? 'checked' : 'empty'
     const handleTick = () => onTick(row)
-    const label = `Invoice ${row.number}`
     const original = formatMoney(row.total, currency)
     const open = formatMoney(row.open, currency)
     const value = entry?.amount ?? ''
     const cellRef = rowRef(row.id)
+    const link = (
+        <DocumentLink
+            routeBase={doc.openKind.routeBase}
+            documentId={row.id}
+            label={cardDocumentLabel(doc, row)}
+            testID={`${prefix}-row-link-${row.id}`}
+        />
+    )
     return (
-        <View testID={`payment-card-${row.id}`} className={CARD}>
+        <View testID={`${prefix}-card-${row.id}`} className={CARD}>
             <View className="flex-row items-center gap-1">
                 <SelectBox
                     state={tick}
-                    label={`Pay invoice ${row.number}`}
-                    testID={`payment-row-tick-${row.id}`}
+                    label={rowTickLabel(doc, row.number)}
+                    testID={`${prefix}-row-tick-${row.id}`}
                     onPress={handleTick}
                     isDisabled={isDisabled}
                     tabIndex={-1}
                 />
-                <View className="min-w-0 flex-1">
-                    <InvoiceLink
-                        invoiceId={row.id}
-                        label={label}
-                        testID={`payment-row-link-${row.id}`}
-                    />
-                </View>
+                <CardTitle doc={doc} party={row.party ?? ''} link={link} />
             </View>
+            <CardLinkLine doc={doc} link={link} />
             <DueText dueDate={row.due_date} today={today} />
             <View className="flex-row gap-3">
-                <CardPair label="Original" value={original} />
+                <CardPair label={texts.totalCard} value={original} />
                 <CardPair label="Open balance" value={open} />
             </View>
             <PaymentCell
+                doc={doc}
                 row={row}
                 value={value}
                 error={error}
@@ -84,12 +123,14 @@ function InvoiceCard({
 }
 
 // The cards' touch path to the wide grid's header tick box: the same state and handler,
-// so it pays every listed row, or clears them all when every row is paid.
+// so it pays every row it covers, or clears them all when every one is paid.
 function TickAllBar({
+    doc,
     tick,
     isDisabled,
     onTickAll,
 }: {
+    doc: OutstandingDocument
     tick: SelectBoxState
     isDisabled: boolean
     onTickAll: () => void
@@ -98,8 +139,8 @@ function TickAllBar({
         <View className="flex-row items-center gap-1">
             <SelectBox
                 state={tick}
-                label="Pay every listed invoice"
-                testID="payment-tick-all"
+                label={outstandingTexts(doc).payAllLabel}
+                testID={`${doc.testIdPrefix}-tick-all`}
                 onPress={onTickAll}
                 isDisabled={isDisabled}
                 tabIndex={-1}
@@ -110,16 +151,18 @@ function TickAllBar({
 }
 
 /**
- * The outstanding list below 640 px (spec §3.3): a "Pay all" tick box over the cards, then
- * one card per invoice, with the tick box and "Invoice 1004" on the first line, the due
- * date, Original and Open balance as a label-value pair, and the Payment input at full
- * width. The tick boxes are press targets only; the card's one Tab stop is its Payment input.
+ * The open-document list below 640 px (spec §3.3; pay-bills spec §3.3): a "Pay all" tick
+ * box over the cards, then one card per document: the tick box and "Invoice 1004" on the
+ * first line (a bill card: the tick box and the vendor, then "Bill 1003 · No. 88412"), the
+ * due date, the total and Open balance as a label-value pair, and the Payment input at
+ * full width. The tick boxes are press targets only; the card's one Tab stop is its
+ * Payment input.
  */
 export function OutstandingCards(props: OutstandingGridProps) {
-    const { rows, rowErrors, tickAll, isDisabled, onTickAll } = props
+    const { doc, rows, rowErrors, tickAll, isDisabled, onTickAll } = props
     const lastId = rows[rows.length - 1]?.id
     const drawn = rows.map(row => (
-        <InvoiceCard
+        <DocumentCard
             key={row.id}
             {...props}
             row={row}
@@ -128,8 +171,8 @@ export function OutstandingCards(props: OutstandingGridProps) {
         />
     ))
     return (
-        <View className="gap-3">
-            <TickAllBar tick={tickAll} isDisabled={isDisabled} onTickAll={onTickAll} />
+        <View testID={`${doc.testIdPrefix}-cards`} className="gap-3">
+            <TickAllBar doc={doc} tick={tickAll} isDisabled={isDisabled} onTickAll={onTickAll} />
             {drawn}
         </View>
     )

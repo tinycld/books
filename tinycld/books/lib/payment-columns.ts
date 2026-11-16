@@ -40,6 +40,46 @@ export const PAYMENT_APPLIED_MIN_WIDTH = gridMinWidth([
     PAYMENT_COLUMNS.payment,
 ])
 
+// The Pay Bills grid (pay-bills spec §3.3): Tick, Vendor, Bill (with the vendor's bill no.
+// under it), Due date, Bill total, Open balance, Payment.
+export const BILL_PAYMENT_COLUMNS = {
+    tick: 44,
+    party: { flex: 1, minWidth: 130 },
+    bill: { flex: 1, minWidth: 110 },
+    dueDate: 168,
+    original: 120,
+    open: 128,
+    payment: 130,
+} as const
+
+export const BILL_PAYMENT_GRID_MIN_WIDTH = gridMinWidth([
+    BILL_PAYMENT_COLUMNS.tick,
+    BILL_PAYMENT_COLUMNS.party.minWidth,
+    BILL_PAYMENT_COLUMNS.bill.minWidth,
+    BILL_PAYMENT_COLUMNS.dueDate,
+    BILL_PAYMENT_COLUMNS.original,
+    BILL_PAYMENT_COLUMNS.open,
+    BILL_PAYMENT_COLUMNS.payment,
+])
+
+// The bill payment read view's Bills paid grid (pay-bills spec §3.8): Bill, Vendor's bill
+// no., Due date, Bill total, Paid.
+export const BILL_PAYMENT_APPLIED_COLUMNS = {
+    bill: { flex: 1, minWidth: 130 },
+    ref: 140,
+    dueDate: 168,
+    original: 128,
+    paid: 128,
+} as const
+
+export const BILL_PAYMENT_APPLIED_MIN_WIDTH = gridMinWidth([
+    BILL_PAYMENT_APPLIED_COLUMNS.bill.minWidth,
+    BILL_PAYMENT_APPLIED_COLUMNS.ref,
+    BILL_PAYMENT_APPLIED_COLUMNS.dueDate,
+    BILL_PAYMENT_APPLIED_COLUMNS.original,
+    BILL_PAYMENT_APPLIED_COLUMNS.paid,
+])
+
 // The outstanding list and the read view's applied list are cards when the form's own
 // width is above 0 and below this.
 export const PAYMENT_CARDS_BELOW = 640
