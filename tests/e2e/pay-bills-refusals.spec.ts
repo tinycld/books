@@ -75,11 +75,37 @@ test.describe('pay-bills: refusals, load error and discard', () => {
         await amount.fill('120.00')
         const pay = page.getByTestId('pay-bills-pay')
 
-        // A line refusal (data lines.0 of the payment) goes under that bill's cell.
+        // A line refusal (data lines.0 of the payment) goes under that bill's cell. The
+        // batch is held first: while the Pay runs, the Due chip is disabled (core PickMenu
+        // `isDisabled`): it is no Tab stop, and neither a press nor Enter opens its menu.
         const lineText = `Bill ${bill.number}: the payment is more than its open balance of $50.00.`
-        await refusePayment(page, fieldRefusal('lines.0', lineText))
+        let release = () => {}
+        const held = new Promise<void>(resolve => {
+            release = resolve
+        })
+        await page.unrouteAll({ behavior: 'wait' })
+        await page.route(BATCH_WRITE, async route => {
+            const index = firstPaymentIndex(route.request())
+            if (index < 0) return route.continue()
+            await held
+            return refuseBatchOperation(route, index, fieldRefusal('lines.0', lineText))
+        })
+        const batchSent = page.waitForRequest(request => firstPaymentIndex(request) >= 0)
         await pay.click()
+        await batchSent
+        const dueFilter = page.getByTestId('pay-bills-due-filter')
+        const overdue = page.getByTestId('pay-bills-due-filter-overdue')
+        await expect(dueFilter).toHaveAttribute('aria-disabled', 'true')
+        await dueFilter.click({ force: true })
+        await expect(overdue).toHaveCount(0)
+        expect(await dueFilter.evaluate(el => (el as HTMLElement).tabIndex)).toBeLessThan(0)
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+        await dueFilter.focus()
+        await page.keyboard.press('Enter')
+        await expect(overdue).toHaveCount(0)
+        release()
         await expect(page.getByTestId(`pay-bills-row-error-${bill.id}`)).toHaveText(lineText)
+        await expect(overdue).toHaveCount(0)
         await expect(page).toHaveURL(PAY_BILLS_URL)
         await expect(amount).toHaveValue('120.00')
         await expect(page.getByTestId('pay-bills-check-no')).toHaveValue(start)

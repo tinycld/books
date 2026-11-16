@@ -203,6 +203,56 @@ export function moneyCents(text: string): number {
     return match[1] ? -cents : cents
 }
 
+// A bill payment's read view: `books/bill-payments/<id>`.
+export const BILL_PAYMENT_URL = /\/books\/bill-payments\/[^/?#]+$/
+
+export function billPaymentIdFromUrl(page: Page): string {
+    const id = /\/books\/bill-payments\/([^/?#]+)$/.exec(new URL(page.url()).pathname)?.[1]
+    if (!id) throw new Error(`Not on a bill payment: ${page.url()}`)
+    return id
+}
+
+// Pay Bills editing a posted bill payment: `books/pay-bills?replaces=<id>`.
+export function replacesUrl(paymentId: string): RegExp {
+    return new RegExp(`/books/pay-bills\\?replaces=${paymentId}$`)
+}
+
+// A screen opened over another keeps the one below mounted and hidden, with the same test
+// ids: the visible one is the screen on top.
+export function shown(page: Page, testId: string) {
+    return page.getByTestId(testId).filter({ visible: true })
+}
+
+function escapeRegExp(text: string) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Focus must not be in a text field. Opens core's search palette (`/`), searches the term,
+ * and opens the one option whose title line is exactly `title` ("Bill payment 1004 ·
+ * Pacific Power"); waits for the bill payment's route.
+ */
+export async function searchToBillPayment(page: Page, term: string, title: string) {
+    await page.keyboard.press('/')
+    // The palette focuses its input a frame after it shows; keys typed before are lost.
+    const input = page.getByRole('dialog', { name: 'Search' }).getByRole('textbox')
+    await expect(input).toBeFocused()
+    const searched = page.waitForResponse(
+        r =>
+            r.url().includes('/api/search') &&
+            r.status() === 200 &&
+            new URL(r.url()).searchParams.get('q') === term
+    )
+    await page.keyboard.type(term)
+    await searched
+    const option = page
+        .getByRole('option')
+        .filter({ has: page.getByText(new RegExp(`^${escapeRegExp(title)}$`)) })
+    await expect(option).toHaveCount(1)
+    await option.click()
+    await expect(page).toHaveURL(BILL_PAYMENT_URL)
+}
+
 // The posted toast of one payment, "Posted Bill payment <n>"; returns n.
 export async function postedNumber(page: Page): Promise<string> {
     const toast = page.getByText(/^Posted Bill payment \d+$/)

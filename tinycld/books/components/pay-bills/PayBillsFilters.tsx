@@ -3,14 +3,10 @@ import { Text, View } from 'react-native'
 import type { PayBillsFormState } from '../../hooks/usePayBillsForm'
 import { PayBillsVendorFilter } from './PayBillsVendorFilter'
 
-const IDLE = { opacity: 0.5, pointerEvents: 'none' } as const
-
-// Core PickMenu has no disabled state: while a Pay runs its chip takes no press (and a
-// choice made through the keyboard does nothing), and it shows as idle.
-function idleItems(items: PickItem[], isDisabled: boolean): PickItem[] {
-    if (!isDisabled) return items
-    return items.map(item => ({ ...item, onSelect: () => {} }))
-}
+// PickMenu names a chip "<purpose>: <label>", and the labels already start with "Due:"
+// and "Sort:", so the purposes are other words ("Filter: Due: Any time").
+const DUE_PURPOSE = 'Filter'
+const SORT_PURPOSE = 'Order'
 
 interface FilterChipProps {
     testID: string
@@ -30,17 +26,15 @@ function FilterChip({
     isVisible = true,
 }: FilterChipProps) {
     if (!isVisible) return null
-    const style = isDisabled ? IDLE : undefined
     return (
-        <View style={style} aria-disabled={isDisabled}>
-            <PickMenu
-                testID={testID}
-                purpose={purpose}
-                label={label}
-                size="touch"
-                items={idleItems(items, isDisabled)}
-            />
-        </View>
+        <PickMenu
+            testID={testID}
+            purpose={purpose}
+            label={label}
+            size="touch"
+            items={items}
+            isDisabled={isDisabled}
+        />
     )
 }
 
@@ -62,14 +56,14 @@ export function PayBillsFilters({ payForm, isDisabled, isSortVisible }: PayBills
             <PayBillsVendorFilter payForm={payForm} isDisabled={isDisabled} />
             <FilterChip
                 testID="pay-bills-due-filter"
-                purpose="Due"
+                purpose={DUE_PURPOSE}
                 label={payForm.dueLabel}
                 items={payForm.dueItems}
                 isDisabled={isDisabled}
             />
             <FilterChip
                 testID="pay-bills-sort"
-                purpose="Sort"
+                purpose={SORT_PURPOSE}
                 label={payForm.sortLabel}
                 items={payForm.sortItems}
                 isDisabled={isDisabled}

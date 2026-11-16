@@ -9,6 +9,8 @@ To record what you owe a vendor, enter the vendor's bill as a bill. When you pos
 
 If you already paid, and there is no bill to pay later, record an expense instead. See [Expenses](help://books:expenses).
 
+To pay a posted bill, in full or in part, use Pay bills. See [Pay bills](help://books:pay-bills).
+
 ## Enter a bill
 
 To enter a bill, choose New in the sidebar (the round + button on a phone) and pick Bill, under Vendors. In a web browser, the Vendor field has focus when the form opens, so you can start to type the vendor's name at once.

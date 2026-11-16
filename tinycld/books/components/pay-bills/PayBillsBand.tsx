@@ -58,26 +58,39 @@ function PaymentDateInput({ control, isDisabled }: { control: Control; isDisable
 
 interface CheckNoFieldProps {
     isVisible: boolean
+    label: string
+    isDigits: boolean
     control: Control
     error: string
     isDisabled: boolean
     style?: object
 }
 
-// Starting check no.: shown only while Payment method is Check; digits, at most 9 (the
-// schema's rule); its error under it by its own test id.
-function CheckNoField({ isVisible, control, error, isDisabled, style }: CheckNoFieldProps) {
+// Starting check no. (digits, at most 9) or, on `?replaces`, the payment's Check no. (any
+// text up to 40): shown only while Payment method is Check (the schema's rules); its error
+// under it by its own test id.
+function CheckNoField({
+    isVisible,
+    label,
+    isDigits,
+    control,
+    error,
+    isDisabled,
+    style,
+}: CheckNoFieldProps) {
     if (!isVisible) return null
+    const inputMode = isDigits ? 'numeric' : 'text'
+    const keyboardType = isDigits ? 'number-pad' : 'default'
     return (
         <View style={style}>
             <TextInput
                 name="reference_no"
                 control={control}
-                label="Starting check no."
+                label={label}
                 hideError
                 editable={!isDisabled}
-                inputMode="numeric"
-                keyboardType="number-pad"
+                inputMode={inputMode}
+                keyboardType={keyboardType}
                 testID={`${TEST_ID_PREFIX}-check-no`}
             />
             <FieldError message={error} testID={`${TEST_ID_PREFIX}-check-no-error`} />
@@ -95,7 +108,8 @@ interface PayBillsBandProps {
 
 /**
  * The band (spec §3.2): Paid from with its balance, Payment date, Payment method and,
- * while the method is Check, Starting check no. One row on a wide screen, stacked on a
+ * while the method is Check, Starting check no. (Check no. on `?replaces`). One row on a
+ * wide screen, stacked on a
  * phone. Paid from takes the focus on web when it mounts; Pay & new remounts it (its key)
  * so it takes the focus again. Picking it sets the method (`defaultMethodFor`).
  */
@@ -135,6 +149,8 @@ export function PayBillsBand({ payForm, currency, isPhone, isDisabled }: PayBill
             </View>
             <CheckNoField
                 isVisible={isCheckNoVisible}
+                label={payForm.checkNoLabel}
+                isDigits={payForm.isCheckNoDigits}
                 control={control}
                 error={checkNoError}
                 isDisabled={isDisabled}

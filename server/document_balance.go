@@ -80,7 +80,7 @@ func isBalancing(tx core.App, kind balanceKind, docID string) bool {
 }
 
 // markMovingLines marks the payment whose lines a document correction moves
-// to itself (moveLines), so the payment line guard lets their document change
+// to itself (moveLinesWhere), so the payment line guard lets their document change
 // while the payment is posted.
 func markMovingLines(tx core.App, kind balanceKind, paymentID string) func() {
 	return setTxMark(tx, kind.PaymentCollection+".moving", paymentID)
@@ -210,16 +210,19 @@ func shiftDocumentBalances(tx core.App, kind balanceKind, paymentID string, sign
 	return nil
 }
 
-// moveLines hands every payment line that names the original document to its
-// correction, inside the correction's posting transaction: the payments keep
-// paying the same sale or purchase under its new record. The payment line
-// guard lets the document change through while the payment is marked moving.
-func moveLines(tx core.App, kind balanceKind, original, correction *core.Record) error {
-	return moveLinesWhere(tx, kind, original, correction, "")
+// moveUnvoidedLines hands every payment line that names the original document
+// to its correction, inside the correction's posting transaction, except the
+// lines of a void payment: those stay on the original, so a void payment never
+// names a document it did not pay (another party's, after a correction that
+// changes the party). The live payments keep paying the same sale or purchase
+// under its new record. The payment line guard lets the document change
+// through while the payment is marked moving.
+func moveUnvoidedLines(tx core.App, kind balanceKind, original, correction *core.Record) error {
+	return moveLinesWhere(tx, kind, original, correction, " && "+kind.PaymentField+".status != 'void'")
 }
 
-// movePostedLines is moveLines for the lines of posted payments only: the
-// lines of a void payment stay on the original document.
+// movePostedLines moves the lines of posted payments only: the lines of a void
+// payment stay on the original document.
 func movePostedLines(tx core.App, kind balanceKind, original, correction *core.Record) error {
 	return moveLinesWhere(tx, kind, original, correction, " && "+kind.PaymentField+".status = 'posted'")
 }

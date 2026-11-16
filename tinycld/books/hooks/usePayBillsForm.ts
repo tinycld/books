@@ -20,8 +20,18 @@ import {
 } from '../lib/pay-bills-rows'
 import { payBillsSchema } from '../lib/pay-bills-schema'
 import { type PayBillsList, payBillsListOf } from '../lib/pay-bills-screen-state'
-import { hiddenText, openCountText, selectedText, totalFigureText } from '../lib/pay-bills-texts'
-import { newPayBillsValues, type PayBillsFormValues } from '../lib/pay-bills-values'
+import {
+    hiddenText,
+    openCountText,
+    originalNowText,
+    selectedText,
+    totalFigureText,
+} from '../lib/pay-bills-texts'
+import {
+    correctionPayBillsValues,
+    newPayBillsValues,
+    type PayBillsFormValues,
+} from '../lib/pay-bills-values'
 import {
     clearPayments,
     entryCents,
@@ -34,6 +44,7 @@ import {
     untickRow,
 } from '../lib/payment-allocation'
 import { usePayBillsStore } from '../stores/pay-bills-store'
+import type { BooksBillPaymentLines, BooksBillPayments, BooksVendors } from '../types'
 import { usePaidFromAccounts } from './usePaidFromAccounts'
 
 // The screen's filters and sort (spec §3.3 "Filters are screen state"): this screen's own,
@@ -51,6 +62,25 @@ export type PayBillsFormInput = {
     startBill: string | null
     // `?vendor=`: the Vendor filter's vendor.
     startVendor: string | null
+    mode: 'new' | 'replaces'
+    // `?replaces`: the posted payment the form corrects; null on a new screen.
+    original: PayBillsOriginal | null
+}
+
+// The posted payment a correction starts from, and its lines.
+export type PayBillsOriginal = {
+    payment: Pick<
+        BooksBillPayments,
+        | 'id'
+        | 'number'
+        | 'vendor'
+        | 'total'
+        | 'paid_from'
+        | 'date'
+        | 'payment_method'
+        | 'reference_no'
+    > & { vendorRow?: Pick<BooksVendors, 'display_name'> }
+    lines: readonly Pick<BooksBillPaymentLines, 'bill' | 'amount'>[]
 }
 
 export const ALL_VENDORS_TEXT = 'All vendors'
@@ -99,15 +129,21 @@ function sortLabelOf(sort: PayBillsSort): string {
 export type PayBillsBalances = {
     isVisible: boolean
     current: string
+    // `?replaces`, paid from the original's account: "Payment 1004 now" and the original
+    // total it puts back ("+$920.00"; "−$920.00" on a credit card account).
+    originalNow: { isVisible: boolean; label: string; amount: string }
     totalPayment: string
     newBalance: string
     // A bank account goes below zero: New balance shows in the danger tone.
     isNewBalanceNegative: boolean
 }
 
+const NO_ORIGINAL_NOW = { isVisible: false, label: '', amount: '' }
+
 const NO_BALANCES: PayBillsBalances = {
     isVisible: false,
     current: '',
+    originalNow: NO_ORIGINAL_NOW,
     totalPayment: '',
     newBalance: '',
     isNewBalanceNegative: false,
@@ -130,10 +166,32 @@ function refusedRowIds(errors: unknown, rows: readonly PayBillsRow[]): string[] 
         .map(row => row.id)
 }
 
-// The vendor a new screen filters to: `?bill=`'s vendor, else `?vendor=`.
+// The vendor the screen filters to: a correction's own vendor (fixed); on a new screen
+// `?bill=`'s vendor, else `?vendor=`.
 function startFilterVendor(input: PayBillsFormInput): string {
+    if (input.original) return input.original.payment.vendor
     const bill = input.startBill ? input.rows.find(row => row.id === input.startBill) : undefined
     return bill?.vendor ?? input.startVendor ?? ''
+}
+
+// The values the form mounts with: a correction's from its original (spec §3.6), else a
+// new screen's.
+function startValues(input: PayBillsFormInput): PayBillsFormValues {
+    const { original } = input
+    if (original) {
+        return correctionPayBillsValues({
+            payment: original.payment,
+            lines: original.lines,
+            rows: input.rows,
+        })
+    }
+    return newPayBillsValues({
+        paidFrom: '',
+        method: '',
+        today: input.today,
+        billId: input.startBill,
+        rows: input.rows,
+    })
 }
 
 /**
@@ -144,19 +202,17 @@ function startFilterVendor(input: PayBillsFormInput): string {
  * shown rows only. Picking Paid from sets the method (`defaultMethodFor`).
  */
 export function usePayBillsForm(input: PayBillsFormInput) {
-    const { rows, vendorOptions, currency, today, startBill } = input
+    const { rows, vendorOptions, currency, today, mode, original } = input
     const openByBill = useMemo(
         () => Object.fromEntries(rows.map(row => [row.id, row.open])),
         [rows]
     )
     const resolver = useMemo(
-        () => zodResolver(payBillsSchema(currency, openByBill, 'new')),
-        [currency, openByBill]
+        () => zodResolver(payBillsSchema(currency, openByBill, mode)),
+        [currency, openByBill, mode]
     )
     // The defaults are read once, when the form mounts (the screen mounts it ready).
-    const [initial] = useState(() =>
-        newPayBillsValues({ paidFrom: '', method: '', today, billId: startBill, rows })
-    )
+    const [initial] = useState(() => startValues(input))
     const form = useForm<PayBillsFormValues>({ defaultValues: initial, resolver })
     const { control, setValue, getValues, trigger, clearErrors } = form
     // Read in render: the form state proxy updates these only once read here.
@@ -198,27 +254,34 @@ export function usePayBillsForm(input: PayBillsFormInput) {
         0
     )
     const hiddenCount = hiddenPaidCount(rows, shown, payments, currency)
-    const checkPlan = checkPlanText({
-        vendors: payBillsGroups({
-            rows: listRows,
-            payments,
-            currency,
-            startCheckNo: referenceNo,
-            method: paymentMethod,
-        }),
-    })
+    // A correction keeps one check number, its own Check no., so it has no check plan.
+    const checkPlan =
+        mode === 'new'
+            ? checkPlanText({
+                  vendors: payBillsGroups({
+                      rows: listRows,
+                      payments,
+                      currency,
+                      startCheckNo: referenceNo,
+                      method: paymentMethod,
+                  }),
+              })
+            : ''
 
     const paidFrom = usePaidFromAccounts()
-    const balances = balancesOf(
-        paidFrom.accounts.find(account => account.id === paidFromId),
-        paidFrom.balanceOf(paidFromId),
+    const balances = balancesOf({
+        account: paidFrom.accounts.find(account => account.id === paidFromId),
+        current: paidFrom.balanceOf(paidFromId),
         totalCents,
-        currency
-    )
+        currency,
+        original: original?.payment ?? null,
+    })
 
     const vendorPicker = useSearchPicker()
     const vendorLabel =
-        vendorOptions.find(option => option.id === vendorFilter)?.label ?? ALL_VENDORS_TEXT
+        vendorOptions.find(option => option.id === vendorFilter)?.label ??
+        original?.payment.vendorRow?.display_name ??
+        ALL_VENDORS_TEXT
     const vendorPickerOptions = vendorOptions.filter(option =>
         matchesTerm(option.label, vendorPicker.debouncedTerm)
     )
@@ -226,7 +289,10 @@ export function usePayBillsForm(input: PayBillsFormInput) {
     const setDue = (next: DueFilter) => setFilters(current => ({ ...current, due: next }))
     const onSort = (column: PayBillsSort['column']) =>
         setFilters(current => ({ ...current, sort: nextSort(current.sort, column) }))
-    const resetFilters = () => setFilters({ vendor: '', due: 'any', sort: DEFAULT_PAY_BILLS_SORT })
+    // A correction's vendor is fixed: clearing the filters keeps it.
+    const baseVendor = original?.payment.vendor ?? ''
+    const resetFilters = () =>
+        setFilters({ vendor: baseVendor, due: 'any', sort: DEFAULT_PAY_BILLS_SORT })
 
     const dueItems: PayBillsDueItem[] = DUE_ORDER.map(id => ({
         id,
@@ -310,9 +376,13 @@ export function usePayBillsForm(input: PayBillsFormInput) {
         })
     }
 
-    const onVendorPick = (id: string) => setVendorFilter(id)
+    const onVendorPick = (id: string) => {
+        if (original) return
+        setVendorFilter(id)
+    }
 
-    const clearFilters = () => setFilters(current => ({ ...current, vendor: '', due: 'any' }))
+    const clearFilters = () =>
+        setFilters(current => ({ ...current, vendor: baseVendor, due: 'any' }))
 
     // Enter in a Payment cell: the next shown row's cell, or Clear payments after the last.
     const focusAfterRow = (rowId: string) => {
@@ -350,9 +420,15 @@ export function usePayBillsForm(input: PayBillsFormInput) {
         hasPaidRows: paidRows.length > 0,
         isAllShownPaid: isEveryRowPaid(shown, payments, currency),
         isCheckNoVisible: paymentMethod === 'check',
+        // Starting check no. on a new screen; the payment's own Check no. on `?replaces`.
+        checkNoLabel: mode === 'new' ? 'Starting check no.' : 'Check no.',
+        // Starting check no. takes digits only; a payment's Check no. any text.
+        isCheckNoDigits: mode === 'new',
+        // `?replaces`: the vendor is the payment's own, so its filter is fixed.
+        isVendorLocked: mode === 'replaces',
         // Texts and figures.
         figureText: totalFigureText(listedPayments, currency),
-        openCountText: openCountText(shown.length, 'new'),
+        openCountText: openCountText(shown.length, mode),
         selectedText: selectedText(paidRows.length, paidVendors),
         checkPlanText: checkPlan,
         isCheckPlanVisible: checkPlan !== '',
@@ -398,20 +474,44 @@ export function usePayBillsForm(input: PayBillsFormInput) {
     }
 }
 
-// Current balance, Total payment and New balance once Paid from is picked and its balance
-// is exact (spec §3.4). New mode: no original payment to put back.
-function balancesOf(
-    account: PaidFromAccount | undefined,
-    current: number | null | undefined,
-    totalCents: number,
+type BalancesInput = {
+    account: PaidFromAccount | undefined
+    current: number | null | undefined
+    totalCents: number
     currency: string
-): PayBillsBalances {
+    original: Pick<PayBillsOriginal['payment'], 'number' | 'total' | 'paid_from'> | null
+}
+
+// Current balance, Total payment and New balance once Paid from is picked and its balance
+// is exact (spec §3.4). On `?replaces` paid from the original's own account, Current
+// balance already holds the original payment, so "Payment 1004 now" puts it back first;
+// from another account the original never touched that balance, so there is nothing to
+// put back.
+function balancesOf({
+    account,
+    current,
+    totalCents,
+    currency,
+    original,
+}: BalancesInput): PayBillsBalances {
     const accountType = account ? balanceAccountType(account.type) : null
     if (accountType === null || current === null || current === undefined) return NO_BALANCES
-    const next = newBalanceCents({ accountType, current, originalTotal: 0, total: totalCents })
+    const heldOriginal = original && original.paid_from === account?.id ? original : null
+    const originalTotal = heldOriginal?.total ?? 0
+    const next = newBalanceCents({ accountType, current, originalTotal, total: totalCents })
+    // The sign the Total payment line uses, the other way: the original comes back.
+    const sign = accountType === 'credit_card' ? '-' : '+'
+    const originalNow = heldOriginal
+        ? {
+              isVisible: true,
+              label: originalNowText(heldOriginal.number),
+              amount: `${sign}${formatMoney(originalTotal, currency)}`,
+          }
+        : NO_ORIGINAL_NOW
     return {
         isVisible: true,
         current: formatMoney(current, currency),
+        originalNow,
         totalPayment: `-${formatMoney(totalCents, currency)}`,
         newBalance: formatMoney(next, currency),
         isNewBalanceNegative: accountType === 'bank' && next < 0,

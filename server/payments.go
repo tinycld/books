@@ -98,7 +98,7 @@ func applicationField(application *core.Record) string {
 // posted (postPayment), a posted payment is voided (voidPayment) or replaced
 // by its correction's post, and a draft alone is deleted. Its applications
 // change only while it is a draft, except when an invoice correction moves
-// them (moveLines).
+// them (moveUnvoidedLines).
 func registerPaymentGuards(app core.App) {
 	bindSerializedGuard(app, paymentsCollection, func(tx core.App, stored, r *core.Record) error {
 		if stored == nil {

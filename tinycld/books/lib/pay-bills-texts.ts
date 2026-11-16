@@ -29,7 +29,27 @@ export const PAY_BILLS_MESSAGES = {
     notFound: 'This bill payment does not exist',
     cannotEdit: 'This bill payment cannot be edited',
     discard: 'Discard this payment? The bills stay open.',
+
+    // The bill payment read view (spec §3.8).
+    voidBody:
+        'A reversing entry is posted in the original period. The number is kept. The bills it paid are open again.',
+    voidConfirm: 'Void bill payment',
 } as const
+
+// "Edit bill payment 1004": the title on `?replaces`.
+export function editTitleText(number: string): string {
+    return `Edit bill payment ${number}`
+}
+
+// "Bill payment 1004": the read view's title.
+export function billPaymentTitleText(number: string): string {
+    return `Bill payment ${number}`
+}
+
+// "Payment 1004 now", the original's line among the balances on `?replaces`.
+export function originalNowText(number: string): string {
+    return `Payment ${number} now`
+}
 
 function plural(count: number, one: string, many: string): string {
     return count === 1 ? one : many

@@ -27,7 +27,6 @@ import {
 } from '../../lib/outstanding-documents'
 import { entryCents, type OutstandingRow, type Payments } from '../../lib/payment-allocation'
 import { formatDay } from '../../lib/register-range'
-import { INVOICE_KIND } from '../../lib/sales-document-kinds'
 import { SelectBox, type SelectBoxState } from '../SelectBox'
 import { PaymentCell } from './PaymentCell'
 
@@ -100,17 +99,18 @@ export function DocumentLink({ routeBase, documentId, label, testID }: DocumentL
     return <DocumentLinkText label={label} testID={testID} onPress={open} />
 }
 
-interface AppliedInvoiceLinkProps {
-    invoiceId: string
+interface AppliedDocumentLinkProps {
+    doc: OutstandingDocument
+    documentId: string
     label: string
     testID: string
 }
 
-// The read view's link to an applied invoice: back to the invoice's screen when it is
-// below the payment (the payment was received from it), so the stack keeps one copy of
-// it (helix lesson 15); else pushed.
-export function AppliedInvoiceLink({ invoiceId, label, testID }: AppliedInvoiceLinkProps) {
-    const open = useOpenDocument(INVOICE_KIND, invoiceId)
+// The read view's link to a paid invoice or bill: back to its screen when it is below the
+// payment (the payment was made from it), so the stack keeps one copy of it (helix lesson
+// 15); else pushed.
+export function AppliedDocumentLink({ doc, documentId, label, testID }: AppliedDocumentLinkProps) {
+    const open = useOpenDocument(doc.openKind, documentId)
     return <DocumentLinkText label={label} testID={testID} onPress={open} />
 }
 
