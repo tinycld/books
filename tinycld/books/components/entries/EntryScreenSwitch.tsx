@@ -102,6 +102,7 @@ function DraftScreen({
                     onCancel={onBack}
                     onBusyChange={onSaveBusyChange}
                     onDeleteDraft={del.open}
+                    auditHistoryId={entryId}
                     header={header}
                 />
             </View>

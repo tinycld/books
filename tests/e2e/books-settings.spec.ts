@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { expect, type Locator, type Page, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import {
     login,
     navigateToPackage,
@@ -9,6 +9,17 @@ import {
     TEST_USER_EMAIL,
     TEST_USER_NAME,
 } from '@tinycld/core/e2e-helpers'
+import {
+    accessRow,
+    chipOf,
+    collaboratorLevel,
+    DESCRIPTIONS,
+    LABELS,
+    LEVELS,
+    type Level,
+    setCollaboratorLevel,
+    userIdOf,
+} from './books-access-helpers'
 import { openOtherBooksPage } from './journal-entries-helpers'
 import { openOpeningBalances } from './opening-balances-helpers'
 
@@ -28,25 +39,6 @@ import { openOpeningBalances } from './opening-balances-helpers'
 
 const DESKTOP = { width: 1280, height: 800 }
 const PHONE = { width: 390, height: 844 }
-
-const DESCRIPTIONS = {
-    none: 'Cannot open Books.',
-    read_only: 'Can see everything and change nothing.',
-    bookkeeper: 'Can enter and post entries and manage accounts. Cannot change settings.',
-    admin: 'Everything a bookkeeper can do, plus settings, access, and close-date overrides.',
-} as const
-
-const LABELS = {
-    none: 'None',
-    read_only: 'Read-only',
-    bookkeeper: 'Bookkeeper',
-    admin: 'Admin',
-} as const
-
-type Level = keyof typeof DESCRIPTIONS
-const LEVELS = Object.keys(DESCRIPTIONS) as Level[]
-
-const ROW_PREFIX = 'books-settings-access-row-'
 
 // A screen that is covered in the navigation stack stays mounted but hidden, so only the visible match counts.
 function id(page: Page, testId: string) {
@@ -81,52 +73,6 @@ async function ensureBusinessName(page: Page) {
     await name.fill('E2E Company Co')
     await id(page, 'books-settings-save').click()
     await expectSaved(page)
-}
-
-function accessRow(page: Page, email: string) {
-    return page.locator(`[data-testid^="${ROW_PREFIX}"]`).filter({ hasText: email })
-}
-
-async function userIdOf(row: Locator) {
-    const testId = await row.getAttribute('data-testid')
-    return (testId ?? '').replace(ROW_PREFIX, '')
-}
-
-async function levelOf(row: Locator): Promise<Level> {
-    const note = row.locator('[data-testid^="books-settings-access-note-"]')
-    const text = (await note.textContent()) ?? ''
-    const found = LEVELS.find(level => DESCRIPTIONS[level] === text.trim())
-    if (!found) throw new Error(`row shows no level description: ${text}`)
-    return found
-}
-
-async function chooseLevel(page: Page, email: string, level: Level) {
-    const row = accessRow(page, email)
-    const userId = await userIdOf(row)
-    await id(page, `books-settings-access-level-${userId}`).click()
-    await id(page, `books-settings-access-level-${userId}-${level}`).click()
-    await expect(chipOf(page, userId)).toHaveText(LABELS[level])
-    await expect(id(page, `books-settings-access-level-${userId}`)).toBeEnabled()
-    await reopenAccess(page)
-    await expect(chipOf(page, userId)).toHaveText(LABELS[level])
-    await expect(row.getByText(DESCRIPTIONS[level], { exact: true })).toBeVisible()
-}
-
-function chipOf(page: Page, userId: string) {
-    return id(page, `books-settings-access-chip-${userId}`)
-}
-
-// Leaving and re-opening the section remounts the rows, so they show the saved level.
-async function reopenAccess(page: Page) {
-    if ((page.viewportSize()?.width ?? 0) < 768) {
-        await id(page, 'books-settings-back').click()
-        await id(page, 'books-settings-section-access').click()
-    } else {
-        await openRailSection(page, 'numbering')
-        await expect(id(page, 'books-settings-numbering')).toBeVisible()
-        await openRailSection(page, 'access')
-    }
-    await expect(id(page, 'books-settings-access-search')).toBeVisible()
 }
 
 async function pickMenuItem(page: Page, trigger: string, item: string) {
@@ -348,6 +294,20 @@ test.describe('books-settings: Settings screens', () => {
         }
     })
 
+    // Past overrides of other tests (the collaborator-level project runs first) stay in the
+    // shared list, so the count is read before this test's own grant and checked relative to it.
+    // The count is read only once the overrides list has loaded: Grant shows only then, and the
+    // loading state is gone, so a missing toggle means no past override, not a list in flight.
+    async function pastOverrideCount(page: Page) {
+        await expect(id(page, 'books-settings-overrides-loading')).toHaveCount(0)
+        await expect(id(page, 'books-settings-grant')).toBeVisible()
+        const toggle = id(page, 'books-settings-history-toggle')
+        if ((await toggle.count()) === 0) return 0
+        const match = /\((\d+)\)/.exec(await toggle.innerText())
+        if (!match) throw new Error('past overrides toggle shows no count')
+        return Number(match[1])
+    }
+
     test('Accounting: override grant validates, shows, cancels and revokes', async ({ page }) => {
         await openAccounting(page)
         let hasCloseDate = false
@@ -355,6 +315,8 @@ test.describe('books-settings: Settings screens', () => {
         try {
             hasCloseDate = true
             await setCloseDate(page, '2026-06-30')
+            await expect(id(page, 'books-settings-grant')).toBeVisible()
+            const pastBefore = await pastOverrideCount(page)
 
             await id(page, 'books-settings-grant').click()
             await expect(id(page, 'books-settings-grant-dialog')).toBeVisible()
@@ -379,7 +341,7 @@ test.describe('books-settings: Settings screens', () => {
             await granted.getByRole('button', { name: 'Revoke' }).click()
             await id(page, 'books-settings-revoke-confirm').click()
             await expect(id(page, 'books-settings-history-toggle')).toHaveText(
-                'Show past overrides (1)'
+                `Show past overrides (${pastBefore + 1})`
             )
             await id(page, 'books-settings-history-toggle').click()
             const past = overrideRow(page, 'E2E year-end adjustments')
@@ -489,7 +451,9 @@ test.describe('books-settings: Settings screens', () => {
         await expect(next).toHaveValue(String(first))
     })
 
-    test('Access: owner row is locked and search filters the list', async ({ page }) => {
+    test('Access: owner row is locked and search filters the list (collaborator level)', async ({
+        page,
+    }) => {
         await openSettings(page)
         const collaborator = await signInAsCollaborator(page)
         await collaborator.close()
@@ -515,32 +479,34 @@ test.describe('books-settings: Settings screens', () => {
         await search.fill('')
     })
 
-    test('Access: the owner changes the collaborator through the levels', async ({ page }) => {
+    test('Access: the owner changes the collaborator through the levels (collaborator level)', async ({
+        page,
+    }) => {
         await openSettings(page)
         const collaborator = await signInAsCollaborator(page)
         await collaborator.close()
         await openRailSection(page, 'access')
         const row = accessRow(page, TEST_COLLABORATOR_EMAIL)
         await expect(row).toBeVisible()
-        const started = await levelOf(row)
+        const started = await collaboratorLevel(page)
         const userId = await userIdOf(row)
         await expect(id(page, `books-settings-access-level-${userId}`)).toBeVisible()
         await page.setViewportSize(DESKTOP)
 
         try {
             for (const level of LEVELS) {
-                await chooseLevel(page, TEST_COLLABORATOR_EMAIL, level)
+                await setCollaboratorLevel(page, level)
                 await expect(chipOf(page, userId)).toHaveText(LABELS[level])
             }
         } finally {
-            await runRestores([() => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started)])
+            await runRestores([() => setCollaboratorLevel(page, started)])
         }
     })
 
     // Regression: books_access has no realtime, so the mutation reloads it. A reload that was cut short
     // used to resolve with no data, and the old level came back after leaving and re-entering the section.
     // The delay holds the unfiltered list request long enough for that to happen every run.
-    test('Access: a slow list refresh still shows the saved level after leaving and re-entering', async ({
+    test('Access: a slow list refresh still shows the saved level after leaving and re-entering (collaborator level)', async ({
         page,
     }) => {
         await page.route(
@@ -556,22 +522,24 @@ test.describe('books-settings: Settings screens', () => {
         await openRailSection(page, 'access')
         const row = accessRow(page, TEST_COLLABORATOR_EMAIL)
         await expect(row).toBeVisible()
-        const started = await levelOf(row)
+        const started = await collaboratorLevel(page)
         const target: Level = started === 'read_only' ? 'bookkeeper' : 'read_only'
 
         try {
-            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, target)
+            await setCollaboratorLevel(page, target)
         } finally {
-            await runRestores([() => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started)])
+            await runRestores([() => setCollaboratorLevel(page, started)])
         }
     })
 
     // Settings gating reads only isAdmin, so the bookkeeper (can write, not admin) is the
     // boundary level; a read-only reader takes the same path.
-    test('Access: a bookkeeper reader sees read-only Settings', async ({ page }) => {
+    test('Access: a bookkeeper reader sees read-only Settings (collaborator level)', async ({
+        page,
+    }) => {
         await openSettings(page)
         await openRailSection(page, 'access')
-        const started = await levelOf(accessRow(page, TEST_COLLABORATOR_EMAIL))
+        const started = await collaboratorLevel(page)
         let hasCloseDate = false
         let hasOverride = false
 
@@ -604,7 +572,7 @@ test.describe('books-settings: Settings screens', () => {
         }
 
         try {
-            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, 'bookkeeper')
+            await setCollaboratorLevel(page, 'bookkeeper')
             await openRailSection(page, 'accounting')
             hasCloseDate = true
             await setCloseDate(page, '2026-06-30')
@@ -624,7 +592,7 @@ test.describe('books-settings: Settings screens', () => {
                     if (hasCloseDate) await clearCloseDate(page)
                 },
                 () => openRailSection(page, 'access'),
-                () => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started),
+                () => setCollaboratorLevel(page, started),
             ])
         }
     })
@@ -836,13 +804,15 @@ test.describe('vendor-1099: Settings → 1099s', () => {
 
     // The seeded admin is a writer, so read-only 1099s are shown to the collaborator at
     // read_only; their access level is put back from the admin's Access section.
-    test('a read-only member sees 1099s without edit controls', async ({ page }) => {
+    test('a read-only member sees 1099s without edit controls (collaborator level)', async ({
+        page,
+    }) => {
         await openSettings(page)
         await openRailSection(page, 'access')
-        const started = await levelOf(accessRow(page, TEST_COLLABORATOR_EMAIL))
+        const started = await collaboratorLevel(page)
 
         try {
-            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, 'read_only')
+            await setCollaboratorLevel(page, 'read_only')
             const reader = await signInAsCollaborator(page)
             try {
                 const view = reader.page
@@ -868,24 +838,25 @@ test.describe('vendor-1099: Settings → 1099s', () => {
         } finally {
             await runRestores([
                 () => openRailSection(page, 'access'),
-                () => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started),
+                () => setCollaboratorLevel(page, started),
             ])
         }
     })
 })
 
-// Preview PDF is offered to every Books reader, not only to a user who can write. It lives in
-// this file, not pdf-preview.spec.ts, because it changes the shared collaborator's access level
-// (put back afterwards) and this is the only file that does; another worker doing the same
-// would race it.
+// Preview PDF is offered to every Books reader, not only to a user who can write. It changes
+// the shared collaborator's access level (put back afterwards), so its title ends in
+// "(collaborator level)" and it runs in the one-worker `books-access-level` project
+// (playwright.config.ts) with every other test that changes that level or signs in as the
+// collaborator.
 test.describe('pdf-preview: a read-only member', () => {
-    test('can preview the sample invoice', async ({ page }) => {
+    test('can preview the sample invoice (collaborator level)', async ({ page }) => {
         await openSettings(page)
         await openRailSection(page, 'access')
-        const started = await levelOf(accessRow(page, TEST_COLLABORATOR_EMAIL))
+        const started = await collaboratorLevel(page)
 
         try {
-            await chooseLevel(page, TEST_COLLABORATOR_EMAIL, 'read_only')
+            await setCollaboratorLevel(page, 'read_only')
             const reader = await signInAsCollaborator(page)
             try {
                 const view = reader.page
@@ -910,7 +881,7 @@ test.describe('pdf-preview: a read-only member', () => {
         } finally {
             await runRestores([
                 () => openRailSection(page, 'access'),
-                () => chooseLevel(page, TEST_COLLABORATOR_EMAIL, started),
+                () => setCollaboratorLevel(page, started),
             ])
         }
     })

@@ -45,6 +45,10 @@ describe('help/reports.md', () => {
         expect(body).toContain('(help://core:reports)')
     })
 
+    it('links the Audit Log topic', () => {
+        expect(body).toContain('(help://books:audit-log)')
+    })
+
     it.each([
         'Rows',
         'Non-zero',

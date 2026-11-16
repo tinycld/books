@@ -13,6 +13,7 @@ import { CUSTOMERS_PATH } from '../lib/customer-route'
 import { useCustomerFormStore } from '../stores/customer-form-store'
 import { useDeletingRecord } from '../stores/record-form-store'
 import type { BooksCustomers } from '../types'
+import { useBooksAccess } from './useBooksAccess'
 import { useCustomerActions } from './useCustomerActions'
 import { useCustomerForm } from './useCustomerForm'
 import { useCustomerNavigation } from './useCustomerNavigation'
@@ -45,6 +46,7 @@ export function useCustomerPage(record: BooksCustomers) {
     const navigation = useCustomerNavigation()
     const actions = useCustomerActions()
     const isShowing = useIsShowingRecord(CUSTOMERS_PATH)
+    const { canRead } = useBooksAccess()
 
     const details = useCustomerForm(
         { mode: 'edit', record },
@@ -129,6 +131,7 @@ export function useCustomerPage(record: BooksCustomers) {
     // menu is one state for the header's button and the Transactions tab's empty-state
     // button; it is never open while the menu is disabled or hidden.
     const controls = customerPageControls({
+        canRead,
         canWrite,
         inactive: record.inactive,
         isTopLevel: record.parent === '',
