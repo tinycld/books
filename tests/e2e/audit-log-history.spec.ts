@@ -298,8 +298,8 @@ test.describe('audit-log: record history', () => {
         // stack a second, hidden one (memory p3-transfer), so go back before the entry steps.
         await page.getByTestId('history-back').filter({ visible: true }).click()
         await expect(page.getByTestId('invoice-read-only').filter({ visible: true })).toBeVisible()
-        // A phone's More holds every action but Edit, then Audit history last. The invoice
-        // has a balance, so Receive payment is one of those actions, and it comes first.
+        // A phone's More holds every action but Edit, then Audit history last. Receive payment
+        // is first: the invoice is posted and has a balance.
         await expectPhoneMoreHistory(
             page,
             {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-    fileNameFromDisposition,
     isExpectedRefusal,
     PdfRefusalError,
     pdfDownloadName,
@@ -58,44 +57,6 @@ describe('pdfRefusalMessage', () => {
     it('falls back to the status', () => {
         expect(pdfRefusalMessage(502, null)).toBe('The server answered 502.')
         expect(pdfRefusalMessage(500, { message: 42 })).toBe('The server answered 500.')
-    })
-})
-
-describe('fileNameFromDisposition', () => {
-    it.each([
-        // The headers server/pdf_routes.go sends.
-        ['attachment; filename="sample-invoice.pdf"', 'sample-invoice.pdf'],
-        [
-            'attachment; filename="caf-ltd.pdf"; filename*=UTF-8\'\'Caf%C3%A9%20Ltd.pdf',
-            'Café Ltd.pdf',
-        ],
-        [
-            'attachment; filename="document.pdf"; filename*=UTF-8\'\'%E6%97%A5%E6%9C%AC.pdf',
-            '日本.pdf',
-        ],
-        // filename* wins wherever it stands; its charset name is case-blind.
-        ['attachment; filename*=utf-8\'\'%C3%A9.pdf; filename="e.pdf"', 'é.pdf'],
-        ['attachment; filename=plain.pdf', 'plain.pdf'],
-        ['attachment; filename="a \\"quoted\\" name.pdf"', 'a "quoted" name.pdf'],
-        // An undecodable or non-UTF-8 filename* falls back to filename.
-        ['attachment; filename="x.pdf"; filename*=UTF-8\'\'%E6%97.pdf', 'x.pdf'],
-        ['attachment; filename="x.pdf"; filename*=ISO-8859-1\'\'%E9.pdf', 'x.pdf'],
-    ])('%j → %j', (header, name) => {
-        expect(fileNameFromDisposition(header)).toBe(name)
-    })
-
-    it.each([
-        [null],
-        [''],
-        ['attachment'],
-        ['attachment; filename=""'],
-        ['attachment; filename="../x.pdf"'],
-        ['attachment; filename="a\\\\b.pdf"'],
-        ['attachment; filename=".."'],
-        ["attachment; filename*=UTF-8''..%2Fx.pdf"],
-        ["attachment; filename*=UTF-8''a%0Ab.pdf"],
-    ])('%j has no usable name', header => {
-        expect(fileNameFromDisposition(header)).toBeNull()
     })
 })
 

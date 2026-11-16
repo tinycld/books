@@ -31,10 +31,7 @@ function shown(page: Page, testId: string) {
 }
 
 export function accessRow(page: Page, email: string) {
-    return page
-        .locator(`[data-testid^="${ROW_PREFIX}"]`)
-        .filter({ visible: true })
-        .filter({ hasText: email })
+    return page.locator(`[data-testid^="${ROW_PREFIX}"]:visible`).filter({ hasText: email })
 }
 
 export async function userIdOf(row: Locator) {
@@ -46,20 +43,22 @@ export function chipOf(page: Page, userId: string) {
     return shown(page, `books-settings-access-chip-${userId}`)
 }
 
-// From anywhere in Books to Settings → Access; on the Access section already, nothing.
-// The route decides, not a one-time visibility check: right after a rail click the new
-// section is not mounted yet and the old one is hidden, and a second Settings click there
-// stacks a second Settings screen.
+const SETTINGS_PATH = /\/books\/settings(\/|$)/
+const ACCESS_PATH = /\/books\/settings\/access\/?$/
+
+// From anywhere in Books to Settings → Access; on the Access section already, nothing. On a
+// phone, another section shows no rail, so call it from outside Settings or from the list.
+// The route decides, not what is painted: right after a rail click the old screen is gone and
+// the new one has not painted, so a check of the screen would open Access a second time. When
+// the route is not yet Access, a rail click replaces whatever section shows, so it never stacks.
 async function openAccess(page: Page) {
-    const search = shown(page, 'books-settings-access-search')
-    if (!/\/books\/settings(\/|$)/.test(new URL(page.url()).pathname)) {
-        await shown(page, 'books-nav-settings').click()
-    }
-    await expect(shown(page, 'books-settings')).toBeVisible()
-    if (!/\/books\/settings\/access$/.test(new URL(page.url()).pathname)) {
+    const path = new URL(page.url()).pathname
+    if (!SETTINGS_PATH.test(path)) await shown(page, 'books-nav-settings').click()
+    if (!ACCESS_PATH.test(path)) {
+        await expect(shown(page, 'books-settings')).toBeVisible()
         await shown(page, 'books-settings-section-access').click()
     }
-    await expect(search).toBeVisible()
+    await expect(shown(page, 'books-settings-access-search')).toBeVisible()
 }
 
 // Leaving and re-opening the section remounts the rows, so they show the saved level.
