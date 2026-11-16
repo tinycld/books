@@ -46,6 +46,12 @@ describe('books manifest', () => {
         expect(typeof loaded.default).toBe('function')
     })
 
+    it('declares the record history as the report panel of books/history (core D5)', () => {
+        expect(manifest.reportPanels).toEqual([
+            { path: 'history', component: 'components/history/RecordHistoryPanel' },
+        ])
+    })
+
     it('declares the forms host modules, each resolved through package.json exports', () => {
         expect(manifest.forms).toEqual({ hosts: 'forms', ui: 'forms-ui' })
         const exportsMap: Record<string, string> = pkg.exports

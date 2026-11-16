@@ -3,8 +3,10 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import type { ReactNode } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useClockTick } from '../../hooks/useClockTick'
 import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
+import { useOpenHistory } from '../../hooks/useOpenHistory'
 import { useReadOnlyActions } from '../../hooks/useReadOnlyActions'
 import {
     autoReversalOverdueAt,
@@ -207,6 +209,11 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
     const { entry, currency } = detail
     const number = entryNumberText(entry)
     const actions = useReadOnlyActions(detail)
+    // More → Audit history for a Books reader; none while the access read loads (its
+    // error is the screen's own, useEntryDetail).
+    const { canRead } = useBooksAccess()
+    const openHistory = useOpenHistory('books_journal_entries', entry.id)
+    const onAuditHistory = canRead ? openHistory : undefined
     const title = entry.number ? `Journal entry ${number}` : 'Journal entry'
     const totals = sumLines(
         detail.lines.map(line => ({
@@ -239,6 +246,7 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
                 onEdit={actions.onEdit}
                 onReverse={actions.onReverse}
                 onVoid={actions.onVoid}
+                onAuditHistory={onAuditHistory}
             />
             <ReverseDialog
                 isVisible={actions.openDialog === 'reverse'}

@@ -96,6 +96,10 @@ var expenseKind = salesDocKind{
 	CheckHeader:   checkExpenseHeader,
 	CreditAccount: expensePaidFrom,
 	LineAccounts:  expenseByAccount,
+	// A posted correction takes every file of the expense it replaces.
+	Replace: func(tx core.App, original, correction *core.Record) error {
+		return moveAttachments(tx, "expense", original.Id, correction.Id)
+	},
 }
 
 func init() {

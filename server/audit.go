@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"tinycld.org/core/audit"
+	"tinycld.org/core/reports"
 )
 
 // auditedCollections are the Books collections a person writes. Left out:
@@ -27,7 +28,8 @@ import (
 // It takes the app because these labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
-// bank import by its file, and a customer's response by its estimate.
+// bank import by its file, a customer's response by its estimate, and an
+// attachment by its bill or expense.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -90,6 +92,84 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 			ExtractLabel: func(r *core.Record) string { return bankImportLabel(app, r) },
 		},
 		"books_bank_transactions": {ExtractLabel: bankTransactionLabel},
+		"books_attachments": {
+			ExtractLabel: func(r *core.Record) string { return attachmentLabel(app, r) },
+		},
+	}
+}
+
+// auditParentFields maps each line collection to the field that names its
+// document. The books_audit_log view (migration 2100000021) reads the same
+// nine to give a line's audit row its document, and Register declares them
+// as the view's sources, because a line write can change that document.
+var auditParentFields = map[string]string{
+	"books_journal_lines":        "entry",
+	"books_invoice_lines":        "invoice",
+	"books_sales_receipt_lines":  "sales_receipt",
+	"books_estimate_lines":       "estimate",
+	"books_bill_lines":           "bill",
+	"books_expense_lines":        "expense",
+	"books_bundle_items":         "bundle",
+	"books_estimate_responses":   "estimate",
+	"books_payment_applications": "payment",
+}
+
+// auditLineCollections are the keys of auditParentFields in name order.
+func auditLineCollections() []string {
+	return slices.Sorted(maps.Keys(auditParentFields))
+}
+
+// auditRecordTypeOptions labels each audited collection for the Audit Log's
+// Record type param, in the order the param lists them: documents, lines,
+// lists, banking, then settings and access. The fixture's
+// AUDIT_RECORD_TYPE_OPTIONS holds the same list (testdata/audit_log_spec.json
+// pins both).
+func auditRecordTypeOptions() []reports.Option {
+	return []reports.Option{
+		{Value: "books_invoices", Label: "Invoice"},
+		{Value: "books_sales_receipts", Label: "Sales receipt"},
+		{Value: "books_estimates", Label: "Estimate"},
+		{Value: "books_estimate_responses", Label: "Estimate response"},
+		{Value: "books_bills", Label: "Bill"},
+		{Value: "books_expenses", Label: "Expense"},
+		{Value: "books_payments", Label: "Payment"},
+		{Value: "books_journal_entries", Label: "Journal entry"},
+		{Value: "books_invoice_lines", Label: "Invoice line"},
+		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
+		{Value: "books_estimate_lines", Label: "Estimate line"},
+		{Value: "books_bill_lines", Label: "Bill line"},
+		{Value: "books_expense_lines", Label: "Expense line"},
+		{Value: "books_payment_applications", Label: "Payment application"},
+		{Value: "books_journal_lines", Label: "Journal line"},
+		{Value: "books_attachments", Label: "Attachment"},
+		{Value: "books_accounts", Label: "Account"},
+		{Value: "books_customers", Label: "Customer"},
+		{Value: "books_vendors", Label: "Vendor"},
+		{Value: "books_party_contacts", Label: "Contact"},
+		{Value: "books_products", Label: "Product or service"},
+		{Value: "books_bundle_items", Label: "Bundle item"},
+		{Value: "books_tax_agencies", Label: "Tax agency"},
+		{Value: "books_tax_rates", Label: "Tax rate"},
+		{Value: "books_bank_connections", Label: "Bank connection"},
+		{Value: "books_bank_files", Label: "Bank file"},
+		{Value: "books_bank_imports", Label: "Bank import"},
+		{Value: "books_bank_transactions", Label: "Bank transaction"},
+		{Value: "books_settings", Label: "Books settings"},
+		{Value: "books_doc_sequences", Label: "Document numbering"},
+		{Value: "books_close_overrides", Label: "Close date override"},
+		{Value: "books_admins", Label: "Books admin"},
+	}
+}
+
+// auditEvents are the Audit Log's events, as the books_audit_log view writes
+// them, in the order the Event param lists them.
+func auditEvents() []reports.Option {
+	return []reports.Option{
+		{Value: "added", Label: "Added"},
+		{Value: "changed", Label: "Changed"},
+		{Value: "posted", Label: "Posted"},
+		{Value: "voided", Label: "Voided"},
+		{Value: "deleted", Label: "Deleted"},
 	}
 }
 

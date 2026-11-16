@@ -105,7 +105,7 @@ var billKind = salesDocKind{
 	LineAccounts:  expenseByAccount,
 	TracksBalance: true,
 	CheckVoid:     refuseBillVoidWithPayments,
-	Replace:       replaceBillPayments,
+	Replace:       replaceBill,
 }
 
 // Refusals of a bill that bill payments pay (pay-bills spec §3.9). %s is the
@@ -129,14 +129,14 @@ func refuseBillVoidWithPayments(tx core.App, doc *core.Record) error {
 	return nil
 }
 
-// replaceBillPayments is the bill's Replace step: while posted bill payments
-// pay the original, the correction keeps a total of at least what they pay
-// and keeps the vendor; then the lines of the posted payments move to the
-// correction, whose balance postSalesDoc then sets to its total less them. A
-// void payment's lines stay on the original, which keeps its history: the
+// replaceBill is the bill's Replace step: while posted bill payments pay the
+// original, the correction keeps a total of at least what they pay and keeps
+// the vendor; then the lines of the posted payments move to the correction,
+// whose balance postSalesDoc then sets to its total less them. A void
+// payment's lines stay on the original, which keeps its history: the
 // correction may name another vendor, and a line must name a bill of its
-// payment's vendor.
-func replaceBillPayments(tx core.App, original, correction *core.Record) error {
+// payment's vendor. The correction also takes every file of the original.
+func replaceBill(tx core.App, original, correction *core.Record) error {
 	paid, err := postedAppliedTo(tx, billBalanceKind, original.Id)
 	if err != nil {
 		return err
@@ -149,7 +149,10 @@ func replaceBillPayments(tx core.App, original, correction *core.Record) error {
 			return refuse(msgBillCorrectionVendor)
 		}
 	}
-	return movePostedLines(tx, billBalanceKind, original, correction)
+	if err := movePostedLines(tx, billBalanceKind, original, correction); err != nil {
+		return err
+	}
+	return moveAttachments(tx, "bill", original.Id, correction.Id)
 }
 
 func init() {

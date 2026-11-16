@@ -167,6 +167,7 @@ func reportSources() []reports.Source {
 		},
 		salesDocumentsSource(),
 		salesTaxLinesSource(),
+		auditLogSource(),
 	}
 	for i := range sources {
 		sources[i].FiscalStartMonth = booksFiscalStart
@@ -177,6 +178,29 @@ func reportSources() []reports.Source {
 		}
 	}
 	return sources
+}
+
+// auditLogSource is the books_audit_log view (migration 2100000021): one row
+// per audit row of a Books record. The view's computed columns are text, so
+// event, record_type and parent_type are Selects over text columns. The JSON
+// columns (changes, snapshot) are left out; it has no money, so no Currency.
+func auditLogSource() reports.Source {
+	return reports.Source{
+		Key: auditLogKey, Collection: "books_audit_log", Label: "Audit log",
+		Fields: []reports.Field{
+			{Key: "created", Label: "Date changed", Type: reports.DateTime, Aggregates: reports.MinMax},
+			{Key: "actor", Label: "User ID", Type: reports.Text},
+			{Key: "actor_name", Label: "User", Type: reports.Text, Aggregates: reports.MinMax},
+			{Key: "event", Label: "Event", Type: reports.Select, Options: auditEvents()},
+			{Key: "record_type", Label: "Record type", Type: reports.Select, Options: auditRecordTypeOptions()},
+			{Key: "record_id", Label: "Record ID", Type: reports.Text},
+			{Key: "record_label", Label: "Record", Type: reports.Text},
+			{Key: "parent_type", Label: "Document type", Type: reports.Select, Options: auditRecordTypeOptions()},
+			{Key: "parent_id", Label: "Document ID", Type: reports.Text},
+			{Key: "history_type", Label: "History type", Type: reports.Text},
+			{Key: "history_id", Label: "History ID", Type: reports.Text},
+		},
+	}
 }
 
 // salesDocumentColumns are the columns invoices and sales receipts share, by

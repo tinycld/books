@@ -11,7 +11,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// applyToBalances adds one posted line to its account's month row. It runs
+// applyToBalances adds the posted debits and credits of one account (a line,
+// or an entry's lines of that account) to the account's month row. It runs
 // inside the posting transaction, so the row and the line commit together.
 // Saved through tx.Save rather than an UPSERT so realtime reaches every
 // client reading the row.

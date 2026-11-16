@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -110,15 +111,23 @@ func requireSameDocRows(t testing.TB, app core.App, kind salesDocKind, gotID, wa
 	}
 }
 
-// countStatements runs fn and returns how many SQL statements whose text match
-// accepts the app ran meanwhile, reads and writes. A batch runs on another
-// goroutine, so the count is atomic.
-func countStatements(t testing.TB, app *tests.TestApp, match func(sql string) bool, fn func()) int {
+// statementLog receives every SQL statement of one app while countStatements
+// runs. Writing the log funcs of a *dbx.DB races with any goroutine that
+// queries it (a batch runs on its own goroutine, and one that timed out keeps
+// running), so installStatementLog sets them one time, before the app runs a
+// request, and countStatements only swaps an atomic pointer.
+type statementLog struct {
+	listener atomic.Pointer[func(statement string)]
+}
+
+var statementLogs sync.Map // *tests.TestApp -> *statementLog
+
+func installStatementLog(t testing.TB, app *tests.TestApp) {
 	t.Helper()
-	var n atomic.Int64
+	log := &statementLog{}
 	seen := func(statement string) {
-		if match(statement) {
-			n.Add(1)
+		if listener := log.listener.Load(); listener != nil {
+			(*listener)(statement)
 		}
 	}
 	for _, builder := range []dbx.Builder{app.ConcurrentDB(), app.NonconcurrentDB()} {
@@ -126,17 +135,44 @@ func countStatements(t testing.TB, app *tests.TestApp, match func(sql string) bo
 		if !ok {
 			t.Fatalf("the app's builder is %T, want *dbx.DB", builder)
 		}
-		oldQuery, oldExec := db.QueryLogFunc, db.ExecLogFunc
 		db.QueryLogFunc = func(_ context.Context, _ time.Duration, statement string, _ *sql.Rows, _ error) {
 			seen(statement)
 		}
 		db.ExecLogFunc = func(_ context.Context, _ time.Duration, statement string, _ sql.Result, _ error) {
 			seen(statement)
 		}
-		defer func() { db.QueryLogFunc, db.ExecLogFunc = oldQuery, oldExec }()
 	}
-	fn()
+	statementLogs.Store(app, log)
+	t.Cleanup(func() { statementLogs.Delete(app) })
+}
+
+// countStatements runs fn and returns how many SQL statements whose text match
+// accepts the app ran meanwhile, reads and writes.
+func countStatements(t testing.TB, app *tests.TestApp, match func(sql string) bool, fn func()) int {
+	t.Helper()
+	var n atomic.Int64
+	recordStatements(t, app, func(statement string) {
+		if match(statement) {
+			n.Add(1)
+		}
+	}, fn)
 	return int(n.Load())
+}
+
+// recordStatements runs fn and gives each SQL statement the app runs meanwhile
+// to seen, which can run on another goroutine.
+func recordStatements(t testing.TB, app *tests.TestApp, seen func(statement string), fn func()) {
+	t.Helper()
+	stored, ok := statementLogs.Load(app)
+	if !ok {
+		t.Fatal("the app has no statement log: build it with newBooksApp")
+	}
+	log := stored.(*statementLog)
+	if !log.listener.CompareAndSwap(nil, &seen) {
+		t.Fatal("statements are already being counted on this app")
+	}
+	defer log.listener.Store(nil)
+	fn()
 }
 
 // isInvoiceLinesRead matches a read of all lines of one invoice (salesDocLines).

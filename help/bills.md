@@ -66,6 +66,10 @@ To start a new bill from one that you already have, open it and choose Copy. The
 
 To see the entry a bill posted, open it and choose View journal entry. A posted bill also shows in Journal Entries with the Type Bill and its number.
 
+## Attach the vendor's bill
+
+To keep the vendor's bill (a PDF or a photo) with the bill, add it in the Attachments section under Memo, on the form or on a posted bill. An edit moves the original's files to the posted edit; a copy starts with none. See [Attachments](help://books:attachments).
+
 ## The Purchase lines setting
 
 To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills and expenses card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense. Only a Books admin can change Purchase lines; everyone else sees the setting.
@@ -85,6 +89,7 @@ On the bill form (a new bill, a draft, an edit or a copy):
 | Delete draft (a saved draft only; in More) | ⌘⌫ |
 | Add an account line (while Account details shows) | ⌥↵ |
 | Add a product line (while Product and service details shows) | ⌥P |
+| Attach files | ⌥A |
 
 With the cursor in a line:
 
@@ -101,8 +106,9 @@ On a posted or void bill:
 - V: Void
 - C: Copy to a new bill
 - J: View journal entry
+- ⌥A: Attach files (a posted bill only)
 
-The form keys also work while the cursor is in a text box. E, V, C and J do not. A key does nothing while its action is not offered (for example, Delete draft on a new bill). If a menu or dialog is open, Esc first closes it, and the other keys do nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys and ⌥A also work while the cursor is in a text box. E, V, C and J do not. A key does nothing while its action is not offered (for example, Delete draft on a new bill). If a menu or dialog is open, Esc first closes it, and the other keys do nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 

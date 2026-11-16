@@ -22,6 +22,7 @@ func registerLedger(app core.App) {
 	registerLineHooks(app)
 	registerImmutabilityGuards(app)
 	registerBanking(app)
+	registerAttachments(app)
 }
 
 // serialized runs check and the write it guards in one transaction. A
@@ -55,5 +56,26 @@ func serializedThen(e *core.RecordEvent, check, after func(tx core.App) error) e
 			return nil
 		}
 		return after(tx)
+	})
+}
+
+// serializedRequest is serialized for a request hook, for a guard that must
+// not run on a model write: the relation cascade of a delete runs the model
+// hooks of the rows it removes, not their request hooks, so a guard bound here
+// leaves the cascade alone. e.App is the transaction while the request's
+// default action runs (a delete calls e.App.Delete), so the write joins it.
+// The response (a delete's 204) is written inside the transaction, before the
+// commit. Only a failed SQLite commit reaches that case: it leaves the row
+// stored, but the rolled-back delete sends no realtime event, so the client
+// keeps the row hidden until the collection reloads.
+func serializedRequest(e *core.RecordRequestEvent, check func(tx core.App) error) error {
+	original := e.App
+	defer func() { e.App = original }()
+	return original.RunInTransaction(func(tx core.App) error {
+		e.App = tx
+		if err := check(tx); err != nil {
+			return err
+		}
+		return e.Next()
 	})
 }

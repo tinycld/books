@@ -139,6 +139,7 @@ export function PaymentReadActions({
             <DocumentReadActions
                 actions={items}
                 isPhone={isPhone}
+                historyItem={null}
                 isBusy={voidDialog.isPending}
                 scopeOwner={scopeOwner}
             />

@@ -1,4 +1,6 @@
 import type PocketBase from 'pocketbase'
+import { ATTACHMENT_SEED_FILES } from './lib/attachment-seed-files'
+import { ATTACHMENTS, SEED_ATTACHMENT_IDS } from './lib/attachments-fixture'
 import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
@@ -230,9 +232,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedEstimates(pb, customerIds)
     await seedPartyContacts(pb, customerIds)
     await seedDeclinedEstimates(pb, customerIds)
-    await seedBills(pb, ctx, accountIds)
+    const billIds = await seedBills(pb, ctx, accountIds)
     await seedBillPayments(pb, ctx, accountIds)
-    await seedExpenses(pb, ctx, accountIds)
+    const expenseIds = await seedExpenses(pb, ctx, accountIds)
+    await seedAttachments(pb, ctx, billIds, expenseIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -896,12 +899,14 @@ async function seedConvertedInvoice(
 // voided, and the draft stays a draft. An account line's amount is typed, so it is sent;
 // a product line's is the server's. A line names its account by seed account number;
 // `accountIds` maps it to the created account's id. The vendor and product fixture ids
-// are valid PocketBase ids and are sent as-is.
+// are valid PocketBase ids and are sent as-is. Returns the created id of each fixture
+// bill, by fixture id.
 export async function seedBills(
     pb: PocketBase,
     ctx: SeedContext,
     accountIds: Map<string, string>
-): Promise<void> {
+): Promise<Map<string, string>> {
+    const billIds = new Map<string, string>()
     for (const id of BILL_SEED_IDS) {
         const fixture = BILLS.find(row => row.id === id)
         if (fixture === undefined) throw new Error(`seed: bill ${id} is not in BILLS`)
@@ -915,6 +920,7 @@ export async function seedBills(
             memo: fixture.memo,
             mailing_address: fixture.mailing_address,
         })
+        billIds.set(id, created.id)
         for (const line of BILL_LINES.filter(row => row.bill === id)) {
             const account = seededAccountId(accountIds, line.account_number, `bill line ${line.id}`)
             const typed =
@@ -964,6 +970,7 @@ export async function seedBills(
         })
         await postSeedDocument(pb, 'books_bills', created.id, ctx.user.id)
     }
+    return billIds
 }
 
 // Pays the bills PAY_BILLS_SEED_BILLS posted, per BILL_PAYMENT_SEED, through the write Pay
@@ -1018,12 +1025,13 @@ export async function seedBillPayments(
 // computes every product line's amount and the totals, and writes the journal entry; the
 // void one is then voided, and the draft stays a draft. Paid from and each account line
 // name their account by seed account number; `accountIds` maps it to the created
-// account's id.
+// account's id. Returns the created id of each fixture expense, by fixture id.
 export async function seedExpenses(
     pb: PocketBase,
     ctx: SeedContext,
     accountIds: Map<string, string>
-): Promise<void> {
+): Promise<Map<string, string>> {
+    const expenseIds = new Map<string, string>()
     for (const id of EXPENSE_SEED_IDS) {
         const fixture = EXPENSES.find(row => row.id === id)
         if (fixture === undefined) throw new Error(`seed: expense ${id} is not in EXPENSES`)
@@ -1036,6 +1044,7 @@ export async function seedExpenses(
             reference_no: fixture.reference_no,
             memo: fixture.memo,
         })
+        expenseIds.set(id, created.id)
         for (const line of EXPENSE_LINES.filter(row => row.expense === id)) {
             const account = seededAccountId(
                 accountIds,
@@ -1061,6 +1070,42 @@ export async function seedExpenses(
                 .collection('books_expenses')
                 .update(created.id, { status: 'void', voided_by: ctx.user.id })
         }
+    }
+    return expenseIds
+}
+
+// The seeded bytes of one attachment, decoded with atob so the seed runs in plain node and
+// in the app alike.
+function seedFileBytes(id: (typeof SEED_ATTACHMENT_IDS)[number]) {
+    return Uint8Array.from(atob(ATTACHMENT_SEED_FILES[id]), c => c.charCodeAt(0))
+}
+
+// Uploads the SEED_ATTACHMENT_IDS files, in order, through the REST create, so the server's
+// upload hook checks and stamps each file the way an upload from the app is checked. The
+// fixture's uploaders are invoice users the seed does not create: the superuser names the
+// seeded user, and the hook keeps the uploader a superuser sends. `billIds` and `expenseIds`
+// map a fixture document id to the created one.
+export async function seedAttachments(
+    pb: PocketBase,
+    ctx: SeedContext,
+    billIds: Map<string, string>,
+    expenseIds: Map<string, string>
+): Promise<void> {
+    for (const id of SEED_ATTACHMENT_IDS) {
+        const fixture = ATTACHMENTS.find(row => row.id === id)
+        if (fixture === undefined) throw new Error(`seed: attachment ${id} is not in ATTACHMENTS`)
+        const column = fixture.bill !== '' ? 'bill' : 'expense'
+        const documentId =
+            column === 'bill' ? billIds.get(fixture.bill) : expenseIds.get(fixture.expense)
+        if (documentId === undefined) {
+            throw new Error(`seed: attachment ${id} names a document the seed did not create`)
+        }
+        await pb.collection('books_attachments').create({
+            [column]: documentId,
+            field: fixture.field,
+            uploaded_by: ctx.user.id,
+            file: new File([seedFileBytes(id)], fixture.name, { type: fixture.mime_type }),
+        })
     }
 }
 
