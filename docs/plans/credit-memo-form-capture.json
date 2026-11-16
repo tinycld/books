@@ -1,0 +1,223 @@
+{
+    "outDir": "credit-memo-form-reference",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "from-invoice",
+            "url": "/a/books/helix-mockup?state=from-invoice",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1900
+        },
+        {
+            "name": "from-invoice-phone",
+            "url": "/a/books/helix-mockup?state=from-invoice",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 4400
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "draft-phone",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2600
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "correction-phone",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2600
+        },
+        {
+            "name": "exempt",
+            "url": "/a/books/helix-mockup?state=exempt",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1500
+        },
+        {
+            "name": "pdf-unsaved",
+            "url": "/a/books/helix-mockup?state=pdf-unsaved",
+            "ready": "credit-memo-pdf-unsaved",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "pdf-stale",
+            "url": "/a/books/helix-mockup?state=pdf-stale",
+            "ready": "credit-memo-pdf-stale",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1700
+        },
+        {
+            "name": "posted-phone",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 3600
+        },
+        {
+            "name": "phone-more",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [{ "click": "credit-memo-read-more" }, { "waitFor": "Void" }]
+        },
+        {
+            "name": "void",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "void-phone",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2600
+        },
+        {
+            "name": "void-link",
+            "url": "/a/books/helix-mockup?state=void-link",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "height": 1500
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1700
+        },
+        {
+            "name": "reader-phone",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 3600
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "credit-memo-no-access",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/helix-mockup?state=cannot-edit",
+            "ready": "credit-memo-cannot-edit",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-credit",
+            "url": "/a/books/helix-mockup?state=cannot-credit",
+            "ready": "credit-memo-cannot-credit",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "credit-memo-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "hideLabels": ["New"],
+            "settleMs": 500
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "hideLabels": ["New"],
+            "actions": [{ "waitFor": "Books could not load this credit memo." }]
+        },
+        {
+            "name": "invoice-read",
+            "url": "/a/books/helix-mockup?state=invoice-read",
+            "ready": "invoice-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1900
+        },
+        {
+            "name": "invoice-read-phone",
+            "url": "/a/books/helix-mockup?state=invoice-read",
+            "ready": "invoice-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 4600
+        },
+        {
+            "name": "invoice-more-phone",
+            "url": "/a/books/helix-mockup?state=invoice-read",
+            "ready": "invoice-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [{ "click": "invoice-read-more" }, { "waitFor": "Create credit memo" }]
+        },
+        {
+            "name": "customer-transactions",
+            "url": "/a/books/helix-mockup?state=customer-transactions",
+            "ready": "customer-transactions",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "customer-transactions-empty",
+            "url": "/a/books/helix-mockup?state=customer-transactions-empty",
+            "ready": "customer-transactions-empty",
+            "hideLabels": ["New"]
+        }
+    ]
+}
