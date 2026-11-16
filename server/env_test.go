@@ -26,7 +26,9 @@ import (
 // template is built once per test binary; each test gets a private copy.
 func newBooksApp(t testing.TB) *tests.TestApp {
 	t.Helper()
-	return rlstest.NewAssembledApp(t, rlstest.MigrationsDir(t, "../pb-migrations"))
+	app := rlstest.NewAssembledApp(t, rlstest.MigrationsDir(t, "../pb-migrations"))
+	installStatementLog(t, app)
+	return app
 }
 
 var userSeq atomic.Uint64

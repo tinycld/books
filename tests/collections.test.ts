@@ -39,6 +39,9 @@ const NAMES = [
     'books_party_balances',
     'books_party_contacts',
     'books_audit_log',
+    'books_attachments',
+    'books_payments',
+    'books_payment_applications',
 ]
 
 function register() {
@@ -172,6 +175,14 @@ describe('registerCollections', () => {
             connection: { name: 'books_bank_connections' },
             file: { name: 'books_bank_files' },
             bank_import: { name: 'books_bank_imports' },
+        })
+    })
+
+    // The Attachments section reads each row's uploader through materialize().
+    it('declares the uploader relation on attachments', () => {
+        const { calls } = register()
+        expect(calls.get('books_attachments')?.relations).toEqual({
+            uploaded_by: { name: 'users' },
         })
     })
 

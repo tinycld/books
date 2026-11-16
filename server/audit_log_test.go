@@ -21,18 +21,19 @@ const auditLogView = "books_audit_log"
 // signed-in, enabled user whose Books access row grants read.
 const booksReadRule = `@request.auth.id != "" && @request.auth.disabled != true && @collection.books_access:me.user ?= @request.auth.id && @collection.books_access:me.can_read ?= true`
 
-// wantAuditParentFields are the eight line collections and the field that
+// wantAuditParentFields are the nine line collections and the field that
 // names each one's document (spec §5: the view reads a live line's parent
 // from it).
 var wantAuditParentFields = map[string]string{
-	"books_journal_lines":       "entry",
-	"books_invoice_lines":       "invoice",
-	"books_sales_receipt_lines": "sales_receipt",
-	"books_estimate_lines":      "estimate",
-	"books_bill_lines":          "bill",
-	"books_expense_lines":       "expense",
-	"books_bundle_items":        "bundle",
-	"books_estimate_responses":  "estimate",
+	"books_journal_lines":        "entry",
+	"books_invoice_lines":        "invoice",
+	"books_sales_receipt_lines":  "sales_receipt",
+	"books_estimate_lines":       "estimate",
+	"books_bill_lines":           "bill",
+	"books_expense_lines":        "expense",
+	"books_bundle_items":         "bundle",
+	"books_estimate_responses":   "estimate",
+	"books_payment_applications": "payment",
 }
 
 // auditGolden is server/testdata/audit_log_spec.json, which the vitest
@@ -121,7 +122,7 @@ func TestAuditRecordTypesCoverAudited(t *testing.T) {
 }
 
 // The view is live through core's change signal: its sources are audit_logs,
-// users (the actor's name) and the eight line collections it reads a parent
+// users (the actor's name) and the nine line collections it reads a parent
 // from (P10), and CheckViews accepts them on an app wired as production is.
 func TestAuditLogViewIsLive(t *testing.T) {
 	changesignal.ResetForTesting()

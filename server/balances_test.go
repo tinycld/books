@@ -7,6 +7,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tests"
 )
 
 // These tests bind no ledger hooks: they post fixtures with raw saves, so they
@@ -237,6 +238,30 @@ func TestLineDriftReport_IsCapped(t *testing.T) {
 	if len(few) != 3 || n != 3 {
 		t.Fatalf("listed %d, count %d; want 3 and 3", len(few), n)
 	}
+}
+
+// Receive payment spec §4.3: the rebuild route also rebuilds the invoice
+// balances, and its fixed count holds both kinds of row.
+func TestRebuildRoute_CountsAMonthRowAndAnInvoiceBalance(t *testing.T) {
+	pe := newPaymentEnv(t)
+	inv := pe.postedInvoice(t, pe.customer, 45000)
+	// Raw SQL on purpose: the ledger owns both rows, and no hook may write them.
+	if _, err := pe.app.DB().NewQuery("UPDATE books_account_balances SET debit_total = debit_total + 1 WHERE account = {:a} AND period = '2026-11'").
+		Bind(dbx.Params{"a": pe.receivable.Id}).Execute(); err != nil {
+		t.Fatalf("drift the A/R month row: %v", err)
+	}
+	setInvoiceBalanceRaw(t, pe.app, inv.Id, 1)
+	apiReq{
+		method: http.MethodPost, url: "/api/books/balances/rebuild",
+		token: tokenFor(t, pe.users.admin), want: http.StatusOK, before: bindBalanceRoutes,
+		content: []string{`"fixed":2`},
+		after: func(t testing.TB, app *tests.TestApp) {
+			requireInvoiceBalance(t, app, inv, 45000)
+			if d, _ := balanceOf(t, app, pe.receivable, "2026-11"); d != 45000 {
+				t.Errorf("A/R 2026-11 debit_total = %d after the rebuild, want 45000", d)
+			}
+		},
+	}.run(t, pe.app)
 }
 
 func TestRebuildRoute_ACleanLedgerReportsAnEmptyList(t *testing.T) {

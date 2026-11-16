@@ -4,9 +4,8 @@ import { useId, useMemo, useRef } from 'react'
 import { View } from 'react-native'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
 import { DOCUMENT_PDF_KEY, DOCUMENT_READ_ACTION_KEYS } from '../../lib/document-actions'
-import type { SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { type DocumentMoreItem, DocumentMoreMenu } from './DocumentActionBar'
-import { useDocumentKind } from './document-kind-context'
+import { type DocumentChrome, useDocumentChrome } from './document-chrome'
 
 interface DocumentReadActionsProps {
     actions: DocumentReadItem[]
@@ -16,10 +15,12 @@ interface DocumentReadActionsProps {
     isPhone: boolean
     // A void runs: More does not open.
     isBusy: boolean
+    // The record has a PDF (Download PDF, ⌘P); a payment and a kind without one do not.
+    hasPdf?: boolean
     scopeOwner: ScopeOwner
 }
 
-type KeyKind = Pick<SalesDocumentKind, 'key' | 'shortcutGroup'>
+type KeyKind = Pick<DocumentChrome, 'testId' | 'shortcutGroup'>
 
 const BAR =
     'flex-row flex-wrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2'
@@ -41,7 +42,7 @@ function ReadButton({
     isPrimary: boolean
     scopeOwner: ScopeOwner
 }) {
-    const { doc } = useDocumentKind()
+    const doc = useDocumentChrome()
     const variant = isPrimary ? 'default' : 'outline'
     const shortcut = shortcutOf(item, doc.shortcutGroup)
     const testID = `${doc.testId}-${item.id}`
@@ -67,14 +68,14 @@ function useMoreKeys(kind: KeyKind, items: DocumentReadItem[], scopeOwner: Scope
     const itemsRef = useRef(items)
     itemsRef.current = items
     const names = items.map(item => item.id).join(',')
-    const { key: kindKey, shortcutGroup: group } = kind
+    const { testId, shortcutGroup: group } = kind
     const shortcuts = useMemo<Shortcut[]>(() => {
         const ids = names === '' ? [] : names.split(',')
         const current = (id: string) => itemsRef.current.find(item => item.id === id)
         return ids.map(id => {
             const item = current(id)
             return {
-                id: `books.${kindKey}.read.${instance}.${id}`,
+                id: `books.${testId}.read.${instance}.${id}`,
                 keys: item ? keyOf(item) : '',
                 scope: 'compose' as const,
                 description: item?.label ?? '',
@@ -83,28 +84,28 @@ function useMoreKeys(kind: KeyKind, items: DocumentReadItem[], scopeOwner: Scope
                 run: () => current(id)?.onSelect(),
             }
         })
-    }, [instance, names, kindKey, group])
+    }, [instance, names, testId, group])
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 
-// ⌘P is always taken while the read view of a kind with a PDF holds the keys, so the
+// ⌘P is always taken while the read view of a record with a PDF holds the keys, so the
 // browser's Print never opens: while Download PDF is busy its own key is idle, and this
-// one takes it and does nothing. A kind without a PDF registers no ⌘P.
+// one takes it and does nothing. A record without a PDF registers no ⌘P.
 function usePdfKeyWhileBusy(
-    kind: KeyKind & Pick<SalesDocumentKind, 'features'>,
+    kind: KeyKind,
+    hasPdf: boolean,
     items: DocumentReadItem[],
     scopeOwner: ScopeOwner
 ) {
     const instance = useId()
     const isBusyRef = useRef(false)
     isBusyRef.current = items.some(item => item.action === 'pdf' && item.isDisabled)
-    const { key: kindKey, shortcutGroup: group } = kind
-    const hasPdf = kind.features.pdf
+    const { testId, shortcutGroup: group } = kind
     const shortcuts = useMemo<Shortcut[]>(() => {
         if (!hasPdf) return []
         return [
             {
-                id: `books.${kindKey}.read.${instance}.pdfBusy`,
+                id: `books.${testId}.read.${instance}.pdfBusy`,
                 keys: DOCUMENT_PDF_KEY,
                 scope: 'compose',
                 description: 'Download PDF',
@@ -113,43 +114,47 @@ function usePdfKeyWhileBusy(
                 run: () => {},
             },
         ]
-    }, [instance, kindKey, group, hasPdf])
+    }, [instance, testId, group, hasPdf])
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 
-// The one button a phone's bar keeps beside More. A posting document keeps Edit (a
-// voided one has none, so all its actions are in More); a quote keeps its primary action,
-// the first, so a reader's only action (Download PDF) is never hidden in a menu.
+// The one button a phone's bar keeps beside More. A lone action is the bar button, since a
+// menu of one row only hides it. Otherwise a posting document keeps Edit (a voided one has
+// none, so all its actions are in More) and a quote keeps its primary action, the first.
 function phoneButtonOf(
-    lifecycle: SalesDocumentKind['lifecycle'],
+    lifecycle: DocumentChrome['lifecycle'],
     actions: DocumentReadItem[]
 ): DocumentReadItem | undefined {
+    if (actions.length === 1) return actions[0]
     if (lifecycle === 'quote') return actions[0]
     return actions.find(item => item.id === 'read-edit')
 }
 
 /**
  * The read view's bar. Wide: a ShortcutButton per action (Edit E, Void V, Copy C, View
- * journal entry J, Download PDF ⌘P), the first one primary. Phone: one button (Edit on a
- * posting document, the first action on a quote) and the rest in a More menu whose rows
+ * journal entry J, Download PDF ⌘P), the first one primary. Phone: one button (the only
+ * action when there is one, else Edit on a posting document and the first action on a
+ * quote) and the rest in a More menu whose rows
  * show their keys. A reader gets View journal entry and Download PDF on a posting
  * document, Download PDF on a quote; a hidden action's key is not registered. Audit
  * history (`historyItem`) is the last More row at every width, so a wide bar shows More
- * holding it alone, and a reader with no action still gets the bar.
+ * holding it alone, and a reader with no action still gets the bar. It reads the chrome
+ * (test ids, shortcut group, lifecycle), so a payment's read view draws it too.
  */
 export function DocumentReadActions({
     actions,
     historyItem,
     isPhone,
     isBusy,
+    hasPdf = false,
     scopeOwner,
 }: DocumentReadActionsProps) {
-    const { doc } = useDocumentKind()
+    const doc = useDocumentChrome()
     const phoneButton = phoneButtonOf(doc.lifecycle, actions)
     const inBar = isPhone ? (phoneButton ? [phoneButton] : []) : actions
     const inMore = isPhone ? actions.filter(item => item !== phoneButton) : []
     useMoreKeys(doc, inMore, scopeOwner)
-    usePdfKeyWhileBusy(doc, actions, scopeOwner)
+    usePdfKeyWhileBusy(doc, hasPdf, actions, scopeOwner)
     if (actions.length === 0 && historyItem === null) return null
     const historyRows = historyItem ? [historyItem] : []
     const moreItems: DocumentMoreItem[] = [...inMore, ...historyRows]

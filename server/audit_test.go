@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
@@ -53,6 +54,56 @@ func TestAudit_LabelsASalesReceiptAndItsLines(t *testing.T) {
 	}
 	if got, want := lines.ExtractLabel(reload(t, re.app, "books_sales_receipt_lines", line.Id)), "Sales receipt 1004: line 2"; got != want {
 		t.Errorf("posted sales receipt line label = %q, want %q", got, want)
+	}
+}
+
+// Receive payment spec §4.3: a payment's audit row is "Payment 1004", or "Draft
+// payment" while it has no number; an application's row names its payment and
+// its invoice ("Payment 1004: Invoice 1009").
+func TestAudit_LabelsAPaymentAndItsApplications(t *testing.T) {
+	pe := newPaymentEnv(t)
+	audited := auditedCollections(pe.app)
+	payments, ok := audited["books_payments"]
+	if !ok {
+		t.Fatal("books_payments is not audited")
+	}
+	applications, ok := audited["books_payment_applications"]
+	if !ok {
+		t.Fatal("books_payment_applications is not audited")
+	}
+	if err := setFields(t, pe.app, "books_doc_sequences", "booksseqinvoice", map[string]any{"next_number": 1009}); err != nil {
+		t.Fatalf("move the invoice sequence to 1009: %v", err)
+	}
+	inv := pe.postedInvoice(t, pe.customer, 45000)
+	if inv.GetString("number") != "1009" {
+		t.Fatalf("invoice number %q, want 1009", inv.GetString("number"))
+	}
+	p := pe.mkPayment(t, map[string]any{"amount": 45000})
+	application := mkApplication(t, pe.app, p, inv, 0, 45000)
+
+	draft := reload(t, pe.app, "books_payments", p.Id)
+	if got, want := payments.ExtractLabel(draft), "Draft payment"; got != want {
+		t.Errorf("draft payment label = %q, want %q", got, want)
+	}
+	if got, want := paymentName(draft), "Draft payment"; got != want {
+		t.Errorf("paymentName of a draft = %q, want %q", got, want)
+	}
+	if got, want := applications.ExtractLabel(reload(t, pe.app, "books_payment_applications", application.Id)), "Draft payment: Invoice 1009"; got != want {
+		t.Errorf("draft payment application label = %q, want %q", got, want)
+	}
+
+	if err := setFields(t, pe.app, "books_doc_sequences", paymentSequenceID, map[string]any{"next_number": 1004}); err != nil {
+		t.Fatalf("move the payment sequence to 1004: %v", err)
+	}
+	posted := mustPostPayment(t, pe.app, p.Id, pe.users.bookkeeper.Id)
+	if got, want := payments.ExtractLabel(posted), "Payment 1004"; got != want {
+		t.Errorf("posted payment label = %q, want %q", got, want)
+	}
+	if got, want := paymentName(posted), "Payment 1004"; got != want {
+		t.Errorf("paymentName of a posted payment = %q, want %q", got, want)
+	}
+	if got, want := applications.ExtractLabel(reload(t, pe.app, "books_payment_applications", application.Id)), "Payment 1004: Invoice 1009"; got != want {
+		t.Errorf("posted payment application label = %q, want %q", got, want)
 	}
 }
 
@@ -247,6 +298,99 @@ func TestAudit_LabelsAnExpenseAndItsLines(t *testing.T) {
 	if got, want := lines.ExtractLabel(reload(t, ee.app, "books_expense_lines", productLine1.Id)), "Expense 1004: Product line 1"; got != want {
 		t.Errorf("posted expense product line audit label = %q, want %q", got, want)
 	}
+}
+
+// Spec §3.9: an attachment's audit row names the file and its document
+// ("Attachment OSW-invoice-1002.pdf on Bill 1002", "Attachment receipt.jpg on
+// Draft expense"), and the file alone once its document is gone (the delete
+// snapshot of a cascade after Delete draft).
+func TestAudit_LabelsAnAttachment(t *testing.T) {
+	ae := newAttachEnv(t)
+	config, ok := auditedCollections(ae.app)["books_attachments"]
+	if !ok {
+		t.Fatal("books_attachments is not audited")
+	}
+	label := func(r *core.Record) string {
+		t.Helper()
+		byConfig, byFunc := config.ExtractLabel(r), attachmentLabel(ae.app, r)
+		if byConfig != byFunc {
+			t.Errorf("audit label %q differs from attachmentLabel %q", byConfig, byFunc)
+		}
+		return byFunc
+	}
+
+	if err := setFields(t, ae.app, "books_doc_sequences", "booksseqbill000", map[string]any{"next_number": 1002}); err != nil {
+		t.Fatalf("move the bill sequence to 1002: %v", err)
+	}
+	bill := ae.postedBill(t)
+	pdf := mustStoreAttachment(t, ae.app, onBill(bill.Id), "", "OSW-invoice-1002.pdf")
+	if got, want := label(pdf), "Attachment OSW-invoice-1002.pdf on Bill 1002"; got != want {
+		t.Errorf("posted bill attachment label = %q, want %q", got, want)
+	}
+
+	draft := ae.draftExpense(t)
+	receipt := mustStoreAttachment(t, ae.app, onExpense(draft.Id), "", "receipt.jpg")
+	if got, want := label(receipt), "Attachment receipt.jpg on Draft expense"; got != want {
+		t.Errorf("draft expense attachment label = %q, want %q", got, want)
+	}
+
+	if err := ae.app.Delete(reload(t, ae.app, "books_expenses", draft.Id)); err != nil {
+		t.Fatalf("delete the draft expense: %v", err)
+	}
+	if got, want := label(receipt), "Attachment receipt.jpg"; got != want {
+		t.Errorf("attachment label after its expense is gone = %q, want %q", got, want)
+	}
+}
+
+// An attachment's create and delete each write one audit row.
+func TestAudit_LogsAnAttachmentCreateAndDelete(t *testing.T) {
+	countRows := func(t testing.TB, app core.App, action string) int64 {
+		t.Helper()
+		n, err := app.CountRecords("audit_logs", dbx.HashExp{"resource_type": "books_attachments", "action": action})
+		if err != nil {
+			t.Fatalf("count audit rows: %v", err)
+		}
+		return n
+	}
+	t.Run("create", func(t *testing.T) {
+		ae := newAttachEnv(t)
+		registerAudit(&pocketbase.PocketBase{App: ae.app})
+		bill := ae.postedBill(t)
+		req := ae.attach(t, "bill", bill.Id, "OSW-invoice-1002.pdf", pdfBytes(2048))
+		req.want = http.StatusOK
+		req.after = func(t testing.TB, app *tests.TestApp) {
+			row := onlyAttachment(t, app, "bill", bill.Id)
+			logged := awaitAuditRow(t, app, "books_attachments", "created", row.Id)
+			if got := logged.GetString("actor"); got != ae.users.bookkeeper.Id {
+				t.Errorf("audit actor = %q, want the bookkeeper", got)
+			}
+			if got, want := logged.GetString("resource_label"), "Attachment OSW-invoice-1002.pdf on "+billLabel(bill); got != want {
+				t.Errorf("resource_label = %q, want %q", got, want)
+			}
+			if n := countRows(t, app, "created"); n != 1 {
+				t.Errorf("%d created audit rows, want 1", n)
+			}
+		}
+		req.run(t, ae.app)
+	})
+	t.Run("delete", func(t *testing.T) {
+		ae := newAttachEnv(t)
+		registerAudit(&pocketbase.PocketBase{App: ae.app})
+		bill := ae.postedBill(t)
+		row := mustStoreAttachment(t, ae.app, onBill(bill.Id), "", "OSW-invoice-1002.pdf")
+		apiReq{
+			method: http.MethodDelete,
+			url:    attachmentsURL + "/" + row.Id,
+			token:  tokenFor(t, ae.users.bookkeeper),
+			want:   http.StatusNoContent,
+			after: func(t testing.TB, app *tests.TestApp) {
+				awaitAuditRow(t, app, "books_attachments", "deleted", row.Id)
+				if n := countRows(t, app, "deleted"); n != 1 {
+					t.Errorf("%d deleted audit rows, want 1", n)
+				}
+			},
+		}.run(t, ae.app)
+	})
 }
 
 // Spec §3.11: an edit of "Sales deposited to" shows in the audit log as other

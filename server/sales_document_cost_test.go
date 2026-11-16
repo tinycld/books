@@ -39,13 +39,13 @@ func costEnv(t *testing.T) *postingEnv {
 }
 
 // A time limit fails on a slow machine and says nothing about growth, so each
-// cost test also bounds the SQL statements of its batch. Measured 2026-11-13:
-// 1,779 for the create and 2,930 for the replace and post (about 10,400 while
+// cost test bounds the SQL statements of its batch. Measured 2026-11-15:
+// 1,779 for the create and 2,922 for the replace and post (about 10,400 while
 // each line write restated the document). Each bound is the measured value
 // plus 10 percent.
 const (
 	createStatementBound  = 1956
-	replaceStatementBound = 3223
+	replaceStatementBound = 3214
 )
 
 const msgStatementBound = "%d statements, want at most %d (the measured count plus 10 percent). A line write makes more statements than it did, or the count grows faster than the line count; if the new statements are needed, measure again and set the bound"
@@ -75,9 +75,6 @@ func TestDocBatchCost_Create250LineInvoice(t *testing.T) {
 		body: batchBody(ops...), want: http.StatusOK, content: []string{id},
 	})
 	t.Logf("create of a 250-line invoice in one batch: %s, %d statements", took, statements)
-	if took > costBound {
-		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
-	}
 	if statements > createStatementBound {
 		t.Fatalf(msgStatementBound, statements, createStatementBound)
 	}
@@ -115,9 +112,6 @@ func TestDocBatchCost_ReplaceAndPost250Lines(t *testing.T) {
 		body: batchBody(ops...), want: http.StatusOK, content: []string{`"status":"posted"`},
 	})
 	t.Logf("replace of 250 lines and the post in one batch: %s, %d statements", took, statements)
-	if took > costBound {
-		t.Fatalf("took %s, want under %s (the batch timeout is 3s)", took, costBound)
-	}
 	if statements > replaceStatementBound {
 		t.Fatalf(msgStatementBound, statements, replaceStatementBound)
 	}

@@ -12,6 +12,7 @@ import { type RefObject, useRef, useState } from 'react'
 import type { ErrorOption } from 'react-hook-form'
 import type { ViewInstance } from 'react-native'
 import type { DocumentKind } from '../components/documents/document-kinds'
+import { attachmentsNotSavedText } from '../lib/attachments'
 import { refusedRecordId } from '../lib/batch-refusal'
 import {
     documentRefusalTarget,
@@ -29,6 +30,11 @@ import { DOCUMENT_PARTIES, INVOICE_KIND, type SalesDocumentKind } from '../lib/s
 import { createTablePlans, tablesWriteSteps } from '../lib/table-writes'
 import { useDocumentSaveStore } from '../stores/document-save-store'
 import type { DocumentTransaction, DocumentWrites } from './document-data'
+import {
+    AttachmentsNotSaved,
+    hasAttachmentWork,
+    useAttachmentSaveStep,
+} from './useAttachmentSaveStep'
 import type { DocumentFormState } from './useDocumentForm'
 
 // Each line table's columns (DocumentKind.lineSpecs), keyed by the table's key, in the
@@ -250,8 +256,8 @@ function rowLabelOf(error: unknown, lines: readonly LineWrite[]): string | null 
 // part of the create (server/revision.go).
 const NEW_REVISION = 1
 
-// How far a save got: whether the draft (row and lines) is written, so a refused post
-// leaves a draft behind, and the revision the document then has.
+// How far a save got: whether the draft (row and lines) is written, so a refused post or
+// a failed attachments step leaves a draft behind, and the revision the document then has.
 type Progress = { drafted: boolean; revision: number }
 
 // What a save does after the document is written: Save draft (and a quote's Save) stops
@@ -298,6 +304,10 @@ type DocumentSaveOptions = {
     // Reads the stored document again and mounts a new form on it, in place of what is
     // typed here (DocumentScreen). It rejects, and mounts nothing, when the read fails.
     onReload?: () => Promise<void>
+    // The attachments store session of this form (DocumentScreen's `form:<formKey>`, a
+    // bill's or an expense's): its pending files and removals are saved in the
+    // attachments step. None for a kind without attachments.
+    attachmentSession?: string
 }
 
 const ACCEPTANCE_KEYS = ['accepted_by', 'accepted_date'] as const
@@ -350,6 +360,16 @@ function hasFieldErrors(state: DocumentFormState): boolean {
  *   from it (`?estimate`). The save store holds the document through every quote write,
  *   so the optimistic row never swaps the form. Accepted by and Accepted date, hidden
  *   while Status is not Accepted, are saved empty then.
+ * - A bill's or an expense's form has an attachments step (`attachmentSession`, spec
+ *   §3.2): after the rows are written and before the post, the session's pending and
+ *   failed files upload and its marked removals are deleted (useAttachmentSaveStep). A
+ *   saved document with attachment work writes its batch only when it has a field or line
+ *   change, without the post; the step runs; then a post is its own request, stating the
+ *   revision the batch sent (or the one the form saw, with no batch). A save with only
+ *   attachment work is not "nothing changed". A failed step leaves the document a written
+ *   draft, the form open with the save notice, and the failed files in the session; a
+ *   refusal before the step (a stale revision, a field) leaves the session as it was.
+ *   Attachments are not part of the revision.
  *
  * The empty trailing line of each line table is dropped before the form validates (spec:
  * dropped at save); a kind that keeps them on a refusal (a bill) gets them back when the
@@ -380,6 +400,34 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const baseline = useRef(state.revision)
     if (!state.isDirty) baseline.current = state.revision
     const onError = state.isNew ? state.create.onError : state.edit.onError
+    const runAttachmentStep = useAttachmentSaveStep()
+    const attachmentSession = options.attachmentSession ?? ''
+
+    // Uploads the session's files to the written document and deletes its marked
+    // removals; nothing for a kind without attachments.
+    const runAttachments = async (id: string) => {
+        if (attachmentSession === '') return
+        await runAttachmentStep({ kind, recordId: id, sessionKey: attachmentSession })
+    }
+
+    // The save notice of a failed attachments step: the document is a written draft. Files
+    // not stored give the upload sentence; else a refused delete gives the server's text.
+    // It shows in the screen's summary; a form the user left gets a toast.
+    const showAttachmentsNotSaved = ({ count, refusal }: AttachmentsNotSaved) => {
+        const message =
+            count > 0 || refusal === null ? attachmentsNotSavedText(kind.noun, count) : refusal
+        if (isPresent()) {
+            state.form.setError('root.server', { type: 'server', message })
+            return
+        }
+        log.warn(texts.logContext, 'attachments not saved after the form was left', { count })
+        notify.emit({
+            event: 'mutation.error',
+            title: texts.notSavedTitle,
+            body: message,
+            data: { operation: `${texts.logContext}.attachments`, error: message },
+        })
+    }
 
     // The one place that tells the screen a save left an error under a field.
     const reportFieldErrors = () => {
@@ -468,6 +516,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             })
             input.progress.drafted = true
             input.progress.revision = NEW_REVISION
+            await runAttachments(input.id)
             if (!input.mode.post) return
             // The create must be a draft, so the post is its own request after the batch.
             assertRevisionSeen(writes.storedRevision(input.id), NEW_REVISION, texts.conflict)
@@ -480,12 +529,14 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             navigateAfter(id, mode)
         },
         onError: (error, { id, rows, lines, progress, restoreLines }) => {
-            // The draft is written and its post was refused: it stays, and the refusal
-            // shows on this form, whose next save updates it. The post is no line's
-            // write, so its refusal gets no "Line n" label.
+            // The draft is written and its attachments step failed or its post was
+            // refused: it stays, and the notice or the refusal shows on this form, whose
+            // next save updates it. The post is no line's write, so its refusal gets no
+            // "Line n" label.
             if (progress.drafted) {
                 markWritten({ id, rows, revision: progress.revision })
-                refuse({ error, rowLabel: null })
+                if (error instanceof AttachmentsNotSaved) showAttachmentsNotSaved(error)
+                else refuse({ error, rowLabel: null })
                 return
             }
             // The batch was refused and nothing is stored: the new form stays with the
@@ -513,6 +564,10 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             progress: Progress
             // Puts back the empty lines the save dropped (dropEmptyLines).
             restoreLines: () => void
+            // The form's attachments session holds files to upload or rows to delete.
+            hasAttachmentWork: boolean
+            // A field or a line changed: the batch has something to write.
+            hasWrites: boolean
         }) => {
             // The store row moved past the revision this form saw (another session's
             // save reached the store). Its revision can be the very value this save would
@@ -520,30 +575,58 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             // the line writes would go with no revision stated, which the server cannot
             // refuse. So the form refuses here, before anything is sent.
             assertRevisionSeen(writes.storedRevision(input.id), input.saw, texts.conflict)
-            const sent = input.saw + 1
-            await atomic(() => {
-                for (const line of input.lines) line.run()
-                // Last, and once: the batch sends one operation for the header, at the
-                // place of its first mutation. The server checks the lines the batch
-                // leaves with the tax this write carries, and reads them when it posts.
-                writes.updateRecord(input.id, {
-                    columns: input.patch,
-                    fields: input.fields,
-                    revision: sent,
-                    post: input.mode.post,
+            input.progress.revision = input.saw
+            // With no attachment work the save is the one batch, a post included. With
+            // it, the batch runs only for a field or line change and never posts: the
+            // post waits for the step.
+            const postsInBatch = input.mode.post && !input.hasAttachmentWork
+            if (input.hasWrites || !input.hasAttachmentWork) {
+                const sent = input.saw + 1
+                await atomic(() => {
+                    for (const line of input.lines) line.run()
+                    // Last, and once: the batch sends one operation for the header, at
+                    // the place of its first mutation. The server checks the lines the
+                    // batch leaves with the tax this write carries, and reads them when
+                    // it posts.
+                    writes.updateRecord(input.id, {
+                        columns: input.patch,
+                        fields: input.fields,
+                        revision: sent,
+                        post: postsInBatch,
+                    })
                 })
+                input.progress.drafted = true
+                input.progress.revision = sent
+            }
+            if (!input.hasAttachmentWork) return
+            await runAttachments(input.id)
+            if (!input.mode.post) return
+            const seen = input.progress.revision
+            assertRevisionSeen(writes.storedRevision(input.id), seen, texts.conflict)
+            await performMutations(function* () {
+                yield writes.postRecord(input.id, seen + 1)
             })
-            input.progress.revision = sent
+            input.progress.revision = seen + 1
         },
         onSuccess: (_data, { id, onDrafted, mode, progress }) => {
             onDrafted(progress.revision)
             navigateAfter(id, mode)
         },
-        onError: (error, { lines, restoreLines }) => {
-            // The save is one batch, so a refusal stored nothing: no line was saved, so
-            // none was dropped at save.
+        onError: (error, { lines, restoreLines, onDrafted, progress }) => {
+            // The batch saved the draft, and then the attachments step failed or the
+            // post was refused: the written values are the form's baseline, and the
+            // notice or the refusal shows. The post is no line's write.
+            if (progress.drafted) {
+                onDrafted(progress.revision)
+                if (error instanceof AttachmentsNotSaved) showAttachmentsNotSaved(error)
+                else refuse({ error, rowLabel: null })
+                return
+            }
+            // Nothing of the document was stored: no line was saved, so none was
+            // dropped at save.
             restoreLines()
-            refuse({ error, rowLabel: rowLabelOf(error, lines) })
+            if (error instanceof AttachmentsNotSaved) showAttachmentsNotSaved(error)
+            else refuse({ error, rowLabel: rowLabelOf(error, lines) })
         },
         onSettled: (_data, _error, { id }) => {
             lock.current = false
@@ -659,17 +742,21 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
                 ),
             ])
         )
+        const lines = lineWrites(draft.id, plans)
         holdFor(draft.id, mode)
         update.mutate({
             id: draft.id,
             patch: columnsOrThrow(documentKind.columnsFrom, split.columns),
             fields: split.fields,
-            lines: lineWrites(draft.id, plans),
+            lines,
             saw: draft.revision,
             onDrafted: revision => markWritten({ id: draft.id, rows, revision }),
             mode,
             progress: newProgress(),
             restoreLines,
+            hasAttachmentWork: hasAttachmentWork(attachmentSession),
+            // markWritten reset the form to what it wrote, so a dirty form has a change.
+            hasWrites: state.isDirty || lines.length > 0,
         })
         return true
     }
@@ -688,20 +775,25 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         const result = await state.edit.patch()
         const rulesHold = await quoteRulesHold()
         if (!result || !rulesHold) return false
+        const isUnchanged = Object.keys(result.written).length === 0
+        const withAttachments = hasAttachmentWork(attachmentSession)
         // Nothing changed: a draft save has nothing to write; a post sets only the status;
         // a quote's Save & close, Save & new or Convert still goes on, as a save that wrote
-        // nothing did not fail.
-        if (!mode.post && Object.keys(result.written).length === 0) {
+        // nothing did not fail. Files to upload or delete are a change.
+        if (!mode.post && isUnchanged && !withAttachments) {
             if (!mode.close && !mode.andNew && !mode.convert) return false
             navigateAfter(id, mode)
             return true
         }
+        const lines = lineWrites(id, result.tableWrites)
         holdFor(id, mode)
         update.mutate({
             id,
             patch: columnsOrThrow(documentKind.columnsFrom, result.columns),
             fields: result.fields,
-            lines: lineWrites(id, result.tableWrites),
+            lines,
+            hasAttachmentWork: withAttachments,
+            hasWrites: !isUnchanged || lines.length > 0,
             saw: baseline.current,
             onDrafted: revision => {
                 // After a save the baseline is the value sent; a key the person typed in
