@@ -13,15 +13,18 @@ import {
 // The payment grids' columns (human, eval revise 1): every data column flexes with a least
 // width of 95; the tick column stays 44. A grid's least width is its columns, a 12 px gap
 // between two cells and 8 px of row padding on each side; below it the list shows cards.
+// The document (Invoice / Bill) and Due date columns take two shares of the free width
+// (human, eval revise 2), so the link label and "· Overdue" fit at 1280 px.
 
 const DATA = { flex: 1, minWidth: 95 }
+const WIDE = { flex: 2, minWidth: 95 }
 
 describe('payment column widths', () => {
     it('makes every invoice data column flex with a least width of 95', () => {
         expect(PAYMENT_COLUMNS).toEqual({
             tick: 44,
-            invoice: DATA,
-            dueDate: DATA,
+            invoice: WIDE,
+            dueDate: WIDE,
             original: DATA,
             open: DATA,
             payment: DATA,
@@ -32,16 +35,16 @@ describe('payment column widths', () => {
         expect(BILL_PAYMENT_COLUMNS).toEqual({
             tick: 44,
             party: DATA,
-            bill: DATA,
-            dueDate: DATA,
+            bill: WIDE,
+            dueDate: WIDE,
             original: DATA,
             open: DATA,
             payment: DATA,
         })
         expect(BILL_PAYMENT_APPLIED_COLUMNS).toEqual({
-            bill: DATA,
+            bill: WIDE,
             ref: DATA,
-            dueDate: DATA,
+            dueDate: WIDE,
             original: DATA,
             paid: DATA,
         })

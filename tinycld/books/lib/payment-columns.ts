@@ -1,15 +1,17 @@
 // The payment grids' columns (spec §3.3): the header, every row and the totals row read
 // these, so a column lines up from the header down. Every data column grows with the grid
 // and never gets narrower than 95 px; the tick column is a fixed 44 px. Money columns are
-// right-aligned.
+// right-aligned. The document (Invoice / Bill) and Due date columns take two shares of the
+// free width, so the link label and "· Overdue" fit at 1280 px.
 const DATA_COLUMN = { flex: 1, minWidth: 95 } as const
+const WIDE_DATA_COLUMN = { flex: 2, minWidth: 95 } as const
 
 export type FlexColumn = { readonly flex: number; readonly minWidth: number }
 
 export const PAYMENT_COLUMNS = {
     tick: 44,
-    invoice: DATA_COLUMN,
-    dueDate: DATA_COLUMN,
+    invoice: WIDE_DATA_COLUMN,
+    dueDate: WIDE_DATA_COLUMN,
     original: DATA_COLUMN,
     open: DATA_COLUMN,
     payment: DATA_COLUMN,
@@ -57,8 +59,8 @@ export const PAYMENT_APPLIED_MIN_WIDTH = gridMinWidth(
 export const BILL_PAYMENT_COLUMNS = {
     tick: 44,
     party: DATA_COLUMN,
-    bill: DATA_COLUMN,
-    dueDate: DATA_COLUMN,
+    bill: WIDE_DATA_COLUMN,
+    dueDate: WIDE_DATA_COLUMN,
     original: DATA_COLUMN,
     open: DATA_COLUMN,
     payment: DATA_COLUMN,
@@ -79,9 +81,9 @@ export const BILL_PAYMENT_GRID_MIN_WIDTH = gridMinWidth(
 // The bill payment read view's Bills paid grid (pay-bills spec §3.8): Bill, Vendor's bill
 // no., Due date, Bill total, Paid.
 export const BILL_PAYMENT_APPLIED_COLUMNS = {
-    bill: DATA_COLUMN,
+    bill: WIDE_DATA_COLUMN,
     ref: DATA_COLUMN,
-    dueDate: DATA_COLUMN,
+    dueDate: WIDE_DATA_COLUMN,
     original: DATA_COLUMN,
     paid: DATA_COLUMN,
 } as const
