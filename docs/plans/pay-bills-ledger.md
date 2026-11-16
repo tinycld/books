@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/pay-bills-checkpoints.md
 - reference: docs/plans/pay-bills-reference/
 - evidence: docs/plans/pay-bills-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-16)
 - capture manifest: docs/plans/pay-bills-capture.json
 - review mode: C — none (unattended)
 - core extension: N1 — a `choice` param's chosen option as a report document-header line (accepted at the first design gate; small, no exclusive); tinycld PR to open at checkpoint 0 (branch books/p3-pay-bills)
@@ -296,4 +296,5 @@
   - rounds: 2 · deferrals: none · rebuttals: none · design notes: 8 · out-of-plan files: 1 (with its spec text)
   - lesson: docs/helix-lessons.md line 8 replaced (same line count): a table's columns are flex with a minimum; cards below the table's own minimum width, never a fixed breakpoint; no horizontal scroller (CI scrollbar, ListTable `useTableMinWidth` and Books-only CI facts kept)
 - revise 2 (light path): Due date and document column flex 2
+- eval: APPROVED by the human 2026-11-16 at books 0c74532c (CI green: E2E shards 1–4, Typecheck & Unit; core #483 green at b178a2f). Human accepted the design notes and rebuttals as built, the Receive Payment band wrap (revise 1 D1), and the light path for small revises. CI fix 1 (0897255a): two specs out of date, test wrong.
 - native: not executed in this run
