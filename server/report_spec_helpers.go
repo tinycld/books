@@ -123,6 +123,18 @@ func accountsParam() reports.ParamDef {
 	}
 }
 
+// receivableLines are the filter terms of the posted Accounts receivable
+// lines on or before asOf. The Customer Balance reads them; the A/R aging
+// report (p5-ar-aging) and customer statements (p2-statements) read the same
+// lines.
+func receivableLines(asOf *reports.Node) []*reports.Node {
+	return []*reports.Node{
+		op("eq", fld("posted"), lit(true)),
+		op("eq", fld("account", "type"), lit("accounts_receivable")),
+		op("lte", fld("date"), asOf),
+	}
+}
+
 // lineName is a line's customer or vendor.
 func lineName() *reports.Node {
 	return op("coalesce", fld("customer", "display_name"), fld("vendor", "display_name"))
