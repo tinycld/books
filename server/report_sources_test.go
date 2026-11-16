@@ -49,6 +49,7 @@ var booksSourceKeys = []string{
 	"books.account_balances",
 	"books.accounts",
 	"books.audit_log",
+	"books.basis_lines",
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
@@ -257,6 +258,37 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
+			// A union (core SourcePart) of the posted ledger lines and the
+			// cash-basis rows (pay-bills spec §3.10 "Source"): the fields and
+			// links of books.journal_lines, and layer, each part's constant.
+			key: "books.basis_lines", label: "Journal lines by basis",
+			fields: []wantField{
+				money("debit"), money("credit"), text("memo"),
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				boolField("posted"), text("currency"),
+				{key: "position", typ: reports.Number},
+				{key: "layer", typ: reports.Select, optionValues: []string{"ledger", "cash"}},
+			},
+			links: []wantLink{
+				toOne("entry", "books.journal_entries", "entry"),
+				toOne("account", "books.accounts", "account"),
+				toOne("customer", "books.customers", "customer"),
+				toOne("vendor", "books.vendors", "vendor"),
+			},
+			parts: []wantPart{
+				{
+					collection: "books_journal_lines",
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor"),
+					values:     map[string]any{"layer": "ledger"},
+				},
+				{
+					collection: "books_cash_basis_lines",
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor"),
+					values:     map[string]any{"layer": "cash"},
+				},
+			},
+		},
+		{
 			key: "books.account_balances", collection: "books_account_balances", label: "Monthly account balances",
 			fields: []wantField{
 				{key: "period", typ: reports.Text, aggs: reports.MinMax, label: "Month"},
@@ -442,7 +474,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 			}
 			wantCurrency := ""
 			if slices.Contains([]string{
-				"books.journal_entries", "books.journal_lines", "books.account_balances",
+				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.sales_documents", "books.sales_tax_lines",
 			}, want.key) {
 				wantCurrency = "USD"

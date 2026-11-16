@@ -259,6 +259,9 @@ migrate(
             // counts voided reversals too, so the posted-only index above cannot.
             "CREATE INDEX idx_books_je_reverses ON books_journal_entries (reverses) WHERE reverses != ''",
             'CREATE INDEX idx_books_je_date ON books_journal_entries (date)',
+            // Serves the cash-basis rebuild's read of a document's or a
+            // payment's entries (server/cash_basis.go).
+            'CREATE INDEX idx_books_je_document ON books_journal_entries (document, doc_type)',
             'CREATE INDEX idx_books_je_status_date ON books_journal_entries (status, date)',
             "CREATE INDEX idx_books_je_auto_reverse ON books_journal_entries (auto_reverse_on) WHERE auto_reverse_on != ''",
         ]

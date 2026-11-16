@@ -228,7 +228,9 @@ func movePostedLines(tx core.App, kind balanceKind, original, correction *core.R
 }
 
 // moveLinesWhere moves the payment lines that name the original and match the
-// extra filter, which is empty or starts with " && ".
+// extra filter, which is empty or starts with " && ", then rebuilds the
+// cash-basis rows of both documents: the moved payments' shares now come from
+// the correction's lines.
 func moveLinesWhere(tx core.App, kind balanceKind, original, correction *core.Record, extra string) error {
 	lines, err := tx.FindRecordsByFilter(kind.LinesCollection, kind.LineField+" = {:doc}"+extra, "id", 0, 0,
 		dbx.Params{"doc": original.Id})
@@ -244,7 +246,7 @@ func moveLinesWhere(tx core.App, kind balanceKind, original, correction *core.Re
 			return fmt.Errorf("books: move a payment line to the correction: %w", err)
 		}
 	}
-	return nil
+	return rebuildCashBasisOf(tx, kind.Collection, original.Id, correction.Id)
 }
 
 // DocumentBalanceDrift is one document whose stored balance disagrees with its

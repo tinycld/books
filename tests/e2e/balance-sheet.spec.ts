@@ -362,8 +362,9 @@ test.describe('balance-sheet: report', () => {
             .getByTestId('report-controls')
             .locator('[data-testid^="report-param-"]')
             .evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')))
-        expect(chips).toEqual(['report-param-asOf', 'report-param-rows'])
+        expect(chips).toEqual(['report-param-asOf', 'report-param-method', 'report-param-rows'])
         await expect(page.getByTestId('report-param-asOf')).toContainText('Today')
+        await expect(page.getByTestId('report-param-method')).toContainText('Accrual')
         await expect(page.getByTestId('report-param-rows')).toContainText('Non-zero')
 
         await page.getByTestId('report-param-asOf').click()

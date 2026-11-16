@@ -115,8 +115,8 @@ func TestTransactionDetailSpecLoads(t *testing.T) {
 	if shipped.Description != "Posted lines of chosen accounts for a period, grouped by account." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 2 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 2 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(transactionDetailSpec()))) {
 		t.Errorf("the shipped spec is not transactionDetailSpec()")
@@ -129,8 +129,8 @@ func TestTransactionDetailSpecLoads(t *testing.T) {
 	if spec.Version != reports.CurrentVersion {
 		t.Errorf("version %d, want %d", spec.Version, reports.CurrentVersion)
 	}
-	if spec.Source != "books.journal_lines" {
-		t.Errorf("source = %q, want books.journal_lines", spec.Source)
+	if spec.Source != "books.basis_lines" {
+		t.Errorf("source = %q, want books.basis_lines", spec.Source)
 	}
 	if err := reports.Validate(app, spec); err != nil {
 		t.Errorf("Validate: %v", err)
@@ -140,8 +140,11 @@ func TestTransactionDetailSpecLoads(t *testing.T) {
 	for i, p := range spec.Params {
 		ids[i] = p.ID
 	}
-	if !reflect.DeepEqual(ids, []string{"period", "accounts"}) {
-		t.Errorf("params = %v, want period, accounts (the chips' order)", ids)
+	if !reflect.DeepEqual(ids, []string{"period", "method", "accounts"}) {
+		t.Errorf("params = %v, want period, method, accounts (the chips' order)", ids)
+	}
+	if method, ok := findParam(spec, "method"); !ok || !reflect.DeepEqual(method, methodParam()) {
+		t.Errorf("method = %+v, want methodParam() %+v", method, methodParam())
 	}
 	if period, ok := findParam(spec, "period"); !ok || period.Type != reports.ParamDateRange || period.Label != "Period" ||
 		!jsonEqual(t, period.Default, `{"preset":"thisMonthToDate"}`) {
@@ -714,7 +717,7 @@ func TestTransactionDetailShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Transaction Detail by Account" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Transaction Detail by Account" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -966,6 +969,10 @@ func rangeJSON(from, to string) string { return string(mustJSON(glPeriod(from, t
 
 const expenseGroupPick = `[{"group":"expense"}]`
 
+// accrualMethod is the Method a statement run with no method resolves to; its
+// drills copy it to Transaction Detail (`{ "param": "method" }`).
+const accrualMethod = `"accrual"`
+
 // An account row's Total drills to that account for the period as the run was
 // given it; the drilled section total equals the figure, also for an account
 // whose lines net to zero.
@@ -988,7 +995,7 @@ func TestDrillProfitAndLossAccount(t *testing.T) {
 	if got := plAmount(t, row); got != 144000 {
 		t.Fatalf("Rent or lease's Total = %d, want 144000 (this fiscal year's two lines)", got)
 	}
-	requireDrill(t, row, "amount", map[string]string{"period": fytd, "accounts": idList(rent.Id)})
+	requireDrill(t, row, "amount", map[string]string{"period": fytd, "method": accrualMethod, "accounts": idList(rent.Id)})
 	td := drillTD(t, b.app, b.reader, res, row.ID, "amount")
 	if got := sectionIDs(t, glSections(t, td)); !reflect.DeepEqual(got, idsOf(rent)) {
 		t.Errorf("the drilled sections = %v, want only Rent or lease", sectionLabels(glSections(t, td)))
@@ -1001,7 +1008,7 @@ func TestDrillProfitAndLossAccount(t *testing.T) {
 	if got := plAmount(t, zero); got != 0 {
 		t.Fatalf("Meals' Total = %d, want 0 (its lines cancel)", got)
 	}
-	requireDrill(t, zero, "amount", map[string]string{"period": fytd, "accounts": idList(meals.Id)})
+	requireDrill(t, zero, "amount", map[string]string{"period": fytd, "method": accrualMethod, "accounts": idList(meals.Id)})
 	ztd := drillTD(t, b.app, b.reader, res, zero.ID, "amount")
 	s := sectionFor(t, ztd, meals)
 	if got := tdAmounts(t, s.lines); !slices.Equal(got, []int64{5000, -5000}) {
@@ -1047,7 +1054,7 @@ func TestDrillProfitAndLossSection(t *testing.T) {
 			if got := plAmount(t, r); got != sec.want {
 				t.Fatalf("%s (%s) = %d, want %d", r.Label, r.Kind, got, sec.want)
 			}
-			requireDrill(t, r, "amount", map[string]string{"period": march, "accounts": `[{"group":"` + sec.group + `"}]`})
+			requireDrill(t, r, "amount", map[string]string{"period": march, "method": accrualMethod, "accounts": `[{"group":"` + sec.group + `"}]`})
 			td := drillTD(t, b.app, b.reader, res, r.ID, "amount")
 			if got := sectionIDs(t, glSections(t, td)); !sameAccounts(got, idsOf(sec.accounts...)) {
 				t.Errorf("%s (%s) drills to sections %v, want every %s account with a line", r.Label, r.Kind, sectionLabels(glSections(t, td)), sec.group)
@@ -1066,7 +1073,7 @@ func TestDrillProfitAndLossSection(t *testing.T) {
 
 	all := b.pl(t, map[string]any{"period": glAllDates})
 	total := plTotal(t, all, "Expenses")
-	requireDrill(t, total, "amount", map[string]string{"period": `{"preset":"allDates"}`, "accounts": expenseGroupPick})
+	requireDrill(t, total, "amount", map[string]string{"period": `{"preset":"allDates"}`, "method": accrualMethod, "accounts": expenseGroupPick})
 	if got, want := tdAmountOf(t, totalOf(t, drillTD(t, b.app, b.reader, all, total.ID, "amount"))), plAmount(t, total); got != want || got != 16111 {
 		t.Errorf("All dates: the drilled Total = %d, want Total Expenses %d (16111)", got, want)
 	}
@@ -1112,13 +1119,13 @@ func TestDrillProfitAndLossByMonth(t *testing.T) {
 		if cell != m.want {
 			t.Fatalf("Supplies in %s = %d, want %d", m.key, cell, m.want)
 		}
-		requireDrill(t, row, monthCol[m.key], map[string]string{"period": rangeJSON(m.from, m.to), "accounts": idList(supplies.Id)})
+		requireDrill(t, row, monthCol[m.key], map[string]string{"period": rangeJSON(m.from, m.to), "method": accrualMethod, "accounts": idList(supplies.Id)})
 		td := drillTD(t, b.app, b.reader, res, row.ID, monthCol[m.key])
 		if got := tdSectionTotal(t, td, supplies); got != cell {
 			t.Errorf("Supplies' %s cell drills to a total of %d, want the cell %d", m.key, got, cell)
 		}
 	}
-	requireDrill(t, row, "amount", map[string]string{"period": rangeJSON("2026-03-10", "2026-05-20"), "accounts": idList(supplies.Id)})
+	requireDrill(t, row, "amount", map[string]string{"period": rangeJSON("2026-03-10", "2026-05-20"), "method": accrualMethod, "accounts": idList(supplies.Id)})
 	if got, want := tdSectionTotal(t, drillTD(t, b.app, b.reader, res, row.ID, "amount"), supplies), plAmount(t, row); got != want || got != 15000 {
 		t.Errorf("Supplies' Total cell drills to a total of %d, want the Total %d (15000)", got, want)
 	}
@@ -1128,7 +1135,7 @@ func TestDrillProfitAndLossByMonth(t *testing.T) {
 	if april != 4700 {
 		t.Fatalf("Expenses in April = %d, want 4700", april)
 	}
-	requireDrill(t, sec, monthCol["2026-04"], map[string]string{"period": rangeJSON("2026-04-01", "2026-04-30"), "accounts": expenseGroupPick})
+	requireDrill(t, sec, monthCol["2026-04"], map[string]string{"period": rangeJSON("2026-04-01", "2026-04-30"), "method": accrualMethod, "accounts": expenseGroupPick})
 	if got := tdAmountOf(t, totalOf(t, drillTD(t, b.app, b.reader, res, sec.ID, monthCol["2026-04"]))); got != april {
 		t.Errorf("Expenses' April cell drills to a Total of %d, want the cell %d", got, april)
 	}
@@ -1169,7 +1176,7 @@ func TestDrillBalanceSheet(t *testing.T) {
 	row := bsAccount(t, res, bank)
 	requireFigures(t, row, 8500, 12500)
 
-	requireDrill(t, row, "current", map[string]string{"period": rangeJSON("2025-06-10", asOf), "accounts": idList(bank.Id)})
+	requireDrill(t, row, "current", map[string]string{"period": rangeJSON("2025-06-10", asOf), "method": accrualMethod, "accounts": idList(bank.Id)})
 	current := drillTD(t, b.app, b.reader, res, row.ID, "current")
 	if got := tdSectionTotal(t, current, bank); got != amt(t, row, "current") {
 		t.Errorf("Current drills to a total of %d, want the figure %d", got, amt(t, row, "current"))
@@ -1181,7 +1188,7 @@ func TestDrillBalanceSheet(t *testing.T) {
 		t.Errorf("the line dated after the as-of day shows in the drilled report")
 	}
 
-	requireDrill(t, row, "prior", map[string]string{"period": rangeJSON("2025-06-10", priorDay), "accounts": idList(bank.Id)})
+	requireDrill(t, row, "prior", map[string]string{"period": rangeJSON("2025-06-10", priorDay), "method": accrualMethod, "accounts": idList(bank.Id)})
 	prior := drillTD(t, b.app, b.reader, res, row.ID, "prior")
 	if got := tdSectionTotal(t, prior, bank); got != amt(t, row, "prior") {
 		t.Errorf("Prior year drills to a total of %d, want the figure %d", got, amt(t, row, "prior"))
@@ -1197,7 +1204,7 @@ func TestDrillBalanceSheet(t *testing.T) {
 	if got := amt(t, sv, "prior"); got != 0 {
 		t.Fatalf("Savings' Prior year = %d, want 0 (its only line is after %s)", got, priorDay)
 	}
-	requireDrill(t, sv, "prior", map[string]string{"period": rangeJSON(priorDay, priorDay), "accounts": idList(savings.Id)})
+	requireDrill(t, sv, "prior", map[string]string{"period": rangeJSON(priorDay, priorDay), "method": accrualMethod, "accounts": idList(savings.Id)})
 	none := drillTD(t, b.app, b.reader, res, sv.ID, "prior")
 	if secs := glSections(t, none); len(secs) != 0 {
 		t.Errorf("Savings' Prior year 0.00 drills to sections %v, want none", sectionLabels(secs))

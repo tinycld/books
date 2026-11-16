@@ -18,12 +18,11 @@ import type {
 import type { BooksAccounts } from '../types'
 
 export const PROFIT_AND_LOSS_TITLE = 'Profit and Loss'
-export const PROFIT_AND_LOSS_DESCRIPTION =
-    'Income and expenses for a period, and what is left, on the accrual basis.'
+export const PROFIT_AND_LOSS_DESCRIPTION = 'Income and expenses for a period, and what is left.'
 export const PROFIT_AND_LOSS_SHIPPED_KEY = 'books.profit_and_loss'
 export const PROFIT_AND_LOSS_BY_MONTH_TITLE = 'Profit and Loss by Month'
 export const PROFIT_AND_LOSS_BY_MONTH_DESCRIPTION =
-    'Income and expenses month by month for a period, on the accrual basis.'
+    'Income and expenses month by month for a period.'
 export const PROFIT_AND_LOSS_BY_MONTH_SHIPPED_KEY = 'books.profit_and_loss_by_month'
 export const PROFIT_AND_LOSS_HEADING = 'Harbor Lane Design LLC'
 // The default period, This fiscal year to date (fiscal year from January), resolved

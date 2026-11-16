@@ -165,6 +165,7 @@ func reportSources() []reports.Source {
 				{Key: "agency", Label: "Agency", Target: "books.tax_agencies", Cardinality: reports.ToOne, Field: "agency"},
 			},
 		},
+		basisLinesSource(),
 		salesDocumentsSource(),
 		salesTaxLinesSource(),
 		auditLogSource(),
@@ -199,6 +200,47 @@ func auditLogSource() reports.Source {
 			{Key: "parent_id", Label: "Document ID", Type: reports.Text},
 			{Key: "history_type", Label: "History type", Type: reports.Text},
 			{Key: "history_id", Label: "History ID", Type: reports.Text},
+		},
+	}
+}
+
+// basisLineColumns are the columns journal lines and cash-basis rows share,
+// by the same name in both collections.
+var basisLineColumns = []string{
+	"debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor",
+}
+
+// basisLinesSource is the journal lines by basis (pay-bills spec §3.10), one
+// union of the posted ledger lines and the cash-basis rows (core SourcePart):
+// the fields and links of books.journal_lines, and layer, each part's
+// constant. A statement on it reads the ledger alone on Accrual and both
+// parts on Cash (basisFilter), where the cash rows take out what a bill or an
+// invoice posted and bring back each payment's share.
+func basisLinesSource() reports.Source {
+	return reports.Source{
+		Key: "books.basis_lines", Label: "Journal lines by basis",
+		Parts: []reports.SourcePart{
+			{Collection: "books_journal_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "ledger"}},
+			{Collection: "books_cash_basis_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "cash"}},
+		},
+		Fields: []reports.Field{
+			{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "memo", Label: "Memo", Type: reports.Text},
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "posted", Label: "Posted", Type: reports.Bool},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "position", Label: "Position", Type: reports.Number},
+			{Key: "layer", Label: "Layer", Type: reports.Select, Options: []reports.Option{
+				{Value: "ledger", Label: "Ledger"},
+				{Value: "cash", Label: "Cash basis"},
+			}},
+		},
+		Links: []reports.Link{
+			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
+			{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
+			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
+			{Key: "vendor", Label: "Vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "vendor"},
 		},
 	}
 }

@@ -103,6 +103,8 @@ Total assets equals Total liabilities and equity, in Current and in Prior year. 
 
 To change the day, press the As of chip. Pick Today, End of last month, End of last quarter or End of last fiscal year. The default is Today. To use your own day, pick Custom, then type the day or pick it from the calendar.
 
+The Balance Sheet opens on Accrual. To see it on the cash basis, press the Method chip and pick Cash (see "Accrual and cash basis" below).
+
 To change which accounts show, press the Rows chip and pick one:
 
 - Non-zero shows the accounts with a balance that is not zero on the As of day or on the Prior year day. This is the default.
@@ -164,7 +166,7 @@ The five sections always show, also when they have no lines. An empty section sh
 - % of income shows each row as a share of Total Income for the same period. Other income is not counted in Total Income, so Total Income reads 100.0%. When Total Income is 0.00, % of income is blank.
 - Only posted journal lines count. Drafts do not count. A voided entry and its reversal cancel each other.
 
-Books reports the P&L on the accrual basis: income counts on the day it is entered, not the day it is paid.
+The Profit and Loss opens on Accrual: income and expenses count on the day they are entered. To see them on the day they are paid, press the Method chip and pick Cash (see "Accrual and cash basis" below).
 
 To change the dates, press the Period chip. The default is This fiscal year to date. Pick a preset, such as This month, Last quarter or This fiscal year, or pick Custom and type the first and last day. To see every line from the start of your books, pick All dates.
 
@@ -201,11 +203,11 @@ On a section heading of the Profit and Loss or the Profit and Loss by Month, pre
 
 On a window that is 1360 px wide or more, the transactions show in a panel beside the statement, and the amount that you pressed stays marked. On a narrower window and on a phone, they open as their own report. When you narrow the window while the panel is open, the panel covers the statement, and its back link closes it.
 
-The panel shows its own Period and Accounts chips, its heading and its lines. In the panel and on a phone, each line wraps onto three lines: the date, Type and No.; then Name and Description; then Split and Amount. A change to a chip in the panel runs only the panel's report. After you change a chip in the panel, no amount of the statement stays marked. Press a line in the panel to open its transaction; Back on the transaction returns to the statement with the panel open. Press another amount to show its transactions in the same panel. To see the report with Customize, Share, Save as and Copy link, press Open as full report. To close the panel, press Close (✕) or Escape. When you open Customize, the panel closes.
+The panel shows its own Period, Method and Accounts chips, its heading and its lines. In the panel and on a phone, each line wraps onto three lines: the date, Type and No.; then Name and Description; then Split and Amount. A change to a chip in the panel runs only the panel's report. After you change a chip in the panel, no amount of the statement stays marked. Press a line in the panel to open its transaction; Back on the transaction returns to the statement with the panel open. Press another amount to show its transactions in the same panel. To see the report with Customize, Share, Save as and Copy link, press Open as full report. To close the panel, press Close (✕) or Escape. When you open Customize, the panel closes.
 
 Transaction Detail by Account shows:
 
-- Period and Accounts chips that the press set. Period is the period of the statement, or the part of it that the amount covers, such as one month or the days up to the As of day. Accounts is the one account, or "All <type> accounts" for a section, for example "All Expense accounts".
+- Period, Method and Accounts chips that the press set. Period is the period of the statement, or the part of it that the amount covers, such as one month or the days up to the As of day. Method is the method of the statement (from the Trial Balance, always Accrual). Accounts is the one account, or "All <type> accounts" for a section, for example "All Expense accounts".
 - One section for each account, in the order of the chart of accounts. Each line shows its date, Type, No., Name, Description, Split and Amount.
 - Amount is each line by the normal side of its account, so an expense reads positive and a refund to it reads negative.
 - The total of each section, and the Total of the report, equals the amount that you pressed, because they add the same posted lines. From a Trial Balance Credit of an asset or expense account, the total reads as a negative amount, for example -50.00.
@@ -219,6 +221,21 @@ Press a line to open its transaction. An invoice, sales receipt or bill line ope
 Transaction Detail by Account also opens from Reports, like the other Books reports. From Reports, it shows the lines of every account for This month to date until you pick accounts.
 
 On the web, ⌘-click or middle-click an amount to open Transaction Detail by Account in a new tab.
+
+## Accrual and cash basis
+
+The Profit and Loss, the Profit and Loss by Month, the Balance Sheet and Transaction Detail by Account have a Method chip. To change the method, press the Method chip and pick Accrual or Cash. The default is Accrual. The heading of the report shows the method under the period, for example "Accrual basis" or "Cash basis".
+
+- On Accrual, every posted entry counts on its own date. A bill counts on the bill date, and an invoice on the invoice date.
+- On Cash, bills and invoices count only when they are paid, and only as far as they are paid. A bill of 500.00 with a payment of 200.00 counts 200.00, on the date of the payment. The rest counts when it is paid.
+- Each payment brings back its share of each line of the bill or invoice. For example, a bill with 700.00 of office supplies and 300.00 of software, paid 400.00, counts 280.00 of office supplies and 120.00 of software.
+- All other entries count on their own date on Cash too: journal entries, transfers, expenses, sales receipts, bill payments, customer payments and opening balances. A customer payment that is more than its invoices counts in full on its date, because the business has the money.
+- On the Balance Sheet on Cash, Accounts payable and Accounts receivable do not hold the unpaid part of bills and invoices. Total assets still equals Total liabilities and equity.
+- When you void or edit a payment, Books calculates again the shares of the other payments of the same bill or invoice. Thus voiding a payment can move another payment's share between the lines of the document by one cent. The total of each payment does not change.
+
+When you press an amount on Cash, Transaction Detail by Account opens on Cash too. Its lines show the parts that the cash basis moves: a line "Unpaid bill (cash basis)" or "Unpaid invoice (cash basis)" takes a document out on its own date, with the number of the document, and a line such as "Bill 1003 paid (cash basis)" or "Invoice 1004 paid (cash basis)" brings back a payment's share on the payment date, with the number of the payment.
+
+The General Ledger, the Trial Balance and the Journal show the accrual basis only.
 
 ## Read the Sales Tax Liability report
 

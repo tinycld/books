@@ -35,7 +35,8 @@ func isReplacingPayment(tx core.App, paymentID string) bool {
 // both naming the customer, the payment's memo) posts through postDocument,
 // so postEntry runs every ledger rule; then the payment takes its number,
 // applied and credited, its applications come off their invoices' balances,
-// and a correction's original becomes void with replaced_by.
+// a correction's original becomes void with replaced_by, and the cash-basis
+// rows of every invoice it or its original pays are rebuilt.
 func postPayment(tx core.App, p *core.Record, now time.Time) error {
 	original, err := correctedPayment(tx, p)
 	if err != nil {
@@ -96,9 +97,12 @@ func postPayment(tx core.App, p *core.Record, now time.Time) error {
 		return err
 	}
 	if original == nil {
-		return nil
+		return rebuildPaidCashBasis(tx, invoiceBalanceKind, p.Id)
 	}
-	return voidReplacedPayment(tx, original, p, actor, now)
+	if err := voidReplacedPayment(tx, original, p, actor, now); err != nil {
+		return err
+	}
+	return rebuildPaidCashBasis(tx, invoiceBalanceKind, p.Id, original.Id)
 }
 
 // correctedPayment is the posted payment a correction replaces, nil for a
@@ -194,7 +198,7 @@ func voidReplacedPayment(tx core.App, original, correction *core.Record, actor s
 // posted to void, inside the update's transaction: the entry's own hook posts
 // the void reversal in the original period under the same number (voidEntry),
 // and the close date applies to it as to any post. The invoices it paid are
-// open again (releaseLines).
+// open again (releaseLines), and their cash-basis rows lose its share.
 func voidPayment(tx core.App, p *core.Record, now time.Time) error {
 	entryID := p.GetString("entry")
 	if entryID == "" {
@@ -210,5 +214,8 @@ func voidPayment(tx core.App, p *core.Record, now time.Time) error {
 		return err
 	}
 	p.Set("voided_at", now)
-	return releaseLines(tx, invoiceBalanceKind, p.Id)
+	if err := releaseLines(tx, invoiceBalanceKind, p.Id); err != nil {
+		return err
+	}
+	return rebuildPaidCashBasis(tx, invoiceBalanceKind, p.Id)
 }
