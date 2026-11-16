@@ -51,7 +51,14 @@
 - cp 2 · fix review NOTE: `hooks/useRecordHistory.ts:115-116` — a live change that arrives while the next window loads shows only when that window lands (declared).
 - cp 2 · fix review NOTE: `stores/history-reads-store.ts:83-97` — `useReportHistoryRead` copies a child query's error into the store with an effect (an external-store write, with cleanup on recovery/unmount; P11 keeps the read in the child); accepted by the reviewer.
 - cp 2 · fix review NOTE: no unit or e2e test drives a failed value read to `history-retry` (declared). Suggested: a hook test with harness `refuseAfter` on one relation read, asserting `readsFailed` then `retry()` clears it.
-- cp 2 · fix review NOTE: `lib/audit-record-route.ts:141` `auditRecordOpenLabel` (contact → "Open customer"/"Open vendor") has no unit test. Suggested: two cases in `tests/audit-record-route.test.ts`.
+- cp 2 · fix review NOTE: `lib/audit-record-route.ts:141` `auditRecordOpenLabel` (contact → "Open customer"/"Open vendor") has no unit test. Suggested: two cases in `tests/audit-record-route.test.ts`. → this and the value-read note above: tests added in cp 3 (Out-of-plan changes).
+- cp 3 · panel-1440-*: report rows beside the panel — when a row press opens the panel the report takes its tablet layout (row heights double) and the pressed row can move out of view; core's list does not keep the pressed row in view. The first capture missed the mark for this reason (the capture now scrolls the row back). Core behavior (D5 / FlashList anchor).
+- cp 3 · panel-1440-*: tablet rows — line 1 and line 2 of a row are 36 px apart, as is the next row; no divider, so the Record line does not clearly belong to its row (core layout; same in the reference).
+- cp 3 · panel-1440-*: table heading — "DATE CHANGED" at x 76, cells and "RECORD" at x 80 (core; same in the reference).
+- cp 3 · panel-1440-*: Price values with the currency symbol ("$900.00") — repeat of the cp 2 note.
+- cp 3 · panel-1440-*: a second row's Date changed is underlined (the capture's pointer was left on it; hover state, capture only).
+- cp 3 · gate 3 A NOTE 3: `tests/e2e/audit-log-panel.spec.ts` `panelPlacement` reads two `boundingBox` calls, not one snapshot (inside `expect.poll`).
+- cp 3 · gate 3 A NOTE 4: core's panel title is one line (`ReportDrillPanel.tsx:121` `numberOfLines={1}`), so a long record name is cut ("Studio lamp w1-179479…") and the panel shows the full name nowhere (the history title row is the screen's only). Suggested: a wrapped title line in the panel body, or a two-line core title.
 
 ## Out-of-plan changes
 - cp 0 (core): `docs/plans/2026-11-15-report-zone-times-and-record-panel-part-1.md` and `-part-2.md` — the Files block names only the outline file; the task bodies are in two part files (written in parallel, as the earlier core plans `2026-11-14-report-drill-down-part-*.md` are).
@@ -61,6 +68,9 @@
 - cp 2: `server/testdata/audit_log_spec.json` — the golden of `TestAuditLogSpecLoads` holds the whole shipped spec, so `Detail.Open` adds `detail.open` there.
 - cp 2 (fix round): `tinycld/books/lib/audit-log.ts` — the runtime types and record type labels moved out of the reference fixture, so the app bundle does not ship the fixture (reviewer B finding 2); the fixture re-exports them.
 - cp 2 (fix round): `tinycld/books/stores/history-reads-store.ts` — a package Zustand store through which relation and line reads report failures to the history's Retry (plan Do 5; reviewer A NOTE 2, reviewer B finding 3).
+- cp 3 (Do 3, gate 3 A NOTE 1 / B finding 1): `server/report_audit_log.go`, `server/testdata/audit_log_spec.json`, `tinycld/books/lib/audit-log-fixture.ts`, `docs/specs/audit-log-design.md` §5 — `oneLine.minWidth` 760px → 920px: beside the 480 px panel at 1440 the report's row is 896 px (probe, capture log), above 760, so it kept one line; 920 sits below the 1024 report alone (960 with overlay scrollbars, about 945 with classic ones). Do 3 asks for this change in "the display and its Go test"; the fixture and golden follow P12, the spec states the measured widths.
+- cp 3 (driver's order, checkpoint 2 fix review): `tests/use-record-history.test.tsx` (a failed value read sets `readsFailed`, `retry()` clears it) and `tests/audit-record-route.test.ts` (`auditRecordOpenLabel` customer / vendor / ordinary). Both proven red by a one-time source mutation (staging `cp/cp3-tests.md`).
+- cp 3 (fix round, gate 3 A NOTE 5): `tests/record-history-panel.test.tsx` — the panel's malformed-path empty state (one and three segments); proven red by a guard mutation.
 - cp 1 (core task, human-approved option (c)): `core/help/reports.md` — not in the core task's Files block (staging `cp/cp1-core.md`); a "Long words" bullet for the new builder picker, as the in-app help rule asks.
 
 ## Phase notes
@@ -185,7 +195,28 @@
 - for checkpoint 3: `history-title` is drawn only on `surface: 'screen'`; `AuditFieldKind` adds `datetime`, `percent`; `useRecordHistory` also returns `currency`, `isLoadingMore`, `readsFailed`; runtime audit types live in `lib/audit-log.ts` (not the fixture); value-read failures go through `stores/history-reads-store.ts` keyed by `historyKey(collection, id)`.
 - commit: books: this commit.
 
+## Checkpoint 3
+- test writer (staging `cp/cp3-tests.md`): `tests/manifest.test.ts` (`reportPanels`), `tests/e2e/audit-log-panel.spec.ts` (tests 9, 10); red for the right reason: yes (3: no `reportPanels`, the press pushes the screen at 1440); untestable: none. Extra tests by the driver's order (Out-of-plan changes): `tests/use-record-history.test.tsx`, `tests/audit-record-route.test.ts`, green on the existing code, each proven red by a reverted source mutation.
+- implementer (staging `cp/cp3-impl.md`): `manifest.ts` `reportPanels`, `RecordHistoryPanel.tsx` (segments → `RecordHistory` `surface="panel"`, keyed per record; malformed path → empty state titled "Record history"), `RecordHistory.tsx` (`usePanelTitle`, `HistoryEmpty` exported); Do 3: `oneLine.minWidth` raised (test 9 red "Record (top 321) is not below line 1": one-line beside the panel); DONE.
+- test disputes: none
+- self-declared differences: `oneLine.minWidth` 960px (later 920px, fix item 1) with the spec edit; the malformed-path panel title "Record history"; `usePanelTitle` called on both surfaces (core's hook is a no-op outside `PanelTitleProvider`; rules of hooks); a `history-panel` test id (removed, fix item 2).
+- gate 1: tests unedited: yes · pass: `packages:generate`; `tinycld-pkg check` 283 files / 5697 tests; `go test ./...`; e2e `-g "audit-log:"` 13 passed; `report-drill-panel.spec.ts` + `report-drill-down.spec.ts` 14 passed (staging `cp/cp3-g1-*.log`).
+- gate 2: capture `docs/plans/audit-log-evidence/cp3/capture.json` (panel: a row press on the real report at 1440 through the git-excluded capture spec's new `inPanel`; report 1440; after the fix also report 1024) · invalid shots: none · blocking: 2 (panel light/dark: no marked row in view) → capture problem: the report takes its tablet layout beside the panel and the pressed row moved out of view; the capture scrolls it back and asserts `aria-selected` → fresh critic `critique-fix-1.md`: 0 INVALID, 0 BLOCKING, 4 NOTE (Design notes). Probe layouts: panel tablet@896, report 1440 one-line@1376, report 1024 one-line@960.
+- gate 3 input: `review-diff.mjs` 16 staged, 6 out-of-plan, 0 conformance lines.
+- gate 3 A (correctness, staging `cp/cp3-review-A.md`): 0 BLOCK, 9 NOTE, 0 DEFERRAL · NOTE 1 (960px gate = the 1024 overlay width; classic scrollbars drop 1024 to tablet) → fix item 1 (= B 1) · NOTE 2 (tablet check reads the row, not the Date changed cell) → item 4 (test writer) · NOTE 5 (malformed path untested) → item 5 (test writer; a missing test is not a note) · NOTE 6 → item 3 (comment) · NOTEs 3, 4 → Design notes · NOTEs 7–9 out-of-plan files confirmed.
+- gate 3 B (conformance, staging `cp/cp3-review-B.md`): script lines: 0 · finding 1 → item 1 (920px, measured widths in comments and spec) · findings 2–4 out-of-plan files → recorded (the extra tests' red proofs are in `cp/cp3-tests.md`) · finding 5 (`history-panel` test id with no consumer) → item 2 · 0 rebutted.
+- accepted findings: staging `cp/cp3-fix.md` (5 items).
+- fix tests (staging `cp/cp3-fix-tests.md`): `audit-log-panel.spec.ts` reads the Date changed cell by its test id and refuses a cell as wide as the row (green, not proven red: core's `report-row-<id>` already was that cell); new `tests/record-history-panel.test.tsx` (2 cases, red under a guard mutation).
+- fix implementer (staging `cp/cp3-fix-impl.md`): items 1–3 FIXED.
+- gate 1 (after fixes): tests unedited: yes · pass: `packages:generate`; `tinycld-pkg check` 284 files / 5699 tests; `go test ./...`; e2e `-g "audit-log:"` 13 passed (staging `cp/cp3-fix-g1-*.log`).
+- fix review: round 1 (staging `cp/cp3-fix-review.md`): clean. Rounds: 1.
+- gate 3 A notes: 2 (Design notes).
+- reviewer-caught deferrals: none
+- for checkpoint 4: `oneLine.minWidth` is 920px (Go, fixture, golden, spec); the capture spec copy has `inPanel` for a row press that opens the panel.
+- commit: books: this commit.
+
 ## Final review
+- for the eval gate (from checkpoint 0, driver's order): native is not executed in this run, so the Hermes `Intl` behaviors (`hourCycle`/`hour12`, `longGeneric`) were never checked on a device; core's R4 and R6 fallbacks cover both. Not a deferral.
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
 - human comments and what changed
 - native: not executed in this run

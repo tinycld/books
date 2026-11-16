@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { auditOpenLabel, auditRecordHref } from '../tinycld/books/lib/audit-record-route'
+import {
+    auditOpenLabel,
+    auditRecordHref,
+    auditRecordOpenLabel,
+} from '../tinycld/books/lib/audit-record-route'
 import { documentHref } from '../tinycld/books/lib/document-routes'
 import { entryHref } from '../tinycld/books/lib/entry-route'
 import {
@@ -117,5 +121,21 @@ describe('auditOpenLabel', () => {
 
     it.each(GROUPS)('$collection: $label', ({ collection, label }) => {
         expect(auditOpenLabel(collection)).toBe(label)
+    })
+})
+
+describe('auditRecordOpenLabel', () => {
+    it('names a customer’s contact by the customer screen it opens', () => {
+        const live = { id: ID, customer: 'bkcust000northw', vendor: '' }
+        expect(auditRecordOpenLabel('books_party_contacts', live)).toBe('Open customer')
+    })
+
+    it('names a vendor’s contact by the vendor screen it opens', () => {
+        const live = { id: ID, customer: '', vendor: 'bkvendcascade01' }
+        expect(auditRecordOpenLabel('books_party_contacts', live)).toBe('Open vendor')
+    })
+
+    it('names any other record by its own type', () => {
+        expect(auditRecordOpenLabel('books_invoices', { id: ID })).toBe('Open invoice')
     })
 })

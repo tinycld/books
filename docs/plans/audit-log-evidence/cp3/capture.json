@@ -1,0 +1,32 @@
+{
+    "outDir": ".",
+    "setup": "historyRows",
+    "shots": [
+        {
+            "name": "panel",
+            "url": "dr=books%2Fhistory%2Fbooks_products%2F$productId",
+            "fromRow": { "record": "$productName", "event": "Changed" },
+            "inPanel": true,
+            "ready": "history-events",
+            "widths": [1440],
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1440],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        },
+        {
+            "name": "report",
+            "url": "/a/reports/$auditLogId",
+            "ready": "report-table",
+            "widths": [1024],
+            "hideLabels": ["New"],
+            "actions": [{ "click": "report-document-title" }]
+        }
+    ]
+}

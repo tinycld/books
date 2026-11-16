@@ -1,4 +1,5 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { usePanelTitle } from '@tinycld/core/reports/hooks/usePanelTitle'
 import { readerTimeZone } from '@tinycld/core/reports/lib/date-time'
 import { shortDay } from '@tinycld/core/reports/lib/dates'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
@@ -58,7 +59,8 @@ function OpenRecord({ header }: { header: RecordHistoryHeader }) {
     )
 }
 
-// The panel's own header shows the title (core D5), so only the screen draws it.
+// The panel's own header shows the title (core D5, named through usePanelTitle), so only
+// the screen draws it.
 function HistoryTitle({ isVisible, title }: { isVisible: boolean; title: string }) {
     if (!isVisible) return null
     return (
@@ -101,7 +103,7 @@ function HistoryError({ onRetry }: { onRetry(): void }) {
     )
 }
 
-function HistoryEmpty() {
+export function HistoryEmpty() {
     return (
         <View testID="history-empty" className="items-center p-6">
             <Text className="text-base text-muted-foreground">
@@ -232,6 +234,9 @@ interface RecordHistoryProps {
  */
 export function RecordHistory({ collection, id, surface }: RecordHistoryProps) {
     const { view, retry, history } = useHistoryView(collection, id)
+    // Names the record in the report panel's header; on the screen (outside core's
+    // panel) the hook does nothing.
+    usePanelTitle(history.header.title)
     if (view === 'no-access') return <NoAccess />
     const bodies: Record<Exclude<HistoryView, 'no-access'>, ReactNode> = {
         loading: <HistoryLoading />,

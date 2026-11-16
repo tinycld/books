@@ -607,8 +607,12 @@ export const AUDIT_LOG_TABLET_LAYOUT: DisplayLayout = {
     ],
 }
 
-// The one line is tried only from this row width (phase 3 pass 2 measure, ledger).
-export const AUDIT_LOG_ONE_LINE_MIN_WIDTH = '760px'
+// The one line is tried only from this row width. Phase 3 pass 2 measured 760px as the
+// least width the one line fits; the gate sits at 920px. Measured row widths: 896 px
+// beside core's 480 px record panel at 1440 (it must take the tablet layout there,
+// checkpoint 3) and 960 px for the report alone at 1024 with overlay scrollbars; a
+// classic scrollbar takes about 15 px from both (881 and 945), so 920 sits between them.
+export const AUDIT_LOG_ONE_LINE_MIN_WIDTH = '920px'
 
 export const AUDIT_LOG_DISPLAY: NonNullable<ReportSpec['display']> = {
     oneLine: { minWidth: AUDIT_LOG_ONE_LINE_MIN_WIDTH },
