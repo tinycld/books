@@ -471,6 +471,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // A view over core's audit_logs, never written: the server signals its topic when an
+    // audit row is written or a line it reads a parent from changes
+    // (server/register.go), so an open report or history follows a change with no
+    // reload.
+    const books_audit_log = newCollection('books_audit_log', {
+        ...onDemand,
+        ...liveViewOptions('books_audit_log'),
+        collectionOptions: indexed,
+    })
+
     // No relations: the customer page reads one customer's contacts with its
     // own query. The server clears is_primary on a party's other contacts.
     const books_party_contacts = newCollection('books_party_contacts', {
@@ -519,5 +529,6 @@ export function registerCollections(
         books_payment_applications,
         books_party_balances,
         books_party_contacts,
+        books_audit_log,
     }
 }

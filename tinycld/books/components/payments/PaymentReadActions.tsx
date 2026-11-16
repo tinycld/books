@@ -98,6 +98,7 @@ export function PaymentReadActions({ payment, canWrite, scopeOwner }: PaymentRea
             <DocumentReadActions
                 actions={items}
                 isPhone={isPhone}
+                historyItem={null}
                 isBusy={voidDialog.isPending}
                 scopeOwner={scopeOwner}
             />

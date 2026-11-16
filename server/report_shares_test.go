@@ -392,6 +392,35 @@ func TestReportSharesOffboard(t *testing.T) {
 	})
 }
 
+// The Audit Log ships like every Books report (spec §5 "Shares"): a Books
+// reader who is not a Books admin holds a viewer share on it, and loses it
+// when their Books access goes.
+func TestReportSharesAuditLog(t *testing.T) {
+	reports.ResetForTesting()
+	t.Cleanup(reports.ResetForTesting)
+	// Register ships the Audit Log and binds the share sync, as production.
+	app, _ := newRegisteredApp(t)
+	mkUser(t, app, "owner")
+	reader := mkUser(t, app, "member")
+	setPkgAccess(t, app, reader, "readonly")
+	if err := reports.ReconcileShipped(app); err != nil {
+		t.Fatalf("ReconcileShipped: %v", err)
+	}
+	report, err := app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": auditLogKey})
+	if err != nil {
+		t.Fatalf("no reports row with shipped_key %s: %v", auditLogKey, err)
+	}
+	if err := reconcileBooksReportShares(app); err != nil {
+		t.Fatalf("reconcileBooksReportShares: %v", err)
+	}
+	requireViewer(t, app, report, reader, "a read-only Books member who is not a Books admin")
+
+	access := pkgAccessRow(t, app, reader)
+	access.Set("access", "none")
+	saveOrFail(t, app, access)
+	requireNoShare(t, app, report, reader, "the member after their Books access went to none")
+}
+
 // A Books grant moved to another user (an update of its user) takes the first
 // user's share away and gives the second user theirs.
 func TestReportSharesAccessMovedToAnotherUser(t *testing.T) {

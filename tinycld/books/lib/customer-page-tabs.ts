@@ -36,27 +36,34 @@ export function customerTabOf(param: string | undefined): CustomerTab {
 
 export type CustomerPageControls = {
     showMore: boolean
+    // Add sub-customer, Make inactive / active and Delete customer in More.
+    showWriteItems: boolean
     showAddSub: boolean
     inactiveLabel: 'Make inactive' | 'Make active'
     showNewTransaction: boolean
     newTransactionDisabled: boolean
 }
 
-// What the header offers. A reader gets no More menu and no New transaction. Only an
-// active top-level customer takes a sub-customer: the server refuses an active
-// sub-customer under an inactive parent. Invoice and sales-receipt posts refuse an
-// inactive customer, so New transaction is disabled for one.
+// What the header offers. Every Books reader gets More, which ends with Audit history
+// (spec §3 "Entry points"); a user who cannot read Books, or whose access still loads,
+// gets none. Only a writer gets its write items and New transaction. Only an active
+// top-level customer takes a sub-customer: the server refuses an active sub-customer
+// under an inactive parent. Invoice and sales-receipt posts refuse an inactive customer,
+// so New transaction is disabled for one.
 export function customerPageControls({
+    canRead,
     canWrite,
     inactive,
     isTopLevel,
 }: {
+    canRead: boolean
     canWrite: boolean
     inactive: boolean
     isTopLevel: boolean
 }): CustomerPageControls {
     return {
-        showMore: canWrite,
+        showMore: canRead,
+        showWriteItems: canWrite,
         showAddSub: canWrite && isTopLevel && !inactive,
         inactiveLabel: inactive ? 'Make active' : 'Make inactive',
         showNewTransaction: canWrite,
