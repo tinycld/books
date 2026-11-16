@@ -13,8 +13,10 @@ import {
     storedPartyAddressOf,
 } from '../../hooks/document-data'
 import { useReadAttachmentSession } from '../../hooks/useAttachmentUpload'
+import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
+import { useOpenHistory } from '../../hooks/useOpenHistory'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { invoiceBadge } from '../../lib/document-lifecycle'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
@@ -23,6 +25,7 @@ import { documentTaxOf } from '../../lib/document-tax'
 import { NO_PARTY_TEXT } from '../../lib/document-texts'
 import { lineTableSubtotals } from '../../lib/document-values'
 import { stampText } from '../../lib/entry-display'
+import { DOCUMENT_COLLECTIONS } from '../../lib/history-route'
 import { formatMoney } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
 import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-document-kinds'
@@ -30,6 +33,7 @@ import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
 import { AttachmentsSection } from './AttachmentsSection'
+import type { DocumentMoreItem } from './DocumentActionBar'
 import { DocumentDetail } from './DocumentDetail'
 import { DocumentHeader } from './DocumentHeader'
 import { DocumentPdfView } from './DocumentPdfView'
@@ -292,6 +296,22 @@ function ReplacedByLink({ record, isVisible }: { record: DocumentRecord; isVisib
 // The read view has no unsaved state: its PDF view never offers a save.
 const NO_SAVE = () => {}
 
+// More → Audit history for a Books reader (spec §3 "Entry points"), test id
+// `<kind>-read-history`. While the access read loads there is no item, so More shows only
+// for the other actions; a failed access read is the screen's own error state.
+function useHistoryItem(kind: Pick<SalesDocumentKind, 'key'>, id: string): DocumentMoreItem | null {
+    const { canRead } = useBooksAccess()
+    const openHistory = useOpenHistory(DOCUMENT_COLLECTIONS[kind.key], id)
+    if (!canRead) return null
+    return {
+        id: 'read-history',
+        label: 'Audit history',
+        keys: '',
+        isDisabled: false,
+        onSelect: openHistory,
+    }
+}
+
 interface StampsProps {
     record: DocumentRecord
     // Only the posting lifecycle posts, voids and replaces.
@@ -342,6 +362,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
+    const historyItem = useHistoryItem(doc, record.id)
     const writes = useServerActionState()
     useReadAttachmentSession(record.id, doc.features.attachments)
     const totals = readTotals(data, record, documentKind)
@@ -420,6 +441,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                 </ScrollView>
                 <DocumentReadActions
                     actions={read.actions}
+                    historyItem={historyItem}
                     isPhone={isPhone}
                     isBusy={read.voidDialog.isPending}
                     hasPdf={doc.features.pdf}

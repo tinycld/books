@@ -176,6 +176,34 @@ func TestOAuth_EstimatePublicLinkCollections(t *testing.T) {
 	}
 }
 
+// Spec §5: a token reads the audit log view under the Books read scope, and no
+// Books scope writes it.
+func TestOAuth_AuditLogIsReadOnly(t *testing.T) {
+	got, ok := oauthPackage().Collections["books_audit_log"]
+	if !ok {
+		t.Fatal("books_audit_log has no OAuth entry")
+	}
+	if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+		t.Errorf("books_audit_log OAuth access = %+v, want Read [%s] and no Write", got, scopeRead)
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	path := "/api/collections/books_audit_log/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	for method, route := range map[string]string{
+		http.MethodPost:   path,
+		http.MethodPatch:  path + "/auditlog0000001",
+		http.MethodDelete: path + "/auditlog0000001",
+	} {
+		if oauth.ScopeForRoute(method, route).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+			t.Errorf("%s %s: no Books scope may write the view", method, route)
+		}
+	}
+}
+
 // Spec §3.10: the Books scopes read and write the bills and their lines, as
 // the invoice's.
 func TestOAuth_BillsAreReadWrite(t *testing.T) {

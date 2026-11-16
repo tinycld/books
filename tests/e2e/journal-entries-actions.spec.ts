@@ -25,7 +25,7 @@ import { uniqueName } from './record-form-helpers'
 // (Reverse, Void) on a phone; Edit opens `entries/new?replaces=<id>`, a prefilled draft
 // headed "Edit JE-n" that writes nothing until Save draft or Post; Reverse asks for a date
 // and memo in `reverse-dialog` and posts the reversal; Void confirms in `void-dialog`;
-// void reversals show read-only with no actions.
+// void reversals show read-only with no actions but More → Audit history.
 //
 // Every test makes its own posted entry through the new-entry form with a unique memo.
 // It does not cover: a read-only user (no read-only Books member is seeded, so "read-only
@@ -93,6 +93,20 @@ function localToday(page: Page) {
         const pad = (n: number) => String(n).padStart(2, '0')
         return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
     })
+}
+
+// The wide read view of an entry with no action left (a void entry, a void reversal): its
+// bar holds More alone, and More holds Audit history alone.
+async function expectOnlyAuditHistory(page: Page) {
+    const bar = page.getByTestId('entry-actions')
+    await expect(bar.getByRole('button')).toHaveCount(1)
+    await expect(bar.getByTestId('entry-more')).toBeVisible()
+    await expect(page.getByTestId('entry-edit')).toHaveCount(0)
+    await bar.getByTestId('entry-more').click()
+    await expect(page.getByRole('menuitem')).toHaveText(['Audit history'])
+    await expect(page.getByTestId('entry-history')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('entry-history')).toHaveCount(0)
 }
 
 function listItems(page: Page, memo: string): Locator {
@@ -253,17 +267,19 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
     const sizeName = 'desktop'
     const size = DESKTOP
 
-    test('actions: a void entry and its void reversal offer no actions', async ({ page }) => {
+    // Audit history is offered on every entry a reader can open (audit-log spec §3 "Entry
+    // points"), so the bar of a void entry holds More alone, with that one item.
+    test('actions: a void entry and its void reversal offer only Audit history', async ({
+        page,
+    }) => {
         await start(page, size)
         await openSeeded(page, ENTRIES_SEED.voided)
         await expect(page.getByTestId('entry-badge')).toHaveText('Void')
-        await expect(page.getByTestId('entry-actions')).toHaveCount(0)
-        await expect(page.getByTestId('entry-edit')).toHaveCount(0)
+        await expectOnlyAuditHistory(page)
 
         await page.getByTestId('entry-link-reversed-by').click()
         await expect(page.getByTestId('entry-link-reverses')).toBeVisible()
-        await expect(page.getByTestId('entry-actions')).toHaveCount(0)
-        await expect(page.getByTestId('entry-edit')).toHaveCount(0)
+        await expectOnlyAuditHistory(page)
     })
 
     test('void: Cancel keeps the entry, Void keeps the number and lists it as Void', async ({
