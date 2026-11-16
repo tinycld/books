@@ -3,7 +3,7 @@
 // plain node (tests/seed-node.test.ts).
 //
 // AttachmentRecord is the generated `books_attachments` row (pb-migrations/
-// 2100000019_create_books_attachments.js): exactly one of `bill` and `expense` is set (a Go
+// 2100000020_create_books_attachments.js): exactly one of `bill` and `expense` is set (a Go
 // guard enforces it); `field` is empty for the Attachments section and a custom File
 // field's key otherwise; `file` is the stored file name PocketBase assigns; `name` is the
 // upload's original name, trimmed to 255 characters by the server.

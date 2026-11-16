@@ -105,6 +105,9 @@ function invoice(
         subtotal: 0,
         tax_total: 0,
         total: 0,
+        // What posting writes: a posted invoice is open for its total until a payment
+        // applies to it; a draft or a void one has no balance.
+        balance: seed.status === 'posted' ? (seed.total ?? 0) : 0,
         revision: 1,
         currency: INVOICE_CURRENCY,
         entry: '',

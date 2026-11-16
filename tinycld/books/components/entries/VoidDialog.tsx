@@ -8,6 +8,8 @@ interface VoidDialogProps {
     entryNumber: string
     // The confirm button's label: "Void entry" unless the caller voids something else.
     confirmLabel?: string
+    // What the void does, when the caller's record says more than an entry's text.
+    body?: string
     isPending: boolean
     // The server's refusal, kept above this dialog so it survives an optimistic rollback.
     errorMessage: string | null
@@ -15,12 +17,15 @@ interface VoidDialogProps {
     onCancel(): void
 }
 
+const ENTRY_BODY = 'A reversing entry is posted in the original period. The number is kept.'
+
 function ignore() {}
 
 export function VoidDialog({
     isVisible,
     entryNumber,
     confirmLabel = 'Void entry',
+    body = ENTRY_BODY,
     isPending,
     errorMessage,
     onConfirm,
@@ -35,9 +40,7 @@ export function VoidDialog({
             hasCloseButton={false}
         >
             <Dialog.Body>
-                <Text className="text-sm text-foreground">
-                    A reversing entry is posted in the original period. The number is kept.
-                </Text>
+                <Text className="text-sm text-foreground">{body}</Text>
                 <RefusalSummary message={errorMessage} />
             </Dialog.Body>
             <Dialog.Footer>

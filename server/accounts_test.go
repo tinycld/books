@@ -753,6 +753,30 @@ func requireSalesDepositSettingIs(t testing.TB, app core.App, want string) {
 	}
 }
 
+// Receive payment spec §3.9: an account that is the Deposit to of any payment,
+// draft or posted, cannot be deleted.
+func TestAccount_DeleteRefusedWhilePaymentsDepositToIt(t *testing.T) {
+	app := newGuardedApp(t)
+	savings := mkNumberedAccount(t, app, "Business Savings", "1010", "bank", "savings")
+	cust := mkCustomer(t, app, "Harborview Dental", "")
+
+	mkPaymentRow(t, app, cust, map[string]any{"deposit_to": savings.Id})
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", savings.Id)),
+		"This account is the deposit account of 1 payment and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", savings.Id)
+
+	mkPaymentRow(t, app, cust, map[string]any{"deposit_to": savings.Id, "status": "posted", "number": "1001"})
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_accounts", savings.Id)),
+		"This account is the deposit account of 2 payments and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", savings.Id)
+
+	// An account no payment deposits to still deletes.
+	other := mkNumberedAccount(t, app, "Petty cash", "1050", "bank", "cash_on_hand")
+	if err := app.Delete(reload(t, app, "books_accounts", other.Id)); err != nil {
+		t.Fatalf("delete an account no payment deposits to: %v", err)
+	}
+}
+
 // Spec §3.10: with Ask, an account that is the Deposit to of any sales
 // receipt, draft or posted, cannot be deleted; making it inactive is allowed
 // (Post then refuses it), and making an account active needs no receipt check.

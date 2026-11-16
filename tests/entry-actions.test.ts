@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { entryActions, newEntryVisible } from '../tinycld/books/lib/entry-actions'
+import { entryEditHref, entryHref } from '../tinycld/books/lib/entry-route'
 
 const writer = { canWrite: true }
 const reader = { canWrite: false }
@@ -124,6 +125,26 @@ describe('entryActions for an invoice entry', () => {
 
     it('gives a reader open only on an invoice entry', () => {
         expect(entryActions(postedInvoiceEntry, reader)).toEqual(['open'])
+    })
+})
+
+// Spec §3.9: a payment's entry opens and is edited on the payment screen (Open goes to
+// `books/payments/<document>`, Edit to its correction); Reverse is never offered.
+describe('entryActions for a payment entry', () => {
+    it('gives a writer on a posted payment entry Open and Edit on the payment, never Reverse', () => {
+        const entry = {
+            id: 'jepaymentpin001',
+            status: 'posted',
+            origin: 'document',
+            doc_type: 'payment',
+            document: 'pmntpinpayment1',
+            isReversed: false,
+        } as const
+        const actions = entryActions(entry, writer)
+        expect(actions).toEqual(['open', 'edit', 'void'])
+        expect(actions).not.toContain('reverse')
+        expect(entryHref(entry)).toBe('books/payments/pmntpinpayment1')
+        expect(entryEditHref(entry)).toBe('books/payments/new?replaces=pmntpinpayment1')
     })
 })
 

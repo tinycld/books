@@ -129,14 +129,12 @@ func TestAttachmentMove_FromADocumentWithNoFilesIsANoOp(t *testing.T) {
 	requireAttachmentCount(t, ae.app, "bill", empty.Id, 0)
 }
 
-// The bill and expense corrections move their files; an invoice correction
-// still moves its estimate link, and nothing else.
+// The bill and expense corrections move their files. An invoice has no
+// attachments (books_attachments relates only to bills and expenses); its
+// Replace step (estimate link and payments) is covered by the payment tests.
 func TestAttachmentMove_KindsReplaceSteps(t *testing.T) {
 	if billKind.Replace == nil || expenseKind.Replace == nil {
 		t.Fatalf("bill Replace set %v, expense Replace set %v; want both to move attachments",
 			billKind.Replace != nil, expenseKind.Replace != nil)
-	}
-	if reflect.ValueOf(invoiceKind.Replace).Pointer() != reflect.ValueOf(moveEstimateTo).Pointer() {
-		t.Error("invoiceKind.Replace is no longer moveEstimateTo")
 	}
 }

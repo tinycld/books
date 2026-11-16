@@ -1,0 +1,66 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "read",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1100,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed payment partial" },
+                { "clickText": "Seed payment partial" },
+                { "waitFor": "payment-read-only" },
+                { "waitFor": "payment-applied" },
+                { "waitFor": "payment-read-actions" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "read-void",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1100,
+            "hideLabels": ["New", "Reconnecting…"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "payment-tick-all" },
+                { "click": "payment-tick-all" },
+                { "click": "payment-post" },
+                { "waitFor": "payment-read-only" },
+                { "click": "payment-read-void" },
+                { "waitFor": "void-dialog" },
+                { "click": "void-confirm" },
+                { "waitFor": "payment-voided-by" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1100,
+            "hideLabels": ["New", "Reconnecting…"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Northwind Traders" },
+                { "clickText": "Northwind Traders" },
+                { "waitFor": "payment-list-empty" },
+                { "fill": "payment-amount", "value": "250.00" },
+                { "click": "payment-post" },
+                { "waitFor": "payment-read-only" },
+                { "click": "payment-read-edit" },
+                { "waitFor": "payment-list-empty" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

@@ -34,6 +34,7 @@ import {
 } from './lib/invoice-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
+import { PAYMENT_SEED } from './lib/receive-payment-fixture'
 import {
     DEPOSIT_ACCOUNTS,
     SALES_RECEIPT_IDS,
@@ -222,6 +223,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seed1099(pb, accountIds)
     await seedSalesTax(pb, accountIds, customerIds)
     await seedInvoices(pb, ctx, customerIds)
+    await seedPayments(pb, ctx, accountIds, customerIds)
     await seedSalesReceipts(pb, ctx, accountIds, customerIds)
     // After the earlier seeded documents, so they keep their numbers.
     await seedSalesTaxLiability(pb, ctx, accountIds, customerIds)
@@ -462,6 +464,64 @@ export async function seedInvoices(
             })
         }
         await postSeedDocument(pb, 'books_invoices', created.id, ctx.user.id)
+    }
+}
+
+// Posts the PAYMENT_SEED payments (spec §4.5), in order, through the writes the payment
+// form makes: create the draft payment, create its one application, then post it, so the
+// server numbers each (1001, 1002 on a fresh book), writes its journal entry and lowers the
+// invoice's balance. Each invoice is found by the memo seedInvoices gave it; `'total'` is
+// that invoice's posted total. A payment has no revision field, so the post sends only the
+// status and the poster. The deposit account resolves by its number in `accountIds`;
+// `customerIds` maps the invoice's customer-form fixture id to the created customer's id.
+export async function seedPayments(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const seedPayment of PAYMENT_SEED) {
+        const fixture = INVOICES.find(row => row.id === seedPayment.invoice)
+        const customer = fixture === undefined ? undefined : customerIds.get(fixture.customer)
+        if (customer === undefined) {
+            throw new Error(
+                `seed: payment ${seedPayment.key} pays invoice ${seedPayment.invoice}, whose customer was not created`
+            )
+        }
+        const invoice = await pb
+            .collection('books_invoices')
+            .getFirstListItem<{ id: string; total: number }>(
+                pb.filter('memo = {:memo} && customer = {:customer} && status = "posted"', {
+                    memo: seedInvoiceMemo(seedPayment.invoice),
+                    customer,
+                }),
+                { fields: 'id,total' }
+            )
+        const depositTo = seededAccountId(
+            accountIds,
+            seedPayment.depositNumber,
+            `payment ${seedPayment.key}`
+        )
+        const amount = seedPayment.amount === 'total' ? invoice.total : seedPayment.amount
+        const created = await pb.collection('books_payments').create({
+            customer,
+            status: 'draft',
+            date: seedPayment.date,
+            payment_method: seedPayment.payment_method,
+            reference_no: seedPayment.reference_no,
+            deposit_to: depositTo,
+            amount,
+            memo: `Seed payment ${seedPayment.key}`,
+        })
+        await pb.collection('books_payment_applications').create({
+            payment: created.id,
+            invoice: invoice.id,
+            amount,
+            position: 0,
+        })
+        await pb
+            .collection('books_payments')
+            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
     }
 }
 

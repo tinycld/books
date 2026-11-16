@@ -178,6 +178,39 @@ func TestAllocateNumber_EstimateSequenceStartsAt1001(t *testing.T) {
 	}
 }
 
+// Receive payment spec §4.2 and the Numbering card "Payments (no prefix, next
+// 1001)": the payment sequence is seeded as booksseqpayment, and a payment
+// number does not take another kind's.
+func TestAllocateNumber_PaymentSequenceStartsAt1001(t *testing.T) {
+	app := newBooksApp(t)
+	row := reload(t, app, "books_doc_sequences", "booksseqpayment")
+	if got := row.GetString("doc_type"); got != "payment" {
+		t.Fatalf("doc_type = %q, want payment", got)
+	}
+	if got := row.GetString("prefix"); got != "" {
+		t.Fatalf("prefix = %q, want none", got)
+	}
+	if got := row.GetInt("next_number"); got != 1001 {
+		t.Fatalf("next_number = %d, want 1001", got)
+	}
+	var seq int
+	var number string
+	err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		seq, number, err = allocateNumber(tx, "payment")
+		return err
+	})
+	if err != nil {
+		t.Fatalf("allocate a payment number: %v", err)
+	}
+	if seq != 1001 || number != "1001" {
+		t.Fatalf("got %d %q, want 1001 \"1001\"", seq, number)
+	}
+	if next := reload(t, app, "books_doc_sequences", "booksseqinvoice").GetInt("next_number"); next != 1001 {
+		t.Fatalf("invoice next_number = %d, want 1001 (a payment must not take an invoice number)", next)
+	}
+}
+
 func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 	app := newBooksApp(t)
 	col, err := app.FindCollectionByNameOrId("books_journal_entries")
@@ -198,7 +231,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	// Estimates never post, so only the sequences know the estimate doc type.
 	// The lists are compared sorted: where a new doc type lands in the select
 	// is not a rule.
-	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense"}
+	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment"}
 	want := map[string][]string{
 		"books_journal_entries": slices.Sorted(slices.Values(entryTypes)),
 		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate"))),

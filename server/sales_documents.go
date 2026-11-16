@@ -82,7 +82,12 @@ type salesDocKind struct {
 	// HasTax is false for a kind with no sales tax: no tax-rate guard, no tax
 	// in its totals and no tax snapshot when it posts.
 	HasTax bool
-	Msgs   salesDocMessages
+	// TracksBalance is true for a kind with an open balance that payments pay
+	// (an invoice): posting writes balance (its total less what payments
+	// already apply), a void writes 0, and only invoice_balance.go changes it
+	// in between.
+	TracksBalance bool
+	Msgs          salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
@@ -98,6 +103,10 @@ type salesDocKind struct {
 	// run when a correction's post replaces the document (Replace does); nil
 	// is no step.
 	Withdraw func(tx core.App, doc *core.Record) error
+	// CheckVoid runs in a void's transaction before the void (an invoice that
+	// a posted payment pays is refused); nil is no check. A correction's post
+	// does not run it: its Replace step hands on what the original held.
+	CheckVoid func(tx core.App, doc *core.Record) error
 	// Replace runs when a correction's post sets its original void (an
 	// invoice moves its estimate to the correction, a bill or an expense its
 	// attachments); nil is no step.
@@ -164,7 +173,7 @@ const (
 // documentDocTypes are the doc types of the documents that post: their entries
 // come only from posting the document (entries.go).
 var documentDocTypes = map[string]bool{
-	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true,
+	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's
@@ -389,10 +398,11 @@ func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
 // salesDocKeptBooksFields cannot change while a person edits the document.
 // posted_by is not in it: a Go caller names the poster with the post, as for
 // an entry. replaces is fixed at create: an invoice's estimate is checked
-// against it only then (checkInvoiceEstimate).
+// against it only then (checkInvoiceEstimate). balance (an invoice's open
+// amount) is written only by invoice_balance.go and the posting.
 var (
-	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "invoice"}
-	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "invoice"}
+	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "invoice", "balance"}
+	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "invoice", "balance"}
 )
 
 func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
@@ -473,18 +483,24 @@ func bindTaxLineGuards(app core.App, kind salesDocKind) {
 var salesDocUnlinks = map[string]string{"posted_by": "users", "voided_by": "users", "form": "forms"}
 
 // voidSalesDocEditable are the only fields a void changes; a correction's post
-// also sets replaced_by on the document it replaces.
+// also sets replaced_by on the document it replaces, and the 0 balance of a
+// kind that tracks one (voidReplacedSalesDoc).
 var (
 	voidSalesDocEditable    = map[string]bool{"status": true, "voided_by": true, "voided_at": true}
-	replaceSalesDocEditable = map[string]bool{"status": true, "voided_by": true, "voided_at": true, "replaced_by": true}
+	replaceSalesDocEditable = map[string]bool{"status": true, "voided_by": true, "voided_at": true, "replaced_by": true, "balance": true}
+	balanceOnly             = map[string]bool{"balance": true}
 )
 
 // transitionSalesDoc is a document's lifecycle: a draft is edited or posted
 // (postSalesDoc), a posted document is voided (voidSalesDoc) or replaced by its
 // correction's post, and nothing else changes except PocketBase unlinking a
-// deleted user or form.
+// deleted user or form, and Books writing the balance of a kind that tracks
+// one (invoice_balance.go).
 func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, now time.Time) error {
 	from, to := stored.GetString("status"), r.GetString("status")
+	if kind.TracksBalance && from == to && isBalancing(tx, r.Id) && len(changedFields(stored, r, balanceOnly)) == 0 {
+		return nil
+	}
 	switch {
 	case from == statusDraft && to == statusDraft:
 		// Every draft write, a person's or Books' own save of the totals after
@@ -520,6 +536,11 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 	case from == statusPosted && to == statusVoid:
 		if len(changedFields(stored, r, voidSalesDocEditable)) > 0 {
 			return refuse("%s", kind.Msgs.NotDraft)
+		}
+		if kind.CheckVoid != nil {
+			if err := kind.CheckVoid(tx, r); err != nil {
+				return err
+			}
 		}
 		return voidSalesDoc(tx, kind, r, now)
 	case from == to:

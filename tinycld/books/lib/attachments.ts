@@ -52,7 +52,7 @@ export const ATTACHMENT_EXTENSIONS: Readonly<Record<string, string>> = {
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 }
 
-// The file field's allow-list (migration 2100000019, attachmentMimeTypes in Go). HTML,
+// The file field's allow-list (migration 2100000020, attachmentMimeTypes in Go). HTML,
 // SVG and executables are not on it: a stored file opens from the app's own origin.
 export const ATTACHMENT_MIME_TYPES: readonly string[] = [
     ...new Set(Object.values(ATTACHMENT_EXTENSIONS)),

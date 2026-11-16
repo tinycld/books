@@ -16,7 +16,12 @@ import {
     type FormHostDefInput,
     hostDefSchema,
 } from '@tinycld/core/lib/forms/host'
-import type { Forms, OrgPkgAccess } from '@tinycld/core/types/pbSchema'
+import type {
+    BooksPaymentApplications,
+    BooksPayments,
+    Forms,
+    OrgPkgAccess,
+} from '@tinycld/core/types/pbSchema'
 import { ACCOUNTS, BALANCES } from '../tinycld/books/lib/chart-of-accounts-fixture'
 import type {
     BooksAccess,
@@ -1101,6 +1106,14 @@ export function seedBooks(
         // Read by a bill's or an expense's screen for its Attachments section; empty
         // unless a test replaces it.
         books_attachments: local<BooksAttachments>('books_attachments', []),
+        // No hook under these tests reads them today; they are here so a hook that asks
+        // useStore for them gets an empty collection, not undefined. The deposit-account
+        // check of an account delete runs on the server (checkAccountDelete).
+        books_payments: local<BooksPayments>('books_payments', []),
+        books_payment_applications: local<BooksPaymentApplications>(
+            'books_payment_applications',
+            []
+        ),
     })
 }
 

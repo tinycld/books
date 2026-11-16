@@ -45,3 +45,5 @@
 - A core bug found during a run is fixed in core (an approved core task), never worked around in Books; a fork change follows `tinycld/third_party/pocketbase/FORK.md` (new `*_tinycld.go` files, `// fork:` call lines, a FORK.md row). — attachments, human, eval p3-attachments
 - Before deferring for a missing capability, check core for one that exists (e.g. core `thumbnails`/omnidoc renders HEIC, HEIF and documents; drive uses it); a deferral names what was searched in core. — attachments, human, eval revise 1
 - A hint that explains an action (a size limit beside an add area) shows only where that action is offered: not for a reader, on a void document, or on a replaced original. — attachments, human, eval revise 1
+- A pick that fills a form (a lookup, a find) keeps a value the user typed and re-applies it by the spec's rule; never reset a "typed" flag to make the pick simpler. — receive-payment, driver, cp 3
+- Every action a wide layout offers by a control (a header tick box, Pay all) has a touch control on the phone layout too; a key alone is not a path on native. — receive-payment, driver, cp 3
