@@ -1,6 +1,6 @@
 // Attachments are the files a writer keeps with a bill or an expense (the
 // vendor's bill, a receipt), and the files of a custom File field on the bill
-// and expense forms (books_attachments, 2100000019). The rules decide who may
+// and expense forms (books_attachments, 2100000020). The rules decide who may
 // act; the hooks here decide whether the write is valid.
 
 package books
@@ -18,7 +18,7 @@ import (
 
 const (
 	attachmentsCollection = "books_attachments"
-	// maxAttachmentBytes is the file field's maxSize in 2100000019, checked
+	// maxAttachmentBytes is the file field's maxSize in 2100000020, checked
 	// here first so the refusal is a message the client keeps.
 	maxAttachmentBytes = 20 << 20
 	// maxAttachmentsPerDocument counts every row of a document: the
@@ -29,7 +29,7 @@ const (
 	attachmentMoveMark = "attachment-move"
 )
 
-// attachmentMimeTypes is the file field's mimeTypes list in 2100000019. HTML,
+// attachmentMimeTypes is the file field's mimeTypes list in 2100000020. HTML,
 // SVG and executables are not on it, because a stored file opens from the
 // app's own origin. TestAttachments_Schema fails when the two drift.
 var attachmentMimeTypes = []string{

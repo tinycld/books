@@ -45,6 +45,18 @@ Under the lines, Books shows the Subtotal, the tax line, the Total and the Balan
 
 The total cannot be below zero. To give money back to a customer, use a credit memo.
 
+## Balance due and payments
+
+On a posted invoice, the big figure **Balance due** is what the customer still owes on it: the total less the payments applied to it. When payments are applied, the totals show a **Payments** line, such as "Payments −$100.00", above Balance due, and a Payments block under them lists each posted payment, such as "Payment 1003 · Oct 12, 2026 · $100.00". Choose a payment to open it.
+
+The badge of a posted invoice follows its balance:
+
+- **Posted**: nothing is paid yet.
+- **Partly paid**: part of the total is paid.
+- **Paid**: the whole total is paid.
+
+To record a payment for the invoice, open it and choose **Receive payment**, or press R. It shows only on a posted invoice with a balance due. On a phone, it is in the More menu. The payment opens with the invoice's customer, and the invoice is paid in full; change the amount to record a part payment. See [Receive payment](help://books:receive-payment).
+
 ## Save and post
 
 - Save draft keeps the invoice without a number. A draft does not change your books. To continue it later, find it with the app search, for example by its memo or customer.
@@ -68,6 +80,8 @@ While you have no unsaved change, the form shows the other person's changes as t
 To change a posted invoice, open it and choose Edit. The form opens as "Edit 1004" with a notice. The original stays posted until you post. When you post, the edit replaces the original under the same number, and the original becomes Void, with a link to the new one.
 
 To cancel a posted invoice, open it and choose Void, then confirm. Books posts a reversing entry in the original period. The invoice keeps its number and shows Void.
+
+While a posted payment pays the invoice, Books refuses Void: "Payments are applied to this invoice. Void or edit those payments first." An edit of a paid invoice keeps its payments: when you post the edit, they move to it. Its total cannot be below the payments, and its customer cannot change while payments are applied.
 
 To see the entry an invoice posted, open it and choose View journal entry. A posted invoice also shows in Journal Entries with the Type Invoice and its number.
 
@@ -120,6 +134,7 @@ With the cursor in a line:
 
 On a posted or void invoice:
 
+- R: Receive payment (a posted invoice with a balance due)
 - E: Edit
 - V: Void
 - C: Copy to a new invoice
@@ -127,8 +142,8 @@ On a posted or void invoice:
 - ⌥1 / ⌥2: Details tab / PDF view tab
 - ⌘P: Download PDF
 
-The form keys also work while the cursor is in a text box. E, V, C and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys also work while the cursor is in a text box. R, E, V, C and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
-With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices. With read-only access you can open a posted or void invoice, view its journal entry and download its PDF.
+With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices, and receive payments for them. With read-only access you can open a posted or void invoice, view its journal entry and download its PDF.

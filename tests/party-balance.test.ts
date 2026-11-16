@@ -59,8 +59,18 @@ describe('balanceFigures', () => {
 })
 
 describe('overdueCents', () => {
-    it('sums the totals of the overdue invoices', () => {
-        expect(overdueCents([{ total: 10000 }, { total: 25000 }, { total: 1 }])).toBe(35001)
+    // Receive payment §3.9: Overdue sums the open balance, not the total, so a part
+    // payment lowers it.
+    it('sums the open balances of the overdue invoices', () => {
+        expect(overdueCents([{ balance: 10000 }, { balance: 25000 }, { balance: 1 }])).toBe(35001)
+    })
+
+    it('reads the balance, not the total, of a part-paid invoice row', () => {
+        const rows = [
+            { total: 50000, balance: 10000 },
+            { total: 300, balance: 1 },
+        ]
+        expect(overdueCents(rows)).toBe(10001)
     })
 
     it('is 0 for no invoices', () => {

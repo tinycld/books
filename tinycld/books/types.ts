@@ -35,6 +35,8 @@ export type {
     BooksJournalLines,
     BooksPartyBalances,
     BooksPartyContacts,
+    BooksPaymentApplications,
+    BooksPayments,
     BooksProducts,
     BooksSalesReceiptLines,
     BooksSalesReceipts,

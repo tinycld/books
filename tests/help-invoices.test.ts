@@ -95,6 +95,26 @@ describe('help/invoices.md', () => {
         expect(body).toContain('(help://books:estimates)')
     })
 
+    // Receive payment §3.9: the invoice's open balance, its badges, the action and the
+    // void rule.
+    it.each([
+        'Balance due',
+        'Paid',
+        'Partly paid',
+        'Receive payment',
+        'Payments are applied to this invoice. Void or edit those payments first.',
+    ])('names %s', text => {
+        expect(topicExists).toBe(true)
+        expect(body).toContain(text)
+    })
+
+    it('names the read-view key R with Receive payment', () => {
+        const line = body
+            .split('\n')
+            .find(l => /(^|[^\w⌘⌥⇧])R([^\w]|$)/.test(l) && /Receive payment/.test(l))
+        expect(line, 'a line with R and Receive payment').toBeDefined()
+    })
+
     it('has no Ctrl or Alt keyboard text', () => {
         expect(topicExists).toBe(true)
         expect(body).not.toMatch(/\bCtrl\b/i)

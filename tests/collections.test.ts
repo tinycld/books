@@ -39,6 +39,8 @@ const NAMES = [
     'books_party_balances',
     'books_party_contacts',
     'books_attachments',
+    'books_payments',
+    'books_payment_applications',
 ]
 
 function register() {

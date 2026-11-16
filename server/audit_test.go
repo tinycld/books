@@ -57,6 +57,56 @@ func TestAudit_LabelsASalesReceiptAndItsLines(t *testing.T) {
 	}
 }
 
+// Receive payment spec §4.3: a payment's audit row is "Payment 1004", or "Draft
+// payment" while it has no number; an application's row names its payment and
+// its invoice ("Payment 1004: Invoice 1009").
+func TestAudit_LabelsAPaymentAndItsApplications(t *testing.T) {
+	pe := newPaymentEnv(t)
+	audited := auditedCollections(pe.app)
+	payments, ok := audited["books_payments"]
+	if !ok {
+		t.Fatal("books_payments is not audited")
+	}
+	applications, ok := audited["books_payment_applications"]
+	if !ok {
+		t.Fatal("books_payment_applications is not audited")
+	}
+	if err := setFields(t, pe.app, "books_doc_sequences", "booksseqinvoice", map[string]any{"next_number": 1009}); err != nil {
+		t.Fatalf("move the invoice sequence to 1009: %v", err)
+	}
+	inv := pe.postedInvoice(t, pe.customer, 45000)
+	if inv.GetString("number") != "1009" {
+		t.Fatalf("invoice number %q, want 1009", inv.GetString("number"))
+	}
+	p := pe.mkPayment(t, map[string]any{"amount": 45000})
+	application := mkApplication(t, pe.app, p, inv, 0, 45000)
+
+	draft := reload(t, pe.app, "books_payments", p.Id)
+	if got, want := payments.ExtractLabel(draft), "Draft payment"; got != want {
+		t.Errorf("draft payment label = %q, want %q", got, want)
+	}
+	if got, want := paymentName(draft), "Draft payment"; got != want {
+		t.Errorf("paymentName of a draft = %q, want %q", got, want)
+	}
+	if got, want := applications.ExtractLabel(reload(t, pe.app, "books_payment_applications", application.Id)), "Draft payment: Invoice 1009"; got != want {
+		t.Errorf("draft payment application label = %q, want %q", got, want)
+	}
+
+	if err := setFields(t, pe.app, "books_doc_sequences", paymentSequenceID, map[string]any{"next_number": 1004}); err != nil {
+		t.Fatalf("move the payment sequence to 1004: %v", err)
+	}
+	posted := mustPostPayment(t, pe.app, p.Id, pe.users.bookkeeper.Id)
+	if got, want := payments.ExtractLabel(posted), "Payment 1004"; got != want {
+		t.Errorf("posted payment label = %q, want %q", got, want)
+	}
+	if got, want := paymentName(posted), "Payment 1004"; got != want {
+		t.Errorf("paymentName of a posted payment = %q, want %q", got, want)
+	}
+	if got, want := applications.ExtractLabel(reload(t, pe.app, "books_payment_applications", application.Id)), "Payment 1004: Invoice 1009"; got != want {
+		t.Errorf("posted payment application label = %q, want %q", got, want)
+	}
+}
+
 // Spec §3.11: an estimate's audit row is "Estimate 1001"; a line's row follows
 // its estimate ("Estimate 1001: line 2"). An estimate has its number from its
 // first save, so it has no draft label.
