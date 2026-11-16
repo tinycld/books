@@ -40,7 +40,7 @@ A Books reader sees, in one report, every change people made to the Books record
 - **Live:** a new change appears without a reload while the report is open.
 - **States** (core): loading; error with Retry; timeout with Retry; no access; empty "No rows for <period>" with "Show this fiscal year", or "Clear filters" when a chip is set.
 - **Customize** (core): show or hide every column but Date changed.
-- **Phone (390) and the panel:** each row wraps to two lines: date changed · event; user · record type · record. No sideways scroll. At 390 the toolbar actions sit under More (lesson 31). The `oneLine` and tablet gates are measured in phase 3 pass 2 at 390, 1024, 1280 and 1440 (with the panel open).
+- **Phone (390) and the panel:** each row wraps to two lines: date changed · event; user · record type · record. No sideways scroll. Core's toolbar keeps Customize a button while it fits (at 390 and 375 it does) and folds under More only what does not fit (lesson 31). A long word in Record breaks inside its line (core `overflowWrap: "anywhere"` on the Record column), so one long name never moves the rows to three lines. The `oneLine` and tablet gates are measured in phase 3 pass 2 at 390, 1024, 1280 and 1440 (with the panel open).
 
 ### Record history
 

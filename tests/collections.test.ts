@@ -38,6 +38,7 @@ const NAMES = [
     'books_expense_lines',
     'books_party_balances',
     'books_party_contacts',
+    'books_audit_log',
 ]
 
 function register() {
@@ -243,6 +244,17 @@ describe('registerCollections', () => {
         const balances = calls.get('books_party_balances')
         expect(balances?.liveTopics).toEqual(['collection/books_party_balances'])
         expect(balances?.relations).toBeUndefined()
+    })
+
+    // The audit log view is never written: the server signals its topic when an
+    // audit row is written or a line it reads its parent from changes, so an open
+    // report or history stays live.
+    it('keeps the audit log view live on its change topic, with no relations', () => {
+        const { calls } = register()
+        const log = calls.get('books_audit_log')
+        expect(log?.syncMode).toBe('on-demand')
+        expect(log?.liveTopics).toEqual(['collection/books_audit_log'])
+        expect(log?.relations).toBeUndefined()
     })
 
     // The contacts tab reads the contacts of one customer; nothing else enters
