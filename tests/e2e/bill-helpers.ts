@@ -155,7 +155,14 @@ export async function openBillBySearch(page: Page, term: string) {
     await expect(option).toHaveCount(1)
     await option.click()
     await expect(page).toHaveURL(BILL_URL)
-    await expect(page.getByTestId('bill-form').or(page.getByTestId('bill-read-only'))).toBeVisible()
+    // Books can keep an earlier instance of the same bill's screen mounted, hidden, under
+    // the one search opens.
+    await expect(
+        page
+            .getByTestId('bill-form')
+            .or(page.getByTestId('bill-read-only'))
+            .filter({ visible: true })
+    ).toBeVisible()
 }
 
 // Settings → Purchases → Bills and expenses (expense spec §3.10). Only the bill and

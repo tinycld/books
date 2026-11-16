@@ -1,0 +1,125 @@
+{
+    "outDir": "attachments-reference",
+    "shots": [
+        {
+            "name": "form-new",
+            "url": "/a/books/helix-mockup?state=form-new",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 900
+        },
+        {
+            "name": "form-draft",
+            "url": "/a/books/helix-mockup?state=form-draft",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "form-refused",
+            "url": "/a/books/helix-mockup?state=form-refused",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 900
+        },
+        {
+            "name": "form-failed",
+            "url": "/a/books/helix-mockup?state=form-failed",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 1100
+        },
+        {
+            "name": "form-correction",
+            "url": "/a/books/helix-mockup?state=form-correction",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "form-offline",
+            "url": "/a/books/helix-mockup?state=form-offline",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 900
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 1100
+        },
+        {
+            "name": "posted-empty",
+            "url": "/a/books/helix-mockup?state=posted-empty",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 900
+        },
+        {
+            "name": "expense",
+            "url": "/a/books/helix-mockup?state=expense",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 1000
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "reader-empty",
+            "url": "/a/books/helix-mockup?state=reader-empty",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 844
+        },
+        {
+            "name": "void",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 800
+        },
+        {
+            "name": "moved",
+            "url": "/a/books/helix-mockup?state=moved",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 800
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "attachments-loading",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 800
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "attachments-section",
+            "hideLabels": ["New"],
+            "height": 844
+        },
+        {
+            "name": "remove",
+            "url": "/a/books/helix-mockup?state=remove",
+            "ready": "attachments-remove-confirm",
+            "opaque": "attachments-remove-confirm",
+            "hideLabels": ["New"],
+            "height": 900
+        }
+    ]
+}

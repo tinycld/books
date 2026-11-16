@@ -708,11 +708,19 @@ func TestOAuth_AdminsTokenCannotChangeSettings(t *testing.T) {
 	}.run(t, app)
 }
 
-// Quota counts stored bytes. One Books collection stores files (the bank
-// statement files), so it is the one source; this fails the day another
+// Quota counts stored bytes. Two Books collections store files (the bank
+// statement files and the bill and expense attachments), so they are the two
+// sources, both the company's with no owner; this fails the day another
 // collection stores files without a registration.
 func TestQuota_EveryFileCollectionIsASource(t *testing.T) {
 	app := newBooksApp(t)
+	want := []quota.Source{
+		{Slug: "books", Collection: "books_bank_files", SizeField: "size", OwnerField: ""},
+		{Slug: "books", Collection: "books_attachments", SizeField: "size", OwnerField: ""},
+	}
+	if got := quotaSources(); !reflect.DeepEqual(got, want) {
+		t.Errorf("quotaSources() = %+v, want %+v", got, want)
+	}
 	sources := map[string]bool{}
 	for _, s := range quotaSources() {
 		if err := quota.ValidateSource(s); err != nil {
@@ -821,11 +829,14 @@ func TestRegister_WiresEverything(t *testing.T) {
 			booksSources = append(booksSources, s)
 		}
 	}
-	// The bank files are the company's records, so they have no owner and
-	// count toward the organization total only.
-	wantSource := quota.Source{Slug: "books", Collection: "books_bank_files", SizeField: "size", OwnerField: ""}
-	if len(booksSources) != 1 || booksSources[0] != wantSource {
-		t.Errorf("Books quota sources = %+v, want exactly [%+v]", booksSources, wantSource)
+	// The bank files and the attachments are the company's records, so they
+	// have no owner and count toward the organization total only.
+	wantSources := []quota.Source{
+		{Slug: "books", Collection: "books_bank_files", SizeField: "size", OwnerField: ""},
+		{Slug: "books", Collection: "books_attachments", SizeField: "size", OwnerField: ""},
+	}
+	if !reflect.DeepEqual(booksSources, wantSources) {
+		t.Errorf("Books quota sources = %+v, want exactly %+v", booksSources, wantSources)
 	}
 	found := false
 	for _, j := range app.Cron().Jobs() {
@@ -866,6 +877,29 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 		rlstest.HookHandlerCounts(t, registered),
 		rlstest.HookHandlerCounts(t, &pocketbase.PocketBase{App: parts}),
 		nil)
+}
+
+// registerLedger binds registerAttachments, so TestRegister_BindsEachPartOnce
+// covers it with no line of its own. This pins what registerAttachments alone
+// binds: one create-request, one create, one delete-request and one update
+// handler, the after-create handler that starts the thumbnail job, and the
+// terminate handlers of the books background jobs (bound once per app, by the
+// first background.For; the auto-reverse sweep shares them on a registered
+// app), and nothing else. Counted on a bare app, because core audit adds
+// request hooks of its own on a fully registered one.
+func TestRegister_AttachmentsBindTheirHooks(t *testing.T) {
+	parts := newBooksApp(t)
+	pb := &pocketbase.PocketBase{App: parts}
+	before := rlstest.HookHandlerCounts(t, pb)
+	registerAttachments(parts)
+	rlstest.AssertCompositionDiff(t, rlstest.HookHandlerCounts(t, pb), before, map[string]int{
+		"OnRecordCreateRequest":      1,
+		"OnRecordCreate":             1,
+		"OnRecordDeleteRequest":      1,
+		"OnRecordUpdate":             1,
+		"OnRecordAfterCreateSuccess": 1,
+		"OnTerminate":                2,
+	})
 }
 
 // A post on an app wired by Register takes one number and adds to its balance

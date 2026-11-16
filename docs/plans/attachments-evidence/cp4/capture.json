@@ -1,0 +1,291 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "form-new",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "height": 1300,
+            "actions": [
+                { "waitFor": "bill-attachments-add" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        {
+                            "name": "vendor-bill.pdf",
+                            "mimeType": "application/pdf",
+                            "text": "%PDF-1.4 vendor bill"
+                        },
+                        { "name": "scan.jpg", "mimeType": "image/jpeg", "text": "scan" }
+                    ]
+                },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "./form-new",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "height": 2800,
+            "actions": [
+                { "waitFor": "bill-attachments-add" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        {
+                            "name": "vendor-bill.pdf",
+                            "mimeType": "application/pdf",
+                            "text": "%PDF-1.4 vendor bill"
+                        },
+                        { "name": "scan.jpg", "mimeType": "image/jpeg", "text": "scan" }
+                    ]
+                },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "form-draft",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Summit IT Services" },
+                { "clickMenuItem": "Summit IT Services" },
+                {
+                    "fillMatching": { "prefix": "form-table-account_lines-", "suffix": "-amount" },
+                    "value": "84.20"
+                },
+                { "fill": "form-input-memo", "value": "Capture draft with a pending file" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        {
+                            "name": "meter-readings.txt",
+                            "mimeType": "text/plain",
+                            "text": "meter readings, October"
+                        }
+                    ]
+                },
+                { "click": "bill-save-draft" },
+                { "waitFor": "Draft bill" },
+                { "pause": 2000 },
+                { "waitFor": "bill-attachments-add" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        { "name": "meter-photo.jpg", "mimeType": "image/jpeg", "text": "meter" }
+                    ]
+                },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "./form-draft",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "height": 2800,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Summit IT Services" },
+                { "clickMenuItem": "Summit IT Services" },
+                {
+                    "fillMatching": { "prefix": "form-table-account_lines-", "suffix": "-amount" },
+                    "value": "84.20"
+                },
+                { "fill": "form-input-memo", "value": "Capture draft with a pending file" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        {
+                            "name": "meter-readings.txt",
+                            "mimeType": "text/plain",
+                            "text": "meter readings, October"
+                        }
+                    ]
+                },
+                { "click": "bill-save-draft" },
+                { "waitFor": "Draft bill" },
+                { "pause": 2000 },
+                { "waitFor": "bill-attachments-add" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        { "name": "meter-photo.jpg", "mimeType": "image/jpeg", "text": "meter" }
+                    ]
+                },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "form-refused",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "height": 1300,
+            "actions": [
+                { "waitFor": "bill-attachments-add" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        { "name": "page.html", "mimeType": "text/html", "text": "<p>page</p>" }
+                    ]
+                },
+                { "waitFor": "bill-attachments-refusal" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "form-failed",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "height": 1300,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Summit IT Services" },
+                { "clickMenuItem": "Summit IT Services" },
+                {
+                    "fillMatching": { "prefix": "form-table-account_lines-", "suffix": "-amount" },
+                    "value": "84.20"
+                },
+                { "fill": "form-input-memo", "value": "Capture failed upload" },
+                { "waitFor": "bill-attachments-add" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        {
+                            "name": "utility-bill.pdf",
+                            "mimeType": "application/pdf",
+                            "text": "<!DOCTYPE html><html><body>not a pdf</body></html>"
+                        }
+                    ]
+                },
+                { "click": "bill-save-draft" },
+                { "waitFor": "bill-error-summary" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "./form-failed",
+            "widths": [390],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "height": 2800,
+            "actions": [
+                { "click": "form-input-vendor" },
+                { "fill": "form-input-vendor-search", "value": "Summit IT Services" },
+                { "clickMenuItem": "Summit IT Services" },
+                {
+                    "fillMatching": { "prefix": "form-table-account_lines-", "suffix": "-amount" },
+                    "value": "84.20"
+                },
+                { "fill": "form-input-memo", "value": "Capture failed upload" },
+                { "waitFor": "bill-attachments-add" },
+                {
+                    "chooseFiles": "bill-attachments-attach",
+                    "files": [
+                        {
+                            "name": "utility-bill.pdf",
+                            "mimeType": "application/pdf",
+                            "text": "<!DOCTYPE html><html><body>not a pdf</body></html>"
+                        }
+                    ]
+                },
+                { "click": "bill-save-draft" },
+                { "waitFor": "bill-error-summary" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "form-correction",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1900,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                { "clickText": "Q4 supplies and the back-office access points" },
+                { "waitFor": "bill-attachments-add" },
+                { "saveUrlId": true },
+                { "pushPath": "/a/books/bills/new?replaces=$savedId" },
+                { "waitFor": "bill-attachments-from" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "./form-correction",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 4400,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Q4 supplies and the back-office access points"
+                },
+                { "clickText": "Q4 supplies and the back-office access points" },
+                { "waitFor": "bill-attachments-add" },
+                { "saveUrlId": true },
+                { "pushPath": "/a/books/bills/new?replaces=$savedId" },
+                { "waitFor": "bill-attachments-from" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "form-offline",
+            "widths": [1280],
+            "url": "/a/books/bills/new",
+            "ready": "bill-form",
+            "hideLabels": ["Reconnecting…"],
+            "height": 1300,
+            "actions": [
+                { "waitFor": "bill-attachments-add" },
+                { "offline": true },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "moved",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 900,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Autopay failed; paid by check at the counter."
+                },
+                { "clickText": "Autopay failed; paid by check at the counter." },
+                { "waitFor": "expense-attachments" },
+                { "saveUrlId": true },
+                { "pushPath": "/a/books/expenses/new?replaces=$savedId" },
+                { "waitFor": "expense-post" },
+                { "pause": 1000 },
+                { "click": "expense-post" },
+                { "waitForHidden": "expense-post" },
+                { "waitFor": "expense-read-only" },
+                { "pause": 1000 },
+                { "pushPath": "/a/books/expenses/$savedId" },
+                { "waitFor": "expense-attachments-moved" },
+                { "pause": 1000 }
+            ]
+        }
+    ]
+}

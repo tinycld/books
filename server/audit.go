@@ -27,7 +27,8 @@ import (
 // It takes the app because these labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
-// bank import by its file, and a customer's response by its estimate.
+// bank import by its file, a customer's response by its estimate, and an
+// attachment by its bill or expense.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -86,6 +87,9 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 			ExtractLabel: func(r *core.Record) string { return bankImportLabel(app, r) },
 		},
 		"books_bank_transactions": {ExtractLabel: bankTransactionLabel},
+		"books_attachments": {
+			ExtractLabel: func(r *core.Record) string { return attachmentLabel(app, r) },
+		},
 	}
 }
 
