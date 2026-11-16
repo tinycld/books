@@ -126,18 +126,19 @@ func requireLinearCost(t *testing.T, small, large []string, addedLines, perLine 
 // The wall time of a batch changes with the machine (the 1,000-line create
 // took 0.45s on a laptop and 1.5s on a CI runner), so the cost tests log it and
 // bound the SQL statements instead: the count is the same on every machine.
-// The create bound is the measured value (2026-11-15) plus 10 percent; one more
-// statement for each line write passes it by 1,000. The post and the replace
-// bound the statements of each line exactly (requireLinearCost).
+// The create bound is the measured value (7,010 on 2026-11-15, after the entry
+// and the month rows were saved one time for each batch) plus 10 percent; one
+// more statement for each line write passes it by 1,000. The post and the
+// replace bound the statements of each line exactly (requireLinearCost).
 const (
-	draftCreateStatementBound = 10455
-	// The post of each line: its account read, its stamp (the line and entry
-	// reads, the relation checks, the update) and its month row (the read and
-	// the update). Measured 2026-11-15.
-	draftPostStatementsPerLine = 9
+	draftCreateStatementBound = 7711
+	// The post of each line: its account read and its stamp (the line and entry
+	// reads, the relation checks, the update). Each month row is saved one time
+	// for each account, not for each line. Measured 2026-11-15.
+	draftPostStatementsPerLine = 6
 	// Each line of a replace and post: its delete, its create, and its post.
 	// Measured 2026-11-15.
-	draftReplaceStatementsPerLine = 24
+	draftReplaceStatementsPerLine = 16
 )
 
 func TestBatchCost_Create1000LineDraft(t *testing.T) {
@@ -164,6 +165,38 @@ func TestBatchCost_Create1000LineDraft(t *testing.T) {
 	}
 	if got := reload(t, env.app, "books_journal_entries", entryID).GetInt("total"); got != 500 {
 		t.Fatalf("draft total = %d, want 500", got)
+	}
+}
+
+// The statement bound above counts the cost of the create. This is one cause
+// it guards, counted by itself: a batch that writes many lines of one draft
+// saves the entry one time, before the commit, not one time for each line.
+func TestBatchCost_LinesSaveTheirEntryOnce(t *testing.T) {
+	env := newLedgerEnv(t)
+	enableBatch(t, env.app)
+	entry := mkDraft(t, env.app, "2026-05-10")
+	saw := revisionOf(t, env.app, entry.Id)
+
+	var ops []string
+	for i := 0; i < 20; i++ {
+		if i%2 == 0 {
+			ops = append(ops, lineCreateOp(entry.Id, env.checking, 1, 0, i))
+		} else {
+			ops = append(ops, lineCreateOp(entry.Id, env.revenue, 0, 1, i))
+		}
+	}
+	env.app.ResetEventCalls()
+	apiReq{
+		method: http.MethodPost, url: "/api/batch", token: tokenFor(t, env.users.bookkeeper),
+		body: batchBody(ops...), want: http.StatusOK,
+	}.run(t, env.app)
+
+	if got := env.app.EventCalls["OnRecordUpdateExecute"]; got != 1 {
+		t.Fatalf("record updates in a batch of 20 line creates = %d, want 1 (the entry)", got)
+	}
+	saved := reload(t, env.app, "books_journal_entries", entry.Id)
+	if saved.GetInt("total") != 10 || saved.GetInt("revision") != saw+1 {
+		t.Fatalf("total/revision = %d/%d, want 10/%d", saved.GetInt("total"), saved.GetInt("revision"), saw+1)
 	}
 }
 
