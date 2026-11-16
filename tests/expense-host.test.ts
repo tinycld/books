@@ -176,4 +176,47 @@ describe('books:expense forms host', () => {
         }
         for (const name of named) expect(ui.components[name], name).toBeDefined()
     })
+
+    // Spec §3.8, §4: a custom File field on an expense form stores its files in
+    // books_attachments, keyed by the expense; no column is added to books_expenses.
+    it('stores custom File fields in books_attachments, with its columns unchanged', () => {
+        const host = hosts.find(h => h.key === EXPENSE_HOST_KEY)
+        expect(host?.files).toEqual({
+            collection: 'books_attachments',
+            recordColumn: 'expense',
+            fieldColumn: 'field',
+            sizeColumn: 'size',
+            uploaderColumn: 'uploaded_by',
+            nameColumn: 'name',
+            fileColumn: 'file',
+        })
+        expect(host?.columns).toEqual([
+            'id',
+            'vendor',
+            'paid_from',
+            'payment_method',
+            'reference_no',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'memo',
+            'subtotal',
+            'total',
+            'currency',
+            'revision',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ])
+    })
 })
