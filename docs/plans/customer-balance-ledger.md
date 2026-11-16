@@ -147,4 +147,5 @@
 - fix review: round 1: 0 BLOCK, 1 NOTE (`cp2-fix-review.md`: plan Do 3 still listed the line keys last) → fixed in the plan text (Do 3 now gives the new order and why); spec §5's sort bullet lists the keys without an order rule and §3 says the opened rows are in date order, which the code now does. Shadow (sonnet): clean. 1 round.
 - gate 3 A notes: 4 under Design notes (A NOTE 3, 4, 6, 7); gate 2 notes: 8 under Design notes plus P1's decision.
 - model trial: lines in /Users/nas/tmp/tinycld/auto-helix-books/model-trial.md (no shadow-only finding).
+- commit: 5250cb92
 - human: none (review mode C)
