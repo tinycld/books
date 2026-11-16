@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/report-exports-checkpoints.md
 - reference: docs/plans/report-exports-reference/
 - evidence: docs/plans/report-exports-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs 2026-11-16)
 - capture manifest: docs/plans/report-exports-capture.json
 - review mode: C — none (unattended)
 - core extension: accepted at the design gate (checkpoint 0, small, no exclusive): report export/email routes, Go export formatter + shared case file, PDF/Excel/CSV writers, pdfrender and save-file moved from Books to core, Export menu + email dialog. tinycld PR: (opened after checkpoint 0, branch books/p5-exports)
@@ -225,7 +225,7 @@
 - human: n/a (review mode C)
 
 ## Final review
-- eval:
+- eval: approved (human, 2026-11-16) at books 2be3bcb / core 11fd89f3; CI green on books #60 and core #484. Retro items approved: memory M1, process P1–P3, lessons L1–L2.
 - human comments and what changed
 - core fix outside the plan, approved by the human 2026-11-16 (staging `fix-scroll.md`; brief staging cp/cp-scroll.md): a live newest-first report hid new rows above the view for a reader at the top (cp 3 Design note; Books `audit-log.spec.ts:89`).
   - test writer: `tests/e2e/reports-live-top.spec.ts` (core, 2 tests: wide `FixedHeadingList`, phone 390 x 844 `ScrollAwayList`; rows added from a second context through the UI; newest row `toBeInViewport`); red for the right reason: yes (wide: newest row not mounted, above the view; phone: viewport ratio 0)
