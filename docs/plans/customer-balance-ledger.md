@@ -103,4 +103,5 @@
 - fix review: round 1: clean (`cp1-fix-review.md`); shadow (sonnet) also clean. 1 round.
 - gate 3 A notes: 4 under Design notes (A NOTE 1, 2, 3, 6) plus BLOCK 1's decision; gate 2 notes: 5 under Design notes (4 lines; the sort-arrow note shared with A NOTE 3).
 - model trial: lines in `docs/plans/auto-helix/model-trial.md` (workspace repo).
+- commit: 733a0cc8
 - human: none (review mode C)
