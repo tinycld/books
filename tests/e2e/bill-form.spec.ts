@@ -829,10 +829,13 @@ test.describe('bill-form: phone read view', () => {
         const id = billIdFromUrl(page)
         await page.setViewportSize(PHONE)
 
-        // The phone bar keeps Edit; More holds Void, Copy and View journal entry.
-        await expect(page.getByTestId('bill-read-edit')).toBeVisible()
+        // The bill has a balance, so the phone bar keeps Pay bill (pay-bills spec §2); More
+        // holds Edit, Void, Copy and View journal entry.
+        const bar = page.getByTestId('bill-read-actions')
+        await expect(bar.getByTestId('bill-read-pay')).toBeVisible()
+        await expect(bar.getByTestId('bill-read-edit')).toHaveCount(0)
         await page.getByTestId('bill-read-more').click()
-        for (const action of ['read-void', 'read-copy', 'read-entry']) {
+        for (const action of ['read-edit', 'read-void', 'read-copy', 'read-entry']) {
             await expect(page.getByTestId(`bill-${action}`)).toBeVisible()
         }
         await page.getByTestId('bill-read-void').click()
