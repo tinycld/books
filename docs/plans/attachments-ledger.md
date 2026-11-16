@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/attachments-checkpoints.md
 - reference: docs/plans/attachments-reference/
 - evidence: docs/plans/attachments-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs 2026-11-16)
 - capture manifest: docs/plans/attachments-capture.json
 - review mode: C — none (unattended)
 - core extension: E1 accepted — `PreviewModal` toolbar button roles and names, helix checkpoint 0 in core (branch books/p3-attachments; core PR https://github.com/tinycld/tinycld/pull/478); small, not `exclusive`. Core correction 1 (rune-safe `original-filename` cut in the PocketBase fork) adds core commit c7bafd80 on the same branch and PR
@@ -218,7 +218,7 @@ and again at the end)
 - mistakes: a ledger Edit before a Read; a `tail` in a pipe (retro log)
 
 ## Final review
-- eval: revised → core correction 1 (see "Core correction 1"; core c7bafd80); revised → revise 1 (below)
+- eval: revised → core correction 1 (see "Core correction 1"; core c7bafd80); revised → revise 1 (below); APPROVED by the human 2026-11-16 at books 1eddb93 (CI green: E2E shards 1-4, Typecheck & Unit; core #478 green at 26c6ef0e). After approval: CI fixes f441aa1 and 670e36d (statement-count cost bounds, race-free listener), race-build batch timeout 15s (human's maximum) 5978164, merges of main f887f65 (p2-receive-payment; migration renumbered to 2100000020) and 1eddb93 (tx-before-commit; bounds re-measured). Moved view kept as built; core search-palette debounce left to the human (core #481); the `attachments: draft edit keyboard` three-term workaround is simplified after #481 merges.
 - human comments and what changed
 - revise 1 (2026-11-15, staging `revise-1.md`): (1) "HEIC/HEIF thumbnails are NOT deferred": core `tinycld.org/core/thumbnails` (omnidoc) renders them, as drive uses it; (2) hide "Up to 20 MB each" for readers and on void and moved documents ("hiding is fine"), spec §2 to match. Core not edited (core already serves Books: `thumbnails.CanGenerate`/`Generate`, `FilePreviewSource.thumbnailFileName`, `pickThumbnailBase`).
   - findings: `cp/revise-1-fix.md` (2 items), round 2 `cp/revise-1-fix-2.md` (2 items)
