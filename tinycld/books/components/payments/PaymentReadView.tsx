@@ -144,6 +144,7 @@ export function PaymentReadView({
             <PaymentReadActions
                 payment={payment}
                 offered={offered}
+                historyItem={null}
                 scopeOwner={scopeOwner}
                 collection="books_payments"
                 editHref={editHref}

@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { formatDay } from '../../tinycld/books/lib/register-range'
+import { openMoreMenu } from './audit-log-helpers'
 import {
     billPaymentIdFromUrl,
     CHECKING,
@@ -142,7 +143,7 @@ test.describe('pay-bills: read view, void and journal', () => {
         ])
 
         // At 390 the void payment's read view lists Bills paid as cards (a grid row is wider
-        // than the phone) and keeps View journal entry in the phone bar.
+        // than the phone) and keeps View journal entry in the phone bar, beside More.
         await page.goBack()
         await expect(page).not.toHaveURL(PAY_BILLS_URL)
         await searchToBillPayment(
@@ -161,7 +162,11 @@ test.describe('pay-bills: read view, void and journal', () => {
             .toBeLessThanOrEqual(PHONE.width)
         const bar = shown(page, 'bill-payment-read-actions')
         await expect(bar.getByTestId('bill-payment-read-entry')).toBeVisible()
-        await expect(shown(page, 'bill-payment-read-more')).toHaveCount(0)
+        // More holds Audit history (as on every document) and no Edit or Void row.
+        const moreItems = await openMoreMenu(page, 'bill-payment-read-more')
+        await expect(moreItems.last()).toHaveText('Audit history')
+        await expect(moreItems.filter({ hasText: /^(Edit|Void)/ })).toHaveCount(0)
         await expect(shown(page, 'bill-payment-read-edit')).toHaveCount(0)
+        await expect(shown(page, 'bill-payment-read-void')).toHaveCount(0)
     })
 })

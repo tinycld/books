@@ -13,12 +13,11 @@ import {
     storedPartyAddressOf,
 } from '../../hooks/document-data'
 import { useReadAttachmentSession } from '../../hooks/useAttachmentUpload'
-import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
-import { useOpenHistory } from '../../hooks/useOpenHistory'
+import { useHistoryItem } from '../../hooks/useHistoryItem'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
-import { invoiceBadge } from '../../lib/document-lifecycle'
+import { paidBadge } from '../../lib/document-lifecycle'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
 import { documentTaxOf } from '../../lib/document-tax'
@@ -33,9 +32,9 @@ import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
 import { AttachmentsSection } from './AttachmentsSection'
-import type { DocumentMoreItem } from './DocumentActionBar'
 import { DocumentDetail } from './DocumentDetail'
 import { DocumentHeader } from './DocumentHeader'
+import { DocumentPayments } from './DocumentPayments'
 import { DocumentPdfView } from './DocumentPdfView'
 import { DocumentReadActions } from './DocumentReadActions'
 import { DOCUMENT_READ_TRAILING_WIDTH, DocumentReadLines } from './DocumentReadLines'
@@ -43,7 +42,6 @@ import { DocumentTabs, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import { useDocumentKind } from './document-kind-context'
 import { type DocumentKind, storedLineTableRows } from './document-kinds'
-import { InvoicePayments } from './InvoicePayments'
 
 const LINK_STYLE = { minHeight: 44 }
 
@@ -89,14 +87,24 @@ function readTableSubtotals(
     }))
 }
 
-// The sum the posted payments apply to an invoice, in cents; 0 for every other kind.
+// The sum the posted payments apply to an invoice or a bill, in cents; 0 for every other
+// kind.
 function appliedCents(data: DocumentScreenData): number {
-    return data.invoicePayments.reduce((sum, payment) => sum + payment.amount, 0)
+    return data.documentPayments.reduce((sum, payment) => sum + payment.amount, 0)
 }
 
-// The last row and the big figure: an invoice's Balance due is its open balance, which
-// the server keeps (receive-payment spec §3.9), with a Payments row above it while any
-// posted payment applies; every other kind's is its total, posted or void.
+// The open balance the server keeps on an invoice or a bill; undefined for every other
+// kind.
+function openBalanceOf(record: DocumentRecord): number | undefined {
+    const fields = record.kindFields
+    if (fields.kind === 'invoice' || fields.kind === 'bill') return fields.balance
+    return undefined
+}
+
+// The last row and the big figure: an invoice's or a bill's Balance due is its open
+// balance, which the server keeps (receive-payment spec §3.9, pay-bills spec §3.9), with a
+// Payments row above it while any posted payment applies; every other kind's is its
+// total, posted or void.
 function readTotals(
     data: DocumentScreenData,
     record: DocumentRecord,
@@ -107,8 +115,8 @@ function readTotals(
     const total = money(record.total)
     // A kind with more than one line table has no single Subtotal row.
     const subtotal = doc.lineTables.length > 1 ? null : money(record.subtotal)
-    const fields = record.kindFields
-    const last = fields.kind === 'invoice' ? money(fields.balance) : total
+    const balance = openBalanceOf(record)
+    const last = balance === undefined ? total : money(balance)
     const applied = appliedCents(data)
     const payments = applied > 0 ? `−${money(applied)}` : null
     return {
@@ -121,14 +129,38 @@ function readTotals(
     }
 }
 
-// An invoice's badge follows its open balance (Paid, Partly paid); undefined for every
-// other kind, whose header shows its status's badge.
+// An invoice's or a bill's badge follows its open balance (Paid, Partly paid); undefined
+// for every other kind, whose header shows its status's badge.
 function readBadgeOf(record: DocumentRecord) {
-    const fields = record.kindFields
+    const balance = openBalanceOf(record)
     const { status } = record
-    if (fields.kind !== 'invoice') return undefined
+    if (balance === undefined) return undefined
     if (status !== 'draft' && status !== 'posted' && status !== 'void') return undefined
-    return invoiceBadge(status, fields.balance, record.total)
+    return paidBadge(status, balance, record.total)
+}
+
+// What the Payments block names and opens on an invoice and on a bill; null for every
+// other kind, which has no payments.
+const PAYMENTS_BLOCKS: Partial<
+    Record<DocumentRecord['kindFields']['kind'], { noun: string; routeBase: string }>
+> = {
+    invoice: { noun: 'Payment', routeBase: 'books/payments' },
+    bill: { noun: 'Bill payment', routeBase: 'books/bill-payments' },
+}
+
+function PaymentsBlock({ data, record }: { data: DocumentScreenData; record: DocumentRecord }) {
+    const { doc } = useDocumentKind()
+    const target = PAYMENTS_BLOCKS[record.kindFields.kind]
+    if (!target) return null
+    return (
+        <DocumentPayments
+            payments={data.documentPayments}
+            currency={data.currency}
+            noun={target.noun}
+            routeBase={target.routeBase}
+            testIdPrefix={doc.testId}
+        />
+    )
 }
 
 // The party's address as the document stored it (storedPartyAddressOf: a sales kind's
@@ -296,22 +328,6 @@ function ReplacedByLink({ record, isVisible }: { record: DocumentRecord; isVisib
 // The read view has no unsaved state: its PDF view never offers a save.
 const NO_SAVE = () => {}
 
-// More → Audit history for a Books reader (spec §3 "Entry points"), test id
-// `<kind>-read-history`. While the access read loads there is no item, so More shows only
-// for the other actions; a failed access read is the screen's own error state.
-function useHistoryItem(kind: Pick<SalesDocumentKind, 'key'>, id: string): DocumentMoreItem | null {
-    const { canRead } = useBooksAccess()
-    const openHistory = useOpenHistory(DOCUMENT_COLLECTIONS[kind.key], id)
-    if (!canRead) return null
-    return {
-        id: 'read-history',
-        label: 'Audit history',
-        keys: '',
-        isDisabled: false,
-        onSelect: openHistory,
-    }
-}
-
 interface StampsProps {
     record: DocumentRecord
     // Only the posting lifecycle posts, voids and replaces.
@@ -349,8 +365,9 @@ interface DocumentReadViewProps {
  * A posted or void sales document, or a quote shown read only (a closed estimate, or any
  * estimate for a reader): the header, Customer, Bill to, Email, the date and the kind's
  * own details, Tax, the lines with their stored amounts, the stored totals with the tax
- * snapshot (an invoice's with its Payments row and its Balance due from its open balance),
- * Message and Memo, an invoice's Payments block, the kind's line under them (ReadStampRow)
+ * snapshot (an invoice's or a bill's with its Payments row and its Balance due from its
+ * open balance), Message and Memo, an invoice's or a bill's Payments block, the kind's line
+ * under them (ReadStampRow)
  * and, for the posting lifecycle only, the Posted by / Voided by stamps around it and, for
  * a replaced original, the link to its replacement; or, on the PDF view tab, its PDF. The
  * bar's actions follow the lifecycle's read actions for the user's
@@ -362,7 +379,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
     const read = useDocumentReadActions(documentKind, record, data.canWrite)
-    const historyItem = useHistoryItem(doc, record.id)
+    const historyItem = useHistoryItem(DOCUMENT_COLLECTIONS[doc.key], record.id)
     const writes = useServerActionState()
     useReadAttachmentSession(record.id, doc.features.attachments)
     const totals = readTotals(data, record, documentKind)
@@ -426,7 +443,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             memoLabel={memoLabel}
                             attachments={attachments}
                         />
-                        <InvoicePayments payments={data.invoicePayments} currency={data.currency} />
+                        <PaymentsBlock data={data} record={record} />
                         <ReadStamps record={record} isPosting={isPosting} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>

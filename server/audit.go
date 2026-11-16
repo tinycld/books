@@ -99,8 +99,8 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000021) reads the same
-// nine to give a line's audit row its document, and Register declares them
+// document. The books_audit_log view (migration 2100000022) reads the same
+// ten to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
 	"books_journal_lines":        "entry",
@@ -112,6 +112,7 @@ var auditParentFields = map[string]string{
 	"books_bundle_items":         "bundle",
 	"books_estimate_responses":   "estimate",
 	"books_payment_applications": "payment",
+	billPaymentLinesCollection:   "payment",
 }
 
 // auditLineCollections are the keys of auditParentFields in name order.
@@ -133,6 +134,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
 		{Value: "books_payments", Label: "Payment"},
+		{Value: billPaymentsCollection, Label: "Bill payment"},
 		{Value: "books_journal_entries", Label: "Journal entry"},
 		{Value: "books_invoice_lines", Label: "Invoice line"},
 		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
@@ -140,6 +142,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bill_lines", Label: "Bill line"},
 		{Value: "books_expense_lines", Label: "Expense line"},
 		{Value: "books_payment_applications", Label: "Payment application"},
+		{Value: billPaymentLinesCollection, Label: "Bill payment line"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
 		{Value: "books_accounts", Label: "Account"},

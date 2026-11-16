@@ -8,7 +8,7 @@ import { useMemo } from 'react'
 import { type EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../lib/invoice-columns'
 import { columnsOrThrow } from '../lib/record-save'
 import { INVOICE_KIND } from '../lib/sales-document-kinds'
-import type { BooksInvoices, BooksPaymentApplications, BooksPayments } from '../types'
+import type { BooksInvoices } from '../types'
 import {
     type DocumentDataSource,
     type DocumentKindFields,
@@ -17,9 +17,9 @@ import {
     type DocumentScreenReads,
     type DocumentWrites,
     documentRead,
-    type InvoicePayment,
     linkedReadIds,
     NO_RECOVERY,
+    postedPaymentsOf,
     salesLineMapperOf,
     useHeldRecord,
 } from './document-data'
@@ -43,32 +43,6 @@ function invoiceSourceOf<R extends BooksInvoices>(
             estimate: row.estimate,
         },
     }
-}
-
-// The posted payments among an invoice's applications, flattened, oldest payment first
-// (date, then number). An application whose payment is not in the store yet, or is a
-// draft or void, pays nothing on the invoice.
-function postedPaymentsOf(
-    rows: readonly (BooksPaymentApplications & {
-        paymentRow: Pick<BooksPayments, 'status' | 'number' | 'date'> | undefined
-    })[]
-): InvoicePayment[] {
-    const posted: InvoicePayment[] = []
-    for (const row of rows) {
-        const payment = row.paymentRow
-        if (payment?.status !== 'posted') continue
-        posted.push({
-            id: row.id,
-            amount: row.amount,
-            payment: row.payment,
-            number: payment.number,
-            date: payment.date,
-        })
-    }
-    return posted.sort((a, b) => {
-        if (a.date !== b.date) return a.date < b.date ? -1 : 1
-        return a.number.localeCompare(b.number, undefined, { numeric: true })
-    })
 }
 
 /**
@@ -202,13 +176,13 @@ function useInvoiceScreenReads(
     // in position order: a rate changed after posting does not change a posted invoice.
     const taxLinesQuery = useLiveQuery({
         query: q => {
-            if (!ids.taxLinesId) return undefined
+            if (!ids.postedReadsId) return undefined
             return q
                 .from({ line: taxLinesCollection })
-                .where(({ line }) => eq(line.invoice, ids.taxLinesId))
+                .where(({ line }) => eq(line.invoice, ids.postedReadsId))
                 .orderBy(({ line }) => line.position)
         },
-        queryKey: ['books.invoice.tax-lines', ids.taxLinesId],
+        queryKey: ['books.invoice.tax-lines', ids.postedReadsId],
     })
     // The payments applied to a posted or void invoice (read as the tax lines are, and not
     // while the form holds a post): its applications with their payments. A draft
@@ -216,10 +190,10 @@ function useInvoiceScreenReads(
     // the query, since the payment is a related row.
     const paymentsQuery = useLiveQuery({
         query: q => {
-            if (!ids.taxLinesId) return undefined
+            if (!ids.postedReadsId) return undefined
             return q
                 .from({ application: applicationsCollection })
-                .where(({ application }) => eq(application.invoice, ids.taxLinesId))
+                .where(({ application }) => eq(application.invoice, ids.postedReadsId))
                 .select(({ application }) => ({
                     ...application,
                     paymentRow: materialize(
@@ -230,10 +204,10 @@ function useInvoiceScreenReads(
                     ),
                 }))
         },
-        queryKey: ['books.invoice.payments', ids.taxLinesId],
+        queryKey: ['books.invoice.payments', ids.postedReadsId],
     })
     const applications = paymentsQuery.data
-    const invoicePayments = useMemo(() => postedPaymentsOf(applications ?? []), [applications])
+    const documentPayments = useMemo(() => postedPaymentsOf(applications ?? []), [applications])
     return {
         record: documentRead(id, invoiceQuery, record, [
             invoicesCollection,
@@ -249,10 +223,10 @@ function useInvoiceScreenReads(
             [linesCollection]
         ),
         ...estimateReads,
-        taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
+        taxLines: documentRead(ids.postedReadsId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),
-        invoicePayments: documentRead(ids.taxLinesId, paymentsQuery, invoicePayments, [
+        documentPayments: documentRead(ids.postedReadsId, paymentsQuery, documentPayments, [
             applicationsCollection,
             paymentsCollection,
         ]),

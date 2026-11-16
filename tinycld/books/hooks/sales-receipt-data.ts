@@ -26,8 +26,8 @@ import {
     type DocumentWrites,
     documentRead,
     linkedReadIds,
+    NO_DOCUMENT_PAYMENTS,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_PAYMENTS,
     salesLineMapperOf,
     useHeldRecord,
 } from './document-data'
@@ -170,13 +170,13 @@ function useSalesReceiptScreenReads(
     // snapshot), in position order: a rate changed after posting does not change it.
     const taxLinesQuery = useLiveQuery({
         query: q => {
-            if (!ids.taxLinesId) return undefined
+            if (!ids.postedReadsId) return undefined
             return q
                 .from({ line: taxLinesCollection })
-                .where(({ line }) => eq(line.sales_receipt, ids.taxLinesId))
+                .where(({ line }) => eq(line.sales_receipt, ids.postedReadsId))
                 .orderBy(({ line }) => line.position)
         },
-        queryKey: ['books.salesReceipt.taxLines', ids.taxLinesId],
+        queryKey: ['books.salesReceipt.taxLines', ids.postedReadsId],
     })
     const formStart = useSalesReceiptFormStart()
     return {
@@ -195,8 +195,8 @@ function useSalesReceiptScreenReads(
         ),
         // A sales receipt is never made from an estimate.
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_PAYMENTS,
-        taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
+        ...NO_DOCUMENT_PAYMENTS,
+        taxLines: documentRead(ids.postedReadsId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),
         formStart,

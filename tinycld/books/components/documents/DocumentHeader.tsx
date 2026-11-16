@@ -9,7 +9,8 @@ interface DocumentHeaderProps {
     title: string
     // The document's status; a new posting form is a draft.
     status: DocumentStatus
-    // The big figure's amount (the kind names it: Balance due on an invoice).
+    // The big figure's amount; the kind names it (Balance due on an invoice and a bill,
+    // since payments lower what is still owed).
     figure: string
     // A saved estimate past its expiration date: a warning badge beside the status.
     isExpired: boolean

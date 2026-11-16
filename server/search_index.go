@@ -14,7 +14,7 @@ import (
 // 2100000013_create_books_bills.js, the expenses' by
 // 2100000017_create_books_expenses.js, the payments' by
 // 2100000019_create_books_payments.js, and the bill payments' by
-// 2100000020_create_books_bill_payments.js.
+// 2100000021_create_books_bill_payments.js.
 const (
 	accountsIndex      = "fts_books_accounts"
 	entriesIndex       = "fts_books_journal_entries"

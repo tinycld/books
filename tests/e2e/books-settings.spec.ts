@@ -55,6 +55,8 @@ async function openSettings(page: Page) {
 // The wide rail swaps sections in place; the index route shows Company without navigating.
 async function openRailSection(page: Page, section: string) {
     await id(page, `books-settings-section-${section}`).click()
+    await expect(page).toHaveURL(new RegExp(`/books/settings/${section}$`))
+    await expect(id(page, 'books-settings')).toBeVisible()
 }
 
 async function expectSaved(page: Page) {

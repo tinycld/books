@@ -261,7 +261,8 @@ export const BILL_KIND: SalesDocumentKind & { messages: typeof BILL_MESSAGES } =
     draftTitle: 'Draft bill',
     newTitle: 'New bill',
     shortcutGroup: 'Bill',
-    // Balance due equals Total until Pay Bills.
+    // Balance due, not Total: bill payments lower a posted bill's balance, and what is
+    // still owed is the figure the user acts on (Pay bill). It equals Total until one pays.
     figure: { label: 'Balance due', testId: 'balance-due' },
     lastTotal: { label: 'Balance due', testId: 'total-balance' },
     customerRequired: true,

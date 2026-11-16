@@ -31,7 +31,10 @@ function shown(page: Page, testId: string) {
 }
 
 export function accessRow(page: Page, email: string) {
-    return page.locator(`[data-testid^="${ROW_PREFIX}"]`).filter({ hasText: email })
+    return page
+        .locator(`[data-testid^="${ROW_PREFIX}"]`)
+        .filter({ visible: true })
+        .filter({ hasText: email })
 }
 
 export async function userIdOf(row: Locator) {
@@ -44,14 +47,18 @@ export function chipOf(page: Page, userId: string) {
 }
 
 // From anywhere in Books to Settings → Access; on the Access section already, nothing.
+// The route decides, not a one-time visibility check: right after a rail click the new
+// section is not mounted yet and the old one is hidden, and a second Settings click there
+// stacks a second Settings screen.
 async function openAccess(page: Page) {
     const search = shown(page, 'books-settings-access-search')
-    if (await search.isVisible()) return
-    if (!(await shown(page, 'books-settings').isVisible())) {
+    if (!/\/books\/settings(\/|$)/.test(new URL(page.url()).pathname)) {
         await shown(page, 'books-nav-settings').click()
-        await expect(shown(page, 'books-settings')).toBeVisible()
     }
-    await shown(page, 'books-settings-section-access').click()
+    await expect(shown(page, 'books-settings')).toBeVisible()
+    if (!/\/books\/settings\/access$/.test(new URL(page.url()).pathname)) {
+        await shown(page, 'books-settings-section-access').click()
+    }
     await expect(search).toBeVisible()
 }
 

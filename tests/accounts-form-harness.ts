@@ -1186,6 +1186,14 @@ export function onDemandStore<T extends { id: string }>(
     return collection
 }
 
+// Registers a collection under `name` that never finishes its first load, so every live
+// query over it stays loading. Call after seedBooks, which replaces the registry.
+export function neverReadyStore<T extends { id: string }>(name: string) {
+    const collection = neverReady<T>()
+    state.registry[name] = collection
+    return collection
+}
+
 export function accountsStore() {
     return state.registry.books_accounts as ReturnType<typeof accountsCollection>
 }
