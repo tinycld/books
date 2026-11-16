@@ -25,7 +25,8 @@ import (
 // Every write that changes a document's entries or payments rebuilds that
 // document's rows in its own transaction (rebuildCashBasisFor); the ledger
 // rebuild recomputes every document (rebuildCashBasis). Nothing else writes the
-// rows. Whether a payment counts is read from its entry (posted, origin
+// rows. An invoice's sales tax has its own rows, rebuilt with these
+// (cash_basis_tax.go). Whether a payment counts is read from its entry (posted, origin
 // document, naming the payment), not from the payment row: a payment's post
 // and void change its entry before its own row is saved.
 
@@ -36,7 +37,9 @@ const cashLinesCollection = "books_cash_basis_lines"
 // payment lines and its payments (document_balance.go); DocType and
 // PaymentDocType are the doc types of the document's and the payment's
 // entries; UnpaidMemo is a taken-out row's memo, PaidMemo a share row's, with
-// the document's number.
+// the document's number. TaxLines is the collection of the document's posted
+// tax lines, whose cash-basis rows live in books_cash_basis_tax_lines
+// (cash_basis_tax.go); "" for a kind with no sales tax.
 type cashDeferral struct {
 	Kind           string
 	DocType        string
@@ -44,6 +47,7 @@ type cashDeferral struct {
 	Balance        balanceKind
 	UnpaidMemo     string
 	PaidMemo       string
+	TaxLines       string
 }
 
 var (
@@ -62,6 +66,7 @@ var (
 		Balance:        invoiceBalanceKind,
 		UnpaidMemo:     "Unpaid invoice (cash basis)",
 		PaidMemo:       "Invoice %s paid (cash basis)",
+		TaxLines:       "books_invoice_tax_lines",
 	}
 	// cashDeferrals are the deferred kinds. A customer payment's unapplied
 	// credit is not deferred: it is cash received on its own date.
@@ -244,10 +249,13 @@ func paymentShareRows(tx core.App, d cashDeferral, docID string, current []cashS
 	return rows, nil
 }
 
-// largestRemainder splits paid over amounts in proportion to amount ÷ total:
-// each takes the floor of amount × paid ÷ total, and the cents left go one
-// each to the largest remainders (the earlier amount on a tie). When the
-// amounts add up to total, the parts add up to paid.
+// largestRemainder splits amounts in proportion to paid ÷ total: each takes
+// the floor of amount × paid ÷ total, and the floor of (the amounts' sum) ×
+// paid ÷ total less those floors is handed out one cent each to the largest
+// remainders (the earlier amount on a tie). So the parts add up to the floor
+// of their exact sum, each part is within a cent of its exact share, and when
+// the amounts add up to total, the parts add up to paid. The amounts need not
+// add up to total: a tax line's figures do not (cash_basis_tax.go).
 func largestRemainder(amounts []int64, paid, total int64) []int64 {
 	out := make([]int64, len(amounts))
 	if total == 0 {
@@ -257,17 +265,23 @@ func largestRemainder(amounts []int64, paid, total int64) []int64 {
 		paid, total = -paid, -total
 	}
 	divisor := big.NewInt(total)
+	bigPaid := big.NewInt(paid)
 	remainders := make([]*big.Int, len(amounts))
-	left := paid
+	sum := new(big.Int)
+	floors := new(big.Int)
 	for i, a := range amounts {
 		q, r := new(big.Int), new(big.Int)
 		// Euclidean division: with a positive divisor q is the floor and r is
 		// in [0, total).
-		q.DivMod(new(big.Int).Mul(big.NewInt(a), big.NewInt(paid)), divisor, r)
+		q.DivMod(new(big.Int).Mul(big.NewInt(a), bigPaid), divisor, r)
 		out[i] = q.Int64()
 		remainders[i] = r
-		left -= out[i]
+		sum.Add(sum, big.NewInt(a))
+		floors.Add(floors, q)
 	}
+	target, unused := new(big.Int), new(big.Int)
+	target.DivMod(sum.Mul(sum, bigPaid), divisor, unused)
+	left := target.Sub(target, floors).Int64()
 	order := make([]int, len(amounts))
 	for i := range order {
 		order[i] = i
@@ -328,10 +342,21 @@ func storedCashLine(d cashDeferral, r *core.Record) cashLine {
 	}
 }
 
-// syncCashRows makes the document's stored rows equal the derived ones,
-// touching only the rows that differ, and returns how many rows it deleted
-// and wrote.
+// syncCashRows makes the document's stored rows, its tax rows included,
+// equal the derived ones, touching only the rows that differ, and returns how
+// many rows it deleted and wrote.
 func syncCashRows(tx core.App, d cashDeferral, docID string) (int, error) {
+	taxChanged, err := syncCashTaxRows(tx, d, docID)
+	if err != nil {
+		return 0, err
+	}
+	lineChanged, err := syncCashLineRows(tx, d, docID)
+	return taxChanged + lineChanged, err
+}
+
+// syncCashLineRows makes the document's stored books_cash_basis_lines rows
+// equal the derived ones.
+func syncCashLineRows(tx core.App, d cashDeferral, docID string) (int, error) {
 	stray, missing, err := cashRowDiff(tx, d, docID)
 	if err != nil {
 		return 0, err
@@ -421,17 +446,24 @@ func rebuildPaidCashBasis(tx core.App, kind balanceKind, paymentIDs ...string) e
 }
 
 // cashDocuments are the documents of kind d that have a posted entry or
-// stored cash-basis rows.
+// stored cash-basis rows (tax rows included).
 func cashDocuments(app core.App, d cashDeferral) ([]string, error) {
 	var rows []struct {
 		ID string `db:"id"`
+	}
+	taxRows := ""
+	if d.TaxLines != "" {
+		taxRows = `
+		UNION
+		SELECT ` + d.Kind + ` AS id FROM ` + cashTaxLinesCollection + `
+		WHERE ` + d.Kind + ` != ''`
 	}
 	err := app.DB().NewQuery(`
 		SELECT document AS id FROM books_journal_entries
 		WHERE doc_type = {:type} AND origin = 'document' AND document != ''
 		UNION
 		SELECT ` + d.Kind + ` AS id FROM ` + cashLinesCollection + `
-		WHERE document_kind = {:kind} AND ` + d.Kind + ` != ''
+		WHERE document_kind = {:kind} AND ` + d.Kind + ` != ''` + taxRows + `
 		ORDER BY id`).Bind(dbx.Params{"type": d.DocType, "kind": d.Kind}).All(&rows)
 	if err != nil {
 		return nil, fmt.Errorf("books: list the %s documents of the cash basis: %w", d.Kind, err)
@@ -443,9 +475,9 @@ func cashDocuments(app core.App, d cashDeferral) ([]string, error) {
 	return ids, nil
 }
 
-// CashBasisDrift is one document whose stored cash-basis rows differ from the
-// rows its entries and payments give: Stray stored rows no derived row
-// matches, Missing derived rows with no stored row.
+// CashBasisDrift is one document whose stored cash-basis rows (lines and tax
+// rows) differ from the rows its entries, tax lines and payments give: Stray
+// stored rows no derived row matches, Missing derived rows with no stored row.
 type CashBasisDrift struct {
 	Kind     string `json:"kind"`
 	Document string `json:"document"`
@@ -467,8 +499,13 @@ func verifyCashBasis(app core.App) ([]CashBasisDrift, error) {
 			if err != nil {
 				return nil, err
 			}
-			if len(stray) > 0 || len(missing) > 0 {
-				drifts = append(drifts, CashBasisDrift{Kind: d.Kind, Document: id, Stray: len(stray), Missing: len(missing)})
+			strayTax, missingTax, err := cashTaxRowDiff(app, d, id)
+			if err != nil {
+				return nil, err
+			}
+			strays, missings := len(stray)+len(strayTax), len(missing)+len(missingTax)
+			if strays > 0 || missings > 0 {
+				drifts = append(drifts, CashBasisDrift{Kind: d.Kind, Document: id, Stray: strays, Missing: missings})
 			}
 		}
 	}

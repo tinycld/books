@@ -437,6 +437,8 @@ func accountSums(tx core.App, sums map[string]int64, firstLine map[string]docume
 // (the tax-rates contract), with the document's gross (its subtotal), taxable
 // amount and currency: a later change to a rate never changes what a posted
 // document charged, and the Sales Tax Liability report reads these figures.
+// Each line carries the document date, the day the report counts it on the
+// accrual basis (an invoice's cash-basis tax rows carry their own days).
 func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult, taxes []componentTax) error {
 	defer markSnapshotting(tx, kind, doc.Id)()
 	col, err := tx.FindCachedCollectionByNameOrId(kind.TaxLinesCollection)
@@ -454,6 +456,7 @@ func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals d
 		r.Set("taxable_amount", totals.TaxableTotal)
 		r.Set("currency", doc.GetString("currency"))
 		r.Set("amount", t.Amount)
+		r.Set("date", doc.GetString("date"))
 		r.Set("position", i)
 		if err := tx.Save(r); err != nil {
 			return fmt.Errorf("books: write the document's tax line: %w", err)

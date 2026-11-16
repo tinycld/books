@@ -369,13 +369,17 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
-			// A union of the two tax line collections; the document link reads
-			// each part's own parent column.
+			// A union of the two ledger tax line collections and the cash-basis
+			// tax rows (pay-bills spec §3.10, Q3); the document link reads each
+			// part's own parent column, date is each row's own stored day, and
+			// layer is each part's constant.
 			key: "books.sales_tax_lines", label: "Sales tax lines",
 			fields: []wantField{
 				money("gross_amount"), money("taxable_amount"), money("amount"),
 				{key: "rate_ppm", typ: reports.Number, anyAggs: true},
 				text("currency"),
+				{key: "date", typ: reports.Date, textDay: true, anyAggs: true},
+				{key: "layer", typ: reports.Select, optionValues: []string{"ledger", "cash"}},
 			},
 			links: []wantLink{
 				toOne("document", "books.sales_documents", "document"),
@@ -387,16 +391,26 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{
 					collection: "books_invoice_tax_lines",
 					columns: mergeColumns(
-						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"),
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
 						map[string]string{"document": "invoice"},
 					),
+					values: map[string]any{"layer": "ledger"},
 				},
 				{
 					collection: "books_sales_receipt_tax_lines",
 					columns: mergeColumns(
-						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"),
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
 						map[string]string{"document": "sales_receipt"},
 					),
+					values: map[string]any{"layer": "ledger"},
+				},
+				{
+					collection: "books_cash_basis_tax_lines",
+					columns: mergeColumns(
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
+						map[string]string{"document": "invoice"},
+					),
+					values: map[string]any{"layer": "cash"},
 				},
 			},
 		},

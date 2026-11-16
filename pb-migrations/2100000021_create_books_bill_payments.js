@@ -255,6 +255,8 @@ migrate(
                 ],
                 indexes: [
                     'CREATE INDEX idx_books_cash_basis_tax_lines_date ON books_cash_basis_tax_lines (date)',
+                    // The invoice cash rebuild reads and replaces an invoice's tax rows.
+                    'CREATE INDEX idx_books_cash_basis_tax_lines_invoice ON books_cash_basis_tax_lines (invoice)',
                 ],
             })
         )
