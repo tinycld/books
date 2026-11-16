@@ -570,6 +570,7 @@ export function profitAndLossResult(input: ProfitAndLossInput = {}): RunResult {
         heading: PROFIT_AND_LOSS_HEADING,
         page: null,
         params: [period, { id: 'rows', type: 'choice', value: input.rows ?? 'nonzero' }],
+        headerLines: [],
     }
 }
 
