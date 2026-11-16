@@ -259,6 +259,17 @@
 - commit: "feat(books): Sales Tax Liability on cash" (this ledger row is in that commit)
 - human: none (review mode C)
 
+## CI fix 1
+- source: draft PR #59 (head b0887b55), E2E shard 1/4 red on 2 specs of other screens; log staging eval-ci-shard1.log
+- failure 1: tests/e2e/audit-log-history.spec.ts:264 — the posted invoice's phone More was pinned to Void, Copy, View journal entry, Download PDF, Audit history; a posted invoice with a balance offers a writer Receive payment (receive-payment spec §3.9), and on a phone every action but Edit sits in More (the spec's own comment) → test wrong (written before receive payment); code right
+- failure 2: tests/e2e/bill-form.spec.ts:817 — pinned "the phone bar keeps Edit" on a posted bill with a balance; this unit put Pay bill in the phone bar and Edit in More (cp 4 fix item 2, plan "puts Pay bill first and primary") → test wrong; code right
+- findings: staging cp/ci-fix-1-fix.md (2 items, weak-test 2)
+- test disputes: both settled for the code, as above; a fresh test writer (cp/ci-fix-1-tests.md): the invoice's phone More list starts with `/Receive payment/` (exact list kept); the bill's phone bar holds `bill-read-pay` and not `bill-read-edit`, More holds Edit, Void, Copy, View journal entry; the void step unchanged
+- code changes: none
+- gate 1: `tinycld-pkg check` 6189/6189 · e2e one file each on 7230: audit-log-history 15, bill-form 22 passed · `-g "pay-bills:"` 26 passed
+- fix review: round 1 (reviewer-A pass over the fix diff, cp/ci-fix-1-fix-review.md): clean
+- deferrals: none · rebuttals: none · design notes: none · out-of-plan files: 2 (the two specs above, other screens' specs; why: their pinned phone bars no longer matched agreed behavior)
+
 ## Final review
 - eval:
 - human comments and what changed
