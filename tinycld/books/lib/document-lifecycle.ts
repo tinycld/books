@@ -77,11 +77,12 @@ export function statusBadgeOf(
     return { label: estimateStatusLabel(status), tone: QUOTE_TONES[status] }
 }
 
-// An invoice's badge follows its open balance (receive-payment spec §3.9): a posted
-// invoice reads Paid (success) when nothing is open and Partly paid (warning) while part
-// of its total is open; otherwise its posting badge. `balance` and `total` are in cents.
-export function invoiceBadge(
-    status: BooksInvoices['status'],
+// The badge of a document that is paid (receive-payment spec §3.9, pay-bills spec §3.9):
+// a posted invoice or bill reads Paid (success) when nothing is open and Partly paid
+// (warning) while part of its total is open; otherwise its posting badge. `balance` and
+// `total` are in cents.
+export function paidBadge(
+    status: PostingStatus,
     balance: number,
     total: number
 ): { label: string; tone: StatusTone } {

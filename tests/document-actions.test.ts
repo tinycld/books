@@ -4,6 +4,7 @@ import {
     DOCUMENT_READ_KEYS,
     DOCUMENT_TAB_KEYS,
     documentReadActions,
+    payBillOffered,
     receivePaymentOffered,
 } from '../tinycld/books/lib/document-actions'
 import {
@@ -37,7 +38,7 @@ describe('documentReadActions', () => {
 })
 
 describe('DOCUMENT_READ_KEYS', () => {
-    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R', () => {
+    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P', () => {
         expect(DOCUMENT_READ_KEYS).toEqual({
             edit: 'e',
             void: 'v',
@@ -45,6 +46,7 @@ describe('DOCUMENT_READ_KEYS', () => {
             entry: 'j',
             invoice: 'i',
             receive_payment: 'r',
+            pay_bill: 'p',
         })
     })
 })
@@ -53,7 +55,7 @@ describe('DOCUMENT_READ_KEYS', () => {
 // balance above zero, key R, first in the bar. The read view passes `canReceivePayment`
 // only for an invoice; any other kind takes the default (false).
 describe('Receive payment', () => {
-    const offer = { canReceivePayment: true }
+    const offer = { canReceivePayment: true, canPayBill: false }
 
     it('comes first, before Edit, for a writer on a posted invoice that can receive one', () => {
         expect(documentReadActions('posted', true, SALES_FEATURES, offer)).toEqual([
@@ -74,7 +76,10 @@ describe('Receive payment', () => {
     it('is not offered without canReceivePayment', () => {
         expect(documentReadActions('posted', true)).not.toContain('receive_payment')
         expect(
-            documentReadActions('posted', true, SALES_FEATURES, { canReceivePayment: false })
+            documentReadActions('posted', true, SALES_FEATURES, {
+                canReceivePayment: false,
+                canPayBill: false,
+            })
         ).not.toContain('receive_payment')
     })
 
@@ -126,6 +131,77 @@ describe('receivePaymentOffered', () => {
     })
 })
 
+// Pay bill (pay-bills spec §2, §3.1, §3.9): a writer's action on a posted bill with a
+// balance above zero, key P, first in the bar. The read view sets `canPayBill` from
+// payBillOffered, so only such a bill gets it; an invoice gets Receive payment instead.
+describe('Pay bill', () => {
+    const bill = (status: 'posted' | 'void', canWrite: boolean, balance: number) =>
+        documentReadActions(status, canWrite, BILL_KIND.features, {
+            canReceivePayment: receivePaymentOffered('bill', status, balance),
+            canPayBill: payBillOffered('bill', status, balance),
+        })
+
+    it('comes first, before Edit, for a writer on a posted bill with a balance', () => {
+        expect(bill('posted', true, 20000)).toEqual(['pay_bill', 'edit', 'void', 'copy', 'entry'])
+    })
+
+    it('is not offered on a paid bill', () => {
+        expect(bill('posted', true, 0)).toEqual(['edit', 'void', 'copy', 'entry'])
+    })
+
+    it('is not offered on a void bill', () => {
+        expect(bill('void', true, 20000)).toEqual(['copy', 'entry'])
+    })
+
+    it('is not offered on a draft bill', () => {
+        expect(
+            documentReadActions('draft', true, BILL_KIND.features, {
+                canReceivePayment: false,
+                canPayBill: payBillOffered('bill', 'draft', 20000),
+            })
+        ).toEqual([])
+    })
+
+    it('is never offered to a reader', () => {
+        expect(bill('posted', false, 20000)).toEqual(['entry'])
+    })
+
+    it('leaves an invoice with Receive payment, never Pay bill', () => {
+        const invoice = documentReadActions('posted', true, SALES_FEATURES, {
+            canReceivePayment: receivePaymentOffered('invoice', 'posted', 20000),
+            canPayBill: payBillOffered('invoice', 'posted', 20000),
+        })
+        expect(invoice).toEqual(['receive_payment', 'edit', 'void', 'copy', 'entry', 'pdf'])
+        expect(invoice).not.toContain('pay_bill')
+    })
+
+    it('has the key P', () => {
+        expect(DOCUMENT_READ_KEYS.pay_bill).toBe('p')
+        expect(DOCUMENT_READ_ACTION_KEYS.pay_bill).toBe('p')
+    })
+})
+
+// When the read view offers Pay bill: only on a posted bill whose balance is above zero.
+describe('payBillOffered', () => {
+    it('is true for a posted bill with a balance above zero', () => {
+        expect(payBillOffered('bill', 'posted', 20000)).toBe(true)
+    })
+
+    it('is false for a posted bill that is paid', () => {
+        expect(payBillOffered('bill', 'posted', 0)).toBe(false)
+    })
+
+    it('is false for a void or draft bill', () => {
+        expect(payBillOffered('bill', 'void', 20000)).toBe(false)
+        expect(payBillOffered('bill', 'draft', 20000)).toBe(false)
+    })
+
+    it('is false for any other kind, an invoice included', () => {
+        expect(payBillOffered('invoice', 'posted', 20000)).toBe(false)
+        expect(payBillOffered('expense', 'posted', 20000)).toBe(false)
+    })
+})
+
 // A closed estimate's Open invoice (spec §3.2 read view keys): key I. It belongs to the
 // quote lifecycle only (quoteReadActions); a posted or void document never offers it.
 describe('Open invoice', () => {
@@ -173,6 +249,7 @@ describe('the sales receipt read view', () => {
             entry: 'j',
             invoice: 'i',
             receive_payment: 'r',
+            pay_bill: 'p',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })

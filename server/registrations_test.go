@@ -26,10 +26,13 @@ import (
 // the import row that made the transactions is audited. A writer changes a
 // transaction's status, so the transactions are audited, not server-only. An
 // invoice's or a sales receipt's tax lines are its posting snapshot, written with
-// the audited document.
+// the audited document. The cash-basis rows are rebuilt by the server from the
+// posted documents and their payments (pay-bills spec §4.1).
 var serverOnly = map[string]bool{
 	"books_account_balances":        true,
 	"books_bank_file_contents":      true,
+	"books_cash_basis_lines":        true,
+	"books_cash_basis_tax_lines":    true,
 	"books_invoice_tax_lines":       true,
 	"books_sales_receipt_tax_lines": true,
 }
@@ -861,6 +864,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSalesDocGuards(parts, billKind)
 	registerSalesDocGuards(parts, expenseKind)
 	registerPaymentGuards(parts)
+	registerBillPaymentGuards(parts)
 	registerEstimateResponses(parts)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})

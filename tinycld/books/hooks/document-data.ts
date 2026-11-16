@@ -18,6 +18,8 @@ import type { CopyDeposit } from '../lib/sales-receipt-values'
 import type { TableWriteOps } from '../lib/table-writes'
 import type {
     BooksAccounts,
+    BooksBillPaymentLines,
+    BooksBillPayments,
     BooksBills,
     BooksCustomers,
     BooksEstimates,
@@ -117,7 +119,8 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 // read view's tax line names it). A sales receipt's own fields add its deposit account,
 // which its payment line names. An invoice's own fields add the estimate it was made from
 // ("From estimate <n>") and its open balance (Balance due, the badge). An estimate's own
-// fields add the invoice that was made from it ("Converted to invoice <n>").
+// fields add the invoice that was made from it ("Converted to invoice <n>"). A bill's own
+// fields add its vendor's name and its open balance (Balance due, the badge).
 export type DocumentRecord = SharedColumns & {
     kindFields:
         | (InvoiceKindFields & {
@@ -131,7 +134,11 @@ export type DocumentRecord = SharedColumns & {
         | (EstimateKindFields & {
               invoiceRow: Pick<BooksInvoices, 'number' | 'status'> | undefined
           })
-        | (BillKindFields & { vendorRow: Pick<BooksVendors, 'display_name'> | undefined })
+        | (BillKindFields & {
+              vendorRow: Pick<BooksVendors, 'display_name'> | undefined
+              // The open amount the server keeps (total less the posted bill payments).
+              balance: BooksBills['balance']
+          })
         | (ExpenseKindFields & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
               paidFromRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
@@ -250,11 +257,45 @@ export function isSalesReadLine(line: DocumentReadLine): line is SalesReadLine {
 // A tax line the server wrote at posting (the tax-rates snapshot).
 export type DocumentTaxLine = Pick<BooksInvoiceTaxLines, 'id' | 'rate_ppm' | 'amount'>
 
-// A posted payment applied to an invoice, flattened from its application row: the
-// application's id and amount (what the payment pays on this invoice) with the payment's
-// id, number and date.
-export type InvoicePayment = Pick<BooksPaymentApplications, 'id' | 'amount' | 'payment'> &
+// A posted payment applied to an invoice or a bill, flattened from its line (an invoice's
+// payment application, a bill's bill payment line): the line's id and amount (what the
+// payment pays on this document) with the payment's id, number and date.
+export type DocumentPayment = Pick<BooksPaymentApplications, 'id' | 'amount' | 'payment'> &
     Pick<BooksPayments, 'number' | 'date'>
+
+// The posted payments among a document's payment lines, flattened, oldest payment first
+// (date, then number). A line whose payment is not in the store yet, or is not posted,
+// pays nothing on the document. Nor does a payment without a number: the server numbers a
+// payment when it posts it, so one with none is the client's own write that the server has
+// not posted yet (a bill payment is inserted with status posted, pay-bills spec §3.5); it
+// shows once the store holds the posted row.
+export function postedPaymentsOf(
+    rows: readonly (Pick<
+        BooksPaymentApplications | BooksBillPaymentLines,
+        'id' | 'amount' | 'payment'
+    > & {
+        paymentRow:
+            | Pick<BooksPayments | BooksBillPayments, 'status' | 'number' | 'date'>
+            | undefined
+    })[]
+): DocumentPayment[] {
+    const posted: DocumentPayment[] = []
+    for (const row of rows) {
+        const payment = row.paymentRow
+        if (payment?.status !== 'posted' || !payment.number) continue
+        posted.push({
+            id: row.id,
+            amount: row.amount,
+            payment: row.payment,
+            number: payment.number,
+            date: payment.date,
+        })
+    }
+    return posted.sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1
+        return a.number.localeCompare(b.number, undefined, { numeric: true })
+    })
+}
 
 // One read's state: ready (a disabled read is ready), failed, and what Retry recovers
 // (empty unless it failed).
@@ -280,9 +321,9 @@ export type DocumentScreenReads = {
     estimateSource: DocumentRead<EstimateSource | undefined>
     estimateSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
-    // On a posted or void invoice: the posted payments applied to it, oldest first. Idle
-    // (ready and empty) on every other form and kind.
-    invoicePayments: DocumentRead<InvoicePayment[]>
+    // On a posted or void invoice or bill: the posted payments applied to it, oldest
+    // first. Idle (ready and empty) on every other form and kind.
+    documentPayments: DocumentRead<DocumentPayment[]>
     // `errorText` is the error state's text when only this read failed.
     formStart: DocumentRead<DocumentFormStart> & { errorText?: string }
 }
@@ -385,9 +426,9 @@ export const NO_ESTIMATE_SOURCE: Pick<
     estimateSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
 }
 
-// The payment read of every kind but the invoice: ready, empty, never failed.
-export const NO_INVOICE_PAYMENTS: Pick<DocumentScreenReads, 'invoicePayments'> = {
-    invoicePayments: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
+// The payment read of every kind but the invoice and the bill: ready, empty, never failed.
+export const NO_DOCUMENT_PAYMENTS: Pick<DocumentScreenReads, 'documentPayments'> = {
+    documentPayments: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
 }
 
 // The number of the estimate an invoice names, for "From estimate <n>": the stored
@@ -438,11 +479,12 @@ export function useHeldRecord<T>(data: T | undefined, isHeld: boolean): T | unde
 
 // The ids of the reads that follow from the record. The source: on a new form, the one
 // `?replaces` corrects or `?copy` copies (its lines give the form's values); on a saved
-// correction draft, the one it replaces (its number titles the form). The tax lines come
-// from the posting snapshot of a posted or void document, so only the posting lifecycle
-// reads them (a quote never posts and has no tax lines); not read while the form holds
-// a post, as the optimistic `posted` status would start the read and the form would give
-// way to the loading state before a refusal could land on it.
+// correction draft, the one it replaces (its number titles the form). `postedReadsId`
+// keys the reads that exist only once a document posts: the tax lines (the posting
+// snapshot) and the payments applied to an invoice or a bill. Only the posting lifecycle
+// has them (a quote never posts), and they are not read while the form holds a post, as
+// the optimistic `posted` status would start the read and the form would give way to the
+// loading state before a refusal could land on it.
 export function linkedReadIds(
     input: DocumentScreenInput & { isHeld: boolean },
     record: Pick<DocumentSource, 'replaces'> | undefined,
@@ -457,7 +499,7 @@ export function linkedReadIds(
     return {
         sourceId,
         sourceLinesId: isNew ? sourceId : '',
-        taxLinesId: isReadStatus && !input.isHeld ? id : '',
+        postedReadsId: isReadStatus && !input.isHeld ? id : '',
     }
 }
 

@@ -13,7 +13,8 @@ import (
 )
 
 // searchSource contributes accounts, journal entries, customers, vendors,
-// products, invoices, sales receipts, estimates, bills, expenses and payments to core's
+// products, invoices, sales receipts, estimates, bills, expenses, payments and
+// bill payments to core's
 // federated /api/search. Each kind is read from its FTS5 index
 // (server/search_index.go). Rows are shaped here so the palette and the
 // CLI show the same thing; the client adapter
@@ -99,9 +100,14 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates, bills, expenses, payments)
+	billPayments, billPaymentTotal, err := searchSalesDocs(ctx, app, billPaymentSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
+	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates, bills, expenses,
+		payments, billPayments)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
-		estimateTotal + billTotal + expenseTotal + paymentTotal
+		estimateTotal + billTotal + expenseTotal + paymentTotal + billPaymentTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -359,11 +365,22 @@ type salesDocHit struct {
 // salesDocSearch is one kind of document of the sales document layer (the
 // purchase documents use it too) as a search source: its table, its FTS5
 // index, its doc type (for the title's nouns), its row id prefix and kind
-// (what the client adapter opens), and its party: the header column that
-// names it, the party's table and the party's FTS5 index.
+// (what the client adapter opens), its party: the header column that names
+// it, the party's table and the party's FTS5 index, and the column shown as
+// the row's subtitle (memo when unset).
 type salesDocSearch struct {
 	table, index, docType, kind      string
 	partyField, partyTable, partyIdx string
+	subtitle                         string
+}
+
+// subtitleColumn is the document column under the title: the memo, or the
+// kind's own column for a kind with no memo.
+func (s salesDocSearch) subtitleColumn() string {
+	if s.subtitle == "" {
+		return "memo"
+	}
+	return s.subtitle
 }
 
 var invoiceSearch = salesDocSearch{
@@ -408,9 +425,22 @@ var paymentSearch = salesDocSearch{
 	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
 }
 
+// billPaymentSearch names its vendor: "Bill payment 1004 · Pacific Power" /
+// "Bill payment 1004 (void) · Pacific Power" (pay-bills spec §3.11). A word
+// matches the payment's number and Ref no., or the vendor's display name,
+// company, email and legal name. A bill payment has no memo, so its Ref no.
+// is the subtitle. Every stored bill payment is posted or void: there is no
+// draft one.
+var billPaymentSearch = salesDocSearch{
+	table: billPaymentsCollection, index: billPaymentsIndex, docType: docTypeBillPayment, kind: "bill_payment",
+	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
+	subtitle: "reference_no",
+}
+
 // salesDocTermMatch is true when one query word matches a document's own
-// index row (number, memo, message; a sales receipt's, an expense's and a
-// payment's reference no. and a bill's vendor's bill no. too) or its party's (a
+// index row (number, memo, message; a sales receipt's, an expense's, a
+// payment's and a bill payment's reference no. and a bill's vendor's bill no.
+// too) or its party's (a
 // customer's display name, company, email; a vendor's legal name too).
 // Reading the party's row at query time lets a renamed party find its
 // documents with no reindex. %[1]s is the bound word, %[2]s the document's
@@ -474,8 +504,8 @@ func searchSalesDocs(ctx context.Context, app core.App, s salesDocSearch, includ
 	}
 	params["window"] = window
 	var hits []salesDocHit
-	if err := app.DB().NewQuery("SELECT c.id, c.number, c.memo, c.date, c.status, COALESCE(pa.display_name, '') AS party_name" +
-		from + " ORDER BY c.date DESC, c.id LIMIT {:window}").
+	if err := app.DB().NewQuery("SELECT c.id, c.number, c." + s.subtitleColumn() + " AS memo, c.date, c.status, " +
+		"COALESCE(pa.display_name, '') AS party_name" + from + " ORDER BY c.date DESC, c.id LIMIT {:window}").
 		WithContext(ctx).Bind(params).All(&hits); err != nil {
 		return nil, 0, fmt.Errorf("books: search %s: %w", s.table, err)
 	}

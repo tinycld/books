@@ -1,20 +1,33 @@
 import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
+import { SelectInput } from '@tinycld/core/ui/form'
 import { useState } from 'react'
-import { useFormContext, useFormState } from 'react-hook-form'
+import {
+    type Control,
+    type FieldValues,
+    get,
+    type Path,
+    useFormContext,
+    useFormState,
+    useWatch,
+} from 'react-hook-form'
 import { Text, View } from 'react-native'
 import { useDocumentFormScope } from '../components/documents/document-form-context'
+import { useHostValueForm } from '../components/forms/use-host-value-form'
 import { useDepositAccounts } from '../hooks/useDepositAccounts'
 import { usePaidFromAccounts } from '../hooks/usePaidFromAccounts'
 import { defaultDepositAccount, depositAccountOptions } from '../lib/deposit-accounts'
+import { selectValueSchema } from '../lib/host-value-schemas'
 import { defaultMethodFor, PAID_FROM_EMPTY_TEXT } from '../lib/paid-from'
 import { paymentMethodOptions } from '../lib/payment-methods'
 import { transferBalanceLine } from '../lib/transfer'
 import { HostSelect } from './account-fields'
 
-// The payment built-ins of a document host: the sales receipt's Payment row (Payment
-// method and Deposit to) and the expense's Paid from and required Payment method. The
-// core cell draws each one's label and error.
+// The payment fields: the scope-free selects any form binds through its own `control`
+// (Pay Bills, which is not a forms host), and the payment built-ins of a document host
+// that wrap them: the sales receipt's Payment row (Payment method and Deposit to) and the
+// expense's and bill's Paid from and required Payment method. In a host the core cell
+// draws each one's label and error.
 
 const OPTIONS_WITH_NONE = paymentMethodOptions({ allowNone: true })
 const OPTIONS_WITHOUT_NONE = paymentMethodOptions({ allowNone: false })
@@ -28,12 +41,63 @@ function idOf(value: unknown): string {
     return typeof value === 'string' ? value : ''
 }
 
+export interface PaymentMethodSelectProps<T extends FieldValues> {
+    control: Control<T>
+    name: Path<T>
+    // `<prefix>-method` names the trigger unless `triggerTestID` does.
+    testIdPrefix: string
+    // Whether "None" (no method) is offered first.
+    allowNone: boolean
+    label?: string
+    // A form cell draws the label and the error itself.
+    hideLabel?: boolean
+    hideError?: boolean
+    disabled?: boolean
+    triggerTestID?: string
+    onValueChange?: (value: string) => void
+}
+
+/**
+ * Payment method over the fixed list (lib/payment-methods.ts), with "None" first when
+ * `allowNone`; bound to any form through its `control`, with no document scope.
+ */
+export function PaymentMethodSelect<T extends FieldValues>({
+    control,
+    name,
+    testIdPrefix,
+    allowNone,
+    label = 'Payment method',
+    hideLabel = false,
+    hideError = false,
+    disabled = false,
+    triggerTestID,
+    onValueChange,
+}: PaymentMethodSelectProps<T>) {
+    const options = allowNone ? OPTIONS_WITH_NONE : OPTIONS_WITHOUT_NONE
+    const placeholder = allowNone ? undefined : METHOD_PLACEHOLDER
+    return (
+        <SelectInput
+            name={name}
+            control={control}
+            label={label}
+            hideLabel={hideLabel}
+            hideError={hideError}
+            options={options}
+            disabled={disabled}
+            placeholder={placeholder}
+            onValueChange={onValueChange}
+            testID={triggerTestID ?? `${testIdPrefix}-method`}
+        />
+    )
+}
+
 type PaymentMethodFieldProps = BuiltinFieldProps & {
     // Whether "None" (no method) is offered first; true by default (a sales receipt's).
     allowNone?: boolean
 }
 
-// The fixed list (lib/payment-methods.ts), with "None" first unless `allowNone` is false.
+// A document host's Payment method: PaymentMethodSelect bound to the host value through a
+// local form (HostSelect's way), with the cell's label and error.
 export function PaymentMethodField({
     fieldKey,
     label,
@@ -43,18 +107,20 @@ export function PaymentMethodField({
     allowNone = true,
 }: PaymentMethodFieldProps) {
     const { kind } = useDocumentFormScope()
-    const options = allowNone ? OPTIONS_WITH_NONE : OPTIONS_WITHOUT_NONE
-    const placeholder = allowNone ? undefined : METHOD_PLACEHOLDER
+    const form = useHostValueForm(selectValueSchema, { value: idOf(value) })
     return (
         <View testID={`${kind.testId}-payment-method`}>
-            <HostSelect
-                fieldKey={fieldKey}
+            <PaymentMethodSelect
+                control={form.control}
+                name="value"
+                testIdPrefix={kind.testId}
+                allowNone={allowNone}
                 label={label}
-                value={value}
-                onChange={onChange}
+                hideLabel
+                hideError
                 disabled={disabled}
-                options={options}
-                placeholder={placeholder}
+                triggerTestID={`form-input-${fieldKey}`}
+                onValueChange={onChange}
             />
         </View>
     )
@@ -68,7 +134,7 @@ export function RequiredPaymentMethodField(props: BuiltinFieldProps) {
 // The chart's own text while it has no account of the field's kind (a deposit account,
 // a bank or credit card account); the cell's error takes its place once there is one, so
 // it never shows twice.
-function NoAccountText({
+export function NoAccountText({
     isVisible,
     message,
     testID,
@@ -86,10 +152,10 @@ function NoAccountText({
 }
 
 // The picked account's own posted balance, the Chart of Accounts figure, as the transfer
-// form shows it: not as of the payment date and not after this expense. Nothing while no
+// form shows it: not as of the payment date and not after this payment. Nothing while no
 // account is picked, and nothing while the account's row is not loaded (`undefined`): a
 // figure there would be false.
-function PaidFromBalance({
+export function PaidFromBalance({
     accountId,
     balanceOf,
     currency,
@@ -113,15 +179,102 @@ function PaidFromBalance({
     )
 }
 
+export type PaidFromAccount = ReturnType<typeof usePaidFromAccounts>['accounts'][number]
+
+export interface PaidFromSelectProps<T extends FieldValues> {
+    control: Control<T>
+    name: Path<T>
+    // `<prefix>-paid-from` names the trigger unless `triggerTestID` does;
+    // `<prefix>-paid-from-balance` the balance and `<prefix>-paid-from-error` the empty
+    // chart's text.
+    testIdPrefix: string
+    currency: string
+    // A pick of another account, with its row (undefined while the row is not loaded).
+    onPick: (id: string, account: PaidFromAccount | undefined) => void
+    label?: string
+    // A form cell draws the label and the error itself.
+    hideLabel?: boolean
+    hideError?: boolean
+    // An error the caller draws for this field (a form cell's): the empty chart's text
+    // then gives way, so it never shows twice.
+    hasCallerError?: boolean
+    disabled?: boolean
+    // The stored account the form opened with: shown by name while it is not offered.
+    storedId?: string
+    triggerTestID?: string
+    autoFocus?: boolean
+}
+
 /**
- * Paid from (an expense's): the active bank and credit card accounts in chart order,
- * "<number> <name>", indented. A stored account that is no longer offered (made inactive)
- * shows by name for the value the field mounted with only (DepositAccountField's rule).
- * Picking an account sets Payment method by its type (defaultMethodFor); the user may
- * change the method after, and a later pick sets it again. Under it, the picked account's
- * balance. The screen loads the accounts before the form mounts and shows their load
- * error with its Retry, so this read is served from the store and has no loading or error
- * state of its own.
+ * Paid from: the active bank and credit card accounts in chart order, "<number> <name>",
+ * indented, bound to any form through its `control`, with no document scope. A stored
+ * account that is no longer offered (made inactive) shows by name for `storedId` only
+ * (DepositAccountField's rule). Under it, the picked account's balance, or with no such
+ * account in the chart PAID_FROM_EMPTY_TEXT. The screen loads the accounts before the form
+ * mounts and shows their load error with its Retry, so this read is served from the store
+ * and has no loading or error state of its own.
+ */
+export function PaidFromSelect<T extends FieldValues>({
+    control,
+    name,
+    testIdPrefix,
+    currency,
+    onPick,
+    label = 'Paid from',
+    hideLabel = false,
+    hideError = false,
+    hasCallerError = false,
+    disabled = false,
+    storedId = '',
+    triggerTestID,
+    autoFocus = false,
+}: PaidFromSelectProps<T>) {
+    const paidFrom = usePaidFromAccounts()
+    const { options, triggerLabel } = paidFrom.optionsFor(storedId)
+    const accountId = idOf(useWatch({ control, name }))
+    const { errors } = useFormState({ control, name })
+    const hasFieldError = hasCallerError || get(errors, name) !== undefined
+    const isChartEmpty = options.length === 0 && !hasFieldError
+    const handleChange = (id: string) =>
+        onPick(
+            id,
+            paidFrom.accounts.find(row => row.id === id)
+        )
+    return (
+        <View>
+            <SelectInput
+                name={name}
+                control={control}
+                label={label}
+                hideLabel={hideLabel}
+                hideError={hideError}
+                options={options}
+                disabled={disabled}
+                placeholder={triggerLabel || PAID_FROM_PLACEHOLDER}
+                onValueChange={handleChange}
+                testID={triggerTestID ?? `${testIdPrefix}-paid-from`}
+                autoFocus={autoFocus}
+            />
+            <PaidFromBalance
+                accountId={accountId}
+                balanceOf={paidFrom.balanceOf}
+                currency={currency}
+                testID={`${testIdPrefix}-paid-from-balance`}
+            />
+            <NoAccountText
+                isVisible={isChartEmpty}
+                message={PAID_FROM_EMPTY_TEXT}
+                testID={`${testIdPrefix}-paid-from-error`}
+            />
+        </View>
+    )
+}
+
+/**
+ * Paid from of a document host (an expense's, a bill's): PaidFromSelect bound to the host
+ * value through a local form (HostSelect's way), with the cell's label and error. Picking
+ * an account sets Payment method by its type (defaultMethodFor); the user may change the
+ * method after, and a later pick sets it again.
  */
 export function PaymentAccountField({
     fieldKey,
@@ -132,15 +285,12 @@ export function PaymentAccountField({
 }: BuiltinFieldProps) {
     const { kind, currency } = useDocumentFormScope()
     const { setValue, clearErrors } = useFormContext<FormValues>()
-    const paidFrom = usePaidFromAccounts()
+    const form = useHostValueForm(selectValueSchema, { value: idOf(value) })
     const [storedId] = useState(() => idOf(value))
-    const { options, triggerLabel } = paidFrom.optionsFor(storedId)
     const { errors, isSubmitted } = useFormState({ name: fieldKey })
-    const hasFieldError = errors[fieldKey] !== undefined
-    const isChartEmpty = options.length === 0 && !hasFieldError
-    const pick = (next: unknown) => {
-        onChange(next)
-        const account = paidFrom.accounts.find(row => row.id === next)
+    const hasCellError = errors[fieldKey] !== undefined
+    const pick = (id: string, account: PaidFromAccount | undefined) => {
+        onChange(id)
         if (!account) return
         // The pick sets a valid method, so a shown error on it (the required rule after a
         // submit, or a server refusal) goes; after a submit the rules run again on it.
@@ -152,25 +302,19 @@ export function PaymentAccountField({
     }
     return (
         <View testID={`${kind.testId}-paid-from`}>
-            <HostSelect
-                fieldKey={fieldKey}
-                label={label}
-                value={value}
-                onChange={pick}
-                disabled={disabled}
-                options={options}
-                placeholder={triggerLabel || PAID_FROM_PLACEHOLDER}
-            />
-            <PaidFromBalance
-                accountId={idOf(value)}
-                balanceOf={paidFrom.balanceOf}
+            <PaidFromSelect
+                control={form.control}
+                name="value"
+                testIdPrefix={kind.testId}
                 currency={currency}
-                testID={`${kind.testId}-paid-from-balance`}
-            />
-            <NoAccountText
-                isVisible={isChartEmpty}
-                message={PAID_FROM_EMPTY_TEXT}
-                testID={`${kind.testId}-paid-from-error`}
+                onPick={pick}
+                label={label}
+                hideLabel
+                hideError
+                hasCallerError={hasCellError}
+                disabled={disabled}
+                storedId={storedId}
+                triggerTestID={`form-input-${fieldKey}`}
             />
         </View>
     )

@@ -32,9 +32,13 @@ export function entryHref(entry: RoutedEntry): string {
 
 // The server refuses a correction whose type or origin differs from the original's, so
 // each kind is edited in its own form. A document's entry is corrected by editing
-// the document, which posts the correction under the same number.
+// the document, which posts the correction under the same number. A bill payment has no
+// form of its own: it is edited on Pay Bills (pay-bills spec §3.6).
 export function entryEditHref(entry: RoutedEntry): string {
     const route = documentRoute(entry)
+    if (route && entry.doc_type === 'bill_payment') {
+        return `books/pay-bills?replaces=${entry.document}`
+    }
     if (route) return `${route}/new?replaces=${entry.document}`
     if (entry.doc_type === 'transfer') return `books/transfers/new?replaces=${entry.id}`
     if (entry.origin === 'opening_balance') return 'books/opening-balances?edit=1'

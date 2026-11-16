@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -243,11 +244,16 @@ func TestSalesTaxLiabilitySpecLoads(t *testing.T) {
 	if shipped.Title != "Sales Tax Liability" {
 		t.Errorf("title = %q, want Sales Tax Liability", shipped.Title)
 	}
-	if shipped.Description != "The sales tax you charged on posted invoices and sales receipts, by agency and rate (accrual basis)." {
-		t.Errorf("description = %q", shipped.Description)
+	// The hub text drops "(accrual basis)" (pay-bills spec §3.10, Q3): the
+	// report runs on either method.
+	if shipped.Description != "The sales tax you charged on posted invoices and sales receipts, by agency and rate." {
+		t.Errorf("description = %q, want the hub text without \"(accrual basis)\"", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if strings.Contains(strings.ToLower(shipped.Description), "accrual basis") {
+		t.Errorf("description %q still says \"accrual basis\"", shipped.Description)
+	}
+	if shipped.Revision != 2 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 2 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(salesTaxLiabilitySpec())
 	if err != nil {
@@ -275,8 +281,11 @@ func TestSalesTaxLiabilitySpecLoads(t *testing.T) {
 	for i, p := range spec.Params {
 		paramIDs[i] = p.ID
 	}
-	if !reflect.DeepEqual(paramIDs, []string{"period", "agencies"}) {
-		t.Fatalf("params = %v, want period, agencies (the chips' order)", paramIDs)
+	if !reflect.DeepEqual(paramIDs, []string{"period", "method", "agencies"}) {
+		t.Fatalf("params = %v, want period, method, agencies (the chips' order: Method after Period)", paramIDs)
+	}
+	if method := paramOf(t, spec, "method"); !reflect.DeepEqual(method, methodParam()) {
+		t.Errorf("method = %+v, want methodParam() %+v", method, methodParam())
 	}
 	period := paramOf(t, spec, "period")
 	if period.Type != reports.ParamDateRange || period.Label != "Period" || !jsonEqual(t, period.Default, `{"preset":"lastMonth"}`) {
@@ -989,7 +998,7 @@ func TestSalesTaxLiabilityShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Sales Tax Liability" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.sales_tax_lines" {
+	if row.GetString("title") != "Sales Tax Liability" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.sales_tax_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -997,4 +1006,66 @@ func TestSalesTaxLiabilityShippedShared(t *testing.T) {
 	}
 	requireViewer(t, app, row, reader, "a guest with Books readonly access")
 	requireNoShare(t, app, row, outsider, "a guest without Books access")
+}
+
+// The Method param (pay-bills spec §3.10, Q3): on Accrual a tax line counts on
+// its own date; on Cash an invoice's tax is taken out at the invoice date and
+// comes back by each payment's share at the payment date, and a sales
+// receipt's tax counts on its date on both methods. The document header
+// prints the basis.
+func TestSalesTaxLiabilityMethod(t *testing.T) {
+	ce := newCashTaxEnv(t)
+	registerBooksSources(t)
+	reader := mkUser(t, ce.app, "member")
+	setPkgAccess(t, ce.app, reader, "readonly")
+	b := stlBook{receiptEnv: ce.receiptEnv, reader: reader, actor: ce.actor}
+
+	// Invoice of 1080.00 (1000.00 + 80.00 tax) on D1, 540.00 of it paid on
+	// D2; a sales receipt of 500.00 (40.00 tax) on D3.
+	inv := b.postInvoice(t, ce.eight, cashDay1, b.sale(100000, true))
+	ce.payOn(t, inv, cashDay2, 54000)
+	b.postReceipt(t, ce.eight, cashDay3, b.sale(50000, true))
+
+	agencyTotal := "Total " + ce.agency.GetString("name")
+	run := func(from, to, method string) *reports.Result {
+		t.Helper()
+		return b.run(t, withMethod(map[string]any{"period": glPeriod(from, to)}, method))
+	}
+	// The agency's tax, 0 when the run shows no row for it.
+	tax := func(res *reports.Result) int64 {
+		t.Helper()
+		if !bsHas(res, agencyTotal) {
+			return 0
+		}
+		return amt(t, bsRow(t, res, agencyTotal), "tax")
+	}
+
+	accrual := run(cashDay1, cashDay1, "")
+	if got := tax(accrual); got != 8000 {
+		t.Errorf("Accrual (default) over %s..%s: %s = %d, want 8000 (the invoice's tax on its own date)", cashDay1, cashDay1, agencyTotal, got)
+	}
+	requireHeaderLines(t, "the default (Accrual) run", accrual, "Accrual basis")
+	if got := tax(run(cashDay1, cashDay1, "accrual")); got != 8000 {
+		t.Errorf("Accrual over %s..%s: %s = %d, want 8000", cashDay1, cashDay1, agencyTotal, got)
+	}
+
+	cashD1 := run(cashDay1, cashDay1, "cash")
+	if got := tax(cashD1); got != 0 {
+		t.Errorf("Cash over %s..%s: %s = %d, want 0 (nothing paid on the invoice date)", cashDay1, cashDay1, agencyTotal, got)
+	}
+	requireHeaderLines(t, "the Cash run", cashD1, "Cash basis")
+	if got := tax(run(cashDay1, cashDay2, "cash")); got != 4000 {
+		t.Errorf("Cash over %s..%s: %s = %d, want 4000 (the 540.00 payment's share)", cashDay1, cashDay2, agencyTotal, got)
+	}
+	// The share counts on the payment date, not the invoice's: the report
+	// filters by the tax line's own date.
+	if got := tax(run(cashDay2, cashDay2, "cash")); got != 4000 {
+		t.Errorf("Cash over %s..%s: %s = %d, want 4000 (the share on the payment date)", cashDay2, cashDay2, agencyTotal, got)
+	}
+
+	for _, method := range []string{"accrual", "cash"} {
+		if got := tax(run(cashDay3, cashDay3, method)); got != 4000 {
+			t.Errorf("%s over %s..%s: %s = %d, want 4000 (the sales receipt's tax on its date)", method, cashDay3, cashDay3, agencyTotal, got)
+		}
+	}
 }

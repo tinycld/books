@@ -15,7 +15,9 @@ func transactionDetailShipped() reports.Shipped {
 		Title:       "Transaction Detail by Account",
 		Description: "Posted lines of chosen accounts for a period, grouped by account.",
 		Spec:        mustJSON(transactionDetailSpec()),
-		Revision:    1,
+		// 2: the Method param (Accrual or Cash) over books.basis_lines, so a
+		// statement's drill keeps its method.
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -24,16 +26,18 @@ func transactionDetailShipped() reports.Shipped {
 // period (every account when none is chosen), one open section per account
 // in the chart order, each line's Amount by its account's normal side, so a
 // section's total is the figure a statement shows for that account and
-// period (spec §5). Paths start at a journal line.
+// period and method (spec §5). Paths start at a line of books.basis_lines.
 func transactionDetailSpec() *reports.Spec {
 	return &reports.Spec{
 		Version: reports.CurrentVersion,
-		Source:  "books.journal_lines",
+		Source:  "books.basis_lines",
 		Params: []reports.ParamDef{
 			{ID: "period", Type: reports.ParamDateRange, Label: "Period", Default: mustJSON(map[string]string{"preset": "thisMonthToDate"})},
+			methodParam(),
 			accountsParam(),
 		},
 		Filter: op("and",
+			basisFilter(),
 			op("eq", fld("posted"), lit(true)),
 			op("between", fld("date"), prm("period")),
 			// An unset accounts param drops this term, so no account chosen
@@ -46,7 +50,7 @@ func transactionDetailSpec() *reports.Spec {
 			{ID: "number", Label: "No.", Formula: fld("entry", "number")},
 			{ID: "name", Label: "Name", Formula: lineName()},
 			{ID: "description", Label: "Description", Formula: lineDescriptionFormula()},
-			{ID: "split", Label: "Split", Formula: splitCase()},
+			{ID: "split", Label: "Split", Formula: basisSplitCase()},
 			{ID: "amount", Label: "Amount", Formula: tdAmount(), Aggregate: reports.Sum},
 		},
 		Groups: []reports.Group{{
@@ -69,6 +73,37 @@ func transactionDetailSpec() *reports.Spec {
 		Detail:  &reports.Detail{Label: fld("date"), Open: entryOpenPath()},
 		Display: transactionDetailDisplay(),
 	}
+}
+
+// basisSplitCase is the General Ledger's split (splitCase) over
+// books.basis_lines: the other line of a two-line entry, "-Split-" for more.
+// It counts the rows of the line's own entry and layer, so a ledger line
+// reads its entry's lines and a cash row the cash rows of the same entry (a
+// payment's share reads its Accounts payable or receivable row).
+func basisSplitCase() *reports.Node {
+	same := op("and",
+		op("eq", link("entry"), &reports.Node{Outer: reports.Path{{Link: "entry"}}}),
+		op("eq", fld("layer"), outer("layer")),
+	)
+	count := &reports.Node{
+		Op:     "lookup",
+		Source: "books.basis_lines",
+		Where:  same,
+		Value:  mustJSON(fld("id")),
+		Pick:   "count",
+	}
+	other := &reports.Node{
+		Op:     "lookup",
+		Source: "books.basis_lines",
+		Where:  op("and", same, op("ne", fld("id"), outer("id"))),
+		Value:  mustJSON(fld("account", "full_name")),
+		Pick:   "min",
+	}
+	return op("case",
+		op("eq", count, lit(2)), other,
+		op("gt", count, lit(2)), lit("-Split-"),
+		lit(nil),
+	)
 }
 
 // tdAmount is a line by its account's normal side: credits less debits on a

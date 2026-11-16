@@ -91,6 +91,15 @@ describe('searchTarget', () => {
         expect(searchTarget('payment:')).toBeNull()
     })
 
+    // Pay-bills spec §3.11: a bill payment hit (kind bill_payment) opens the bill payment.
+    it('routes a bill payment hit to the bill payment read view', () => {
+        expect(searchTarget('bill_payment:abc')).toEqual({
+            path: 'books/bill-payments/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('bill_payment:')).toBeNull()
+    })
+
     it('ignores an id it does not know', () => {
         expect(searchTarget('quote:1')).toBeNull()
         expect(searchTarget('invoice:')).toBeNull()

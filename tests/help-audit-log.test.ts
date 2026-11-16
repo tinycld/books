@@ -53,6 +53,12 @@ describe('help/audit-log.md', () => {
         expect(body).toMatch(/\bMore\b\s*(→|->|>)\s*\bAudit history\b/)
     })
 
+    // The records whose More menu holds Audit history (cp 4 item D2 gave the bill payment
+    // read view that row; pay-bills cp 4 fix round 1, item 3).
+    it('lists a bill payment among the records with More → Audit history', () => {
+        expect(oneSentence(/\blast item of the More menu\b/, /\bbill payment\b/)).toBe(true)
+    })
+
     it('names "Changed (hidden)"', () => {
         expect(body).toContain('Changed (hidden)')
     })

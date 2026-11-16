@@ -14,7 +14,7 @@ import {
     rowAmount,
 } from './receive-payment-helpers'
 
-// The receive-payment form below 640 px and Find invoice no. (spec §3.3, §3.5, §3.7).
+// The receive-payment form at phone size and Find invoice no. (spec §3.3, §3.5, §3.7).
 // The phone post runs at 390: the outstanding list and the applied invoices are cards
 // there, and the bar moves Post & new into More, which are other components than the wide
 // grid. Find invoice no. runs at desktop width. Each test makes its own customer and

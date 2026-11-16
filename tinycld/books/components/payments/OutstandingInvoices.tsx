@@ -2,7 +2,6 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { Text, View } from 'react-native'
 import { filterRowsByNumber, type OutstandingRow } from '../../lib/payment-allocation'
-import { PAYMENT_CARDS_BELOW } from '../../lib/payment-columns'
 import { fillPaymentText, PAYMENT_MESSAGES } from '../../lib/payment-texts'
 import { FindInvoiceField, type FindInvoiceFieldState } from './FindInvoiceField'
 import { OutstandingCards } from './OutstandingCards'
@@ -93,8 +92,8 @@ function shownRows(list: OutstandingListProps, filterText: string): OutstandingR
  * The list area of the payment form (spec §3.3, §3.5): Find invoice no., then with no
  * customer the hint, while loading a skeleton of three rows, a failed read the error banner
  * with Retry, a customer with no open invoice the credit note, else the rows the find text
- * keeps: a grid, or cards while the list's own width is below PAYMENT_CARDS_BELOW. A find
- * text that keeps no row says so.
+ * keeps: a grid, or cards while the list's own width is below the grid's least width
+ * (`doc.gridMinWidth`). A find text that keeps no row says so.
  */
 export function OutstandingInvoices({
     mode,
@@ -104,7 +103,7 @@ export function OutstandingInvoices({
     list,
 }: OutstandingInvoicesProps) {
     const { width, onLayout } = useContainerWidth()
-    const isCards = width > 0 && width < PAYMENT_CARDS_BELOW
+    const isCards = width > 0 && width < list.doc.gridMinWidth
     const drawn = {
         ...list,
         rows: shownRows(list, find.filterText),

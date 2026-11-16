@@ -14,10 +14,11 @@ const (
 // The ledger, the customers, the vendors, their contact people, the products
 // (with their bundle rows), the sales and purchase documents with their lines,
 // the bill and expense attachments, the received payments with the invoices
-// they pay, the sales tax agencies, rates and groups, the bank connections,
-// their files and the imports of those files are read-write; a file's parsed
-// rows, the bank transactions, which only the server writes, and the party
-// balances and audit log views are read-only. Everything that
+// they pay, the bill payments with the bills they pay, the sales tax agencies,
+// rates and groups, the bank connections, their files and the imports of those
+// files are read-write; a file's parsed rows, the bank transactions and the
+// cash-basis rows, which only the server writes, and the party balances and
+// audit log views are read-only. Everything that
 // decides who may do what (the settings with the close date, numbering,
 // overrides, admin grants) is read-only for tokens, as is a sales document's
 // tax snapshot, which only posting writes: "record transactions" on a consent
@@ -68,6 +69,10 @@ func oauthPackage() oauth.Package {
 			"books_attachments":             rw,
 			"books_payments":                rw,
 			"books_payment_applications":    rw,
+			"books_bill_payments":           rw,
+			"books_bill_payment_lines":      rw,
+			"books_cash_basis_lines":        ro,
+			"books_cash_basis_tax_lines":    ro,
 			"books_party_contacts":          rw,
 			"books_party_balances":          ro,
 			"books_audit_log":               ro,

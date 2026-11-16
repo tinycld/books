@@ -165,6 +165,7 @@ func reportSources() []reports.Source {
 				{Key: "agency", Label: "Agency", Target: "books.tax_agencies", Cardinality: reports.ToOne, Field: "agency"},
 			},
 		},
+		basisLinesSource(),
 		salesDocumentsSource(),
 		salesTaxLinesSource(),
 		auditLogSource(),
@@ -180,7 +181,7 @@ func reportSources() []reports.Source {
 	return sources
 }
 
-// auditLogSource is the books_audit_log view (migration 2100000021): one row
+// auditLogSource is the books_audit_log view (migration 2100000022): one row
 // per audit row of a Books record. The view's computed columns are text, so
 // event, record_type and parent_type are Selects over text columns. The JSON
 // columns (changes, snapshot) are left out; it has no money, so no Currency.
@@ -199,6 +200,47 @@ func auditLogSource() reports.Source {
 			{Key: "parent_id", Label: "Document ID", Type: reports.Text},
 			{Key: "history_type", Label: "History type", Type: reports.Text},
 			{Key: "history_id", Label: "History ID", Type: reports.Text},
+		},
+	}
+}
+
+// basisLineColumns are the columns journal lines and cash-basis rows share,
+// by the same name in both collections.
+var basisLineColumns = []string{
+	"debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor",
+}
+
+// basisLinesSource is the journal lines by basis (pay-bills spec §3.10), one
+// union of the posted ledger lines and the cash-basis rows (core SourcePart):
+// the fields and links of books.journal_lines, and layer, each part's
+// constant. A statement on it reads the ledger alone on Accrual and both
+// parts on Cash (basisFilter), where the cash rows take out what a bill or an
+// invoice posted and bring back each payment's share.
+func basisLinesSource() reports.Source {
+	return reports.Source{
+		Key: "books.basis_lines", Label: "Journal lines by basis",
+		Parts: []reports.SourcePart{
+			{Collection: "books_journal_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "ledger"}},
+			{Collection: "books_cash_basis_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "cash"}},
+		},
+		Fields: []reports.Field{
+			{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "memo", Label: "Memo", Type: reports.Text},
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "posted", Label: "Posted", Type: reports.Bool},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "position", Label: "Position", Type: reports.Number},
+			{Key: "layer", Label: "Layer", Type: reports.Select, Options: []reports.Option{
+				{Value: "ledger", Label: "Ledger"},
+				{Value: "cash", Label: "Cash basis"},
+			}},
+		},
+		Links: []reports.Link{
+			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
+			{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
+			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
+			{Key: "vendor", Label: "Vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "vendor"},
 		},
 	}
 }
@@ -254,22 +296,27 @@ func salesDocumentsSource() reports.Source {
 	}
 }
 
-// salesTaxLinesSource is every tax line posting wrote, one union of the
-// invoice and sales receipt tax lines: one row per document and tax
-// component, with the figures stored at posting. The document link reads each
-// part's own parent column.
+// salesTaxLinesSource is every tax line posting wrote and the invoices'
+// cash-basis tax rows (pay-bills spec §3.10, Q3), one union of three parts:
+// the invoice and sales receipt tax lines (layer "ledger") and
+// books_cash_basis_tax_lines (layer "cash"). Each row is one document and tax
+// component with its stored figures and its own day: a ledger line's is the
+// document date, a cash row's the day it takes out or brings back. The
+// document link reads each part's own parent column. A report on it reads the
+// ledger alone on Accrual and both layers on Cash (basisFilter).
 func salesTaxLinesSource() reports.Source {
-	shared := []string{"gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"}
-	part := func(collection, parent string) reports.SourcePart {
+	shared := []string{"gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"}
+	part := func(collection, parent, layer string) reports.SourcePart {
 		columns := sameNames(shared...)
 		columns["document"] = parent
-		return reports.SourcePart{Collection: collection, Columns: columns}
+		return reports.SourcePart{Collection: collection, Columns: columns, Values: map[string]any{"layer": layer}}
 	}
 	return reports.Source{
 		Key: "books.sales_tax_lines", Label: "Sales tax lines",
 		Parts: []reports.SourcePart{
-			part("books_invoice_tax_lines", "invoice"),
-			part("books_sales_receipt_tax_lines", "sales_receipt"),
+			part("books_invoice_tax_lines", "invoice", "ledger"),
+			part("books_sales_receipt_tax_lines", "sales_receipt", "ledger"),
+			part(cashTaxLinesCollection, "invoice", "cash"),
 		},
 		Fields: []reports.Field{
 			{Key: "gross_amount", Label: "Gross total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
@@ -277,6 +324,11 @@ func salesTaxLinesSource() reports.Source {
 			{Key: "amount", Label: "Tax amount", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 			{Key: "rate_ppm", Label: "Rate (ppm)", Type: reports.Number},
 			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "layer", Label: "Layer", Type: reports.Select, Options: []reports.Option{
+				{Value: "ledger", Label: "Ledger"},
+				{Value: "cash", Label: "Cash basis"},
+			}},
 		},
 		Links: []reports.Link{
 			{Key: "document", Label: "Document", Target: "books.sales_documents", Cardinality: reports.ToOne, Field: "document"},
@@ -314,6 +366,7 @@ func entryDocTypeOptions() []reports.Option {
 		{Value: docTypeBill, Label: entryTypeLabels.DocTypes[docTypeBill]},
 		{Value: docTypeExpense, Label: entryTypeLabels.DocTypes[docTypeExpense]},
 		{Value: docTypePayment, Label: entryTypeLabels.DocTypes[docTypePayment]},
+		{Value: docTypeBillPayment, Label: entryTypeLabels.DocTypes[docTypeBillPayment]},
 	}
 }
 

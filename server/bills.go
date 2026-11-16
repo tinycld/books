@@ -58,9 +58,11 @@ const billDraftName = "a draft bill"
 // is the vendor, its lines are account lines and product lines, it has no
 // sales tax, and posting credits Accounts payable (which posting creates when
 // the chart has none, ensurePayables) for the total and debits each line's
-// expense account (expenseByAccount). Its BeforePost is set in init: it reads
-// the kind's own lines, and a field of billKind that names billKind is an
-// initialization cycle.
+// expense account (expenseByAccount). Its balance is what bill payments have
+// not paid (billBalanceKind); a void is refused while a posted bill payment
+// pays it, and a correction takes its payments over. Its BeforePost is set in
+// init: it reads the kind's own lines, and a field of billKind that names
+// billKind is an initialization cycle.
 var billKind = salesDocKind{
 	DocType:            docTypeBill,
 	Lifecycle:          lifecyclePosting,
@@ -100,11 +102,57 @@ var billKind = salesDocKind{
 		}
 		return payable.Id, nil
 	},
-	LineAccounts: expenseByAccount,
-	// A posted correction takes every file of the bill it replaces.
-	Replace: func(tx core.App, original, correction *core.Record) error {
-		return moveAttachments(tx, "bill", original.Id, correction.Id)
-	},
+	LineAccounts:  expenseByAccount,
+	TracksBalance: true,
+	CheckVoid:     refuseBillVoidWithPayments,
+	Replace:       replaceBill,
+}
+
+// Refusals of a bill that bill payments pay (pay-bills spec §3.9). %s is the
+// amount the posted payments pay.
+const (
+	msgBillVoidWithPayments    = "Payments are applied to this bill. Void or edit those payments first."
+	msgBillCorrectionBelowPaid = "Payments of %s are applied to this bill. Its total cannot be below that."
+	msgBillCorrectionVendor    = "Payments are applied to this bill, so its vendor cannot change."
+)
+
+// refuseBillVoidWithPayments is the bill's CheckVoid: a bill that a posted
+// bill payment pays stays posted until that payment is voided or edited.
+func refuseBillVoidWithPayments(tx core.App, doc *core.Record) error {
+	paid, err := postedAppliedTo(tx, billBalanceKind, doc.Id)
+	if err != nil {
+		return err
+	}
+	if paid > 0 {
+		return refuse(msgBillVoidWithPayments)
+	}
+	return nil
+}
+
+// replaceBill is the bill's Replace step: while posted bill payments pay the
+// original, the correction keeps a total of at least what they pay and keeps
+// the vendor; then the lines of the posted payments move to the correction,
+// whose balance postSalesDoc then sets to its total less them. A void
+// payment's lines stay on the original, which keeps its history: the
+// correction may name another vendor, and a line must name a bill of its
+// payment's vendor. The correction also takes every file of the original.
+func replaceBill(tx core.App, original, correction *core.Record) error {
+	paid, err := postedAppliedTo(tx, billBalanceKind, original.Id)
+	if err != nil {
+		return err
+	}
+	if paid > 0 {
+		if int64(correction.GetInt("total")) < paid {
+			return refuse(msgBillCorrectionBelowPaid, formatMoney(paid, correction.GetString("currency")))
+		}
+		if correction.GetString("vendor") != original.GetString("vendor") {
+			return refuse(msgBillCorrectionVendor)
+		}
+	}
+	if err := movePostedLines(tx, billBalanceKind, original, correction); err != nil {
+		return err
+	}
+	return moveAttachments(tx, "bill", original.Id, correction.Id)
 }
 
 func init() {

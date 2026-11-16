@@ -75,20 +75,29 @@ func tdAccount() *reports.Node { return rec("byAccount", "id") }
 // tdAccountOf is tdAccount as a drill value.
 func tdAccountOf() reports.DrillValue { return reports.DrillValue{Formula: tdAccount()} }
 
-// firstLine is the day of the account row's first posted line on or before
-// day d: where a drill's range starts, so it holds every line a balance on d
-// sums. No value when the account has no such line.
+// firstLine is the day of the account row's first posted journal line on or
+// before day d: where a Trial Balance drill's range starts, so it holds every
+// line a balance on d sums. No value when the account has no such line.
 func firstLine(d *reports.Node) *reports.Node {
-	return firstLineWhere(d)
+	return firstLineWhere("books.journal_lines", d)
 }
 
-// firstLineFY is firstLine inside the fiscal year that holds d: an income or
-// expense balance sums that fiscal year's lines only.
+// firstBasisLine is the day of the account row's first posted line on or
+// before day d on the run's method (books.basis_lines under basisFilter):
+// where a Balance Sheet drill's range starts, so it holds every line a
+// balance on d sums. No value when the account has no such line.
+func firstBasisLine(d *reports.Node) *reports.Node {
+	return firstLineWhere("books.basis_lines", d, basisFilter())
+}
+
+// firstLineFY is the day of the account row's first posted journal line on or
+// before day d inside the fiscal year that holds d: an income or expense
+// balance sums that fiscal year's lines only.
 func firstLineFY(d *reports.Node) *reports.Node {
-	return firstLineWhere(d, op("eq", op("fiscalYear", fld("date")), op("fiscalYear", d)))
+	return firstLineWhere("books.journal_lines", d, op("eq", op("fiscalYear", fld("date")), op("fiscalYear", d)))
 }
 
-func firstLineWhere(d *reports.Node, more ...*reports.Node) *reports.Node {
+func firstLineWhere(source string, d *reports.Node, more ...*reports.Node) *reports.Node {
 	where := append([]*reports.Node{
 		op("eq", link("account"), tdAccount()),
 		op("eq", fld("posted"), lit(true)),
@@ -96,7 +105,7 @@ func firstLineWhere(d *reports.Node, more ...*reports.Node) *reports.Node {
 	}, more...)
 	return &reports.Node{
 		Op:     "lookup",
-		Source: "books.journal_lines",
+		Source: source,
 		Where:  op("and", where...),
 		Value:  mustJSON(fld("date")),
 		Pick:   "min",
@@ -152,6 +161,30 @@ func receivableLines(asOf *reports.Node) []*reports.Node {
 		op("lte", fld("date"), asOf),
 	}
 }
+
+// methodParam is the Method param of the statements on books.basis_lines
+// (pay-bills spec §3.10): Accrual (the default) or Cash, printed in the
+// document header as "Accrual basis" or "Cash basis".
+func methodParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "method", Type: reports.ParamChoice, Label: "Method",
+		Options: []reports.Option{{Value: "accrual", Label: "Accrual"}, {Value: "cash", Label: "Cash"}},
+		Default: mustJSON("accrual"),
+		Header:  "{label} basis",
+	}
+}
+
+// basisFilter keeps the rows of books.basis_lines the run's method reads: the
+// ledger part always, the cash part only on Cash.
+func basisFilter() *reports.Node {
+	return op("or",
+		op("eq", fld("layer"), lit("ledger")),
+		op("eq", prm("method"), lit("cash")),
+	)
+}
+
+// methodDrill copies the run's method to the drilled report.
+func methodDrill() reports.DrillValue { return reports.DrillValue{Param: "method"} }
 
 // lineName is a line's customer or vendor.
 func lineName() *reports.Node {

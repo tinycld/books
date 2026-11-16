@@ -9,6 +9,7 @@ import { usePaymentForm } from '../../hooks/usePaymentForm'
 import { usePaymentSave } from '../../hooks/usePaymentSave'
 import { usePaymentShortcuts } from '../../hooks/usePaymentShortcuts'
 import type { DepositAccountRow } from '../../lib/deposit-accounts'
+import { INVOICE_OUTSTANDING } from '../../lib/outstanding-documents'
 import { paymentDepositOptions } from '../../lib/payment-deposit'
 import { paymentFigureText } from '../../lib/payment-texts'
 import type { PaymentFormValues } from '../../lib/payment-values'
@@ -145,6 +146,7 @@ export function PaymentForm({
     const summaryErrors = rootErrorOnly(errors)
     const memoStyle = isPhone ? undefined : MEMO_WIDE
     const list = {
+        doc: INVOICE_OUTSTANDING,
         rows: outstanding.rows,
         payments: values.payments,
         rowErrors,

@@ -420,6 +420,7 @@ function denverTaxLines(
         currency: invoice.currency,
         amount: amounts[position],
         position,
+        date: invoice.date,
         created: STAMP,
         updated: STAMP,
     }))

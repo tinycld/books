@@ -3,5 +3,6 @@
     "sales_receipt": "sales-receipts",
     "bill": "bills",
     "expense": "expenses",
-    "payment": "payments"
+    "payment": "payments",
+    "bill_payment": "bill-payments"
 }

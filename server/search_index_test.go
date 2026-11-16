@@ -58,12 +58,13 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 11 {
-		t.Fatalf("%d indexes, want one per search source (11)", len(searchIndexes))
+	if len(searchIndexes) != 12 {
+		t.Fatalf("%d indexes, want one per search source (12)", len(searchIndexes))
 	}
 	for table, collection := range map[string]string{
-		"fts_books_expenses": "books_expenses",
-		"fts_books_payments": "books_payments",
+		"fts_books_expenses":      "books_expenses",
+		"fts_books_payments":      "books_payments",
+		"fts_books_bill_payments": "books_bill_payments",
 	} {
 		var indexed []string
 		for _, cfg := range searchIndexes {
