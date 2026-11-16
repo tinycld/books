@@ -39,6 +39,8 @@ export type PartyListProps<T extends PartyRecord> = {
     isLoadError: boolean
     onDismissBanner(): void
     dialog: ReactNode
+    // A control beside the New button; undefined when there is none to show.
+    headerAction?: ReactNode
     // 'names' beside a record-width page: the name column alone, so nothing scrolls sideways.
     layout: ListLayout
 }
@@ -133,6 +135,7 @@ export function PartyList<T extends PartyRecord>(props: PartyListProps<T>) {
             renderTable={renderTable}
             renderCards={renderCards}
             dialog={props.dialog}
+            headerAction={props.headerAction}
         />
     )
 }

@@ -19,12 +19,12 @@ import {
 } from '../../lib/taxes-view'
 import { useTaxesStore } from '../../stores/taxes-store'
 import { ListBanner } from '../ListBanner'
+import { ShippedReportButton } from '../reports/ShippedReportButton'
 import { ShowInactiveChip } from '../ShowInactiveChip'
 import { AgencyCard } from './AgencyCard'
 import { AgencyMenu } from './AgencyMenu'
 import { DefaultCard } from './DefaultCard'
 import { GroupsCard } from './GroupsCard'
-import { LiabilityReportButton } from './LiabilityReportButton'
 import { TaxDialogs } from './TaxDialogs'
 import { TaxesEmpty } from './TaxesEmpty'
 import { TaxRowMenu } from './TaxRowMenu'
@@ -155,7 +155,11 @@ function Header({ showActions, canPressWrites, canAddGroup, isWide }: HeaderProp
                 <HelpIcon topic="books:sales-tax" />
             </View>
             <HeaderButtons isVisible={hasButtons}>
-                <LiabilityReportButton href={liabilityHref} />
+                <ShippedReportButton
+                    href={liabilityHref}
+                    label="Liability report"
+                    testID="taxes-liability-report"
+                />
                 <Actions
                     isVisible={showActions}
                     canPressWrites={canPressWrites}

@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, Audit Log]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, Audit Log]
 order: 60
 ---
 
@@ -248,6 +248,34 @@ To change how the numbers look, press Customize. Customize never changes the fig
 The report stays current. When someone posts or voids an invoice or a sales receipt, the report runs again.
 
 On a phone, each row wraps onto three lines in the table: the name; then Gross total and Non-taxable; then Taxable amount and Tax amount. The table does not scroll sideways.
+
+## Read the Customer Balance report
+
+To see what each customer owes on a day, open Reports and choose Customer Balance. You can also press Balance report at the top of the Customers list. The heading shows your business name, Customer Balance, and the day, for example "As of November 16, 2026".
+
+The report adds the posted transactions on your Accounts receivable accounts, dated on or before the As of day. A draft does not count. A voided document does not count, because its void reversal cancels the original. A customer's balance is its debits minus its credits on those accounts.
+
+- Each customer row equals the Open figure on the [customer's page](help://books:customer-pages) for the same day.
+- The Total row at the end equals Accounts receivable on the Balance Sheet for the same day.
+- These figures agree because the report, the customer's page and the Balance Sheet add the same posted Accounts receivable lines up to that day. Each line names at most one customer, so it counts in exactly one customer row, and the No customer row holds the lines that name none.
+- The No customer row adds the Accounts receivable lines that name no customer, such as an opening balance or a journal entry with no name. Because the report includes those lines, the Total equals the Balance Sheet. The row shows after every customer.
+- A customer with no sub-customers is one line. A customer with sub-customers shows as a group: a heading with the customer's name, then a row for the customer's own balance, then a row for each sub-customer, then "Total" and the customer's name, which adds the rows of the family.
+- A credit balance, for example after an overpayment, is a negative figure, and a family's Total and the report's Total subtract it.
+- An inactive customer with a balance shows with "(inactive)" after its name, in lighter text.
+
+To see the transactions behind a balance, press the customer row: it opens into its transactions, one row for each posted line, in date order. Each transaction shows its date, its type and number, and its description, for example "2026-10-14 · Invoice 1042 · Catering deposit". An invoice is a positive figure and a payment a negative one, and the transactions add up to the customer's balance. To open a transaction's document, press its row: the invoice, payment or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
+
+To change the day, press the As of chip. The default is Today.
+
+To choose which customers show, press the Rows chip. Non-zero, the default, shows each customer whose balance is not 0. With activity also shows a customer whose transactions add up to 0. A family whose customers are all hidden is hidden with its total.
+
+To show only some customers, press Add filter, then Customer. Pick one or more customers, inactive customers included; a sub-customer is listed under its parent's name, and "All" with the parent's name and "sub-customers" picks the whole family. Then press Apply. With customers picked, the No customer row does not show. To remove the filter, press the × on the Customer chip.
+
+To change the order, press the Order chip. Name, the default, orders families and customers by name. Largest balance puts the largest balance first; a family counts by its total, and inside a family the parent's own row stays first.
+
+The report stays current. When someone posts or voids a transaction or renames a customer, the report runs again.
+
+On a phone, each row keeps its name and its Balance on one line. A long name or transaction wraps to at most three lines, and the Balance is never cut. Customize and Export are under **⋯**.
 
 ## Download or email a report
 

@@ -3,6 +3,7 @@ import { chooseParamOption, hubRow } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_BALANCE_TITLE } from '~/tinycld/books/lib/customer-balance-fixture'
 import {
     csvRecords,
+    expectTableFits,
     exportReport,
     openBooksReports,
     reportLinesUnder,
@@ -114,6 +115,174 @@ export async function openBalanceRow(page: Page, label: string): Promise<void> {
             reportLinesUnder(await reportSnapshot(page), label).map(row => row.id.slice(0, 2))
         )
         .toContainEqual('d:')
+}
+
+// One mounted row of the report table as drawn: its row, label and Balance boxes, the
+// label's drawn lines, and whether the label and the Balance show their whole text.
+interface DrawnBalanceRow {
+    id: string
+    label: string
+    balance: string
+    row: { left: number; right: number; top: number; bottom: number }
+    labelBox: { left: number; right: number; top: number; bottom: number }
+    balanceBox: { left: number; right: number; top: number; bottom: number } | null
+    labelLines: number
+    labelCut: boolean
+    balanceCut: boolean
+}
+
+interface DrawnBalanceRows {
+    rows: DrawnBalanceRow[]
+    pageScrollWidth: number
+    pageClientWidth: number
+}
+
+// Every mounted row of the report table, read in ONE pass (lesson 11). A label's lines are
+// its text box's height over its line height: core clamps a wrapped label with
+// line-clamp, whose hidden lines still have boxes, so the text's own rects would count
+// them. A box is cut when its content is wider (or, for a clamped label, taller) than it.
+function readBalanceRows(page: Page): Promise<DrawnBalanceRows> {
+    return page.evaluate(() => {
+        const boxOf = (element: Element) => {
+            const rect = element.getBoundingClientRect()
+            return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
+        }
+        // The deepest element that holds the whole text of `element`.
+        const textElementOf = (element: Element): HTMLElement | null => {
+            const whole = (element.textContent ?? '').trim()
+            if (whole === '') return null
+            let found: HTMLElement | null = element instanceof HTMLElement ? element : null
+            for (const node of element.querySelectorAll('*')) {
+                if (node instanceof HTMLElement && (node.textContent ?? '').trim() === whole) {
+                    found = node
+                }
+            }
+            return found
+        }
+        const isCut = (element: HTMLElement | null) =>
+            element !== null &&
+            [element, ...element.querySelectorAll('*')].some(
+                node =>
+                    node instanceof HTMLElement &&
+                    (node.scrollWidth > node.clientWidth + 1 ||
+                        node.scrollHeight > node.clientHeight + 1)
+            )
+        const linesOf = (element: HTMLElement | null) => {
+            if (!element) return 0
+            const style = getComputedStyle(element)
+            const parsed = Number.parseFloat(style.lineHeight)
+            const lineHeight = Number.isNaN(parsed)
+                ? Number.parseFloat(style.fontSize) * 1.2
+                : parsed
+            return Math.round(element.getBoundingClientRect().height / lineHeight)
+        }
+        const table = document.querySelector('[data-testid="report-table"]')
+        // Row ids hold quotes and brackets, so the cells are keyed by id, not selected by it.
+        const BALANCE_CELL = 'report-cell-balance-'
+        const cells = new Map<string, Element>()
+        for (const cell of table?.querySelectorAll(`[data-testid^="${BALANCE_CELL}"]`) ?? []) {
+            cells.set((cell.getAttribute('data-testid') ?? '').slice(BALANCE_CELL.length), cell)
+        }
+        const rows: DrawnBalanceRow[] = []
+        for (const label of table?.querySelectorAll('[data-testid^="report-row-"]') ?? []) {
+            const id = (label.getAttribute('data-testid') ?? '').slice('report-row-'.length)
+            const cell = cells.get(id) ?? null
+            // The row: the nearest box that holds both the label and its Balance.
+            let row: Element = label
+            while (cell && row.parentElement && !row.contains(cell)) row = row.parentElement
+            const labelText = textElementOf(label)
+            const balanceText = cell ? textElementOf(cell) : null
+            rows.push({
+                id,
+                label: (label.textContent ?? '').trim(),
+                balance: (cell?.textContent ?? '').trim(),
+                row: boxOf(row),
+                labelBox: boxOf(label),
+                balanceBox: cell ? boxOf(cell) : null,
+                labelLines: linesOf(labelText),
+                labelCut: labelText !== null && linesOf(labelText) < 3 && isCut(labelText),
+                balanceCut: isCut(balanceText),
+            })
+        }
+        rows.sort((a, b) => a.row.top - b.row.top)
+        const scroller = document.scrollingElement ?? document.documentElement
+        return {
+            rows,
+            pageScrollWidth: scroller.scrollWidth,
+            pageClientWidth: scroller.clientWidth,
+        }
+    })
+}
+
+// What is wrong with the drawn rows, in words; empty when every row fits.
+function balanceRowProblems(read: DrawnBalanceRows): string[] {
+    const problems: string[] = []
+    if (read.rows.length === 0) problems.push('no report row is mounted')
+    const labels = new Set(read.rows.map(row => row.label))
+    // A family's header: the group row whose "Total <name>" row is mounted. Open, it
+    // leaves its figure to that total, so core draws it no Balance cell.
+    const isFamilyHeader = (row: DrawnBalanceRows['rows'][number]) =>
+        row.id.startsWith('g:') && row.balance === '' && labels.has(`Total ${row.label}`)
+    // The 2-to-3-line check below runs only on these rows; with none it would pass unseen.
+    const familyHeaders = read.rows.filter(isFamilyHeader).length
+    if (familyHeaders === 0) {
+        problems.push(
+            'no family header (no figure, its total mounted) was checked for 2 or 3 lines'
+        )
+    }
+    for (const row of read.rows) {
+        const name = `row ${row.id} "${row.label.slice(0, 40)}"`
+        if (isFamilyHeader(row) && row.labelLines < 2) {
+            problems.push(`${name}: the family header takes ${row.labelLines} line, not 2 or 3`)
+        }
+        if (row.labelLines > 3) problems.push(`${name}: its label takes ${row.labelLines} lines`)
+        if (row.labelCut) problems.push(`${name}: its label is cut before three lines`)
+        const balance = row.balanceBox
+        if (!balance) {
+            if (!isFamilyHeader(row)) problems.push(`${name} has no Balance cell`)
+            continue
+        }
+        const inside =
+            balance.left >= row.row.left - 1 &&
+            balance.right <= row.row.right + 1 &&
+            balance.top >= row.row.top - 1 &&
+            balance.bottom <= row.row.bottom + 1
+        if (!inside) problems.push(`${name}: its Balance lies outside the row`)
+        if (balance.left < row.labelBox.right - 1) {
+            problems.push(`${name}: its Balance is not right of the label`)
+        }
+        const oneBand = balance.top < row.labelBox.bottom && balance.bottom > row.labelBox.top
+        if (!oneBand) problems.push(`${name}: its Balance is not on the label's line band`)
+        if (row.balance !== '') {
+            if (row.balanceCut) problems.push(`${name}: its Balance "${row.balance}" is cut`)
+            if (!/\d\)?$/.test(row.balance)) {
+                problems.push(`${name}: its Balance "${row.balance}" does not end in a digit`)
+            }
+        }
+    }
+    if (read.pageScrollWidth > read.pageClientWidth) {
+        problems.push(
+            `the page scrolls sideways (scrollWidth ${read.pageScrollWidth}, clientWidth ${read.pageClientWidth})`
+        )
+    }
+    return problems
+}
+
+/**
+ * Asserts the Customer Balance fits a phone (spec §3 "Phone"): every mounted row (an open
+ * family header has no Balance cell) has its label and its Balance on one line band, the Balance inside the row and right of the
+ * label, its text whole and ending in the figure's last digit; every label at most three
+ * lines and not cut before the third; a family's header label (a long parent name) on two
+ * or three lines; and nothing scrolls sideways. Polled: the layout settles a frame after
+ * a resize or a press; each poll is one read.
+ */
+export async function expectBalanceRowsFit(page: Page): Promise<void> {
+    await expect
+        .poll(async () => balanceRowProblems(await readBalanceRows(page)), {
+            message: 'the Customer Balance rows fit the phone',
+        })
+        .toEqual([])
+    await expectTableFits(page)
 }
 
 // A figure's text in integer cents: "$1,250.00", "1250.00" → 125000; a leading minus or
