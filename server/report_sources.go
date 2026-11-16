@@ -290,6 +290,7 @@ func entryDocTypeOptions() []reports.Option {
 		{Value: docTypeBill, Label: entryTypeLabels.DocTypes[docTypeBill]},
 		{Value: docTypeExpense, Label: entryTypeLabels.DocTypes[docTypeExpense]},
 		{Value: docTypePayment, Label: entryTypeLabels.DocTypes[docTypePayment]},
+		{Value: docTypeBillPayment, Label: entryTypeLabels.DocTypes[docTypeBillPayment]},
 	}
 }
 

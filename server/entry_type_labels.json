@@ -12,7 +12,8 @@
         "sales_receipt": "Sales receipt",
         "bill": "Bill",
         "expense": "Expense",
-        "payment": "Payment"
+        "payment": "Payment",
+        "bill_payment": "Bill payment"
     },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

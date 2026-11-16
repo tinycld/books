@@ -572,6 +572,14 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		entry := mustPostPayment(t, pe.app, p.Id, pe.users.bookkeeper.Id).GetString("entry")
 		return tdPosted{pe.app, pe.users.readOnly, entry, pe.checking, p.Id}
 	},
+	// A bill payment posts only from its batch (bill_payments_test.go).
+	"bill_payment": func(t *testing.T) tdPosted {
+		bp := newBillPayEnv(t)
+		registerBooksSources(t)
+		bill := bp.postedBill(t, bp.summit, 45000)
+		p := bp.pay(t, bp.summit, nil, payLine{bill, 45000})
+		return tdPosted{bp.app, bp.users.readOnly, p.GetString("entry"), bp.checking1000, p.Id}
+	},
 }
 
 // Every document kind with a poster opens a screen of its own: a poster with no
@@ -585,6 +593,9 @@ func TestTransactionDetailPostersHaveRoutes(t *testing.T) {
 	}
 	if got := routes["payment"]; got != "payments" {
 		t.Errorf("entry_routes.json payment = %q, want payments", got)
+	}
+	if got := routes["bill_payment"]; got != "bill-payments" {
+		t.Errorf("entry_routes.json bill_payment = %q, want bill-payments", got)
 	}
 }
 

@@ -31,6 +31,7 @@ import {
     INVOICES,
 } from './lib/invoice-form-fixture'
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
+import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
 import {
@@ -230,6 +231,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedPartyContacts(pb, customerIds)
     await seedDeclinedEstimates(pb, customerIds)
     await seedBills(pb, ctx, accountIds)
+    await seedBillPayments(pb, ctx, accountIds)
     await seedExpenses(pb, ctx, accountIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
@@ -933,6 +935,79 @@ export async function seedBills(
             await pb
                 .collection('books_bills')
                 .update(created.id, { status: 'void', voided_by: ctx.user.id })
+        }
+    }
+    for (const fixture of PAY_BILLS_SEED_BILLS) {
+        const vendor = VENDORS.find(row => row.id === fixture.vendor)
+        if (vendor === undefined) {
+            throw new Error(
+                `seed: bill ${fixture.key} names vendor ${fixture.vendor}, not in VENDORS`
+            )
+        }
+        const created = await pb.collection('books_bills').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            due_date: fixture.due_date,
+            terms: vendor.terms,
+            ref_no: fixture.ref_no,
+            memo: fixture.memo,
+            mailing_address: vendor.address,
+        })
+        await pb.collection('books_bill_lines').create({
+            bill: created.id,
+            position: 0,
+            kind: 'account',
+            description: '',
+            account: seededAccountId(accountIds, fixture.accountNumber, `bill ${fixture.key}`),
+            amount: fixture.amount,
+        })
+        await postSeedDocument(pb, 'books_bills', created.id, ctx.user.id)
+    }
+}
+
+// Pays the bills PAY_BILLS_SEED_BILLS posted, per BILL_PAYMENT_SEED, through the write Pay
+// Bills makes: ONE batch holds the payment create (status posted) and its line, and the
+// server posts the payment from the create's request hook. The bill is found by the memo
+// seedBills gave it, and Paid from by its seed account number. The payment id is set here
+// because its line, in the same batch, must name it. The `void` row is then voided by a
+// superuser write, which keeps the body's voided_by.
+export async function seedBillPayments(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    for (const row of BILL_PAYMENT_SEED) {
+        const bill = await pb
+            .collection('books_bills')
+            .getFirstListItem<{ id: string; vendor: string }>(
+                pb.filter('memo = {:memo} && status = "posted"', { memo: row.billMemo }),
+                { fields: 'id,vendor' }
+            )
+        // A PocketBase id is exactly 15 characters: 'bpseedpartial00', 'bpseedvoid00000'.
+        const id = `bpseed${row.key}`.padEnd(15, '0')
+        const batch = pb.createBatch()
+        batch.collection('books_bill_payments').create({
+            id,
+            vendor: bill.vendor,
+            paid_from: seededAccountId(accountIds, row.paidFromNumber, `bill payment ${row.key}`),
+            payment_method: row.payment_method,
+            reference_no: row.reference_no,
+            status: 'posted',
+            date: row.date,
+            posted_by: ctx.user.id,
+        })
+        batch.collection('books_bill_payment_lines').create({
+            payment: id,
+            bill: bill.id,
+            amount: row.amount,
+            position: 0,
+        })
+        await batch.send()
+        if (row.key === 'void') {
+            await pb
+                .collection('books_bill_payments')
+                .update(id, { status: 'void', voided_by: ctx.user.id })
         }
     }
 }

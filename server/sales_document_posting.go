@@ -58,8 +58,8 @@ func salesDocName(kind salesDocKind, r *core.Record) string {
 // postDocument (the kind's debit or credit account for the total, its line
 // accounts on the other side, every line naming the party), and copies the
 // entry's number. A correction voids its original. A kind that tracks a
-// balance (an invoice) then writes it: the total less the posted payments that
-// apply to it.
+// balance (an invoice, a bill) then writes it: the total less the posted
+// payments that apply to it.
 func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
 	original, err := correctedSalesDoc(tx, kind, doc)
 	if err != nil {
@@ -148,7 +148,7 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	}
 	// After the Replace step: a correction's balance is its total less the
 	// payments it took over from its original.
-	return setPostedInvoiceBalance(tx, doc, totals.Total)
+	return setPostedDocumentBalance(tx, kind.balanceKind(), doc, totals.Total)
 }
 
 // correctedSalesDoc is the posted document a correction replaces, nil for a
@@ -470,7 +470,7 @@ func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original, correction *
 	fresh.Set("voided_by", actor)
 	fresh.Set("voided_at", now)
 	if kind.TracksBalance {
-		clearInvoiceBalance(fresh)
+		clearDocumentBalance(fresh)
 	}
 	if err := tx.Save(fresh); err != nil {
 		return err
@@ -503,7 +503,7 @@ func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	doc.Set("voided_at", now)
 	if kind.TracksBalance {
 		// CheckVoid refused a void while posted payments apply to it.
-		clearInvoiceBalance(doc)
+		clearDocumentBalance(doc)
 	}
 	if kind.Withdraw == nil {
 		return nil

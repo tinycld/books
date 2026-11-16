@@ -442,6 +442,7 @@ function denverTaxLines(
         currency: receipt.currency,
         amount: amounts[position],
         position,
+        date: receipt.date,
         created: STAMP,
         updated: STAMP,
     }))

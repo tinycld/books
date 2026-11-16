@@ -6,18 +6,14 @@
 // Amounts are integer minor units (cents). A bill's `balance` is its total less the posted
 // bill payment lines that name it; a payment's `total` is the sum of its lines.
 //
-// `books_bills.balance` and the collections `books_bill_payments` /
-// `books_bill_payment_lines` do not exist yet: the migration checkpoint (checkpoint 1 of
-// docs/plans/pay-bills-checkpoints.md) creates them. Until then the rows are checked
-// against the local types below, which mirror the spec's Data section (§4.1, §4.2).
-// That checkpoint replaces `PayBillsBill`, `BillPaymentRecord` and `BillPaymentLineRecord`
-// with the generated `BooksBills`, `BooksBillPayments` and `BooksBillPaymentLines`.
+// The rows are typed with the generated `BooksBills`, `BooksBillPayments` and
+// `BooksBillPaymentLines` (migration 2100000020 and the in-place edit of 2100000013).
 //
 // A payment names its Paid from account by seed account number (`paid_from_number`), as
 // the expense fixture does: the relation id is known only after the seed creates the
 // accounts.
 
-import type { BooksBills } from '../types'
+import type { BooksBillPaymentLines, BooksBillPayments, BooksBills } from '../types'
 import { BILL_USER_IDS } from './bill-form-fixture'
 import { INVOICE_USER_NAMES } from './invoice-form-fixture'
 import type { PaymentMethodKey } from './payment-methods'
@@ -32,45 +28,11 @@ const STAMP = '2026-11-15 09:00:00.000Z'
 export const PAY_BILLS_USER_IDS = BILL_USER_IDS
 export const PAY_BILLS_USER_NAMES = INVOICE_USER_NAMES
 
-// Replaced by the generated BooksBills once the migration adds `balance` (checkpoint 1).
-export type PayBillsBill = BooksBills & { balance: number }
+export type PayBillsBill = BooksBills
 
-// Mirrors spec §4.1 `books_bill_payments`; replaced by the generated type at checkpoint 1.
-export interface BillPaymentRecord {
-    id: string
-    vendor: string
-    paid_from: string
-    payment_method: PaymentMethodKey
-    reference_no: string
-    status: 'draft' | 'posted' | 'void'
-    number: string
-    sequence: number
-    date: string
-    total: number
-    currency: string
-    entry: string
-    replaces: string
-    replaced_by: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    sort_key: string
-    created: string
-    updated: string
-}
+export type BillPaymentRecord = BooksBillPayments
 
-// Mirrors spec §4.1 `books_bill_payment_lines`; replaced by the generated type at
-// checkpoint 1.
-export interface BillPaymentLineRecord {
-    id: string
-    payment: string
-    bill: string
-    amount: number
-    position: number
-    created: string
-    updated: string
-}
+export type BillPaymentLineRecord = BooksBillPaymentLines
 
 // `paid_from_number` is a fixture column the seed maps to `paid_from`.
 export type BillPaymentFixtureRecord = Omit<BillPaymentRecord, 'paid_from'> & {
@@ -409,6 +371,92 @@ export function postedPaymentsOf(
         return owner ? [{ payment: owner, amount: row.amount }] : []
     })
 }
+
+// The seed (seed.ts seedBills, then seedBillPayments, spec §4.5) posts these three bills
+// after the bill form's BILL_SEED_IDS (so they number 1004–1006 on a fresh book), pays
+// part of the first, and pays part of the second with a payment it then voids. Each bill
+// has one account line; the memo `Seed bill <key>` is how the seed finds it again.
+//
+// The days are chosen so no report or register spec reads them (pay-bills checkpoint 1,
+// step 11): after the 2026-06-30 close date books-settings.spec.ts sets, and away from
+// 2026-07-01 (general-ledger, journal-report, balance-sheet), 2026-07-23 and 2026-07-29
+// (report-drill-down), the General Ledger days 2026-08-04 to 2026-08-18 (GL_DAY_1,
+// GL_DAY_2) and 2026-09-30 (sales tax liability). The accounts (2000 Accounts payable,
+// 1000 Business Checking, 6100 Rent, 6200 Software Subscriptions) are already in the
+// trial-balance spec's seeded rows.
+export const PAY_BILLS_SEED_BILLS: readonly {
+    key: string
+    memo: string
+    vendor: string
+    date: string
+    due_date: string
+    ref_no: string
+    accountNumber: string
+    amount: number
+}[] = [
+    {
+        key: 'partial',
+        memo: 'Seed bill partial',
+        vendor: VENDOR_IDS.officeSupply,
+        date: '2026-07-09',
+        due_date: '2026-08-08',
+        ref_no: 'OSW-1977',
+        accountNumber: '6200',
+        amount: 125_000,
+    },
+    {
+        key: 'voidpay',
+        memo: 'Seed bill voidpay',
+        vendor: VENDOR_IDS.pacificPower,
+        date: '2026-08-25',
+        due_date: '2026-09-24',
+        ref_no: '88120',
+        accountNumber: '6100',
+        amount: 30_000,
+    },
+    {
+        key: 'open',
+        memo: 'Seed bill open',
+        vendor: VENDOR_IDS.pacificPower,
+        date: '2026-09-10',
+        due_date: '2026-10-10',
+        ref_no: '88233',
+        accountNumber: '6100',
+        amount: 42_000,
+    },
+]
+
+// The seeded bill payments: `partial` pays part of the first seeded bill by check 1050 from
+// 1000 Business Checking; `void` pays part of the second by bank transfer and is then
+// voided, so that bill is fully open again. Payment days as the bills' (above).
+export const BILL_PAYMENT_SEED: readonly {
+    key: 'partial' | 'void'
+    billMemo: string
+    amount: number
+    date: string
+    payment_method: PaymentMethodKey
+    reference_no: string
+    paidFromNumber: string
+}[] = [
+    {
+        key: 'partial',
+        billMemo: 'Seed bill partial',
+        amount: 40_000,
+        date: '2026-09-15',
+        payment_method: 'check',
+        reference_no: '1050',
+        paidFromNumber: '1000',
+    },
+    {
+        key: 'void',
+        billMemo: 'Seed bill voidpay',
+        amount: 10_000,
+        date: '2026-09-22',
+        payment_method: 'bank_transfer',
+        reference_no: '',
+        paidFromNumber: '1000',
+    },
+]
 
 // What the reference shows under Paid from and in the summary: each account's own posted
 // balance in cents, by seed account number (1000 Business Checking, 1010 Business

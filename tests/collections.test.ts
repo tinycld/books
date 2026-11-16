@@ -40,6 +40,10 @@ const NAMES = [
     'books_party_contacts',
     'books_payments',
     'books_payment_applications',
+    'books_bill_payments',
+    'books_bill_payment_lines',
+    'books_cash_basis_lines',
+    'books_cash_basis_tax_lines',
 ]
 
 function register() {

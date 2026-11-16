@@ -71,6 +71,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_payment_applications": {
 			ExtractLabel: func(r *core.Record) string { return paymentApplicationLabel(app, r) },
 		},
+		billPaymentsCollection: {ExtractLabel: billPaymentLabel, Redact: []string{"sort_key"}},
+		billPaymentLinesCollection: {
+			ExtractLabel: func(r *core.Record) string { return billPaymentLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -250,6 +254,26 @@ func paymentApplicationLabel(app core.App, r *core.Record) string {
 		invoice = invoiceLabel(inv)
 	}
 	return payment + ": " + invoice
+}
+
+// billPaymentLabel names a bill payment by its number: "Bill payment 1004".
+func billPaymentLabel(r *core.Record) string {
+	return billPaymentName(r)
+}
+
+// billPaymentLineLabel names a bill payment line by its payment and its bill:
+// "Bill payment 1004: Bill 1003". A payment or a bill that cannot be read
+// falls back to its id, so the audit row is still written.
+func billPaymentLineLabel(app core.App, r *core.Record) string {
+	payment := r.GetString("payment")
+	if p, err := app.FindRecordById(billPaymentsCollection, payment); err == nil {
+		payment = billPaymentLabel(p)
+	}
+	bill := r.GetString("bill")
+	if b, err := app.FindRecordById("books_bills", bill); err == nil {
+		bill = billLabel(b)
+	}
+	return payment + ": " + bill
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office

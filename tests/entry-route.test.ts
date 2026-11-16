@@ -179,3 +179,10 @@ describe('a payment entry', () => {
         )
     })
 })
+
+// A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
+describe('a bill payment entry', () => {
+    it('opens on its bill payment', () => {
+        expect(entryHref(entry('bill_payment', 'document', 'bp1'))).toBe('books/bill-payments/bp1')
+    })
+})

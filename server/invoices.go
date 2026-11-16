@@ -141,7 +141,7 @@ func refuseVoidWithPayments(tx core.App, doc *core.Record) error {
 // customer and a total of at least what they apply; then every application
 // of the original (a draft payment's too) moves to the correction.
 func moveInvoicePayments(tx core.App, original, correction *core.Record) error {
-	applied, err := postedAppliedTo(tx, original.Id)
+	applied, err := postedAppliedTo(tx, invoiceBalanceKind, original.Id)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func moveInvoicePayments(tx core.App, original, correction *core.Record) error {
 			return refuse(msgInvoiceCorrectionBelowPaid, formatMoney(applied, correction.GetString("currency")))
 		}
 	}
-	return moveApplications(tx, original, correction)
+	return moveLines(tx, invoiceBalanceKind, original, correction)
 }
 
 func checkInvoiceDays(r *core.Record) error {

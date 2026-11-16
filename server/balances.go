@@ -187,14 +187,14 @@ func lineDriftReport(drifts []LineDrift) (listed []LineDrift, count int) {
 }
 
 // rebuildBalances makes every month row equal the ledger and every invoice's
-// balance equal its total less the posted payments that apply to it (the
-// verify part of the invoice balances is verifyInvoiceBalances), in one
+// and bill's balance equal its total less the posted payments that pay it (the
+// verify part of the document balances is verifyDocumentBalances), in one
 // transaction, touching only the rows that differ. It returns how many month
-// rows and invoice balances it fixed.
+// rows and document balances it fixed.
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
-		invoices, err := rebuildInvoiceBalances(tx)
+		documents, err := rebuildDocumentBalances(tx)
 		if err != nil {
 			return err
 		}
@@ -235,7 +235,7 @@ func rebuildBalances(app core.App) (int, error) {
 				return fmt.Errorf("books: save rebuilt balance row: %w", err)
 			}
 		}
-		fixed = len(drifts) + invoices
+		fixed = len(drifts) + documents
 		return nil
 	})
 	return fixed, err
@@ -257,7 +257,7 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		if err != nil {
 			return err
 		}
-		// The rebuild repairs month rows and invoice balances. A line that disagrees with
+		// The rebuild repairs month rows and document balances. A line that disagrees with
 		// its entry is reported, and logged as an error so it reaches
 		// Sentry: no write through the hooks makes one.
 		lineDrifts, err := verifyLines(re.App)

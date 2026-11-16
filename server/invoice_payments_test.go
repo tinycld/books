@@ -91,8 +91,8 @@ func TestInvoiceCorrection_TakesOverTheApplications(t *testing.T) {
 	}
 	requireApplicationsName(t, pe.app, payment, draft)
 	requireInvoiceBalance(t, pe.app, corrected, 15000)
-	if got, err := invoiceBalance(pe.app, draft.Id); err != nil || got != 15000 {
-		t.Errorf("invoiceBalance of the correction = %d, err %v; want 15000", got, err)
+	if got, err := documentBalance(pe.app, invoiceBalanceKind, draft.Id); err != nil || got != 15000 {
+		t.Errorf("documentBalance of the correction = %d, err %v; want 15000", got, err)
 	}
 	requireNoDrift(t, pe.app)
 }

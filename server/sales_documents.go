@@ -83,9 +83,9 @@ type salesDocKind struct {
 	// in its totals and no tax snapshot when it posts.
 	HasTax bool
 	// TracksBalance is true for a kind with an open balance that payments pay
-	// (an invoice): posting writes balance (its total less what payments
-	// already apply), a void writes 0, and only invoice_balance.go changes it
-	// in between.
+	// (an invoice, a bill; its balanceKind in document_balance.go): posting
+	// writes balance (its total less what payments already apply), a void
+	// writes 0, and only document_balance.go changes it in between.
 	TracksBalance bool
 	Msgs          salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
@@ -134,6 +134,13 @@ func (k salesDocKind) isEditableStatus(status string) bool {
 	return status == statusDraft
 }
 
+// balanceKind is the balance kind of a kind that tracks a balance; a kind
+// that tracks none gets the zero kind, whose marks no write ever sets.
+func (k salesDocKind) balanceKind() balanceKind {
+	kind, _ := balanceKindOf(k.Collection)
+	return kind
+}
+
 // salesDocMessages are the refusal texts that name the kind ("invoice",
 // "sales receipt", "estimate", "bill"). The texts every kind shares are
 // constants. On a quote, NotDraft, DeleteNotDraft and LineNotDraft are the
@@ -173,6 +180,7 @@ const (
 // come only from posting the document (entries.go).
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
+	docTypeBillPayment: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's
@@ -397,8 +405,8 @@ func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
 // salesDocKeptBooksFields cannot change while a person edits the document.
 // posted_by is not in it: a Go caller names the poster with the post, as for
 // an entry. replaces is fixed at create: an invoice's estimate is checked
-// against it only then (checkInvoiceEstimate). balance (an invoice's open
-// amount) is written only by invoice_balance.go and the posting.
+// against it only then (checkInvoiceEstimate). balance (an invoice's or a
+// bill's open amount) is written only by document_balance.go and the posting.
 var (
 	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "invoice", "balance"}
 	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "invoice", "balance"}
@@ -494,10 +502,11 @@ var (
 // (postSalesDoc), a posted document is voided (voidSalesDoc) or replaced by its
 // correction's post, and nothing else changes except PocketBase unlinking a
 // deleted user or form, and Books writing the balance of a kind that tracks
-// one (invoice_balance.go).
+// one (document_balance.go).
 func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, now time.Time) error {
 	from, to := stored.GetString("status"), r.GetString("status")
-	if kind.TracksBalance && from == to && isBalancing(tx, r.Id) && len(changedFields(stored, r, balanceOnly)) == 0 {
+	if kind.TracksBalance && from == to && isBalancing(tx, kind.balanceKind(), r.Id) &&
+		len(changedFields(stored, r, balanceOnly)) == 0 {
 		return nil
 	}
 	switch {

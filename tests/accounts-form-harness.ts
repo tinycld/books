@@ -17,6 +17,10 @@ import {
     hostDefSchema,
 } from '@tinycld/core/lib/forms/host'
 import type {
+    BooksBillPaymentLines,
+    BooksBillPayments,
+    BooksCashBasisLines,
+    BooksCashBasisTaxLines,
     BooksPaymentApplications,
     BooksPayments,
     Forms,
@@ -1110,6 +1114,10 @@ export function seedBooks(
             'books_payment_applications',
             []
         ),
+        books_bill_payments: local<BooksBillPayments>('books_bill_payments', []),
+        books_bill_payment_lines: local<BooksBillPaymentLines>('books_bill_payment_lines', []),
+        books_cash_basis_lines: local<BooksCashBasisLines>('books_cash_basis_lines', []),
+        books_cash_basis_tax_lines: local<BooksCashBasisTaxLines>('books_cash_basis_tax_lines', []),
     })
 }
 
