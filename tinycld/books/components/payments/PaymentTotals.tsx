@@ -1,6 +1,8 @@
 import { Text, View } from 'react-native'
-import { PAYMENT_COLUMNS } from '../../lib/payment-columns'
 import { FieldError } from './PaymentMoneyField'
+
+// The width of a total's figure, so the figures of the lines line up.
+const FIGURE_WIDTH = 160
 
 interface TotalLineProps {
     label: string
@@ -21,7 +23,7 @@ export function TotalLine({ label, amount, isStrong, testID, isDanger = false }:
             <Text className={`text-sm text-muted-foreground ${weight}`}>{label}</Text>
             <Text
                 className={`text-right text-base tabular-nums ${tone} ${weight}`}
-                style={{ width: PAYMENT_COLUMNS.payment }}
+                style={{ width: FIGURE_WIDTH }}
             >
                 {amount}
             </Text>

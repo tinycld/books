@@ -67,8 +67,8 @@ interface BillPaymentReadViewProps {
 /**
  * A posted or void bill payment (spec §3.8): the header (title, Posted / Void, Amount
  * paid), the vendor (a link), Paid from, the date and the payment line ("Check · 1042"),
- * Bills paid with its Total (a grid, or cards below 640 px), the stamps, "Replaced by"
- * on a replaced original, and the bar.
+ * Bills paid with its Total (a grid, or cards while the list is narrower than the grid's
+ * least width), the stamps, "Replaced by" on a replaced original, and the bar.
  */
 function BillPaymentReadView({
     payment,

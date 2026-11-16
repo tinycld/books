@@ -7,6 +7,7 @@ import {
     BILL_PAYMENT_APPLIED_MIN_WIDTH,
     BILL_PAYMENT_COLUMNS,
     BILL_PAYMENT_GRID_MIN_WIDTH,
+    type FlexColumn,
     PAYMENT_APPLIED_MIN_WIDTH,
     PAYMENT_COLUMNS,
     PAYMENT_GRID_MIN_WIDTH,
@@ -14,18 +15,17 @@ import {
 import { formatDay } from './register-range'
 import { BILL_KIND, INVOICE_KIND } from './sales-document-kinds'
 
-type FlexColumn = { readonly flex: number; readonly minWidth: number }
-
-// One width set for the grid's header and rows. `party` is null where no party column
-// shows (an invoice list is one customer's).
+// One width set for the grid's header and rows: a fixed tick column and data columns that
+// grow with the grid. `party` is null where no party column shows (an invoice list is one
+// customer's).
 export type OutstandingColumns = {
     tick: number
     party: FlexColumn | null
     document: FlexColumn
-    dueDate: number
-    original: number
-    open: number
-    payment: number
+    dueDate: FlexColumn
+    original: FlexColumn
+    open: FlexColumn
+    payment: FlexColumn
 }
 
 export type OutstandingSortColumn = 'due' | 'vendor'
@@ -37,6 +37,8 @@ export type OutstandingDocument = {
     testIdPrefix: string
     party: 'none' | 'vendor'
     columns: OutstandingColumns
+    // The least list width that shows the outstanding grid, and the read view's applied
+    // grid; a narrower list shows cards.
     gridMinWidth: number
     appliedMinWidth: number
 }

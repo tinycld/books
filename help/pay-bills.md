@@ -26,7 +26,7 @@ The list shows every posted bill with an open balance, the earliest due date fir
 
 Tick a bill to pay its whole open balance; untick it to clear its payment. To pay part of a bill, type the amount in its Payment cell. The bill stays open with the rest as its Balance due, and it shows Partly paid. A Payment cell cannot be more than the bill's open balance: Books shows "More than the open balance of $1,250.00" under the cell.
 
-To pay every bill in the list in full, tick the box in the list header (Pay all on a phone), or press ⌥A. When every bill in the list is already paid, the same box clears them. To clear every payment, choose Clear payments under the list, or press ⌥⌫.
+To pay every bill in the list in full, tick the box in the table header, or press ⌥A. When the list shows cards (on a phone or a narrow window), tick Pay all above the cards instead. When every bill in the list is already paid, the same box or Pay all clears them. To clear every payment, choose Clear payments under the list, or press ⌥⌫.
 
 Under the list, Books shows how many bills and vendors you selected and, with a starting check number, which vendor gets which check. On the right it shows the Current balance of the account you pay from, the Total payment and the New balance after this payment.
 
