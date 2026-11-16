@@ -165,3 +165,17 @@ describe('an expense entry', () => {
         )
     })
 })
+
+// A payment's entry (receive payment spec §3.9): it opens on its payment and is
+// edited as a correction of it.
+describe('a payment entry', () => {
+    it('opens on its payment', () => {
+        expect(entryHref(entry('payment', 'document', 'p1'))).toBe('books/payments/p1')
+    })
+
+    it('edits as a correction of its payment', () => {
+        expect(entryEditHref(entry('payment', 'document', 'p1'))).toBe(
+            'books/payments/new?replaces=p1'
+        )
+    })
+})

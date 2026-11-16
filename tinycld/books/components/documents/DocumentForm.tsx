@@ -1,19 +1,23 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { errorToString } from '@tinycld/core/lib/errors'
 import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
+import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { formatHint, ScopeProvider } from '@tinycld/core/lib/shortcuts'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { FormRenderer, NARROW_BELOW } from '@tinycld/core/ui/forms'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { useFocusEffect } from 'expo-router'
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { FormProvider, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
 import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
 import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useCopyEstimateLink } from '../../hooks/useCopyEstimateLink'
+import { useDocumentAttachments } from '../../hooks/useDocumentAttachments'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
@@ -45,6 +49,7 @@ import {
     type DocumentLineTable,
     type SalesDocumentKind,
 } from '../../lib/sales-document-kinds'
+import { hasSessionChanges, useAttachmentsStore } from '../../stores/attachments-store'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
 import type { BooksEstimates } from '../../types'
 import { ConflictNotice } from '../ConflictNotice'
@@ -52,6 +57,7 @@ import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
+import { AttachmentsSection } from './AttachmentsSection'
 import {
     DocumentActionBar,
     type DocumentActionBarProps,
@@ -436,6 +442,8 @@ interface FooterProps {
     totals: DocumentTotalsView
     /** The lines draw as cards (or the screen is a phone): no Amount column to sit under. */
     isStacked: boolean
+    /** The Attachments section under Memo; null for a kind without attachments. */
+    attachments: ReactNode
 }
 
 // How far the wide totals reach left of the Qty slot, px, with the notes kept as far
@@ -450,9 +458,10 @@ const TOTALS_REACH_LEFT = { marginLeft: -TOTALS_REACH }
  * slots (lib/document-footer-layout.ts), so they end under Amount; their labels reach
  * TOTALS_REACH further left, into room the notes leave free. When the lines draw as cards
  * there is no Amount column, so the footer stacks full width: the totals right under the
- * lines, then Message, then Memo.
+ * lines, then Message, then Memo. A bill's or an expense's Attachments section follows
+ * Memo in the notes span (stacked: after Memo), so Tab goes from Memo to its rows.
  */
-function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
+function DocumentFooter({ state, definition, totals, isStacked, attachments }: FooterProps) {
     const { testId } = state.kind
     const ids = { footer: `${testId}-footer`, form: `${testId}-footer-form` }
     const spans = footerSpansOfKind(state.document)
@@ -462,13 +471,17 @@ function DocumentFooter({ state, definition, totals, isStacked }: FooterProps) {
             <View testID={ids.footer} className="gap-4">
                 <DocumentTotalsPanel totals={totals} />
                 {renderer}
+                {attachments}
             </View>
         )
     }
     return (
         <View testID={ids.footer} style={DOCUMENT_FOOTER_ROW}>
             <View style={spans.left}>
-                <View style={NOTES_SPAN_END}>{renderer}</View>
+                <View style={NOTES_SPAN_END} className="gap-4">
+                    {renderer}
+                    {attachments}
+                </View>
             </View>
             <View style={spans.totals}>
                 <View style={TOTALS_REACH_LEFT}>
@@ -614,12 +627,43 @@ function useDraftPdf(kind: SalesDocumentKind, draftId: string | undefined, isSav
     return { canDownload, run, item }
 }
 
+/**
+ * The rows the form's Attachments section lists, with its Retry. The screen reads the
+ * route's document and the one a correction replaces. A new form whose draft is written
+ * (its attachments step failed, or its post was refused) stays on `new`, where the route
+ * names no document, so the section then reads the written draft (and the replaced
+ * document) here; Retry recovers that read.
+ */
+function useFormAttachments(
+    data: DocumentScreenData,
+    kind: SalesDocumentKind,
+    writtenId: string | null,
+    replaces: string
+) {
+    const readsWritten = kind.features.attachments && writtenId !== null
+    const written = useDocumentAttachments({
+        kind,
+        recordId: readsWritten ? writtenId : undefined,
+        replaces: readsWritten && replaces !== '' ? replaces : undefined,
+    })
+    if (!readsWritten) return { attachments: data.attachments, retry: data.retry }
+    const retry = () => {
+        void recoverLiveQueries({
+            ...written.recovery,
+            onError: error => log.error(`books.${kind.key}`, error, { operation: 'attachments' }),
+        })
+    }
+    return { attachments: written, retry }
+}
+
 interface DocumentFormProps {
     data: DocumentScreenData
     tab: DocumentTab
     // Reads the stored document again and mounts a new form on it (DocumentScreen); it
     // rejects when the read fails.
     onReload: () => Promise<void>
+    // The form's attachments session (DocumentScreen); '' for a kind without attachments.
+    attachmentSession: string
 }
 
 /**
@@ -629,7 +673,7 @@ interface DocumentFormProps {
  * view tab, the saved document's PDF above the same bar. Keyed on its
  * form key by the screen, so a new route mounts a fresh form; a tab change keeps it.
  */
-export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
+export function DocumentForm({ data, tab, onReload, attachmentSession }: DocumentFormProps) {
     const documentKind = useDocumentKind()
     const { doc: kind } = documentKind
     const state = useDocumentForm(documentKind, {
@@ -657,8 +701,15 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
         leave,
         writer: data.writer,
         onReload,
+        attachmentSession,
     })
     const writes = documentKind.data.useWrites()
+    const serverState = useServerActionState()
+    const formAttachments = useFormAttachments(data, kind, save.writtenId, state.replaces)
+    // Pending files and pending removals are an edit: Cancel asks first.
+    const hasAttachmentChanges = useAttachmentsStore(s =>
+        hasSessionChanges(s.sessions[attachmentSession])
+    )
     const formParty = useFormParty(form, documentKind)
     const expiredOn = expiredOnOf(data.record, todayIso())
     const estimateNumber = estimateNumberOf(data.record, data.estimateSource)
@@ -755,9 +806,14 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
 
     if (!state.isReady || !parts) return <DocumentLoading />
 
-    const cancel = () => (state.isDirty ? setDiscardOpen(true) : leave())
+    const isEdited = state.isDirty || hasAttachmentChanges
+    const cancel = () => (isEdited ? setDiscardOpen(true) : leave())
+    // Discard drops the pending files and restores the rows marked for removal: the
+    // session is emptied, not dropped, as another mounted screen of the same document
+    // may hold it.
     const discard = () => {
         setDiscardOpen(false)
+        if (attachmentSession !== '') useAttachmentsStore.getState().clear(attachmentSession)
         leave()
     }
     const keepEditing = () => setDiscardOpen(false)
@@ -810,6 +866,27 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
     }
     const conflictText = documentConflictText(kind.noun, kind.lifecycle)
     const conflictAction = `Load the current ${kind.noun.toLowerCase()}`
+    // The form's files are pending until a save (spec §3.2). The form is only a writer's,
+    // on a document that is not void. While a save or a delete runs, add, Retry and Remove
+    // wait: the save's attachments step takes the files the session held when it started,
+    // so a file added meanwhile would only stop the save, and a Retry would race the step.
+    const isAttachmentsDisabled = serverState.isDisabled || isBusy
+    const attachmentsSection = kind.features.attachments ? (
+        <AttachmentsSection
+            kind={kind}
+            attachments={formAttachments.attachments}
+            recordId={draftId}
+            isVoid={false}
+            replacedByNumber=""
+            canWrite={data.canWrite}
+            isDisabled={isAttachmentsDisabled}
+            mode="form"
+            formSession={attachmentSession}
+            replacesNumber={data.replacesNumber}
+            scopeOwner={shortcuts.scopeOwner}
+            onRetry={formAttachments.retry}
+        />
+    ) : null
 
     return (
         <DocumentFormContext.Provider value={scope}>
@@ -864,6 +941,7 @@ export function DocumentForm({ data, tab, onReload }: DocumentFormProps) {
                                         definition={footer}
                                         totals={totals.view}
                                         isStacked={isFooterStacked}
+                                        attachments={attachmentsSection}
                                     />
                                 </TabPanel>
                                 <TabPanel isVisible={isPdfTab}>

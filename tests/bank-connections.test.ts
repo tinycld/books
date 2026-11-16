@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { UploadError } from '@tinycld/core/file-viewer/upload-file'
 import { describe, expect, it } from 'vitest'
 import { BANK_FILES } from '../tinycld/books/lib/bank-connection-fixture'
 import {
@@ -28,8 +27,6 @@ import {
     isConnectable,
     MAX_BANK_FILE_BYTES,
     selectedConnectionId,
-    UPLOAD_TRANSPORT_TEXT,
-    uploadErrorText,
     uploadedOnText,
     uploadedText,
     waitingText,
@@ -272,29 +269,6 @@ describe('banking texts', () => {
         expect(disconnectBody(2)).toBe(
             'Its 2 files waiting to import are deleted. The account, its balance and its journal entries stay in Books.'
         )
-    })
-})
-
-describe('uploadErrorText', () => {
-    const transport = 'The file could not be uploaded. Check your connection and try again.'
-
-    it('shows a server refusal as written', () => {
-        const refusal = 'oct.csv was already uploaded to 1000 Business Checking on Nov 3, 2026.'
-        expect(uploadErrorText(new UploadError(refusal, 400))).toEqual({
-            text: refusal,
-            isTransport: false,
-        })
-    })
-
-    it('shows the transport text for a server fault, an abort, a network failure or a non-refusal', () => {
-        const asTransport = { text: transport, isTransport: true }
-        expect(UPLOAD_TRANSPORT_TEXT).toBe(transport)
-        expect(uploadErrorText(new UploadError('Something went wrong.', 500))).toEqual(asTransport)
-        expect(uploadErrorText(new UploadError('Upload failed (413)', 413))).toEqual(asTransport)
-        expect(uploadErrorText(new DOMException('Aborted', 'AbortError'))).toEqual(asTransport)
-        expect(uploadErrorText(new TypeError('Network request failed'))).toEqual(asTransport)
-        expect(uploadErrorText(new Error('Unable to read the file'))).toEqual(asTransport)
-        expect(uploadErrorText('x')).toEqual(asTransport)
     })
 })
 

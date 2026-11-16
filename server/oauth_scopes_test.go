@@ -54,6 +54,38 @@ func TestOAuth_SalesReceiptsAreScopedAsInvoices(t *testing.T) {
 	}
 }
 
+// Receive payment spec §4.3: a token reads and writes payments and their
+// applications.
+func TestOAuth_PaymentsAreReadWrite(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	for _, c := range []string{"books_payments", "books_payment_applications"} {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, rw.Read) || !reflect.DeepEqual(got.Write, rw.Write) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, rw.Read, rw.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range []string{"books_payments", "books_payment_applications"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("POST %s: books:write must write", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("POST %s: books:read alone must not write", path)
+		}
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+	}
+}
+
 // Spec §4 (customer pages): a token reads and writes a customer's contact
 // people, and only reads the balances view, which has no write path.
 func TestOAuth_PartyContactsAndBalances(t *testing.T) {
@@ -232,6 +264,37 @@ func TestOAuth_ExpensesAreReadWrite(t *testing.T) {
 		}
 		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead}) {
 			t.Errorf("POST %s: books:read alone must not write", path)
+		}
+	}
+}
+
+// Spec §3.9: books_attachments joins the Books scope, read for read, write
+// for write.
+func TestOAuth_AttachmentsAreReadWrite(t *testing.T) {
+	got, ok := oauthPackage().Collections["books_attachments"]
+	if !ok {
+		t.Fatal("books_attachments has no OAuth entry")
+	}
+	if !reflect.DeepEqual(got.Read, []string{scopeRead}) || !reflect.DeepEqual(got.Write, []string{scopeWrite}) {
+		t.Errorf("books_attachments OAuth access = %+v, want Read [%s] and Write [%s]", got, scopeRead, scopeWrite)
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	path := "/api/collections/books_attachments/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		p := path
+		if method == http.MethodDelete {
+			p += "/abc123"
+		}
+		if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("%s %s: books:write must write", method, p)
+		}
+		if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("%s %s: books:read alone must not write", method, p)
 		}
 	}
 }

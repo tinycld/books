@@ -12,11 +12,12 @@
 // otherwise, and "Unknown user" when the user row is gone. event reads an
 // update whose status became posted or void as posted or voided.
 //
-// A line row (the eight collections below) names its document in parent_type
+// A line row (the nine collections below) names its document in parent_type
 // and parent_id, read from the live line, else from its delete snapshot;
 // history_type and history_id are the record whose history the row opens: the
 // document for a line, the record itself otherwise. server/audit.go
-// auditParentFields lists the same eight.
+// auditParentFields lists the same nine. The view reads the payment
+// applications table, so it comes after 2100000019_create_books_payments.
 //
 // The query is one SELECT: PocketBase's view parser refuses UNION ALL. Every
 // computed column is cast to TEXT, because PocketBase types an uncast
@@ -44,6 +45,7 @@ const LINES = [
     ['books_expense_lines', 'books_expenses', 'expense'],
     ['books_invoice_lines', 'books_invoices', 'invoice'],
     ['books_journal_lines', 'books_journal_entries', 'entry'],
+    ['books_payment_applications', 'books_payments', 'payment'],
     ['books_sales_receipt_lines', 'books_sales_receipts', 'sales_receipt'],
 ]
 

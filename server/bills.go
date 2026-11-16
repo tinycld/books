@@ -101,6 +101,10 @@ var billKind = salesDocKind{
 		return payable.Id, nil
 	},
 	LineAccounts: expenseByAccount,
+	// A posted correction takes every file of the bill it replaces.
+	Replace: func(tx core.App, original, correction *core.Record) error {
+		return moveAttachments(tx, "bill", original.Id, correction.Id)
+	},
 }
 
 func init() {

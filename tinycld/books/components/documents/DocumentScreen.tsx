@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
 import { ESTIMATE_KIND } from '../../lib/sales-document-kinds'
+import { formSessionKey, useAttachmentsStore } from '../../stores/attachments-store'
 import { DocumentForm } from './DocumentForm'
 import { DocumentLoadError } from './DocumentLoadError'
 import { DocumentLoading } from './DocumentLoading'
@@ -24,9 +25,11 @@ interface ScreenStateProps {
     reloads: number
     // Rejects, and mounts no new form, when the stored document cannot be read.
     onReload: () => Promise<void>
+    // The form's attachments session; '' for a kind without attachments.
+    attachmentSession: string
 }
 
-function ScreenState({ data, tab, reloads, onReload }: ScreenStateProps) {
+function ScreenState({ data, tab, reloads, onReload, attachmentSession }: ScreenStateProps) {
     const { messages, testId } = useDocumentKind().doc
     const ids = {
         notFound: `${testId}-not-found`,
@@ -58,9 +61,28 @@ function ScreenState({ data, tab, reloads, onReload }: ScreenStateProps) {
                     data={data}
                     tab={tab}
                     onReload={onReload}
+                    attachmentSession={attachmentSession}
                 />
             )
     }
+}
+
+/**
+ * The form's session of pending attachments (spec §3.2), `form:<formKey>`, open while
+ * this screen is mounted. The screen holds it, not the form: a conflict reload mounts a
+ * new form under the same key, and the pending files stay. A new form's key holds until
+ * its save navigates, and a save navigates only after its attachments step stored every
+ * file, so no pending file is dropped by it.
+ */
+function useFormAttachmentSession(documentKind: DocumentKind, formKey: string): string {
+    const sessionKey = documentKind.doc.features.attachments ? formSessionKey(formKey) : ''
+    useEffect(() => {
+        if (sessionKey === '') return
+        const store = useAttachmentsStore.getState()
+        store.open(sessionKey)
+        return () => store.drop(sessionKey)
+    }, [sessionKey])
+    return sessionKey
 }
 
 /**
@@ -82,6 +104,7 @@ export function DocumentScreen({
     // A reload mounts a new form on the stored document: the old form's typed values go
     // with it. Local to this screen: no other component reads it.
     const [reloads, setReloads] = useState(0)
+    const attachmentSession = useFormAttachmentSession(documentKind, data.formKey)
     // The store can be behind the server (a realtime message that did not arrive), and a
     // form built from it would be refused again, so the rows are read again first. A
     // failed read rejects before the count moves: the form stays, with what is typed in
@@ -92,7 +115,13 @@ export function DocumentScreen({
     }
     return (
         <DocumentKindContext.Provider value={documentKind}>
-            <ScreenState data={data} tab={tab} reloads={reloads} onReload={onReload} />
+            <ScreenState
+                data={data}
+                tab={tab}
+                reloads={reloads}
+                onReload={onReload}
+                attachmentSession={attachmentSession}
+            />
         </DocumentKindContext.Provider>
     )
 }

@@ -62,6 +62,11 @@ describe('help/bills.md', () => {
         expect(body).toContain('help://books:expenses')
     })
 
+    // Attachments spec §3.9: the bill topic links the attachments topic.
+    it('links the attachments topic', () => {
+        expect(body).toContain('help://books:attachments')
+    })
+
     it('explains account lines and product lines', () => {
         expect(body).toMatch(/\baccount lines?\b/i)
         expect(body).toMatch(/\bproduct lines?\b/i)

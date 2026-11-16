@@ -10,6 +10,7 @@ import {
     DOCUMENT_READ_ACTION_KEYS,
     type DocumentReadAction,
     documentReadActions,
+    receivePaymentOffered,
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
@@ -19,9 +20,13 @@ import type { DocumentRecord } from './document-data'
 import { useOpenDocument } from './useOpenDocument'
 import { usePdfDownload } from './usePdfDownload'
 
-type ReadRecord = Pick<DocumentRecord, 'id' | 'status' | 'number' | 'entry' | 'kindFields'>
+type ReadRecord = Pick<
+    DocumentRecord,
+    'id' | 'status' | 'number' | 'entry' | 'customer' | 'kindFields'
+>
 
 const LABELS: Record<DocumentReadAction, string> = {
+    receive_payment: 'Receive payment',
     edit: 'Edit',
     void: 'Void',
     copy: 'Copy',
@@ -38,6 +43,16 @@ function invoiceIdOf(record: ReadRecord): string {
 // A bar or More row of the read view, with the action it runs (its key comes from it).
 export type DocumentReadItem = DocumentMoreItem & { action: DocumentReadAction }
 
+// The invoice's open balance; 0 for any other record, which takes no payment.
+function balanceOf(record: ReadRecord): number {
+    return record.kindFields.kind === 'invoice' ? record.kindFields.balance : 0
+}
+
+// The bar and More row id of an action: `read-<action>`, with dashes (`read-receive-payment`).
+function readActionId(action: DocumentReadAction): string {
+    return `read-${action.replaceAll('_', '-')}`
+}
+
 // The offered actions in the read view's order, by the kind's lifecycle; View journal
 // entry needs the entry the post wrote; Download PDF needs a kind with a PDF.
 function offeredActionsOf(
@@ -45,10 +60,17 @@ function offeredActionsOf(
     record: ReadRecord,
     canWrite: boolean
 ): DocumentReadAction[] {
+    const extra = {
+        canReceivePayment: receivePaymentOffered(
+            record.kindFields.kind,
+            record.status,
+            balanceOf(record)
+        ),
+    }
     const actions =
         doc.lifecycle === 'quote'
             ? quoteReadActions(record.status, canWrite, invoiceIdOf(record) !== '')
-            : documentReadActions(record.status, canWrite, doc.features).filter(
+            : documentReadActions(record.status, canWrite, doc.features, extra).filter(
                   action => action !== 'entry' || record.entry !== ''
               )
     return doc.features.pdf ? actions : actions.filter(action => action !== 'pdf')
@@ -58,6 +80,8 @@ function offeredActionsOf(
  * The read view's actions of a posted or void sales document, or of a quote the read
  * view shows (a closed estimate, or any estimate for a reader), as rows the bar draws (a
  * button each on a wide screen; Edit and a More menu on a phone), and the Void dialog.
+ * Receive payment (a posted invoice with an open balance) pushes a new payment for its
+ * customer with the invoice ticked, so Back returns to the invoice.
  * Edit, Copy and View journal entry replace the read view (a pushed screen would stay
  * mounted under the new one); Download PDF saves the server's PDF through usePdfDownload.
  * Void writes `status: 'void'` through the kind's data source; the dialog's open state
@@ -78,12 +102,19 @@ export function useDocumentReadActions(
             yield writes.voidRecord(id)
         },
         onSuccess: () => setVoidOpen(false),
+        // The dialog shows the refusal; without this core reports it again as a toast.
+        onError: () => {},
     })
     const isVoiding = voidDocument.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const download = usePdfDownload()
     const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const run: Record<DocumentReadAction, () => void> = {
+        // Pushed, so Back returns to the invoice (receive-payment spec §2).
+        receive_payment: () =>
+            router.push(
+                orgHref(`books/payments/new?customer=${record.customer}&invoice=${record.id}`)
+            ),
         edit: () => router.replace(orgHref(documentNewHref(doc, { replaces: record.id }))),
         void: () => {
             voidDocument.reset()
@@ -110,7 +141,7 @@ export function useDocumentReadActions(
     }
     const actions: DocumentReadItem[] = offeredActionsOf(doc, record, canWrite).map(action => ({
         action,
-        id: `read-${action}`,
+        id: readActionId(action),
         label: LABELS[action],
         keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
         isDisabled: disabledOf(action),

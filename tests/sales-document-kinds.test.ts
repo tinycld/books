@@ -30,7 +30,23 @@ describe('the sales kinds: party, line tables and features', () => {
                 email: true,
                 pdf: true,
                 partyAddress: true,
+                attachments: false,
             })
+        })
+    }
+})
+
+// Attachments (attachments spec §2): only the bill and the expense keep files.
+describe('features.attachments', () => {
+    for (const kind of [BILL_KIND, EXPENSE_KIND]) {
+        it(`is on for ${kind.key}`, () => {
+            expect(kind.features.attachments).toBe(true)
+        })
+    }
+
+    for (const kind of [INVOICE_KIND, SALES_RECEIPT_KIND, ESTIMATE_KIND]) {
+        it(`is off for ${kind.key}`, () => {
+            expect(kind.features.attachments).toBe(false)
         })
     }
 })
@@ -51,6 +67,7 @@ describe('features.partyAddress', () => {
             email: false,
             pdf: false,
             partyAddress: true,
+            attachments: true,
         })
     })
 })
@@ -190,6 +207,7 @@ describe('EXPENSE_KIND', () => {
             email: false,
             pdf: false,
             partyAddress: false,
+            attachments: true,
         })
     })
 

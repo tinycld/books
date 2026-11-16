@@ -36,6 +36,7 @@ type InvoiceRow = Pick<
     | 'date'
     | 'due_date'
     | 'total'
+    | 'balance'
     | 'currency'
     | 'replaced_by'
     | 'created'
@@ -72,7 +73,15 @@ function invoice(
     > &
         Partial<InvoiceRow>
 ): InvoiceRow {
-    return { currency: 'USD', replaced_by: '', created: STAMP, ...seed }
+    return {
+        currency: 'USD',
+        replaced_by: '',
+        created: STAMP,
+        // What posting writes: a posted invoice is open for its total; no payment
+        // applies to these. A draft or a void one has no balance.
+        balance: seed.status === 'posted' ? seed.total : 0,
+        ...seed,
+    }
 }
 
 function estimate(

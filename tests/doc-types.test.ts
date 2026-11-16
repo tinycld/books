@@ -43,6 +43,16 @@ describe('expense doc type', () => {
     })
 })
 
+// Settings → Numbering draws one card per sequence row, so the seeded `payment` row gets
+// the "Payments" card from DOC_TYPES; registers and the ledger read "Payment" as its Type.
+describe('payment doc type', () => {
+    it('names the Numbering card "Payments" and labels the Type "Payment"', () => {
+        expect(DOC_TYPES.payment).toEqual({ label: 'Payments', noun: 'payment' })
+        expect(DOC_TYPE_LABELS.payment).toBe('Payment')
+        expect(nextNumberPreview('payment', '', '1001')).toBe('Next payment: 1001')
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(
