@@ -85,21 +85,22 @@ func registerImmutabilityGuards(app core.App) {
 	})
 	app.OnRecordCreate("books_journal_lines").BindFunc(lineGuard)
 	app.OnRecordUpdate("books_journal_lines").BindFunc(func(e *core.RecordEvent) error {
-		return serializedLine(e, func(tx core.App) (int, error) {
+		return serializedLine(e, func(tx core.App) (*core.Record, error) {
 			stored, err := tx.FindRecordById("books_journal_lines", e.Record.Id)
 			if err != nil {
-				return 0, err
+				return nil, err
 			}
 			if stored.GetString("entry") != e.Record.GetString("entry") {
-				return 0, refuse("A line cannot move to another journal entry.")
+				return nil, refuse("A line cannot move to another journal entry.")
 			}
-			if err := requireDraftEntry(tx, e.Record); err != nil {
-				return 0, err
+			entry, err := requireDraftEntry(tx, e.Record)
+			if err != nil {
+				return nil, err
 			}
 			if err := checkLineStamp(tx, stored, e.Record); err != nil {
-				return 0, err
+				return nil, err
 			}
-			return e.Record.GetInt("debit") - stored.GetInt("debit"), checkLineParty(tx, stored, e.Record)
+			return entry, checkLineParty(tx, stored, e.Record)
 		})
 	})
 	app.OnRecordDelete("books_journal_lines").BindFunc(lineGuard)
@@ -108,48 +109,36 @@ func registerImmutabilityGuards(app core.App) {
 // lineGuard guards a line create and delete. A new line's customer or vendor
 // is checked too; a delete names no party to check.
 func lineGuard(e *core.RecordEvent) error {
-	return serializedLine(e, func(tx core.App) (int, error) {
-		if err := requireDraftEntry(tx, e.Record); err != nil {
-			return 0, err
-		}
-		if !e.Record.IsNew() {
-			// A delete: the entry loses the line's stored debit. The record
-			// was loaded before this transaction, so the line may have
-			// changed since, or be gone already (a second delete of it).
-			stored, err := tx.FindRecordById("books_journal_lines", e.Record.Id)
-			if errors.Is(err, sql.ErrNoRows) {
-				return 0, nil
-			}
-			if err != nil {
-				return 0, err
-			}
-			return -stored.GetInt("debit"), nil
+	return serializedLine(e, func(tx core.App) (*core.Record, error) {
+		entry, err := requireDraftEntry(tx, e.Record)
+		if err != nil || !e.Record.IsNew() {
+			return entry, err
 		}
 		if err := checkLineStamp(tx, nil, e.Record); err != nil {
-			return 0, err
+			return nil, err
 		}
-		return e.Record.GetInt("debit"), checkLineParty(tx, nil, e.Record)
+		return entry, checkLineParty(tx, nil, e.Record)
 	})
 }
 
-// requireDraftEntry allows a line write only while its entry is a draft. The
-// posting hook stamps lines before it writes the entry, so the stored entry
-// is still a draft then.
-func requireDraftEntry(app core.App, line *core.Record) error {
+// requireDraftEntry allows a line write only while its entry is a draft, and
+// returns that entry. The posting hook stamps lines before it writes the
+// entry, so the stored entry is still a draft then.
+func requireDraftEntry(app core.App, line *core.Record) (*core.Record, error) {
 	entry, err := app.FindRecordById("books_journal_entries", line.GetString("entry"))
 	if errors.Is(err, sql.ErrNoRows) {
 		// The entry is gone: its cascade delete (only drafts delete), or a
 		// create that PocketBase's relation validation refuses next.
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	switch entry.GetString("status") {
 	case statusVoid:
-		return refuse("%s is void, so its lines cannot change.", entryName(entry))
+		return nil, refuse("%s is void, so its lines cannot change.", entryName(entry))
 	case statusPosted:
-		return refuse("%s is posted, so its lines cannot change. Void the entry or edit it instead.", entryName(entry))
+		return nil, refuse("%s is posted, so its lines cannot change. Void the entry or edit it instead.", entryName(entry))
 	}
-	return nil
+	return entry, nil
 }
