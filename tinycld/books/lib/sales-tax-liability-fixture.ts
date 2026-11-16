@@ -538,6 +538,7 @@ export function salesTaxLiabilityResult(input: SalesTaxLiabilityInput = {}): Run
         heading: SALES_TAX_LIABILITY_HEADING,
         page: null,
         params: [{ id: 'period', type: 'dateRange', from, to }, agencies],
+        headerLines: [],
     }
 }
 

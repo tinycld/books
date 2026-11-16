@@ -622,6 +622,7 @@ export function balanceSheetResult(input: BalanceSheetInput = {}): RunResult {
         heading: BALANCE_SHEET_HEADING,
         page: null,
         params: resolvedParams(rowsChoice),
+        headerLines: [],
     }
 }
 
