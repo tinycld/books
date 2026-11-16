@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import { hubRow } from '@tinycld/core/e2e-helpers'
+import { chooseParamOption, hubRow, inStatement, waitForTableFit } from '@tinycld/core/e2e-helpers'
 import {
     CUSTOMER_BALANCE_DESCRIPTION,
     CUSTOMER_BALANCE_SEED,
@@ -11,15 +11,21 @@ import {
     browserToday,
     chooseAsOf,
     dayWords,
+    drillPanel,
     expectedHeading,
     openBooksReports,
+    type ReportSnapshot,
+    reportLinesUnder,
     reportSnapshot,
     snapshotWhen,
 } from './books-report-helpers'
 import {
     centsOf,
+    chooseBalanceOrder,
     chooseBalanceRows,
     customerBalanceCsv,
+    filterToCustomers,
+    openBalanceRow,
     openCustomerBalance,
     withoutLineRecords,
 } from './customer-balance-helpers'
@@ -29,9 +35,21 @@ import {
     customerPath,
     field,
     openBooks,
+    openCustomer,
     uniqueName,
 } from './customer-form-helpers'
-import { customerWithInvoices, fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
+import { INVOICE_URL } from './invoice-helpers'
+import {
+    customerWithInvoices,
+    fillInvoice,
+    localDay,
+    openNewPayment,
+    PAYMENT_URL,
+    pickPaymentCustomer,
+    postInvoice,
+    rowAmount,
+} from './receive-payment-helpers'
+import { WIDE } from './record-form-helpers'
 
 // The Customer Balance (customer-balance checkpoint 1): the shipped report from the Books
 // hub, a customer the test creates read against its page's Open figure, a family made by a
@@ -61,6 +79,27 @@ function balanceOf(record: readonly string[] | undefined): number | null {
 function isTotalLine(label: string) {
     return label === 'Total' || label.startsWith('Total ')
 }
+
+// A mounted row's Balance in cents; null when the row shows no figure.
+function rowCents(row: ReportSnapshot['rows'][number] | undefined): number | null {
+    const text = row?.cells.balance ?? ''
+    return text === '' ? null : centsOf(text)
+}
+
+// The rows of one snapshot as [kind, label, balance in cents].
+function rowsOf(snapshot: ReportSnapshot): [string, string, number | null][] {
+    return snapshot.rows.map(row => [row.kind, row.label, rowCents(row)])
+}
+
+// The width core fitted the report's own table to, once the fit has settled.
+async function fittedTableWidth(page: Page): Promise<number> {
+    await waitForTableFit(page)
+    return Number(await inStatement(page, 'report-table').getAttribute('data-fit-width'))
+}
+
+// The seeded sub-customers of Harborview Hospitality Group (seed.ts reads CUSTOMERS).
+const HARBORVIEW = CUSTOMERS.find(customer => customer.id === CUSTOMER_IDS.harborview)
+const HARBORVIEW_SUBS = CUSTOMERS.filter(customer => customer.parent === CUSTOMER_IDS.harborview)
 
 test.describe('customer-balance: report', () => {
     test('opens from the Books hub as of today, and a day before every line is empty', async ({
@@ -204,5 +243,180 @@ test.describe('customer-balance: report', () => {
         )
         const sum = rows.reduce((acc, record) => acc + (balanceOf(record) ?? 0), 0)
         expect(total).toBe(sum)
+    })
+
+    test('a customer opens into its transactions, and a transaction opens its document', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const dueDate = await localDay(page, 30)
+        const { name, invoices } = await customerWithInvoices(page, [{ rate: '640.00', dueDate }])
+        const [invoice] = invoices
+        const today = await browserToday(page)
+
+        await openCustomerBalance(page)
+        await filterToCustomers(page, [name])
+        expect(rowsOf(await reportSnapshot(page))).toEqual([
+            ['group', name, 64000],
+            ['total', 'Total', 64000],
+        ])
+        await expect(page.getByTestId('report-param-customers')).toHaveText(`Customer: ${name}`)
+
+        await openBalanceRow(page, name)
+        const lines = reportLinesUnder(await reportSnapshot(page), name)
+        expect(lines.map(line => [line.kind, rowCents(line)])).toEqual([['detail', 64000]])
+        const [line] = lines
+        expect(line.label).toMatch(new RegExp(`^${today} · Invoice ${invoice.number}(?!\\d)`))
+
+        const reportUrl = page.url()
+        const lineRow = page.getByTestId(`report-row-${line.id}`)
+        const invoicePath = new RegExp(`/books/invoices/${invoice.id}$`)
+        await lineRow.click()
+        await expect(page).toHaveURL(INVOICE_URL)
+        await expect(page).toHaveURL(invoicePath)
+        await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${invoice.number}`)
+
+        await page.goBack()
+        await expect(page).toHaveURL(reportUrl)
+        // Core keeps a report's open groups for the session (report-ui-store), and Back is a
+        // same-document popstate, so the customer row is still open with its line.
+        await snapshotWhen(
+            page,
+            reportSnapshot,
+            snapshot => reportLinesUnder(snapshot, name).some(row => row.id === line.id),
+            `${name}'s row is still open with its invoice line after Back`
+        )
+        const desktopFit = await fittedTableWidth(page)
+        await page.setViewportSize(WIDE)
+        // The wide layout is drawn when the report's table has re-fitted to the wider window.
+        await expect
+            .poll(() => fittedTableWidth(page), {
+                message: 'the report table re-fits to the wide window',
+            })
+            .toBeGreaterThan(desktopFit)
+        // Spec §3 "Opening a transaction": beside the report only where Books registers a
+        // report panel for the path (it registers none for invoices), else its own screen.
+        await lineRow.click()
+        await expect(page).toHaveURL(invoicePath)
+        await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${invoice.number}`)
+        await expect(drillPanel(page)).toHaveCount(0)
+    })
+
+    test('a part payment lowers the balance in the open report', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const dueDate = await localDay(page, 30)
+        const { name, invoices } = await customerWithInvoices(page, [{ rate: '900.00', dueDate }])
+        const [invoice] = invoices
+
+        const viewer = await page.context().newPage()
+        await openBooks(viewer, DESKTOP)
+        await openCustomerBalance(viewer)
+        await filterToCustomers(viewer, [name])
+        expect(rowsOf(await reportSnapshot(viewer))).toEqual([
+            ['group', name, 90000],
+            ['total', 'Total', 90000],
+        ])
+
+        await openNewPayment(page)
+        await pickPaymentCustomer(page, name)
+        await rowAmount(page, invoice.id).fill('350.00')
+        await expect(page.getByTestId('payment-amount')).toHaveValue('350.00')
+        await page.getByTestId('payment-post').click()
+        await expect(page).toHaveURL(PAYMENT_URL)
+        await expect(page.getByTestId('payment-read-only')).toBeVisible()
+
+        const live = await snapshotWhen(
+            viewer,
+            reportSnapshot,
+            snapshot => rowCents(snapshot.rows.find(row => row.label === name)) === 55000,
+            `${name} reads 550.00 in the open report with no action on it`
+        )
+        expect(rowsOf(live)).toEqual([
+            ['group', name, 55000],
+            ['total', 'Total', 55000],
+        ])
+    })
+
+    test('Largest balance orders the rows', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const dueDate = await localDay(page, 30)
+        const one = await customerWithInvoices(page, [{ rate: '100.00', dueDate }])
+        const two = await customerWithInvoices(page, [{ rate: '100.00', dueDate }])
+        const [first, second] = [one, two].sort((a, b) =>
+            a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+        )
+        // customerWithInvoices leaves the page on the customer it made last.
+        if (second.customerId !== two.customerId) await openCustomer(page, second.name)
+        await expect(page).toHaveURL(customerPath(second.customerId))
+        await page.getByTestId('customer-new-transaction').click()
+        await page.getByTestId('customer-new-invoice').click()
+        await expect(page).toHaveURL(
+            new RegExp(`/books/invoices/new\\?customer=${second.customerId}$`)
+        )
+        await fillInvoice(page, { dueDate, rate: '600.00' })
+        await postInvoice(page)
+
+        await openCustomerBalance(page)
+        await filterToCustomers(page, [first.name, second.name])
+        expect(rowsOf(await reportSnapshot(page))).toEqual([
+            ['group', first.name, 10000],
+            ['group', second.name, 70000],
+            ['total', 'Total', 80000],
+        ])
+
+        await chooseBalanceOrder(page, 'balance')
+        const byBalance = await snapshotWhen(
+            page,
+            reportSnapshot,
+            snapshot => snapshot.rows[0]?.label === second.name,
+            `${second.name} (700.00) is the first row under Largest balance`
+        )
+        expect(rowsOf(byBalance)).toEqual([
+            ['group', second.name, 70000],
+            ['group', first.name, 10000],
+            ['total', 'Total', 80000],
+        ])
+    })
+
+    test('a whole-group pick keeps the sub-customers', async ({ page }) => {
+        if (!HARBORVIEW) throw new Error('no Harborview Hospitality Group in the customer fixture')
+        const parent = HARBORVIEW.display_name
+        const pick = `All ${parent} sub-customers`
+        const subNames = HARBORVIEW_SUBS.map(customer => customer.display_name)
+        await openBooks(page, DESKTOP)
+        await openCustomerBalance(page)
+        await chooseParamOption(page, 'customers', {
+            from: 'add-filter',
+            search: 'Harborview',
+            group: parent,
+        })
+        await expect(page.getByTestId('report-param-customers')).toHaveText(`Customer: ${pick}`)
+
+        const snapshot = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s =>
+                s.rows.some(row => row.kind === 'subtotal' && row.label === `Total ${parent}`) &&
+                s.rows.at(-1)?.kind === 'total' &&
+                !s.rows.some(row => row.label === 'No customer'),
+            `the rows of ${pick} only`
+        )
+        const rows = snapshot.rows
+        expect([rows[0]?.kind, rows[0]?.label, rows[0]?.depth]).toEqual(['group', parent, 0])
+        expect([rows.at(-2)?.kind, rows.at(-2)?.label]).toEqual(['subtotal', `Total ${parent}`])
+        expect([rows.at(-1)?.kind, rows.at(-1)?.label]).toEqual(['total', 'Total'])
+        const members = rows.slice(1, -2)
+        expect(members.map(row => row.label)).toContain('Harborview Kitchen')
+        for (const member of members) {
+            expect([member.kind, member.depth]).toEqual(['group', 1])
+            expect(subNames).toContain(member.label)
+        }
+        expect(members.map(row => row.label)).not.toContain(parent)
+        expect(rows.map(row => row.label)).not.toContain('No customer')
+
+        const kitchen = members.find(row => row.label === 'Harborview Kitchen')
+        expect(rowCents(kitchen)).toBeGreaterThanOrEqual(CUSTOMER_BALANCE_SEED.kitchenInvoice.cents)
+        const sum = members.reduce((acc, row) => acc + (rowCents(row) ?? 0), 0)
+        expect(rowCents(rows.at(-2))).toBe(sum)
     })
 })

@@ -123,6 +123,24 @@ func accountsParam() reports.ParamDef {
 	}
 }
 
+// customersParam is the Customer param of the Customer Balance: any number
+// of customers, inactive ones included, a sub-customer listed under its
+// parent's name with a pick of all the sub-customers of a parent; the
+// parent's own row is not in it. The A/R aging report (p5-ar-aging)
+// and customer statements (p2-statements) use it too.
+func customersParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "customers", Type: reports.ParamChoice, Label: "Customer", Multiple: true,
+		OptionsFrom: &reports.OptionsFrom{
+			Source:     "books.customers",
+			Value:      path("id"),
+			Label:      path("display_name"),
+			Group:      path("parent", "display_name"),
+			GroupLabel: "All {group} sub-customers",
+		},
+	}
+}
+
 // receivableLines are the filter terms of the posted Accounts receivable
 // lines on or before asOf. The Customer Balance reads them; the A/R aging
 // report (p5-ar-aging) and customer statements (p2-statements) read the same
