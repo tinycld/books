@@ -5,7 +5,6 @@ import type { PayBillsFormState } from '../../hooks/usePayBillsForm'
 import { BILL_OUTSTANDING } from '../../lib/outstanding-documents'
 import type { PayBillsRow } from '../../lib/pay-bills-rows'
 import type { OutstandingRow } from '../../lib/payment-allocation'
-import { PAYMENT_CARDS_BELOW } from '../../lib/payment-columns'
 import { OutstandingCards } from '../payments/OutstandingCards'
 import {
     OutstandingGrid,
@@ -89,8 +88,9 @@ interface PayBillsOpenBillsProps {
 
 /**
  * The open bills (spec §3.3): the filter chips, then the shown bills as receive-payment's
- * grid (its own width at least PAYMENT_CARDS_BELOW) or cards (below), or the empty and
- * filtered-empty states. One list in the page scroller, no paging.
+ * grid (its own width at least the grid's least width, `BILL_OUTSTANDING.gridMinWidth`) or
+ * cards (below), or the empty and filtered-empty states. One list in the page scroller, no
+ * paging, no sideways scroll.
  */
 export function PayBillsOpenBills({
     payForm,
@@ -99,7 +99,7 @@ export function PayBillsOpenBills({
     isDisabled,
 }: PayBillsOpenBillsProps) {
     const { width, onLayout } = useContainerWidth()
-    const isCards = width > 0 && width < PAYMENT_CARDS_BELOW
+    const isCards = width > 0 && width < BILL_OUTSTANDING.gridMinWidth
     const list = billListOf(payForm, currency, today, isDisabled)
     return (
         <View testID="pay-bills-open" className="gap-3" onLayout={onLayout}>

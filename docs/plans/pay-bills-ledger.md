@@ -88,6 +88,14 @@
 - cp 6 · fix implementer difference 2: the fixture `salesTaxLiabilityResult` models Accrual only (its documents have no payments)
 - cp 6 · fix review NOTE: tinycld/books/lib/sales-tax-liability-fixture.ts — the result's topics list is not in the server's sorted order (nothing compares the order)
 - cp 6 · implementer difference 5: the e2e `customerWithInvoices` taxable path uses the seeded single rate "Colorado state" (one component)
+- revise 1 · populated-1082/1280 (light, dark), edit-1082/1280: Due date column — with equal flex shares "· Overdue" ellipsizes ("Aug 8, 2026 · Ove…"), so only the red color says overdue, while Bill, Bill total and Open balance have spare room (critic N1, N2; the correction permits ellipsis)
+- revise 1 · receive-payment-1082/1280: Invoice column — the link "Invoice 1005 · Oct 6, 2…" is cut in its date; near the 595 px least width it is about "Invoice 10…" (critic N3, reviewer A NOTE 2). Question for the human: give the document column (and Due date) a larger flex share, minimum still 95?
+- revise 1 · receive-payment-1082/1280: header band — after the wrap the left group is four rows and Amount received stands alone at the top right; the band is about 400 px tall at 1082 (critic N4)
+- revise 1 · read-1082/1280: band — the Vendor link sits about 12 px lower than the other values of its row (critic N5; the cp 3 anchor has the same offset)
+- revise 1 · fix review NOTE 3: money cells have no `numberOfLines`; at the 95 px minimum a 12-digit amount wraps to a second line (the correction permits wrap)
+- revise 1 · gate 3 A NOTE 4 / implementer difference D2: AppliedInvoices' Invoice layout fills its never-drawn `ref` style with the invoice column (before `{ width: 0 }`)
+- revise 1 · gate 3 A NOTE 5: no test pins that long text ellipsizes without widening a column, or that the Payment input fills its cell (finding 5 did not ask for it)
+- revise 1 · gate 3 A NOTE 6: no e2e covers the read views' grid/card switch (now 539 px bills, 432 px invoices); only tests/payment-columns.test.ts pins the values
 
 ## Out-of-plan changes
 - cp 0 (core): `core/reports/lib/rows.ts` — `EMPTY_RESULT.headerLines: []`, required by the new `RunResult.headerLines` field
@@ -118,6 +126,8 @@
 - cp 5: `pb-migrations/2100000002_create_books_ledger.js` (index `idx_books_je_document (document, doc_type)`: the cash rebuild finds a document's entries by `document`; implementer A difference 2), `pb-migrations/2100000021_create_books_bill_payments.js` (index on `books_cash_basis_lines (entry)` for Transaction Detail's Split column, fix item 2), `tests/e2e/profit-and-loss.spec.ts` and `tests/e2e/balance-sheet.spec.ts` (the pinned chip list gains `report-param-method`, which spec §3.10 places after Period / As of; asserts "Accrual"; written by a test writer after the implementer's own edit was reverted). `server/sales_documents.go` is named in the Files block and not changed (the calls live in `postSalesDoc` / `voidSalesDoc`, implementer A difference 6)
 
 - cp 6: `server/cash_basis_tax.go` (new; the derive, diff and sync of `books_cash_basis_tax_lines`, which the Files block puts in `cash_basis.go`; same package and role; reviewers A 1 and B 1), `pb-migrations/2100000021_create_books_bill_payments.js` (index on `books_cash_basis_tax_lines (invoice)`, fix item 5; in place, Books unreleased)
+
+- revise 1 (implementer difference D1): `tinycld/books/components/payments/PaymentBand.tsx` (wide band rows `flex-row flex-wrap`) and `docs/specs/receive-payment-design.md` §3.2 (the same rule in text) — the Receive Payment band's fixed second row (≈765 px) made the form scroll sideways at form widths 640–765, the defect of correction 2 from another source; `receive-payment-grid-width` "a little wider" stayed red without it (reviewers A and B: justified; the human accepts the spec edit at the eval gate)
 
 - cp 4 (fix round 1): `components/documents/DocumentReadActions.tsx` (`phoneButtonOf`: Pay bill is the phone bar's button, fix item 2), `lib/sales-document-kinds.ts`, `components/documents/DocumentHeader.tsx`, `DocumentTotalsPanel.tsx` (comments, fix item 4)
 
@@ -271,6 +281,18 @@
 - deferrals: none · rebuttals: none · design notes: none · out-of-plan files: 2 (the two specs above, other screens' specs; why: their pinned phone bars no longer matched agreed behavior)
 
 ## Final review
-- eval:
+- eval: revised → revise 1: grid columns flex, min 95; no sideways scroll (fix sha: the commit "fix(books): payment grids flex with a 95 px minimum, no sideways scroll", which holds this row)
 - human comments and what changed
+- revise 1 (2026-11-16, human: "why does the table side scroll … lets just set all columns to flex with a 95 minimum"): staging revise-1.md; findings cp/revise-1-fix.md (6 items: appearance 2, other: fixed breakpoint 1, other: spec text 1, weak-test 1, other: scratch route 1)
+  - test writer (revise-1-tests.md): tests/payment-columns.test.ts (new values, least widths 595 / 432 / 702 / 539), tests/e2e/payment-grid-width-helpers.ts, pay-bills-grid-width.spec.ts, receive-payment-grid-width.spec.ts (new), receive-payment-helpers.ts and receive-payment-phone.spec.ts (comments); 8 of 9 red for the right reason, the Receive Payment narrow test green by design (the old 640 switch already gave cards at a 571 px list); test dispute: the old width / 640 pins, settled by the human's correction
+  - implementer (revise-1-fix-impl.md): FIXED 5 of 5 — every data column `{ flex: 1, minWidth: 95 }`, tick 44; horizontal ScrollView and `useTableMinWidth` removed from OutstandingGrid and AppliedInvoices; cards below `gridMinWidth` / `appliedMinWidth`; `PAYMENT_CARDS_BELOW` removed; PaymentTotals `FIGURE_WIDTH = 160`; spec texts (pay-bills §3.3, §3.8, §9; receive-payment §3, §3.7); differences D1 (PaymentBand wrap, under Out-of-plan changes), D2 (Design notes), D3 (local totals constant)
+  - gate 1: tests unedited: yes · `tinycld-pkg check` pass · e2e one file each on 7230: pay-bills-grid-width, receive-payment-grid-width, pay-bills-create, -selection, -phone, -read, -edit, receive-payment-form, -phone, -keyboard, -void-edit — all passed (no `packages:generate`: the driver forbade it while the dev server runs; no Go or schema change)
+  - gate 2: capture evidence/revise-1/capture.json (populated light/dark, read, edit, receive-payment; 1082 and 1280), 14 passed; invalid shots: none · blocking: none · notes: 5 (N1–N5), under Design notes
+  - gate 3 A: 0 BLOCK, 6 NOTE, 0 DEFERRAL — NOTE 1 (D1) → Out-of-plan changes; NOTE 3 (the lesson dropped the `useTableMinWidth` fact ListTable still needs) → fixed by the runner (one-line text change); NOTEs 2, 4, 5, 6 → Design notes
+  - gate 3 B: script lines: 0 · findings: 1 (D1) → accepted, Out-of-plan changes, no code change; 2 receive-payment-grid-width describe title lacks `pay-bills:` → accepted (fix2 item 1, test writer); 3 help "Pay all on a phone" / "list header" no longer true (cards at any narrow list) → accepted (fix2 item 2, implementer) · DEFERRALs: none
+  - fix review round 1 (revise-1-fix-review.md): 0 BLOCK, 3 NOTE — lessons scope (= A NOTE 3, fixed), D1 (Out-of-plan), money-cell wrap (Design notes)
+  - fix round 2 (cp/revise-1-fix2.md, weak-test 1, help-text 1): describe title `pay-bills: receive-payment grid width`; help/pay-bills.md and help/receive-payment.md say Pay all above the cards on a phone or a narrow window. Gate 1 again: tests unedited: yes · `tinycld-pkg check` pass · e2e receive-payment-grid-width passed; no shot changed
+  - fix review round 2 (revise-1-fix2-review.md): clean
+  - rounds: 2 · deferrals: none · rebuttals: none · design notes: 8 · out-of-plan files: 1 (with its spec text)
+  - lesson: docs/helix-lessons.md line 8 replaced (same line count): a table's columns are flex with a minimum; cards below the table's own minimum width, never a fixed breakpoint; no horizontal scroller (CI scrollbar, ListTable `useTableMinWidth` and Books-only CI facts kept)
 - native: not executed in this run

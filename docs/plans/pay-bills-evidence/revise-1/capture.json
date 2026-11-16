@@ -1,0 +1,65 @@
+{
+    "outDir": ".",
+    "widths": [1082, 1280],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "height": 3000,
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "click": "pay-bills-paid-from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "pay-bills-paid-from-balance" },
+                { "fill": "pay-bills-check-no", "value": "1050" },
+                { "click": "pay-bills-tick-all" },
+                { "waitFor": "pay-bills-check-plan" },
+                { "click": "pay-bills-title" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/bill-payments/bpseedpartial00",
+            "ready": "bill-payment-title",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [
+                { "waitFor": "bill-payment-applied" },
+                { "waitFor": "bill-payment-read-actions" }
+            ]
+        },
+        {
+            "name": "edit",
+            "url": "/a/books/bill-payments/bpseedpartial00",
+            "ready": "bill-payment-read-edit",
+            "height": 1900,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "bill-payment-read-edit" },
+                { "waitFor": "pay-bills-save" },
+                { "waitFor": "pay-bills-original-now" },
+                { "click": "pay-bills-title" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "receive-payment",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "payment-tick-all" },
+                { "click": "payment-tick-all" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

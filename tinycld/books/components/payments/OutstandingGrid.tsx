@@ -4,7 +4,6 @@ import { router } from 'expo-router'
 import { ArrowDown, ArrowUp } from 'lucide-react-native'
 import {
     Pressable,
-    ScrollView,
     type StyleProp,
     Text,
     type TextInputInstance,
@@ -12,7 +11,6 @@ import {
     type ViewStyle,
 } from 'react-native'
 import { useOpenDocument } from '../../hooks/useOpenDocument'
-import { useTableMinWidth } from '../../hooks/useTableMinWidth'
 import { formatMoney } from '../../lib/money'
 import {
     gridDocumentLabel,
@@ -31,22 +29,25 @@ import { SelectBox, type SelectBoxState } from '../SelectBox'
 import { PaymentCell } from './PaymentCell'
 
 const TAP = { minHeight: 44 }
+// A link never grows past its cell: a long label ellipsizes inside the column.
+const LINK = { ...TAP, maxWidth: '100%' } as const
 const HEAD = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const MONEY_CELL = 'text-right text-sm text-foreground tabular-nums'
 const ARROW_SIZE = 12
 
 // The cell styles of one descriptor's widths, shared by the header, the rows and the
-// totals row, so a column lines up from the header down.
+// totals row, so a column lines up from the header down. Every data column grows with the
+// grid from its least width; the tick column is fixed.
 function columnStyles(doc: OutstandingDocument) {
     const { columns } = doc
     return {
         tick: { width: columns.tick },
         party: columns.party ?? { width: 0 },
         document: columns.document,
-        dueDate: { width: columns.dueDate },
-        original: { width: columns.original },
-        open: { width: columns.open },
-        payment: { width: columns.payment },
+        dueDate: columns.dueDate,
+        original: columns.original,
+        open: columns.open,
+        payment: columns.payment,
     }
 }
 
@@ -130,7 +131,7 @@ function DocumentLinkText({
             tabIndex={-1}
             onPress={onPress}
             className="justify-center self-start"
-            style={TAP}
+            style={LINK}
         >
             <Text className="text-sm text-primary underline" numberOfLines={1}>
                 {label}
@@ -440,14 +441,13 @@ function GridTotals({
  * The wide open-document list: a header tick box (pays every row, or clears them all when
  * every row is paid), the descriptor's party column (Vendor on Pay Bills), the document
  * link, Due date, the total, Open balance and Payment, sharing the column widths with the
- * header inside the sideways scroller. With `onSort` the Vendor and Due date headers sort;
- * with `totals` a totals row closes the list.
+ * header and the totals row. The columns grow to fill the list and never scroll sideways:
+ * the list shows this grid only while it is at least `doc.gridMinWidth` wide, cards below.
+ * With `onSort` the Vendor and Due date headers sort; with `totals` a totals row closes the
+ * list.
  */
 export function OutstandingGrid(props: OutstandingGridProps) {
     const { doc, rows, rowErrors, tickAll, isDisabled, onTickAll, sort, onSort, totals } = props
-    // The rows sit in the page's scroller, not a scroller of their own, so the gutter the
-    // hook measures stays 0 and only the content width is used.
-    const { contentStyle } = useTableMinWidth(doc.gridMinWidth)
     const lastId = rows[rows.length - 1]?.id
     const drawn = rows.map(row => (
         <GridRow
@@ -459,19 +459,17 @@ export function OutstandingGrid(props: OutstandingGridProps) {
         />
     ))
     return (
-        <ScrollView horizontal contentContainerStyle={contentStyle}>
-            <View testID={`${doc.testIdPrefix}-grid`} style={{ flex: 1 }}>
-                <GridHeader
-                    doc={doc}
-                    tick={tickAll}
-                    isDisabled={isDisabled}
-                    onTickAll={onTickAll}
-                    sort={sort}
-                    onSort={onSort}
-                />
-                {drawn}
-                <GridTotals doc={doc} totals={totals} currency={props.currency} />
-            </View>
-        </ScrollView>
+        <View testID={`${doc.testIdPrefix}-grid`}>
+            <GridHeader
+                doc={doc}
+                tick={tickAll}
+                isDisabled={isDisabled}
+                onTickAll={onTickAll}
+                sort={sort}
+                onSort={onSort}
+            />
+            {drawn}
+            <GridTotals doc={doc} totals={totals} currency={props.currency} />
+        </View>
     )
 }

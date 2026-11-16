@@ -63,7 +63,8 @@ function CardsTotal({
 }
 
 /**
- * A read view's paid documents below 640 px (receive-payment §3.7, pay-bills §3.8): one
+ * A read view's paid documents while the list is narrower than the applied grid's least
+ * width (`doc.appliedMinWidth`; receive-payment §3.7, pay-bills §3.8): one
  * card per invoice or bill with its link ("Bill 1003 · No. 88412"), its due date, and the
  * total and the paid amount as a label-value pair; with `total`, a Total line under them.
  */

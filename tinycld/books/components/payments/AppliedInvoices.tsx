@@ -1,6 +1,5 @@
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
-import { ScrollView, Text, View } from 'react-native'
-import { useTableMinWidth } from '../../hooks/useTableMinWidth'
+import { Text, View } from 'react-native'
 import { formatMoney } from '../../lib/money'
 import {
     type AppliedDocumentRow,
@@ -10,7 +9,7 @@ import {
 } from '../../lib/outstanding-documents'
 import {
     BILL_PAYMENT_APPLIED_COLUMNS,
-    PAYMENT_CARDS_BELOW,
+    type FlexColumn,
     PAYMENT_COLUMNS,
 } from '../../lib/payment-columns'
 import { formatDay } from '../../lib/register-range'
@@ -23,37 +22,39 @@ const MONEY_CELL = 'text-right text-sm text-foreground tabular-nums'
 type AppliedLayout = {
     // A Vendor's bill no. column (bills only).
     hasRef: boolean
+    // Every column grows with the grid from its least width.
     columns: {
-        document: { flex: number; minWidth: number }
-        ref: { width: number }
-        dueDate: { width: number }
-        original: { width: number }
-        applied: { width: number }
+        document: FlexColumn
+        ref: FlexColumn
+        dueDate: FlexColumn
+        original: FlexColumn
+        applied: FlexColumn
     }
 }
 
 // The grid's columns by document noun (spec §3.8): an invoice payment's "Applied to"
 // (Invoice, Due date, Original amount, Applied), a bill payment's "Bills paid" (Bill,
-// Vendor's bill no., Due date, Bill total, Paid).
+// Vendor's bill no., Due date, Bill total, Paid). An invoice has no ref column: its `ref`
+// style is never drawn.
 const LAYOUTS: Record<OutstandingDocument['noun'], AppliedLayout> = {
     Invoice: {
         hasRef: false,
         columns: {
             document: PAYMENT_COLUMNS.invoice,
-            ref: { width: 0 },
-            dueDate: { width: PAYMENT_COLUMNS.dueDate },
-            original: { width: PAYMENT_COLUMNS.original },
-            applied: { width: PAYMENT_COLUMNS.payment },
+            ref: PAYMENT_COLUMNS.invoice,
+            dueDate: PAYMENT_COLUMNS.dueDate,
+            original: PAYMENT_COLUMNS.original,
+            applied: PAYMENT_COLUMNS.payment,
         },
     },
     Bill: {
         hasRef: true,
         columns: {
             document: BILL_PAYMENT_APPLIED_COLUMNS.bill,
-            ref: { width: BILL_PAYMENT_APPLIED_COLUMNS.ref },
-            dueDate: { width: BILL_PAYMENT_APPLIED_COLUMNS.dueDate },
-            original: { width: BILL_PAYMENT_APPLIED_COLUMNS.original },
-            applied: { width: BILL_PAYMENT_APPLIED_COLUMNS.paid },
+            ref: BILL_PAYMENT_APPLIED_COLUMNS.ref,
+            dueDate: BILL_PAYMENT_APPLIED_COLUMNS.dueDate,
+            original: BILL_PAYMENT_APPLIED_COLUMNS.original,
+            applied: BILL_PAYMENT_APPLIED_COLUMNS.paid,
         },
     },
 }
@@ -169,14 +170,9 @@ function GridTotal({
     )
 }
 
-function AppliedGrid({
-    doc,
-    rows,
-    currency,
-    testIdPrefix,
-    total,
-    contentStyle,
-}: AppliedListProps & { contentStyle: ReturnType<typeof useTableMinWidth>['contentStyle'] }) {
+// The columns fill the list and never scroll sideways: the list shows this grid only while
+// it is at least `doc.appliedMinWidth` wide.
+function AppliedGrid({ doc, rows, currency, testIdPrefix, total }: AppliedListProps) {
     const layout = appliedLayoutOf(doc)
     const texts = outstandingTexts(doc)
     const col = layout.columns
@@ -190,47 +186,38 @@ function AppliedGrid({
         />
     ))
     return (
-        <ScrollView horizontal contentContainerStyle={contentStyle}>
-            <View testID={`${testIdPrefix}-applied`} style={{ flex: 1 }}>
-                <View className="flex-row items-center gap-3 border-b border-border px-2 py-2">
-                    <Text className={HEAD} style={col.document}>
-                        {doc.noun}
-                    </Text>
-                    <HeaderRef isVisible={layout.hasRef} style={col.ref} />
-                    <Text className={HEAD} style={col.dueDate}>
-                        Due date
-                    </Text>
-                    <Text className={`${HEAD} text-right`} style={col.original}>
-                        {texts.totalHeader}
-                    </Text>
-                    <Text className={`${HEAD} text-right`} style={col.applied}>
-                        {texts.appliedLabel}
-                    </Text>
-                </View>
-                {drawn}
-                <GridTotal
-                    doc={doc}
-                    total={total}
-                    currency={currency}
-                    testIdPrefix={testIdPrefix}
-                />
+        <View testID={`${testIdPrefix}-applied`}>
+            <View className="flex-row items-center gap-3 border-b border-border px-2 py-2">
+                <Text className={HEAD} style={col.document}>
+                    {doc.noun}
+                </Text>
+                <HeaderRef isVisible={layout.hasRef} style={col.ref} />
+                <Text className={HEAD} style={col.dueDate}>
+                    Due date
+                </Text>
+                <Text className={`${HEAD} text-right`} style={col.original}>
+                    {texts.totalHeader}
+                </Text>
+                <Text className={`${HEAD} text-right`} style={col.applied}>
+                    {texts.appliedLabel}
+                </Text>
             </View>
-        </ScrollView>
+            {drawn}
+            <GridTotal doc={doc} total={total} currency={currency} testIdPrefix={testIdPrefix} />
+        </View>
     )
 }
 
 /**
  * A payment read view's paid documents (receive-payment "Applied to", pay-bills §3.8 "Bills
  * paid"): a grid whose columns the descriptor's noun picks, or cards while the list's own
- * width is below PAYMENT_CARDS_BELOW; with `total`, a Total row under them.
+ * width is below the grid's least width (`doc.appliedMinWidth`); with `total`, a Total row
+ * under them.
  */
 export function AppliedInvoices({ doc, rows, currency, testIdPrefix, total }: AppliedListProps) {
-    // The rows sit in the page's scroller, not a scroller of their own, so the gutter the
-    // hook measures stays 0 and only the content width is used.
-    const { contentStyle } = useTableMinWidth(doc.appliedMinWidth)
     const { width, onLayout } = useContainerWidth()
     if (rows.length === 0) return null
-    const isCards = width > 0 && width < PAYMENT_CARDS_BELOW
+    const isCards = width > 0 && width < doc.appliedMinWidth
     const heading = outstandingTexts(doc).appliedHeading
     const body = isCards ? (
         <AppliedInvoiceCards
@@ -247,7 +234,6 @@ export function AppliedInvoices({ doc, rows, currency, testIdPrefix, total }: Ap
             currency={currency}
             testIdPrefix={testIdPrefix}
             total={total}
-            contentStyle={contentStyle}
         />
     )
     return (

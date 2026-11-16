@@ -158,7 +158,7 @@ export async function pickPaymentCustomerOnPhone(page: Page, name: string, custo
     await expect(trigger).toContainText(name)
 }
 
-// A listed invoice's phone card (spec §3.3: the form is narrower than 640 px).
+// A listed invoice's card (spec §3.3: the list is narrower than the grid's least width).
 export function paymentCard(page: Page, invoiceId: string) {
     return page.getByTestId(`payment-card-${invoiceId}`)
 }

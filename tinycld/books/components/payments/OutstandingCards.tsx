@@ -151,7 +151,8 @@ function TickAllBar({
 }
 
 /**
- * The open-document list below 640 px (spec §3.3; pay-bills spec §3.3): a "Pay all" tick
+ * The open-document list while the list is narrower than the grid's least width
+ * (`doc.gridMinWidth`; spec §3.3, pay-bills spec §3.3): a "Pay all" tick
  * box over the cards, then one card per document: the tick box and "Invoice 1004" on the
  * first line (a bill card: the tick box and the vendor, then "Bill 1003 · No. 88412"), the
  * due date, the total and Open balance as a label-value pair, and the Payment input at
