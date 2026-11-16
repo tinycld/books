@@ -295,4 +295,5 @@
   - fix review round 2 (revise-1-fix2-review.md): clean
   - rounds: 2 · deferrals: none · rebuttals: none · design notes: 8 · out-of-plan files: 1 (with its spec text)
   - lesson: docs/helix-lessons.md line 8 replaced (same line count): a table's columns are flex with a minimum; cards below the table's own minimum width, never a fixed breakpoint; no horizontal scroller (CI scrollbar, ListTable `useTableMinWidth` and Books-only CI facts kept)
+- revise 2 (light path): Due date and document column flex 2
 - native: not executed in this run
