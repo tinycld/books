@@ -114,16 +114,33 @@ func isPosting(tx core.App, entryID string) bool {
 
 // stampPosted freezes a validated entry: its lines carry the posting date,
 // each line reaches its account's month row, and the entry takes its number.
+// The lines of one account are added up first, so a month row is saved one
+// time for each account, not one time for each line.
 func stampPosted(tx core.App, entry *core.Record, lines []*core.Record, day string, seq int, number string, total int, now time.Time) error {
 	defer markPosting(tx, entry.Id)()
-	currency := entry.GetString("currency")
+	type sides struct{ debit, credit int }
+	var accounts []string // in the order of their first line
+	byAccount := map[string]*sides{}
 	for _, line := range lines {
 		line.Set("posted", true)
 		line.Set("date", day)
 		if err := tx.Save(line); err != nil {
 			return fmt.Errorf("books: stamp line %s: %w", line.Id, err)
 		}
-		if err := applyToBalances(tx, line.GetString("account"), day, line.GetInt("debit"), line.GetInt("credit"), currency); err != nil {
+		account := line.GetString("account")
+		sum, seen := byAccount[account]
+		if !seen {
+			sum = &sides{}
+			byAccount[account] = sum
+			accounts = append(accounts, account)
+		}
+		sum.debit += line.GetInt("debit")
+		sum.credit += line.GetInt("credit")
+	}
+	currency := entry.GetString("currency")
+	for _, account := range accounts {
+		sum := byAccount[account]
+		if err := applyToBalances(tx, account, day, sum.debit, sum.credit, currency); err != nil {
 			return err
 		}
 	}
