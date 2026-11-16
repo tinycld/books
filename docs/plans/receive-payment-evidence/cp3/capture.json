@@ -1,0 +1,266 @@
+{
+    "outDir": ".",
+    "widths": [390],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 2400,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "payment-customer"
+                },
+                {
+                    "fill": "payment-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickText": "Harborview Hospitality Group"
+                },
+                {
+                    "waitFor": "payment-totals"
+                },
+                {
+                    "clickLabel": "Pay invoice",
+                    "nth": 0
+                },
+                {
+                    "clickLabel": "Pay invoice",
+                    "nth": 1
+                },
+                {
+                    "click": "payment-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1300,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "waitFor": "payment-choose-customer"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "over",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 2400,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "payment-customer"
+                },
+                {
+                    "fill": "payment-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickText": "Harborview Hospitality Group"
+                },
+                {
+                    "waitFor": "payment-totals"
+                },
+                {
+                    "fill": "payment-amount",
+                    "value": "100.00"
+                },
+                {
+                    "clickLabel": "Pay invoice",
+                    "nth": 0
+                },
+                {
+                    "clickLabel": "Pay invoice",
+                    "nth": 1
+                },
+                {
+                    "click": "payment-post"
+                },
+                {
+                    "waitFor": "payment-over"
+                },
+                {
+                    "click": "payment-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "credit",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 2400,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "payment-customer"
+                },
+                {
+                    "fill": "payment-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickText": "Harborview Hospitality Group"
+                },
+                {
+                    "waitFor": "payment-totals"
+                },
+                {
+                    "fill": "payment-amount",
+                    "value": "5000.00"
+                },
+                {
+                    "waitFor": "payment-to-credit"
+                },
+                {
+                    "click": "payment-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "no-open",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "payment-customer"
+                },
+                {
+                    "fill": "payment-customer-search",
+                    "value": "Northwind Traders"
+                },
+                {
+                    "clickText": "Northwind Traders"
+                },
+                {
+                    "waitFor": "payment-list-empty"
+                },
+                {
+                    "click": "payment-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "find-miss",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "widths": [1280, 390],
+            "schemes": ["light"],
+            "height": 1300,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "waitFor": "payment-choose-customer"
+                },
+                {
+                    "fill": "payment-find",
+                    "value": "1099"
+                },
+                {
+                    "press": "payment-find",
+                    "key": "Enter"
+                },
+                {
+                    "waitFor": "payment-find-miss"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed payment partial"
+                },
+                {
+                    "clickText": "Seed payment partial"
+                },
+                {
+                    "waitFor": "payment-read-only"
+                },
+                {
+                    "waitFor": "payment-applied"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "read-credit",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1500,
+            "hideLabels": ["New", "Reconnecting…"],
+            "actions": [
+                {
+                    "click": "payment-customer"
+                },
+                {
+                    "fill": "payment-customer-search",
+                    "value": "Northwind Traders"
+                },
+                {
+                    "clickText": "Northwind Traders"
+                },
+                {
+                    "waitFor": "payment-list-empty"
+                },
+                {
+                    "fill": "payment-amount",
+                    "value": "250.00"
+                },
+                {
+                    "click": "payment-post"
+                },
+                {
+                    "waitFor": "payment-read-only"
+                },
+                {
+                    "waitFor": "payment-amount-credited"
+                },
+                {
+                    "click": "payment-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        }
+    ]
+}

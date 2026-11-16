@@ -91,6 +91,25 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Receive payment follows Sales receipt in the Customers column
+    // (receive payment spec §2).
+    it('draws Receive payment right after Sales receipt and opens books/payments/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const receipt = byTestId(document.body, 'books-new-sales-receipt')
+        const payment = byTestId(document.body, 'books-new-receive-payment')
+        expect(receipt).not.toBeNull()
+        expect(payment).not.toBeNull()
+        if (!receipt || !payment) return
+        expect(payment.textContent).toContain('Receive payment')
+        expect(
+            receipt.compareDocumentPosition(payment) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(payment)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'receive_payment', href: 'books/payments/new' })
+        )
+    })
+
     it('draws only the heading of a single non-empty column', () => {
         renderOpenMenu(columns.filter(column => column.heading === 'Vendors'))
         expect(screen.getByText('Vendors')).toBeTruthy()

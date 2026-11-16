@@ -287,6 +287,23 @@ func TestBankUpload_StampsTheFile(t *testing.T) {
 	req.run(t, env.app)
 }
 
+// The name is 596 bytes, so storage's 255-byte cut of the original name falls
+// inside the 128th "é"; the upload must still be stored.
+func TestBankUpload_StoresALongMultibyteNameCutTo255Runes(t *testing.T) {
+	env := newBankEnv(t)
+	long := strings.Repeat("é", 296) + ".csv"
+	req := env.upload(t, long, []byte(bankCSV))
+	req.want = http.StatusOK
+	req.after = func(t testing.TB, app *tests.TestApp) {
+		want := string([]rune(long)[:255])
+		got := onlyBankFile(t, app, env.connection.Id).GetString("name")
+		if got != want {
+			t.Errorf("name is %d runes (valid UTF-8 %v), want the first 255 runes of the 300-rune original", utf8.RuneCountInString(got), utf8.ValidString(got))
+		}
+	}
+	req.run(t, env.app)
+}
+
 func TestBankUpload_SniffsOFX(t *testing.T) {
 	lowerOFX := "<ofx>\n<bankmsgsrsv1><stmttrnrs><stmtrs>\n<curdef>USD\n</stmtrs></stmttrnrs></bankmsgsrsv1>\n</ofx>\n"
 	cases := []struct {

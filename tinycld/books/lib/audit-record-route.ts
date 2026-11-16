@@ -1,6 +1,7 @@
 // The screen that shows an audited record, for its history's Open button (spec §5
 // Client). Paths are without the org prefix; callers pass them through `useOrgHref`. A
-// line, bundle item or estimate response never reaches here: its history is its parent's.
+// line, bundle item, estimate response or payment application never reaches here: its
+// history is its parent's.
 import { recordTypeLabel } from './audit-log'
 import { customerPath } from './customer-route'
 import { documentHref } from './document-routes'
@@ -40,6 +41,7 @@ const RECORD_PATHS: Record<string, (id: string) => string> = {
     books_vendors: id => filledPath(vendorPath(id)),
     books_products: id => filledPath(productPath(id)),
     books_accounts: id => `books/accounts/${id}`,
+    books_payments: id => `books/payments/${id}`,
 }
 
 // Records shown on a screen that holds a group of them, and that screen's Open label.
@@ -72,6 +74,7 @@ const ROUTED_DOC_TYPES: readonly string[] = [
     'sales_receipt',
     'bill',
     'expense',
+    'payment',
 ] satisfies readonly RoutedEntry['doc_type'][]
 const ROUTED_ORIGINS: readonly string[] = [
     'manual',
@@ -110,6 +113,21 @@ function contactPath(live: LiveRecord): string | null {
     return vendor ? filledPath(vendorPath(vendor)) : null
 }
 
+// The document an attachment belongs to (a bill or an expense), from its live row.
+function attachmentParent(live: LiveRecord): { collection: string; id: string } | null {
+    const bill = textOf(live, 'bill')
+    if (bill) return { collection: 'books_bills', id: bill }
+    const expense = textOf(live, 'expense')
+    return expense ? { collection: 'books_expenses', id: expense } : null
+}
+
+// An attachment opens its bill or expense.
+function attachmentPath(live: LiveRecord): string | null {
+    const parent = attachmentParent(live)
+    const kind = parent ? DOCUMENT_KINDS.get(parent.collection) : undefined
+    return parent && kind ? documentHref(kind, parent.id) : null
+}
+
 /**
  * The screen of a record, from its live row; null when the record is gone or the reader
  * cannot read it (`live` undefined), or when no screen shows it.
@@ -124,6 +142,7 @@ export function auditRecordHref(
     if (kind) return documentHref(kind, id)
     if (collection === 'books_journal_entries') return entryPath(id, live)
     if (collection === 'books_party_contacts') return contactPath(live)
+    if (collection === 'books_attachments') return attachmentPath(live)
     const recordPath = RECORD_PATHS[collection]
     if (recordPath) return recordPath(id)
     return GROUP_SCREENS[collection]?.path ?? null
@@ -138,10 +157,16 @@ export function auditOpenLabel(collection: string): string {
 
 /**
  * The Open button's label for a record's live row: it names the screen the button opens,
- * so a party contact reads "Open customer" or "Open vendor" (contactPath).
+ * so a party contact reads "Open customer" or "Open vendor" (contactPath), and an
+ * attachment "Open bill" or "Open expense" (attachmentPath).
  */
 export function auditRecordOpenLabel(collection: string, live: LiveRecord | undefined): string {
-    if (collection !== 'books_party_contacts' || !live) return auditOpenLabel(collection)
+    if (!live) return auditOpenLabel(collection)
+    if (collection === 'books_attachments') {
+        const parent = attachmentParent(live)
+        return auditOpenLabel(parent ? parent.collection : collection)
+    }
+    if (collection !== 'books_party_contacts') return auditOpenLabel(collection)
     if (textOf(live, 'customer')) return auditOpenLabel('books_customers')
     if (textOf(live, 'vendor')) return auditOpenLabel('books_vendors')
     return auditOpenLabel(collection)

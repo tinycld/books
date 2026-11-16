@@ -20,7 +20,7 @@ A Books reader sees, in one report, every change people made to the Books record
 ### The Audit Log report
 
 - **Who sees it** (Q2): every user who can read Books (`books_access.can_read`: read-only users, bookkeepers and Books admins). The report is shipped unpublished and reaches each Books reader through the viewer share Books keeps on every `books.*` shipped report; a user with no Books access does not see it in the hub, and a copied link answers "no access". A reader sees the audit rows of exactly the records they can read (§5 "Visibility rule"); a user without Books read access reads no row, so a hand-made share shows them an empty report.
-- **What it lists** (Q3): one row per create, update or delete that a person or Books' own system work made on a Books record: every collection Books registers with core's audit (`server/audit.go` `auditedCollections`: accounts, customers, vendors, products, contacts, bundle items, tax agencies and rates, journal entries and lines, invoices, sales receipts, estimates, bills, expenses and their lines, estimate responses, settings, document numbering, close-date overrides, Books admins, bank connections, files, imports and transactions). Sign-ins and other core events are not Books records and stay in core's Settings → Audit log.
+- **What it lists** (Q3): one row per create, update or delete that a person or Books' own system work made on a Books record: every collection Books registers with core's audit (`server/audit.go` `auditedCollections`: accounts, customers, vendors, products, contacts, bundle items, tax agencies and rates, journal entries and lines, invoices, sales receipts, estimates, bills, expenses and their lines, received payments and their applications, bill and expense attachments, estimate responses, settings, document numbering, close-date overrides, Books admins, bank connections, files, imports and transactions). Sign-ins and other core events are not Books records and stay in core's Settings → Audit log.
 - **Header:** the Books business name, "Audit Log", the period in words, and the reader's time zone in words once ("Times in Central Time", core T1).
 - **Columns** (left to right):
   - **Date changed** (the label column): day and time to the minute in the reader's time zone, "Nov 14, 2026, 4:07 PM" (core T1). Never cut.
@@ -91,18 +91,18 @@ What it does not change: a field core redacts (vendor and settings tax ID, the e
 
 How it stays true: a Go test (`TestAuditLogRuleFollowsAudited`, `server/audit_log_test.go`) reads the list and view rule of every collection in `auditedCollections` and of `books_audit_log`, and fails when one differs from `READ`. A later unit that gives an audited collection a narrower rule must narrow the view's rule for that record type in the same change (a new view migration once this one is released).
 
-### Migration `2100000019_create_books_audit_log.js` (next free number at plan time): view `books_audit_log`
+### Migration `2100000021_create_books_audit_log.js` (after main's `2100000019_create_books_payments.js` and `2100000020_create_books_attachments.js`, because the view reads the payment applications): view `books_audit_log`
 
 A view over core's `audit_logs`, with whitelisted columns (no IP address, user agent or metadata; memory p2-estimate-public-link):
 
 - `id` = `a.id`; `created` = `a.created` (date-time); `actor` = `'system'` when `a.actor` is blank, else `a.actor` (`CAST … AS TEXT`); `actor_name` = "System" when blank, else the user's name (`LEFT JOIN users u`), "Unknown user" when the user row is gone.
 - `event` (text): `added` (created), `deleted`, `posted` (`json_extract(a.changes, '$.status.after') = 'posted'`), `voided` (`= 'void'`), else `changed`.
 - `record_type` = `a.resource_type`; `record_id` = `a.resource_id`; `record_label` = `a.resource_label`; `changes`, `snapshot` (JSON).
-- `parent_type`, `parent_id` (text): for `books_journal_lines`, `books_invoice_lines`, `books_sales_receipt_lines`, `books_estimate_lines`, `books_bill_lines`, `books_expense_lines`, `books_bundle_items`, `books_estimate_responses`: the parent collection and the parent id, read from the live row (`SELECT <parent> FROM <lines> WHERE id = a.resource_id`) else from the delete snapshot (`json_extract(a.snapshot, '$.<parent>')`); empty for other types.
+- `parent_type`, `parent_id` (text): for `books_journal_lines`, `books_invoice_lines`, `books_sales_receipt_lines`, `books_estimate_lines`, `books_bill_lines`, `books_expense_lines`, `books_bundle_items`, `books_estimate_responses`, `books_payment_applications` (parent `books_payments`, field `payment`): the parent collection and the parent id, read from the live row (`SELECT <parent> FROM <lines> WHERE id = a.resource_id`) else from the delete snapshot (`json_extract(a.snapshot, '$.<parent>')`); empty for other types.
 - `history_type`, `history_id` (text): the record whose history a row opens: the parent when `parent_id` is not empty, else the record itself. The report's `detail.open` reads them, so the spec needs no `if` over a blank select.
 - `WHERE a.resource_type >= 'books_' AND a.resource_type < 'books`'` (a prefix range the `idx_audit_resource` index serves; `` ` `` sorts right after `_`).
 - **List and view rule:** `READ` (§5 "Visibility rule"). No create, update or delete.
-- `server/register.go`: `changesignal.RegisterView("books_audit_log", "audit_logs", "users", <the eight parent collections>)`; pinned by `changesignal.CheckViews` in a Books test (memory p5-change-signal).
+- `server/register.go`: `changesignal.RegisterView("books_audit_log", "audit_logs", "users", <the nine line collections>)`; pinned by `changesignal.CheckViews` in a Books test (memory p5-change-signal).
 
 ### Source `books.audit_log` (`server/report_sources.go`)
 

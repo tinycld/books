@@ -4,8 +4,14 @@ import {
     DOCUMENT_READ_KEYS,
     DOCUMENT_TAB_KEYS,
     documentReadActions,
+    receivePaymentOffered,
 } from '../tinycld/books/lib/document-actions'
-import { BILL_KIND, EXPENSE_KIND, SALES_FEATURES } from '../tinycld/books/lib/sales-document-kinds'
+import {
+    BILL_KIND,
+    EXPENSE_KIND,
+    SALES_FEATURES,
+    SALES_RECEIPT_KIND,
+} from '../tinycld/books/lib/sales-document-kinds'
 
 // The read view's actions by the invoice's status and the user's access (spec §3.6), and
 // the keys the read view registers for them (spec §3.1 key map).
@@ -31,14 +37,92 @@ describe('documentReadActions', () => {
 })
 
 describe('DOCUMENT_READ_KEYS', () => {
-    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I', () => {
+    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R', () => {
         expect(DOCUMENT_READ_KEYS).toEqual({
             edit: 'e',
             void: 'v',
             copy: 'c',
             entry: 'j',
             invoice: 'i',
+            receive_payment: 'r',
         })
+    })
+})
+
+// Receive payment (receive-payment spec §3.9): a writer's action on a posted invoice with a
+// balance above zero, key R, first in the bar. The read view passes `canReceivePayment`
+// only for an invoice; any other kind takes the default (false).
+describe('Receive payment', () => {
+    const offer = { canReceivePayment: true }
+
+    it('comes first, before Edit, for a writer on a posted invoice that can receive one', () => {
+        expect(documentReadActions('posted', true, SALES_FEATURES, offer)).toEqual([
+            'receive_payment',
+            'edit',
+            'void',
+            'copy',
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('has the key R', () => {
+        expect(DOCUMENT_READ_KEYS.receive_payment).toBe('r')
+        expect(DOCUMENT_READ_ACTION_KEYS.receive_payment).toBe('r')
+    })
+
+    it('is not offered without canReceivePayment', () => {
+        expect(documentReadActions('posted', true)).not.toContain('receive_payment')
+        expect(
+            documentReadActions('posted', true, SALES_FEATURES, { canReceivePayment: false })
+        ).not.toContain('receive_payment')
+    })
+
+    it('is never offered to a reader', () => {
+        expect(documentReadActions('posted', false, SALES_FEATURES, offer)).toEqual([
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('is never offered on a void invoice', () => {
+        expect(documentReadActions('void', true, SALES_FEATURES, offer)).toEqual([
+            'copy',
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('is never offered on a sales receipt', () => {
+        expect(documentReadActions('posted', true, SALES_RECEIPT_KIND.features)).toEqual([
+            'edit',
+            'void',
+            'copy',
+            'entry',
+            'pdf',
+        ])
+    })
+})
+
+// When the read view offers Receive payment (spec §3.9): only on a posted invoice whose
+// open balance is above zero. The read view passes the record's kind, status and balance.
+describe('receivePaymentOffered', () => {
+    it('is true for a posted invoice with a balance above zero', () => {
+        expect(receivePaymentOffered('invoice', 'posted', 20000)).toBe(true)
+    })
+
+    it('is false for a posted invoice that is paid', () => {
+        expect(receivePaymentOffered('invoice', 'posted', 0)).toBe(false)
+    })
+
+    it('is false for a void or draft invoice', () => {
+        expect(receivePaymentOffered('invoice', 'void', 20000)).toBe(false)
+        expect(receivePaymentOffered('invoice', 'draft', 20000)).toBe(false)
+    })
+
+    it('is false for a posted sales receipt or estimate', () => {
+        expect(receivePaymentOffered('sales_receipt', 'posted', 20000)).toBe(false)
+        expect(receivePaymentOffered('estimate', 'posted', 20000)).toBe(false)
     })
 })
 
@@ -88,6 +172,7 @@ describe('the sales receipt read view', () => {
             copy: 'c',
             entry: 'j',
             invoice: 'i',
+            receive_payment: 'r',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })

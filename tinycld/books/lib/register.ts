@@ -110,6 +110,7 @@ export const DOC_TYPE_LABELS: Record<string, string> = {
     sales_receipt: 'Sales receipt',
     bill: 'Bill',
     expense: 'Expense',
+    payment: 'Payment',
 }
 
 export const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])

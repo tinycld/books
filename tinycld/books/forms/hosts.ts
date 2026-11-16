@@ -208,6 +208,21 @@ const BILL_LAYOUT = {
 
 export const EXPENSE_HOST_KEY = 'books:expense'
 
+// A custom File field on a bill or expense form stores its files in books_attachments
+// (spec §3.8), keyed by the document; the Attachments section's rows share the
+// collection with an empty `field`. No column is added to the host collection.
+function attachmentFiles(recordColumn: 'bill' | 'expense') {
+    return {
+        collection: 'books_attachments',
+        recordColumn,
+        fieldColumn: 'field',
+        sizeColumn: 'size',
+        uploaderColumn: 'uploaded_by',
+        nameColumn: 'name',
+        fileColumn: 'file',
+    }
+}
+
 // The default Expense form (spec §3.3): one page. The header band's first row holds
 // Vendor, Paid from and Payment date; its second holds Payment method and Ref no.; a
 // third each, the full row below 640 px. Custom fields follow Ref no.; the account
@@ -1168,6 +1183,7 @@ const hosts: FormHostDefInput[] = [
         collection: 'books_bills',
         formColumn: 'form',
         fieldsColumn: 'fields',
+        files: attachmentFiles('bill'),
         // Every column, the server-written ones too: a custom key must never shadow a
         // column.
         columns: [
@@ -1278,6 +1294,7 @@ const hosts: FormHostDefInput[] = [
         collection: 'books_expenses',
         formColumn: 'form',
         fieldsColumn: 'fields',
+        files: attachmentFiles('expense'),
         // Every column, the server-written ones too: a custom key must never shadow a
         // column.
         columns: [

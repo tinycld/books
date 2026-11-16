@@ -107,8 +107,8 @@ func registerEntryHooks(app core.App) {
 }
 
 // postingFields are the fields Books fills when it posts or voids an entry.
-// total is also Books-owned on a draft: Books restates it on every draft line
-// write (see touchDraft) and stamps it again at post.
+// total is also Books-owned on a draft: Books restates it in every transaction
+// that writes a draft line (see restateDraft) and stamps it again at post.
 // The create rule refuses them over REST; checkNewEntry refuses them for a Go
 // caller too, so a draft never starts with a number, a poster or an override.
 // created_by and currency are not here: Books stamps them on create.

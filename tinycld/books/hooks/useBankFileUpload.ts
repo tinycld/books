@@ -6,12 +6,8 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { acceptServerRow } from '@tinycld/core/lib/server-rows'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { newRecordId } from 'pbtsdb/core'
-import {
-    bankFileIssue,
-    droppedFilesIssue,
-    isBankFileRow,
-    uploadErrorText,
-} from '../lib/bank-connections'
+import { bankFileIssue, droppedFilesIssue, isBankFileRow } from '../lib/bank-connections'
+import { uploadErrorText } from '../lib/upload-errors'
 import { type UploadState, useBankingUIStore } from '../stores/banking-ui-store'
 import { PICK_FAILED_TEXT } from './useCsvPicker'
 

@@ -1,9 +1,9 @@
 import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { Text, View } from 'react-native'
-import { type DocumentStatus, statusBadgeOf } from '../../lib/document-lifecycle'
+import { type DocumentStatus, type StatusTone, statusBadgeOf } from '../../lib/document-lifecycle'
 import { StatusBadge } from '../StatusBadge'
-import { useDocumentKind } from './document-kind-context'
+import { useDocumentChrome } from './document-chrome'
 
 interface DocumentHeaderProps {
     title: string
@@ -13,26 +13,36 @@ interface DocumentHeaderProps {
     figure: string
     // A saved estimate past its expiration date: a warning badge beside the status.
     isExpired: boolean
+    // A badge that replaces the status's (an invoice's read view: Paid, Partly paid).
+    badge?: HeaderBadgeView
 }
+
+type HeaderBadgeView = { label: string; tone: StatusTone }
 
 function ExpiredBadge({ isVisible, testID }: { isVisible: boolean; testID: string }) {
     if (!isVisible) return null
     return <StatusBadge label="Expired" tone="warning" testID={testID} />
 }
 
-// The status in the kind's lifecycle's words and tone; nothing for a status the
-// lifecycle does not have.
-function HeaderBadge({ status, testID }: { status: DocumentStatus; testID: string }) {
-    const { doc } = useDocumentKind()
-    const badge = statusBadgeOf(doc.lifecycle, status)
+interface HeaderBadgeProps {
+    status: DocumentStatus
+    override: HeaderBadgeView | undefined
+    testID: string
+}
+
+// The status in the kind's lifecycle's words and tone, unless the caller gives its own;
+// nothing for a status the lifecycle does not have.
+function HeaderBadge({ status, override, testID }: HeaderBadgeProps) {
+    const doc = useDocumentChrome()
+    const badge = override ?? statusBadgeOf(doc.lifecycle, status)
     if (!badge) return null
     return <StatusBadge label={badge.label} tone={badge.tone} testID={testID} />
 }
 
 // Title, badges and help at the left; the kind's big figure at the right (under the title
 // on a phone).
-export function DocumentHeader({ title, status, figure, isExpired }: DocumentHeaderProps) {
-    const { doc } = useDocumentKind()
+export function DocumentHeader({ title, status, figure, isExpired, badge }: DocumentHeaderProps) {
+    const doc = useDocumentChrome()
     const isPhone = useBreakpoint() === 'mobile'
     const layout = isPhone ? 'gap-2' : 'flex-row items-start justify-between gap-4'
     const figureClass = isPhone ? '' : 'items-end'
@@ -46,7 +56,7 @@ export function DocumentHeader({ title, status, figure, isExpired }: DocumentHea
                 <Text testID={titleId} className="text-xl font-semibold text-foreground">
                     {title}
                 </Text>
-                <HeaderBadge status={status} testID={badgeId} />
+                <HeaderBadge status={status} override={badge} testID={badgeId} />
                 <ExpiredBadge isVisible={isExpired} testID={expiredId} />
                 <HelpIcon topic={doc.helpTopic} />
             </View>

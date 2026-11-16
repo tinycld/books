@@ -563,6 +563,29 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		entry := mustPostExpense(t, ee.app, exp.Id, ee.users.bookkeeper.Id).GetString("entry")
 		return tdPosted{ee.app, ee.users.readOnly, entry, ee.designTools, exp.Id}
 	},
+	"payment": func(t *testing.T) tdPosted {
+		pe := newPaymentEnv(t)
+		registerBooksSources(t)
+		inv := pe.postedInvoice(t, pe.customer, 45000)
+		p := pe.mkPayment(t, map[string]any{"amount": 45000, "deposit_to": pe.checking.Id})
+		mkApplication(t, pe.app, p, inv, 0, 45000)
+		entry := mustPostPayment(t, pe.app, p.Id, pe.users.bookkeeper.Id).GetString("entry")
+		return tdPosted{pe.app, pe.users.readOnly, entry, pe.checking, p.Id}
+	},
+}
+
+// Every document kind with a poster opens a screen of its own: a poster with no
+// row in entry_routes.json is a doc type whose route was left out.
+func TestTransactionDetailPostersHaveRoutes(t *testing.T) {
+	routes := entryRoutesFile(t)
+	for docType := range tdDocumentPosters {
+		if routes[docType] == "" {
+			t.Errorf("entry_routes.json has no route for %q", docType)
+		}
+	}
+	if got := routes["payment"]; got != "payments" {
+		t.Errorf("entry_routes.json payment = %q, want payments", got)
+	}
 }
 
 // requireOnlyDetailsOpen fails on a row other than a detail row that has an

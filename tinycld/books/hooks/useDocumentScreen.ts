@@ -13,6 +13,7 @@ import { useDocumentSaveStore } from '../stores/document-save-store'
 import { copyNeedsPartyRow, type DocumentScreenInput, documentPartyIdOf } from './document-data'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
+import { useDocumentAttachments } from './useDocumentAttachments'
 import { useTaxRateOptions } from './useTaxRateOptions'
 
 export type { DocumentScreenInput } from './document-data'
@@ -94,6 +95,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         reads.estimateSource,
         reads.estimateSourceLines,
         reads.taxLines,
+        reads.invoicePayments,
         reads.formStart,
     ]
     const isReady =
@@ -190,6 +192,16 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
             : loadFailed
     const isCorrection = Boolean(isNew ? input.replaces : record?.replaces)
     const replacesNumber = isCorrection ? (source?.number ?? '') : ''
+    // A kind without the section reads nothing: no ids, so the query is disabled. Its
+    // failure is not the screen's error (the document still shows); its recovery joins the
+    // screen's one Retry.
+    const hasAttachments = documentKind.doc.features.attachments
+    const replacedId = (isNew ? input.replaces : record?.replaces) || undefined
+    const attachments = useDocumentAttachments({
+        kind: documentKind.doc,
+        recordId: hasAttachments && id ? id : undefined,
+        replaces: hasAttachments ? replacedId : undefined,
+    })
 
     // Each part is non-empty only when its own query failed, so one call recovers
     // exactly the failed reads and never empties a collection another screen shows.
@@ -203,6 +215,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
                 party.recovery,
                 accessRecovery,
                 settings.recovery,
+                attachments.recovery,
             ]),
             onError: err => log.error(`books.${documentKind.doc.key}`, err),
         })
@@ -221,8 +234,11 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         errorText,
         replacesNumber,
         taxLines: reads.taxLines.data,
+        // The posted payments applied to a posted or void invoice; empty for other kinds.
+        invoicePayments: reads.invoicePayments.data,
         estimateSource,
         retry,
+        attachments,
         canWrite: access.canWrite,
         currency: settings.settings?.currency ?? 'USD',
         // A new blank form's message (new, Post & new, `?customer`). The form reads it once

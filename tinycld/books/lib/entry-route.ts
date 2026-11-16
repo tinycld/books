@@ -18,7 +18,7 @@ function documentRoute(entry: RoutedEntry): string | null {
     return DOCUMENT_ROUTES.get(entry.doc_type) ?? null
 }
 
-// A transfer's or a document's (invoice, sales receipt, bill, expense) void reversal keeps its doc_type, yet no one made
+// A transfer's or a document's (invoice, sales receipt, bill, expense, payment) void reversal keeps its doc_type, yet no one made
 // it as that document: its own screen would show it with the sides swapped, so it opens
 // as an entry.
 export function entryHref(entry: RoutedEntry): string {

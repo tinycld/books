@@ -16,6 +16,10 @@ import {
 
 const ID = 'bkrecord0000001'
 
+// An attachment's live row: on a bill, or on an expense.
+const ON_BILL = { id: ID, bill: 'bkbill00001001', expense: '' }
+const ON_EXPENSE = { id: ID, bill: '', expense: 'bkexpense001001' }
+
 const DOCUMENTS = [
     { collection: 'books_invoices', kind: INVOICE_KIND, path: 'books/invoices' },
     { collection: 'books_sales_receipts', kind: SALES_RECEIPT_KIND, path: 'books/sales-receipts' },
@@ -30,6 +34,7 @@ const RECORDS = [
     { collection: 'books_vendors', path: `books/vendors/${ID}` },
     { collection: 'books_products', path: `books/products/${ID}` },
     { collection: 'books_accounts', path: `books/accounts/${ID}` },
+    { collection: 'books_payments', path: `books/payments/${ID}` },
 ]
 
 // Records shown on a screen that holds a group of them.
@@ -72,6 +77,24 @@ describe('auditRecordHref', () => {
             document: 'bkinvoice001001',
         } as const
         expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(entryHref(posted))
+
+        const payment = {
+            id: ID,
+            doc_type: 'payment',
+            origin: 'document',
+            document: 'bkpayment001001',
+        } as const
+        expect(auditRecordHref('books_journal_entries', ID, payment)).toBe(
+            'books/payments/bkpayment001001'
+        )
+    })
+
+    it('opens an attachment’s bill or expense', () => {
+        expect(auditRecordHref('books_attachments', ID, ON_BILL)).toBe('books/bills/bkbill00001001')
+        expect(auditRecordHref('books_attachments', ID, ON_EXPENSE)).toBe(
+            'books/expenses/bkexpense001001'
+        )
+        expect(auditRecordHref('books_attachments', ID, undefined)).toBeNull()
     })
 
     it.each(RECORDS)('$collection opens $path', ({ collection, path }) => {
@@ -133,6 +156,11 @@ describe('auditRecordOpenLabel', () => {
     it('names a vendor’s contact by the vendor screen it opens', () => {
         const live = { id: ID, customer: '', vendor: 'bkvendcascade01' }
         expect(auditRecordOpenLabel('books_party_contacts', live)).toBe('Open vendor')
+    })
+
+    it('names an attachment by the document screen it opens', () => {
+        expect(auditRecordOpenLabel('books_attachments', ON_BILL)).toBe('Open bill')
+        expect(auditRecordOpenLabel('books_attachments', ON_EXPENSE)).toBe('Open expense')
     })
 
     it('names any other record by its own type', () => {

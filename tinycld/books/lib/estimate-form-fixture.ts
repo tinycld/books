@@ -377,6 +377,8 @@ export const CONVERTED_INVOICE = {
     subtotal: 181_700,
     tax_total: 4_938,
     total: 186_638,
+    // A draft has no open balance.
+    balance: 0,
     revision: 1,
     currency: ESTIMATE_CURRENCY,
     entry: '',

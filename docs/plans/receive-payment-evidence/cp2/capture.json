@@ -1,0 +1,164 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1400,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "payment-tick-all" },
+                { "click": "payment-tick-all" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1000,
+            "hideLabels": ["New"],
+            "actions": [{ "waitFor": "payment-choose-customer" }, { "pause": 500 }]
+        },
+        {
+            "name": "over",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1400,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "payment-tick-all" },
+                { "fill": "payment-amount", "value": "100.00" },
+                { "click": "payment-tick-all" },
+                { "click": "payment-post" },
+                { "waitFor": "payment-over" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "credit",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1400,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "payment-tick-all" },
+                { "fill": "payment-amount", "value": "5000.00" },
+                { "waitFor": "payment-to-credit" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "no-open",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1100,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Northwind Traders" },
+                { "clickText": "Northwind Traders" },
+                { "waitFor": "payment-list-empty" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1100,
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_invoices", "hold": true },
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "payment-list-loading" },
+                { "click": "payment-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/payments/new",
+            "ready": "payment-error",
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_accounts", "status": 400 },
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/payments/new",
+            "ready": "payment-no-access",
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1100,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed payment partial" },
+                { "clickText": "Seed payment partial" },
+                { "waitFor": "payment-read-only" },
+                { "waitFor": "payment-applied" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "read-credit",
+            "url": "/a/books/payments/new",
+            "ready": "payment-form",
+            "height": 1100,
+            "hideLabels": ["New", "Reconnecting…"],
+            "actions": [
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Northwind Traders" },
+                { "clickText": "Northwind Traders" },
+                { "waitFor": "payment-list-empty" },
+                { "fill": "payment-amount", "value": "250.00" },
+                { "click": "payment-post" },
+                { "waitFor": "payment-read-only" },
+                { "waitFor": "payment-amount-credited" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}
