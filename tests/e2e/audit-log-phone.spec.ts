@@ -1,8 +1,52 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage, waitForTableFit } from '@tinycld/core/e2e-helpers'
-import { openAuditLog, waitForAuditRow } from './audit-log-helpers'
+import { openAuditLog, openHistoryFromRow, waitForAuditRow } from './audit-log-helpers'
 import { openOtherBooksPage } from './journal-entries-helpers'
-import { createProduct, uniqueName } from './products-services-helpers'
+import {
+    createProduct,
+    expectSavedToList,
+    field,
+    openProduct,
+    uniqueName,
+} from './products-services-helpers'
+
+// What is wrong with the newest history event's field cards, read in ONE pass; empty when
+// each card shows its label, then Before, then After, one under the other, and nothing
+// scrolls sideways. `texts` is [label, before, after] of the one changed field.
+function fieldCardProblems(page: Page, texts: [string, string, string]): Promise<string[]> {
+    return page.evaluate(([label, before, after]) => {
+        const problems: string[] = []
+        const screen = [
+            ...document.querySelectorAll<HTMLElement>('[data-testid="history-screen"]'),
+        ].find(element => element.offsetParent !== null)
+        if (!screen) return ['no visible history-screen']
+        const event = screen.querySelector('[data-testid^="history-event-"]')
+        if (!event) return ['no history event']
+        const leaves = (text: string) =>
+            [...event.querySelectorAll<HTMLElement>('*')].filter(
+                element => element.children.length === 0 && element.innerText.trim() === text
+            )
+        const tops: number[] = []
+        for (const text of [label, before, after]) {
+            const found = leaves(text)
+            if (found.length !== 1) problems.push(`${found.length} cells read "${text}"`)
+            else tops.push(found[0]?.getBoundingClientRect().top ?? 0)
+        }
+        if (tops.length === 3 && !(tops[0] < tops[1] && tops[1] < tops[2])) {
+            problems.push(`label, Before and After are not one under the other (tops ${tops})`)
+        }
+        const root = document.documentElement
+        if (root.scrollWidth > root.clientWidth) {
+            problems.push(`the page scrolls sideways (${root.scrollWidth} > ${root.clientWidth})`)
+        }
+        if (screen.scrollWidth > screen.clientWidth) {
+            problems.push(
+                `the history scrolls sideways (${screen.scrollWidth} > ${screen.clientWidth})`
+            )
+        }
+        return problems
+    }, texts)
+}
 
 // The Audit Log at phone widths runs core's `mobile` row layout (Books' display), other
 // code than the desktop row: each row wraps to Date changed · Event, then User · Record
@@ -91,5 +135,32 @@ test.describe('audit-log: phone', () => {
         await fresh.setViewportSize({ width: 375, height: 812 })
         await expectPhoneRows(fresh, name)
         await fresh.close()
+    })
+
+    // The phone history draws each changed field as a card, other code than the table.
+    test('a tapped row opens the history screen with one card per changed field', async ({
+        page,
+    }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        const name = uniqueName('Audit phone card')
+        const renamed = `${name} renamed`
+        await createProduct(page, { type: 'service', name })
+        await openProduct(page, name)
+        await field(page, 'name').fill(renamed)
+        await page.getByTestId('product-save').click()
+        await expectSavedToList(page)
+
+        await page.setViewportSize({ width: 390, height: 844 })
+        await expect(page.getByTestId('mobile-drawer-panel')).toBeAttached()
+        await openAuditLog(page)
+        // The history opens as its own screen with its back link, not in a panel.
+        await openHistoryFromRow(page, { record: renamed, event: 'Changed' })
+        await expect(page.getByTestId('history-back').filter({ visible: true })).toBeVisible()
+        await expect
+            .poll(() => fieldCardProblems(page, ['Name', name, renamed]), {
+                message: 'the Name card at 390',
+            })
+            .toEqual([])
     })
 })

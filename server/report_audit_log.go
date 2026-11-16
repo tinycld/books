@@ -37,7 +37,12 @@ func auditLogSpec() *reports.Spec {
 			{Formula: fld("created"), Dir: "desc"},
 			{Formula: fld("id"), Dir: "desc"},
 		},
-		Detail:  &reports.Detail{Label: fld("created")},
+		// A row opens its record's history; the view puts a line, bundle item
+		// or estimate response under its parent, so it opens the parent's.
+		Detail: &reports.Detail{
+			Label: fld("created"),
+			Open:  op("concat", lit("books/history/"), fld("history_type"), lit("/"), fld("history_id")),
+		},
 		Display: auditLogDisplay(),
 	}
 }

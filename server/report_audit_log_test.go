@@ -749,6 +749,62 @@ func TestAuditLogTopics(t *testing.T) {
 	}
 }
 
+// Each row opens its record's history (spec §5 detail.open): a record's own row
+// opens its own, a line's row (live or deleted) its document's, a bundle item's
+// row its bundle's and an estimate response's row its estimate's.
+func TestAuditLogOpenPaths(t *testing.T) {
+	// No hooks bound: lineFixture saves its rows bare, as TestAuditLogParents does.
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	users := newLevelUsers(t, app)
+	actor := namedUser(t, app, "member", "Avery Lin").Id
+
+	lamp := saveRecord(t, app, "books_products", map[string]any{"type": "service", "name": "Desk lamp", "name_key": "desk lamp", "currency": "USD"})
+	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_products", resourceID: lamp.Id, label: "Own product row", actor: actor, created: auditAt(1)})
+
+	invoice, invoiceLine := lineFixture(t, app, "books_invoice_lines")
+	mkAuditRow(t, app, auditRowInput{action: "updated", resourceType: "books_invoice_lines", resourceID: invoiceLine.Id, label: "Invoice line row", actor: actor, created: auditAt(2),
+		changes: map[string]any{"position": map[string]any{"before": 1, "after": 0}}})
+
+	bundle, item := lineFixture(t, app, "books_bundle_items")
+	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_bundle_items", resourceID: item.Id, label: "Bundle item row", actor: actor, created: auditAt(3)})
+
+	estimate, response := lineFixture(t, app, "books_estimate_responses")
+	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_estimate_responses", resourceID: response.Id, label: "Estimate response row", created: auditAt(4)})
+
+	entry, entryLine := lineFixture(t, app, "books_journal_lines")
+	if err := app.Delete(entryLine); err != nil {
+		t.Fatalf("delete the journal line: %v", err)
+	}
+	mkAuditRow(t, app, auditRowInput{action: "deleted", resourceType: "books_journal_lines", resourceID: entryLine.Id, label: "Deleted journal line row", actor: actor, created: auditAt(5),
+		snapshot: map[string]any{"entry": entry.Id, "account": "", "debit": 100, "position": 0}})
+
+	want := map[string]string{
+		"Own product row":          "books/history/books_products/" + lamp.Id,
+		"Invoice line row":         "books/history/books_invoices/" + invoice.Id,
+		"Bundle item row":          "books/history/books_products/" + bundle.Id,
+		"Estimate response row":    "books/history/books_estimates/" + estimate.Id,
+		"Deleted journal line row": "books/history/books_journal_entries/" + entry.Id,
+	}
+	got := map[string]string{}
+	res := runAudit(t, app, users.admin, map[string]any{"period": auditAllDates}, reports.Options{Today: auditToday})
+	for _, r := range auditDetails(res) {
+		label := cellText(r, "record")
+		if _, ok := want[label]; ok {
+			got[label] = r.Open
+		}
+	}
+	for label, path := range want {
+		if _, ok := got[label]; !ok {
+			t.Errorf("no row %q in the run", label)
+			continue
+		}
+		if got[label] != path {
+			t.Errorf("row %q opens %q, want %q", label, got[label], path)
+		}
+	}
+}
+
 // P1: core's audit hook, bound by Register, writes the row of a real request
 // write, and the view lists it as the person's change.
 func TestAuditLogHookWritesRow(t *testing.T) {

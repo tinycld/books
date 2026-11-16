@@ -1,0 +1,108 @@
+{
+    "outDir": ".",
+    "setup": "historyRows",
+    "shots": [
+        {
+            "name": "history",
+            "url": "/a/books/history/books_products/$productId",
+            "fromRow": { "record": "$productName", "event": "Changed" },
+            "ready": "history-events",
+            "widths": [1280],
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history",
+            "url": "/a/books/history/books_products/$productId",
+            "fromRow": { "record": "$productName", "event": "Changed" },
+            "ready": "history-events",
+            "widths": [390],
+            "fullPage": true,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-more",
+            "url": "/a/books/history/books_journal_entries/$entryId",
+            "fromRow": { "record": "$entryLine", "event": "Added" },
+            "auditRead": "more",
+            "ready": "history-show-more",
+            "widths": [1280],
+            "fullPage": true,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-deleted",
+            "url": "/a/books/history/books_products/$deletedId",
+            "fromRow": { "record": "$deletedName", "event": "Deleted" },
+            "ready": "history-deleted",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-deleted",
+            "url": "/a/books/history/books_products/$deletedId",
+            "fromRow": { "record": "$deletedName", "event": "Deleted" },
+            "ready": "history-deleted",
+            "widths": [390],
+            "fullPage": true,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-vendor",
+            "url": "/a/books/history/books_vendors/$vendorId",
+            "fromRow": { "record": "$vendorName", "event": "Changed" },
+            "ready": "history-events",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-loading",
+            "url": "/a/books/history/books_products/$productId",
+            "fromRow": { "record": "$productName", "event": "Changed" },
+            "auditRead": "hold",
+            "ready": "history-loading",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-error",
+            "url": "/a/books/history/books_products/$productId",
+            "fromRow": { "record": "$productName", "event": "Changed" },
+            "auditRead": "error",
+            "ready": "history-error",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-empty",
+            "url": "/a/books/history/books_products/$productId",
+            "fromRow": { "record": "$productName", "event": "Changed" },
+            "auditRead": "empty",
+            "ready": "history-empty",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "history-no-access",
+            "url": "/a/books/history/books_products/$productId",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [{ "id": "helixaccessnone", "user": "$authId", "level": "none" }]
+            },
+            "ready": "history-no-access",
+            "widths": [1280],
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "history-no-access",
+            "url": "/a/books/history/books_products/$productId",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [{ "id": "helixaccessnone", "user": "$authId", "level": "none" }]
+            },
+            "ready": "history-no-access",
+            "widths": [390],
+            "hideLabels": ["New", "Reconnecting…"]
+        }
+    ]
+}
