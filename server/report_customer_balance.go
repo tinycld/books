@@ -35,12 +35,25 @@ func customerBalanceSpec() *reports.Spec {
 		Version: reports.CurrentVersion,
 		Source:  "books.journal_lines",
 		Params:  cbParams(),
-		Filter:  op("and", receivableLines(prm("asOf"))...),
+		// An unset Customer keeps every line; a set one drops the blank key,
+		// so the No customer row does not show.
+		Filter:  op("and", append(receivableLines(prm("asOf")), op("in", col("customerKey"), prm("customers")))...),
 		Columns: cbColumns(),
 		Groups:  cbGroups(),
 		Sort:    cbSort(),
+		Detail:  &reports.Detail{Label: cbDetailLabel(), Open: entryOpenPath()},
 		Display: cbDisplay(),
 	}
+}
+
+// cbDetailLabel labels an opened line "<date> · <type> <number> ·
+// <description>".
+func cbDetailLabel() *reports.Node {
+	return op("concat",
+		fld("date"), lit(" · "),
+		lineEntryTypeLabel(), lit(" "), fld("entry", "number"),
+		lit(" · "), lineDescriptionFormula(),
+	)
 }
 
 // cbNet is a line's debit less its credit: what it adds to a customer's
@@ -52,7 +65,8 @@ func cbParent() *reports.Node {
 	return &reports.Node{Path: reports.Path{{Link: "customer"}, {Link: "parent"}}}
 }
 
-// cbParams are As of (Today by default) and Rows (Non-zero by default).
+// cbParams are As of (Today by default), Rows (Non-zero by default),
+// Customer (unset: every customer) and Order (Name by default).
 func cbParams() []reports.ParamDef {
 	return []reports.ParamDef{
 		{ID: "asOf", Type: reports.ParamAsOf, Label: "As of", Default: mustJSON(map[string]string{"preset": "today"})},
@@ -63,6 +77,15 @@ func cbParams() []reports.ParamDef {
 				{Value: "activity", Label: "With activity"},
 			},
 			Default: mustJSON("nonzero"),
+		},
+		customersParam(),
+		{
+			ID: "order", Type: reports.ParamChoice, Label: "Order",
+			Options: []reports.Option{
+				{Value: "name", Label: "Name"},
+				{Value: "balance", Label: "Largest balance"},
+			},
+			Default: mustJSON("name"),
 		},
 	}
 }
@@ -105,12 +128,21 @@ func cbGroups() []reports.Group {
 	}
 }
 
-// cbSort is the name order (D5): inside a family the parent's own row first
-// (read on customer rows only), No customer last, then families and customers
-// by name, ignoring case.
+// cbSort is the report's order (D5): inside a family the parent's own row
+// first (read on customer rows only); under Largest balance the level's
+// balance, largest first (on every level); No customer last; then families
+// and customers by name, ignoring case. Core applies a key on each group
+// level where it has a value, and on detail rows it applies every key (there
+// `sum(x)` is x). The line keys (date, then posting order) therefore come
+// before the balance key: they order the opened rows of one customer, and core
+// skips them on group levels because they read a line.
 func cbSort() []reports.SortKey {
 	return []reports.SortKey{
 		{Formula: op("if", op("eq", rec("byCustomer", "id"), rec("byTop", "id")), lit(0), lit(1))},
+		{Formula: fld("date")},
+		{Formula: fld("entry", "posted_at")},
+		{Formula: fld("position")},
+		{Formula: op("if", op("eq", prm("order"), lit("balance")), op("sum", cbNet()), lit(0)), Dir: "desc"},
 		{Formula: op("if", op("isEmpty", rec("byTop", "id")), lit(1), lit(0))},
 		{Formula: op("lower", rec("byTop", "display_name"))},
 		{Formula: op("lower", rec("byCustomer", "display_name"))},

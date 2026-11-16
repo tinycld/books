@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -277,8 +278,8 @@ func TestCustomerBalanceSpecLoads(t *testing.T) {
 	for i, p := range spec.Params {
 		paramIDs[i] = p.ID
 	}
-	if !reflect.DeepEqual(paramIDs, []string{"asOf", "rows"}) {
-		t.Fatalf("params = %v, want asOf, rows (the chips' order)", paramIDs)
+	if !reflect.DeepEqual(paramIDs, []string{"asOf", "rows", "customers", "order"}) {
+		t.Fatalf("params = %v, want asOf, rows, customers, order (the chips' order)", paramIDs)
 	}
 	asOf := paramOf(t, spec, "asOf")
 	if asOf.Type != reports.ParamAsOf || asOf.Label != "As of" || !jsonEqual(t, asOf.Default, `{"preset":"today"}`) {
@@ -289,6 +290,46 @@ func TestCustomerBalanceSpecLoads(t *testing.T) {
 	if rows.Type != reports.ParamChoice || rows.Label != "Rows" || rows.Multiple ||
 		!reflect.DeepEqual(rows.Options, wantRows) || !jsonEqual(t, rows.Default, `"nonzero"`) {
 		t.Errorf("rows = %+v (default %s), want a single choice Rows: Non-zero (default), With activity", rows, rows.Default)
+	}
+
+	// Customer: a multiple choice from the customers source, inactive ones
+	// offered (no where), a sub-customer under its parent's name with a
+	// whole-group pick.
+	customers := paramOf(t, spec, "customers")
+	wantFrom := &reports.OptionsFrom{
+		Source:     "books.customers",
+		Value:      path("id"),
+		Label:      path("display_name"),
+		Group:      path("parent", "display_name"),
+		GroupLabel: "All {group} sub-customers",
+	}
+	if customers.Type != reports.ParamChoice || customers.Label != "Customer" || !customers.Multiple ||
+		len(customers.Options) != 0 || customers.Default != nil {
+		t.Errorf("customers = %+v (default %s), want a multiple choice Customer with no options of its own and no default", customers, customers.Default)
+	}
+	if got, want := mustJSON(customers.OptionsFrom), mustJSON(wantFrom); string(got) != string(want) {
+		t.Errorf("customers.optionsFrom = %s\nwant %s", got, want)
+	}
+	if got, want := mustJSON(customers), mustJSON(customersParam()); string(got) != string(want) {
+		t.Errorf("the customers param = %s, want customersParam() %s (the helper p5-ar-aging and p2-statements read)", got, want)
+	}
+
+	order := paramOf(t, spec, "order")
+	wantOrder := []reports.Option{{Value: "name", Label: "Name"}, {Value: "balance", Label: "Largest balance"}}
+	if order.Type != reports.ParamChoice || order.Label != "Order" || order.Multiple || order.OptionsFrom != nil ||
+		!reflect.DeepEqual(order.Options, wantOrder) || !jsonEqual(t, order.Default, `"name"`) {
+		t.Errorf("order = %+v (default %s), want a single choice Order: Name (default), Largest balance", order, order.Default)
+	}
+
+	// A customer row opens into its lines, labelled and opening their documents.
+	if spec.Detail == nil || spec.Detail.Label == nil || spec.Detail.Open == nil {
+		t.Fatalf("detail = %+v, want a label and an open path", spec.Detail)
+	}
+	if got, want := mustJSON(spec.Detail.Label), mustJSON(cbDetailLabel()); string(got) != string(want) {
+		t.Errorf("detail.label = %s\nwant cbDetailLabel() %s", got, want)
+	}
+	if got, want := mustJSON(spec.Detail.Open), mustJSON(entryOpenPath()); string(got) != string(want) {
+		t.Errorf("detail.open = %s\nwant entryOpenPath() %s", got, want)
 	}
 
 	type colShape struct {
@@ -920,4 +961,475 @@ func TestCustomerBalanceShippedShared(t *testing.T) {
 	}
 	requireViewer(t, app, row, reader, "a guest with Books readonly access")
 	requireNoShare(t, app, row, outsider, "a guest without Books access")
+}
+
+// runOpen runs the report with the group rows keyed by keys opened, as the
+// view asks when a reader presses rows: an empty collapse keeps the family
+// level open beside them (core run.go openLevels).
+func (b cbBook) runOpen(t *testing.T, params map[string]any, keys ...[]any) *reports.Result {
+	t.Helper()
+	return runCB(t, b.app, b.reader, params, reports.Options{Today: cbToday, Expand: keys, Collapse: [][]any{}})
+}
+
+// cbLine is what a test reads of an opened line row.
+type cbLine struct {
+	ID, Label, Open string
+	Balance         int64
+	Depth           int
+}
+
+// cbLinesUnder are the detail rows right after row, in result order.
+func cbLinesUnder(t *testing.T, res *reports.Result, row reports.Row) []cbLine {
+	t.Helper()
+	at := slices.IndexFunc(res.Rows, func(r reports.Row) bool { return r.ID == row.ID })
+	if at < 0 {
+		t.Fatalf("no row %s (%q); rows %q", row.ID, row.Label, bsLabels(res))
+	}
+	out := []cbLine{}
+	for _, r := range res.Rows[at+1:] {
+		if r.Kind != reports.KindDetail {
+			break
+		}
+		out = append(out, cbLine{ID: r.ID, Label: r.Label, Open: r.Open, Balance: amt(t, r, "balance"), Depth: r.Depth})
+	}
+	return out
+}
+
+// cbLineWant is the row the spec gives a posted line: "<date> · <type>
+// <entry number> · <the line's memo, else the entry's memo>", the line's
+// debit less its credit, and the path it opens.
+func cbLineWant(t *testing.T, app core.App, line *core.Record, typeLabel, open string, depth int) cbLine {
+	t.Helper()
+	line = reload(t, app, "books_journal_lines", line.Id)
+	entry := reload(t, app, "books_journal_entries", line.GetString("entry"))
+	desc := line.GetString("memo")
+	if desc == "" {
+		desc = entry.GetString("memo")
+	}
+	return cbLine{
+		ID:      "d:" + line.Id,
+		Label:   line.GetString("date") + " · " + typeLabel + " " + entry.GetString("number") + " · " + desc,
+		Open:    open,
+		Balance: int64(line.GetInt("debit") - line.GetInt("credit")),
+		Depth:   depth,
+	}
+}
+
+func cbLinesSum(lines []cbLine) int64 {
+	var sum int64
+	for _, l := range lines {
+		sum += l.Balance
+	}
+	return sum
+}
+
+func TestCustomerBalanceDetail(t *testing.T) {
+	b := newCBDocBook(t)
+	acme := b.customer(t, "Acme Co", nil)
+	inv := b.invoice(t, acme, 100000)
+	pay := b.payment(t, acme, inv, 40000, 40000)
+	inv = reload(t, b.app, "books_invoices", inv.Id)
+	pay = reload(t, b.app, "books_payments", pay.Id)
+	if inv.GetString("date") >= pay.GetString("date") {
+		t.Fatalf("the invoice (%s) must be dated before the payment (%s)", inv.GetString("date"), pay.GetString("date"))
+	}
+
+	// Two lines on two days: the earlier day first, though it posted later and
+	// its id sorts last.
+	dated := b.customer(t, "Dated Co", nil)
+	later := postJournal(t, b.app, "", "2026-11-09", "Dated later",
+		jnLine{id: "cbdate000000001", account: b.receivable, debit: 900, position: 0, customer: dated.Id},
+		jnLine{account: b.income, credit: 900, position: 1})
+	earlier := postJournal(t, b.app, "", "2026-11-02", "Dated earlier",
+		jnLine{id: "cbdate999999999", account: b.receivable, debit: 100, position: 0, customer: dated.Id},
+		jnLine{account: b.income, credit: 100, position: 1})
+	setPostedAt(t, b.app, later.Id, "2026-11-12 09:00:00.000Z")
+	setPostedAt(t, b.app, earlier.Id, "2026-11-12 10:00:00.000Z")
+
+	// Two entries on one day: posting order decides (both orders are pinned
+	// below, so the line ids cannot decide).
+	sameDay := b.customer(t, "Same Day Co", nil)
+	madeFirst := postJournal(t, b.app, "", "2026-11-05", "Same day, made first",
+		jnLine{id: "cbsame000000001", account: b.receivable, debit: 1000, position: 0, customer: sameDay.Id},
+		jnLine{account: b.income, credit: 1000, position: 1})
+	madeSecond := postJournal(t, b.app, "", "2026-11-05", "Same day, made second",
+		jnLine{id: "cbsame999999999", account: b.receivable, debit: 2000, position: 0, customer: sameDay.Id},
+		jnLine{account: b.income, credit: 2000, position: 1})
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 11:00:00.000Z")
+	setPostedAt(t, b.app, madeSecond.Id, "2026-11-12 10:00:00.000Z")
+
+	// Two lines of one entry: position decides (the ids sort the other way). The
+	// first has its own memo; the second has none and reads the entry's.
+	split := b.customer(t, "Split Co", nil)
+	splitEntry := postJournal(t, b.app, "", "2026-11-06", "Split entry memo",
+		jnLine{id: "cbpos0000000001", account: b.receivable, debit: 300, position: 1, customer: split.Id},
+		jnLine{id: "cbpos9999999999", account: b.receivable, debit: 700, position: 0, customer: split.Id, memo: "Line memo wins"},
+		jnLine{account: b.income, credit: 1000, position: 2})
+
+	// No customer: a charge and a later credit.
+	noneCharge := b.charge(t, "2026-11-03", nil, 1234)
+	noneCredit := b.credit(t, "2026-11-06", nil, 234)
+
+	// A family: the sub-customer's row sits at depth 1, its lines at depth 2.
+	fam := b.customer(t, "Fam Co", nil)
+	famSub := b.customer(t, "Fam Sub", fam)
+	b.charge(t, "2026-11-07", fam, 500)
+	famSubEntry := b.charge(t, "2026-11-07", famSub, 800)
+
+	closed := b.run(t, nil)
+	for _, r := range closed.Rows {
+		if r.Kind == reports.KindDetail {
+			t.Fatalf("the report opens with line rows (%q); a customer row opens only when pressed", r.Label)
+		}
+	}
+	noneRow, ok := cbGroupRow(closed, 2, "")
+	if !ok {
+		t.Fatalf("no No customer row; rows %q", bsLabels(closed))
+	}
+	keys := [][]any{noneRow.GroupKey}
+	for _, c := range []*core.Record{acme, dated, sameDay, split, famSub} {
+		keys = append(keys, cbCustomerRow(t, closed, c).GroupKey)
+	}
+	res := b.runOpen(t, nil, keys...)
+
+	requireLines := func(res *reports.Result, row reports.Row, want []cbLine) {
+		t.Helper()
+		got := cbLinesUnder(t, res, row)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s opens into\n%+v\nwant\n%+v", row.Label, got, want)
+		}
+		if sum, balance := cbLinesSum(got), amt(t, row, "balance"); sum != balance {
+			t.Errorf("%s's lines add up to %d, want its balance %d", row.Label, sum, balance)
+		}
+	}
+
+	// An invoice and a payment on a later day: positive, then negative; each
+	// opens its document.
+	acmeRow := cbCustomerRow(t, res, acme)
+	if acmeRow.Depth != 0 {
+		t.Errorf("Acme Co is at depth %d, want 0 (an inlined family)", acmeRow.Depth)
+	}
+	invLine := cbLineWant(t, b.app, entryLineOn(t, b.app, inv.GetString("entry"), b.receivable), "Invoice", "books/invoices/"+inv.Id, 1)
+	payLine := cbLineWant(t, b.app, entryLineOn(t, b.app, pay.GetString("entry"), b.receivable), "Payment", "books/payments/"+pay.Id, 1)
+	if invLine.Balance != 100000 || payLine.Balance != -40000 {
+		t.Fatalf("the invoice line nets %d and the payment line %d, want 100000 and -40000", invLine.Balance, payLine.Balance)
+	}
+	if want := "Invoice " + inv.GetString("number") + " · "; !strings.Contains(invLine.Label, want) {
+		t.Errorf("the invoice line's label %q does not name %q (the invoice's number)", invLine.Label, want)
+	}
+	if want := "Payment " + pay.GetString("number") + " · "; !strings.Contains(payLine.Label, want) {
+		t.Errorf("the payment line's label %q does not name %q (the payment's number)", payLine.Label, want)
+	}
+	requireLines(res, acmeRow, []cbLine{invLine, payLine})
+
+	// Date order, then a manual entry opens its read view as "Journal entry".
+	requireLines(res, cbCustomerRow(t, res, dated), []cbLine{
+		cbLineWant(t, b.app, entryLineOn(t, b.app, earlier.Id, b.receivable), "Journal entry", "books/entries/"+earlier.Id, 1),
+		cbLineWant(t, b.app, entryLineOn(t, b.app, later.Id, b.receivable), "Journal entry", "books/entries/"+later.Id, 1),
+	})
+
+	sameDayWant := func(first, second *core.Record) []cbLine {
+		return []cbLine{
+			cbLineWant(t, b.app, entryLineOn(t, b.app, first.Id, b.receivable), "Journal entry", "books/entries/"+first.Id, 1),
+			cbLineWant(t, b.app, entryLineOn(t, b.app, second.Id, b.receivable), "Journal entry", "books/entries/"+second.Id, 1),
+		}
+	}
+	requireLines(res, cbCustomerRow(t, res, sameDay), sameDayWant(madeSecond, madeFirst))
+
+	splitLines, err := b.app.FindAllRecords("books_journal_lines", dbx.HashExp{"entry": splitEntry.Id, "account": b.receivable.Id})
+	if err != nil || len(splitLines) != 2 {
+		t.Fatalf("Split Co's entry has %d receivable lines (%v), want 2", len(splitLines), err)
+	}
+	slices.SortFunc(splitLines, func(x, y *core.Record) int { return x.GetInt("position") - y.GetInt("position") })
+	splitWant := []cbLine{
+		cbLineWant(t, b.app, splitLines[0], "Journal entry", "books/entries/"+splitEntry.Id, 1),
+		cbLineWant(t, b.app, splitLines[1], "Journal entry", "books/entries/"+splitEntry.Id, 1),
+	}
+	if !strings.HasSuffix(splitWant[0].Label, " · Line memo wins") || !strings.HasSuffix(splitWant[1].Label, " · Split entry memo") {
+		t.Fatalf("Split Co's wanted labels %q, %q: the first reads its line's memo, the second its entry's", splitWant[0].Label, splitWant[1].Label)
+	}
+	requireLines(res, cbCustomerRow(t, res, split), splitWant)
+
+	// The No customer row opens the same way.
+	openNone, ok := cbGroupRow(res, 2, "")
+	if !ok {
+		t.Fatalf("no No customer row in the opened run; rows %q", bsLabels(res))
+	}
+	requireLines(res, openNone, []cbLine{
+		cbLineWant(t, b.app, entryLineOn(t, b.app, noneCharge.Id, b.receivable), "Journal entry", "books/entries/"+noneCharge.Id, 1),
+		cbLineWant(t, b.app, entryLineOn(t, b.app, noneCredit.Id, b.receivable), "Journal entry", "books/entries/"+noneCredit.Id, 1),
+	})
+
+	// A customer row inside a family opens at depth 2.
+	famSubRow := cbCustomerRow(t, res, famSub)
+	if famSubRow.Depth != 1 {
+		t.Errorf("Fam Sub is at depth %d, want 1 (inside its family)", famSubRow.Depth)
+	}
+	requireLines(res, famSubRow, []cbLine{
+		cbLineWant(t, b.app, entryLineOn(t, b.app, famSubEntry.Id, b.receivable), "Journal entry", "books/entries/"+famSubEntry.Id, 2),
+	})
+	if lines := cbLinesUnder(t, res, cbCustomerRow(t, res, fam)); len(lines) != 0 {
+		t.Errorf("Fam Co's own row opened though it was not pressed: %+v", lines)
+	}
+
+	// The other posting order flips the same-day lines.
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 09:00:00.000Z")
+	flipped := b.runOpen(t, nil, keys...)
+	requireLines(flipped, cbCustomerRow(t, flipped, sameDay), sameDayWant(madeFirst, madeSecond))
+}
+
+func TestCustomerBalanceCustomersParam(t *testing.T) {
+	b := newCBBook(t)
+	day := "2026-11-02"
+	aspen := b.customer(t, "Aspen Co", nil)
+	zed := b.customer(t, "Zed Co", nil)
+	b.charge(t, day, aspen, 2500)
+	b.charge(t, day, zed, 1000)
+	b.charge(t, day, nil, 700)
+	mesa := b.customer(t, "Mesa Group", nil)
+	north := b.customer(t, "Mesa North", mesa)
+	south := b.customer(t, "Mesa South", mesa)
+	b.charge(t, day, mesa, 5000)
+	b.charge(t, day, north, 2000)
+	b.charge(t, day, south, 3000)
+	old := b.customer(t, "Old Co", nil)
+	b.charge(t, day, old, 400)
+	b.inactive(t, old)
+
+	// One customer: its row and the Total, nothing else.
+	picked := b.run(t, map[string]any{"customers": []string{aspen.Id}})
+	if got := labelsOf(cbGroupRows(picked)); !reflect.DeepEqual(got, []string{"Aspen Co"}) {
+		t.Errorf("customers = [Aspen Co] shows group rows %q, want only Aspen Co", got)
+	}
+	if bsHas(picked, "No customer") {
+		t.Errorf("a picked customer keeps the No customer row; rows %q", bsLabels(picked))
+	}
+	if got := amt(t, totalOf(t, picked), "balance"); got != 2500 {
+		t.Errorf("Total with customers = [Aspen Co] = %d, want Aspen Co's 2500", got)
+	}
+
+	// Unset: every customer and No customer.
+	all := b.run(t, nil)
+	for _, c := range []*core.Record{aspen, zed, mesa, north, south, old} {
+		if !cbHasCustomer(all, c) {
+			t.Errorf("no customer set leaves out %s; rows %q", c.GetString("display_name"), bsLabels(all))
+		}
+	}
+	if !bsHas(all, "No customer") {
+		t.Errorf("no customer set leaves out the No customer row; rows %q", bsLabels(all))
+	}
+	if got := amt(t, totalOf(t, all), "balance"); got != 14600 {
+		t.Errorf("Total with no customer set = %d, want 14600 (every line)", got)
+	}
+
+	// "All Mesa Group sub-customers", posted as core posts a whole-group pick:
+	// the family's header, its sub-customers and its total, without the
+	// parent's own row.
+	group := b.run(t, map[string]any{"customers": []any{map[string]any{"group": "Mesa Group"}}})
+	gotShapes := make([]cbShape, len(group.Rows))
+	for i, r := range group.Rows {
+		gotShapes[i] = cbShapeOf(r)
+	}
+	wantShapes := []cbShape{
+		{"Mesa Group", reports.KindGroup, 0, true},
+		{"Mesa North", reports.KindGroup, 1, false},
+		{"Mesa South", reports.KindGroup, 1, false},
+		{"Total Mesa Group", reports.KindSubtotal, 0, false},
+		{"Total", reports.KindTotal, 0, false},
+	}
+	if !reflect.DeepEqual(gotShapes, wantShapes) {
+		t.Errorf("the whole-group pick of Mesa Group shows\n%v\nwant\n%v", gotShapes, wantShapes)
+	}
+	if cbHasCustomer(group, mesa) {
+		t.Errorf("the whole-group pick keeps the parent's own row; rows %q", bsLabels(group))
+	}
+	if got := amt(t, bsRow(t, group, "Total Mesa Group"), "balance"); got != 5000 {
+		t.Errorf("Total Mesa Group under the group pick = %d, want 5000 (the sub-customers only)", got)
+	}
+	if got := amt(t, totalOf(t, group), "balance"); got != 5000 {
+		t.Errorf("Total under the group pick = %d, want 5000", got)
+	}
+
+	// The picker's options: inactive customers offered, a sub-customer in its
+	// parent's group.
+	spec, _, err := reports.Load(customerBalanceShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	options, err := reports.ReadParamOptions(context.Background(), b.app, reports.OptionsRequest{
+		Spec: spec, Param: "customers", Auth: b.reader, Today: cbToday,
+	})
+	if err != nil {
+		t.Fatalf("the customers param's options: %v", err)
+	}
+	gotGroup := map[string]string{}
+	for _, o := range options.Options {
+		gotGroup[o.Value] = o.Group
+		if o.Value == old.Id && o.Label != "Old Co" {
+			t.Errorf("Old Co's option label = %q, want Old Co", o.Label)
+		}
+	}
+	for _, w := range []struct {
+		customer *core.Record
+		group    string
+	}{
+		{aspen, ""}, {zed, ""}, {mesa, ""}, {old, ""}, {north, "Mesa Group"}, {south, "Mesa Group"},
+	} {
+		g, listed := gotGroup[w.customer.Id]
+		if !listed {
+			t.Errorf("the Customer picker does not list %s (inactive customers included); options %+v", w.customer.GetString("display_name"), options.Options)
+			continue
+		}
+		if g != w.group {
+			t.Errorf("%s is in group %q, want %q", w.customer.GetString("display_name"), g, w.group)
+		}
+	}
+	if !slices.ContainsFunc(options.Groups, func(g reports.OptionGroup) bool { return g.Value == "Mesa Group" && g.Label == "Mesa Group" }) {
+		t.Errorf("the picker's groups %+v, want Mesa Group", options.Groups)
+	}
+}
+
+// cbShapes are the rows that are not lines, as (label, kind, depth, expanded).
+func cbShapes(res *reports.Result) []cbShape {
+	out := []cbShape{}
+	for _, r := range res.Rows {
+		if r.Kind != reports.KindDetail {
+			out = append(out, cbShapeOf(r))
+		}
+	}
+	return out
+}
+
+func cbDepth0(res *reports.Result) []string {
+	out := []string{}
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindGroup && r.Depth == 0 {
+			out = append(out, r.Label)
+		}
+	}
+	return out
+}
+
+func TestCustomerBalanceOrder(t *testing.T) {
+	b := newCBBook(t)
+	// bravo nets 3000 over three days; its lines' balances are not in date
+	// order, so a sort on Balance moves them.
+	bravo := b.customer(t, "bravo", nil)
+	b.charge(t, "2026-11-03", bravo, 2500)
+	b.charge(t, "2026-11-02", bravo, 1000)
+	b.credit(t, "2026-11-04", bravo, 500)
+	// Delta ties bravo; by name, ignoring case, bravo is first.
+	b.charge(t, "2026-11-02", b.customer(t, "Delta", nil), 3000)
+	// A family whose total (7000) is the largest, though the parent's own row
+	// (1000) is smaller than one sub-customer's.
+	charlie := b.customer(t, "Charlie", nil)
+	b.charge(t, "2026-11-02", charlie, 1000)
+	b.charge(t, "2026-11-02", b.customer(t, "zulu sub", charlie), 4000)
+	b.charge(t, "2026-11-02", b.customer(t, "Alpha sub", charlie), 2000)
+	// A credit balance.
+	b.credit(t, "2026-11-02", b.customer(t, "Echo", nil), 500)
+	b.charge(t, "2026-11-02", nil, 1500)
+
+	family := func(res *reports.Result) []string {
+		// The rows between the header and "Total Charlie".
+		return labelsOf(cbFamily(t, res, "Charlie")[1:4])
+	}
+
+	byName := b.run(t, map[string]any{"order": "name"})
+	if got, want := cbDepth0(byName), []string{"bravo", "Charlie", "Delta", "Echo", "No customer"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order = name: depth-0 rows %q, want %q (name order ignoring case, No customer last)", got, want)
+	}
+	if got, want := family(byName), []string{"Charlie", "Alpha sub", "zulu sub"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order = name: Charlie's family %q, want %q (the parent's own row, then by name)", got, want)
+	}
+	if byDefault := b.run(t, nil); !reflect.DeepEqual(bsLabels(byDefault), bsLabels(byName)) {
+		t.Errorf("no Order param gives %q, want Name's %q", bsLabels(byDefault), bsLabels(byName))
+	}
+
+	byBalance := b.run(t, map[string]any{"order": "balance"})
+	if got, want := cbDepth0(byBalance), []string{"Charlie", "bravo", "Delta", "No customer", "Echo"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order = balance: depth-0 rows %q, want %q (largest first, a family by its total, ties by name, the credit last)", got, want)
+	}
+	if got, want := family(byBalance), []string{"Charlie", "zulu sub", "Alpha sub"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order = balance: Charlie's family %q, want %q (the parent's own row, then largest first)", got, want)
+	}
+
+	// The reader's heading sort orders only the opened lines, inside their
+	// customer; the group rows keep the report's own order.
+	bravoKey := cbCustomerRow(t, byName, bravo).GroupKey
+	viewSorted := func(order string, sort reports.ViewSort) *reports.Result {
+		return runCB(t, b.app, b.reader, map[string]any{"order": order}, reports.Options{
+			Today: cbToday, Expand: [][]any{bravoKey}, Collapse: [][]any{}, Sort: []reports.ViewSort{sort},
+		})
+	}
+	lineBalances := func(res *reports.Result) []int64 {
+		out := []int64{}
+		for _, l := range cbLinesUnder(t, res, cbCustomerRow(t, res, bravo)) {
+			out = append(out, l.Balance)
+		}
+		return out
+	}
+	lineLabels := func(res *reports.Result) []string {
+		out := []string{}
+		for _, l := range cbLinesUnder(t, res, cbCustomerRow(t, res, bravo)) {
+			out = append(out, l.Label)
+		}
+		return out
+	}
+
+	openedByName := b.runOpen(t, map[string]any{"order": "name"}, bravoKey)
+	if got := lineBalances(openedByName); !reflect.DeepEqual(got, []int64{1000, 2500, -500}) {
+		t.Errorf("bravo's lines with no heading sort = %v, want [1000 2500 -500] (date order)", got)
+	}
+	openedByBalance := b.runOpen(t, map[string]any{"order": "balance"}, bravoKey)
+	// Spec §3: an opened customer's lines are in date order under either Order.
+	if got := lineBalances(openedByBalance); !reflect.DeepEqual(got, []int64{1000, 2500, -500}) {
+		t.Errorf("bravo's lines under Order = Largest balance = %v, want [1000 2500 -500] (date order)", got)
+	}
+
+	balanceDesc := viewSorted("name", reports.ViewSort{Col: "balance", Dir: "desc"})
+	if got, want := cbShapes(balanceDesc), cbShapes(openedByName); !reflect.DeepEqual(got, want) {
+		t.Errorf("a heading sort on Balance (desc) moved the group rows:\n%v\nwant the report's own order\n%v", got, want)
+	}
+	if got := lineBalances(balanceDesc); !reflect.DeepEqual(got, []int64{2500, 1000, -500}) {
+		t.Errorf("bravo's lines under a heading sort on Balance (desc) = %v, want [2500 1000 -500]", got)
+	}
+
+	nameAsc := viewSorted("balance", reports.ViewSort{Col: "name", Dir: "asc"})
+	if got, want := cbShapes(nameAsc), cbShapes(openedByBalance); !reflect.DeepEqual(got, want) {
+		t.Errorf("a heading sort on Customer (asc) moved the group rows:\n%v\nwant the report's own order (Largest balance)\n%v", got, want)
+	}
+	gotLabels := lineLabels(nameAsc)
+	wantLabels := slices.Clone(gotLabels)
+	slices.Sort(wantLabels)
+	if len(gotLabels) != 3 || !reflect.DeepEqual(gotLabels, wantLabels) {
+		t.Errorf("bravo's lines under a heading sort on Customer (asc) = %q, want its three lines by label", gotLabels)
+	}
+}
+
+func TestCustomerBalanceTopics(t *testing.T) {
+	b := newCBBook(t)
+	topicCo := b.customer(t, "Topic Co", nil)
+	b.charge(t, "2026-11-02", topicCo, 1000)
+	closedTopics := []string{
+		"collection/books_journal_lines", "collection/books_accounts", "collection/books_customers",
+		"collection/books_settings",
+	}
+
+	// Core takes a run's topics from the statements it reads. A closed run reads
+	// no entry; each event of spec §3 "Live" writes a collection it watches.
+	closed := b.run(t, nil)
+	for _, topic := range closedTopics {
+		if !slices.Contains(closed.Topics, topic) {
+			t.Errorf("closed run topics = %v, want %s", closed.Topics, topic)
+		}
+	}
+
+	// An opened customer reads its lines' entries (detail label and open).
+	opened := b.runOpen(t, nil, cbCustomerRow(t, closed, topicCo).GroupKey)
+	for _, topic := range append(closedTopics, "collection/books_journal_entries") {
+		if !slices.Contains(opened.Topics, topic) {
+			t.Errorf("opened run topics = %v, want %s", opened.Topics, topic)
+		}
+	}
 }

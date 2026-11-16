@@ -1,0 +1,63 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "opened",
+            "url": "/a/reports?package=books",
+            "height": 1800,
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "clickText": "Harborview Kitchen" },
+                { "pause": 1500 },
+                { "clickText": "No customer" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "by-balance",
+            "url": "/a/reports?package=books",
+            "height": 1400,
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId?p-order=balance" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Order: Largest balance" }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/reports?package=books",
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-customers" },
+                { "waitFor": "report-filter-options" },
+                { "fill": "report-filter-search", "value": "Harborview" },
+                { "click": "report-filter-group-Harborview Hospitality Group" },
+                { "click": "report-filter-apply" },
+                { "waitFor": "Customer: All Harborview Hospitality Group sub-customers" },
+                { "click": "report-param-customers" },
+                { "waitFor": "report-filter-options" },
+                { "fill": "report-filter-search", "value": "Aspen Ridge" },
+                { "clickText": "Aspen Ridge Dental" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "picker",
+            "url": "/a/reports?package=books",
+            "settleMs": 600,
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-customers" },
+                { "waitFor": "report-filter-options" }
+            ]
+        }
+    ]
+}
