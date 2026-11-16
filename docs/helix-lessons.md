@@ -47,3 +47,5 @@
 - A hint that explains an action (a size limit beside an add area) shows only where that action is offered: not for a reader, on a void document, or on a replaced original. — attachments, human, eval revise 1
 - A pick that fills a form (a lookup, a find) keeps a value the user typed and re-applies it by the spec's rule; never reset a "typed" flag to make the pick simpler. — receive-payment, driver, cp 3
 - Every action a wide layout offers by a control (a header tick box, Pay all) has a touch control on the phone layout too; a key alone is not a path on native. — receive-payment, driver, cp 3
+- An e2e that finds a seeded record reads its values from `seed.ts` (what the DB holds), never from the fixture file. — attachments, retro, p3-attachments
+- State that must survive a tab switch (an upload session, a failed row) lives above the tabbed area; check what unmounts a component before you put state in it. — attachments, retro, p3-attachments
