@@ -19,6 +19,7 @@ const READ_VIEW_LETTERS = [
     ['V', /\bVoid\b/],
     ['C', /\bCopy\b/],
     ['J', /\bjournal entry\b/i],
+    ['P', /\bPay bill\b/],
 ] as const
 
 const lines = body.split('\n')
@@ -106,6 +107,56 @@ describe('help/bills.md', () => {
             l => new RegExp(`(^|[^\\w⌘⌥⇧])${letter}([^\\w]|$)`).test(l) && action.test(l)
         )
         expect(line, `a line with ${letter} and its action`).toBeDefined()
+    })
+
+    // Pay bills spec §3.9, §3.12: the bill's balance, its badge, its payments and Pay bill.
+    describe('paying a bill', () => {
+        it.each([
+            'Balance due',
+            'Paid',
+            'Partly paid',
+            'Payments',
+            'Pay bill',
+        ])('names %s', text => {
+            expect(body).toContain(text)
+        })
+
+        it('says Balance due is what is still open after the payments', () => {
+            expect(
+                lineWith(/Balance due/, /\bpayments?\b/i),
+                'a line on Balance due and the payments it subtracts'
+            ).toBeDefined()
+        })
+
+        it('says when the badge reads Paid and when Partly paid', () => {
+            expect(lineWith(/\bPartly paid\b/, /\b(part|some)\b/i)).toBeDefined()
+            expect(lineWith(/\bPaid\b/, /\b(in full|nothing|whole|all)\b/i)).toBeDefined()
+        })
+
+        it('says the Payments block lists the bill payments and opens them', () => {
+            expect(
+                lineWith(/\bPayments\b/, /\bbill payments?\b/i, /\bopen/i),
+                'a line saying each listed bill payment opens'
+            ).toBeDefined()
+        })
+
+        it('says a bill with posted payments is not voided until its payments are', () => {
+            expect(
+                lineWith(/\bvoid/i, /\bpayments?\b/i, /\b(first|until|before)\b/i),
+                'a line saying the payments are voided or edited first'
+            ).toBeDefined()
+        })
+
+        it('states the correction rule of a bill with payments', () => {
+            expect(
+                lineWith(/\b(edit|correct)/i, /\bpayments?\b/i, /\b(vendor|total)\b/i),
+                'a line on editing a bill that payments pay (its vendor and total)'
+            ).toBeDefined()
+        })
+
+        it('links the pay-bills topic', () => {
+            expect(body).toContain('help://books:pay-bills')
+        })
     })
 
     it('names Delete draft with ⌘⌫ on one line', () => {

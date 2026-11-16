@@ -40,6 +40,14 @@ export function searchTarget(rowId: string): SearchTarget | null {
 const READ_ONLY_PATHS = new Set(['books/bill-payments/[id]'])
 
 /**
+ * True when `routeName` (a Books stack route name, `bill-payments/[id]`) is a read-only
+ * route: its screen holds no input, so Back may step past copies of it (useBackToEntries).
+ */
+export function isReadOnlyRoute(routeName: string): boolean {
+    return READ_ONLY_PATHS.has(`books/${routeName}`)
+}
+
+/**
  * True when the target is a read-only route and `pathname` (the screen on top) is that
  * same route for a record: the search then replaces that screen, which holds no input to
  * lose, so the stack never holds two copies of one read view (lesson 15).

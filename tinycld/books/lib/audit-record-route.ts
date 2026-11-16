@@ -1,7 +1,7 @@
 // The screen that shows an audited record, for its history's Open button (spec §5
 // Client). Paths are without the org prefix; callers pass them through `useOrgHref`. A
-// line, bundle item, estimate response or payment application never reaches here: its
-// history is its parent's.
+// line, bundle item, estimate response, payment application or bill payment line never
+// reaches here: its history is its parent's.
 import { recordTypeLabel } from './audit-log'
 import { customerPath } from './customer-route'
 import { documentHref } from './document-routes'
@@ -42,6 +42,7 @@ const RECORD_PATHS: Record<string, (id: string) => string> = {
     books_products: id => filledPath(productPath(id)),
     books_accounts: id => `books/accounts/${id}`,
     books_payments: id => `books/payments/${id}`,
+    books_bill_payments: id => `books/bill-payments/${id}`,
 }
 
 // Records shown on a screen that holds a group of them, and that screen's Open label.
@@ -75,6 +76,7 @@ const ROUTED_DOC_TYPES: readonly string[] = [
     'bill',
     'expense',
     'payment',
+    'bill_payment',
 ] satisfies readonly RoutedEntry['doc_type'][]
 const ROUTED_ORIGINS: readonly string[] = [
     'manual',

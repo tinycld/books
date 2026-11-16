@@ -11,6 +11,7 @@ import type { PaymentReadAction } from '../../lib/payment-read-actions'
 import { PAYMENT_READ_DESCRIPTIONS, PAYMENT_READ_KEYS } from '../../lib/payment-shortcuts'
 import { writeRefusalText } from '../../lib/refusal'
 import type { BooksBillPayments, BooksPayments } from '../../types'
+import type { DocumentMoreItem } from '../documents/DocumentActionBar'
 import { DocumentReadActions } from '../documents/DocumentReadActions'
 import { VoidDialog } from '../entries/VoidDialog'
 
@@ -116,6 +117,8 @@ interface PaymentReadActionsProps extends PaymentReadTarget {
     payment: ReadPayment
     // The actions the caller offers (paymentReadActions, billPaymentReadActions).
     offered: readonly PaymentReadAction[]
+    // More → Audit history (useHistoryItem), last in More; null where the read view has none.
+    historyItem: DocumentMoreItem | null
     scopeOwner: ScopeOwner
 }
 
@@ -129,6 +132,7 @@ interface PaymentReadActionsProps extends PaymentReadTarget {
 export function PaymentReadActions({
     payment,
     offered,
+    historyItem,
     scopeOwner,
     ...target
 }: PaymentReadActionsProps) {
@@ -139,7 +143,7 @@ export function PaymentReadActions({
             <DocumentReadActions
                 actions={items}
                 isPhone={isPhone}
-                historyItem={null}
+                historyItem={historyItem}
                 isBusy={voidDialog.isPending}
                 scopeOwner={scopeOwner}
             />

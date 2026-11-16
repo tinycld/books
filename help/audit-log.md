@@ -18,7 +18,7 @@ Each row shows:
 - Date changed: the day and the time to the minute, in your time zone, for example "Nov 14, 2026, 4:07 PM".
 - User: the person who made the change. "System" is a change that no person made, such as a scheduled reversal that Books posted. A person who has been offboarded reads "Deleted user".
 - Event: what happened to the record.
-- Record type: the kind of record, for example Invoice, Invoice line, Customer or Books settings.
+- Record type: the kind of record, for example Invoice, Invoice line, Bill payment, Customer or Books settings.
 - Record: the record's name when the change was made, for example "Invoice 1001" or "Invoice 1001: line 2".
 
 The events are:
@@ -51,7 +51,7 @@ To see every change to one record, press its row in the Audit Log. A line row op
 
 On a window that is 1360 px wide or more, the history shows in a side panel beside the report, and the row that you pressed stays marked. Press another row to show its history in the same panel. To see the history on its own screen, press Open as full screen. To close the panel, press Close (✕) or Escape. On a narrower window and on a phone, the history opens as its own screen with a back link.
 
-To see the history from the record itself, open the record and choose More → Audit history. It is the last item of the More menu of an invoice, estimate, sales receipt, bill or expense, a journal entry (posted, void, or a saved draft) and a customer page. When you can only read Books, the More menu of a customer page or a journal entry holds Audit history alone. On a document, More can also hold the other items that you can use, for example Download PDF on a phone, and Audit history comes after them. The history opens as its own screen.
+To see the history from the record itself, open the record and choose More → Audit history. It is the last item of the More menu of an invoice, estimate, sales receipt, bill or expense, a bill payment, a journal entry (posted, void, or a saved draft) and a customer page. When you can only read Books, the More menu of a customer page or a journal entry holds Audit history alone. On a document, More can also hold the other items that you can use, for example Download PDF on a phone, and Audit history comes after them. The history opens as its own screen.
 
 The history shows the record's type and name. Press Open (for example Open invoice) to go to the record. When the record was deleted, the history says "This record was deleted on" and the day.
 

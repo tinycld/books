@@ -12,9 +12,11 @@ export type DocumentTotalsView = {
     tax: { label: string; amount: string } | null
     total: string
     // The sum the posted payments apply ("−$100.00"), above the last row; null or left out
-    // when none applies (every form, and every kind but the invoice).
+    // when none applies (every form, and every kind but the invoice and the bill, the
+    // kinds that payments pay).
     payments?: string | null
-    // The kind's last row (Balance due on an invoice).
+    // The kind's last row (Balance due on an invoice and a bill, so the total less its
+    // payments is what is still owed).
     last: string
 }
 
@@ -58,8 +60,8 @@ function PaymentsRow({ amount, testID }: { amount: string | null; testID: string
     return <TotalRow label="Payments" amount={amount} testID={testID} />
 }
 
-// The kind's last row (Balance due on an invoice); a kind with none (an estimate) draws
-// nothing.
+// The kind's last row (Balance due on an invoice and a bill, which payments pay); a kind
+// with none (an estimate) draws nothing.
 function LastRow({ amount }: { amount: string }) {
     const { doc } = useDocumentKind()
     const last = doc.lastTotal

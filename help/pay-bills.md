@@ -57,7 +57,7 @@ A bill payment posts one journal entry. It debits Accounts payable for the bills
 
 ## Edit a bill payment
 
-A posted bill payment opens in its read view: the vendor, the account it was paid from, the date, the payment (such as "Check · 1042"), the bills it paid with their total, and who posted it.
+A posted bill payment opens in its read view: the vendor, the account it was paid from, the date, the payment (such as "Check · 1042"), the bills it paid with their total, and who posted it. To see what changed on the payment and who changed it, choose More → Audit history.
 
 To change it, choose Edit. Pay bills opens as "Edit bill payment 1004", with the payment's Paid from, date, method and Check no. filled in and the bills paid as before. The vendor cannot change. You can change the header, change or clear a bill's payment, and pay more of the same vendor's open bills. A line under the balances shows the original payment ("Payment 1004 now"), so the New balance shows the change. Choose Save. The edit replaces the original under the same number, and the original becomes Void, with "Replaced by 1004 (edited)". An edit must pay at least one bill: to undo a payment, void it.
 

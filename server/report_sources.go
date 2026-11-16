@@ -180,7 +180,7 @@ func reportSources() []reports.Source {
 	return sources
 }
 
-// auditLogSource is the books_audit_log view (migration 2100000021): one row
+// auditLogSource is the books_audit_log view (migration 2100000022): one row
 // per audit row of a Books record. The view's computed columns are text, so
 // event, record_type and parent_type are Selects over text columns. The JSON
 // columns (changes, snapshot) are left out; it has no money, so no Currency.
