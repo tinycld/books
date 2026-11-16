@@ -171,4 +171,5 @@
 - fix review: round 1: 0 BLOCK, 1 NOTE (`cp3-fix-review.md`: "counts in exactly one row" — a sub-customer line also counts in its family total and the Total) → one-word help fix ("exactly one customer row") by the runner; help vitest green. Shadow (sonnet): clean. 1 round.
 - gate 3 A notes: 1 under Design notes (A NOTE 2); gate 2 notes: 4 under Design notes.
 - model trial: lines in /Users/nas/tmp/tinycld/auto-helix-books/model-trial.md (one shadow-only real finding, fixed).
+- commit: 17ae261f
 - human: none (review mode C)
