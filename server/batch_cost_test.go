@@ -18,14 +18,14 @@ import (
 // The batch limits core sets (coreserver/batch_settings.go). A test app does
 // not run core's OnServe hook, so the test applies them itself. The race
 // detector makes the code run 2 to 20 times slower (the Go race detector
-// documentation), so under -race the timeout gets that factor: the timeout
-// models production speed, and the statement bounds of the cost tests do not
-// change.
+// documentation), so under -race the timeout is 15s, the most the human allows
+// for a test (2026-11-16): the timeout models production speed, and the
+// statement bounds of the cost tests do not change.
 func enableBatch(t testing.TB, app core.App) {
 	t.Helper()
 	timeout := int64(3)
 	if raceDetector {
-		timeout *= 20
+		timeout = 15
 	}
 	settings := app.Settings()
 	settings.Batch = core.BatchConfig{Enabled: true, MaxRequests: 1100, Timeout: timeout, MaxBodySize: 8 << 20}
