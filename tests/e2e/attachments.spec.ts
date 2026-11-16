@@ -612,12 +612,6 @@ test.describe('attachments: draft edit keyboard', () => {
         await openBooks(page)
         await openNewBill(page)
         const memo = uniqueMemo('Attachments draft keyboard')
-        // The search palette keeps its last term and sends it again on reopen, before
-        // the helper waits for a response; so each search uses a distinct term. Each is
-        // whole words of the unique memo, so each finds only this bill.
-        const firstSearch = memo
-        const secondSearch = memo.replace('Attachments ', '')
-        const thirdSearch = memo.replace('Attachments draft ', '')
 
         // A draft with one stored file, made from the keyboard.
         await fillNewBillByKeyboard(page, '80.00', memo)
@@ -633,7 +627,7 @@ test.describe('attachments: draft edit keyboard', () => {
 
         // Reopen the draft. Focus Memo without a click; from here on, no click.
         await blurFocus(page)
-        await openBillBySearch(page, firstSearch)
+        await openBillBySearch(page, memo)
         await expect(page).toHaveURL(new RegExp(`/books/bills/${id}$`))
         const section = formSection(page, 'bill')
         const memoInput = page.getByTestId('form-input-memo').filter({ visible: true })
@@ -656,7 +650,7 @@ test.describe('attachments: draft edit keyboard', () => {
 
         // The file was never deleted.
         await blurFocus(page)
-        await openBillBySearch(page, secondSearch)
+        await openBillBySearch(page, memo)
         await expectAttachmentNames(page, 'bill', ['a.pdf'])
 
         // Remove it again, attach b.png, and Save draft runs both.
@@ -674,7 +668,7 @@ test.describe('attachments: draft edit keyboard', () => {
 
         // Stored: reopening lists only b.png.
         await blurFocus(page)
-        await openBillBySearch(page, thirdSearch)
+        await openBillBySearch(page, memo)
         await expect(attachmentRow(page, 'bill', 'b.png').getByText(STORED_DETAIL)).toBeVisible()
         await expectAttachmentNames(page, 'bill', ['b.png'])
     })
