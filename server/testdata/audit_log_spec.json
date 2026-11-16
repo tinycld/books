@@ -40,7 +40,7 @@
         { "value": "books_admins", "label": "Books admin" }
     ],
     "display": {
-        "oneLine": { "minWidth": "760px" },
+        "oneLine": { "minWidth": "920px" },
         "columns": {
             "created": { "minWidth": "max-content" },
             "event": { "minWidth": "max-content" },
@@ -178,7 +178,7 @@
             }
         },
         "display": {
-            "oneLine": { "minWidth": "760px" },
+            "oneLine": { "minWidth": "920px" },
             "columns": {
                 "created": { "minWidth": "max-content" },
                 "event": { "minWidth": "max-content" },

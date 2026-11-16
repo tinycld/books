@@ -85,11 +85,16 @@ func auditLogColumns() []reports.Column {
 // back to core's automatic lines at 390 and 375. Record breaks a long
 // unbroken word (OverflowWrap "anywhere"): a wrapping column otherwise never
 // goes under its longest word, and one long name moved every row to
-// automatic lines.
+// automatic lines. The one line starts at 920 px of row width, not at the 760
+// px it needs. Measured row widths: 896 px beside core's 480 px record panel
+// at 1440 (it must take the tablet layout there, spec §3 "Phone (390) and the
+// panel") and 960 px for the report alone at 1024 with overlay scrollbars; a
+// classic scrollbar takes about 15 px from both (881 and 945), so 920 sits
+// between them on every scrollbar kind.
 func auditLogDisplay() *reports.Display {
 	grow := 2
 	return &reports.Display{
-		OneLine: &reports.DisplayOneLine{MinWidth: "760px"},
+		OneLine: &reports.DisplayOneLine{MinWidth: "920px"},
 		Columns: map[string]reports.ColumnFit{
 			"created": {MinWidth: "max-content"},
 			"event":   {MinWidth: "max-content"},

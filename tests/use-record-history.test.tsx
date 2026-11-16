@@ -1,10 +1,15 @@
 // @vitest-environment happy-dom
 import { BasicIndex, createCollection, localOnlyCollectionOptions } from '@tanstack/db'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { FieldValue } from '../tinycld/books/components/history/FieldValue'
 import { useRecordHistory } from '../tinycld/books/hooks/useRecordHistory'
+import { auditFieldsOf } from '../tinycld/books/lib/audit-fields'
 import { type AuditLogRow, auditRow, type RowInput } from '../tinycld/books/lib/audit-log-fixture'
-import { guardedStore, seedBooks } from './accounts-form-harness'
+import { historyKey } from '../tinycld/books/stores/history-reads-store'
+import { accountsStore, guardedStore, seedBooks } from './accounts-form-harness'
+import { expectLiveQueryError } from './silence-log'
 
 // The live record's collection (books_invoices) is not one the harness seeds: each test
 // puts its own here, a ready one or one whose read is held.
@@ -325,5 +330,45 @@ describe('useRecordHistory', () => {
         act(() => held.release())
         await waitFor(() => expect(result.current.header.deletedOn).toBe(deleted.created))
         expect(result.current.isLoading).toBe(false)
+    })
+
+    // A relation's name is read by the history's FieldValue (components/history), which
+    // reports a failed read to the history's key; the hook's readsFailed and retry() are
+    // what the history shows and runs. The real FieldValue renders beside the hook.
+    it('reports a refused relation read as readsFailed, and retry() reads it again and clears it', async () => {
+        seedBooks({ accountsFailsOnce: true })
+        expectLiveQueryError(accountsStore().id)
+        const changed = invoiceRow(1)
+        guardedStore<AuditLogRow>('books_audit_log', [changed])
+        extra.stores.books_invoices = liveRecords([{ id: INVOICE }])
+        const incomeAccount = auditFieldsOf('books_products').income_account
+        if (!incomeAccount) throw new Error('books_products has no income_account field')
+        const history = historyKey('books_invoices', INVOICE)
+        const wrapper = ({ children }: { children: ReactNode }) => (
+            <>
+                {children}
+                <FieldValue
+                    field={incomeAccount}
+                    value="acct_bank_0001"
+                    currency="USD"
+                    history={history}
+                />
+            </>
+        )
+
+        const { result } = renderHook(() => useRecordHistory('books_invoices', INVOICE), {
+            wrapper,
+        })
+
+        await waitFor(() => expect(result.current.readsFailed).toBe(true))
+        // Only a value's read failed: the events stay, with no history-wide error.
+        expect(result.current.isError).toBe(false)
+        expect(ids(result.current.events)).toEqual([changed.id])
+
+        act(() => result.current.retry())
+
+        await waitFor(() => expect(result.current.readsFailed).toBe(false))
+        expect(accountsStore().get('acct_bank_0001')).toBeDefined()
+        expect(ids(result.current.events)).toEqual([changed.id])
     })
 })
