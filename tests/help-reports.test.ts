@@ -329,10 +329,38 @@ describe('help/reports.md', () => {
             expect(oneSentence(/\b36\b/, /\bmonths?\b/i)).toBe(true)
         })
 
-        it('says the P&L is on the accrual basis', () => {
-            expect(pl).toContain(
-                'Books reports the P&L on the accrual basis: income counts on the day it is entered, not the day it is paid.'
+        it('no longer says the P&L is on the accrual basis', () => {
+            expect(pl).not.toMatch(/on the accrual basis/i)
+        })
+    })
+
+    describe('the "Accrual and cash basis" section', () => {
+        const basis = section('## Accrual and cash basis')
+        const sentences = basis.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('has the heading', () => {
+            expect(body).toMatch(/^## Accrual and cash basis$/m)
+        })
+
+        it('names the four reports with a Method chip', () => {
+            expect(basis).toMatch(/\bProfit and Loss\b(?! by Month)/)
+            expect(basis).toContain('Profit and Loss by Month')
+            expect(basis).toContain('Balance Sheet')
+            expect(basis).toContain('Transaction Detail by Account')
+        })
+
+        it('says bills and invoices count when paid on the cash basis', () => {
+            expect(oneSentence(/\bbills?\b/i, /\binvoices?\b/i, /\bpaid\b/i, /\bcash\b/i)).toBe(
+                true
             )
+        })
+
+        it("says voiding a payment can move another payment's share by a cent", () => {
+            expect(
+                oneSentence(/\bvoid/i, /\bpayments?\b/i, /\bshare\b/i, /\b(a|one) cent\b/i)
+            ).toBe(true)
         })
     })
 

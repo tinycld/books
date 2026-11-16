@@ -221,6 +221,8 @@ migrate(
                     'CREATE INDEX idx_books_cash_basis_lines_account_date ON books_cash_basis_lines (account, date)',
                     'CREATE INDEX idx_books_cash_basis_lines_bill ON books_cash_basis_lines (bill)',
                     'CREATE INDEX idx_books_cash_basis_lines_invoice ON books_cash_basis_lines (invoice)',
+                    // Transaction Detail's Split column looks up a row's siblings by entry.
+                    'CREATE INDEX idx_books_cash_basis_lines_entry ON books_cash_basis_lines (entry)',
                 ],
             })
         )

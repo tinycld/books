@@ -276,11 +276,11 @@ func TestProfitAndLossSpecLoads(t *testing.T) {
 	if shipped.Title != "Profit and Loss" {
 		t.Errorf("title = %q, want Profit and Loss", shipped.Title)
 	}
-	if shipped.Description != "Income and expenses for a period, and what is left, on the accrual basis." {
-		t.Errorf("description = %q", shipped.Description)
+	if shipped.Description != "Income and expenses for a period, and what is left." {
+		t.Errorf("description = %q, want the hub text without \"on the accrual basis\"", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 3 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 3 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(profitAndLossSpec()))) {
 		t.Errorf("the shipped spec is not profitAndLossSpec()")
@@ -293,8 +293,8 @@ func TestProfitAndLossSpecLoads(t *testing.T) {
 	if spec.Version != reports.CurrentVersion {
 		t.Errorf("version %d, want %d", spec.Version, reports.CurrentVersion)
 	}
-	if spec.Source != "books.journal_lines" {
-		t.Errorf("source = %q, want books.journal_lines", spec.Source)
+	if spec.Source != "books.basis_lines" {
+		t.Errorf("source = %q, want books.basis_lines", spec.Source)
 	}
 	if err := reports.Validate(app, spec); err != nil {
 		t.Errorf("Validate: %v", err)
@@ -304,8 +304,11 @@ func TestProfitAndLossSpecLoads(t *testing.T) {
 	for i, p := range spec.Params {
 		ids[i] = p.ID
 	}
-	if !reflect.DeepEqual(ids, []string{"period", "rows"}) {
-		t.Fatalf("params = %v, want period, rows (the chips' order)", ids)
+	if !reflect.DeepEqual(ids, []string{"period", "method", "rows"}) {
+		t.Fatalf("params = %v, want period, method, rows (the chips' order)", ids)
+	}
+	if method := paramOf(t, spec, "method"); !reflect.DeepEqual(method, methodParam()) {
+		t.Errorf("method = %+v, want methodParam() %+v", method, methodParam())
 	}
 	period := paramOf(t, spec, "period")
 	if period.Type != reports.ParamDateRange || period.Label != "Period" || !jsonEqual(t, period.Default, `{"preset":"thisFiscalYearToDate"}`) {
@@ -826,7 +829,7 @@ func TestProfitAndLossShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Profit and Loss" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Profit and Loss" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1266,11 +1269,11 @@ func TestProfitAndLossByMonthSpecLoads(t *testing.T) {
 	if shipped.Title != "Profit and Loss by Month" {
 		t.Errorf("title = %q, want Profit and Loss by Month", shipped.Title)
 	}
-	if shipped.Description != "Income and expenses month by month for a period, on the accrual basis." {
-		t.Errorf("description = %q", shipped.Description)
+	if shipped.Description != "Income and expenses month by month for a period." {
+		t.Errorf("description = %q, want the hub text without \"on the accrual basis\"", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 2 (figures open Transaction Detail), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 3 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 3 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(profitAndLossByMonthSpec()))) {
 		t.Errorf("the shipped spec is not profitAndLossByMonthSpec()")
@@ -1280,6 +1283,9 @@ func TestProfitAndLossByMonthSpecLoads(t *testing.T) {
 	var spec reports.Spec
 	if err := json.Unmarshal(shipped.Spec, &spec); err != nil {
 		t.Fatalf("decode the shipped spec: %v", err)
+	}
+	if spec.Source != "books.basis_lines" {
+		t.Errorf("source = %q, want books.basis_lines", spec.Source)
 	}
 	pl := profitAndLossSpec()
 	if got, want := plJSON(t, spec.Params), plJSON(t, pl.Params); got != want {
@@ -1715,7 +1721,7 @@ func TestProfitAndLossByMonthShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Profit and Loss by Month" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Profit and Loss by Month" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {

@@ -29,7 +29,8 @@ const maxEntryMemo = 4000
 // bills) posts through postDocument, so postEntry runs every ledger rule (the
 // close date among them) and numbers it from the bill_payment sequence; then
 // the payment takes its number, total and entry, its lines come off their
-// bills' balances, and a correction's original becomes void with replaced_by.
+// bills' balances, a correction's original becomes void with replaced_by, and
+// the cash-basis rows of every bill it or its original pays are rebuilt.
 func postBillPayment(tx core.App, p *core.Record, now time.Time) error {
 	original, err := correctedBillPayment(tx, p)
 	if err != nil {
@@ -91,9 +92,12 @@ func postBillPayment(tx core.App, p *core.Record, now time.Time) error {
 		return err
 	}
 	if original == nil {
-		return nil
+		return rebuildPaidCashBasis(tx, billBalanceKind, p.Id)
 	}
-	return voidReplacedBillPayment(tx, original, p, actor, now)
+	if err := voidReplacedBillPayment(tx, original, p, actor, now); err != nil {
+		return err
+	}
+	return rebuildPaidCashBasis(tx, billBalanceKind, p.Id, original.Id)
 }
 
 // saveBillPaymentPost saves the posted fields under the posting mark, which
@@ -258,7 +262,7 @@ func voidReplacedBillPayment(tx core.App, original, correction *core.Record, act
 // from posted to void, inside the update's transaction: the entry's own hook
 // posts the void reversal in the original period under the same number
 // (voidEntry), and the close date applies to it as to any post. The bills it
-// paid are open again (releaseLines).
+// paid are open again (releaseLines), and their cash-basis rows lose its share.
 func voidBillPayment(tx core.App, p *core.Record, now time.Time) error {
 	entryID := p.GetString("entry")
 	if entryID == "" {
@@ -274,5 +278,8 @@ func voidBillPayment(tx core.App, p *core.Record, now time.Time) error {
 		return err
 	}
 	p.Set("voided_at", now)
-	return releaseLines(tx, billBalanceKind, p.Id)
+	if err := releaseLines(tx, billBalanceKind, p.Id); err != nil {
+		return err
+	}
+	return rebuildPaidCashBasis(tx, billBalanceKind, p.Id)
 }
