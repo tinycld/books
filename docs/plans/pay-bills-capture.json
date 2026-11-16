@@ -1,0 +1,108 @@
+{
+    "outDir": "pay-bills-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "pay-bills-form",
+            "height": 3000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "overdue",
+            "url": "/a/books/helix-mockup?state=overdue",
+            "ready": "pay-bills-form",
+            "height": 1900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "refused",
+            "url": "/a/books/helix-mockup?state=refused",
+            "ready": "pay-bills-form",
+            "height": 3000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "card",
+            "url": "/a/books/helix-mockup?state=card",
+            "ready": "pay-bills-form",
+            "height": 3000,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "edit",
+            "url": "/a/books/helix-mockup?state=edit",
+            "ready": "pay-bills-form",
+            "height": 2000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "pay-bills-form",
+            "height": 1300,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "pay-bills-form",
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "pay-bills-loading",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "pay-bills-message",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "pay-bills-message",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/helix-mockup?state=read",
+            "ready": "bill-payment-read-only",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-void",
+            "url": "/a/books/helix-mockup?state=read-void",
+            "ready": "bill-payment-read-only",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-replaced",
+            "url": "/a/books/helix-mockup?state=read-replaced",
+            "ready": "bill-payment-read-only",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "bill",
+            "url": "/a/books/helix-mockup?state=bill",
+            "ready": "bill-read-only",
+            "height": 1200,
+            "hideLabels": ["New"]
+        }
+    ]
+}

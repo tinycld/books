@@ -458,6 +458,7 @@ export function customerBalanceResult(input: ResultInput = {}): RunResult {
         columns: CUSTOMER_BALANCE_COLUMNS,
         rows: [...shown.flatMap(family => familyRows(family, input)), totalRow(shown)],
         notices: [],
+        headerLines: [],
         topics: [
             'collection/books_journal_lines',
             'collection/books_accounts',

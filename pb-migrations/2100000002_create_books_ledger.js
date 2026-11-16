@@ -19,8 +19,8 @@
 // (server/revision.go).
 //
 // DOCUMENT ENTRIES. An entry with origin 'document' is the posting of a sales
-// or purchase document, or of a received payment (doc_type 'invoice',
-// 'sales_receipt', 'bill', 'expense' or 'payment'); document is that document's id. Only the document's Go hooks create, post and void such
+// or purchase document, or of a received or bill payment (doc_type 'invoice',
+// 'sales_receipt', 'bill', 'expense', 'payment' or 'bill_payment'); document is that document's id. Only the document's Go hooks create, post and void such
 // an entry, so document is server-owned and origin 'document' is not among the
 // origins a client may create. A client creates no entry with a document's
 // doc_type either: a manual one would post and take a number from the
@@ -181,6 +181,7 @@ migrate(
                             'bill',
                             'expense',
                             'payment',
+                            'bill_payment',
                         ],
                     },
                     {
@@ -258,6 +259,9 @@ migrate(
             // counts voided reversals too, so the posted-only index above cannot.
             "CREATE INDEX idx_books_je_reverses ON books_journal_entries (reverses) WHERE reverses != ''",
             'CREATE INDEX idx_books_je_date ON books_journal_entries (date)',
+            // Serves the cash-basis rebuild's read of a document's or a
+            // payment's entries (server/cash_basis.go).
+            'CREATE INDEX idx_books_je_document ON books_journal_entries (document, doc_type)',
             'CREATE INDEX idx_books_je_status_date ON books_journal_entries (status, date)',
             "CREATE INDEX idx_books_je_auto_reverse ON books_journal_entries (auto_reverse_on) WHERE auto_reverse_on != ''",
         ]

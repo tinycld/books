@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
     canDeleteStatus,
-    invoiceBadge,
     isFormStatus,
     isReadOnlyStatus,
+    paidBadge,
     quoteReadActions,
     statusBadgeOf,
 } from '../tinycld/books/lib/document-lifecycle'
@@ -71,27 +71,35 @@ describe('statusBadgeOf', () => {
     })
 })
 
-// Receive payment §3.9: a posted invoice's badge follows its open balance. Paid when
-// nothing is open, Partly paid while part of the total is open, else Posted. Draft and
-// void keep their posting badges.
-describe('invoiceBadge', () => {
-    it('reads Paid, success, on a posted invoice with no balance', () => {
-        expect(invoiceBadge('posted', 0, 500)).toEqual({ label: 'Paid', tone: 'success' })
+// Pay bills §3.9 (Q4) and receive payment §3.9: a posted invoice's or bill's badge follows
+// its open balance, by one rule (`paidBadge`, receive payment's `invoiceBadge` renamed).
+// Paid when nothing is open, Partly paid while part of the total is open, otherwise the
+// posting badge.
+describe('paidBadge', () => {
+    it('reads Paid, success, on a posted document with no balance', () => {
+        expect(paidBadge('posted', 0, 50000)).toEqual({ label: 'Paid', tone: 'success' })
     })
 
     it('reads Partly paid, warning, while part of the total is open', () => {
-        expect(invoiceBadge('posted', 200, 500)).toEqual({ label: 'Partly paid', tone: 'warning' })
+        expect(paidBadge('posted', 20000, 50000)).toEqual({ label: 'Partly paid', tone: 'warning' })
     })
 
-    it('reads Posted on a posted invoice nothing has paid', () => {
-        expect(invoiceBadge('posted', 500, 500)).toEqual(statusBadgeOf('posting', 'posted'))
-        expect(invoiceBadge('posted', 500, 500)).toEqual({ label: 'Posted', tone: 'success' })
+    it('reads Posted on a posted document nothing has paid', () => {
+        expect(paidBadge('posted', 50000, 50000)).toEqual({ label: 'Posted', tone: 'success' })
     })
 
-    it('keeps the draft and void badges, whatever the balance', () => {
-        expect(invoiceBadge('draft', 0, 500)).toEqual({ label: 'Draft', tone: 'muted' })
-        expect(invoiceBadge('void', 0, 500)).toEqual({ label: 'Void', tone: 'destructive' })
-        expect(invoiceBadge('void', 200, 500)).toEqual({ label: 'Void', tone: 'destructive' })
+    it('reads Void on a void document and Draft on a draft, whatever the balance', () => {
+        expect(paidBadge('void', 0, 50000)).toEqual({ label: 'Void', tone: 'destructive' })
+        expect(paidBadge('draft', 0, 0)).toEqual({ label: 'Draft', tone: 'muted' })
+    })
+
+    // The invoice keeps its badges: the same results as receive payment's cases above.
+    it('gives the invoice cases the results they had', () => {
+        expect(paidBadge('posted', 0, 500)).toEqual({ label: 'Paid', tone: 'success' })
+        expect(paidBadge('posted', 200, 500)).toEqual({ label: 'Partly paid', tone: 'warning' })
+        expect(paidBadge('posted', 500, 500)).toEqual(statusBadgeOf('posting', 'posted'))
+        expect(paidBadge('draft', 0, 500)).toEqual({ label: 'Draft', tone: 'muted' })
+        expect(paidBadge('void', 200, 500)).toEqual({ label: 'Void', tone: 'destructive' })
     })
 })
 

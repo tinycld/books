@@ -147,10 +147,18 @@ test.describe('receive-payment: void and edit', () => {
         await expect.poll(() => names.count()).toBe(2)
         await expect.poll(async () => [...new Set(await names.allInnerTexts())]).toEqual([name])
 
-        // Journal Entries: the row reads Payment, and its Edit opens the correction. The
-        // entry was opened from the payment, so its back link replaces it with the list (the
-        // payment stays mounted under it, with a back link of the same test id).
-        await entry.getByTestId('entry-back').click()
+        // The entry was opened from the payment, so its back link names the payment and
+        // returns to it. The payment was opened from the customer page, so its own back link
+        // (the same test id) replaces it with the Journal Entries list.
+        const entryBack = entry.getByTestId('entry-back')
+        await expect(entryBack).toHaveText('Payment')
+        await entryBack.click()
+        await expect(page).toHaveURL(new RegExp(`/books/payments/${original.id}$`))
+        await expect(shown(page, 'payment-title')).toHaveText(`Payment ${original.number}`)
+        await expect(entry).toHaveCount(0)
+        await shown(page, 'entry-back').click()
+
+        // Journal Entries: the row reads Payment, and its Edit opens the correction.
         await expect(page.getByTestId('entries-screen')).toBeVisible()
         await searchEntries(page, memo)
         const row = entryRow(page, /^Payment$/)

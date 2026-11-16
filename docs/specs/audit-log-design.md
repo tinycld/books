@@ -91,18 +91,18 @@ What it does not change: a field core redacts (vendor and settings tax ID, the e
 
 How it stays true: a Go test (`TestAuditLogRuleFollowsAudited`, `server/audit_log_test.go`) reads the list and view rule of every collection in `auditedCollections` and of `books_audit_log`, and fails when one differs from `READ`. A later unit that gives an audited collection a narrower rule must narrow the view's rule for that record type in the same change (a new view migration once this one is released).
 
-### Migration `2100000021_create_books_audit_log.js` (after main's `2100000019_create_books_payments.js` and `2100000020_create_books_attachments.js`, because the view reads the payment applications): view `books_audit_log`
+### Migration `2100000022_create_books_audit_log.js` (after main's `2100000019_create_books_payments.js`, `2100000020_create_books_attachments.js` and `2100000021_create_books_bill_payments.js`, because the view reads the payment applications and the bill payment lines): view `books_audit_log`
 
 A view over core's `audit_logs`, with whitelisted columns (no IP address, user agent or metadata; memory p2-estimate-public-link):
 
 - `id` = `a.id`; `created` = `a.created` (date-time); `actor` = `'system'` when `a.actor` is blank, else `a.actor` (`CAST … AS TEXT`); `actor_name` = "System" when blank, else the user's name (`LEFT JOIN users u`), "Unknown user" when the user row is gone.
 - `event` (text): `added` (created), `deleted`, `posted` (`json_extract(a.changes, '$.status.after') = 'posted'`), `voided` (`= 'void'`), else `changed`.
 - `record_type` = `a.resource_type`; `record_id` = `a.resource_id`; `record_label` = `a.resource_label`; `changes`, `snapshot` (JSON).
-- `parent_type`, `parent_id` (text): for `books_journal_lines`, `books_invoice_lines`, `books_sales_receipt_lines`, `books_estimate_lines`, `books_bill_lines`, `books_expense_lines`, `books_bundle_items`, `books_estimate_responses`, `books_payment_applications` (parent `books_payments`, field `payment`): the parent collection and the parent id, read from the live row (`SELECT <parent> FROM <lines> WHERE id = a.resource_id`) else from the delete snapshot (`json_extract(a.snapshot, '$.<parent>')`); empty for other types.
+- `parent_type`, `parent_id` (text): for `books_journal_lines`, `books_invoice_lines`, `books_sales_receipt_lines`, `books_estimate_lines`, `books_bill_lines`, `books_expense_lines`, `books_bundle_items`, `books_estimate_responses`, `books_payment_applications` (parent `books_payments`, field `payment`), `books_bill_payment_lines` (parent `books_bill_payments`, field `payment`): the parent collection and the parent id, read from the live row (`SELECT <parent> FROM <lines> WHERE id = a.resource_id`) else from the delete snapshot (`json_extract(a.snapshot, '$.<parent>')`); empty for other types.
 - `history_type`, `history_id` (text): the record whose history a row opens: the parent when `parent_id` is not empty, else the record itself. The report's `detail.open` reads them, so the spec needs no `if` over a blank select.
 - `WHERE a.resource_type >= 'books_' AND a.resource_type < 'books`'` (a prefix range the `idx_audit_resource` index serves; `` ` `` sorts right after `_`).
 - **List and view rule:** `READ` (§5 "Visibility rule"). No create, update or delete.
-- `server/register.go`: `changesignal.RegisterView("books_audit_log", "audit_logs", "users", <the nine line collections>)`; pinned by `changesignal.CheckViews` in a Books test (memory p5-change-signal).
+- `server/register.go`: `changesignal.RegisterView("books_audit_log", "audit_logs", "users", <the ten line collections>)`; pinned by `changesignal.CheckViews` in a Books test (memory p5-change-signal).
 
 ### Source `books.audit_log` (`server/report_sources.go`)
 

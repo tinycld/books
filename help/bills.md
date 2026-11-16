@@ -9,6 +9,8 @@ To record what you owe a vendor, enter the vendor's bill as a bill. When you pos
 
 If you already paid, and there is no bill to pay later, record an expense instead. See [Expenses](help://books:expenses).
 
+To pay a posted bill, in full or in part, use Pay bills. See [Pay bills](help://books:pay-bills).
+
 ## Enter a bill
 
 To enter a bill, choose New in the sidebar (the round + button on a phone) and pick Bill, under Vendors. In a web browser, the Vendor field has focus when the form opens, so you can start to type the vendor's name at once.
@@ -64,6 +66,24 @@ To start a new bill from one that you already have, open it and choose Copy. The
 
 To see the entry a bill posted, open it and choose View journal entry. A posted bill also shows in Journal Entries with the Type Bill and its number.
 
+## Pay a bill and see what is paid
+
+A posted bill shows **Balance due** as its big figure: what you still owe, the Total less the bill payments that pay it. Under the lines, a Payments row (for example "Payments −$200.00") shows above Balance due while payments apply.
+
+The badge of a posted bill follows its balance:
+
+- **Paid**: nothing is open, because payments paid the bill in full.
+- **Partly paid**: payments paid part of the bill, and some of it is still open.
+- **Posted**: no payment applies yet.
+
+The **Payments** section under the memo lists each posted bill payment that pays the bill, for example "Bill payment 1004 · Nov 5, 2026 · $100.00". Choose one to open that bill payment. A void bill payment is not listed, and its amount is open again.
+
+To pay a posted bill that has a balance due, open it and choose **Pay bill** (or press P). On a phone, Pay bill is the button beside More, and Edit is in More. Pay bills opens with this bill selected for its full balance and its vendor in the Vendor filter. Change the amount to pay part of it, then choose Pay. When you come back, the bill shows the new Balance due. Pay bill is not offered on a paid, draft or void bill. See [Pay bills](help://books:pay-bills).
+
+You cannot void a bill that posted payments pay. Books shows "Payments are applied to this bill. Void or edit those payments first." Void or edit those bill payments first, then void the bill.
+
+You can edit a bill that payments pay. When you post the edit, its payments move to the edit. Books refuses the edit when its total is below the payments ("Payments of $300.00 are applied to this bill. Its total cannot be below that.") or when it changes the vendor ("Payments are applied to this bill, so its vendor cannot change.").
+
 ## Attach the vendor's bill
 
 To keep the vendor's bill (a PDF or a photo) with the bill, add it in the Attachments section under Memo, on the form or on a posted bill. An edit moves the original's files to the posted edit; a copy starts with none. See [Attachments](help://books:attachments).
@@ -104,10 +124,11 @@ On a posted or void bill:
 - V: Void
 - C: Copy to a new bill
 - J: View journal entry
+- P: Pay bill (a posted bill with a balance due)
 - ⌥A: Attach files (a posted bill only)
 
-The form keys and ⌥A also work while the cursor is in a text box. E, V, C and J do not. A key does nothing while its action is not offered (for example, Delete draft on a new bill). If a menu or dialog is open, Esc first closes it, and the other keys do nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys and ⌥A also work while the cursor is in a text box. E, V, C, J and P do not. A key does nothing while its action is not offered (for example, Delete draft on a new bill). If a menu or dialog is open, Esc first closes it, and the other keys do nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
-With bookkeeper or admin access you can create, post, edit, void, copy and delete draft bills. With read-only access you can open a posted or void bill and view its journal entry. To work with vendors, see [Vendors](help://books:vendors).
+With bookkeeper or admin access you can create, post, edit, void, copy and delete draft bills, and pay posted bills. With read-only access you can open a posted or void bill and view its journal entry. To work with vendors, see [Vendors](help://books:vendors).

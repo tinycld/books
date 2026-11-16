@@ -1,0 +1,25 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "read-replaced",
+            "url": "/a/books/bill-payments/bpseedpartial00",
+            "ready": "bill-payment-read-edit",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "bill-payment-read-edit" },
+                { "waitFor": "pay-bills-save" },
+                { "click": "pay-bills-save" },
+                { "waitForHidden": "pay-bills-save" },
+                { "waitFor": "bill-payment-title" },
+                { "pushPath": "/a/books/bill-payments/bpseedpartial00" },
+                { "waitFor": "bill-payment-replaced-by" },
+                { "waitForHidden": "Posted Bill payment 1001" },
+                { "click": "bill-payment-title" },
+                { "pause": 400 }
+            ]
+        }
+    ]
+}

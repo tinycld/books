@@ -1,0 +1,21 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "bill",
+            "url": "/a/books/bill-payments/bpseedpartial00",
+            "ready": "bill-payment-title",
+            "height": 1400,
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "waitFor": "bill-payment-applied" },
+                { "clickLink": "Bill 1004" },
+                { "waitFor": "bill-read-only" },
+                { "waitFor": "bill-payments" },
+                { "waitFor": "bill-balance-due" },
+                { "pause": 400 }
+            ]
+        }
+    ]
+}

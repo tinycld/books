@@ -468,6 +468,7 @@ var auditParentOf = map[string]string{
 	"books_expense_lines":       "books_expenses",
 	"books_bundle_items":        "books_products",
 	"books_estimate_responses":  "books_estimates",
+	"books_bill_payment_lines":  "books_bill_payments",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -513,6 +514,15 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 	case "books_estimate_responses":
 		parent = mkEstimateRow(t, app, customer, nil)
 		line = saveRecord(t, app, lines, map[string]any{"estimate": parent.Id, "decision": "accepted"})
+	case "books_bill_payment_lines":
+		vendor := saveRecord(t, app, "books_vendors", map[string]any{
+			"display_name": fmt.Sprintf("Pacific Power %d", n), "name_key": fmt.Sprintf("pacific power %d", n),
+		})
+		bill := saveRecord(t, app, "books_bills", map[string]any{"vendor": vendor.Id, "status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
+		parent = saveRecord(t, app, "books_bill_payments", map[string]any{
+			"vendor": vendor.Id, "paid_from": account.Id, "payment_method": "check", "status": "posted", "date": "2026-11-10",
+		})
+		line = saveRecord(t, app, lines, map[string]any{"payment": parent.Id, "bill": bill.Id, "amount": 100, "position": 0})
 	default:
 		t.Fatalf("no fixture for %s", lines)
 	}
@@ -779,12 +789,20 @@ func TestAuditLogOpenPaths(t *testing.T) {
 	mkAuditRow(t, app, auditRowInput{action: "deleted", resourceType: "books_journal_lines", resourceID: entryLine.Id, label: "Deleted journal line row", actor: actor, created: auditAt(5),
 		snapshot: map[string]any{"entry": entry.Id, "account": "", "debit": 100, "position": 0}})
 
+	// Pay-bills cp 4 D2: a bill payment's own row and its line's row both open the bill
+	// payment's history.
+	billPayment, billPaymentLine := lineFixture(t, app, "books_bill_payment_lines")
+	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_bill_payments", resourceID: billPayment.Id, label: "Bill payment row", actor: actor, created: auditAt(6)})
+	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_bill_payment_lines", resourceID: billPaymentLine.Id, label: "Bill payment line row", actor: actor, created: auditAt(7)})
+
 	want := map[string]string{
 		"Own product row":          "books/history/books_products/" + lamp.Id,
 		"Invoice line row":         "books/history/books_invoices/" + invoice.Id,
 		"Bundle item row":          "books/history/books_products/" + bundle.Id,
 		"Estimate response row":    "books/history/books_estimates/" + estimate.Id,
 		"Deleted journal line row": "books/history/books_journal_entries/" + entry.Id,
+		"Bill payment row":         "books/history/books_bill_payments/" + billPayment.Id,
+		"Bill payment line row":    "books/history/books_bill_payments/" + billPayment.Id,
 	}
 	got := map[string]string{}
 	res := runAudit(t, app, users.admin, map[string]any{"period": auditAllDates}, reports.Options{Today: auditToday})

@@ -17,6 +17,10 @@ import {
     hostDefSchema,
 } from '@tinycld/core/lib/forms/host'
 import type {
+    BooksBillPaymentLines,
+    BooksBillPayments,
+    BooksCashBasisLines,
+    BooksCashBasisTaxLines,
     BooksPaymentApplications,
     BooksPayments,
     Forms,
@@ -1114,6 +1118,10 @@ export function seedBooks(
             'books_payment_applications',
             []
         ),
+        books_bill_payments: local<BooksBillPayments>('books_bill_payments', []),
+        books_bill_payment_lines: local<BooksBillPaymentLines>('books_bill_payment_lines', []),
+        books_cash_basis_lines: local<BooksCashBasisLines>('books_cash_basis_lines', []),
+        books_cash_basis_tax_lines: local<BooksCashBasisTaxLines>('books_cash_basis_tax_lines', []),
     })
 }
 
@@ -1174,6 +1182,14 @@ export function onDemandStore<T extends { id: string }>(
     refuseOnceFor?: RefuseOnceFor
 ) {
     const collection = onDemandCollection<T>(name, rows, refuseOnceFor)
+    state.registry[name] = collection
+    return collection
+}
+
+// Registers a collection under `name` that never finishes its first load, so every live
+// query over it stays loading. Call after seedBooks, which replaces the registry.
+export function neverReadyStore<T extends { id: string }>(name: string) {
+    const collection = neverReady<T>()
     state.registry[name] = collection
     return collection
 }

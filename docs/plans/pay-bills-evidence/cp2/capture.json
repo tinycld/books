@@ -1,0 +1,157 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "height": 3000,
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "click": "pay-bills-paid-from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "pay-bills-paid-from-balance" },
+                { "fill": "pay-bills-check-no", "value": "1050" },
+                { "click": "pay-bills-tick-all" },
+                { "waitFor": "pay-bills-check-plan" }
+            ]
+        },
+        {
+            "name": "overdue",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "height": 1900,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "pay-bills-paid-from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "pay-bills-paid-from-balance" },
+                { "click": "pay-bills-tick-all" },
+                { "click": "pay-bills-due-filter" },
+                { "clickMenuItem": "Overdue" },
+                { "waitFor": "pay-bills-hidden" }
+            ]
+        },
+        {
+            "name": "refused",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "height": 3000,
+            "schemes": ["light", "dark"],
+            "batchRefusal": {
+                "match": "/books_bill_payments/",
+                "response": {
+                    "status": 400,
+                    "message": "Failed to create record.",
+                    "data": {
+                        "lines.0": {
+                            "code": "validation_refused",
+                            "message": "Bill 1003: the payment is more than its open balance of $50.00."
+                        }
+                    }
+                }
+            },
+            "actions": [
+                { "click": "pay-bills-paid-from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "pay-bills-paid-from-balance" },
+                { "click": "pay-bills-tick-all" },
+                { "click": "pay-bills-pay" },
+                { "waitFor": "Bill 1003: the payment is more than its open balance of $50.00." },
+                { "click": "pay-bills-title" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "card",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "height": 3000,
+            "widths": [390],
+            "schemes": ["light"],
+            "actions": [
+                { "click": "pay-bills-paid-from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "pay-bills-paid-from-balance" },
+                { "click": "pay-bills-tick-all" },
+                { "waitFor": "pay-bills-cards" }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "height": 1300,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "pay-bills-vendor-filter" },
+                { "click": "pay-bills-vendor-option-vendoffsupply01" },
+                { "waitFor": "Office Supply World" }
+            ]
+        },
+        {
+            "name": "filtered-empty",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "height": 1300,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "pay-bills-paid-from" },
+                { "clickMenuItem": "1000 Business Checking" },
+                { "waitFor": "pay-bills-paid-from-balance" },
+                { "click": "pay-bills-tick-all" },
+                { "click": "pay-bills-vendor-filter" },
+                { "click": "pay-bills-vendor-option-vendwillamett01" },
+                { "waitFor": "pay-bills-filter-empty" }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-empty",
+            "height": 1300,
+            "schemes": ["light", "dark"],
+            "hideLabels": ["Reconnecting…"],
+            "emptyRecords": "books_bills"
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-loading",
+            "schemes": ["light"],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_bills", "hold": true }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-retry",
+            "schemes": ["light"],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_bills", "status": 400 }
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-message",
+            "schemes": ["light"],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        }
+    ]
+}

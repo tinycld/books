@@ -1,14 +1,16 @@
-// The allocation rules of the receive-payment form (spec §3.4). Pure: every amount is
-// integer cents through the shared money helpers, never dollars. `payments` holds a
-// row's typed payment by invoice id; a row with no entry is at zero, and an edit that
-// leaves a row at zero removes its entry.
+// The allocation rules of the receive-payment form (spec §3.4) and of Pay Bills (pay-bills
+// spec §3.3). Pure: every amount is integer cents through the shared money helpers, never
+// dollars. `payments` holds a row's typed payment by invoice or bill id; a row with no
+// entry is at zero, and an edit that leaves a row at zero removes its entry.
 
 import { moneyInputCents } from './money-input'
 import { centsToText, parseMoney } from './money-text'
 import type { PaymentEntry } from './payment-values'
 
-// A listed invoice, in list order (oldest due date first, then number). `open` is what
-// the payment may take: its balance (plus, on a correction, what the original applied).
+// A listed invoice or bill, in list order (oldest due date first, then number). `open` is
+// what the payment may take: its balance (plus, on a correction, what the original
+// applied). A bill row also names its vendor (`party`, the display name) and the vendor's
+// bill no. (`ref`); an invoice row has neither.
 export type OutstandingRow = {
     id: string
     number: string
@@ -16,6 +18,8 @@ export type OutstandingRow = {
     due_date: string
     total: number
     open: number
+    party?: string
+    ref?: string
 }
 
 export type Payments = Record<string, PaymentEntry>

@@ -510,6 +510,7 @@ export function generalLedgerResult(input: GeneralLedgerInput = {}): RunResult {
         heading: GENERAL_LEDGER_HEADING,
         page: input.pageRows ? { next: 'reference-next-page', size: input.pageRows } : null,
         params: resolvedParams(input),
+        headerLines: [],
     }
 }
 

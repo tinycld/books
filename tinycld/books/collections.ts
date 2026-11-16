@@ -374,6 +374,7 @@ export function registerCollections(
             'sequence',
             'subtotal',
             'total',
+            'balance',
             'revision',
             'currency',
             'entry',
@@ -462,6 +463,52 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // Created posted, with its lines, in one batch; the server posts it from the
+    // create's request hook. Server-owned fields below the omit line (the number
+    // and total at posting, the poster by the request). No relations: the
+    // screens read the vendor, the account and the users through their own
+    // queries.
+    const books_bill_payments = newCollection('books_bill_payments', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'total',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // One row per bill a bill payment pays; the client writes every column but
+    // the autodates, in the batch that creates the payment.
+    const books_bill_payment_lines = newCollection('books_bill_payment_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // Written by the server from payments (the cash basis); clients only read them.
+    const books_cash_basis_lines = newCollection('books_cash_basis_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    const books_cash_basis_tax_lines = newCollection('books_cash_basis_tax_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     // A view, never written: the server signals its topic when a journal line or
     // an account changes (server/party_balances.go), so an open page follows a
     // post or a void with no reload.
@@ -527,6 +574,10 @@ export function registerCollections(
         books_expense_lines,
         books_payments,
         books_payment_applications,
+        books_bill_payments,
+        books_bill_payment_lines,
+        books_cash_basis_lines,
+        books_cash_basis_tax_lines,
         books_party_balances,
         books_party_contacts,
         books_audit_log,

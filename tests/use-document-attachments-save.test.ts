@@ -291,6 +291,7 @@ function billRecordOf(row: BooksBills): DocumentRecord {
             ref_no: row.ref_no,
             mailing_address: row.mailing_address,
             vendorRow: undefined,
+            balance: row.balance,
         },
         postedBy: undefined,
         voidedBy: undefined,

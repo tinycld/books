@@ -49,6 +49,7 @@ var booksSourceKeys = []string{
 	"books.account_balances",
 	"books.accounts",
 	"books.audit_log",
+	"books.basis_lines",
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
@@ -223,7 +224,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 					{Value: "journal", Label: "Journal entry"}, {Value: "transfer", Label: "Transfer"},
 					{Value: "invoice", Label: "Invoice"}, {Value: "sales_receipt", Label: "Sales receipt"},
 					{Value: "bill", Label: "Bill"}, {Value: "expense", Label: "Expense"},
-					{Value: "payment", Label: "Payment"},
+					{Value: "payment", Label: "Payment"}, {Value: "bill_payment", Label: "Bill payment"},
 				}},
 				textMinMax("number"),
 				// The posting order behind number, so opened lines sort 9 before 10.
@@ -254,6 +255,37 @@ func expectedCatalog(t *testing.T) []wantSource {
 				toOne("account", "books.accounts", "account"),
 				toOne("customer", "books.customers", "customer"),
 				toOne("vendor", "books.vendors", "vendor"),
+			},
+		},
+		{
+			// A union (core SourcePart) of the posted ledger lines and the
+			// cash-basis rows (pay-bills spec §3.10 "Source"): the fields and
+			// links of books.journal_lines, and layer, each part's constant.
+			key: "books.basis_lines", label: "Journal lines by basis",
+			fields: []wantField{
+				money("debit"), money("credit"), text("memo"),
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				boolField("posted"), text("currency"),
+				{key: "position", typ: reports.Number},
+				{key: "layer", typ: reports.Select, optionValues: []string{"ledger", "cash"}},
+			},
+			links: []wantLink{
+				toOne("entry", "books.journal_entries", "entry"),
+				toOne("account", "books.accounts", "account"),
+				toOne("customer", "books.customers", "customer"),
+				toOne("vendor", "books.vendors", "vendor"),
+			},
+			parts: []wantPart{
+				{
+					collection: "books_journal_lines",
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor"),
+					values:     map[string]any{"layer": "ledger"},
+				},
+				{
+					collection: "books_cash_basis_lines",
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor"),
+					values:     map[string]any{"layer": "cash"},
+				},
 			},
 		},
 		{
@@ -337,13 +369,17 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
-			// A union of the two tax line collections; the document link reads
-			// each part's own parent column.
+			// A union of the two ledger tax line collections and the cash-basis
+			// tax rows (pay-bills spec §3.10, Q3); the document link reads each
+			// part's own parent column, date is each row's own stored day, and
+			// layer is each part's constant.
 			key: "books.sales_tax_lines", label: "Sales tax lines",
 			fields: []wantField{
 				money("gross_amount"), money("taxable_amount"), money("amount"),
 				{key: "rate_ppm", typ: reports.Number, anyAggs: true},
 				text("currency"),
+				{key: "date", typ: reports.Date, textDay: true, anyAggs: true},
+				{key: "layer", typ: reports.Select, optionValues: []string{"ledger", "cash"}},
 			},
 			links: []wantLink{
 				toOne("document", "books.sales_documents", "document"),
@@ -355,16 +391,26 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{
 					collection: "books_invoice_tax_lines",
 					columns: mergeColumns(
-						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"),
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
 						map[string]string{"document": "invoice"},
 					),
+					values: map[string]any{"layer": "ledger"},
 				},
 				{
 					collection: "books_sales_receipt_tax_lines",
 					columns: mergeColumns(
-						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"),
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
 						map[string]string{"document": "sales_receipt"},
 					),
+					values: map[string]any{"layer": "ledger"},
+				},
+				{
+					collection: "books_cash_basis_tax_lines",
+					columns: mergeColumns(
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
+						map[string]string{"document": "invoice"},
+					),
+					values: map[string]any{"layer": "cash"},
 				},
 			},
 		},
@@ -442,7 +488,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 			}
 			wantCurrency := ""
 			if slices.Contains([]string{
-				"books.journal_entries", "books.journal_lines", "books.account_balances",
+				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.sales_documents", "books.sales_tax_lines",
 			}, want.key) {
 				wantCurrency = "USD"

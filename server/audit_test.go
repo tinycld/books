@@ -107,6 +107,51 @@ func TestAudit_LabelsAPaymentAndItsApplications(t *testing.T) {
 	}
 }
 
+// Pay-bills spec §4.2: a bill payment's audit row is "Bill payment 1004"; a
+// line's row names its payment and its bill ("Bill payment 1004: Bill 1003").
+// The rows asserted are the ones the audit hooks store for the batch that
+// creates and posts the payment, bound as Register binds them (registerAudit
+// after registerBillPaymentGuards, so the audit's create request hook runs
+// inside bindBillPaymentCreate's e.Next()).
+func TestAudit_LabelsABillPaymentAndItsLines(t *testing.T) {
+	bp := newBillPayEnv(t)
+	audited := auditedCollections(bp.app)
+	if _, ok := audited[billPaymentsCol]; !ok {
+		t.Fatal("books_bill_payments is not audited")
+	}
+	if _, ok := audited[billPayLinesCol]; !ok {
+		t.Fatal("books_bill_payment_lines is not audited")
+	}
+	registerAudit(&pocketbase.PocketBase{App: bp.app})
+	if err := setFields(t, bp.app, "books_doc_sequences", "booksseqbill000", map[string]any{"next_number": 1003}); err != nil {
+		t.Fatalf("move the bill sequence to 1003: %v", err)
+	}
+	bill := bp.postedBill(t, bp.summit, 45000)
+	if bill.GetString("number") != "1003" {
+		t.Fatalf("bill number %q, want 1003", bill.GetString("number"))
+	}
+	if err := setFields(t, bp.app, "books_doc_sequences", billPaySequenceID, map[string]any{"next_number": 1004}); err != nil {
+		t.Fatalf("move the bill payment sequence to 1004: %v", err)
+	}
+	p := bp.pay(t, bp.summit, nil, payLine{bill, 45000})
+
+	if got := p.GetString("number"); got != "1004" {
+		t.Fatalf("bill payment number %q, want 1004", got)
+	}
+	row := awaitAuditRow(t, bp.app, billPaymentsCol, "created", p.Id)
+	if got, want := row.GetString("resource_label"), "Bill payment 1004"; got != want {
+		t.Errorf("stored bill payment audit label = %q, want %q", got, want)
+	}
+	if got := row.GetString("actor"); got != bp.users.bookkeeper.Id {
+		t.Errorf("bill payment audit actor = %q, want the bookkeeper", got)
+	}
+	line := linesOfBillPayment(t, bp.app, p.Id)[0]
+	lineRow := awaitAuditRow(t, bp.app, billPayLinesCol, "created", line.Id)
+	if got, want := lineRow.GetString("resource_label"), "Bill payment 1004: Bill 1003"; got != want {
+		t.Errorf("stored bill payment line audit label = %q, want %q", got, want)
+	}
+}
+
 // Spec §3.11: an estimate's audit row is "Estimate 1001"; a line's row follows
 // its estimate ("Estimate 1001: line 2"). An estimate has its number from its
 // first save, so it has no draft label.

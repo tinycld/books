@@ -13,16 +13,20 @@ func salesTaxLiabilityShipped() reports.Shipped {
 	return reports.Shipped{
 		Key:         salesTaxLiabilityKey,
 		Title:       "Sales Tax Liability",
-		Description: "The sales tax you charged on posted invoices and sales receipts, by agency and rate (accrual basis).",
+		Description: "The sales tax you charged on posted invoices and sales receipts, by agency and rate.",
 		Spec:        mustJSON(salesTaxLiabilitySpec()),
-		Revision:    1,
+		// Revision 2: the Method param (pay-bills spec §3.10, Q3).
+		Revision:    2,
 		Unpublished: true,
 	}
 }
 
 // salesTaxLiabilitySpec is the tax lines of the posted invoices and sales
-// receipts dated in the period (accrual basis), grouped by the agency stored
-// on each line, then by its component rate, both in name order (spec §5).
+// receipts whose own date is in the period, grouped by the agency stored on
+// each line, then by its component rate, both in name order (spec §5). On
+// Accrual it reads the ledger tax lines alone; on Cash also the invoices'
+// cash-basis tax rows, which take an invoice's tax out at the invoice date and
+// bring back each payment's share at the payment date (pay-bills spec §3.10).
 // Each tax line is one document and one component, so a rate row adds each
 // of its documents once; the agency total and the Total add the rate rows'
 // tax and leave the sales figures blank, because a document taxed by two
@@ -37,7 +41,10 @@ func salesTaxLiabilitySpec() *reports.Spec {
 			// A required link: a line whose document the reader cannot read
 			// drops out.
 			op("eq", &reports.Node{Path: reports.Path{{Link: "document", With: "required"}, {Field: "status"}}}, lit(statusPosted)),
-			op("between", fld("document", "date"), prm("period")),
+			// The line's own date: a cash-basis row counts on the day it
+			// takes out or brings back, not on the document's date.
+			op("between", fld("date"), prm("period")),
+			basisFilter(),
 			// An unset Agency keeps every line.
 			op("in", col("agencyKey"), prm("agencies")),
 		),
@@ -48,7 +55,7 @@ func salesTaxLiabilitySpec() *reports.Spec {
 			{Formula: rec("byRate", "name")},
 			// Keys that read a line order the document rows of an opened
 			// rate and leave the groups in name order.
-			{Formula: fld("document", "date")},
+			{Formula: fld("date")},
 			{Formula: fld("document", "sequence")},
 		},
 		Detail:  &reports.Detail{Label: stlDetailLabel(), Open: stlDetailOpen()},
@@ -67,13 +74,14 @@ func stlDetailOpen() *reports.Node {
 	)
 }
 
-// stlDetailLabel is "<date> · <Invoice|Sales receipt> <number> · <customer>";
-// a document with no customer ends after its number. The kind is a constant
-// select, and a formula reads its value, so the words are written here (D6).
+// stlDetailLabel is "<date> · <Invoice|Sales receipt> <number> · <customer>",
+// the date the line's own (the day it counts on); a document with no customer
+// ends after its number. The kind is a constant select, and a formula reads
+// its value, so the words are written here (D6).
 func stlDetailLabel() *reports.Node {
 	customer := fld("document", "customer", "display_name")
 	return op("concat",
-		fld("document", "date"),
+		fld("date"),
 		lit(" · "),
 		op("if", op("eq", fld("document", "kind"), lit("invoice")), lit("Invoice"), lit("Sales receipt")),
 		lit(" "),
@@ -82,11 +90,13 @@ func stlDetailLabel() *reports.Node {
 	)
 }
 
-// stlParams are the Period (Last month by default) and the Agency filter,
-// whose options are every agency, inactive ones included.
+// stlParams are the Period (Last month by default), the Method (Accrual by
+// default) and the Agency filter, whose options are every agency, inactive
+// ones included.
 func stlParams() []reports.ParamDef {
 	return []reports.ParamDef{
 		{ID: "period", Type: reports.ParamDateRange, Label: "Period", Default: mustJSON(map[string]string{"preset": "lastMonth"})},
+		methodParam(),
 		{
 			ID: "agencies", Type: reports.ParamChoice, Label: "Agency", Multiple: true,
 			OptionsFrom: &reports.OptionsFrom{

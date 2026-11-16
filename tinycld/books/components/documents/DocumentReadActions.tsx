@@ -119,22 +119,24 @@ function usePdfKeyWhileBusy(
 }
 
 // The one button a phone's bar keeps beside More. A lone action is the bar button, since a
-// menu of one row only hides it. Otherwise a posting document keeps Edit (a voided one has
-// none, so all its actions are in More) and a quote keeps its primary action, the first.
+// menu of one row only hides it. A bill with a balance keeps Pay bill, its primary action
+// (pay-bills spec §2). Otherwise a posting document keeps Edit (a voided one has none, so
+// all its actions are in More) and a quote keeps its primary action, the first.
 function phoneButtonOf(
     lifecycle: DocumentChrome['lifecycle'],
     actions: DocumentReadItem[]
 ): DocumentReadItem | undefined {
     if (actions.length === 1) return actions[0]
     if (lifecycle === 'quote') return actions[0]
-    return actions.find(item => item.id === 'read-edit')
+    const payBill = actions.find(item => item.action === 'pay_bill')
+    return payBill ?? actions.find(item => item.id === 'read-edit')
 }
 
 /**
  * The read view's bar. Wide: a ShortcutButton per action (Edit E, Void V, Copy C, View
  * journal entry J, Download PDF ⌘P), the first one primary. Phone: one button (the only
- * action when there is one, else Edit on a posting document and the first action on a
- * quote) and the rest in a More menu whose rows
+ * action when there is one, else Pay bill on a bill that offers it, Edit on any other posting
+ * document and the first action on a quote) and the rest in a More menu whose rows
  * show their keys. A reader gets View journal entry and Download PDF on a posting
  * document, Download PDF on a quote; a hidden action's key is not registered. Audit
  * history (`historyItem`) is the last More row at every width, so a wide bar shows More

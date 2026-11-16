@@ -149,7 +149,7 @@ async function openSectionTo(
 }
 
 test.describe('profit-and-loss: report', () => {
-    test('the hub opens the Profit and Loss with its header and its two chips', async ({
+    test('the hub opens the Profit and Loss with its header and its three chips', async ({
         page,
     }) => {
         await startBooks(page)
@@ -174,10 +174,11 @@ test.describe('profit-and-loss: report', () => {
             .getByTestId('report-controls')
             .locator('[data-testid^="report-param-"]')
             .evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')))
-        expect(chips).toEqual(['report-param-period', 'report-param-rows'])
+        expect(chips).toEqual(['report-param-period', 'report-param-method', 'report-param-rows'])
         await expect(page.getByTestId('report-param-period')).toContainText(
             'This fiscal year to date'
         )
+        await expect(page.getByTestId('report-param-method')).toContainText('Accrual')
         await expect(page.getByTestId('report-param-rows')).toContainText('Non-zero')
     })
 

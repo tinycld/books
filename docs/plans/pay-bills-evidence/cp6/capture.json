@@ -1,0 +1,33 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "stl-accrual",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "clickText": "Sales Tax Liability" },
+                { "waitFor": "report-header-param-method" },
+                { "waitFor": "report-table" }
+            ],
+            "stable": "report-document-header"
+        },
+        {
+            "name": "stl-cash",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "clickText": "Sales Tax Liability" },
+                { "waitFor": "report-header-param-method" },
+                { "click": "report-param-method" },
+                { "click": "report-filter-option-cash" },
+                { "waitFor": "Cash basis" },
+                { "waitFor": "report-table" }
+            ],
+            "stable": "report-document-header"
+        }
+    ]
+}
