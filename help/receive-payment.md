@@ -31,7 +31,7 @@ To pay part of an invoice, type the amount in its Payment cell. The invoice stay
 
 When you type Amount received yourself, Books applies it for you: it clears the Payment cells and pays the listed invoices oldest due first, each up to its open balance. After that, a change to a Payment cell does not change Amount received. The Payment cells cannot add up to more than Amount received: Books shows "The payments add up to $1,500.00, more than the $1,243.56 received" under the list.
 
-To pay every listed invoice in full, tick the box in the list header, or press ⌥A. To set every Payment cell to zero, choose Clear payments, or press ⌥⌫. When you did not type Amount received, it clears too.
+To pay every listed invoice in full, tick the box in the table header, or press ⌥A. When the list shows cards (on a phone or a narrow window), tick Pay all above the cards instead. To set every Payment cell to zero, choose Clear payments, or press ⌥⌫. When you did not type Amount received, it clears too.
 
 ## Overpayment and credit
 

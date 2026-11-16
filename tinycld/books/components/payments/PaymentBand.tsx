@@ -112,7 +112,9 @@ export function PaymentBand({
     const { control, formState } = form
     const amountRef = useAmountFieldRef(control)
     const errors = formState.errors
-    const row = isPhone ? 'gap-3' : 'flex-row items-start gap-4'
+    // Wide, a row's fields wrap to the next line when the band is narrower than they are,
+    // so the form never scrolls sideways.
+    const row = isPhone ? 'gap-3' : 'flex-row flex-wrap items-start gap-4'
     const outer = isPhone ? 'gap-4' : 'flex-row items-start justify-between gap-4'
     const width = widthsOf(isPhone)
     const customerError = errors.customer?.message ?? ''

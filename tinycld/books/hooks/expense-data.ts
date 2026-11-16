@@ -22,8 +22,8 @@ import {
     type DocumentWrites,
     documentRead,
     linkedReadIds,
+    NO_DOCUMENT_PAYMENTS,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_PAYMENTS,
     NO_RECOVERY,
     purchaseLineMapperOf,
     useHeldRecord,
@@ -278,7 +278,7 @@ function useExpenseScreenReads(
             [linesCollection]
         ),
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_PAYMENTS,
+        ...NO_DOCUMENT_PAYMENTS,
         taxLines: NO_TAX_LINES,
         formStart,
     }

@@ -5,9 +5,11 @@ import { type DocumentFeatures, SALES_FEATURES } from './sales-document-kinds'
 // Pure, so who sees which action and the key map are unit-tested. A quote's are
 // `quoteReadActions` (lib/document-lifecycle.ts); Open invoice (`invoice`) is a quote's
 // only, never a posting document's. Receive payment (`receive_payment`) is an invoice's
-// only (receive-payment spec §3.9).
+// only (receive-payment spec §3.9); Pay bill (`pay_bill`) is a bill's only (pay-bills spec
+// §3.9).
 
 export type DocumentReadAction =
+    | 'pay_bill'
     | 'receive_payment'
     | 'edit'
     | 'void'
@@ -25,6 +27,7 @@ export const DOCUMENT_READ_KEYS = {
     entry: 'j',
     invoice: 'i',
     receive_payment: 'r',
+    pay_bill: 'p',
 } as const
 
 export type DocumentReadKeyAction = keyof typeof DOCUMENT_READ_KEYS
@@ -52,25 +55,36 @@ export function receivePaymentOffered(
     return kind === 'invoice' && status === 'posted' && balance > 0
 }
 
+// A posted bill with a balance above zero is paid from Pay bills (pay-bills spec §2,
+// §3.9); no other record is. `kind` is the record's `kindFields.kind`.
+export function payBillOffered(kind: string, status: DocumentStatus, balance: number): boolean {
+    return kind === 'bill' && status === 'posted' && balance > 0
+}
+
 // A writer edits or voids a posted document and copies any; a void document (a replaced
 // original is void too) is only copied. A reader views the journal entry and the PDF.
 // A draft opens in the form, never here, so it offers nothing. The posting rule: every
 // posting kind shares the statuses. A kind with no PDF (a bill, `features.pdf` false)
 // offers no Download PDF. Receive payment comes first for a writer on a posted document
-// when `extra.canReceivePayment` is set: the read view sets it only for an invoice with a
-// balance above zero.
+// when `extra.canReceivePayment` is set (the read view sets it only for an invoice with a
+// balance above zero), and Pay bill when `extra.canPayBill` is set (only for a bill with a
+// balance above zero).
 export function documentReadActions(
     status: DocumentStatus,
     canWrite: boolean,
     features: Pick<DocumentFeatures, 'pdf'> = SALES_FEATURES,
-    extra: { canReceivePayment: boolean } = { canReceivePayment: false }
+    extra: { canReceivePayment: boolean; canPayBill: boolean } = {
+        canReceivePayment: false,
+        canPayBill: false,
+    }
 ): DocumentReadAction[] {
     if (status === 'draft') return []
     const pdf: DocumentReadAction[] = features.pdf ? ['pdf'] : []
     if (!canWrite) return ['entry', ...pdf]
     if (status === 'posted') {
         const receive: DocumentReadAction[] = extra.canReceivePayment ? ['receive_payment'] : []
-        return [...receive, 'edit', 'void', 'copy', 'entry', ...pdf]
+        const pay: DocumentReadAction[] = extra.canPayBill ? ['pay_bill'] : []
+        return [...pay, ...receive, 'edit', 'void', 'copy', 'entry', ...pdf]
     }
     return ['copy', 'entry', ...pdf]
 }

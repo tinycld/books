@@ -1,8 +1,11 @@
 import type { TextInputInstance } from 'react-native'
+import { type OutstandingDocument, paymentCellLabel } from '../../lib/outstanding-documents'
 import type { OutstandingRow } from '../../lib/payment-allocation'
 import { PaymentMoneyField } from './PaymentMoneyField'
 
 interface PaymentCellProps {
+    // Which document the row is: the cell's name ("Payment for bill 1003") and test ids.
+    doc: OutstandingDocument
     row: OutstandingRow
     // The row's typed payment; '' while the row is at zero.
     value: string
@@ -19,6 +22,7 @@ interface PaymentCellProps {
 
 // A row's Payment cell: its one Tab stop.
 export function PaymentCell({
+    doc,
     row,
     value,
     error,
@@ -29,6 +33,7 @@ export function PaymentCell({
     onNext,
     onFocusRow,
 }: PaymentCellProps) {
+    const prefix = doc.testIdPrefix
     const handleChange = (text: string) => onType(row, text)
     const handleSubmit = () => onNext(row.id)
     const handleFocus = () => onFocusRow(row.id)
@@ -37,10 +42,10 @@ export function PaymentCell({
         <PaymentMoneyField
             value={value}
             onChangeText={handleChange}
-            testID={`payment-row-amount-${row.id}`}
-            accessibilityLabel={`Payment for invoice ${row.number}`}
+            testID={`${prefix}-row-amount-${row.id}`}
+            accessibilityLabel={paymentCellLabel(doc, row.number)}
             error={error}
-            errorTestID={`payment-row-error-${row.id}`}
+            errorTestID={`${prefix}-row-error-${row.id}`}
             inputRef={inputRef}
             onSubmitEditing={handleSubmit}
             onFocus={handleFocus}

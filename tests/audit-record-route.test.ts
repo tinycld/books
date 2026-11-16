@@ -35,6 +35,8 @@ const RECORDS = [
     { collection: 'books_products', path: `books/products/${ID}` },
     { collection: 'books_accounts', path: `books/accounts/${ID}` },
     { collection: 'books_payments', path: `books/payments/${ID}` },
+    // Pay bills (cp 4 item D2): a bill payment's history opens its read view.
+    { collection: 'books_bill_payments', path: `books/bill-payments/${ID}` },
 ]
 
 // Records shown on a screen that holds a group of them.
@@ -140,6 +142,7 @@ describe('auditOpenLabel', () => {
         expect(auditOpenLabel('books_journal_entries')).toBe('Open journal entry')
         expect(auditOpenLabel('books_customers')).toBe('Open customer')
         expect(auditOpenLabel('books_products')).toBe('Open product or service')
+        expect(auditOpenLabel('books_bill_payments')).toBe('Open bill payment')
     })
 
     it.each(GROUPS)('$collection: $label', ({ collection, label }) => {

@@ -1,56 +1,97 @@
 import { Text, View } from 'react-native'
-import type { PaymentApplicationRow } from '../../hooks/usePaymentRecord'
 import { formatMoney } from '../../lib/money'
+import {
+    type AppliedDocumentRow,
+    cardDocumentLabel,
+    type OutstandingDocument,
+    outstandingTexts,
+} from '../../lib/outstanding-documents'
 import { formatDay } from '../../lib/register-range'
 import { CARD, CardPair } from './OutstandingCards'
-import { AppliedInvoiceLink } from './OutstandingGrid'
+import { AppliedDocumentLink } from './OutstandingGrid'
+import { TotalLine } from './PaymentTotals'
+
+interface AppliedCardsProps {
+    doc: OutstandingDocument
+    rows: readonly AppliedDocumentRow[]
+    currency: string
+    testIdPrefix: string
+    // The Total line's amount; null draws none.
+    total: number | null
+}
 
 function AppliedCard({
-    application,
+    doc,
+    row,
     currency,
-}: {
-    application: PaymentApplicationRow
-    currency: string
-}) {
-    const invoice = application.invoiceRow
-    const label = `Invoice ${invoice?.number ?? ''}`
-    const dueDate = (invoice?.due_date ?? '').slice(0, 10)
-    const due = dueDate ? `Due ${formatDay(dueDate)}` : ''
-    const original = formatMoney(invoice?.total ?? 0, currency)
-    const applied = formatMoney(application.amount, currency)
+    testIdPrefix,
+}: Omit<AppliedCardsProps, 'rows' | 'total'> & { row: AppliedDocumentRow }) {
+    const texts = outstandingTexts(doc)
+    const label = cardDocumentLabel(doc, row)
+    const due = row.dueDate ? `Due ${formatDay(row.dueDate)}` : ''
+    const original = formatMoney(row.total, currency)
+    const applied = formatMoney(row.amount, currency)
     return (
-        <View testID={`payment-applied-${application.invoice}`} className={CARD}>
-            <AppliedInvoiceLink
-                invoiceId={application.invoice}
+        <View testID={`${testIdPrefix}-applied-${row.documentId}`} className={CARD}>
+            <AppliedDocumentLink
+                doc={doc}
+                documentId={row.documentId}
                 label={label}
-                testID={`payment-read-link-${application.invoice}`}
+                testID={`${testIdPrefix}-read-link-${row.documentId}`}
             />
             <Text className="text-sm text-foreground">{due}</Text>
             <View className="flex-row gap-3">
-                <CardPair label="Original" value={original} />
-                <CardPair label="Applied" value={applied} />
+                <CardPair label={texts.totalCard} value={original} />
+                <CardPair label={texts.appliedLabel} value={applied} />
             </View>
         </View>
     )
 }
 
+function CardsTotal({
+    total,
+    currency,
+    testID,
+}: {
+    total: number | null
+    currency: string
+    testID: string
+}) {
+    if (total === null) return null
+    const amount = formatMoney(total, currency)
+    return <TotalLine label="Total" amount={amount} isStrong testID={testID} />
+}
+
 /**
- * The read view's applied invoices below 640 px (spec §3.7): one card per invoice with the
- * invoice link, its due date, and Original and Applied as a label-value pair.
+ * A read view's paid documents while the list is narrower than the applied grid's least
+ * width (`doc.appliedMinWidth`; receive-payment §3.7, pay-bills §3.8): one
+ * card per invoice or bill with its link ("Bill 1003 · No. 88412"), its due date, and the
+ * total and the paid amount as a label-value pair; with `total`, a Total line under them.
  */
 export function AppliedInvoiceCards({
-    applications,
+    doc,
+    rows,
     currency,
-}: {
-    applications: readonly PaymentApplicationRow[]
-    currency: string
-}) {
-    const drawn = applications.map(application => (
-        <AppliedCard key={application.id} application={application} currency={currency} />
+    testIdPrefix,
+    total,
+}: AppliedCardsProps) {
+    const drawn = rows.map(row => (
+        <AppliedCard
+            key={row.id}
+            doc={doc}
+            row={row}
+            currency={currency}
+            testIdPrefix={testIdPrefix}
+        />
     ))
     return (
-        <View testID="payment-applied" className="gap-3">
+        <View testID={`${testIdPrefix}-applied`} className="gap-3">
             {drawn}
+            <CardsTotal
+                total={total}
+                currency={currency}
+                testID={`${testIdPrefix}-applied-total`}
+            />
         </View>
     )
 }

@@ -1,0 +1,33 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "report-accrual",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub period statement" },
+                { "waitFor": "report-header-param-basis" }
+            ],
+            "stable": "report-document-header"
+        },
+        {
+            "name": "report-cash",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "schemes": ["light"],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub period statement" },
+                { "waitFor": "report-header-param-basis" },
+                { "click": "report-param-basis" },
+                { "click": "report-filter-option-cash" },
+                { "waitFor": "Cash basis" }
+            ],
+            "stable": "report-document-header"
+        }
+    ]
+}

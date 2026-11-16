@@ -1,11 +1,12 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { router } from 'expo-router'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import type { PaymentApplicationRow, PaymentRow } from '../../hooks/usePaymentRecord'
 import { type DepositAccountRow, paymentText } from '../../lib/deposit-accounts'
-import { stampText } from '../../lib/entry-display'
 import { formatMoney } from '../../lib/money'
+import { type AppliedDocumentRow, INVOICE_OUTSTANDING } from '../../lib/outstanding-documents'
+import { paymentReadActions } from '../../lib/payment-read-actions'
 import { fillPaymentText, PAYMENT_MESSAGES } from '../../lib/payment-texts'
 import { formatDay } from '../../lib/register-range'
 import { DocumentHeader } from '../documents/DocumentHeader'
@@ -13,59 +14,7 @@ import { EntryBackLink } from '../entries/EntryHeader'
 import { AppliedInvoices } from './AppliedInvoices'
 import { PaymentReadActions } from './PaymentReadActions'
 import { CreditLine, TotalLine } from './PaymentTotals'
-
-const BAND = 'rounded-xl border border-border bg-surface-secondary p-4'
-const TAP = { minHeight: 44 }
-
-function Detail({ label, value, testID }: { label: string; value: string; testID: string }) {
-    if (value === '') return null
-    return (
-        <View testID={testID} className="min-w-0 max-w-full gap-0.5">
-            <Text className="text-xs text-muted-foreground">{label}</Text>
-            <Text className="text-sm text-foreground">{value}</Text>
-        </View>
-    )
-}
-
-function TextLink({
-    text,
-    onPress,
-    testID,
-}: {
-    text: string
-    onPress: () => void
-    testID: string
-}) {
-    return (
-        <Pressable
-            testID={testID}
-            accessibilityRole="link"
-            onPress={onPress}
-            className="justify-center self-start"
-            style={TAP}
-        >
-            <Text className="text-sm text-primary underline">{text}</Text>
-        </Pressable>
-    )
-}
-
-function Stamp({ text, testID }: { text: string; testID: string }) {
-    if (text === '') return null
-    return (
-        <Text testID={testID} className="text-xs text-muted-foreground">
-            {text}
-        </Text>
-    )
-}
-
-function ReplacedBy({ payment }: { payment: PaymentRow }) {
-    const orgHref = useOrgHref()
-    const replacement = payment.replacedBy
-    if (!replacement) return null
-    const open = () => router.push(orgHref(`books/payments/${replacement.id}`))
-    const text = `Replaced by ${replacement.number} (edited)`
-    return <TextLink text={text} onPress={open} testID="payment-replaced-by" />
-}
+import { Detail, READ_BAND, ReplacedBy, Stamp, stampOf, TextLink } from './read-view-parts'
 
 function depositLabelOf(accounts: readonly DepositAccountRow[], id: string): string {
     const account = accounts.find(row => row.id === id)
@@ -73,9 +22,21 @@ function depositLabelOf(accounts: readonly DepositAccountRow[], id: string): str
     return account.number ? `${account.number} ${account.name}` : account.name
 }
 
-function stampOf(verb: string, userName: string | undefined, at: string): string {
-    const text = stampText(userName, at)
-    return text ? `${verb} by ${text}` : ''
+// The applications as the shared applied list reads them.
+function appliedRowsOf(applications: readonly PaymentApplicationRow[]): AppliedDocumentRow[] {
+    return applications.map(application => {
+        const invoice = application.invoiceRow
+        return {
+            id: application.id,
+            documentId: application.invoice,
+            number: invoice?.number ?? '',
+            date: (invoice?.date ?? '').slice(0, 10),
+            dueDate: (invoice?.due_date ?? '').slice(0, 10),
+            ref: '',
+            total: invoice?.total ?? 0,
+            amount: application.amount,
+        }
+    })
 }
 
 interface PaymentReadViewProps {
@@ -119,6 +80,9 @@ export function PaymentReadView({
     const figure = formatMoney(payment.amount, currency)
     const date = formatDay(payment.date.slice(0, 10))
     const appliedText = formatMoney(applied, currency)
+    const appliedRows = appliedRowsOf(applications)
+    const offered = paymentReadActions(payment.status, canWrite, payment.entry !== '')
+    const editHref = `books/payments/new?replaces=${payment.id}`
     return (
         <View testID="payment-read-only" className="flex-1 bg-background">
             <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-2 pb-6">
@@ -129,7 +93,7 @@ export function PaymentReadView({
                     figure={figure}
                     isExpired={false}
                 />
-                <View className={`${BAND} flex-row flex-wrap gap-x-6 gap-y-3`}>
+                <View className={`${READ_BAND} flex-row flex-wrap gap-x-6 gap-y-3`}>
                     <View testID="payment-detail-customer" className="gap-0.5">
                         <Text className="text-xs text-muted-foreground">Customer</Text>
                         <TextLink
@@ -141,7 +105,13 @@ export function PaymentReadView({
                     <Detail label="Payment date" value={date} testID="payment-detail-date" />
                     <Detail label="Payment" value={paymentLine} testID="payment-detail-payment" />
                 </View>
-                <AppliedInvoices applications={applications} currency={currency} />
+                <AppliedInvoices
+                    doc={INVOICE_OUTSTANDING}
+                    rows={appliedRows}
+                    currency={currency}
+                    testIdPrefix="payment"
+                    total={null}
+                />
                 <View className="gap-1 self-end" style={{ minWidth: 320 }}>
                     <TotalLine
                         label="Amount applied"
@@ -164,10 +134,24 @@ export function PaymentReadView({
                 <View className="gap-1">
                     <Stamp text={posted} testID="payment-posted-by" />
                     <Stamp text={voided} testID="payment-voided-by" />
-                    <ReplacedBy payment={payment} />
+                    <ReplacedBy
+                        replacement={payment.replacedBy}
+                        routeBase="books/payments"
+                        testID="payment-replaced-by"
+                    />
                 </View>
             </ScrollView>
-            <PaymentReadActions payment={payment} canWrite={canWrite} scopeOwner={scopeOwner} />
+            <PaymentReadActions
+                payment={payment}
+                offered={offered}
+                historyItem={null}
+                scopeOwner={scopeOwner}
+                collection="books_payments"
+                editHref={editHref}
+                voidBody={PAYMENT_MESSAGES.voidBody}
+                confirmLabel="Void payment"
+                entryNoun="payment"
+            />
         </View>
     )
 }

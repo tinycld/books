@@ -187,15 +187,30 @@ func lineDriftReport(drifts []LineDrift) (listed []LineDrift, count int) {
 	return drifts, len(drifts)
 }
 
-// rebuildBalances makes every month row equal the ledger and every invoice's
-// balance equal its total less the posted payments that apply to it (the
-// verify part of the invoice balances is verifyInvoiceBalances), in one
-// transaction, touching only the rows that differ. It returns how many month
-// rows and invoice balances it fixed.
+// cashDriftReport is the cash-basis part of the rebuild route's answer: the
+// first maxLineDriftsReported documents that drifted and the count of all.
+func cashDriftReport(drifts []CashBasisDrift) (listed []CashBasisDrift, count int) {
+	if len(drifts) > maxLineDriftsReported {
+		return drifts[:maxLineDriftsReported], len(drifts)
+	}
+	return drifts, len(drifts)
+}
+
+// rebuildBalances makes every month row equal the ledger, every invoice's and
+// bill's balance equal its total less the posted payments that pay it (the
+// verify part of the document balances is verifyDocumentBalances), and every
+// cash-basis row equal what the entries and payments give (rebuildCashBasis;
+// its verify part is verifyCashBasis), in one transaction, touching only the
+// rows that differ. It returns how many month rows, document balances and
+// cash-basis rows it fixed.
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
-		invoices, err := rebuildInvoiceBalances(tx)
+		documents, err := rebuildDocumentBalances(tx)
+		if err != nil {
+			return err
+		}
+		cash, err := rebuildCashBasis(tx)
 		if err != nil {
 			return err
 		}
@@ -236,7 +251,7 @@ func rebuildBalances(app core.App) (int, error) {
 				return fmt.Errorf("books: save rebuilt balance row: %w", err)
 			}
 		}
-		fixed = len(drifts) + invoices
+		fixed = len(drifts) + documents + cash
 		return nil
 	})
 	return fixed, err
@@ -254,11 +269,20 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		if !level.IsAdmin() {
 			return re.ForbiddenError("Only a Books admin can rebuild balances.", nil)
 		}
+		// Read before the rebuild repairs them: every write path rebuilds its
+		// documents' cash-basis rows, so a drift here means one missed it. The answer lists them.
+		cashDrifts, err := verifyCashBasis(re.App)
+		if err != nil {
+			return err
+		}
+		if len(cashDrifts) > 0 {
+			log.ErrorContext(re.Request.Context(), "cash-basis rows disagree with their documents", "count", len(cashDrifts))
+		}
 		fixed, err := rebuildBalances(re.App)
 		if err != nil {
 			return err
 		}
-		// The rebuild repairs month rows and invoice balances. A line that disagrees with
+		// The rebuild repairs month rows, document balances and cash-basis rows. A line that disagrees with
 		// its entry is reported, and logged as an error so it reaches
 		// Sentry: no write through the hooks makes one.
 		lineDrifts, err := verifyLines(re.App)
@@ -269,6 +293,10 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 			log.ErrorContext(re.Request.Context(), "journal lines disagree with their entries", "count", len(lineDrifts))
 		}
 		listed, count := lineDriftReport(lineDrifts)
-		return re.JSON(http.StatusOK, map[string]any{"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count})
+		cashListed, cashCount := cashDriftReport(cashDrifts)
+		return re.JSON(http.StatusOK, map[string]any{
+			"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count,
+			"cashDrifts": cashListed, "cashDriftCount": cashCount,
+		})
 	})
 }

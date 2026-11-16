@@ -450,6 +450,7 @@ export function journalResult(input: JournalInput = {}): RunResult {
         heading: JOURNAL_HEADING,
         page: input.pageRows ? { next: 'reference-next-page', size: input.pageRows } : null,
         params: resolvedParams(input),
+        headerLines: [],
     }
 }
 

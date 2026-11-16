@@ -23,6 +23,8 @@ import {
 import { VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 import type {
     BooksBillLines,
+    BooksBillPaymentLines,
+    BooksBillPayments,
     BooksBills,
     BooksExpenseLines,
     BooksExpenses,
@@ -32,6 +34,7 @@ import type {
 } from '../tinycld/books/types'
 import {
     accountsStore,
+    neverReadyStore,
     onDemandStore,
     releaseAccountsRead,
     seedBooks,
@@ -305,10 +308,60 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
     }))
     const NO_PRODUCTS: BooksProducts[] = []
 
+    // The posted bill's payments (pay-bills spec §3.9, §4.4): one posted bill payment pays
+    // part of it, and a void one paid it before. Only the posted one is listed.
+    const postedVendorId = BILLS.find(bill => bill.id === BILL_IDS.posted)?.vendor ?? ''
+    const paymentRow = (
+        id: string,
+        number: string,
+        status: BooksBillPayments['status']
+    ): BooksBillPayments => ({
+        id,
+        vendor: postedVendorId,
+        paid_from: 'acct_bank_0001',
+        payment_method: 'check',
+        reference_no: '',
+        status,
+        number,
+        sequence: Number(number),
+        date: '2026-11-05',
+        total: 10_000,
+        currency: 'USD',
+        entry: '',
+        posted_at: '',
+        posted_by: '',
+        voided_at: '',
+        voided_by: '',
+        sort_key: '',
+        created: '',
+        updated: '',
+        replaces: '',
+        replaced_by: '',
+    })
+    const PAYMENT_ROWS: BooksBillPayments[] = [
+        paymentRow('billpayposted01', '1004', 'posted'),
+        paymentRow('billpayvoided01', '1003', 'void'),
+    ]
+    const paymentLineRow = (id: string, payment: string): BooksBillPaymentLines => ({
+        id,
+        payment,
+        bill: BILL_IDS.posted,
+        amount: 10_000,
+        position: 0,
+        created: '',
+        updated: '',
+    })
+    const PAYMENT_LINE_ROWS: BooksBillPaymentLines[] = [
+        paymentLineRow('billpaylinepos1', 'billpayposted01'),
+        paymentLineRow('billpaylinevoi1', 'billpayvoided01'),
+    ]
+
     type Refusals = {
         bill?: string
         lines?: string
         vendor?: string
+        // The bill whose Payments read (its bill payment lines) is refused once.
+        paymentLines?: string
     }
 
     // The registry after seedBooks: the bill collections, each refusing its first load of
@@ -317,6 +370,7 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
         opts: { level?: 'read_only' | 'bookkeeper' } & Refusals & {
                 settingsFailsOnce?: boolean
                 settingsNeverReady?: boolean
+                paymentLinesNeverReady?: boolean
             } = {}
     ) {
         seedBooks({
@@ -333,7 +387,17 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
         )
         const vendors = onDemandStore<BooksVendors>('books_vendors', VENDOR_ROWS, opts.vendor)
         onDemandStore<BooksProducts>('books_products', NO_PRODUCTS)
-        return { bills, lines, vendors }
+        onDemandStore<BooksBillPayments>('books_bill_payments', PAYMENT_ROWS)
+        const paymentLines = opts.paymentLinesNeverReady
+            ? neverReadyStore<BooksBillPaymentLines>('books_bill_payment_lines')
+            : onDemandStore<BooksBillPaymentLines>(
+                  'books_bill_payment_lines',
+                  PAYMENT_LINE_ROWS,
+                  opts.paymentLines === undefined
+                      ? undefined
+                      : { field: 'bill', value: opts.paymentLines }
+              )
+        return { bills, lines, vendors, paymentLines }
     }
 
     function renderScreen(input: DocumentScreenInput) {
@@ -444,6 +508,52 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
         act(() => hook.result.current.retry())
         await waitFor(() => expect(hook.result.current.state).toBe('form'))
         expect(hook.result.current.start).toEqual({ kind: 'bill', purchaseLines: 'both' })
+    })
+
+    // Pay bills §3.9, §4.4: a posted bill's Payments block reads its bill payment lines with
+    // their payments; the read joins the screen's state, and Retry reruns it.
+    it('lists a posted bill’s posted payments, not its void ones', async () => {
+        seed()
+        const hook = renderScreen({ id: postedId })
+        await waitFor(() => expect(hook.result.current.state).toBe('read'))
+        await waitFor(() =>
+            expect(hook.result.current.documentPayments.map(payment => payment.payment)).toEqual([
+                'billpayposted01',
+            ])
+        )
+        expect(hook.result.current.documentPayments[0]).toMatchObject({
+            id: 'billpaylinepos1',
+            amount: 10_000,
+            payment: 'billpayposted01',
+            number: '1004',
+            date: '2026-11-05',
+        })
+    })
+
+    it('shows a refused Payments read of a bill as the error, and Retry reruns it', async () => {
+        const { paymentLines } = seed({ paymentLines: postedId })
+        expectLiveQueryError(paymentLines.id)
+        const hook = renderScreen({ id: postedId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        expect(hook.result.current.errorText).toBe('Books could not load this bill.')
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('read'))
+        await waitFor(() =>
+            expect(hook.result.current.documentPayments.map(payment => payment.payment)).toEqual([
+                'billpayposted01',
+            ])
+        )
+    })
+
+    it('keeps a posted bill loading while its Payments read is not ready', async () => {
+        seed({ paymentLinesNeverReady: true })
+        const hook = renderScreen({ id: postedId })
+        // The bill and its lines have loaded; only the Payments read is pending.
+        await waitFor(() => {
+            expect(hook.result.current.record?.id).toBe(postedId)
+            expect(hook.result.current.lines?.length).toBeGreaterThan(0)
+        })
+        expect(hook.result.current.state).toBe('loading')
     })
 })
 

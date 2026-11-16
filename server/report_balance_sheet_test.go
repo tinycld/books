@@ -243,8 +243,8 @@ func TestBalanceSheetSpecLoads(t *testing.T) {
 	if shipped.Description != "What the business owns and owes on one day, beside the same day a year earlier." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 2 (figures open Transaction Detail), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 3 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 3 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(balanceSheetSpec())
 	if err != nil {
@@ -261,8 +261,8 @@ func TestBalanceSheetSpecLoads(t *testing.T) {
 	if spec.Version != reports.CurrentVersion {
 		t.Errorf("version %d, want %d", spec.Version, reports.CurrentVersion)
 	}
-	if spec.Source != "books.journal_lines" {
-		t.Errorf("source = %q, want books.journal_lines", spec.Source)
+	if spec.Source != "books.basis_lines" {
+		t.Errorf("source = %q, want books.basis_lines", spec.Source)
 	}
 	if err := reports.Validate(app, spec); err != nil {
 		t.Fatalf("Validate: %v", err)
@@ -272,8 +272,11 @@ func TestBalanceSheetSpecLoads(t *testing.T) {
 	for i, p := range spec.Params {
 		paramIDs[i] = p.ID
 	}
-	if !reflect.DeepEqual(paramIDs, []string{"asOf", "rows"}) {
-		t.Fatalf("params = %v, want asOf, rows (the chips' order)", paramIDs)
+	if !reflect.DeepEqual(paramIDs, []string{"asOf", "method", "rows"}) {
+		t.Fatalf("params = %v, want asOf, method, rows (the chips' order)", paramIDs)
+	}
+	if method := paramOf(t, spec, "method"); !reflect.DeepEqual(method, methodParam()) {
+		t.Errorf("method = %+v, want methodParam() %+v", method, methodParam())
 	}
 	asOf := paramOf(t, spec, "asOf")
 	if asOf.Type != reports.ParamAsOf || asOf.Label != "As of" || !jsonEqual(t, asOf.Default, `{"preset":"today"}`) {
@@ -1161,7 +1164,7 @@ func TestBalanceSheetShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Balance Sheet" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Balance Sheet" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {

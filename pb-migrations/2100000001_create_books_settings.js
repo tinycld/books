@@ -34,8 +34,8 @@
 // number on their own from 1001 with no prefix too (booksseqsalesrc), and so
 // do estimates (booksseqestimat), which take their number when they are created
 // because an estimate never posts. Bills number on their own from 1001 with no
-// prefix (booksseqbill000), and so do expenses (booksseqexpense) and received
-// payments (booksseqpayment).
+// prefix (booksseqbill000), and so do expenses (booksseqexpense), received
+// payments (booksseqpayment) and bill payments (booksseqbillpay).
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -144,6 +144,7 @@ migrate(
                         'bill',
                         'expense',
                         'payment',
+                        'bill_payment',
                     ],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
@@ -208,6 +209,12 @@ migrate(
         payment.set('prefix', '')
         payment.set('next_number', 1001)
         app.save(payment)
+        const billPayment = new Record(sequences)
+        billPayment.set('id', 'booksseqbillpay')
+        billPayment.set('doc_type', 'bill_payment')
+        billPayment.set('prefix', '')
+        billPayment.set('next_number', 1001)
+        app.save(billPayment)
 
         app.save(
             new Collection({

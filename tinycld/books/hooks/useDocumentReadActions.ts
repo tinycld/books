@@ -10,6 +10,7 @@ import {
     DOCUMENT_READ_ACTION_KEYS,
     type DocumentReadAction,
     documentReadActions,
+    payBillOffered,
     receivePaymentOffered,
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
@@ -26,6 +27,7 @@ type ReadRecord = Pick<
 >
 
 const LABELS: Record<DocumentReadAction, string> = {
+    pay_bill: 'Pay bill',
     receive_payment: 'Receive payment',
     edit: 'Edit',
     void: 'Void',
@@ -43,14 +45,19 @@ function invoiceIdOf(record: ReadRecord): string {
 // A bar or More row of the read view, with the action it runs (its key comes from it).
 export type DocumentReadItem = DocumentMoreItem & { action: DocumentReadAction }
 
-// The invoice's open balance; 0 for any other record, which takes no payment.
+// The open balance of an invoice or a bill; 0 for any other record, which takes no payment.
 function balanceOf(record: ReadRecord): number {
-    return record.kindFields.kind === 'invoice' ? record.kindFields.balance : 0
+    const fields = record.kindFields
+    if (fields.kind === 'invoice' || fields.kind === 'bill') return fields.balance
+    return 0
 }
+
+// The ids that are not the action's name: Pay bill is `read-pay` (pay-bills spec test ids).
+const READ_ACTION_IDS: Partial<Record<DocumentReadAction, string>> = { pay_bill: 'read-pay' }
 
 // The bar and More row id of an action: `read-<action>`, with dashes (`read-receive-payment`).
 function readActionId(action: DocumentReadAction): string {
-    return `read-${action.replaceAll('_', '-')}`
+    return READ_ACTION_IDS[action] ?? `read-${action.replaceAll('_', '-')}`
 }
 
 // The offered actions in the read view's order, by the kind's lifecycle; View journal
@@ -60,12 +67,11 @@ function offeredActionsOf(
     record: ReadRecord,
     canWrite: boolean
 ): DocumentReadAction[] {
+    const { kind } = record.kindFields
+    const balance = balanceOf(record)
     const extra = {
-        canReceivePayment: receivePaymentOffered(
-            record.kindFields.kind,
-            record.status,
-            balanceOf(record)
-        ),
+        canReceivePayment: receivePaymentOffered(kind, record.status, balance),
+        canPayBill: payBillOffered(kind, record.status, balance),
     }
     const actions =
         doc.lifecycle === 'quote'
@@ -79,9 +85,11 @@ function offeredActionsOf(
 /**
  * The read view's actions of a posted or void sales document, or of a quote the read
  * view shows (a closed estimate, or any estimate for a reader), as rows the bar draws (a
- * button each on a wide screen; Edit and a More menu on a phone), and the Void dialog.
+ * button each on a wide screen; one button and a More menu on a phone, the button Pay bill
+ * on a bill that offers it and Edit on the other posting documents), and the Void dialog.
  * Receive payment (a posted invoice with an open balance) pushes a new payment for its
- * customer with the invoice ticked, so Back returns to the invoice.
+ * customer with the invoice ticked, so Back returns to the invoice; Pay bill (a posted bill
+ * with an open balance) pushes Pay bills with the bill selected, so Back returns to the bill.
  * Edit, Copy and View journal entry replace the read view (a pushed screen would stay
  * mounted under the new one); Download PDF saves the server's PDF through usePdfDownload.
  * Void writes `status: 'void'` through the kind's data source; the dialog's open state
@@ -110,6 +118,9 @@ export function useDocumentReadActions(
     const download = usePdfDownload()
     const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const run: Record<DocumentReadAction, () => void> = {
+        // Pushed, so Back returns to the bill (pay-bills spec §2): Pay bills opens with the
+        // bill paid in full and its vendor filtered.
+        pay_bill: () => router.push(orgHref(`books/pay-bills?bill=${record.id}`)),
         // Pushed, so Back returns to the invoice (receive-payment spec §2).
         receive_payment: () =>
             router.push(

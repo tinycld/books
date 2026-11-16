@@ -1,0 +1,60 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "pl-accrual",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-header-param-method" },
+                { "waitFor": "report-table" }
+            ],
+            "stable": "report-document-header"
+        },
+        {
+            "name": "pl-cash",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "schemes": ["light"],
+            "actions": [
+                { "clickText": "Profit and Loss" },
+                { "waitFor": "report-header-param-method" },
+                { "click": "report-param-method" },
+                { "click": "report-filter-option-cash" },
+                { "waitFor": "Cash basis" },
+                { "waitFor": "report-table" }
+            ],
+            "stable": "report-document-header"
+        },
+        {
+            "name": "bs-accrual",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "schemes": ["light"],
+            "actions": [
+                { "clickText": "Balance Sheet" },
+                { "waitFor": "report-header-param-method" },
+                { "waitFor": "report-table" }
+            ],
+            "stable": "report-document-header"
+        },
+        {
+            "name": "bs-cash",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "clickText": "Balance Sheet" },
+                { "waitFor": "report-header-param-method" },
+                { "click": "report-param-method" },
+                { "click": "report-filter-option-cash" },
+                { "waitFor": "Cash basis" },
+                { "waitFor": "report-table" }
+            ],
+            "stable": "report-document-header"
+        }
+    ]
+}

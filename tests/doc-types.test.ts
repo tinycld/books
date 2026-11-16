@@ -53,6 +53,16 @@ describe('payment doc type', () => {
     })
 })
 
+// The seeded `bill_payment` row (booksseqbillpay) gets the "Bill payments" card; registers
+// and the ledger read "Bill payment" as its Type.
+describe('bill_payment doc type', () => {
+    it('names the Numbering card "Bill payments" and labels the Type "Bill payment"', () => {
+        expect(DOC_TYPES.bill_payment).toEqual({ label: 'Bill payments', noun: 'bill payment' })
+        expect(DOC_TYPE_LABELS.bill_payment).toBe('Bill payment')
+        expect(nextNumberPreview('bill_payment', '', '1001')).toBe('Next bill payment: 1001')
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(

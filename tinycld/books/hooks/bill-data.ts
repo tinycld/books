@@ -22,8 +22,8 @@ import {
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_PAYMENTS,
     NO_RECOVERY,
+    postedPaymentsOf,
     purchaseLineMapperOf,
     useHeldRecord,
 } from './document-data'
@@ -131,9 +131,10 @@ function useBillFormStart(input: DocumentScreenInput): DocumentScreenReads['form
 
 /**
  * The bill's reads: the bill with its vendor's name and the people who posted and voided
- * it, its lines (both tables) in position order with their products and accounts, and the
- * bill a correction replaces or a copy starts from with its lines. A bill has no tax and
- * is never made from an estimate: those reads are ready and empty.
+ * it, its lines (both tables) in position order with their products and accounts, the
+ * bill a correction replaces or a copy starts from with its lines, and the posted bill
+ * payments of a posted or void bill. A bill has no tax and is never made from an
+ * estimate: those reads are ready and empty.
  */
 function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): DocumentScreenReads {
     const [billsCollection, linesCollection, usersCollection, productsCollection] = useStore(
@@ -143,6 +144,10 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
         'books_products'
     )
     const [vendorsCollection, accountsCollection] = useStore('books_vendors', 'books_accounts')
+    const [paymentLinesCollection, billPaymentsCollection] = useStore(
+        'books_bill_payment_lines',
+        'books_bill_payments'
+    )
     const id = input.id ?? ''
     const billQuery = useLiveQuery({
         query: q => {
@@ -208,7 +213,7 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
         const source = billSourceOf(row)
         return {
             ...source,
-            kindFields: { ...source.kindFields, vendorRow },
+            kindFields: { ...source.kindFields, vendorRow, balance: row.balance },
             taxRateRow: undefined,
         }
     }, [read])
@@ -227,6 +232,31 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
         },
         queryKey: ['books.bill.source-lines', ids.sourceLinesId],
     })
+    // The bill payments that pay a posted or void bill (pay-bills spec §4.4), read as the
+    // invoice's payments are (and not while the form holds a post): its bill payment lines
+    // with their payments. Only posted payments are kept, after the query, since the
+    // payment is a related row.
+    const paymentsId = ids.postedReadsId
+    const paymentsQuery = useLiveQuery({
+        query: q => {
+            if (!paymentsId) return undefined
+            return q
+                .from({ line: paymentLinesCollection })
+                .where(({ line }) => eq(line.bill, paymentsId))
+                .select(({ line }) => ({
+                    ...line,
+                    paymentRow: materialize(
+                        q
+                            .from({ p: billPaymentsCollection })
+                            .where(({ p }) => eq(p.id, line.payment))
+                            .findOne()
+                    ),
+                }))
+        },
+        queryKey: ['books.bill.payments', paymentsId],
+    })
+    const paymentLines = paymentsQuery.data
+    const documentPayments = useMemo(() => postedPaymentsOf(paymentLines ?? []), [paymentLines])
     const formStart = useBillFormStart(input)
     return {
         record: documentRead(id, billQuery, record, [
@@ -247,7 +277,10 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
             [linesCollection]
         ),
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_PAYMENTS,
+        documentPayments: documentRead(paymentsId, paymentsQuery, documentPayments, [
+            paymentLinesCollection,
+            billPaymentsCollection,
+        ]),
         taxLines: NO_TAX_LINES,
         formStart,
     }

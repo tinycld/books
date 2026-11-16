@@ -237,6 +237,7 @@ export function trialBalanceResult(input: ResultInput): RunResult {
         heading: TRIAL_BALANCE_HEADING,
         page: null,
         params: resolvedParams(input),
+        headerLines: [],
     }
 }
 

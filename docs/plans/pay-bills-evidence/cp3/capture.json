@@ -1,0 +1,42 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "read",
+            "url": "/a/books/bill-payments/bpseedpartial00",
+            "ready": "bill-payment-title",
+            "height": 1400,
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "waitFor": "bill-payment-applied" },
+                { "waitFor": "bill-payment-read-actions" }
+            ]
+        },
+        {
+            "name": "read-void",
+            "url": "/a/books/bill-payments/bpseedvoid00000",
+            "ready": "bill-payment-title",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [
+                { "waitFor": "bill-payment-applied" },
+                { "waitFor": "bill-payment-voided-by" }
+            ]
+        },
+        {
+            "name": "edit",
+            "url": "/a/books/bill-payments/bpseedpartial00",
+            "ready": "bill-payment-read-edit",
+            "height": 1900,
+            "schemes": ["light", "dark"],
+            "actions": [
+                { "click": "bill-payment-read-edit" },
+                { "waitFor": "pay-bills-save" },
+                { "waitFor": "pay-bills-original-now" },
+                { "click": "pay-bills-title" },
+                { "pause": 400 }
+            ]
+        }
+    ]
+}

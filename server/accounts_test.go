@@ -929,6 +929,28 @@ func TestAccount_DeleteRefusedWhileOnExpenses(t *testing.T) {
 	})
 }
 
+// Pay-bills spec §4.2: an account a bill payment paid from cannot be deleted
+// (its journal lines would lose their account); the text counts the payments.
+func TestAccount_DeleteRefusedWhileBillPaymentsPayFromIt(t *testing.T) {
+	bp := newBillPayEnv(t)
+	app := bp.app
+	operating := mkNumberedAccount(t, app, "Operating Checking", "1020", "bank", "checking")
+	deleteOperating := func() error {
+		return app.Delete(reload(t, app, "books_accounts", operating.Id))
+	}
+	bill := bp.postedBill(t, bp.summit, 30000)
+
+	bp.pay(t, bp.summit, map[string]any{"paid_from": operating.Id}, payLine{bill, 10000})
+	requireMessageOnlyRefusal(t, deleteOperating(),
+		"This account paid 1 bill payment and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", operating.Id)
+
+	bp.pay(t, bp.summit, map[string]any{"paid_from": operating.Id}, payLine{bill, 5000})
+	requireMessageOnlyRefusal(t, deleteOperating(),
+		"This account paid 2 bill payments and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", operating.Id)
+}
+
 // An active account is never below an inactive parent: the chart hides an
 // inactive account with everything under it.
 

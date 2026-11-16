@@ -552,6 +552,7 @@ export function transactionDetailResult(input: TransactionDetailInput): RunResul
         heading: TRANSACTION_DETAIL_HEADING,
         page: null,
         params: [{ id: 'period', type: 'dateRange', from, to }, accounts],
+        headerLines: [],
     }
 }
 
