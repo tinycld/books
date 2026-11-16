@@ -16,6 +16,7 @@
 import type { BooksBillPaymentLines, BooksBillPayments, BooksBills } from '../types'
 import { BILL_USER_IDS } from './bill-form-fixture'
 import { INVOICE_USER_NAMES } from './invoice-form-fixture'
+import type { DueFilter } from './pay-bills-rows'
 import type { PaymentMethodKey } from './payment-methods'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
 
@@ -467,7 +468,8 @@ export const PAY_BILLS_BALANCES: Record<string, number> = {
     '2100': 243_107,
 }
 
-export type DueFilter = 'any' | 'overdue' | 'week'
+// The Due filter lives with the list's rules; re-exported for the reference route.
+export type { DueFilter } from './pay-bills-rows'
 
 /**
  * The Pay Bills states the reference shows (spec §3.2–§3.6), as the form would hold them:

@@ -15,6 +15,9 @@ interface DocumentHeaderProps {
     isExpired: boolean
     // A badge that replaces the status's (an invoice's read view: Paid, Partly paid).
     badge?: HeaderBadgeView
+    // A screen with no status of its own (Pay Bills: no draft, nothing stored yet) shows
+    // no status badge.
+    isBadgeHidden?: boolean
 }
 
 type HeaderBadgeView = { label: string; tone: StatusTone }
@@ -27,21 +30,29 @@ function ExpiredBadge({ isVisible, testID }: { isVisible: boolean; testID: strin
 interface HeaderBadgeProps {
     status: DocumentStatus
     override: HeaderBadgeView | undefined
+    isHidden: boolean
     testID: string
 }
 
 // The status in the kind's lifecycle's words and tone, unless the caller gives its own;
-// nothing for a status the lifecycle does not have.
-function HeaderBadge({ status, override, testID }: HeaderBadgeProps) {
+// nothing for a status the lifecycle does not have, or when the caller hides it.
+function HeaderBadge({ status, override, isHidden, testID }: HeaderBadgeProps) {
     const doc = useDocumentChrome()
     const badge = override ?? statusBadgeOf(doc.lifecycle, status)
-    if (!badge) return null
+    if (isHidden || !badge) return null
     return <StatusBadge label={badge.label} tone={badge.tone} testID={testID} />
 }
 
 // Title, badges and help at the left; the kind's big figure at the right (under the title
 // on a phone).
-export function DocumentHeader({ title, status, figure, isExpired, badge }: DocumentHeaderProps) {
+export function DocumentHeader({
+    title,
+    status,
+    figure,
+    isExpired,
+    badge,
+    isBadgeHidden = false,
+}: DocumentHeaderProps) {
     const doc = useDocumentChrome()
     const isPhone = useBreakpoint() === 'mobile'
     const layout = isPhone ? 'gap-2' : 'flex-row items-start justify-between gap-4'
@@ -56,7 +67,12 @@ export function DocumentHeader({ title, status, figure, isExpired, badge }: Docu
                 <Text testID={titleId} className="text-xl font-semibold text-foreground">
                     {title}
                 </Text>
-                <HeaderBadge status={status} override={badge} testID={badgeId} />
+                <HeaderBadge
+                    status={status}
+                    override={badge}
+                    isHidden={isBadgeHidden}
+                    testID={badgeId}
+                />
                 <ExpiredBadge isVisible={isExpired} testID={expiredId} />
                 <HelpIcon topic={doc.helpTopic} />
             </View>

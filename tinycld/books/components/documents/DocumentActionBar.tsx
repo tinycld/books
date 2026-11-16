@@ -35,49 +35,62 @@ export interface DocumentActionBarProps {
     scopeOwner: ScopeOwner
 }
 
-const TAP = { minHeight: 44 }
-const DELETE_DRAFT_HINT = formatHint(FORM_KEYS.deleteDraft).text
-const POST_AND_NEW_HINT = formatHint(FORM_KEYS.postAndNew).text
-
-// Post & new on a phone, Delete draft (both keys registered by the screen), then the
-// caller's rows.
-function useMoreItems({
-    isSaving,
-    canDeleteDraft,
-    isPhone,
-    onPostAndNew,
-    onDeleteDraft,
-    moreItems = [],
-}: DocumentActionBarProps): DocumentMoreItem[] {
-    const writeState = useServerActionState({ isDisabled: isSaving })
-    const postAndNew: DocumentMoreItem = {
-        id: 'post-new',
-        label: 'Post & new',
-        keys: POST_AND_NEW_HINT,
-        isDisabled: writeState.isDisabled,
-        onSelect: onPostAndNew,
-    }
-    const deleteDraft: DocumentMoreItem = {
-        id: 'delete-draft',
-        label: 'Delete draft',
-        keys: DELETE_DRAFT_HINT,
-        isDisabled: writeState.isDisabled,
-        onSelect: onDeleteDraft,
-    }
-    const leading = isPhone ? [postAndNew] : []
-    const draftRows = canDeleteDraft ? [deleteDraft] : []
-    return [...leading, ...draftRows, ...moreItems]
+// A button of the bar. Its test id is `<kind test id>-<id>`; on a phone a `wideOnly` action
+// leaves the bar for the first rows of More, with the same test id and its key text.
+export type DocumentBarAction = {
+    id: string
+    label: string
+    // The action's key (a `FORM_KEYS` value), registered by the button in the screen's
+    // scope and the kind's shortcut group.
+    keys: string
+    onPress: () => void
+    // The filled button; the others are outlined.
+    isPrimary?: boolean
+    // A server write: idle offline, as is its More row.
+    isServerAction?: boolean
+    wideOnly?: boolean
 }
 
-// The bar's keys, in the kind's shortcut group.
-function barKeysOf(group: string) {
-    const key = (keys: string) => ({ keys, scope: 'compose', allowInInputs: true, group }) as const
-    return {
-        cancel: key(FORM_KEYS.cancel),
-        saveDraft: key(FORM_KEYS.saveDraft),
-        post: key(FORM_KEYS.post),
-        postAndNew: key(FORM_KEYS.postAndNew),
-    }
+const TAP = { minHeight: 44 }
+const DELETE_DRAFT_HINT = formatHint(FORM_KEYS.deleteDraft).text
+const KEY_SEPARATOR = '|'
+
+// A button's key, in the kind's shortcut group.
+function barKeyOf(keys: string, group: string) {
+    return { keys, scope: 'compose', allowInInputs: true, group } as const
+}
+
+type BarKey = ReturnType<typeof barKeyOf>
+
+// The bar's keys by key text, made again only when the group or the key set changes, so
+// a button's registration stays put across renders.
+function useBarKeys(actions: readonly DocumentBarAction[], group: string): Map<string, BarKey> {
+    const signature = actions.map(action => action.keys).join(KEY_SEPARATOR)
+    return useMemo(
+        () => new Map(signature.split(KEY_SEPARATOR).map(keys => [keys, barKeyOf(keys, group)])),
+        [signature, group]
+    )
+}
+
+// On a phone, the `wideOnly` actions as the leading More rows (their keys are registered
+// by the screen), then the caller's rows. A server action's row is idle while the bar is
+// saving or the server cannot take writes.
+function useMoreItems(
+    actions: readonly DocumentBarAction[],
+    isPhone: boolean,
+    isSaving: boolean,
+    moreItems: DocumentMoreItem[]
+): DocumentMoreItem[] {
+    const writeState = useServerActionState({ isDisabled: isSaving })
+    const moved = isPhone ? actions.filter(action => action.wideOnly) : []
+    const leading = moved.map(action => ({
+        id: action.id,
+        label: action.label,
+        keys: formatHint(action.keys).text,
+        isDisabled: action.isServerAction ? writeState.isDisabled : isSaving,
+        onSelect: action.onPress,
+    }))
+    return [...leading, ...moreItems]
 }
 
 // Menu content: on native the overlay host renders it outside the screen's tree, where
@@ -123,31 +136,25 @@ export function DocumentMoreMenu({ items, isDisabled, testID }: DocumentMoreMenu
     )
 }
 
-interface PostAndNewButtonProps {
+interface BarButtonProps {
+    action: DocumentBarAction
     isVisible: boolean
     isSaving: boolean
-    onPress: () => void
-    scopeOwner: ScopeOwner
-    shortcut: ReturnType<typeof barKeysOf>['postAndNew']
+    shortcut: BarKey | undefined
     testID: string
+    scopeOwner: ScopeOwner
 }
 
-function PostAndNewButton({
-    isVisible,
-    isSaving,
-    onPress,
-    scopeOwner,
-    shortcut,
-    testID,
-}: PostAndNewButtonProps) {
-    if (!isVisible) return null
+function BarButton({ action, isVisible, isSaving, shortcut, testID, scopeOwner }: BarButtonProps) {
+    if (!isVisible || !shortcut) return null
+    const variant = action.isPrimary ? undefined : 'outline'
     return (
         <ShortcutButton
-            label="Post & new"
+            label={action.label}
             shortcut={shortcut}
-            onPress={onPress}
-            serverAction
-            variant="outline"
+            onPress={action.onPress}
+            serverAction={action.isServerAction}
+            variant={variant}
             isDisabled={isSaving}
             testID={testID}
             scopeOwner={scopeOwner}
@@ -155,70 +162,116 @@ function PostAndNewButton({
     )
 }
 
+export interface DocumentBarProps {
+    // In Tab order.
+    actions: DocumentBarAction[]
+    isSaving: boolean
+    // A phone moves the `wideOnly` actions into More.
+    isPhone: boolean
+    // More rows after the moved actions.
+    moreItems?: DocumentMoreItem[]
+    scopeOwner: ScopeOwner
+}
+
 /**
- * The form's sticky bar, in Tab order: Cancel (Esc), Save draft (⌘S), Post (⌘↵), Post &
- * new (⌘⇧↵; a More row on a phone) and More (Delete draft when the document is a saved
- * draft; then the caller's rows: Download PDF, ⌘P, on a kind with a PDF, which the form
- * passes only then). Each button with a key is a core ShortcutButton in the
- * screen's scope, in the kind's shortcut group; Save draft, Post and Post & new are
- * server actions, so they and their keys are idle offline.
+ * A form's sticky bar: the caller's actions in Tab order, then More (on a phone the
+ * `wideOnly` actions, then the caller's rows). Each button is a core ShortcutButton in
+ * the screen's scope, in the kind's shortcut group; a server action and its key are idle
+ * offline, and so is its More row. Every button waits while the bar is saving.
  */
-export function DocumentActionBar(props: DocumentActionBarProps) {
-    const { isSaving, isPhone, onCancel, onSaveDraft, onPost, onPostAndNew, scopeOwner } = props
+export function DocumentBar({
+    actions,
+    isSaving,
+    isPhone,
+    moreItems = [],
+    scopeOwner,
+}: DocumentBarProps) {
     const doc = useDocumentChrome()
-    const moreItems = useMoreItems(props)
-    const keys = useMemo(() => barKeysOf(doc.shortcutGroup), [doc.shortcutGroup])
+    const keys = useBarKeys(actions, doc.shortcutGroup)
+    const items = useMoreItems(actions, isPhone, isSaving, moreItems)
     const testId = doc.testId
-    const ids = {
-        actions: `${testId}-actions`,
-        cancel: `${testId}-cancel`,
-        saveDraft: `${testId}-save-draft`,
-        post: `${testId}-post`,
-        postAndNew: `${testId}-post-new`,
-        more: `${testId}-more`,
-    }
+    const buttons = actions.map(action => (
+        <BarButton
+            key={action.id}
+            action={action}
+            isVisible={!(isPhone && action.wideOnly)}
+            isSaving={isSaving}
+            shortcut={keys.get(action.keys)}
+            testID={`${testId}-${action.id}`}
+            scopeOwner={scopeOwner}
+        />
+    ))
     return (
         <View
-            testID={ids.actions}
+            testID={`${testId}-actions`}
             className="flex-row items-center justify-end gap-2 border-t border-border bg-background px-4 py-3"
         >
-            <ShortcutButton
-                label="Cancel"
-                shortcut={keys.cancel}
-                onPress={onCancel}
-                variant="outline"
-                isDisabled={isSaving}
-                testID={ids.cancel}
-                scopeOwner={scopeOwner}
-            />
-            <ShortcutButton
-                label="Save draft"
-                shortcut={keys.saveDraft}
-                onPress={onSaveDraft}
-                serverAction
-                variant="outline"
-                isDisabled={isSaving}
-                testID={ids.saveDraft}
-                scopeOwner={scopeOwner}
-            />
-            <ShortcutButton
-                label="Post"
-                shortcut={keys.post}
-                onPress={onPost}
-                serverAction
-                isDisabled={isSaving}
-                testID={ids.post}
-                scopeOwner={scopeOwner}
-            />
-            <PostAndNewButton
-                isVisible={!isPhone}
-                isSaving={isSaving}
-                onPress={onPostAndNew}
-                scopeOwner={scopeOwner}
-                shortcut={keys.postAndNew}
-                testID={ids.postAndNew}
-            />
-            <DocumentMoreMenu items={moreItems} isDisabled={isSaving} testID={ids.more} />
+            {buttons}
+            <DocumentMoreMenu items={items} isDisabled={isSaving} testID={`${testId}-more`} />
         </View>
+    )
+}
+
+/**
+ * A posting document's bar, in Tab order: Cancel (Esc), Save draft (⌘S), Post (⌘↵), Post &
+ * new (⌘⇧↵; a More row on a phone) and More (Delete draft when the document is a saved
+ * draft; then the caller's rows: Download PDF, ⌘P, on a kind with a PDF, which the form
+ * passes only then). Save draft, Post and Post & new are server actions.
+ */
+export function DocumentActionBar({
+    isSaving,
+    canDeleteDraft,
+    isPhone,
+    onCancel,
+    onSaveDraft,
+    onPost,
+    onPostAndNew,
+    onDeleteDraft,
+    moreItems = [],
+    scopeOwner,
+}: DocumentActionBarProps) {
+    const writeState = useServerActionState({ isDisabled: isSaving })
+    const actions: DocumentBarAction[] = [
+        { id: 'cancel', label: 'Cancel', keys: FORM_KEYS.cancel, onPress: onCancel },
+        {
+            id: 'save-draft',
+            label: 'Save draft',
+            keys: FORM_KEYS.saveDraft,
+            onPress: onSaveDraft,
+            isServerAction: true,
+        },
+        {
+            id: 'post',
+            label: 'Post',
+            keys: FORM_KEYS.post,
+            onPress: onPost,
+            isPrimary: true,
+            isServerAction: true,
+        },
+        {
+            id: 'post-new',
+            label: 'Post & new',
+            keys: FORM_KEYS.postAndNew,
+            onPress: onPostAndNew,
+            isServerAction: true,
+            wideOnly: true,
+        },
+    ]
+    const deleteDraft: DocumentMoreItem = {
+        id: 'delete-draft',
+        label: 'Delete draft',
+        keys: DELETE_DRAFT_HINT,
+        isDisabled: writeState.isDisabled,
+        onSelect: onDeleteDraft,
+    }
+    const draftRows = canDeleteDraft ? [deleteDraft] : []
+    return (
+        <DocumentBar
+            actions={actions}
+            isSaving={isSaving}
+            isPhone={isPhone}
+            moreItems={[...draftRows, ...moreItems]}
+            scopeOwner={scopeOwner}
+        />
     )
 }
