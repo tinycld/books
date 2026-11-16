@@ -160,6 +160,57 @@ function showsOnly(snapshot: TbSnapshot, labels: readonly string[]) {
     return isWhole(snapshot) && groupLabels(snapshot).every(label => labels.includes(label))
 }
 
+// The account rows of the whole run, read in ONE page.evaluate that scrolls the table's
+// list from its top a screen at a time: the list is a FlashList that mounts only the
+// rows near its view, and on the shared DB a whole account type (or no filter) holds
+// more rows than one view. It stops at the row labelled `until`, when given, or at the
+// list's end; `whole` is true when the Total row, the last one, was seen.
+function scanGroupLabels(
+    page: Page,
+    until?: string
+): Promise<{ labels: string[]; whole: boolean }> {
+    return page.evaluate(async stopAt => {
+        const frames = () =>
+            new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const table = document.querySelector('[data-testid="report-table"]')
+        const labels = new Set<string>()
+        let whole = false
+        const read = () => {
+            for (const row of table?.querySelectorAll('[data-testid^="report-row-"]') ?? []) {
+                const id = (row.getAttribute('data-testid') ?? '').slice('report-row-'.length)
+                if (id.startsWith('total')) whole = true
+                if (id.startsWith('g:')) labels.add((row as HTMLElement).innerText.trim())
+            }
+            return stopAt !== null && labels.has(stopAt)
+        }
+        let list = table?.querySelector('[data-testid^="report-row-"]')?.parentElement ?? null
+        while (list && getComputedStyle(list).overflowY !== 'auto') list = list.parentElement
+        if (!list) {
+            read()
+            return { labels: [...labels], whole }
+        }
+        list.scrollTop = 0
+        await frames()
+        for (let step = 0; step < 400 && !read(); step++) {
+            const before = list.scrollTop
+            list.scrollTop = before + list.clientHeight * 0.8
+            await frames()
+            if (list.scrollTop === before) {
+                // At the end: a next page may still be loading.
+                for (let wait = 0; wait < 30 && list.scrollTop === before; wait++) {
+                    list.scrollTop = before + list.clientHeight * 0.8
+                    await frames()
+                }
+                if (list.scrollTop === before) {
+                    read()
+                    break
+                }
+            }
+        }
+        return { labels: [...labels], whole }
+    }, until ?? null)
+}
+
 async function filterAccounts(page: Page, name: string) {
     await chooseParamOption(page, 'accounts', { from: 'add-filter', search: name, labels: [name] })
 }
@@ -318,25 +369,25 @@ test.describe("trial-balance: the report in core's view", () => {
             await wholeType.click()
             await picker.getByTestId('report-filter-apply').click()
             await expect(picker).toBeHidden()
-            // Every Expense account in the shared DB shows now, so the Total row can be
-            // below the FlashList's mounted rows; `second` (absent from the one-account
-            // run) proves the new run landed. The test's accounts have no number, and
-            // number-less accounts sort first in their type, so they are mounted.
+            // Every Expense account in the shared DB shows now, more rows than the
+            // FlashList mounts, so the whole run is read by scrolling it; `second` (absent
+            // from the one-account run) proves the new run landed.
             const expenses = await snapshotWhen(
                 page,
-                tbSnapshot,
-                s => groupRow(s, second) !== undefined,
+                p => scanGroupLabels(p),
+                s => s.whole && s.labels.includes(second),
                 'the report narrowed to every Expense account'
             )
-            expect(groupLabels(expenses)).toContain(first)
-            expect(groupLabels(expenses)).not.toContain(bank)
+            expect(expenses.labels).toContain(first)
+            expect(expenses.labels).not.toContain(bank)
 
             await page.getByTestId('report-filter-remove-accounts').click()
             await expect(page.getByTestId('report-param-accounts')).toHaveCount(0)
+            // `bank` is in no Expense run, so finding it proves the unfiltered run landed.
             await snapshotWhen(
                 page,
-                tbSnapshot,
-                s => groupRow(s, bank) !== undefined,
+                p => scanGroupLabels(p, bank),
+                s => s.labels.includes(bank),
                 'the bank account back after the filter is removed'
             )
         })

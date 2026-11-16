@@ -6,8 +6,10 @@ import { createAccount, DESKTOP, openChart, PHONE } from './account-register-hel
 import {
     browserToday,
     choosePeriod,
+    csvRecords,
     dayWords,
     expectedHeading,
+    exportReport,
     GL_DAY_1,
     GL_DAY_2,
     type GlSnapshot,
@@ -823,18 +825,19 @@ test.describe('journal-report: report', () => {
 
         // The draft is dated today and its lines have no day, so the GL_DAY_2 period drops it
         // by date alone. All dates takes every row, a row with no day too: only the posted
-        // filter keeps the draft out of this whole-report read.
+        // filter keeps the draft out. All dates is the whole shared journal, too long to
+        // read through the windowed list in a bounded time, so its rows are read from the
+        // report's CSV, which holds every row of the run, every block open.
         await choosePeriod(page, { preset: 'allDates' })
-        const all = await journalWhen(
-            page,
-            snap =>
-                snap.header === 'All dates' &&
-                hasTotal(snap) &&
-                [e1Heading, transferHeading, voidHeading].every(h => blockHead(snap, h)),
-            'the whole report for All dates'
-        )
-        expect(all.header).toBe('All dates')
-        expect(all.rows.filter(row => showsDraft(row, draftMemo))).toEqual([])
+        await expect(page.getByTestId('report-document-period')).toHaveText('All dates')
+        const records = csvRecords((await exportReport(page, 'csv')).bytes)
+        const allLabels = records.slice(1).map(record => record[0] ?? '')
+        expect(
+            [e1Heading, transferHeading, voidHeading].filter(h => !allLabels.includes(h)),
+            'blocks missing from the All dates report'
+        ).toEqual([])
+        expect(allLabels.at(-1), 'the file ends in the Total row').toBe('Total')
+        expect(records.filter(record => record.some(cell => cell.includes(draftMemo)))).toEqual([])
     })
 
     test("the Total row's Debit equals its Credit and the sum of the block totals", async ({

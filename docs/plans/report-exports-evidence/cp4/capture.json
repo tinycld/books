@@ -1,0 +1,264 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "export-menu",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "waitFor": "report-export-email" }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "export-menu-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "waitFor": "report-export-email" }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-off",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "height": 1000,
+            "requests": [
+                {
+                    "url": "**/api/reports/email-status",
+                    "answer": { "status": 200, "body": { "canSend": false } }
+                }
+            ],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "waitFor": "report-export-email-description" }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-off-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "height": 1300,
+            "requests": [
+                {
+                    "url": "**/api/reports/email-status",
+                    "answer": { "status": 200, "body": { "canSend": false } }
+                }
+            ],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "waitFor": "report-export-email-description" }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "height": 1000,
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "height": 1300,
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-invalid",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "height": 1000,
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "not-an-address" },
+                { "click": "report-email-send" },
+                { "waitFor": "not-an-address is not an email address" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-invalid-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "height": 1300,
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "not-an-address" },
+                { "click": "report-email-send" },
+                { "waitFor": "not-an-address is not an email address" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-refused",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "height": 1000,
+            "requests": [
+                {
+                    "url": "**/api/reports/email",
+                    "answer": {
+                        "status": 429,
+                        "body": {
+                            "message": "You have sent 20 report emails in the last hour. Try again later."
+                        }
+                    }
+                }
+            ],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "dana@harborlane.test" },
+                { "click": "report-email-send" },
+                { "waitFor": "report-email-refusal" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-refused-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "height": 1300,
+            "requests": [
+                {
+                    "url": "**/api/reports/email",
+                    "answer": {
+                        "status": 429,
+                        "body": {
+                            "message": "You have sent 20 report emails in the last hour. Try again later."
+                        }
+                    }
+                }
+            ],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "dana@harborlane.test" },
+                { "click": "report-email-send" },
+                { "waitFor": "report-email-refusal" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "sending",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "height": 1000,
+            "requests": [{ "url": "**/api/reports/email", "answer": "hold" }],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "dana@harborlane.test" },
+                { "click": "report-email-send" },
+                { "waitFor": "Sending…" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "sending-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "requests": [{ "url": "**/api/reports/email", "answer": "hold" }],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "dana@harborlane.test" },
+                { "click": "report-email-send" },
+                { "waitFor": "Sending…" }
+            ],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "sent",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "dana@harborlane.test" },
+                { "click": "report-email-send" },
+                { "waitFor": "Report sent to dana@harborlane.test" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "sent-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "click": "report-export-email" },
+                { "waitFor": "report-email-attachment" },
+                { "fill": "report-email-to", "value": "dana@harborlane.test" },
+                { "click": "report-email-send" },
+                { "waitFor": "Report sent to dana@harborlane.test" }
+            ],
+            "hideLabels": ["New"]
+        }
+    ]
+}
