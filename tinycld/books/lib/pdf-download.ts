@@ -1,3 +1,5 @@
+import { fileNameFromDisposition } from '@tinycld/core/lib/save-file'
+
 // Pure parts of the PDF download (hooks/usePdfDownload.ts), shared by every
 // screen that prints a Books document.
 
@@ -25,48 +27,6 @@ export function pdfFileName(stem: string): string {
         .replace(/^[-.]+|[-.]+$/g, '')
         .toLowerCase()
     return `${safe || 'document'}.pdf`
-}
-
-// The file name the server gave in its Content-Disposition header (RFC 6266):
-// the UTF-8 filename* when present and decodable, else filename. null when the
-// header has no usable name, or the name could leave its directory.
-export function fileNameFromDisposition(header: string | null): string | null {
-    if (!header) return null
-    const extended = /(?:^|;)\s*filename\*\s*=\s*([^;]+)/i.exec(header)?.[1]?.trim()
-    const encoded = extended ? /^UTF-8'[^']*'(.+)$/i.exec(extended)?.[1] : undefined
-    if (encoded) {
-        const decoded = decodePercent(encoded)
-        if (decoded !== null && isSafeFileName(decoded)) return decoded
-    }
-    const plain = /(?:^|;)\s*filename\s*=\s*(?:"((?:\\.|[^"\\])*)"|([^;\s]+))/i.exec(header)
-    const name = plain?.[1]?.replace(/\\(.)/g, '$1') ?? plain?.[2]
-    return name !== undefined && isSafeFileName(name) ? name : null
-}
-
-function decodePercent(text: string): string | null {
-    try {
-        return decodeURIComponent(text)
-    } catch {
-        return null
-    }
-}
-
-// The server already cleans the name; this guards the native file write
-// against a header from anything else.
-function isSafeFileName(name: string): boolean {
-    const trimmed = name.trim()
-    // Compared by code point: biome refuses control characters in a regex.
-    const hasControl = [...trimmed].some(ch => {
-        const code = ch.codePointAt(0) ?? 0
-        return code < 0x20 || code === 0x7f
-    })
-    return (
-        trimmed !== '' &&
-        trimmed !== '.' &&
-        trimmed !== '..' &&
-        !/[/\\]/.test(trimmed) &&
-        !hasControl
-    )
 }
 
 // The saved file's name: the server's, else the fallback stem made safe.

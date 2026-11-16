@@ -37,8 +37,15 @@ describe('help/reports.md', () => {
         '## Who sees Books reports',
         '## Build your own Books report',
         '## See the transactions behind an amount',
+        '## Download or email a report',
     ])('has the heading "%s"', heading => {
         expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
+    })
+
+    it('"Download or email a report" links the core section', () => {
+        expect(section('## Download or email a report')).toContain(
+            '[Download or email a report](help://core:reports)'
+        )
     })
 
     it('links the core reports topic', () => {

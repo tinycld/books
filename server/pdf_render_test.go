@@ -20,6 +20,7 @@ import (
 	"golang.org/x/image/font/gofont/gobold"
 
 	"tinycld.org/core/branding"
+	"tinycld.org/core/pdfrender"
 	"tinycld.org/core/readonly/readonlytest"
 )
 
@@ -52,7 +53,7 @@ func render(t *testing.T, doc pdfDocument, org branding.Org) ([]byte, []string) 
 	t.Helper()
 	var logs []string
 	// Hermetic: the machine's fonts must not hide a glyph the bundle lacks.
-	fonts := pdfFonts{Hermetic: true}
+	fonts := pdfrender.Fonts{Hermetic: true}
 	pdf, err := renderPDFDocument(context.Background(), doc, org, fonts, collectLogs(&logs))
 	if err != nil {
 		t.Fatalf("render: %v", err)
@@ -239,7 +240,7 @@ func TestRenderPDF_TitleOfALightBrandUsesTheBodyTextColor(t *testing.T) {
 func TestRenderPDF_RefusesAnInvalidDocument(t *testing.T) {
 	doc := testDocument("Jordan Lee", 1)
 	doc.Currency = "dollars"
-	_, err := renderPDFDocument(context.Background(), doc, testOrg(), pdfFonts{}, nil)
+	_, err := renderPDFDocument(context.Background(), doc, testOrg(), pdfrender.Fonts{}, nil)
 	if err == nil {
 		t.Error("an invalid document rendered")
 	}
@@ -250,7 +251,7 @@ func TestRenderPDF_RefusesAnInvalidDocument(t *testing.T) {
 // CJK font: it has box-drawing characters the bundle does not.
 func TestRenderPDF_UsesTheFontsDirectoryForMissingCharacters(t *testing.T) {
 	doc := testDocument("Box ─░▲ Co", 1)
-	missing := func(fonts pdfFonts) int {
+	missing := func(fonts pdfrender.Fonts) int {
 		var logs []string
 		_, err := renderPDFDocument(context.Background(), doc, testOrg(), fonts, collectLogs(&logs))
 		if err != nil {
@@ -264,21 +265,21 @@ func TestRenderPDF_UsesTheFontsDirectoryForMissingCharacters(t *testing.T) {
 		}
 		return n
 	}
-	if missing(pdfFonts{Hermetic: true}) == 0 {
+	if missing(pdfrender.Fonts{Hermetic: true}) == 0 {
 		t.Fatal("precondition: the bundled fonts already cover ─░▲")
 	}
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "Extra.ttf"), gobold.TTF, 0o644); err != nil {
 		t.Fatalf("write font: %v", err)
 	}
-	if n := missing(pdfFonts{Dir: dir, Hermetic: true}); n != 0 {
+	if n := missing(pdfrender.Fonts{Dir: dir, Hermetic: true}); n != 0 {
 		t.Errorf("%d characters still missing with the fonts directory", n)
 	}
 }
 
 func TestPDFDiagnostics_LogsOnlyGlyphAndImageProblemsAndCutsLongOnes(t *testing.T) {
 	logs := readonlytest.CaptureLogs(t)
-	logf := pdfDiagnostics(context.Background())
+	logf := pdfrender.Diagnostics(context.Background(), log)
 	logf("no glyph for %q in font %s", 'Z', "Sans")
 	logf("image %s failed: %s", "data:image/png;base64,"+strings.Repeat("A", 400), "bad")
 	logf("unsupported CSS property %s", "float")

@@ -4,18 +4,14 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
-	"regexp"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
 	"tinycld.org/core/branding"
 	"tinycld.org/core/docfonts"
+	"tinycld.org/core/pdfrender"
 	"tinycld.org/core/reports"
 )
 
@@ -104,85 +100,15 @@ func writePDF(re *core.RequestEvent, kind documentKind, record *core.Record) err
 		return re.InternalServerError("Could not create the PDF.", err)
 	}
 	ctx := re.Request.Context()
-	fonts := pdfFonts{Dir: docfonts.Dir()}
-	pdf, err := renderPDFDocument(ctx, doc, branding.Load(re.App), fonts, pdfDiagnostics(ctx))
+	fonts := pdfrender.Fonts{Dir: docfonts.Dir()}
+	pdf, err := renderPDFDocument(ctx, doc, branding.Load(re.App), fonts, pdfrender.Diagnostics(ctx, log))
 	if err != nil {
 		return re.InternalServerError("Could not create the PDF.", err)
 	}
-	re.Response.Header().Set("Content-Disposition", pdfContentDisposition(kind.FileName(doc)))
+	re.Response.Header().Set("Content-Disposition", pdfrender.ContentDisposition(kind.FileName(doc), "pdf"))
 	// The client names the saved file from this header; a web app on another
 	// origin may read it only when CORS exposes it.
 	re.Response.Header().Add("Access-Control-Expose-Headers", "Content-Disposition")
 	re.Response.Header().Set("Cache-Control", "no-store")
 	return re.Blob(http.StatusOK, "application/pdf", pdf)
-}
-
-var unsafeFileChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
-
-// pdfContentDisposition names the download. A name can come from a person (a
-// customer, a document number), so anything that could break the header or
-// climb a directory is replaced, as boards' export does. A name with non-ASCII
-// letters also carries its real spelling in an RFC 6266 filename* parameter;
-// the quoted filename stays as the ASCII fallback for old clients.
-func pdfContentDisposition(stem string) string {
-	fallback := strings.Trim(unsafeFileChars.ReplaceAllString(stem, "-"), "-.")
-	fallback = strings.ToLower(fallback)
-	if fallback == "" {
-		fallback = "document"
-	}
-	header := `attachment; filename="` + fallback + `.pdf"`
-	if isASCII(stem) {
-		return header
-	}
-	return header + `; filename*=UTF-8''` + percentEncodeFileName(realFileName(stem)+".pdf")
-}
-
-func isASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] >= utf8.RuneSelf {
-			return false
-		}
-	}
-	return true
-}
-
-// realFileName keeps the person's spelling but drops what could climb a
-// directory or break a header: path separators, quotes, control characters and
-// the bidi controls (including the Arabic letter mark) and byte-order mark
-// that could spoof the displayed name. Zero-width joiners stay: Persian, Indic
-// names and emoji need them.
-func realFileName(stem string) string {
-	clean := strings.Map(func(r rune) rune {
-		if r == '/' || r == '\\' || r == '"' || r == utf8.RuneError ||
-			unicode.IsControl(r) || isSpoofingFormat(r) {
-			return -1
-		}
-		return r
-	}, stem)
-	clean = strings.Trim(clean, " .")
-	if clean == "" {
-		return "document"
-	}
-	return clean
-}
-
-func isSpoofingFormat(r rune) bool {
-	return r == 0x061C || r == 0x200E || r == 0x200F || r == 0xFEFF ||
-		(r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069)
-}
-
-// percentEncodeFileName encodes every byte outside RFC 5987's attr-char set.
-func percentEncodeFileName(name string) string {
-	const attrPunct = "!#$&+-.^_`|~"
-	var b strings.Builder
-	for i := 0; i < len(name); i++ {
-		c := name[i]
-		alnum := c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9'
-		if alnum || strings.IndexByte(attrPunct, c) >= 0 {
-			b.WriteByte(c)
-			continue
-		}
-		fmt.Fprintf(&b, "%%%02X", c)
-	}
-	return b.String()
 }

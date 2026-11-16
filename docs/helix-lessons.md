@@ -54,3 +54,6 @@
 - Every action a wide layout offers by a control (a header tick box, Pay all) has a touch control on the phone layout too; a key alone is not a path on native. — receive-payment, driver, cp 3
 - An e2e that finds a seeded record reads its values from `seed.ts` (what the DB holds), never from the fixture file. — attachments, retro, p3-attachments
 - State that must survive a tab switch (an upload session, a failed row) lives above the tabbed area; check what unmounts a component before you put state in it. — attachments, retro, p3-attachments
+- An e2e wait after a save proves the save landed (the saved record's URL or id), never a badge or title the unsaved form already shows. — expense-form, retro, p3-expense
+- A `ShortcutButton` holds its hidden key hint in its text: match its name with a pattern (`/^Send(?!ing)/`) or a test id, never exact text. — report-exports, retro, p5-exports
+- A custom trigger for a core Menu forwards the `onPress` and ref that the Menu clones onto it; a wrapper that drops them never opens the menu. — report-exports, retro, p5-exports

@@ -1,10 +1,13 @@
+import fs from 'node:fs'
 import { expect, type Locator, type Page, type Request, type Response } from '@playwright/test'
 import {
     authStorageKey,
     cellOf,
     chooseParamOption,
+    downloadReport,
     hubRow,
     navigateToPackage,
+    type ReportExportFormat,
     rowOf,
 } from '@tinycld/core/e2e-helpers'
 import { rangeWords } from '@tinycld/core/reports/lib/dates'
@@ -625,6 +628,63 @@ export async function postEntryOn(
         await fillLine(page, index, line)
     }
     await postOpenEntry(page)
+}
+
+// Downloads the open report in `format` through core's Export menu (the toolbar button,
+// or "⋯" where the toolbar folds it) and returns the name the server gave the file and
+// its bytes, read in the test process.
+export async function exportReport(
+    page: Page,
+    format: ReportExportFormat
+): Promise<{ name: string; bytes: Buffer }> {
+    const download = await downloadReport(page, format)
+    const path = await download.path()
+    return { name: download.suggestedFilename(), bytes: fs.readFileSync(path) }
+}
+
+export const BOM = [0xef, 0xbb, 0xbf]
+
+// The records of an RFC 4180 CSV text with CRLF line ends: quoted fields may hold
+// commas, doubled quotes and line breaks.
+function parseCsv(text: string): string[][] {
+    const records: string[][] = []
+    let record: string[] = []
+    let field = ''
+    let inQuotes = false
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i]
+        if (inQuotes) {
+            if (char === '"' && text[i + 1] === '"') {
+                field += '"'
+                i++
+            } else if (char === '"') inQuotes = false
+            else field += char
+            continue
+        }
+        if (char === '"') inQuotes = true
+        else if (char === ',') {
+            record.push(field)
+            field = ''
+        } else if (char === '\r' && text[i + 1] === '\n') {
+            record.push(field)
+            records.push(record)
+            record = []
+            field = ''
+            i++
+        } else field += char
+    }
+    if (field !== '' || record.length > 0) {
+        record.push(field)
+        records.push(record)
+    }
+    return records
+}
+
+// The records of an exported CSV file after its byte order mark: the heading line, then
+// one record per row of the report, every group open.
+export function csvRecords(bytes: Buffer): string[][] {
+    expect([...bytes.subarray(0, 3)], 'the CSV starts with the byte order mark').toEqual(BOM)
+    return parseCsv(bytes.subarray(3).toString('utf8'))
 }
 
 // The shipped Profit and Loss from the Books hub, reached as openJournal reaches the
