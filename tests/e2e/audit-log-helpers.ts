@@ -1,7 +1,26 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { hubRow } from '@tinycld/core/e2e-helpers'
 import { AUDIT_LOG_TITLE } from '~/tinycld/books/lib/audit-log-fixture'
+import { PRODUCT_IDS, PRODUCTS } from '~/tinycld/books/lib/products-services-fixture'
 import { openBooksReports } from './books-report-helpers'
+import {
+    INVOICE_URL,
+    invoiceIdFromUrl,
+    openNewInvoice,
+    pickInvoiceCustomer,
+    pickLineProduct,
+} from './invoice-helpers'
+import { openEntriesList, searchEntries } from './journal-entries-helpers'
+
+// A seeded active product an invoice line can take (invoice-form-post.spec.ts uses it too).
+function invoiceProduct(): string {
+    const product = PRODUCTS.find(p => p.id === PRODUCT_IDS.accessPoint)
+    if (!product) throw new Error(`no seeded product ${PRODUCT_IDS.accessPoint} in the fixture`)
+    return product.name
+}
+
+const PHONE = { width: 390, height: 844 }
+const WIDE = { width: 1280, height: 800 }
 
 // Shared steps of the audit-log e2e specs (spec §6). The Audit Log runs in core's report
 // view; a row is labelled by its Date changed and holds the cells user, event, type and
@@ -93,6 +112,88 @@ export async function openHistoryFromRow(
     await page.getByTestId(`report-row-${row.id}`).click()
     await expect(page.getByTestId('history-screen').filter({ visible: true })).toBeVisible()
     await expect(page).toHaveURL(/\/books\/history\/books_[a-z_]+\/[a-z0-9]{15}$/)
+}
+
+// Opens the shown More trigger of a record screen (a covered screen stays mounted, hidden)
+// and returns the open menu's rows, top to bottom.
+export async function openMoreMenu(page: Page, moreTestId: string): Promise<Locator> {
+    const trigger = page.getByTestId(moreTestId).filter({ visible: true })
+    await expect(trigger, `the ${moreTestId} trigger`).toBeVisible()
+    await trigger.click()
+    const items = page.getByRole('menuitem')
+    await expect(items.first()).toBeVisible()
+    return items
+}
+
+// Presses the open More menu's Audit history row and waits for the record's history as
+// its own screen: the URL `books/history/<collection>/<id>` and, when given, its title.
+export async function openHistoryFromMore(
+    page: Page,
+    historyTestId: string,
+    record: { collection: string; id: string; title?: string }
+): Promise<void> {
+    await page.getByTestId(historyTestId).click()
+    await expect(page).toHaveURL(new RegExp(`/books/history/${record.collection}/${record.id}$`))
+    await expect(page.getByTestId('history-screen').filter({ visible: true })).toBeVisible()
+    if (record.title === undefined) return
+    await expect(page.getByTestId('history-title').filter({ visible: true })).toHaveText(
+        record.title
+    )
+}
+
+// Books must be open. Posts a new invoice for this customer with one seeded product line
+// and this memo, and leaves the page on its read view; returns its id and number.
+export async function postInvoiceFor(
+    page: Page,
+    customer: string,
+    memo: string
+): Promise<{ id: string; number: string }> {
+    await openNewInvoice(page)
+    await pickInvoiceCustomer(page, customer)
+    await pickLineProduct(page, 0, invoiceProduct())
+    await page.getByTestId('form-input-memo').fill(memo)
+    await page.getByTestId('invoice-post').click()
+    await expect(page).toHaveURL(INVOICE_URL)
+    await expect(page.getByTestId('invoice-read-only')).toBeVisible()
+    const title = page.getByTestId('invoice-title')
+    await expect(title).toHaveText(/^Invoice \d+$/)
+    const text = await title.innerText()
+    const number = /^Invoice (\d+)$/.exec(text)?.[1]
+    if (!number) throw new Error(`no invoice number in the title "${text}"`)
+    return { id: invoiceIdFromUrl(page), number }
+}
+
+// The id of the record whose screen is open, read from the URL's last segment.
+export function openRecordId(page: Page): string {
+    const id = /\/([a-z0-9]{15})$/.exec(new URL(page.url()).pathname)?.[1]
+    if (!id) throw new Error(`no record id at the end of ${page.url()}`)
+    return id
+}
+
+// The record's read view (or saved draft) is open at 1280. At a phone width its More holds
+// the rows the wide bar shows as buttons, then Audit history last, which opens the record's
+// history as a screen; Back returns to the record, and the page is set to 1280 again.
+export async function expectPhoneMoreHistory(
+    page: Page,
+    more: { trigger: string; history: string; before: (string | RegExp)[] },
+    record: { collection: string; id: string; title?: string }
+): Promise<void> {
+    await page.setViewportSize(PHONE)
+    const items = await openMoreMenu(page, more.trigger)
+    await expect(items).toHaveText([...more.before, /Audit history/])
+    await openHistoryFromMore(page, more.history, record)
+    await page.getByTestId('history-back').filter({ visible: true }).click()
+    await expect(page).not.toHaveURL(/\/books\/history\//)
+    await page.setViewportSize(WIDE)
+}
+
+// Books must be open. Finds the entry with this memo through the entries list search and
+// opens it by its row.
+export async function openEntryFromList(page: Page, memo: string, id: string): Promise<void> {
+    await openEntriesList(page)
+    await searchEntries(page, memo)
+    await page.getByTestId(`entries-row-${id}`).click()
+    await expect(page).toHaveURL(new RegExp(`/books/entries/${id}$`))
 }
 
 // The events of the history on screen, newest first.

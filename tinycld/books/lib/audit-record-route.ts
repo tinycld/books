@@ -5,6 +5,7 @@ import { recordTypeLabel } from './audit-log'
 import { customerPath } from './customer-route'
 import { documentHref } from './document-routes'
 import { entryHref } from './entry-route'
+import { DOCUMENT_COLLECTIONS } from './history-route'
 import { productPath } from './product-route'
 import type { RecordRoute } from './record-route'
 import {
@@ -19,13 +20,14 @@ import { vendorPath } from './vendor-route'
 
 type LiveRecord = Record<string, unknown>
 
-const DOCUMENT_KINDS: Record<string, SalesDocumentKind> = {
-    books_invoices: INVOICE_KIND,
-    books_sales_receipts: SALES_RECEIPT_KIND,
-    books_estimates: ESTIMATE_KIND,
-    books_bills: BILL_KIND,
-    books_expenses: EXPENSE_KIND,
-}
+// Each document kind by the collection it is stored in; DOCUMENT_COLLECTIONS is the one
+// map of kind to collection.
+const DOCUMENT_KINDS = new Map<string, SalesDocumentKind>(
+    [INVOICE_KIND, SALES_RECEIPT_KIND, ESTIMATE_KIND, BILL_KIND, EXPENSE_KIND].map(kind => [
+        DOCUMENT_COLLECTIONS[kind.key],
+        kind,
+    ])
+)
 
 // A record route's filled path: the route pattern `…/[id]` with its id.
 function filledPath(route: RecordRoute): string {
@@ -118,7 +120,7 @@ export function auditRecordHref(
     live: LiveRecord | undefined
 ): string | null {
     if (!live) return null
-    const kind = DOCUMENT_KINDS[collection]
+    const kind = DOCUMENT_KINDS.get(collection)
     if (kind) return documentHref(kind, id)
     if (collection === 'books_journal_entries') return entryPath(id, live)
     if (collection === 'books_party_contacts') return contactPath(live)

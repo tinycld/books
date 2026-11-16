@@ -1,0 +1,78 @@
+{
+    "outDir": ".",
+    "setup": "menuRecords",
+    "shots": [
+        {
+            "name": "invoice-more",
+            "url": "/books/invoices/$invoiceId",
+            "openRecord": { "kind": "invoice", "text": "$invoiceMemo" },
+            "widths": [1280],
+            "atRest": "invoice-read-history",
+            "actions": [
+                { "clickShown": "invoice-read-more" },
+                { "waitFor": "invoice-read-history" }
+            ]
+        },
+        {
+            "name": "invoice-history",
+            "url": "/books/invoices/$invoiceId",
+            "openRecord": { "kind": "invoice", "text": "$invoiceMemo" },
+            "widths": [1280],
+            "actions": [
+                { "clickShown": "invoice-read-more" },
+                { "clickShown": "invoice-read-history" },
+                { "expectUrl": "/books/history/books_invoices/$invoiceId" },
+                { "expectText": "history-title", "text": "$invoiceTitle" }
+            ]
+        },
+        {
+            "name": "entry-more",
+            "url": "/books/entries/$entryId",
+            "openRecord": { "kind": "entry", "text": "$entryMemo", "id": "$entryId" },
+            "widths": [390],
+            "height": 844,
+            "atRest": "entry-history",
+            "actions": [
+                { "viewport": [390, 844] },
+                { "clickShown": "entry-more" },
+                { "waitFor": "entry-history" }
+            ]
+        },
+        {
+            "name": "entry-history",
+            "url": "/books/entries/$entryId",
+            "openRecord": { "kind": "entry", "text": "$entryMemo", "id": "$entryId" },
+            "widths": [390],
+            "height": 844,
+            "actions": [
+                { "viewport": [390, 844] },
+                { "clickShown": "entry-more" },
+                { "clickShown": "entry-history" },
+                { "expectUrl": "/books/history/books_journal_entries/$entryId" },
+                { "expectText": "history-title", "text": "$entryTitle" }
+            ]
+        },
+        {
+            "name": "customer-more",
+            "url": "/books/customers/$customerId",
+            "user": "collaborator",
+            "openRecord": { "kind": "customer", "text": "$customerName" },
+            "widths": [1280],
+            "atRest": "customer-more-history",
+            "actions": [{ "clickShown": "customer-more" }, { "waitFor": "customer-more-history" }]
+        },
+        {
+            "name": "customer-history",
+            "url": "/books/customers/$customerId",
+            "user": "collaborator",
+            "openRecord": { "kind": "customer", "text": "$customerName" },
+            "widths": [1280],
+            "actions": [
+                { "clickShown": "customer-more" },
+                { "clickShown": "customer-more-history" },
+                { "expectUrl": "/books/history/books_customers/$customerId" },
+                { "expectText": "history-title", "text": "$customerName" }
+            ]
+        }
+    ]
+}

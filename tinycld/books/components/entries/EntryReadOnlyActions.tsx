@@ -15,6 +15,9 @@ interface EntryReadOnlyActionsProps {
     onEdit(): void
     onReverse(): void
     onVoid(): void
+    // More → Audit history, for a Books reader; when given, the bar shows even with no
+    // other action, and More holds it last. It opens a screen only, so it has no key.
+    onAuditHistory?: () => void
 }
 
 const TAP = { minHeight: 44 }
@@ -42,16 +45,49 @@ function ActionButton({
     )
 }
 
-function PhoneMore({
+function MenuRow({
     isVisible,
-    canReverse,
-    onReverse,
-    onVoid,
+    label,
+    testID,
+    isDestructive = false,
+    onSelect,
 }: {
     isVisible: boolean
+    label: string
+    testID?: string
+    isDestructive?: boolean
+    onSelect?: () => void
+}) {
+    if (!isVisible || !onSelect) return null
+    return (
+        <Menu.Item
+            testID={testID}
+            label={label}
+            isDestructive={isDestructive}
+            onSelect={onSelect}
+        />
+    )
+}
+
+// A phone's More holds Reverse and Void; wide shows those as buttons, so its More holds
+// Audit history alone. Audit history is always the last row.
+function MoreMenu({
+    isVisible,
+    isBusy,
+    canReverse,
+    canVoid,
+    onReverse,
+    onVoid,
+    onAuditHistory,
+}: {
+    isVisible: boolean
+    // A void or reversal runs: More stays shut, so no row leaves the screen mid-write.
+    isBusy: boolean
     canReverse: boolean
+    canVoid: boolean
     onReverse(): void
     onVoid(): void
+    onAuditHistory?: () => void
 }) {
     if (!isVisible) return null
     return (
@@ -59,13 +95,19 @@ function PhoneMore({
             title="More"
             placement="top-end"
             trigger={
-                <Button testID="entry-more" variant="outline" style={TAP}>
+                <Button testID="entry-more" variant="outline" style={TAP} isDisabled={isBusy}>
                     <ButtonText>More</ButtonText>
                 </Button>
             }
         >
-            {canReverse ? <Menu.Item label="Reverse" onSelect={onReverse} /> : null}
-            <Menu.Item label="Void" isDestructive onSelect={onVoid} />
+            <MenuRow isVisible={canReverse} label="Reverse" onSelect={onReverse} />
+            <MenuRow isVisible={canVoid} label="Void" isDestructive onSelect={onVoid} />
+            <MenuRow
+                isVisible
+                label="Audit history"
+                testID="entry-history"
+                onSelect={onAuditHistory}
+            />
         </Menu>
     )
 }
@@ -79,6 +121,7 @@ export function EntryReadOnlyActions({
     onEdit,
     onReverse,
     onVoid,
+    onAuditHistory,
 }: EntryReadOnlyActionsProps) {
     // While the bar is hidden no read key is registered, but the hook still holds its
     // `thread` scope, so the keys of a form below it stay muted.
@@ -94,7 +137,8 @@ export function EntryReadOnlyActions({
     const canEdit = actions.includes('edit')
     const canReverse = actions.includes('reverse')
     const canVoid = actions.includes('void')
-    if (!isVisible || !(canEdit || canReverse || canVoid)) return null
+    const hasHistory = onAuditHistory !== undefined
+    if (!isVisible || !(canEdit || canReverse || canVoid || hasHistory)) return null
     const edit = (
         <ActionButton
             isVisible={canEdit}
@@ -107,6 +151,15 @@ export function EntryReadOnlyActions({
     if (isWide) {
         return (
             <View testID="entry-actions" className={BAR}>
+                <MoreMenu
+                    isVisible={hasHistory}
+                    isBusy={isBusy}
+                    canReverse={false}
+                    canVoid={false}
+                    onReverse={onReverse}
+                    onVoid={onVoid}
+                    onAuditHistory={onAuditHistory}
+                />
                 <ActionButton isVisible={canVoid} label="Void" onPress={onVoid} />
                 <ActionButton isVisible={canReverse} label="Reverse" onPress={onReverse} />
                 {edit}
@@ -115,11 +168,14 @@ export function EntryReadOnlyActions({
     }
     return (
         <View className={BAR}>
-            <PhoneMore
-                isVisible={canVoid}
+            <MoreMenu
+                isVisible={canVoid || hasHistory}
+                isBusy={isBusy}
                 canReverse={canReverse}
+                canVoid={canVoid}
                 onReverse={onReverse}
                 onVoid={onVoid}
+                onAuditHistory={onAuditHistory}
             />
             {edit}
         </View>

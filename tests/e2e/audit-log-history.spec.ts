@@ -2,16 +2,24 @@ import { expect, test } from '@playwright/test'
 import { login, navigateToPackage, TEST_USER_NAME } from '@tinycld/core/e2e-helpers'
 import { shortDay } from '@tinycld/core/reports/lib/dates'
 import {
+    expectPhoneMoreHistory,
     historyEvents,
     openAuditLog,
+    openEntryFromList,
+    openHistoryFromMore,
     openHistoryFromRow,
+    openMoreMenu,
+    openRecordId,
+    postInvoiceFor,
     waitForAuditRow,
 } from './audit-log-helpers'
 import { browserToday } from './books-report-helpers'
+import { createCustomer } from './customer-form-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import {
     ACCOUNT_LABELS,
     createDraftEntry,
+    createPostedEntry,
     fillLine,
     openOtherBooksPage,
     postedEntryNumber,
@@ -248,5 +256,117 @@ test.describe('audit-log: record history', () => {
             'No changes recorded for this record.'
         )
         await expect(page.getByTestId('history-error')).toHaveCount(0)
+    })
+
+    // Spec §3 "Entry points": Audit history is the last item of the More menu of a customer
+    // page, a document's read view and a journal entry (read view and saved draft); a wide
+    // screen that had no More for its actions now shows one holding it.
+    test('More → Audit history opens the history of a customer, an invoice and a posted and a draft entry', async ({
+        page,
+    }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+
+        // The invoice's customer, new, from the Books landing.
+        const customer = uniqueName('Audit menu customer')
+        await createCustomer(page, { name: customer })
+        const customerId = openRecordId(page)
+        const customerItems = await openMoreMenu(page, 'customer-more')
+        await expect(customerItems).toHaveText([
+            'Add sub-customer',
+            'Make inactive',
+            'Delete customer',
+            'Audit history',
+        ])
+        await openHistoryFromMore(page, 'customer-more-history', {
+            collection: 'books_customers',
+            id: customerId,
+            title: customer,
+        })
+
+        // A posted invoice at 1280: its actions are buttons, so More holds Audit history alone.
+        const invoice = await postInvoiceFor(page, customer, uniqueMemo('Audit menu invoice'))
+        await expect(page.getByTestId('invoice-read-actions')).toBeVisible()
+        const invoiceItems = await openMoreMenu(page, 'invoice-read-more')
+        await expect(invoiceItems).toHaveText(['Audit history'])
+        await openHistoryFromMore(page, 'invoice-read-history', {
+            collection: 'books_invoices',
+            id: invoice.id,
+            title: `Invoice ${invoice.number}`,
+        })
+        // The invoice form left an entries list in the stack; a sidebar push from here would
+        // stack a second, hidden one (memory p3-transfer), so go back before the entry steps.
+        await page.getByTestId('history-back').filter({ visible: true }).click()
+        await expect(page.getByTestId('invoice-read-only').filter({ visible: true })).toBeVisible()
+        // A phone's More holds every action but Edit, then Audit history last.
+        await expectPhoneMoreHistory(
+            page,
+            {
+                trigger: 'invoice-read-more',
+                history: 'invoice-read-history',
+                before: [/Void/, /Copy/, /View journal entry/, /Download PDF/],
+            },
+            { collection: 'books_invoices', id: invoice.id, title: `Invoice ${invoice.number}` }
+        )
+        await expect(page.getByTestId('invoice-read-only').filter({ visible: true })).toBeVisible()
+
+        // A posted entry, opened from the list search: More on the wide read view.
+        const postedMemo = uniqueMemo('Audit menu posted')
+        await createPostedEntry(page, {
+            memo: postedMemo,
+            amount: '12.34',
+            debitAccount: ACCOUNT_LABELS.checking,
+            creditAccount: ACCOUNT_LABELS.equity,
+        })
+        const postedId = openRecordId(page)
+        const postedTitle = `Journal entry ${await postedEntryNumber(page)}`
+        await openEntryFromList(page, postedMemo, postedId)
+        await expect(page.getByTestId('entry-read-only').filter({ visible: true })).toBeVisible()
+        const postedItems = await openMoreMenu(page, 'entry-more')
+        await expect(postedItems.last()).toHaveText('Audit history')
+        await openHistoryFromMore(page, 'entry-history', {
+            collection: 'books_journal_entries',
+            id: postedId,
+            title: postedTitle,
+        })
+        await page.getByTestId('history-back').filter({ visible: true }).click()
+        await expect(page.getByTestId('entry-read-only').filter({ visible: true })).toBeVisible()
+        // A phone's More holds Reverse and Void, then Audit history last.
+        await expectPhoneMoreHistory(
+            page,
+            { trigger: 'entry-more', history: 'entry-history', before: [/Reverse/, /Void/] },
+            { collection: 'books_journal_entries', id: postedId, title: postedTitle }
+        )
+        await expect(page.getByTestId('entry-read-only').filter({ visible: true })).toBeVisible()
+
+        // A saved draft, reopened: More holds Delete draft, then Audit history.
+        const draftMemo = uniqueMemo('Audit menu draft')
+        await createDraftEntry(page, {
+            memo: draftMemo,
+            amount: '23.45',
+            debitAccount: ACCOUNT_LABELS.checking,
+            creditAccount: ACCOUNT_LABELS.equity,
+        })
+        const draftId = openRecordId(page)
+        await openEntryFromList(page, draftMemo, draftId)
+        await expect(page.getByTestId('entry-badge').filter({ visible: true })).toHaveText('Draft')
+        const draftItems = await openMoreMenu(page, 'entry-more')
+        await expect(draftItems).toHaveText(['Delete draft', 'Audit history'])
+        await openHistoryFromMore(page, 'entry-history', {
+            collection: 'books_journal_entries',
+            id: draftId,
+        })
+        await page.getByTestId('history-back').filter({ visible: true }).click()
+        await expect(page.getByTestId('entry-badge').filter({ visible: true })).toHaveText('Draft')
+        // A phone's More holds Post & new and Delete draft, then Audit history last.
+        await expectPhoneMoreHistory(
+            page,
+            {
+                trigger: 'entry-more',
+                history: 'entry-history',
+                before: [/Post & new/, /Delete draft/],
+            },
+            { collection: 'books_journal_entries', id: draftId }
+        )
     })
 })
