@@ -4,11 +4,10 @@
 // The feature stores nothing: no collection, no field, no migration (spec, Data). So
 // there is no row to seed, and `seed.ts` needs no wiring: the seeded ledger already
 // fills the shipped Profit and Loss report that the reference and the e2e spec export.
-// The run result is typed against core's report contract, so tsc checks every field.
-//
-// The request and answer shapes below mirror the spec's Data section. Checkpoint 0 (the
-// core checkpoint) writes them in core `reports/lib/export-client.ts`; that checkpoint
-// must replace these local interfaces with core's types.
+// The run result, the formats and the email form values are typed against core's
+// report export contract, so tsc checks every field.
+import type { ExportFormat } from '@tinycld/core/reports/lib/export-client'
+import type { ReportEmailValues } from '@tinycld/core/reports/lib/export-email-form'
 import type { RunResult } from '@tinycld/core/reports/lib/types'
 import {
     PROFIT_AND_LOSS_FROM,
@@ -18,45 +17,6 @@ import {
     PROFIT_AND_LOSS_TODAY,
     profitAndLossResult,
 } from './profit-and-loss-fixture'
-
-export type ExportFormat = 'pdf' | 'xlsx' | 'csv'
-
-/** `POST /api/reports/export`: the run endpoint's params and options, and the format. */
-export interface ExportRequest {
-    reportId: string
-    params: Record<string, unknown>
-    options: Record<string, unknown>
-    format: ExportFormat
-    hour12: boolean
-}
-
-/** `POST /api/reports/email`: the export body and the message. */
-export interface EmailRequest extends ExportRequest {
-    to: string[]
-    cc: string[]
-    subject: string
-    message: string
-}
-
-/** The answer of `POST /api/reports/email`. */
-export interface EmailAnswer {
-    sent: true
-    recipients: number
-}
-
-/** The answer of `GET /api/reports/email-status`. */
-export interface EmailStatus {
-    canSend: boolean
-}
-
-/** What the dialog's form holds: the addresses as typed, before they are split. */
-export interface EmailFormValues {
-    to: string
-    cc: string
-    subject: string
-    message: string
-    format: ExportFormat
-}
 
 // ── The report on screen ──
 
@@ -209,7 +169,7 @@ export const emailMessage = (input: {
     `Hello,\n\nAttached is the ${input.title} report of ${input.heading}, ${input.periodWords}.\n\n${input.senderName}`
 
 /** The dialog as it opens: everything filled but the addresses (spark 3). */
-export const EMAIL_DEFAULTS: EmailFormValues = {
+export const EMAIL_DEFAULTS: ReportEmailValues = {
     to: '',
     cc: '',
     subject: emailSubject(EXPORT_REPORT_TITLE, EXPORT_PERIOD_WORDS),
@@ -223,7 +183,7 @@ export const EMAIL_DEFAULTS: EmailFormValues = {
 }
 
 /** A usual send: three addresses, separated by a comma, a semicolon and a space. */
-export const EMAIL_FILLED: EmailFormValues = {
+export const EMAIL_FILLED: ReportEmailValues = {
     ...EMAIL_DEFAULTS,
     to: 'ruth.okafor@harborlane.example, sam@ledgerworks.example; priya.nair@northpier.example',
     cc: 'books@harborlane.example',
@@ -240,12 +200,13 @@ export const EMAIL_FILLED_RECIPIENTS = {
 export const sentToastTitle = (to: readonly string[], cc: readonly string[] = []) => {
     const others = to.length + cc.length - 1
     if (others <= 0) return `Report sent to ${to[0]}`
+    if (others === 1) return `Report sent to ${to[0]} and 1 other`
     return `Report sent to ${to[0]} and ${others} others`
 }
 
 // Values that fail the form: an address with no domain ending, one with no domain, a
 // Cc that is not an address, and no subject.
-export const EMAIL_INVALID: EmailFormValues = {
+export const EMAIL_INVALID: ReportEmailValues = {
     ...EMAIL_DEFAULTS,
     to: 'ruth.okafor@harborlane, sam@',
     cc: 'books at harborlane.example',
@@ -277,7 +238,7 @@ const LONG_CC = [
     'audit-2026@wisniewski-and-daughters-cpa.example',
     'marisol@harborlane.example',
 ]
-export const EMAIL_LONG: EmailFormValues = {
+export const EMAIL_LONG: ReportEmailValues = {
     to: LONG_TO.join(', '),
     cc: LONG_CC.join('; '),
     subject:
