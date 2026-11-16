@@ -23,10 +23,6 @@ const CURRENCY = 'USD'
 const NO_CUSTOMER_LABEL = 'No customer'
 const INACTIVE_SUFFIX = ' (inactive)'
 
-// Core checkpoint 0 (R2, `groups[].muted`) adds `muted` to core's `ResultRow`. That
-// checkpoint must replace this type with `ResultRow`.
-export type CustomerBalanceRow = ResultRow & { muted?: boolean }
-
 export type RowsChoice = 'nonzero' | 'activity'
 export type OrderChoice = 'name' | 'balance'
 
@@ -282,7 +278,7 @@ const groupId = (key: string[]) => `g:${JSON.stringify([...key, CURRENCY])}`
 const memberLabel = (member: Member) =>
     member.inactive ? `${member.name}${INACTIVE_SUFFIX}` : member.name
 
-function lineRows(member: Member, section: string, depth: number): CustomerBalanceRow[] {
+function lineRows(member: Member, section: string, depth: number): ResultRow[] {
     return member.lines.map(line => ({
         id: `d:${line.id}`,
         kind: 'detail',
@@ -313,12 +309,12 @@ function memberRows(
     family: Family,
     depth: number,
     input: ResultInput
-): CustomerBalanceRow[] {
+): ResultRow[] {
     const key = [family.id, member.id]
     const isOpen = input.open?.includes(member.name) === true
     const section = depth === 0 ? {} : { section: groupId([family.id]) }
     const label = memberLabel(member)
-    const row: CustomerBalanceRow = {
+    const row: ResultRow = {
         id: groupId(key),
         kind: 'group',
         depth,
@@ -334,11 +330,11 @@ function memberRows(
     return isOpen ? [row, ...lineRows(member, row.id, depth + 1)] : [row]
 }
 
-function familyRows(family: Family, input: ResultInput): CustomerBalanceRow[] {
+function familyRows(family: Family, input: ResultInput): ResultRow[] {
     if (isInlined(family)) return family.members.flatMap(m => memberRows(m, family, 0, input))
     const isFolded = input.folded?.includes(family.name) === true
     const total = familyTotal(family)
-    const header: CustomerBalanceRow = {
+    const header: ResultRow = {
         id: groupId([family.id]),
         kind: 'group',
         depth: 0,
@@ -396,7 +392,7 @@ function ordered(shown: Family[], order: OrderChoice): Family[] {
         }))
 }
 
-function totalRow(shown: Family[]): CustomerBalanceRow {
+function totalRow(shown: Family[]): ResultRow {
     return {
         id: `total:${JSON.stringify([CURRENCY])}`,
         kind: 'total',
