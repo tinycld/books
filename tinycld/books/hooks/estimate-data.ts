@@ -20,6 +20,7 @@ import {
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
+    NO_INVOICE_PAYMENTS,
     NO_RECOVERY,
     salesLineMapperOf,
     useHeldRecord,
@@ -208,6 +209,7 @@ function useEstimateScreenReads(
         ),
         // An estimate is never made from an estimate.
         ...NO_ESTIMATE_SOURCE,
+        ...NO_INVOICE_PAYMENTS,
         taxLines: NO_TAX_LINES,
         formStart: ESTIMATE_FORM_START,
     }

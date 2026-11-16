@@ -8,7 +8,7 @@ import { useMemo } from 'react'
 import { type EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../lib/invoice-columns'
 import { columnsOrThrow } from '../lib/record-save'
 import { INVOICE_KIND } from '../lib/sales-document-kinds'
-import type { BooksInvoices } from '../types'
+import type { BooksInvoices, BooksPaymentApplications, BooksPayments } from '../types'
 import {
     type DocumentDataSource,
     type DocumentKindFields,
@@ -17,6 +17,7 @@ import {
     type DocumentScreenReads,
     type DocumentWrites,
     documentRead,
+    type InvoicePayment,
     linkedReadIds,
     NO_RECOVERY,
     salesLineMapperOf,
@@ -44,12 +45,38 @@ function invoiceSourceOf<R extends BooksInvoices>(
     }
 }
 
+// The posted payments among an invoice's applications, flattened, oldest payment first
+// (date, then number). An application whose payment is not in the store yet, or is a
+// draft or void, pays nothing on the invoice.
+function postedPaymentsOf(
+    rows: readonly (BooksPaymentApplications & {
+        paymentRow: Pick<BooksPayments, 'status' | 'number' | 'date'> | undefined
+    })[]
+): InvoicePayment[] {
+    const posted: InvoicePayment[] = []
+    for (const row of rows) {
+        const payment = row.paymentRow
+        if (payment?.status !== 'posted') continue
+        posted.push({
+            id: row.id,
+            amount: row.amount,
+            payment: row.payment,
+            number: payment.number,
+            date: payment.date,
+        })
+    }
+    return posted.sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1
+        return a.number.localeCompare(b.number, undefined, { numeric: true })
+    })
+}
+
 /**
  * The invoice's reads: the invoice with the people who posted and voided it, its tax
  * rate and the estimate it was made from, its lines in order with their products, the
  * invoice a correction replaces or a copy starts from with its lines, the estimate a new
- * invoice is made from (`?estimate`) with its lines, and the tax lines of a posted or
- * void invoice.
+ * invoice is made from (`?estimate`) with its lines, and the tax lines and the posted
+ * payments of a posted or void invoice.
  */
 function useInvoiceScreenReads(
     input: DocumentScreenInput & { isHeld: boolean }
@@ -64,6 +91,10 @@ function useInvoiceScreenReads(
         'books_tax_rates',
         'books_invoice_tax_lines',
         'books_estimates'
+    )
+    const [applicationsCollection, paymentsCollection] = useStore(
+        'books_payment_applications',
+        'books_payments'
     )
     const id = input.id ?? ''
     const invoiceQuery = useLiveQuery({
@@ -130,7 +161,10 @@ function useInvoiceScreenReads(
         if (!read) return undefined
         const { estimateRow, ...row } = read
         const source = invoiceSourceOf(row)
-        return { ...source, kindFields: { ...source.kindFields, estimateRow } }
+        return {
+            ...source,
+            kindFields: { ...source.kindFields, estimateRow, balance: row.balance },
+        }
     }, [read])
     const record = useHeldRecord(mapped, input.isHeld)
     const ids = linkedReadIds(input, record, read?.status ?? null, INVOICE_KIND.lifecycle)
@@ -176,6 +210,30 @@ function useInvoiceScreenReads(
         },
         queryKey: ['books.invoice.tax-lines', ids.taxLinesId],
     })
+    // The payments applied to a posted or void invoice (read as the tax lines are, and not
+    // while the form holds a post): its applications with their payments. A draft
+    // payment's applications change no balance, so only posted payments are kept, after
+    // the query, since the payment is a related row.
+    const paymentsQuery = useLiveQuery({
+        query: q => {
+            if (!ids.taxLinesId) return undefined
+            return q
+                .from({ application: applicationsCollection })
+                .where(({ application }) => eq(application.invoice, ids.taxLinesId))
+                .select(({ application }) => ({
+                    ...application,
+                    paymentRow: materialize(
+                        q
+                            .from({ p: paymentsCollection })
+                            .where(({ p }) => eq(p.id, application.payment))
+                            .findOne()
+                    ),
+                }))
+        },
+        queryKey: ['books.invoice.payments', ids.taxLinesId],
+    })
+    const applications = paymentsQuery.data
+    const invoicePayments = useMemo(() => postedPaymentsOf(applications ?? []), [applications])
     return {
         record: documentRead(id, invoiceQuery, record, [
             invoicesCollection,
@@ -193,6 +251,10 @@ function useInvoiceScreenReads(
         ...estimateReads,
         taxLines: documentRead(ids.taxLinesId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
+        ]),
+        invoicePayments: documentRead(ids.taxLinesId, paymentsQuery, invoicePayments, [
+            applicationsCollection,
+            paymentsCollection,
         ]),
         formStart: INVOICE_FORM_START,
     }

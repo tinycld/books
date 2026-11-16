@@ -13,19 +13,20 @@ const (
 //
 // The ledger, the customers, the vendors, their contact people, the products
 // (with their bundle rows), the sales and purchase documents with their lines,
-// the sales tax agencies, rates and groups, the bank connections, their files
-// and the imports of those files are read-write; a file's parsed rows, the bank
-// transactions, which only the server writes, and the party balances and audit
-// log views are read-only. Everything that
+// the bill and expense attachments, the received payments with the invoices
+// they pay, the sales tax agencies, rates and groups, the bank connections,
+// their files and the imports of those files are read-write; a file's parsed
+// rows, the bank transactions, which only the server writes, and the party
+// balances and audit log views are read-only. Everything that
 // decides who may do what (the settings with the close date, numbering,
-// overrides, admin grants) is read-only for tokens, as is a sales document's tax
-// snapshot, which only posting writes: "record transactions" on a
-// consent screen does not read as "reopen a closed year". The estimates'
-// public view is read-only (nobody writes a view); the customers' responses
-// are read-write, and their rules still decide who may read or create one.
-// The balance rebuild route is left out, so core's grant middleware
-// default-denies it to every token: it is session-only. The public estimate
-// PDF route is left out too: its link token is its credential.
+// overrides, admin grants) is read-only for tokens, as is a sales document's
+// tax snapshot, which only posting writes: "record transactions" on a consent
+// screen does not read as "reopen a closed year". The estimates' public view
+// is read-only (nobody writes a view); the customers' responses are
+// read-write, and their rules still decide who may read or create one. The
+// balance rebuild route is left out, so core's grant middleware default-denies
+// it to every token: it is session-only. The public estimate PDF route is left
+// out too: its link token is its credential.
 func oauthPackage() oauth.Package {
 	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
 	ro := oauth.Access{Read: []string{scopeRead}}
@@ -64,6 +65,9 @@ func oauthPackage() oauth.Package {
 			"books_bill_lines":              rw,
 			"books_expenses":                rw,
 			"books_expense_lines":           rw,
+			"books_attachments":             rw,
+			"books_payments":                rw,
+			"books_payment_applications":    rw,
 			"books_party_contacts":          rw,
 			"books_party_balances":          ro,
 			"books_audit_log":               ro,

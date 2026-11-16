@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -140,23 +141,25 @@ func checkLineStamp(tx core.App, stored, line *core.Record) error {
 	return refuse(msgLineStampByBooks)
 }
 
-// serializedLine is serialized for a line write: after the write succeeds, in
-// the same transaction, the entry's draft total and revision follow it.
-// check returns how much the write changes the entry's debits: a new line's
-// debit, an update's new debit less the stored one, a delete's debit negated.
-func serializedLine(e *core.RecordEvent, check func(tx core.App) (debitChange int, err error)) error {
+// serializedLine is serialized for a line write: after the write succeeds,
+// the entry's draft total and revision follow it before the transaction
+// commits (touchDraft).
+// check returns the line's entry as requireDraftEntry read it, nil when the
+// entry is gone.
+func serializedLine(e *core.RecordEvent, check func(tx core.App) (entry *core.Record, err error)) error {
 	original := e.App
 	defer func() { e.App = original }()
 	return original.RunInTransaction(func(tx core.App) error {
 		e.App = tx
-		debitChange, err := check(tx)
+		entry, err := check(tx)
 		if err != nil {
 			return err
 		}
 		if err := e.Next(); err != nil {
 			return err
 		}
-		return touchDraft(tx, e.Record, debitChange)
+		touchDraft(tx, e.Record, entry)
+		return nil
 	})
 }
 
@@ -164,32 +167,65 @@ func serializedLine(e *core.RecordEvent, check func(tx core.App) (debitChange in
 // maxStoredAmount. An unbalanced draft shows its debits. A sum past the
 // largest storable amount is stored as that amount, because a draft may be
 // over the limit while it is edited; posting refuses it with the real figure.
+//
+// SQLite sums the column: a transaction of one line write on a large draft
+// then reads no line into Go. TOTAL is a float sum, which cannot overflow as
+// SUM can; it is exact up to maxStoredAmount, and past it the cap is stored.
 func draftDebitSum(app core.App, entryID string) (int, error) {
-	lines, err := app.FindAllRecords("books_journal_lines", dbx.HashExp{"entry": entryID})
+	var row struct {
+		Sum int `db:"sum"`
+	}
+	err := app.DB().NewQuery(`
+		SELECT CAST(MIN(TOTAL(debit), {:cap}) AS INTEGER) AS sum
+		FROM books_journal_lines
+		WHERE entry = {:entry}`).
+		Bind(dbx.Params{"entry": entryID, "cap": maxStoredAmount}).One(&row)
 	if err != nil {
-		return 0, fmt.Errorf("books: read lines of %s: %w", entryID, err)
+		return 0, fmt.Errorf("books: sum the debits of %s: %w", entryID, err)
 	}
-	sum := 0
-	for _, l := range lines {
-		sum += l.GetInt("debit")
-		if sum > maxStoredAmount {
-			return maxStoredAmount, nil
-		}
-	}
-	return sum, nil
+	return row.Sum, nil
 }
 
-// touchDraft records a line write on its entry, in the same transaction: the
-// entry's draft total is restated so the list can show it without reading the
-// lines, and the entry's revision takes the transaction's one increase. It
-// does nothing when the entry is gone (cascade delete), is not a draft, or is
-// a reversal, and when the line is being stamped by a post: Books owns those
-// totals and stamps them itself at post.
-func touchDraft(tx core.App, line *core.Record, debitChange int) error {
-	if line.GetBool("posted") {
-		return nil
+// pendingRestates holds the entries a transaction must restate before it
+// commits: touchKey → true.
+var pendingRestates sync.Map
+
+// touchDraft records a line write on its entry: the transaction restates the
+// entry one time before it commits (restateDraft), however many of its lines
+// it wrote. A save of N lines would otherwise save the entry N times. entry
+// is the line's draft entry as the guard read it before the write, nil when
+// it is gone (cascade delete). touchDraft does nothing then, for a reversal,
+// and when the line is being stamped by a post: Books owns those totals and
+// stamps them itself at post.
+func touchDraft(tx core.App, line, entry *core.Record) {
+	if entry == nil || line.GetBool("posted") || entry.GetString("reverses") != "" {
+		return
 	}
-	entry, err := tx.FindRecordById("books_journal_entries", line.GetString("entry"))
+	info := tx.TxInfo()
+	// The base is the revision before the transaction's first write to the
+	// entry, so it is recorded now, not at the restate.
+	draftBase(tx, "books_journal_entries", entry.Id, entry.GetInt("revision"))
+	key := touchKey{info, "books_journal_entries", entry.Id}
+	if _, pending := pendingRestates.LoadOrStore(key, true); pending {
+		return
+	}
+	info.OnComplete(func(error) error {
+		pendingRestates.Delete(key)
+		return nil
+	})
+	info.OnBeforeCommit(func(tx core.App) error {
+		return restateDraft(tx, key.id)
+	})
+}
+
+// restateDraft brings a draft entry up to date with the line writes of tx:
+// the entry's draft total is restated so the list can show it without reading
+// the lines, and the entry's revision takes the transaction's one increase.
+// It does nothing when the entry is gone or is no longer a draft (the
+// transaction also posted it, and the post stamped its total), and when an
+// entry save in the transaction left both values right already.
+func restateDraft(tx core.App, entryID string) error {
+	entry, err := tx.FindRecordById("books_journal_entries", entryID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -199,31 +235,18 @@ func touchDraft(tx core.App, line *core.Record, debitChange int) error {
 	if entry.GetString("status") != statusDraft || entry.GetString("reverses") != "" {
 		return nil
 	}
-	sum, err := draftTotalAfter(tx, entry, debitChange)
+	sum, err := draftDebitSum(tx, entry.Id)
 	if err != nil {
 		return err
 	}
-	base, first := draftBase(tx, "books_journal_entries", entry.Id, entry.GetInt("revision"))
-	if !first && entry.GetInt("total") == sum {
+	base, _ := draftBase(tx, "books_journal_entries", entry.Id, entry.GetInt("revision"))
+	if entry.GetInt("revision") == base+1 && entry.GetInt("total") == sum {
 		return nil
 	}
 	entry.Set("total", sum)
 	entry.Set("revision", base+1)
 	defer ownWrite(tx, "books_journal_entries", entry.Id)()
 	return tx.Save(entry)
-}
-
-// draftTotalAfter is the entry's draft total after a line write that changed
-// its debits by debitChange: the stored total plus the change, with no read
-// of the other lines. A save of N lines would otherwise read N*N rows. A
-// total at the storage cap is not the real sum, so the lines are summed then,
-// and also when the change would reach the cap.
-func draftTotalAfter(tx core.App, entry *core.Record, debitChange int) (int, error) {
-	stored := entry.GetInt("total")
-	if next := stored + debitChange; stored < maxStoredAmount && next >= 0 && next < maxStoredAmount {
-		return next, nil
-	}
-	return draftDebitSum(tx, entry.Id)
 }
 
 // withoutRestatedTotal removes total from a draft's changed fields and sets it

@@ -1179,3 +1179,74 @@ func TestSearch_FindsExpenses(t *testing.T) {
 	requireOnly([]string{"tamsin"}, "expense:"+posted.Id, "expense:"+voided.Id)
 	requireOnly([]string{"summit"})
 }
+
+func paymentRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "payment:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Receive payment spec §3.9: search finds payments, drafts included, by
+// number, the customer's name, reference no. and memo. A row opens the payment
+// (id payment:<id>, kind payment) and is titled "Payment <n> · <Customer>" or
+// "Draft payment · <Customer>".
+func TestSearch_FindsPayments(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerSalesDocGuards(app, invoiceKind)
+	registerPaymentGuards(app)
+	bindInvoiceHost(t, app)
+	pe := paymentEnvOn(t, app)
+	actor := pe.users.bookkeeper.Id
+
+	invoice := pe.postedInvoice(t, pe.customer, 30000)
+	postedDraft := pe.mkPayment(t, map[string]any{
+		"amount": 30000, "reference_no": "zx52741", "memo": "remittance for the quokka retainer",
+	})
+	mkApplication(t, app, postedDraft, invoice, 0, 30000)
+	posted := mustPostPayment(t, app, postedDraft.Id, actor)
+	draft := pe.mkPayment(t, map[string]any{"reference_no": "yv80316", "memo": "wombat deposit held"})
+
+	postedNumber := posted.GetString("number")
+	if postedNumber == "" {
+		t.Fatal("the posted payment has no number")
+	}
+	titles := map[string]string{
+		"payment:" + posted.Id: "Payment " + postedNumber + " · Harborview Dental",
+		"payment:" + draft.Id:  "Draft payment · Harborview Dental",
+	}
+
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, pe.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := paymentRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found payment rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "payment" {
+				t.Errorf("%q row %s title %q kind %v, want %q, payment", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"harborview", postedNumber}, "payment:"+posted.Id)
+	requireOnly([]string{"harborview"}, "payment:"+posted.Id, "payment:"+draft.Id)
+	requireOnly([]string{"zx52741"}, "payment:"+posted.Id)
+	requireOnly([]string{"quokka"}, "payment:"+posted.Id)
+	requireOnly([]string{"yv80316"}, "payment:"+draft.Id)
+	requireOnly([]string{"wombat"}, "payment:"+draft.Id)
+}

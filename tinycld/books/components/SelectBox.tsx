@@ -24,6 +24,8 @@ interface SelectBoxProps {
     testID?: string
     onPress?: () => void
     ref?: Ref<ComponentRef<typeof Pressable>>
+    // -1 takes the box out of the Tab order where keys do what it does (lesson 29).
+    tabIndex?: 0 | -1
 }
 
 // A 44 × 44 check box. It sits inside pressable rows, so it stops its own press from also
@@ -36,6 +38,7 @@ export function SelectBox({
     testID,
     onPress,
     ref,
+    tabIndex,
 }: SelectBoxProps) {
     const color = useThemeColor('primary-foreground')
     const fill = state === 'empty' ? 'bg-background border-border' : 'bg-primary border-primary'
@@ -48,6 +51,7 @@ export function SelectBox({
     return (
         <Pressable
             ref={ref}
+            tabIndex={tabIndex}
             testID={testID}
             accessibilityRole="checkbox"
             accessibilityLabel={label}

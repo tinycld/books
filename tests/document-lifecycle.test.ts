@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     canDeleteStatus,
+    invoiceBadge,
     isFormStatus,
     isReadOnlyStatus,
     quoteReadActions,
@@ -67,6 +68,30 @@ describe('statusBadgeOf', () => {
         expect(statusBadgeOf('posting', 'draft')).toEqual({ label: 'Draft', tone: 'muted' })
         expect(statusBadgeOf('posting', 'posted')).toEqual({ label: 'Posted', tone: 'success' })
         expect(statusBadgeOf('posting', 'void')).toEqual({ label: 'Void', tone: 'destructive' })
+    })
+})
+
+// Receive payment §3.9: a posted invoice's badge follows its open balance. Paid when
+// nothing is open, Partly paid while part of the total is open, else Posted. Draft and
+// void keep their posting badges.
+describe('invoiceBadge', () => {
+    it('reads Paid, success, on a posted invoice with no balance', () => {
+        expect(invoiceBadge('posted', 0, 500)).toEqual({ label: 'Paid', tone: 'success' })
+    })
+
+    it('reads Partly paid, warning, while part of the total is open', () => {
+        expect(invoiceBadge('posted', 200, 500)).toEqual({ label: 'Partly paid', tone: 'warning' })
+    })
+
+    it('reads Posted on a posted invoice nothing has paid', () => {
+        expect(invoiceBadge('posted', 500, 500)).toEqual(statusBadgeOf('posting', 'posted'))
+        expect(invoiceBadge('posted', 500, 500)).toEqual({ label: 'Posted', tone: 'success' })
+    })
+
+    it('keeps the draft and void badges, whatever the balance', () => {
+        expect(invoiceBadge('draft', 0, 500)).toEqual({ label: 'Draft', tone: 'muted' })
+        expect(invoiceBadge('void', 0, 500)).toEqual({ label: 'Void', tone: 'destructive' })
+        expect(invoiceBadge('void', 200, 500)).toEqual({ label: 'Void', tone: 'destructive' })
     })
 })
 

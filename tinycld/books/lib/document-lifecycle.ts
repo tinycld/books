@@ -77,6 +77,19 @@ export function statusBadgeOf(
     return { label: estimateStatusLabel(status), tone: QUOTE_TONES[status] }
 }
 
+// An invoice's badge follows its open balance (receive-payment spec §3.9): a posted
+// invoice reads Paid (success) when nothing is open and Partly paid (warning) while part
+// of its total is open; otherwise its posting badge. `balance` and `total` are in cents.
+export function invoiceBadge(
+    status: BooksInvoices['status'],
+    balance: number,
+    total: number
+): { label: string; tone: StatusTone } {
+    if (status === 'posted' && balance <= 0) return { label: 'Paid', tone: 'success' }
+    if (status === 'posted' && balance < total) return { label: 'Partly paid', tone: 'warning' }
+    return { label: entryStatusText(status), tone: POSTING_TONES[status] }
+}
+
 // The read view's actions of a quote (a closed estimate, or any estimate for a reader):
 // Open invoice first for everyone on a closed estimate that names its invoice, Copy for
 // writers, then Download PDF for everyone. No Edit, no Void and no journal entry: a

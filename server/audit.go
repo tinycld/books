@@ -28,7 +28,8 @@ import (
 // It takes the app because these labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
-// bank import by its file, and a customer's response by its estimate.
+// bank import by its file, a customer's response by its estimate, and an
+// attachment by its bill or expense.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -68,6 +69,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_expense_lines": {
 			ExtractLabel: func(r *core.Record) string { return expenseLineLabel(app, r) },
 		},
+		"books_payments": {ExtractLabel: paymentLabel, Redact: []string{"sort_key"}},
+		"books_payment_applications": {
+			ExtractLabel: func(r *core.Record) string { return paymentApplicationLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -83,22 +88,26 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 			ExtractLabel: func(r *core.Record) string { return bankImportLabel(app, r) },
 		},
 		"books_bank_transactions": {ExtractLabel: bankTransactionLabel},
+		"books_attachments": {
+			ExtractLabel: func(r *core.Record) string { return attachmentLabel(app, r) },
+		},
 	}
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000019) reads the same
-// eight to give a line's audit row its document, and Register declares them
+// document. The books_audit_log view (migration 2100000021) reads the same
+// nine to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
-	"books_journal_lines":       "entry",
-	"books_invoice_lines":       "invoice",
-	"books_sales_receipt_lines": "sales_receipt",
-	"books_estimate_lines":      "estimate",
-	"books_bill_lines":          "bill",
-	"books_expense_lines":       "expense",
-	"books_bundle_items":        "bundle",
-	"books_estimate_responses":  "estimate",
+	"books_journal_lines":        "entry",
+	"books_invoice_lines":        "invoice",
+	"books_sales_receipt_lines":  "sales_receipt",
+	"books_estimate_lines":       "estimate",
+	"books_bill_lines":           "bill",
+	"books_expense_lines":        "expense",
+	"books_bundle_items":         "bundle",
+	"books_estimate_responses":   "estimate",
+	"books_payment_applications": "payment",
 }
 
 // auditLineCollections are the keys of auditParentFields in name order.
@@ -119,13 +128,16 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_estimate_responses", Label: "Estimate response"},
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
+		{Value: "books_payments", Label: "Payment"},
 		{Value: "books_journal_entries", Label: "Journal entry"},
 		{Value: "books_invoice_lines", Label: "Invoice line"},
 		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
 		{Value: "books_estimate_lines", Label: "Estimate line"},
 		{Value: "books_bill_lines", Label: "Bill line"},
 		{Value: "books_expense_lines", Label: "Expense line"},
+		{Value: "books_payment_applications", Label: "Payment application"},
 		{Value: "books_journal_lines", Label: "Journal line"},
+		{Value: "books_attachments", Label: "Attachment"},
 		{Value: "books_accounts", Label: "Account"},
 		{Value: "books_customers", Label: "Customer"},
 		{Value: "books_vendors", Label: "Vendor"},
@@ -296,6 +308,28 @@ func expenseLineLabel(app core.App, r *core.Record) string {
 		return fmt.Sprintf("%s: line %d", expense, r.GetInt("position")+1)
 	}
 	return expense + ": " + lineRowLabel(expenseKind, withLine(lines, r), r)
+}
+
+// paymentLabel names a payment by its number: "Payment 1004". A draft has no
+// number: "Draft payment".
+func paymentLabel(r *core.Record) string {
+	return paymentName(r)
+}
+
+// paymentApplicationLabel names an application by its payment and its
+// invoice: "Payment 1004: Invoice 1009". A payment or an invoice that cannot be
+// read (deleted with its applications) falls back to its id, so the audit row
+// is still written.
+func paymentApplicationLabel(app core.App, r *core.Record) string {
+	payment := r.GetString("payment")
+	if p, err := app.FindRecordById(paymentsCollection, payment); err == nil {
+		payment = paymentLabel(p)
+	}
+	invoice := r.GetString("invoice")
+	if inv, err := app.FindRecordById("books_invoices", invoice); err == nil {
+		invoice = invoiceLabel(inv)
+	}
+	return payment + ": " + invoice
 }
 
 // bundleItemLabel names a bundle row by its bundle and product: "Home office

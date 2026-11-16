@@ -64,10 +64,11 @@ const KIND_LABELS: Record<SalesDocumentKind, string> = {
 
 type DocumentColumn = 'id' | 'status' | 'number' | 'sequence' | 'date' | 'subtotal' | 'currency'
 
-// The columns invoices and sales receipts share; the customer is named by its
+// The columns invoices and sales receipts share, and an invoice's balance (0 on a
+// sales receipt, which has none); the customer is named by its
 // customer-form fixture id ('' for a sales receipt with no customer), which the seed
 // maps to the created id, and the tax rate by its tax-rates fixture id.
-export type SalesDocumentFixture = Pick<BooksInvoices, DocumentColumn> &
+export type SalesDocumentFixture = Pick<BooksInvoices, DocumentColumn | 'balance'> &
     Pick<BooksSalesReceipts, DocumentColumn> & {
         kind: SalesDocumentKind
         customer_fixture_id: string
@@ -141,13 +142,19 @@ function doc(
     > &
         Partial<SalesDocumentFixture>
 ): SalesDocumentFixture {
-    return {
+    const base: SalesDocumentFixture = {
         status: 'posted',
         sequence: Number(row.number),
         currency: CURRENCY,
         taxable: row.subtotal,
+        balance: 0,
         ...row,
     }
+    // What posting writes: a posted invoice is open for its total (no payment
+    // applies to these); a draft, a void one and a sales receipt have no balance.
+    if (base.kind !== 'invoice' || base.status !== 'posted') return base
+    const tax = taxLinesOf(base).reduce((sum, line) => sum + line.amount, 0)
+    return { ...base, balance: base.subtotal + tax }
 }
 
 // October 2026. Ids are valid PocketBase ids (15 lowercase letters and digits).
