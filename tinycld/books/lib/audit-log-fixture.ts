@@ -1,4 +1,5 @@
-// Synthetic Audit Log for the helix reference route and, later, the e2e seed. The
+// Synthetic Audit Log for the helix reference route and the drift test of the Go
+// spec (tests/audit-log-fixture.test.ts); the seed does not import it. The
 // rows are what the `books_audit_log` view (spec §5) lists over core's audit_logs:
 // one per create, update or delete of a Books record, newest first, over three days
 // and four people (System and an offboarded person included), every event, long
@@ -19,6 +20,7 @@ import type {
     RunResult,
     SelectOption,
 } from '@tinycld/core/reports/lib/types'
+import type { BooksAuditLog } from '../types'
 
 export const AUDIT_LOG_SHIPPED_KEY = 'books.audit_log'
 export const AUDIT_LOG_TITLE = 'Audit Log'
@@ -44,27 +46,15 @@ export type AuditFieldChange =
     | { before: '[redacted]'; after: '[redacted]'; redacted: true }
 
 /**
- * A row of the `books_audit_log` view (spec §5). Local until the migration
- * checkpoint adds the view: that checkpoint replaces this interface with the
- * generated `BooksAuditLog` record type from `../types`.
+ * A row of the `books_audit_log` view (spec §5): the generated record type, with
+ * the computed `event` and the JSON columns narrowed. The generator types a JSON
+ * column as `any`, and `any` in an intersection swallows the narrowing, so those
+ * columns are omitted first.
  */
-export interface AuditLogRow {
-    id: string
-    /** The instant of the change, as PocketBase stores a date-time (UTC). */
-    created: string
-    /** The person's user id, or 'system'. */
-    actor: string
-    actor_name: string
+export type AuditLogRow = Omit<BooksAuditLog, 'event' | 'changes' | 'snapshot'> & {
     event: AuditEvent
-    record_type: string
-    record_id: string
-    record_label: string
     changes: Record<string, AuditFieldChange> | null
     snapshot: Record<string, CellValue> | null
-    parent_type: string
-    parent_id: string
-    history_type: string
-    history_id: string
 }
 
 // --- Options (the Go source's select options; server/audit.go builds the same). ---
@@ -640,7 +630,9 @@ export const AUDIT_LOG_COLUMNS: ResultColumn[] = [
 // Spec §3 Phone and the panel: a row wraps to two lines, date changed · event; user ·
 // record type · record. Line 2 fits core's 374 px phone row only because User and
 // Record type keep core's automatic least width (phase 3 pass 2: with a 16ch or 12ch
-// User min core fell back to automatic lines at 390 and 375).
+// User min core fell back to automatic lines at 390 and 375), and because Record may
+// break a long unbroken word (overflowWrap 'anywhere'), so one long name does not move
+// every row to automatic lines.
 export const AUDIT_LOG_PHONE_LAYOUT: DisplayLayout = {
     width: 'mobile',
     tracks: 7,
@@ -675,7 +667,13 @@ export const AUDIT_LOG_DISPLAY: NonNullable<ReportSpec['display']> = {
     columns: {
         created: { minWidth: 'max-content' },
         event: { minWidth: 'max-content' },
-        record: { flexGrow: 2, whiteSpace: 'normal', lineClamp: 2, textOverflow: 'ellipsis' },
+        record: {
+            flexGrow: 2,
+            whiteSpace: 'normal',
+            overflowWrap: 'anywhere',
+            lineClamp: 2,
+            textOverflow: 'ellipsis',
+        },
     },
     layouts: [AUDIT_LOG_PHONE_LAYOUT, AUDIT_LOG_TABLET_LAYOUT],
 }

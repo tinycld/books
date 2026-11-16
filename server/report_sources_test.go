@@ -48,6 +48,7 @@ func readerInfo(user *core.Record) *core.RequestInfo {
 var booksSourceKeys = []string{
 	"books.account_balances",
 	"books.accounts",
+	"books.audit_log",
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
@@ -185,6 +186,23 @@ func expectedCatalog(t *testing.T) []wantSource {
 				toMany("sub_accounts", "books.accounts", "parent"),
 				toMany("lines", "books.journal_lines", "account"),
 				toMany("balances", "books.account_balances", "account"),
+			},
+		},
+		{
+			// Over the books_audit_log view (spec §5 "Source"): its computed
+			// columns are text, so the Selects read text (core T3); the JSON
+			// columns are left out, and it has no money, so no currency.
+			key: "books.audit_log", collection: "books_audit_log", label: "Audit log",
+			fields: []wantField{
+				{key: "created", typ: reports.DateTime, aggs: reports.MinMax, label: "Date changed"},
+				{key: "actor", typ: reports.Text, label: "User ID"},
+				{key: "actor_name", typ: reports.Text, aggs: reports.MinMax, label: "User"},
+				{key: "event", typ: reports.Select, label: "Event", options: auditEventOptions(t)},
+				{key: "record_type", typ: reports.Select, label: "Record type", options: auditRecordTypeOptions()},
+				text("record_id"),
+				{key: "record_label", typ: reports.Text, label: "Record"},
+				{key: "parent_type", typ: reports.Select, options: auditRecordTypeOptions()},
+				text("parent_id"), text("history_type"), text("history_id"),
 			},
 		},
 		{
@@ -350,6 +368,17 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 	}
+}
+
+// auditEventOptions are the Event options of the golden file, the fixture's
+// AUDIT_EVENT_OPTIONS: added, changed, posted, voided, deleted.
+func auditEventOptions(t *testing.T) []reports.Option {
+	t.Helper()
+	options := readAuditGolden(t).EventOptions
+	if len(options) != 5 {
+		t.Fatalf("the golden file holds %d event options, want 5", len(options))
+	}
+	return options
 }
 
 func mergeColumns(maps ...map[string]string) map[string]string {

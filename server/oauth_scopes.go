@@ -15,8 +15,8 @@ const (
 // (with their bundle rows), the sales and purchase documents with their lines,
 // the sales tax agencies, rates and groups, the bank connections, their files
 // and the imports of those files are read-write; a file's parsed rows, the bank
-// transactions, which only the server writes, and the party balances view are
-// read-only. Everything that
+// transactions, which only the server writes, and the party balances and audit
+// log views are read-only. Everything that
 // decides who may do what (the settings with the close date, numbering,
 // overrides, admin grants) is read-only for tokens, as is a sales document's tax
 // snapshot, which only posting writes: "record transactions" on a
@@ -66,6 +66,7 @@ func oauthPackage() oauth.Package {
 			"books_expense_lines":           rw,
 			"books_party_contacts":          rw,
 			"books_party_balances":          ro,
+			"books_audit_log":               ro,
 			"books_account_balances":        ro,
 			"books_settings":                ro,
 			"books_doc_sequences":           ro,
