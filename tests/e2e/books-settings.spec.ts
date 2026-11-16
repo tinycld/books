@@ -538,7 +538,6 @@ test.describe('books-settings: Settings screens', () => {
         page,
     }) => {
         await openSettings(page)
-        await openRailSection(page, 'access')
         const started = await collaboratorLevel(page)
         let hasCloseDate = false
         let hasOverride = false
@@ -591,7 +590,6 @@ test.describe('books-settings: Settings screens', () => {
                 async () => {
                     if (hasCloseDate) await clearCloseDate(page)
                 },
-                () => openRailSection(page, 'access'),
                 () => setCollaboratorLevel(page, started),
             ])
         }
@@ -808,7 +806,6 @@ test.describe('vendor-1099: Settings → 1099s', () => {
         page,
     }) => {
         await openSettings(page)
-        await openRailSection(page, 'access')
         const started = await collaboratorLevel(page)
 
         try {
@@ -836,10 +833,7 @@ test.describe('vendor-1099: Settings → 1099s', () => {
                 await reader.close()
             }
         } finally {
-            await runRestores([
-                () => openRailSection(page, 'access'),
-                () => setCollaboratorLevel(page, started),
-            ])
+            await runRestores([() => setCollaboratorLevel(page, started)])
         }
     })
 })
@@ -852,7 +846,6 @@ test.describe('vendor-1099: Settings → 1099s', () => {
 test.describe('pdf-preview: a read-only member', () => {
     test('can preview the sample invoice (collaborator level)', async ({ page }) => {
         await openSettings(page)
-        await openRailSection(page, 'access')
         const started = await collaboratorLevel(page)
 
         try {
@@ -879,10 +872,7 @@ test.describe('pdf-preview: a read-only member', () => {
                 await reader.close()
             }
         } finally {
-            await runRestores([
-                () => openRailSection(page, 'access'),
-                () => setCollaboratorLevel(page, started),
-            ])
+            await runRestores([() => setCollaboratorLevel(page, started)])
         }
     })
 })

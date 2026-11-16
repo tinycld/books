@@ -1,0 +1,194 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [{ "openReport": "Profit and Loss" }, { "waitFor": "report-table" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "widths": [1024],
+            "height": 1500,
+            "actions": [{ "openReport": "Profit and Loss" }, { "waitFor": "report-table" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "height": 1500,
+            "actions": [{ "openReport": "Profit and Loss" }, { "waitFor": "report-table" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "long-title",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                {
+                    "saveAs": "Profit and Loss by Month for Harbor Lane Design LLC and its two studio locations combined on the accrual basis"
+                },
+                { "waitFor": "report-table" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "long-title",
+            "url": "/a/reports?package=books",
+            "widths": [1024],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                {
+                    "saveAs": "Profit and Loss by Month for Harbor Lane Design LLC and its two studio locations combined on the accrual basis"
+                },
+                { "waitFor": "report-table" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "actions": [
+                { "openReport": "Journal" },
+                { "waitFor": "report-param-period" },
+                { "customPeriod": { "from": "1902-01-01", "to": "1902-01-31" } },
+                { "waitFor": "report-empty" },
+                { "waitForHidden": "report-updating" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "actions": [
+                { "openReport": "Journal" },
+                { "waitFor": "report-param-period" },
+                { "customPeriod": { "from": "1902-01-01", "to": "1902-01-31" } },
+                { "waitFor": "report-empty" },
+                { "waitForHidden": "report-updating" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "preparing",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "requests": [{ "url": "**/api/reports/export", "answer": "hold" }],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "click": "report-export-pdf" },
+                { "waitFor": "report-preparing" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "preparing-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "requests": [{ "url": "**/api/reports/export", "answer": "hold" }],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "click": "report-export-pdf" },
+                { "waitFor": "report-preparing" },
+                { "click": "toolbar-more-button" },
+                { "waitFor": "report-export-pdf" }
+            ],
+            "stable": "report-export-pdf",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "disabled",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "requests": [
+                {
+                    "url": "**/api/reports/run",
+                    "answer": { "status": 400, "body": { "message": "The report is not valid." } }
+                }
+            ],
+            "actions": [{ "openReport": "Profit and Loss" }, { "waitFor": "report-invalid" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "disabled-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "requests": [
+                {
+                    "url": "**/api/reports/run",
+                    "answer": { "status": 400, "body": { "message": "The report is not valid." } }
+                }
+            ],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-invalid" },
+                { "click": "toolbar-more-button" },
+                { "waitFor": "report-export-pdf" }
+            ],
+            "stable": "report-export-pdf",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "download-failed",
+            "url": "/a/reports?package=books",
+            "widths": [1280],
+            "requests": [
+                {
+                    "url": "**/api/reports/export",
+                    "answer": {
+                        "status": 422,
+                        "body": {
+                            "message": "This report has more than 5,000 rows. Narrow the period or download CSV."
+                        }
+                    }
+                }
+            ],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "report-export-open" },
+                { "click": "report-export-pdf" },
+                { "waitFor": "Could not create the file" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "download-failed-phone",
+            "url": "/a/reports?package=books",
+            "widths": [390],
+            "requests": [
+                {
+                    "url": "**/api/reports/export",
+                    "answer": {
+                        "status": 422,
+                        "body": {
+                            "message": "This report has more than 5,000 rows. Narrow the period or download CSV."
+                        }
+                    }
+                }
+            ],
+            "actions": [
+                { "openReport": "Profit and Loss" },
+                { "waitFor": "report-table" },
+                { "click": "toolbar-more-button" },
+                { "click": "report-export-pdf" },
+                { "waitFor": "Could not create the file" }
+            ],
+            "hideLabels": ["New"]
+        }
+    ]
+}

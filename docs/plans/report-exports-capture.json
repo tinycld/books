@@ -1,0 +1,284 @@
+{
+    "outDir": "report-exports-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [390, 1024, 1280],
+            "height": 1500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "long-title",
+            "url": "/a/books/helix-mockup?state=long-title",
+            "ready": "report-table",
+            "widths": [1024, 1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "report-title",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "export-menu",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "report-export-open"
+                },
+                {
+                    "waitFor": "report-export-email"
+                }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "export-menu-phone",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "toolbar-more-button"
+                },
+                {
+                    "waitFor": "report-export-email"
+                }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email-off",
+            "url": "/a/books/helix-mockup?state=email-off",
+            "ready": "report-table",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "report-export-open"
+                },
+                {
+                    "waitFor": "report-export-email-off"
+                }
+            ],
+            "stable": "report-export-email-off",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "email-off-phone",
+            "url": "/a/books/helix-mockup?state=email-off",
+            "ready": "report-table",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "toolbar-more-button"
+                },
+                {
+                    "waitFor": "report-export-email-off"
+                }
+            ],
+            "stable": "report-export-email-off",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "preparing",
+            "url": "/a/books/helix-mockup?state=preparing",
+            "ready": "report-table",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "preparing-phone",
+            "url": "/a/books/helix-mockup?state=preparing",
+            "ready": "report-table",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "toolbar-more-button"
+                },
+                {
+                    "waitFor": "report-export-email"
+                }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "disabled",
+            "url": "/a/books/helix-mockup?state=disabled",
+            "ready": "report-error",
+            "widths": [1280],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "disabled-phone",
+            "url": "/a/books/helix-mockup?state=disabled",
+            "ready": "report-error",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "toolbar-more-button"
+                },
+                {
+                    "waitFor": "report-export-email"
+                }
+            ],
+            "stable": "report-export-email",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "download-failed",
+            "url": "/a/books/helix-mockup?state=download-failed",
+            "ready": "report-table",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "report-export-open"
+                },
+                {
+                    "click": "report-export-pdf"
+                },
+                {
+                    "waitFor": "Could not create the file"
+                }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "download-failed-phone",
+            "url": "/a/books/helix-mockup?state=download-failed",
+            "ready": "report-table",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "toolbar-more-button"
+                },
+                {
+                    "click": "report-export-pdf"
+                },
+                {
+                    "waitFor": "Could not create the file"
+                },
+                {
+                    "waitForHidden": "report-export-email"
+                }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "email",
+            "url": "/a/books/helix-mockup?state=email",
+            "ready": "report-email-to",
+            "widths": [1280],
+            "opaque": "report-email-dialog",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "email-phone",
+            "url": "/a/books/helix-mockup?state=email",
+            "ready": "report-email-to",
+            "widths": [390],
+            "stable": "report-email-send",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "email-invalid",
+            "url": "/a/books/helix-mockup?state=email-invalid",
+            "ready": "report-email-to",
+            "widths": [1280],
+            "opaque": "report-email-dialog",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "email-invalid-phone",
+            "url": "/a/books/helix-mockup?state=email-invalid",
+            "ready": "report-email-to",
+            "widths": [390],
+            "stable": "report-email-send",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "email-refused",
+            "url": "/a/books/helix-mockup?state=email-refused",
+            "ready": "report-email-to",
+            "widths": [1280],
+            "opaque": "report-email-dialog",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "email-refused-phone",
+            "url": "/a/books/helix-mockup?state=email-refused",
+            "ready": "report-email-to",
+            "widths": [390],
+            "stable": "report-email-send",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "sending",
+            "url": "/a/books/helix-mockup?state=sending",
+            "ready": "report-email-to",
+            "widths": [1280],
+            "opaque": "report-email-dialog",
+            "hideLabels": ["New"],
+            "height": 1000
+        },
+        {
+            "name": "sending-phone",
+            "url": "/a/books/helix-mockup?state=sending",
+            "ready": "report-email-to",
+            "widths": [390],
+            "stable": "report-email-send",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "sent",
+            "url": "/a/books/helix-mockup?state=email-filled",
+            "ready": "report-email-to",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "report-email-send"
+                },
+                {
+                    "waitFor": "Report sent to ruth.okafor@harborlane.example and 3 others"
+                },
+                {
+                    "waitForHidden": "report-email-to"
+                }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "sent-phone",
+            "url": "/a/books/helix-mockup?state=email-filled",
+            "ready": "report-email-to",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "report-email-send"
+                },
+                {
+                    "waitFor": "Report sent to ruth.okafor@harborlane.example and 3 others"
+                },
+                {
+                    "waitForHidden": "report-email-to"
+                }
+            ],
+            "hideLabels": ["New"]
+        }
+    ]
+}

@@ -249,6 +249,10 @@ The report stays current. When someone posts or voids an invoice or a sales rece
 
 On a phone, each row wraps onto three lines in the table: the name; then Gross total and Non-taxable; then Taxable amount and Tax amount. The table does not scroll sideways.
 
+## Download or email a report
+
+To keep or send a copy of a report, press **Export** on a Books report (on a phone, the entries are under **⋯**) and choose a PDF, an Excel or a CSV file, or **Email report…**. The file is named after the report and its period or as-of day, for example `profit-and-loss-2026-01-01-to-2026-11-15.pdf`. For what each file holds and how to email it, see [Download or email a report](help://core:reports).
+
 ## See who changed a record
 
 The Audit Log lists every change that people made to Books records: when, who, what happened, and to which record. Press a row to see the record's history field by field. To read it, see [Audit log](help://books:audit-log).
