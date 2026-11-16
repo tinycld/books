@@ -46,6 +46,14 @@ describe('help/customers.md', () => {
         expect(body).toContain('(help://books:estimates)')
     })
 
+    // Customer balance checkpoint 3: the list's Balance report button opens the report.
+    it('links the Customer Balance report and names the Balance report button', () => {
+        const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
+        expect(links.some(text => /Customer Balance/.test(text))).toBe(true)
+        // The button's name, apart from the link's own text.
+        expect(body.replace(/\[[^\]]*\]\([^)]*\)/g, '')).toContain('Balance report')
+    })
+
     it('explains creating a customer', () => {
         expect(body).toMatch(/\bcreate\b/i)
         expect(body).toContain('New customer')

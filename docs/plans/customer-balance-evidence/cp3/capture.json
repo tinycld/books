@@ -1,0 +1,52 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "phone-family",
+            "url": "/a/reports?package=books",
+            "widths": [375, 390],
+            "height": 1400,
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-customers" },
+                { "waitFor": "report-filter-options" },
+                { "fill": "report-filter-search", "value": "St. Jude" },
+                {
+                    "click": "report-filter-group-St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                {
+                    "waitFor": "Customer: All St. Jude Community Hospital Foundation of the Greater Willamette Valley sub-customers"
+                },
+                { "pause": 1500 },
+                { "clickText": "St. Jude Annual Spring Gala and Silent Auction Catering" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "customers-list",
+            "url": "/a/books/customers",
+            "widths": [1280],
+            "actions": [{ "waitFor": "customers-balance-report" }]
+        },
+        {
+            "name": "customers-list-panel",
+            "url": "/a/books/customers",
+            "widths": [1440],
+            "actions": [
+                { "waitFor": "customers-balance-report" },
+                { "clickText": "Aspen Ridge Dental" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "customers-list-phone",
+            "url": "/a/books/customers",
+            "widths": [390],
+            "actions": [{ "waitFor": "customers-balance-report" }]
+        }
+    ]
+}

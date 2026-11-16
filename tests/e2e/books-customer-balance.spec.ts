@@ -6,6 +6,7 @@ import {
     CUSTOMER_BALANCE_TITLE,
 } from '~/tinycld/books/lib/customer-balance-fixture'
 import { CUSTOMER_IDS, CUSTOMERS } from '~/tinycld/books/lib/customer-form-fixture'
+import { CUSTOMER_BALANCE_SHIPPED_KEY } from '~/tinycld/books/lib/shipped-reports'
 import { DESKTOP } from './account-register-helpers'
 import {
     browserToday,
@@ -24,6 +25,7 @@ import {
     chooseBalanceOrder,
     chooseBalanceRows,
     customerBalanceCsv,
+    expectBalanceRowsFit,
     filterToCustomers,
     openBalanceRow,
     openCustomerBalance,
@@ -36,6 +38,7 @@ import {
     field,
     openBooks,
     openCustomer,
+    openCustomersList,
     uniqueName,
 } from './customer-form-helpers'
 import { INVOICE_URL } from './invoice-helpers'
@@ -50,6 +53,7 @@ import {
     rowAmount,
 } from './receive-payment-helpers'
 import { WIDE } from './record-form-helpers'
+import { fakeReadOnlyAccess } from './tax-rates-helpers'
 
 // The Customer Balance (customer-balance checkpoint 1): the shipped report from the Books
 // hub, a customer the test creates read against its page's Open figure, a family made by a
@@ -100,6 +104,68 @@ async function fittedTableWidth(page: Page): Promise<number> {
 // The seeded sub-customers of Harborview Hospitality Group (seed.ts reads CUSTOMERS).
 const HARBORVIEW = CUSTOMERS.find(customer => customer.id === CUSTOMER_IDS.harborview)
 const HARBORVIEW_SUBS = CUSTOMERS.filter(customer => customer.parent === CUSTOMER_IDS.harborview)
+
+// The seeded long-named family (plan D2): the parent's name wraps on a phone, and its
+// sub-customer the gala holds the seeded invoice with the long memo.
+const ST_JUDE = CUSTOMERS.find(customer => customer.id === CUSTOMER_IDS.stJude)
+const ST_JUDE_GALA = CUSTOMERS.find(
+    customer => customer.id === CUSTOMER_BALANCE_SEED.galaInvoice.customer
+)
+
+// An empty answer to the reports list read: the reader has no shipped report to open.
+function noReportRows() {
+    return JSON.stringify({ page: 1, perPage: 0, totalItems: 0, totalPages: 0, items: [] })
+}
+
+/**
+ * Spec §3 "Phone" at `size`: at the default viewport, the report narrowed to the whole
+ * St. Jude family; then at the phone size every row's label and Balance share a line band,
+ * the long parent name wraps to two or three lines, the gala opens into its transaction,
+ * whose long label is at most three lines with its Balance whole, and More holds Customize
+ * and Export.
+ */
+async function expectPhoneFamilyFits(page: Page, size: { width: number; height: number }) {
+    if (!ST_JUDE || !ST_JUDE_GALA) throw new Error('no St. Jude family in the customer fixture')
+    const parent = ST_JUDE.display_name
+    const gala = ST_JUDE_GALA.display_name
+    await openBooks(page, DESKTOP)
+    await openCustomerBalance(page)
+    await chooseParamOption(page, 'customers', {
+        from: 'add-filter',
+        search: 'St. Jude',
+        group: parent,
+    })
+    await expect(page.getByTestId('report-param-customers')).toHaveText(
+        `Customer: All ${parent} sub-customers`
+    )
+    await snapshotWhen(
+        page,
+        reportSnapshot,
+        s =>
+            s.rows.some(row => row.kind === 'group' && row.label === parent) &&
+            s.rows.some(row => row.kind === 'subtotal' && row.label === `Total ${parent}`) &&
+            !s.rows.some(row => row.label === 'No customer'),
+        `the ${parent} header row and its total`
+    )
+
+    await page.setViewportSize(size)
+    // The phone toolbar: Customize is folded into "⋯".
+    const more = page.getByTestId('toolbar-more-button')
+    await expect(more).toBeVisible()
+    await expect(page.getByTestId('report-customize-open')).toHaveCount(0)
+    await expectBalanceRowsFit(page)
+
+    await openBalanceRow(page, gala)
+    const memo = CUSTOMER_BALANCE_SEED.galaInvoice.memo
+    const opened = await reportSnapshot(page)
+    const memoLine = reportLinesUnder(opened, gala).find(line => line.label.includes(memo))
+    expect(memoLine, `a transaction of ${gala} labelled with the seeded memo`).toBeDefined()
+    await expectBalanceRowsFit(page)
+
+    await more.click()
+    await expect(page.getByRole('menuitem', { name: 'Customize', exact: true })).toBeVisible()
+    await expect(page.getByTestId('report-export-csv')).toHaveAttribute('role', 'menuitem')
+}
 
 test.describe('customer-balance: report', () => {
     test('opens from the Books hub as of today, and a day before every line is empty', async ({
@@ -418,5 +484,62 @@ test.describe('customer-balance: report', () => {
         expect(rowCents(kitchen)).toBeGreaterThanOrEqual(CUSTOMER_BALANCE_SEED.kitchenInvoice.cents)
         const sum = members.reduce((acc, row) => acc + (rowCents(row) ?? 0), 0)
         expect(rowCents(rows.at(-2))).toBe(sum)
+    })
+
+    test('the Customers list opens the report, and hides the button with no report', async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openCustomersList(page)
+        const button = page.getByTestId('customers-balance-report')
+        await expect(button).toHaveText('Balance report')
+        await expect(page.getByTestId('customer-new-header')).toHaveCount(0)
+        await button.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        const snapshot = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => s.title !== '',
+            'the report title'
+        )
+        expect(snapshot.title).toBe(CUSTOMER_BALANCE_TITLE)
+
+        // A fresh page whose reports list read answers no row, so it has no shipped report
+        // to open. Realtime is cut first, so no row arrives by another path.
+        const fresh = await page.context().newPage()
+        const asked: string[] = []
+        await fresh.route('**/api/realtime*', route => route.abort())
+        await fresh.route('**/api/collections/reports/records**', route => {
+            asked.push(new URL(route.request().url()).searchParams.get('filter') ?? '')
+            return route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: noReportRows(),
+            })
+        })
+        await openBooks(fresh, DESKTOP)
+        await openCustomersList(fresh)
+        await expect(fresh.getByTestId('customers-title')).toBeVisible()
+        // The list asked for the shipped report and got none: without this the absent
+        // button below would prove nothing.
+        await expect
+            .poll(
+                () => asked.some(filter => filter.includes(CUSTOMER_BALANCE_SHIPPED_KEY)),
+                'the Customers list asks for the shipped Customer Balance'
+            )
+            .toBe(true)
+        await expect(fresh.getByTestId('customers-balance-report')).toHaveCount(0)
+    })
+
+    // A phone run: the report's phone path is other code (core's phone row layout from the
+    // `display` block, the toolbar's More).
+    test('on a 390 phone the family and an opened customer fit their rows', async ({ page }) => {
+        await expectPhoneFamilyFits(page, { width: 390, height: 844 })
+    })
+
+    // Lesson 32: CI's 390 viewport leaves a 375 px row; the two widths wrap differently.
+    test('on a 375 phone the family and an opened customer fit their rows', async ({ page }) => {
+        await expectPhoneFamilyFits(page, { width: 375, height: 812 })
     })
 })

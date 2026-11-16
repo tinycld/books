@@ -38,6 +38,7 @@ describe('help/reports.md', () => {
         '## Build your own Books report',
         '## See the transactions behind an amount',
         '## Download or email a report',
+        '## Read the Customer Balance report',
     ])('has the heading "%s"', heading => {
         expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
     })
@@ -410,6 +411,60 @@ describe('help/reports.md', () => {
             expect(liability).not.toBe('')
             const cash = sentences.filter(sentence => /\bcash\b/i.test(sentence))
             expect(cash.filter(sentence => !/\b(no|not|never)\b/i.test(sentence))).toEqual([])
+        })
+    })
+
+    describe('the "Read the Customer Balance report" section', () => {
+        const balance = section('## Read the Customer Balance report')
+        const sentences = balance.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it.each([
+            ['Accounts receivable', /Accounts receivable/],
+            ['As of', /\bAs of\b/],
+            ['Balance Sheet', /\bBalance Sheet\b/],
+            ['No customer', /\bNo customer\b/],
+            ['(inactive)', /\(inactive\)/],
+            ['Rows', /\bRows\b/],
+            ['Non-zero', /\bNon-zero\b/],
+            ['With activity', /\bWith activity\b/],
+            ['Order', /\bOrder\b/],
+            ['Largest balance', /\bLargest balance\b/],
+        ])('names %s', (_name, phrase) => {
+            expect(balance).toMatch(phrase)
+        })
+
+        it("says a row equals the Open figure on the customer's page, with a link to it", () => {
+            expect(balance).toContain('(help://books:customer-pages)')
+            expect(oneSentence(/\bOpen\b/, /\(help:\/\/books:customer-pages\)/)).toBe(true)
+        })
+
+        it('says a family of sub-customers ends in its Total', () => {
+            expect(oneSentence(/\bTotal\b/, /\bsub-customers?\b/i)).toBe(true)
+        })
+
+        it('names the Customer filter with its "All … sub-customers" pick', () => {
+            // "Customer" alone also matches "Customer Balance"; the filter is named where
+            // the section says how to add it.
+            expect(oneSentence(/\bAdd filter\b/, /\bthen Customer\b/)).toBe(true)
+            expect(oneSentence(/\bAll\b/, /\bsub-customers\b/)).toBe(true)
+        })
+
+        it('says a credit balance is negative', () => {
+            expect(oneSentence(/\bcredit\b/i, /\bnegative\b/i)).toBe(true)
+        })
+
+        it('says a customer row opens into its transactions, and a transaction opens its document', () => {
+            expect(oneSentence(/\bopens?\b/i, /\bcustomer\b/i, /\btransactions\b/i)).toBe(true)
+            expect(oneSentence(/\btransaction\b/i, /\bopens?\b/i, /\bdocument\b/i)).toBe(true)
+        })
+
+        it('has "customer balance" in the frontmatter tags', () => {
+            const tags = (/^tags:\s*\[(.*)\]\s*$/m.exec(frontmatter)?.[1] ?? '')
+                .split(',')
+                .map(tag => tag.trim().replace(/^["']|["']$/g, ''))
+            expect(tags).toContain('customer balance')
         })
     })
 
