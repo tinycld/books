@@ -338,24 +338,30 @@ func TestSampleDocument_IsDatedTodayInTheServerZone(t *testing.T) {
 	}
 }
 
-func TestPDFContentDisposition_SanitizesTheName(t *testing.T) {
-	const attach = `attachment; filename=`
-	for stem, want := range map[string]string{
-		"sample-invoice":   attach + `"sample-invoice.pdf"`,
-		`Invoice 1042/"x"`: attach + `"invoice-1042-x.pdf"`,
-		"../..":            attach + `"document.pdf"`,
-		"Café Ltd":         attach + `"caf-ltd.pdf"; filename*=UTF-8''Caf%C3%A9%20Ltd.pdf`,
-		"日本":               attach + `"document.pdf"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.pdf`,
-		"é/\"..\\x\n":      attach + `"x.pdf"; filename*=UTF-8''%C3%A9..x.pdf`,
-		"Café\u202etxt.\ufeffexe": attach +
-			`"caf-txt.-exe.pdf"; filename*=UTF-8''Caf%C3%A9txt.exe.pdf`,
-		"Caf\u00e9\u061ctxt": attach + `"caf-txt.pdf"; filename*=UTF-8''Caf%C3%A9txt.pdf`,
-		"\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645": attach +
-			`"document.pdf"; filename*=UTF-8''%D9%85%DB%8C%E2%80%8C` +
-			`%D8%AE%D9%88%D8%A7%D9%87%D9%85.pdf`,
-	} {
-		if got := pdfContentDisposition(stem); got != want {
-			t.Errorf("pdfContentDisposition(%q) = %q, want %q", stem, got, want)
-		}
-	}
+// The route names the file through core's header: a document number with a
+// non-ASCII character keeps an ASCII fallback and carries its real spelling in
+// filename*. Core's pdfrender tests hold the full table of names.
+func TestPDFRoute_NonASCIINumberGivesAFilenameStarHeader(t *testing.T) {
+	withDocumentKind(t, "test-number", documentKind{
+		Build: func(core.App, *core.Record) (pdfDocument, error) {
+			return testDocument("x", 1), nil
+		},
+		FileName: func(pdfDocument) string { return "invoice-№1001" },
+	})
+	app := newBooksApp(t)
+	apiReq{
+		method:  http.MethodGet,
+		url:     "/api/books/pdf/test-number",
+		token:   tokenFor(t, newLevelUsers(t, app).admin),
+		want:    http.StatusOK,
+		content: []string{"%PDF-"},
+		before:  bindPDFRoutes,
+		response: func(t testing.TB, res *http.Response) {
+			want := `attachment; filename="invoice--1001.pdf"; ` +
+				`filename*=UTF-8''invoice-%E2%84%961001.pdf`
+			if got := res.Header.Get("Content-Disposition"); got != want {
+				t.Errorf("Content-Disposition = %q, want %q", got, want)
+			}
+		},
+	}.run(t, app)
 }
