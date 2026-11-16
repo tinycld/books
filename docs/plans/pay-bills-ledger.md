@@ -79,6 +79,15 @@
 - cp 5 · gate 3 A NOTE 6: the rebuild route runs `verifyCashBasis` and then `rebuildCashBasis` (the same derivation twice); admin-only route
 - cp 5 · fix review NOTE 1 / implementer A difference 6: a bill or invoice correction rebuilds both documents' cash rows twice in one transaction (`moveLinesWhere` and `postSalesDoc`); each alone is enough, so neither is pinned alone by a test
 - cp 5 · implementer A difference 2: dev / e2e databases built before this checkpoint lack the new indexes `idx_books_je_document` and the cash rows' `entry` index until `db:reset` (queries stay correct)
+- cp 6 · stl-accrual-390 / stl-cash-390 (light, dark): report chip row, right edge — the "Add filter" chip is cut at the screen edge ("+ Ad"), with no fade or scroll cue (core report view chip row; the cp 5 note is the same row)
+- cp 6 · gate 3 A NOTE 3 / implementer difference 2: largest remainder for tax shares is pooled per figure over the invoice's tax lines, so on Cash the components of one group rate (which can belong to different agencies) can show Gross and Taxable a cent apart; each value stays within a cent of its exact share
+- cp 6 · gate 3 A NOTE 5: the report source "Sales tax lines" now unions the cash rows; a custom report built on it with no Layer condition adds ledger, taken-out and share rows and silently reads as Cash (the shipped report filters by `basisFilter`)
+- cp 6 · gate 3 A NOTE 7: `cashTaxRowDiff` keys rows by `Position`, so voiding an earlier payment deletes and re-creates every later share row with the same content (the cp 5 pattern)
+- cp 6 · implementer difference 3: the Sales Tax Liability detail label and first sort key read the tax line's own `date`; on Accrual equal to the document date, on Cash a share row shows its payment date
+- cp 6 · implementer difference 4: a payment's tax share row whose three figures are all 0 is not written
+- cp 6 · fix implementer difference 2: the fixture `salesTaxLiabilityResult` models Accrual only (its documents have no payments)
+- cp 6 · fix review NOTE: tinycld/books/lib/sales-tax-liability-fixture.ts — the result's topics list is not in the server's sorted order (nothing compares the order)
+- cp 6 · implementer difference 5: the e2e `customerWithInvoices` taxable path uses the seeded single rate "Colorado state" (one component)
 
 ## Out-of-plan changes
 - cp 0 (core): `core/reports/lib/rows.ts` — `EMPTY_RESULT.headerLines: []`, required by the new `RunResult.headerLines` field
@@ -107,6 +116,8 @@
 - cp 4 (runner note 3, books-access-level blocker): `tests/e2e/books-settings.spec.ts` (`openRailSection` waits for its section), `tests/e2e/books-access-helpers.ts` (`openAccess` decides by URL; `accessRow` visible only)
 - cp 4: `tests/accounts-form-harness.ts` (`neverReadyStore`, for the loading test), `tests/use-document-attachments-save.test.ts` (bill fixture `balance`, type-required), `tests/help-audit-log.test.ts` (fix item 3)
 - cp 5: `pb-migrations/2100000002_create_books_ledger.js` (index `idx_books_je_document (document, doc_type)`: the cash rebuild finds a document's entries by `document`; implementer A difference 2), `pb-migrations/2100000021_create_books_bill_payments.js` (index on `books_cash_basis_lines (entry)` for Transaction Detail's Split column, fix item 2), `tests/e2e/profit-and-loss.spec.ts` and `tests/e2e/balance-sheet.spec.ts` (the pinned chip list gains `report-param-method`, which spec §3.10 places after Period / As of; asserts "Accrual"; written by a test writer after the implementer's own edit was reverted). `server/sales_documents.go` is named in the Files block and not changed (the calls live in `postSalesDoc` / `voidSalesDoc`, implementer A difference 6)
+
+- cp 6: `server/cash_basis_tax.go` (new; the derive, diff and sync of `books_cash_basis_tax_lines`, which the Files block puts in `cash_basis.go`; same package and role; reviewers A 1 and B 1), `pb-migrations/2100000021_create_books_bill_payments.js` (index on `books_cash_basis_tax_lines (invoice)`, fix item 5; in place, Books unreleased)
 
 - cp 4 (fix round 1): `components/documents/DocumentReadActions.tsx` (`phoneButtonOf`: Pay bill is the phone bar's button, fix item 2), `lib/sales-document-kinds.ts`, `components/documents/DocumentHeader.tsx`, `DocumentTotalsPanel.tsx` (comments, fix item 4)
 
@@ -228,6 +239,24 @@
 - gate 3 A notes: 3 (NOTEs 4–6), listed under Design notes
 - reviewer-caught deferrals: the missing write-path tests of Do 2 (reviewers A and B; not self-declared by the test writer or the implementer) — fixed now
 - commit: "feat(books): cash basis on the statements" (this ledger row is in that commit)
+- human: none (review mode C)
+
+## Checkpoint 6
+- runners: the first runner died on a network error after gate 1 of the fix round, with no hand-off note; a second runner verified the logs and wrote these rows
+- test writer (cp6-tests.md): server/cash_basis_tax_test.go (new), server/report_sales_tax_liability_test.go, server/report_sources_test.go, tests/help-reports.test.ts, tests/e2e/pay-bills-sales-tax-cash.spec.ts (new); red for the right reason: yes (Go: tax-line `date` "", no cash tax rows, no Method param, revision 1, catalog without `date` / `layer` / third part; vitest: help text; e2e: `report-header-param-method` not found); untestable: none. Reading recorded: a stored tax line's gross is the document subtotal (`writeTaxSnapshot`), so by spec §3.10 "stored figure × paid ÷ total" the tests pin gross −1000.00 / 500.00 where the brief's numbers said −1080.00 / 540.00; taxable and tax as in the brief
+- implementer (cp6-impl.md): tax-line `date` at posting, `server/cash_basis_tax.go` (derive / diff / sync of `books_cash_basis_tax_lines`), `syncCashRows` / `verifyCashBasis` / `cashDocuments` cover tax rows, `largestRemainder` generalized, the source's `date` / `layer` / third part, the report's `date` filter, `basisFilter()`, `methodParam()`, revision 2, help, fixture description, `customerWithInvoices` `{ date?, taxable? }`; DONE, 0 disputes
+- test disputes: none
+- self-declared differences: (1) `largestRemainder` hands out floor(Σamounts × paid ÷ total) − Σfloors (same result for every earlier caller); (2) largest remainder pooled per figure over the invoice's tax lines; (3) STL detail label and first sort key read the tax line's `date`; (4) an all-zero share row is not written; (5) the e2e taxable path uses "Colorado state"; help adds "customer payment" to the re-run sentence — (2), (3), (4), (5) under Design notes
+- gate 1: tests unedited: yes · `packages:generate`, `tinycld-pkg check` 6189/6189, `go test ./...` · e2e one file each on 7230: pay-bills-sales-tax-cash 11, books-sales-tax-liability 23, invoice-form-pdf 11, sales-receipt-form 14, customer-pages-balance 13, customer-pages-transactions 12, receive-payment-elsewhere 12, -form 12, -keyboard 12, -phone 12, -void-edit 12 — all passed (the Gates-line regressions the implementer left to the runner)
+- gate 2: capture evidence/cp6/capture.json (Sales Tax Liability, Accrual and Cash, 390 and 1280, light and dark; reference none), 12 passed; invalid shots: none · blocking: none · notes: 1 (both 390 schemes), listed under Design notes
+- gate 3 A (correctness): 0 BLOCK, 8 NOTE, 0 DEFERRAL — NOTE 1 (cash_basis_tax.go not in the Files block) → recorded under Out-of-plan changes; NOTE 2 largest remainder unpinned → accepted (fix item 2); NOTE 4 stale fixture mirror → accepted (fix item 4); NOTE 6 no (invoice) index → accepted (fix item 5); NOTE 8 empty Cash month passes → accepted (fix item 3); NOTEs 3, 5, 7 → Design notes; gate-1 note (regression specs) → run by the runner, see gate 1
+- gate 3 B (conformance): script lines: 0 · findings: 1 (= A NOTE 1) → accepted, recorded under Out-of-plan changes, no code change; 2 the e2e relies on a 2000 px viewport mounting every row (lesson 11) → accepted (fix item 1) · DEFERRALs: none
+- fix round 1 (cp6-fix.md, 5 items: weak-test 3, mirror 1, other: missing index 1): test writer (cp6-fix-tests.md) dropped `TALL`, reads the report by scrolling (`readRows`) and waits for the invoice's own row under each rate; pinned Σ cumulative = floor(Σ stored × paid ÷ total) per figure (shown red against a per-line floor, reverted); Cash over August asserts [+X, −X] per rate; implementer (cp6-fix-impl.md) FIXED 2 of 2: fixture mirror (`method` param, `headerLines: ['Accrual basis']`, resolved method, cash tax topic), index `idx_books_cash_basis_tax_lines_invoice` in 2100000021 (in place, Books unreleased). Gate 1 again: tests unedited: yes · `packages:generate`, `tinycld-pkg check` 6189/6189, `go test ./...` · e2e pay-bills-sales-tax-cash 11, books-sales-tax-liability 23 passed; no shot changed (test, fixture mirror, index)
+- fix review: round 1: 0 BLOCK, 1 NOTE (fixture topics order → Design notes); conformance line (migration modified) false positive (Books unreleased, spec §4.2)
+- rounds: 1
+- gate 3 A notes: 3 (NOTEs 3, 5, 7), listed under Design notes
+- reviewer-caught deferrals: none
+- commit: "feat(books): Sales Tax Liability on cash" (this ledger row is in that commit)
 - human: none (review mode C)
 
 ## Final review

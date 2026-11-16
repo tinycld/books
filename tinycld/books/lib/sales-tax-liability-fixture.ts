@@ -27,7 +27,7 @@ import { TAX_AGENCIES, TAX_IDS, TAX_RATE_ROWS } from './tax-rates-fixture'
 export { SALES_TAX_LIABILITY_SHIPPED_KEY }
 export const SALES_TAX_LIABILITY_TITLE = 'Sales Tax Liability'
 export const SALES_TAX_LIABILITY_DESCRIPTION =
-    'The sales tax you charged on posted invoices and sales receipts, by agency and rate (accrual basis).'
+    'The sales tax you charged on posted invoices and sales receipts, by agency and rate.'
 // The Books source heading: the seeded business name (books-settings-fixture.ts).
 export const SALES_TAX_LIABILITY_HEADING = 'Hartwell Supply Co.'
 // "Today" for the reference captures, so the default Last month resolves to October.
@@ -40,6 +40,18 @@ const CURRENCY = 'USD'
 // builds the same list in Go; its test pins the Go side).
 export const SALES_TAX_LIABILITY_PARAMS: ParamDef[] = [
     { id: 'period', type: 'dateRange', label: 'Period', default: { preset: 'lastMonth' } },
+    // methodParam() in server/report_spec_helpers.go.
+    {
+        id: 'method',
+        type: 'choice',
+        label: 'Method',
+        options: [
+            { value: 'accrual', label: 'Accrual' },
+            { value: 'cash', label: 'Cash' },
+        ],
+        default: 'accrual',
+        header: '{label} basis',
+    },
     {
         id: 'agencies',
         type: 'choice',
@@ -290,7 +302,7 @@ export function documentLabel(d: SalesDocumentFixture): string {
     return customer ? `${head} · ${customer}` : head
 }
 
-// --- The run result, as the shipped spec answers it. ---
+// --- The run result, as the shipped spec answers it on Accrual (the default Method). ---
 
 export const SALES_TAX_LIABILITY_COLUMNS: ResultColumn[] = [
     { id: 'name', label: 'Tax name', type: 'text' },
@@ -529,6 +541,7 @@ export function salesTaxLiabilityResult(input: SalesTaxLiabilityInput = {}): Run
         topics: [
             'collection/books_invoice_tax_lines',
             'collection/books_sales_receipt_tax_lines',
+            'collection/books_cash_basis_tax_lines',
             'collection/books_invoices',
             'collection/books_sales_receipts',
             'collection/books_tax_rates',
@@ -537,8 +550,12 @@ export function salesTaxLiabilityResult(input: SalesTaxLiabilityInput = {}): Run
         ],
         heading: SALES_TAX_LIABILITY_HEADING,
         page: null,
-        params: [{ id: 'period', type: 'dateRange', from, to }, agencies],
-        headerLines: [],
+        params: [
+            { id: 'period', type: 'dateRange', from, to },
+            { id: 'method', type: 'choice', value: 'accrual' },
+            agencies,
+        ],
+        headerLines: ['Accrual basis'],
     }
 }
 

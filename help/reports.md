@@ -224,7 +224,7 @@ On the web, ⌘-click or middle-click an amount to open Transaction Detail by Ac
 
 ## Accrual and cash basis
 
-The Profit and Loss, the Profit and Loss by Month, the Balance Sheet and Transaction Detail by Account have a Method chip. To change the method, press the Method chip and pick Accrual or Cash. The default is Accrual. The heading of the report shows the method under the period, for example "Accrual basis" or "Cash basis".
+The Profit and Loss, the Profit and Loss by Month, the Balance Sheet, Transaction Detail by Account and the Sales Tax Liability have a Method chip. To change the method, press the Method chip and pick Accrual or Cash. The default is Accrual. The heading of the report shows the method under the period, for example "Accrual basis" or "Cash basis".
 
 - On Accrual, every posted entry counts on its own date. A bill counts on the bill date, and an invoice on the invoice date.
 - On Cash, bills and invoices count only when they are paid, and only as far as they are paid. A bill of 500.00 with a payment of 200.00 counts 200.00, on the date of the payment. The rest counts when it is paid.
@@ -244,7 +244,10 @@ To see the sales tax you owe each agency, open the Sales Tax Liability report. C
 The report shows the sales tax that you charged in the period, by agency and then by rate. The agencies show in name order, and inside each agency its rates show in name order. An inactive agency or rate with tax in the period shows like an active one.
 
 - Only posted invoices and posted sales receipts count: a draft does not count, and a voided document does not count. When you edit a posted document, Books voids the original, so only the new version counts.
-- Books reports sales tax on the accrual basis: a sale counts in the period of its own date, not the day it is paid. This report has no cash basis.
+- The report opens on Accrual. To change the method, press the Method chip and pick Accrual or Cash (see "Accrual and cash basis" above). The heading shows "Accrual basis" or "Cash basis" under the period.
+- On Accrual, a sale counts in the period of its own date, not the day it is paid.
+- On Cash, the tax of an invoice counts only when the invoice is paid, and only as far as it is paid. Each payment brings back its share of the invoice's Gross total, Taxable amount and Tax amount on the date of the payment. For example, an invoice of 1,080.00 with 80.00 of tax, paid 540.00, counts 40.00 of tax on the payment date. A sales receipt counts on its own date, because it is paid when you enter it.
+- On Cash, an open rate shows each invoice on its own date with its tax, and again with the same tax taken out, so the two add up to 0.00. Each payment shows its share as one more row of the invoice, on the payment date.
 - Gross total is the sale before tax. Taxable amount is the part of the sale that the tax was calculated on. Non-taxable is Gross total minus Taxable amount. Tax amount is the tax of the rate.
 - Each figure is the one Books stored when the document was posted. A later change to a rate, to a product's Taxable setting or to a customer's exemption does not change the report.
 - A rate row adds the figures of the documents that charged that rate.
@@ -252,7 +255,7 @@ The report shows the sales tax that you charged in the period, by agency and the
 - A sale with no tax rate, for example a sale to an exempt customer, has no sales tax, so it is not in the report.
 - A sale with a tax rate and no taxable line shows under that rate: its sales are Non-taxable, and its tax is 0.00. A rate of 0% shows its sales with tax 0.00.
 
-The agencies are open when the report opens, and the rates are folded. To see the documents that charged a rate, press the rate row. Its documents open below it, in date order, then by number. Each document shows its date, its type and number, and its customer, for example "2026-10-14 · Invoice 1042 · Harborview Dental", with its four figures. A sales receipt with no customer ends after its number. To open the invoice or sales receipt, press its document row. To fold or open all levels, press Collapse all or Expand all.
+The agencies are open when the report opens, and the rates are folded. To see the documents that charged a rate, press the rate row. Its documents open below it, in date order, then by number. Each document shows the date it counts on, its type and number, and its customer, for example "2026-10-14 · Invoice 1042 · Harborview Dental", with its four figures. A sales receipt with no customer ends after its number. To open the invoice or sales receipt, press its document row. To fold or open all levels, press Collapse all or Expand all.
 
 To change the dates, press the Period chip. The default is Last month. Pick a preset, such as This month or Last quarter, or pick Custom and type the first and last day. When no posted sale was taxed in the period, the report shows "No rows for" and the period.
 
@@ -262,7 +265,7 @@ The balance of an agency's liability account on the Balance Sheet also holds the
 
 To change how the numbers look, press Customize. Customize never changes the figures.
 
-The report stays current. When someone posts or voids an invoice or a sales receipt, the report runs again.
+The report stays current. When someone posts or voids an invoice, a sales receipt or a customer payment, the report runs again.
 
 On a phone, each row wraps onto three lines in the table: the name; then Gross total and Non-taxable; then Taxable amount and Tax amount. The table does not scroll sideways.
 

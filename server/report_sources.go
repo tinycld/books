@@ -296,22 +296,27 @@ func salesDocumentsSource() reports.Source {
 	}
 }
 
-// salesTaxLinesSource is every tax line posting wrote, one union of the
-// invoice and sales receipt tax lines: one row per document and tax
-// component, with the figures stored at posting. The document link reads each
-// part's own parent column.
+// salesTaxLinesSource is every tax line posting wrote and the invoices'
+// cash-basis tax rows (pay-bills spec §3.10, Q3), one union of three parts:
+// the invoice and sales receipt tax lines (layer "ledger") and
+// books_cash_basis_tax_lines (layer "cash"). Each row is one document and tax
+// component with its stored figures and its own day: a ledger line's is the
+// document date, a cash row's the day it takes out or brings back. The
+// document link reads each part's own parent column. A report on it reads the
+// ledger alone on Accrual and both layers on Cash (basisFilter).
 func salesTaxLinesSource() reports.Source {
-	shared := []string{"gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency"}
-	part := func(collection, parent string) reports.SourcePart {
+	shared := []string{"gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"}
+	part := func(collection, parent, layer string) reports.SourcePart {
 		columns := sameNames(shared...)
 		columns["document"] = parent
-		return reports.SourcePart{Collection: collection, Columns: columns}
+		return reports.SourcePart{Collection: collection, Columns: columns, Values: map[string]any{"layer": layer}}
 	}
 	return reports.Source{
 		Key: "books.sales_tax_lines", Label: "Sales tax lines",
 		Parts: []reports.SourcePart{
-			part("books_invoice_tax_lines", "invoice"),
-			part("books_sales_receipt_tax_lines", "sales_receipt"),
+			part("books_invoice_tax_lines", "invoice", "ledger"),
+			part("books_sales_receipt_tax_lines", "sales_receipt", "ledger"),
+			part(cashTaxLinesCollection, "invoice", "cash"),
 		},
 		Fields: []reports.Field{
 			{Key: "gross_amount", Label: "Gross total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
@@ -319,6 +324,11 @@ func salesTaxLinesSource() reports.Source {
 			{Key: "amount", Label: "Tax amount", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 			{Key: "rate_ppm", Label: "Rate (ppm)", Type: reports.Number},
 			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "layer", Label: "Layer", Type: reports.Select, Options: []reports.Option{
+				{Value: "ledger", Label: "Ledger"},
+				{Value: "cash", Label: "Cash basis"},
+			}},
 		},
 		Links: []reports.Link{
 			{Key: "document", Label: "Document", Target: "books.sales_documents", Cardinality: reports.ToOne, Field: "document"},
