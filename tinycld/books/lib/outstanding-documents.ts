@@ -83,6 +83,10 @@ type OutstandingTexts = {
     totalCard: string
     // The header tick box's and "Pay all"'s accessible name.
     payAllLabel: string
+    // A read view's list of the paid documents: its heading, and the paid column's header
+    // and card label.
+    appliedHeading: string
+    appliedLabel: string
 }
 
 const TEXTS: Record<OutstandingDocument['noun'], OutstandingTexts> = {
@@ -90,12 +94,31 @@ const TEXTS: Record<OutstandingDocument['noun'], OutstandingTexts> = {
         totalHeader: 'Original amount',
         totalCard: 'Original',
         payAllLabel: 'Pay every listed invoice',
+        appliedHeading: 'Applied to',
+        appliedLabel: 'Applied',
     },
     Bill: {
         totalHeader: 'Bill total',
         totalCard: 'Bill total',
         payAllLabel: 'Pay every shown bill',
+        appliedHeading: 'Bills paid',
+        appliedLabel: 'Paid',
     },
+}
+
+// One paid document of a payment as a read view lists it: an invoice a customer payment
+// applies to, or a bill a bill payment pays. Days are ISO days.
+export type AppliedDocumentRow = {
+    // The application's or line's id.
+    id: string
+    documentId: string
+    number: string
+    date: string
+    dueDate: string
+    // The vendor's bill no.; '' for an invoice.
+    ref: string
+    total: number
+    amount: number
 }
 
 export function outstandingTexts(doc: OutstandingDocument): OutstandingTexts {

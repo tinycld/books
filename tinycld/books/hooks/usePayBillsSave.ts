@@ -16,10 +16,11 @@ import {
 import { payBillsRefusalErrors } from '../lib/pay-bills-refusals'
 import type { PayBillsRow } from '../lib/pay-bills-rows'
 import { afterPayTarget, postedToastText } from '../lib/pay-bills-texts'
-import type { PayBillsFormValues } from '../lib/pay-bills-values'
+import { correctionReferenceNo, type PayBillsFormValues } from '../lib/pay-bills-values'
 import { entryCents, type Payments } from '../lib/payment-allocation'
 import { writeRefusalText } from '../lib/refusal'
 import { usePayBillsStore } from '../stores/pay-bills-store'
+import type { BooksBillPayments } from '../types'
 
 const LOG_CONTEXT = 'books.billPayment'
 const TOAST_MS = 4000
@@ -39,9 +40,28 @@ export type PayBillsSaveInput = {
     // Where Cancel and Discard go when there is no screen below to go back to (the
     // screen passes useBackToEntries' onBack, as the other Books forms leave).
     leaveFallback?: () => void
+    // `?replaces`: the posted payment Save corrects; null on a new screen.
+    replaces?: ReplacedPayment | null
 }
 
+type ReplacedPayment = Pick<BooksBillPayments, 'id' | 'payment_method' | 'reference_no'>
+
 type PayVariables = { values: PayBillsFormValues; plan: PayBillsWritePlan }
+
+// The Ref no. a payment is written with: a new screen numbers each vendor's check from
+// Starting check no. (the plan); a correction follows correctionReferenceNo.
+function referenceOf(
+    replaces: ReplacedPayment | null,
+    values: PayBillsFormValues,
+    planned: string
+): string {
+    if (replaces === null) return planned
+    return correctionReferenceNo({
+        method: values.payment_method,
+        typed: values.reference_no,
+        original: replaces,
+    })
+}
 
 // The payments of the listed rows only: a bill that left the list since (paid elsewhere,
 // voided) is not paid, and its entry goes.
@@ -79,7 +99,9 @@ export function usePayBillsSave({
     focusPaidFrom,
     resetFilters,
     leaveFallback,
+    replaces = null,
 }: PayBillsSaveInput) {
+    const replacesId = replaces?.id ?? null
     const [paymentsCollection, linesCollection, billsCollection] = useStore(
         'books_bill_payments',
         'books_bill_payment_lines',
@@ -90,6 +112,8 @@ export function usePayBillsSave({
     const isLive = useRef(true)
     const left = useRef(false)
     const [isDiscardOpen, setDiscardOpen] = useState(false)
+    // Read in render: react-hook-form tracks isDirty only once it is read.
+    const isDirty = form.formState.isDirty
     useEffect(() => {
         isLive.current = true
         return () => {
@@ -110,9 +134,9 @@ export function usePayBillsSave({
                         paid_from: values.paid_from,
                         date: values.date,
                         payment_method: method,
-                        reference_no: vendor.reference_no,
-                        // A new payment corrects none (a correction is checkpoint 3's).
-                        replaces: '',
+                        reference_no: referenceOf(replaces, values, vendor.reference_no),
+                        // The server voids the original and keeps its number (spec §3.6).
+                        replaces: replacesId ?? '',
                     })
                     for (const line of vendor.lines) {
                         linesCollection.insert({
@@ -177,8 +201,13 @@ export function usePayBillsSave({
 
     const afterPay = (plan: PayBillsWritePlan) => {
         const first = plan.vendors[0]?.paymentId ?? ''
-        const target = afterPayTarget(router.canGoBack(), first)
         left.current = true
+        // A correction opens its own read view in place of the form.
+        if (replacesId !== null) {
+            router.replace(orgHref(`books/bill-payments/${first}`))
+            return
+        }
+        const target = afterPayTarget(router.canGoBack(), first)
         if (target.kind === 'back') router.back()
         else router.replace(orgHref(target.href))
     }
@@ -243,9 +272,15 @@ export function usePayBillsSave({
         }
     }
 
+    // A correction starts with the original's amounts, so only a change asks to discard; a
+    // new screen asks once any bill has a payment.
+    const hasChanges = () => {
+        if (replacesId !== null) return isDirty
+        return hasPayment(listedPayments(form.getValues('payments'), rows), currency)
+    }
+
     const cancel = () => {
-        const payments = listedPayments(form.getValues('payments'), rows)
-        if (hasPayment(payments, currency)) setDiscardOpen(true)
+        if (hasChanges()) setDiscardOpen(true)
         else leave()
     }
 

@@ -17,6 +17,8 @@ interface PayBillsVendorFilterProps {
  * read the screen waits on, so it has no loading or error state of its own.
  */
 export function PayBillsVendorFilter({ payForm, isDisabled }: PayBillsVendorFilterProps) {
+    // `?replaces`: the vendor is the payment's own, so the chip shows it and is fixed.
+    const disabled = isDisabled || payForm.isVendorLocked
     return (
         <View style={WIDTH}>
             <SearchPicker
@@ -25,7 +27,7 @@ export function PayBillsVendorFilter({ payForm, isDisabled }: PayBillsVendorFilt
                 triggerLabel={payForm.vendorLabel}
                 triggerAccessibilityLabel="Vendor filter"
                 triggerTestId="pay-bills-vendor-filter"
-                disabled={isDisabled}
+                disabled={disabled}
                 searchPlaceholder="Search vendors"
                 searchTestId="pay-bills-vendor-filter-search"
                 options={payForm.vendorPickerOptions}

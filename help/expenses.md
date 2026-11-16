@@ -7,7 +7,7 @@ order: 41
 
 To record money that you already paid, by check, card, cash or another method, enter an expense. When you post it, Books gives it a number and records it in your books: the account you paid from goes down (or, for a credit card, its balance owed goes up) by the total, and each line's expense account gets its amount.
 
-Use an expense when you paid now and there is no bill to pay later. When a vendor sends a bill that you pay later, enter a bill instead. See [Bills](help://books:bills).
+Use an expense when you paid now and there is no bill to pay later. When a vendor sends a bill that you pay later, enter a bill instead. See [Bills](help://books:bills). To pay that bill later, see [Pay bills](help://books:pay-bills).
 
 ## Enter an expense
 

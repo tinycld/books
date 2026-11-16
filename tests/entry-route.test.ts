@@ -185,4 +185,10 @@ describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {
         expect(entryHref(entry('bill_payment', 'document', 'bp1'))).toBe('books/bill-payments/bp1')
     })
+
+    it('edits as a correction of its bill payment on Pay Bills', () => {
+        expect(entryEditHref(entry('bill_payment', 'document', 'bp1'))).toBe(
+            'books/pay-bills?replaces=bp1'
+        )
+    })
 })

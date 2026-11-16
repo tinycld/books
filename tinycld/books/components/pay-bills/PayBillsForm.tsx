@@ -7,7 +7,10 @@ import { usePayBillsForm } from '../../hooks/usePayBillsForm'
 import { usePayBillsSave } from '../../hooks/usePayBillsSave'
 import type { PayBillsScreenData } from '../../hooks/usePayBillsScreen'
 import { usePayBillsShortcuts } from '../../hooks/usePayBillsShortcuts'
-import { PAY_BILLS_KEY_DESCRIPTIONS } from '../../lib/pay-bills-shortcuts'
+import {
+    PAY_BILLS_KEY_DESCRIPTIONS,
+    PAY_BILLS_SAVE_DESCRIPTION,
+} from '../../lib/pay-bills-shortcuts'
 import { PAY_BILLS_MESSAGES } from '../../lib/pay-bills-texts'
 import { PAYMENT_FORM_KEYS } from '../../lib/payment-shortcuts'
 import { rootErrorOnly } from '../../lib/root-errors'
@@ -24,11 +27,31 @@ import { PayBillsSummary } from './PayBillsSummary'
 // The bar (spec §3.5): wide Cancel (Esc), Pay & new (⌘⇧↵), Pay (⌘↵, primary); phone
 // Cancel, Pay, More (Pay & new, whose ⌘⇧↵ usePayBillsShortcuts registers there). Pay and
 // Pay & new are server actions, so they, their keys and the More row are idle offline.
+// On `?replaces` (spec §3.6): Cancel (Esc) and Save (⌘↵, primary, a server action).
 function barActionsOf(
+    mode: 'new' | 'replaces',
     onCancel: () => void,
     onPay: () => void,
     onPayAndNew: () => void
 ): DocumentBarAction[] {
+    if (mode === 'replaces') {
+        return [
+            {
+                id: 'cancel',
+                label: PAY_BILLS_KEY_DESCRIPTIONS.cancel,
+                keys: PAYMENT_FORM_KEYS.cancel,
+                onPress: onCancel,
+            },
+            {
+                id: 'save',
+                label: PAY_BILLS_SAVE_DESCRIPTION,
+                keys: PAYMENT_FORM_KEYS.post,
+                onPress: onPay,
+                isPrimary: true,
+                isServerAction: true,
+            },
+        ]
+    }
     return [
         {
             id: 'cancel',
@@ -74,6 +97,8 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
         today: screen.today,
         startBill: screen.startBill,
         startVendor: screen.startVendor,
+        mode: screen.mode,
+        original: screen.original,
     })
     const backToEntries = useBackToEntries()
     const save = usePayBillsSave({
@@ -83,17 +108,18 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
         focusPaidFrom: payForm.focusPaidFrom,
         resetFilters: payForm.resetFilters,
         leaveFallback: backToEntries.onBack,
+        replaces: screen.original?.payment ?? null,
     })
     const isBusy = save.isPending || payForm.isHolding
     const pay = () => void save.pay()
     const payAndNew = () => void save.payAndNew()
-    const barActions = barActionsOf(save.cancel, pay, payAndNew)
+    const barActions = barActionsOf(screen.mode, save.cancel, pay, payAndNew)
     const shortcuts = usePayBillsShortcuts({
         scopeOwner,
         canWrite: screen.canWrite,
         isPending: isBusy,
         isDialogOpen: save.isDiscardOpen,
-        mode: 'new',
+        mode: screen.mode,
         hasShownRows: payForm.hasShownRows,
         hasPaidRows: payForm.hasPaidRows,
         isPhone,

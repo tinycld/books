@@ -1,56 +1,41 @@
-import { eq } from '@tanstack/db'
-import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
-import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useState } from 'react'
 import type { LiveRecovery } from '../lib/live-recovery'
 import { PAY_BILLS_CHROME } from '../lib/pay-bills-kind'
 import { payBillsScreenState } from '../lib/pay-bills-screen-state'
-import { PAY_BILLS_MESSAGES } from '../lib/pay-bills-texts'
+import { editTitleText, PAY_BILLS_MESSAGES } from '../lib/pay-bills-texts'
 import { todayIso } from '../lib/register-range'
+import { type BillPaymentLineRow, useBillPaymentRecord } from './useBillPaymentRecord'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
 import { useOpenBills } from './useOpenBills'
 import { usePaidFromAccounts } from './usePaidFromAccounts'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
+const NO_LINES: readonly BillPaymentLineRow[] = []
 
 export type PayBillsScreenInput = {
     // `?vendor=`: the Vendor filter's vendor.
     vendor?: string
     // `?bill=`: that bill paid for its open balance, its vendor filtered.
     bill?: string
-    // `?replaces=`: the bill payment a correction replaces (its form is checkpoint 3's).
+    // `?replaces=`: the posted bill payment a correction replaces (spec §3.6).
     replaces?: string
 }
 
-type ReplacedStatus = 'posted' | 'void' | null
-
-// The payment `?replaces` names: its status, null when no row has the id.
+// The payment `?replaces` names, with its lines and their bills: its status (null when no
+// row has the id) and the read's state for the screen's merged Retry.
 function useReplacedPayment(id: string) {
-    const [paymentsCollection] = useStore('books_bill_payments')
-    const query = useLiveQuery({
-        query: q => {
-            if (!id) return undefined
-            return q
-                .from({ payment: paymentsCollection })
-                .where(({ payment }) => eq(payment.id, id))
-                .findOne()
-        },
-        queryKey: ['books.payBills.replaces', id],
-    })
-    const isError = id !== '' && query.isError
-    const status: ReplacedStatus = id ? (query.data?.status ?? null) : null
+    const record = useBillPaymentRecord(id)
     return {
-        status,
+        record,
+        status: record.payment?.status ?? null,
         read: {
-            isReady: id === '' || query.isReady || isError,
-            isError,
-            recovery: isError
-                ? { queries: [query.collection], sources: [paymentsCollection] }
-                : NO_RECOVERY,
+            isReady: !record.isLoading,
+            isError: record.isError,
+            recovery: record.recovery,
         },
     }
 }
@@ -70,7 +55,17 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
     const settings = useBooksSettings()
     const paidFrom = usePaidFromAccounts()
     const replaced = useReplacedPayment(replacesId)
-    const openBills = useOpenBills({ vendor: null, replaces: null })
+    const original = replaced.record.payment
+    // The original's lines widen the open balances only while it is posted: once a
+    // correction of it posts, it is void and its lines no longer hold any bill's balance.
+    const heldLines = original?.status === 'posted' ? replaced.record.lines : NO_LINES
+    const openBills = useOpenBills({
+        vendor: original?.vendor ?? null,
+        replaces:
+            replacesId === ''
+                ? null
+                : { vendorName: original?.vendorRow?.display_name ?? '', lines: heldLines },
+    })
     const writes = useWritesAvailable()
     // The day the screen opened: the default Payment date and the Due filters' today.
     const [today] = useState(todayIso)
@@ -110,13 +105,18 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
         })
     }
 
+    const isReplacing = replacesId !== '' && original !== null
     return {
         state,
         retry,
         chrome: PAY_BILLS_CHROME,
-        title: PAY_BILLS_MESSAGES.title,
+        mode: replacesId === '' ? ('new' as const) : ('replaces' as const),
+        title: isReplacing ? editTitleText(original.number) : PAY_BILLS_MESSAGES.title,
+        // `?replaces`: the posted payment the form corrects and its lines (the form's start
+        // values, the fixed vendor, the "Payment 1004 now" line); null on a new screen.
+        original: isReplacing ? { payment: original, lines: heldLines } : null,
         canWrite: access.canWrite,
-        // Pay and Pay & new disable while writes are unavailable (offline).
+        // Pay, Pay & new and Save disable while writes are unavailable (offline).
         writesAvailable: writes.available,
         currency: settings.settings?.currency ?? 'USD',
         today,

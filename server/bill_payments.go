@@ -139,7 +139,7 @@ func bindBillPaymentCreate(app core.App) {
 // (bindBillPaymentCreate), voided (voidBillPayment) or replaced by its
 // correction's post, and never deleted. Its lines are written only inside the
 // batch that creates it, before its post, and changed only while a bill
-// correction moves them (moveLines).
+// correction moves them (movePostedLines).
 func registerBillPaymentGuards(app core.App) {
 	bindBillPaymentCreate(app)
 	bindSerializedGuard(app, billPaymentsCollection, func(tx core.App, stored, r *core.Record) error {
