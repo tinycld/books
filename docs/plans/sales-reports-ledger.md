@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/sales-reports-checkpoints.md
 - reference: docs/plans/sales-reports-reference/
 - evidence: docs/plans/sales-reports-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-17)
 - capture manifest: docs/plans/sales-reports-capture.json
 - review mode: C — none (unattended)
 - core extension: checkpoint 0 (human 2026-11-17): core report view prints a percent column at its `scale` (today `formatReportPercent` always prints 1 place); tinycld PR on branch books/p5-sales-reports, small change, no `exclusive`
@@ -145,5 +145,5 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
+- eval: approved by the human 2026-11-17 ("approved"), after CI green on books #63 at 930c5818 (e2e sha) and core #492 green.
 - CI fix 1 (books PR #63, run 44160010173, E2E shard 1/4): "a sub-customer sale turns the row into a family with a total" read other customers in its first five rows. Evidence: the CI error-context.md shows the page already on the filtered run (the Customer chip and only the family + Total), while the rows the test read held Aspen Ridge Dental, Audit … customers, Bluefin, Delta at depth 0, the earlier unfiltered run. Root cause: core keeps the previous run's rows until the new run lands, and the settle predicate (`familyShows`, also `filterToOwnCustomer`'s) was true for the unfiltered run as well when the whole report was mounted; locally the default period held only the test's own sales, so the race was hidden. Fix (tests only, test writer, `ci1-fix.md`, cause weak-test ×3): `filterSalesTo` waits for the `/api/reports/run` response that carries the final param value before it polls; the family and own-customer predicates are true only for the filtered run (depth-0 groups exactly the test's own); the family assertion also checks that the Total follows the five family rows. Gate 1: `packages:generate`, `tinycld-pkg check` pass; `books-sales-reports.spec.ts` 12 passed. Fix review: round 1: 0 BLOCK, 2 NOTE (→ Design notes).
