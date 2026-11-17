@@ -37,4 +37,9 @@ var documentKinds = map[string]documentKind{
 		Build:      buildEstimateDocument,
 		FileName:   estimateFileName,
 	},
+	"credit_memo": {
+		Collection: "books_credit_memos",
+		Build:      buildCreditMemoDocument,
+		FileName:   creditMemoFileName,
+	},
 }

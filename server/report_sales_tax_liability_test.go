@@ -245,15 +245,16 @@ func TestSalesTaxLiabilitySpecLoads(t *testing.T) {
 		t.Errorf("title = %q, want Sales Tax Liability", shipped.Title)
 	}
 	// The hub text drops "(accrual basis)" (pay-bills spec §3.10, Q3): the
-	// report runs on either method.
-	if shipped.Description != "The sales tax you charged on posted invoices and sales receipts, by agency and rate." {
-		t.Errorf("description = %q, want the hub text without \"(accrual basis)\"", shipped.Description)
+	// report runs on either method. It names the credit memos that lower the
+	// tax (credit memo spec §3.11, Q17).
+	if shipped.Description != "The sales tax you charged on posted invoices and sales receipts, less the tax on posted credit memos, by agency and rate." {
+		t.Errorf("description = %q, want the hub text that names credit memos, without \"(accrual basis)\"", shipped.Description)
 	}
 	if strings.Contains(strings.ToLower(shipped.Description), "accrual basis") {
 		t.Errorf("description %q still says \"accrual basis\"", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 2 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 3 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 3 (credit memos), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(salesTaxLiabilitySpec())
 	if err != nil {
@@ -998,7 +999,7 @@ func TestSalesTaxLiabilityShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Sales Tax Liability" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.sales_tax_lines" {
+	if row.GetString("title") != "Sales Tax Liability" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.sales_tax_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1006,6 +1007,135 @@ func TestSalesTaxLiabilityShippedShared(t *testing.T) {
 	}
 	requireViewer(t, app, row, reader, "a guest with Books readonly access")
 	requireNoShare(t, app, row, outsider, "a guest without Books access")
+}
+
+// newCreditMemoSTLBook is an stlBook whose app also binds the credit memo
+// guards and host, beside the invoice's and the sales receipt's.
+func newCreditMemoSTLBook(t *testing.T) (stlBook, *creditMemoEnv) {
+	t.Helper()
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSalesDocGuards(app, invoiceKind)
+	registerSalesDocGuards(app, salesReceiptKind)
+	registerSalesDocGuards(app, creditMemoKind)
+	bindHostsByKey(t, app, invoiceKind.HostKey, salesReceiptKind.HostKey, creditMemoHostKey)
+	ce := creditMemoEnvOn(t, app)
+	registerBooksSources(t)
+	reader := mkUser(t, app, "member")
+	setPkgAccess(t, app, reader, "readonly")
+	return stlBook{receiptEnv: ce.receiptEnv, reader: reader, actor: ce.users.bookkeeper.Id}, ce
+}
+
+// Credit memo spec §3.10 (Q5, Q17): on Accrual a posted credit memo lowers its
+// rate's gross, taxable and tax on its date, and its document row reads
+// "<date> · Credit memo 1001 · <customer>" and opens the memo; an invoice row
+// and a sales receipt row keep their labels and paths. On Cash the memo
+// changes no figure and has no row.
+func TestSalesTaxLiabilityCreditMemo(t *testing.T) {
+	b, ce := newCreditMemoSTLBook(t)
+	rate := mkTaxRate(t, b.app, "Memo rate", 80000, b.agency(t, "Memo agency"))
+	customer := b.customer.GetString("display_name")
+
+	inv := b.postInvoice(t, rate, "2026-10-05", b.sale(100000, true))
+	rct := b.postReceipt(t, rate, "2026-10-06", b.sale(10000, true))
+	without := b.run(t, nil)
+	requireRateFigures(t, without, "Memo rate", stlFig{110000, 0, 110000, 8800})
+
+	draft := ce.mkCreditMemo(t, map[string]any{"date": "2026-10-07", "tax_rate": rate.Id})
+	mkCreditMemoLine(t, b.app, draft, 0, b.sale(25000, true))
+	memo := mustPostCreditMemo(t, b.app, draft.Id, b.actor)
+	if memo.GetString("number") != "1001" || memo.GetInt("tax_total") != 2000 {
+		t.Fatalf("credit memo number %q tax %d, want 1001 and 2000 (8%% of 250.00)", memo.GetString("number"), memo.GetInt("tax_total"))
+	}
+
+	// Lowered by the memo's 250.00 taxable and 20.00 tax.
+	accrual := b.run(t, nil)
+	requireRateFigures(t, accrual, "Memo rate", stlFig{85000, 0, 85000, 6800})
+	if got := amt(t, bsRow(t, accrual, "Total Memo agency"), "tax"); got != 6800 {
+		t.Errorf("Total Memo agency tax = %d on Accrual, want 6800 (8800 less the memo's 2000)", got)
+	}
+
+	open := func(method string) (reports.Row, *reports.Result) {
+		t.Helper()
+		params := withMethod(map[string]any{}, method)
+		closed := b.run(t, params)
+		rateRow, ok := stlGroupRow(closed, 2, rate.Id)
+		if !ok {
+			t.Fatalf("%s: no row for Memo rate; rows %q", method, bsLabels(closed))
+		}
+		opened := runSTL(t, b.app, b.reader, params, reports.Options{
+			Today: stlToday, Expand: [][]any{rateRow.GroupKey}, Collapse: [][]any{},
+		})
+		openRate, ok := stlGroupRow(opened, 2, rate.Id)
+		if !ok || !openRate.Expanded {
+			t.Fatalf("%s: Memo rate = %+v (found %v), want it opened; rows %q", method, openRate, ok, bsLabels(opened))
+		}
+		return openRate, opened
+	}
+
+	openRate, opened := open("accrual")
+	got := map[string]string{}
+	for _, r := range stlDetailsUnder(opened, openRate) {
+		got[r.Label] = r.Open
+	}
+	want := map[string]string{
+		"2026-10-05 · Invoice " + inv.GetString("number") + " · " + customer:       "books/invoices/" + inv.Id,
+		"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + rct.Id,
+		"2026-10-07 · Credit memo 1001 · " + customer:                              "books/credit-memos/" + memo.Id,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Accrual document rows (label → open) =\n%q\nwant\n%q", got, want)
+	}
+
+	// On Cash the unpaid invoice is taken out and the memo counts for nothing:
+	// only the sales receipt's figures stay.
+	cash := b.run(t, withMethod(map[string]any{}, "cash"))
+	requireRateFigures(t, cash, "Memo rate", stlFig{10000, 0, 10000, 800})
+	cashRate, cashOpened := open("cash")
+	for _, r := range stlDetailsUnder(cashOpened, cashRate) {
+		if strings.Contains(r.Label, "Credit memo") || strings.Contains(r.Open, memo.Id) {
+			t.Errorf("Cash: a document row %q (opens %q) shows the credit memo, want none", r.Label, r.Open)
+		}
+	}
+
+	// A posted memo whose subtotal is zero (a taxable 100.00 and a
+	// non-taxable −100.00) still owes back 8.00 tax: its taken-out cash row
+	// has a zero gross, so only what the row is (no payment) can tell it from
+	// a row that brings the memo back. On a rate of its own beside a sales
+	// receipt of 100.00 (8.00 tax).
+	zeroRate := mkTaxRate(t, b.app, "Zero memo rate", 80000, b.agency(t, "Zero memo agency"))
+	b.postReceipt(t, zeroRate, "2026-10-06", b.sale(10000, true))
+	zeroDraft := ce.mkCreditMemo(t, map[string]any{"date": "2026-10-08", "tax_rate": zeroRate.Id})
+	mkCreditMemoLine(t, b.app, zeroDraft, 0, b.sale(10000, true))
+	mkCreditMemoLine(t, b.app, zeroDraft, 1, b.sale(-10000, false))
+	zeroMemo := mustPostCreditMemo(t, b.app, zeroDraft.Id, b.actor)
+	if zeroMemo.GetInt("subtotal") != 0 || zeroMemo.GetInt("tax_total") != 800 {
+		t.Fatalf("zero memo subtotal %d tax %d, want 0 and 800", zeroMemo.GetInt("subtotal"), zeroMemo.GetInt("tax_total"))
+	}
+
+	// Accrual: the memo lowers the taxable and the tax by 100.00 and 8.00; its
+	// gross is zero, so the gross stays.
+	requireRateFigures(t, b.run(t, nil), "Zero memo rate", stlFig{10000, 10000, 0, 0})
+
+	// Cash: the receipt alone, and no row for the memo.
+	requireRateFigures(t, b.run(t, withMethod(map[string]any{}, "cash")), "Zero memo rate", stlFig{10000, 0, 10000, 800})
+	zeroCash := b.run(t, withMethod(map[string]any{}, "cash"))
+	zeroRow, ok := stlGroupRow(zeroCash, 2, zeroRate.Id)
+	if !ok {
+		t.Fatalf("Cash: no row for Zero memo rate; rows %q", bsLabels(zeroCash))
+	}
+	zeroOpened := runSTL(t, b.app, b.reader, withMethod(map[string]any{}, "cash"), reports.Options{
+		Today: stlToday, Expand: [][]any{zeroRow.GroupKey}, Collapse: [][]any{},
+	})
+	zeroOpen, ok := stlGroupRow(zeroOpened, 2, zeroRate.Id)
+	if !ok || !zeroOpen.Expanded {
+		t.Fatalf("Cash: Zero memo rate = %+v (found %v), want it opened; rows %q", zeroOpen, ok, bsLabels(zeroOpened))
+	}
+	for _, r := range stlDetailsUnder(zeroOpened, zeroOpen) {
+		if strings.Contains(r.Label, "Credit memo") || strings.Contains(r.Open, zeroMemo.Id) {
+			t.Errorf("Cash: a document row %q (opens %q) shows the zero-subtotal credit memo, want none", r.Label, r.Open)
+		}
+	}
 }
 
 // The Method param (pay-bills spec §3.10, Q3): on Accrual a tax line counts on

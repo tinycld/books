@@ -924,6 +924,71 @@ func TestSearch_FindsSalesReceipts(t *testing.T) {
 	requireOnly([]string{"quick", "visit"}, "sales_receipt:"+draft.Id)
 }
 
+func creditMemoRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "credit_memo:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Credit memo spec §3.10: search finds credit memos, drafts included, by
+// number, the customer's name, memo and message. A row opens the memo (id
+// credit_memo:<id>, kind credit_memo) and is titled "Credit memo <n> ·
+// <Customer>" or "Draft credit memo · <Customer>".
+func TestSearch_FindsCreditMemos(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerSalesDocGuards(app, invoiceKind)
+	registerSalesDocGuards(app, creditMemoKind)
+	bindHostsByKey(t, app, invoiceKind.HostKey, creditMemoHostKey)
+	ce := creditMemoEnvOn(t, app)
+
+	postedDraft := ce.mkCreditMemo(t, map[string]any{"memo": "returned qx58210 router"})
+	mkCreditMemoLine(t, app, postedDraft, 0, item(ce.service, 1, 45000, false))
+	posted := mustPostCreditMemo(t, app, postedDraft.Id, ce.users.bookkeeper.Id)
+	draft := ce.mkCreditMemo(t, map[string]any{"message": "Sorry about the zw77314 delay"})
+	mkCreditMemoLine(t, app, draft, 0, item(ce.service, 1, 1000, false))
+
+	number := posted.GetString("number")
+	if number == "" {
+		t.Fatal("the posted credit memo has no number")
+	}
+	titles := map[string]string{
+		"credit_memo:" + posted.Id: "Credit memo " + number + " · Harborview Dental",
+		"credit_memo:" + draft.Id:  "Draft credit memo · Harborview Dental",
+	}
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, ce.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := creditMemoRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found credit memo rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "credit_memo" {
+				t.Errorf("%q row %s title %q kind %v, want %q, credit_memo", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"harborview"}, "credit_memo:"+posted.Id, "credit_memo:"+draft.Id)
+	requireOnly([]string{"harborview", number}, "credit_memo:"+posted.Id)
+	requireOnly([]string{"qx58210"}, "credit_memo:"+posted.Id)
+	requireOnly([]string{"zw77314"}, "credit_memo:"+draft.Id)
+}
+
 func estimateRows(rows []search.Row) map[string]search.Row {
 	out := map[string]search.Row{}
 	for _, r := range rows {

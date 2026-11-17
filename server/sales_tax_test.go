@@ -692,15 +692,16 @@ func TestTaxRate_InactiveRefusals(t *testing.T) {
 
 // Later units append their document tax columns; the list starts with the
 // groups' rates, then each sales document's header rate and its tax lines'
-// components (invoice, sales receipt), then the estimate's header rate (an
+// components (invoice, sales receipt, credit memo), then the estimate's header rate (an
 // estimate never posts, so it has no tax lines).
 func TestTaxRateReferences_StartWithGroupComponents(t *testing.T) {
-	if len(taxRateReferences) != 6 {
-		t.Fatalf("taxRateReferences has %d entries, want 6", len(taxRateReferences))
+	if len(taxRateReferences) != 8 {
+		t.Fatalf("taxRateReferences has %d entries, want 8", len(taxRateReferences))
 	}
 	for _, want := range [][2]string{
 		{"books_invoices", "tax_rate"}, {"books_invoice_tax_lines", "component"},
 		{"books_sales_receipts", "tax_rate"}, {"books_sales_receipt_tax_lines", "component"},
+		{"books_credit_memos", "tax_rate"}, {"books_credit_memo_tax_lines", "component"},
 		{"books_estimates", "tax_rate"},
 	} {
 		found := false
@@ -790,6 +791,35 @@ func TestTaxRate_DeleteRefusedWhileOnSalesReceipts(t *testing.T) {
 			"rate_ppm": 5000, "taxable_amount": 10000, "amount": 50, "position": 0,
 		})
 		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, component), wantOnReceipts)
+		requireStillThere(t, app, "books_tax_rates", component)
+	})
+}
+
+// Credit memo spec §3.10: a rate on a credit memo's header, or a component rate
+// named only by a posted credit memo's tax line, cannot be deleted.
+func TestTaxRate_DeleteRefusedWhileOnCreditMemos(t *testing.T) {
+	const wantOnMemos = "This tax rate is on credit memos. Make it inactive instead."
+	app := newGuardedApp(t)
+	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+
+	t.Run("a rate on a draft credit memo's header", func(t *testing.T) {
+		boulder := mkTaxRate(t, app, "Boulder city", 38600, agency)
+		mkCreditMemoRow(t, app, customer, map[string]any{"tax_rate": boulder.Id})
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, boulder), wantOnMemos)
+		requireStillThere(t, app, "books_tax_rates", boulder)
+	})
+
+	t.Run("a component named only by a posted credit memo's tax line", func(t *testing.T) {
+		header := mkTaxRate(t, app, "Aurora city", 37500, agency)
+		component := mkTaxRate(t, app, "Old county", 5000, agency)
+		m := mkCreditMemoRow(t, app, customer, map[string]any{"status": "posted", "number": "1001", "tax_rate": header.Id})
+		// A credit memo's snapshot is negated.
+		saveRecord(t, app, "books_credit_memo_tax_lines", map[string]any{
+			"credit_memo": m.Id, "rate": header.Id, "component": component.Id, "agency": agency.Id,
+			"rate_ppm": 5000, "gross_amount": -10000, "taxable_amount": -10000, "amount": -50, "position": 0,
+		})
+		requireMessageOnlyRefusal(t, deleteTaxRate(t, app, component), wantOnMemos)
 		requireStillThere(t, app, "books_tax_rates", component)
 	})
 }
