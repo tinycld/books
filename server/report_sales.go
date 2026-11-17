@@ -175,3 +175,130 @@ func sbcDisplay() *reports.Display {
 		}},
 	}
 }
+
+// salesByProductKey names the shipped Sales by Product/Service for good.
+const salesByProductKey = "books.sales_by_product"
+
+// salesByProductShipped is the Sales by Product/Service Books ships,
+// unpublished and shared with every Books reader, as Sales by Customer.
+func salesByProductShipped() reports.Shipped {
+	return reports.Shipped{
+		Key:         salesByProductKey,
+		Title:       "Sales by Product/Service",
+		Description: "What you sold of each product and service in a period, from posted invoices and sales receipts, less posted credit memos, before sales tax.",
+		Spec:        mustJSON(salesByProductSpec()),
+		// 1: the first shipped spec. The report is unreleased, so later
+		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
+		Revision:    1,
+		Unpublished: true,
+	}
+}
+
+// salesByProductSpec is the sale lines of the period (postedSaleLines),
+// one flat row per product (sales-reports spec §5). It reads the same lines
+// as Sales by Customer, and a sale line names one product, so each line is in
+// exactly one product row and the two Totals are equal for the same period
+// and filters. A percent line counts on its own product's row. Paths start
+// at a sale line.
+func salesByProductSpec() *reports.Spec {
+	products := productsParam()
+	return &reports.Spec{
+		Version: reports.CurrentVersion,
+		Source:  "books.sales_lines",
+		Params:  salesParams(&products),
+		Filter: op("and", append(postedSaleLines(prm("period")),
+			op("in", col("productKey"), prm("products")),
+			op("in", col("customerKey"), prm("customers")),
+		)...),
+		Columns: sbpColumns(),
+		Groups:  sbpGroups(),
+		Sort:    sbpSort(),
+		Detail:  &reports.Detail{Label: salesDetailLabel(fld("document", "customer", "display_name")), Open: stlDetailOpen()},
+		Display: sbpDisplay(),
+	}
+}
+
+// sbpProduct is the line's product.
+func sbpProduct() reports.Path { return reports.Path{{Link: "product"}} }
+
+// sbpColumns are the label, Quantity, Amount, % of sales, Avg price and the
+// two hidden filter keys (D7). The engine's sum of no rows and its division
+// by zero are 0, so Quantity and Avg price are blank (nil) when the signed
+// quantity sums to 0: a discount's row, and a product sold and fully
+// credited (D13). Both are blank on the Total too (blankAbove): units of
+// different products do not add up.
+func sbpColumns() []reports.Column {
+	zero, two := 0, 2
+	qty := func() *reports.Node { return op("sum", saleQuantity()) }
+	noQty := func() *reports.Node { return op("eq", qty(), lit(0)) }
+	return []reports.Column{
+		{ID: "name", Label: "Product/Service", Path: sbpProduct()},
+		{ID: "quantity", Label: "Quantity", BlankAbove: "byProduct", Formula: op("if", noQty(), lit(nil),
+			&reports.Node{Op: "round", Args: []*reports.Node{qty()}, Scale: &two},
+		)},
+		{ID: "amount", Label: "Amount", Formula: op("sum", saleAmount())},
+		{ID: "pct", Label: "% of sales", Format: "percent", Detail: reports.DetailBlank,
+			Formula: &reports.Node{Op: "percentOfTotal", Args: []*reports.Node{col("amount")}, Scale: &two}},
+		{ID: "avg", Label: "Avg price", BlankAbove: "byProduct", Formula: op("if", noQty(), lit(nil),
+			&reports.Node{Op: "div", Args: []*reports.Node{op("sum", saleAmount()), qty()}, Scale: &zero},
+		)},
+		{ID: "productKey", Label: "Product key", Hidden: true, Path: sbpProduct()},
+		{ID: "customerKey", Label: "Customer key", Hidden: true, Path: sbcCustomer()},
+	}
+}
+
+// sbpGroups is the one level, a product, closed when the report opens and
+// muted when inactive.
+func sbpGroups() []reports.Group {
+	inactive := op("eq", rec("byProduct", "inactive"), lit(true))
+	return []reports.Group{{
+		ID: "byProduct", Col: "productKey",
+		// The suffix keeps the mark in exports and screen readers, which do
+		// not read the muted tone.
+		Label: op("concat", rec("byProduct", "name"), op("if", inactive, lit(" (inactive)"), lit(""))),
+		Muted: inactive,
+	}}
+}
+
+// sbpSort is the report's order: the line keys (the document's date, its
+// posting order, the line's position) order a product's opened rows, and core
+// skips them on the product level because they read a line; then under
+// Largest sales the product's Amount, largest first; then the name, ignoring
+// case.
+func sbpSort() []reports.SortKey {
+	return []reports.SortKey{
+		{Formula: fld("document", "date")},
+		{Formula: fld("document", "sequence")},
+		{Formula: fld("position")},
+		{Formula: op("if", op("eq", prm("order"), lit("sales")), op("sum", saleAmount()), lit(0)), Dir: "desc"},
+		{Formula: op("lower", rec("byProduct", "name"))},
+	}
+}
+
+// sbpDisplay is the fixture's SALES_BY_PRODUCT_DISPLAY: one line from
+// 720 px; a long product name or sale line label wraps to three lines, and
+// the figures are never cut; on a phone the name on its own line, then
+// Quantity and Amount, then % of sales and Avg price.
+func sbpDisplay() *reports.Display {
+	return &reports.Display{
+		OneLine: &reports.DisplayOneLine{MinWidth: "720px"},
+		Columns: map[string]reports.ColumnFit{
+			"name":     {WhiteSpace: "normal", LineClamp: 3},
+			"quantity": {MinWidth: "max-content"},
+			"amount":   {MinWidth: "max-content"},
+			"pct":      {MinWidth: "max-content"},
+			"avg":      {MinWidth: "max-content"},
+		},
+		Layouts: []reports.DisplayLayout{{
+			Width:  "mobile",
+			Tracks: 2,
+			Cells: []reports.DisplayCell{
+				{Col: "name", Line: 1, Span: 2},
+				{Col: "quantity", Line: 2},
+				{Col: "amount", Line: 2},
+				{Col: "pct", Line: 3},
+				{Col: "avg", Line: 3},
+			},
+		}},
+	}
+}

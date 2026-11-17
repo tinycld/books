@@ -1,6 +1,10 @@
 import { expect, type Page, test } from '@playwright/test'
 import { CUSTOMER_IDS, CUSTOMERS } from '~/tinycld/books/lib/customer-form-fixture'
-import { SALES_BY_CUSTOMER_DESCRIPTION } from '~/tinycld/books/lib/sales-reports-fixture'
+import { PRODUCT_IDS, PRODUCTS } from '~/tinycld/books/lib/products-services-fixture'
+import {
+    SALES_BY_CUSTOMER_DESCRIPTION,
+    SALES_BY_PRODUCT_DESCRIPTION,
+} from '~/tinycld/books/lib/sales-reports-fixture'
 import { DESKTOP } from './account-register-helpers'
 import {
     browserToday,
@@ -19,16 +23,22 @@ import {
     uniqueName,
 } from './customer-form-helpers'
 import { INVOICE_URL, lineCellTestId, pickLineProduct } from './invoice-helpers'
+import { SALES_RECEIPT_URL } from './sales-receipt-helpers'
 import {
     amountCents,
     chooseSalesOrder,
+    DISCOUNT_PRODUCT,
     filterSalesTo,
+    filterToProducts,
     openSalesByCustomer,
+    openSalesByProduct,
     postSaleBook,
     pressReportRow,
     rowColors,
+    type SaleDocument,
     type SalesRow,
     salesByCustomerHubRow,
+    salesByProductHubRow,
     salesRows,
 } from './sales-reports-helpers'
 
@@ -392,6 +402,304 @@ async function postSubInvoice(page: Page, product: string, rate: string, amount:
     await expect(page).toHaveURL(INVOICE_URL)
     await expect(page.getByTestId('invoice-read-only')).toBeVisible()
 }
+
+// Sales by Product/Service (sales-reports checkpoint 2), read under the Customer filter set to
+// the test's own customer, so every product row and the Total are the test's own.
+
+const QUANTITY = 'Quantity'
+const AMOUNT = 'Amount'
+const AVG = 'Avg price'
+
+// The seeded inactive product with a posted sale (seed.ts seedSalesReports, plan D4).
+const FAX_SETUP = PRODUCTS.find(product => product.id === PRODUCT_IDS.faxSetup)?.name ?? ''
+// The seeded bundles (seed.ts creates every product of PRODUCTS).
+const SEEDED_BUNDLES = PRODUCTS.filter(product => product.type === 'bundle').map(p => p.name)
+
+function textIn(row: SalesRow | undefined, column: string): string {
+    return row?.cells[column] ?? ''
+}
+
+function centsIn(row: SalesRow | undefined, column: string): number {
+    const text = textIn(row, column)
+    if (text === '') throw new Error(`no ${column} figure on the row "${row?.label}"`)
+    return centsOf(text)
+}
+
+// A % of sales text as a number: "12.35%", "-1.20%", "−1.20%" or "(1.20%)".
+function percentOf(text: string): number {
+    const isNegative = /^[-−(]/.test(text)
+    const magnitude = Number.parseFloat(text.replace(/[^\d.]/g, ''))
+    return isNegative ? -magnitude : magnitude
+}
+
+function productRow(rows: SalesRow[], name: string): SalesRow | undefined {
+    return rows.find(row => row.kind === 'group' && row.depth === 0 && row.label === name)
+}
+
+// The depth-0 group labels before the Total, in screen order.
+function productLabels(rows: SalesRow[]): string[] {
+    const end = rows.findIndex(row => row.kind === 'total')
+    return (end < 0 ? rows : rows.slice(0, end))
+        .filter(row => row.kind === 'group' && row.depth === 0)
+        .map(row => row.label)
+}
+
+function sameSet(a: readonly string[], b: readonly string[]): boolean {
+    return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
+}
+
+function lineCents(document: SaleDocument, index: number): number {
+    const line = document.lines[index]
+    if (!line) throw new Error(`no line ${index + 1} on document ${document.number}`)
+    return line.amountCents
+}
+
+// Sales by Product/Service filtered to the customer `name`: settled when its product rows
+// are exactly `products` and `extra` holds.
+function filterProductsToCustomer(
+    page: Page,
+    name: string,
+    products: readonly string[],
+    extra: (rows: SalesRow[]) => boolean = () => true
+): Promise<SalesRow[]> {
+    return filterSalesTo(
+        page,
+        'customers',
+        [{ label: name }],
+        rows =>
+            rows.at(-1)?.kind === 'total' && sameSet(productLabels(rows), products) && extra(rows)
+    )
+}
+
+test.describe('sales-reports: Sales by Product/Service', () => {
+    test("each product's quantity, amount, share and average price, with a Total that has no quantity", async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const book = await postSaleBook(page)
+        const name = book.customer.name
+
+        await openBooksReports(page)
+        const hub = salesByProductHubRow(page)
+        await expect(hub).toBeVisible()
+        await expect(hub).toContainText(SALES_BY_PRODUCT_DESCRIPTION)
+        await openSalesByProduct(page)
+
+        const rows = await filterProductsToCustomer(page, name, [
+            book.service,
+            book.goods,
+            DISCOUNT_PRODUCT,
+        ])
+        await expect(page.getByTestId('report-header-param-customers')).toHaveText(
+            `Customer: ${name}`
+        )
+        const serviceAmount = lineCents(book.invoice, 0) + lineCents(book.receipt, 0)
+        const goodsAmount = lineCents(book.invoice, 1)
+        const discountAmount = lineCents(book.invoice, 2)
+        expect(discountAmount).toBeLessThan(0)
+
+        const service = productRow(rows, book.service)
+        expect(textIn(service, QUANTITY)).toBe('2.5')
+        expect(centsIn(service, AMOUNT)).toBe(serviceAmount)
+        expect(centsIn(service, AVG)).toBe(Math.round(serviceAmount / 2.5))
+        const goods = productRow(rows, book.goods)
+        expect(textIn(goods, QUANTITY)).toBe('2')
+        expect(centsIn(goods, AMOUNT)).toBe(goodsAmount)
+        expect(centsIn(goods, AVG)).toBe(Math.round(goodsAmount / 2))
+        const discount = productRow(rows, DISCOUNT_PRODUCT)
+        expect(centsIn(discount, AMOUNT)).toBe(discountAmount)
+        expect(textIn(discount, QUANTITY)).toBe('')
+        expect(textIn(discount, AVG)).toBe('')
+
+        const shares = [service, goods, discount].map(row => textIn(row, SHARE))
+        for (const share of shares) expect(share).toMatch(/^[-−(]?\d+\.\d{2}%\)?$/)
+        expect(percentOf(textIn(discount, SHARE))).toBeLessThan(0)
+        const shareSum = shares.reduce((acc, share) => acc + percentOf(share), 0)
+        expect(Math.abs(shareSum - 100)).toBeLessThanOrEqual(0.02)
+
+        const total = rows.at(-1)
+        const totalAmount = centsIn(total, AMOUNT)
+        expect(totalAmount).toBe(serviceAmount + goodsAmount + discountAmount)
+        expect(textIn(total, SHARE)).toBe('100.00%')
+        expect(textIn(total, QUANTITY)).toBe('')
+        expect(textIn(total, AVG)).toBe('')
+
+        await openSalesByCustomer(page)
+        const customerRows = await filterToOwnCustomer(page, name)
+        expect(salesOf(customerRows.at(-1))).toBe(totalAmount)
+    })
+
+    test('opening a product shows its sale lines, and a sale line opens its sales receipt', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const book = await postSaleBook(page)
+        const name = book.customer.name
+        const today = await browserToday(page)
+
+        await openSalesByProduct(page)
+        await filterProductsToCustomer(page, name, [book.service, book.goods, DISCOUNT_PRODUCT])
+        const opened = await openSalesRow(page, book.service)
+        const lines = linesUnder(opened, book.service)
+        const invoiceLabel = `${today} · Invoice ${book.invoice.number} · ${name}`
+        const receiptLabel = `${today} · Sales receipt ${book.receipt.number} · ${name}`
+        expect(lines.map(line => line.label).sort()).toEqual([invoiceLabel, receiptLabel].sort())
+
+        const invoiceLine = lines.find(line => line.label === invoiceLabel)
+        const invoiceAmount = lineCents(book.invoice, 0)
+        expect(textIn(invoiceLine, QUANTITY)).toBe('1.5')
+        expect(centsIn(invoiceLine, AMOUNT)).toBe(invoiceAmount)
+        expect(centsIn(invoiceLine, AVG)).toBe(Math.round(invoiceAmount / 1.5))
+        expect(textIn(invoiceLine, SHARE)).toBe('')
+        const receiptLine = lines.find(line => line.label === receiptLabel)
+        const receiptAmount = lineCents(book.receipt, 0)
+        expect(textIn(receiptLine, QUANTITY)).toBe('1')
+        expect(centsIn(receiptLine, AMOUNT)).toBe(receiptAmount)
+        expect(centsIn(receiptLine, AVG)).toBe(receiptAmount)
+        expect(textIn(receiptLine, SHARE)).toBe('')
+
+        if (!receiptLine) throw new Error('no sale line of the sales receipt')
+        await pressReportRow(page, receiptLine.id)
+        await expect(page).toHaveURL(SALES_RECEIPT_URL)
+        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${book.receipt.id}$`))
+        await expect(page.getByTestId('sales-receipt-title')).toHaveText(
+            `Sales receipt ${book.receipt.number}`
+        )
+    })
+
+    test('a void of the sales receipt lowers both reports', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const book = await postSaleBook(page)
+        const name = book.customer.name
+        const products = [book.service, book.goods, DISCOUNT_PRODUCT]
+
+        await openSalesByProduct(page)
+        const before = await filterProductsToCustomer(page, name, products)
+        const serviceBefore = productRow(before, book.service)
+        expect(textIn(serviceBefore, QUANTITY)).toBe('2.5')
+        expect(centsIn(serviceBefore, AMOUNT)).toBe(
+            lineCents(book.invoice, 0) + lineCents(book.receipt, 0)
+        )
+        const totalBefore = centsIn(before.at(-1), AMOUNT)
+
+        // To the receipt's read view through its sale line, and void it there.
+        const opened = await openSalesRow(page, book.service)
+        const receiptLine = linesUnder(opened, book.service).find(line =>
+            line.label.includes(` · Sales receipt ${book.receipt.number}`)
+        )
+        if (!receiptLine) throw new Error('no sale line of the sales receipt')
+        await pressReportRow(page, receiptLine.id)
+        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${book.receipt.id}$`))
+        await page.getByTestId('sales-receipt-read-void').click()
+        await page.getByTestId('void-confirm').click()
+        await expect(page.getByTestId('sales-receipt-badge')).toHaveText('Void')
+
+        await openSalesByProduct(page)
+        const after = await filterProductsToCustomer(
+            page,
+            name,
+            products,
+            rows => textIn(productRow(rows, book.service), QUANTITY) === '1.5'
+        )
+        expect(centsIn(productRow(after, book.service), AMOUNT)).toBe(lineCents(book.invoice, 0))
+        const totalAfter = centsIn(after.at(-1), AMOUNT)
+        expect(totalAfter).toBe(totalBefore - book.receipt.subtotalCents)
+
+        await openSalesByCustomer(page)
+        const customerRows = await filterToOwnCustomer(page, name)
+        expect(salesOf(customerRows.at(-1))).toBe(totalAfter)
+    })
+
+    test('the Product filter and the Order choice', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const book = await postSaleBook(page)
+        const name = book.customer.name
+        const products = [book.service, book.goods, DISCOUNT_PRODUCT]
+
+        await openSalesByProduct(page)
+        const all = await filterProductsToCustomer(page, name, products)
+        const amounts = new Map(products.map(p => [p, centsIn(productRow(all, p), AMOUNT)]))
+
+        const one = await filterToProducts(page, [book.service])
+        expect(productLabels(one)).toEqual([book.service])
+        expect(centsIn(one.at(-1), AMOUNT)).toBe(amounts.get(book.service))
+        await expect(page.getByTestId('report-header-param-products')).toHaveText(
+            `Product: ${book.service}`
+        )
+
+        await page.getByTestId('report-param-products').click()
+        const picker = page.getByTestId('report-filter-picker')
+        await expect(picker).toBeVisible()
+        await expect(picker.getByTestId('report-filter-group-service')).toContainText(
+            'All Service items'
+        )
+        await expect(picker.getByTestId('report-filter-group-non_inventory')).toContainText(
+            'All Non-inventory items'
+        )
+        await expect(picker.getByTestId('report-filter-group-bundle')).toHaveCount(0)
+        expect(SEEDED_BUNDLES.length).toBeGreaterThan(0)
+        for (const bundle of SEEDED_BUNDLES) {
+            await picker.getByTestId('report-filter-search').fill(bundle)
+            await expect(picker.getByTestId('report-filter-no-matches')).toBeVisible()
+        }
+        await page.keyboard.press('Escape')
+        await expect(picker).toBeHidden()
+
+        await page.getByTestId('report-filter-remove-products').click()
+        await expect(page.getByTestId('report-param-products')).toHaveCount(0)
+        await filterSettled(
+            page,
+            rows => sameSet(productLabels(rows), products),
+            'the three products back after the Product filter is removed'
+        )
+        const byAmount = [...products].sort((a, b) => (amounts.get(b) ?? 0) - (amounts.get(a) ?? 0))
+        const byName = [...products].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1))
+        expect(byAmount).not.toEqual(byName)
+        await chooseSalesOrder(page, 'sales')
+        await filterSettled(
+            page,
+            rows => JSON.stringify(productLabels(rows)) === JSON.stringify(byAmount),
+            'the products in Amount order, largest first'
+        )
+        await chooseSalesOrder(page, 'name')
+        await filterSettled(
+            page,
+            rows => JSON.stringify(productLabels(rows)) === JSON.stringify(byName),
+            'the products in name order'
+        )
+
+        // The seeded sale of an inactive product (plan D4), in a period that holds it.
+        await page.getByTestId('report-filter-remove-customers').click()
+        await expect(page.getByTestId('report-param-customers')).toHaveCount(0)
+        await choosePeriod(page, { from: SEEDED_PERIOD.from, to: SEEDED_PERIOD.to })
+        await expect(page.getByTestId('report-document-period')).toHaveText(SEEDED_PERIOD.words)
+        expect(FAX_SETUP, 'Fax line setup in the product fixture').not.toBe('')
+        const inactiveLabel = `${FAX_SETUP} (inactive)`
+        const fax = await filterSalesTo(
+            page,
+            'products',
+            [{ label: FAX_SETUP }],
+            rows =>
+                JSON.stringify(productLabels(rows)) === JSON.stringify([inactiveLabel]) &&
+                rows.at(-1)?.kind === 'total'
+        )
+        const faxRow = productRow(fax, inactiveLabel)
+        const total = fax.at(-1)
+        if (!faxRow || !total) throw new Error(`no mounted row "${inactiveLabel}" and Total`)
+        const colors = await rowColors(page, faxRow.id, 'amount')
+        const totalColors = await rowColors(page, total.id, 'amount')
+        expect(colors.label).not.toBe('')
+        expect(colors.label).toBe(colors.figure)
+        expect(colors.label).not.toBe(totalColors.label)
+
+        // Empty: a period with no posted sale line shows core's empty text and no row.
+        await choosePeriod(page, { from: '2020-01-01', to: '2020-12-31' })
+        await expect(page.getByTestId('report-empty')).toContainText(
+            'No rows for January 1 – December 31, 2020'
+        )
+        await expect(page.locator('[data-testid^="report-row-"]')).toHaveCount(0)
+    })
+})
 
 // Polls the mounted rows until `settled` holds; returns them.
 async function filterSettled(

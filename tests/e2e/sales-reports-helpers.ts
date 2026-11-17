@@ -1,6 +1,9 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { chooseParamOption, hubRow } from '@tinycld/core/e2e-helpers'
-import { SALES_BY_CUSTOMER_TITLE } from '~/tinycld/books/lib/sales-reports-fixture'
+import {
+    SALES_BY_CUSTOMER_TITLE,
+    SALES_BY_PRODUCT_TITLE,
+} from '~/tinycld/books/lib/sales-reports-fixture'
 import { openBooksReports, reportSnapshot } from './books-report-helpers'
 import { centsOf } from './customer-balance-helpers'
 import { createCustomer, customerPath } from './customer-form-helpers'
@@ -83,6 +86,51 @@ export async function openSalesByCustomer(page: Page): Promise<void> {
     await expect(
         page.getByTestId('report-table').or(page.getByTestId('report-empty'))
     ).toBeVisible()
+}
+
+// The Sales by Product/Service row of the Books hub: its title alone.
+export function salesByProductHubRow(page: Page): Locator {
+    return hubRow(page, SALES_BY_PRODUCT_TITLE).filter({
+        has: page.getByText(SALES_BY_PRODUCT_TITLE, { exact: true }),
+    })
+}
+
+// The shipped Sales by Product/Service from the Books hub, as openSalesByCustomer opens its
+// report: the table or the empty text shows.
+export async function openSalesByProduct(page: Page): Promise<void> {
+    await openBooksReports(page)
+    const row = salesByProductHubRow(page)
+    await expect(row, `the Books hub lists ${SALES_BY_PRODUCT_TITLE}`).toBeVisible()
+    await row.click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+    await expect(page.getByTestId('report-document-title')).toHaveText(SALES_BY_PRODUCT_TITLE)
+    await expect(
+        page.getByTestId('report-table').or(page.getByTestId('report-empty'))
+    ).toBeVisible()
+}
+
+// The labels of the mounted depth-0 group rows before the Total, sorted.
+function depth0Labels(rows: SalesRow[]): string[] {
+    const end = rows.findIndex(row => row.kind === 'total')
+    return (end < 0 ? rows : rows.slice(0, end))
+        .filter(row => row.kind === 'group' && row.depth === 0)
+        .map(row => row.label)
+        .sort()
+}
+
+/**
+ * Narrows the open Sales by Product/Service to the products `names` (filterSalesTo on
+ * `products`), settled when the mounted depth-0 rows before the Total are exactly the names.
+ * An inactive product's row carries " (inactive)", so pick it with filterSalesTo.
+ */
+export function filterToProducts(page: Page, names: readonly string[]): Promise<SalesRow[]> {
+    const want = JSON.stringify([...names].sort())
+    return filterSalesTo(
+        page,
+        'products',
+        names.map(label => ({ label })),
+        rows => rows.at(-1)?.kind === 'total' && JSON.stringify(depth0Labels(rows)) === want
+    )
 }
 
 // The amount cell of an invoice or receipt line, read once its figure shows.

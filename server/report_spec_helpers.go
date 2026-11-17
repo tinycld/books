@@ -153,6 +153,26 @@ func customersParam() reports.ParamDef {
 	}
 }
 
+// productsParam is the Product param of Sales by Product/Service: any number
+// of products and services, inactive ones included, grouped by type with a
+// pick of a whole type ("All Service items"). Bundles are left out: a bundle
+// is never on a line. The document header names the picks under the period
+// ("Product: Monthly bookkeeping").
+func productsParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "products", Type: reports.ParamChoice, Label: "Product", Multiple: true,
+		Header: "Product: {label}",
+		OptionsFrom: &reports.OptionsFrom{
+			Source:     "books.products",
+			Value:      path("id"),
+			Label:      path("name"),
+			Group:      path("type"),
+			GroupLabel: "All {group} items",
+			Where:      op("ne", fld("type"), lit("bundle")),
+		},
+	}
+}
+
 // receivableLines are the filter terms of the posted Accounts receivable
 // lines on or before asOf. The Customer Balance reads them; the A/R aging
 // report (p5-ar-aging) and customer statements (p2-statements) read the same
