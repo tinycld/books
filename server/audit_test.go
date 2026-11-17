@@ -57,6 +57,40 @@ func TestAudit_LabelsASalesReceiptAndItsLines(t *testing.T) {
 	}
 }
 
+// Credit memo spec §4.1: a credit memo's audit row is "Credit memo 1001", or
+// "Draft credit memo" while it has no number; a line's row follows its memo
+// ("Credit memo 1001: line 2").
+func TestAudit_LabelsACreditMemoAndItsLines(t *testing.T) {
+	ce := newCreditMemoEnv(t)
+	audited := auditedCollections(ce.app)
+	memos, ok := audited["books_credit_memos"]
+	if !ok {
+		t.Fatal("books_credit_memos is not audited")
+	}
+	lines, ok := audited["books_credit_memo_lines"]
+	if !ok {
+		t.Fatal("books_credit_memo_lines is not audited")
+	}
+	memo := ce.mkCreditMemo(t, nil)
+	mkCreditMemoLine(t, ce.app, memo, 0, item(ce.service, 1, 45000, false))
+	line := mkCreditMemoLine(t, ce.app, memo, 1, item(ce.accessPoint, 1, 18900, false))
+
+	if got, want := memos.ExtractLabel(reload(t, ce.app, "books_credit_memos", memo.Id)), "Draft credit memo"; got != want {
+		t.Errorf("draft credit memo label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, ce.app, "books_credit_memo_lines", line.Id)), "Draft credit memo: line 2"; got != want {
+		t.Errorf("draft credit memo line label = %q, want %q", got, want)
+	}
+
+	posted := mustPostCreditMemo(t, ce.app, memo.Id, ce.users.bookkeeper.Id)
+	if got, want := memos.ExtractLabel(posted), "Credit memo 1001"; got != want {
+		t.Errorf("posted credit memo label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, ce.app, "books_credit_memo_lines", line.Id)), "Credit memo 1001: line 2"; got != want {
+		t.Errorf("posted credit memo line label = %q, want %q", got, want)
+	}
+}
+
 // Receive payment spec §4.3: a payment's audit row is "Payment 1004", or "Draft
 // payment" while it has no number; an application's row names its payment and
 // its invoice ("Payment 1004: Invoice 1009").

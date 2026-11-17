@@ -214,7 +214,7 @@ func transitionQuote(tx core.App, kind salesDocKind, stored, r *core.Record) err
 	}
 	// The conversion writes the estimate's invoice under its mark.
 	if !converting {
-		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+		if err := checkSalesDocBooksFieldsKept(kind, stored, r); err != nil {
 			return err
 		}
 	}

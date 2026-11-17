@@ -6,7 +6,8 @@ import { type DocumentFeatures, SALES_FEATURES } from './sales-document-kinds'
 // `quoteReadActions` (lib/document-lifecycle.ts); Open invoice (`invoice`) is a quote's
 // only, never a posting document's. Receive payment (`receive_payment`) is an invoice's
 // only (receive-payment spec §3.9); Pay bill (`pay_bill`) is a bill's only (pay-bills spec
-// §3.9).
+// §3.9); Create credit memo (`credit_memo`) is a posted invoice's only (credit memo spec
+// §3.10).
 
 export type DocumentReadAction =
     | 'pay_bill'
@@ -14,6 +15,7 @@ export type DocumentReadAction =
     | 'edit'
     | 'void'
     | 'copy'
+    | 'credit_memo'
     | 'entry'
     | 'invoice'
     | 'pdf'
@@ -28,6 +30,7 @@ export const DOCUMENT_READ_KEYS = {
     invoice: 'i',
     receive_payment: 'r',
     pay_bill: 'p',
+    credit_memo: 'm',
 } as const
 
 export type DocumentReadKeyAction = keyof typeof DOCUMENT_READ_KEYS
@@ -61,6 +64,12 @@ export function payBillOffered(kind: string, status: DocumentStatus, balance: nu
     return kind === 'bill' && status === 'posted' && balance > 0
 }
 
+// A posted invoice is credited from its read view (credit memo spec §3.10, Q2); a void
+// one is not, and no other record is. `kind` is the record's `kindFields.kind`.
+export function creditMemoOffered(kind: string, status: DocumentStatus): boolean {
+    return kind === 'invoice' && status === 'posted'
+}
+
 // A writer edits or voids a posted document and copies any; a void document (a replaced
 // original is void too) is only copied. A reader views the journal entry and the PDF.
 // A draft opens in the form, never here, so it offers nothing. The posting rule: every
@@ -68,14 +77,16 @@ export function payBillOffered(kind: string, status: DocumentStatus, balance: nu
 // offers no Download PDF. Receive payment comes first for a writer on a posted document
 // when `extra.canReceivePayment` is set (the read view sets it only for an invoice with a
 // balance above zero), and Pay bill when `extra.canPayBill` is set (only for a bill with a
-// balance above zero).
+// balance above zero). Create credit memo comes after Copy when
+// `extra.canCreateCreditMemo` is set (only for a posted invoice).
 export function documentReadActions(
     status: DocumentStatus,
     canWrite: boolean,
     features: Pick<DocumentFeatures, 'pdf'> = SALES_FEATURES,
-    extra: { canReceivePayment: boolean; canPayBill: boolean } = {
+    extra: { canReceivePayment: boolean; canPayBill: boolean; canCreateCreditMemo: boolean } = {
         canReceivePayment: false,
         canPayBill: false,
+        canCreateCreditMemo: false,
     }
 ): DocumentReadAction[] {
     if (status === 'draft') return []
@@ -84,7 +95,8 @@ export function documentReadActions(
     if (status === 'posted') {
         const receive: DocumentReadAction[] = extra.canReceivePayment ? ['receive_payment'] : []
         const pay: DocumentReadAction[] = extra.canPayBill ? ['pay_bill'] : []
-        return [...pay, ...receive, 'edit', 'void', 'copy', 'entry', ...pdf]
+        const credit: DocumentReadAction[] = extra.canCreateCreditMemo ? ['credit_memo'] : []
+        return [...pay, ...receive, 'edit', 'void', 'copy', ...credit, 'entry', ...pdf]
     }
     return ['copy', 'entry', ...pdf]
 }

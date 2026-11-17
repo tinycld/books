@@ -12,11 +12,13 @@ import { BILL_IDS, BILL_LINES, BILLS } from '../tinycld/books/lib/bill-form-fixt
 import { bigFigureText, SALES_RECEIPT_MESSAGES } from '../tinycld/books/lib/document-messages'
 import { documentScreenState } from '../tinycld/books/lib/document-screen-state'
 import { shownDocumentTotals } from '../tinycld/books/lib/document-tax'
+import { CREDIT_MEMO_MESSAGES } from '../tinycld/books/lib/document-texts'
 import { lineTableSubtotals } from '../tinycld/books/lib/document-values'
 import { EXPENSE_IDS, EXPENSE_LINES, EXPENSES } from '../tinycld/books/lib/expense-form-fixture'
 import { maxStoredAmount } from '../tinycld/books/lib/money-text'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     EXPENSE_KIND,
     SALES_RECEIPT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -168,6 +170,91 @@ describe('documentScreenState for a sales receipt', () => {
 
     it('is loading while the reads are not ready', () => {
         expect(documentScreenState({ ...NEW, isReady: false })).toBe('loading')
+    })
+})
+
+// The credit memo's states (spec §3.9, "as the invoice") and the texts its screen shows
+// for them. The inputs take the kind's own lifecycle.
+describe('documentScreenState for a credit memo', () => {
+    // Read inside each test, so a missing kind fails those tests and not the file.
+    const draft = (): Input => ({ ...DRAFT, lifecycle: CREDIT_MEMO_KIND.lifecycle })
+    const fresh = (): Input => ({ ...draft(), isNew: true, status: null })
+
+    it('a non-writer at new gets no-access with the credit memo text', () => {
+        expect(documentScreenState({ ...fresh(), canWrite: false })).toBe('no-access')
+        expect(CREDIT_MEMO_MESSAGES.noAccess).toBe(
+            'You need bookkeeper access to create credit memos'
+        )
+        expect(CREDIT_MEMO_KIND.messages.noAccess).toBe(CREDIT_MEMO_MESSAGES.noAccess)
+    })
+
+    it('an id with no row is not-found with the credit memo text', () => {
+        expect(documentScreenState({ ...draft(), status: null })).toBe('not-found')
+        expect(CREDIT_MEMO_MESSAGES.notFound).toBe('This credit memo does not exist')
+    })
+
+    it('a correction of a draft or a void memo cannot be edited, with the credit memo text', () => {
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'draft' })).toBe('cannot-edit')
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'void' })).toBe('cannot-edit')
+        expect(CREDIT_MEMO_MESSAGES.cannotEdit).toBe('This credit memo cannot be edited')
+    })
+
+    it('a failed read is the error with the credit memo text, even while another read loads', () => {
+        expect(documentScreenState({ ...draft(), isError: true })).toBe('error')
+        expect(documentScreenState({ ...draft(), isError: true, isReady: false })).toBe('error')
+        expect(CREDIT_MEMO_MESSAGES.loadFailed).toBe('Books could not load this credit memo.')
+    })
+
+    it('is loading while the reads are not ready', () => {
+        expect(documentScreenState({ ...fresh(), isReady: false })).toBe('loading')
+        expect(documentScreenState({ ...draft(), isReady: false })).toBe('loading')
+    })
+
+    it('a posted memo is the read view for a reader and a writer; a draft is the form for a writer', () => {
+        expect(documentScreenState({ ...draft(), status: 'posted', canWrite: false })).toBe('read')
+        expect(documentScreenState({ ...draft(), status: 'posted' })).toBe('read')
+        expect(documentScreenState(draft())).toBe('form')
+    })
+
+    // Create credit memo (spec §3.2, §3.9): `books/credit-memos/new?invoice=<id>`.
+    // `invoiceStatus` is the invoice's status, null when it does not exist or cannot be read.
+    // Only a posted invoice can be credited.
+    it('a new memo from a posted invoice is the form for a writer', () => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus: 'posted' })).toBe('form')
+    })
+
+    it.each([
+        'draft',
+        'void',
+        null,
+    ] as const)('a new memo from an invoice whose status is %s cannot be credited', invoiceStatus => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus })).toBe('cannot-credit')
+        expect(CREDIT_MEMO_KIND.messages.cannotCredit).toBe('This invoice cannot be credited')
+    })
+
+    it('no ?invoice (invoiceStatus undefined) changes nothing', () => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined })).toBe('form')
+        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined, canWrite: false })).toBe(
+            'no-access'
+        )
+        expect(documentScreenState({ ...draft(), invoiceStatus: undefined })).toBe('form')
+        expect(
+            documentScreenState({ ...draft(), status: 'posted', invoiceStatus: undefined })
+        ).toBe('read')
+    })
+
+    it('a failed read of the invoice is the error', () => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus: null, isError: true })).toBe(
+            'error'
+        )
+        expect(
+            documentScreenState({
+                ...fresh(),
+                invoiceStatus: undefined,
+                isError: true,
+                isReady: false,
+            })
+        ).toBe('error')
     })
 })
 

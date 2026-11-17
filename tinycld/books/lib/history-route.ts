@@ -10,6 +10,7 @@ export function historyHref(collection: string, id: string): string {
 export const DOCUMENT_COLLECTIONS: Record<SalesDocKey, string> = {
     invoice: 'books_invoices',
     sales_receipt: 'books_sales_receipts',
+    credit_memo: 'books_credit_memos',
     estimate: 'books_estimates',
     bill: 'books_bills',
     expense: 'books_expenses',

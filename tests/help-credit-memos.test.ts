@@ -1,0 +1,84 @@
+import { describe, expect, it } from 'vitest'
+import { readHelpTopic } from './help-topic'
+
+// The credit memo help topic (checkpoint 3 started it; checkpoint 5 completes it, spec
+// §3.10 Help): task-led, with the key map in Mac glyphs and links to its neighbours.
+const { exists, frontmatter, body } = readHelpTopic('credit-memos')
+
+const headings = [...body.matchAll(/^## (.*)$/gm)].map(m => m[1])
+
+// The body under the first second-level heading that matches `heading`, up to the next one.
+function section(heading: RegExp): string {
+    const title = headings.find(h => heading.test(h))
+    if (title === undefined) return ''
+    const rest = body.slice(body.indexOf(`## ${title}\n`) + title.length + 4)
+    const next = rest.search(/^## /m)
+    return next < 0 ? rest : rest.slice(0, next)
+}
+
+const KEYS_HEADING = /keyboard|shortcut|\bkeys\b/i
+
+describe('help/credit-memos.md', () => {
+    it('exists with a title, a summary and tags', () => {
+        expect(exists).toBe(true)
+        expect(frontmatter).toMatch(/^title:\s*\S/m)
+        expect(frontmatter).toMatch(/^summary:\s*\S/m)
+        expect(frontmatter).toMatch(/^tags:\s*\[\s*\S.*\]\s*$/m)
+    })
+
+    it.each([
+        ['give a credit', /\bgive\b.*\bcredit\b/i],
+        ['start from an invoice', /\bfrom an invoice\b/i],
+        ["the customer's balance", /\bbalance\b/i],
+        ['sales tax', /\bsales tax\b/i],
+        ['edit and void', /\bedit\b.*\bvoid\b|\bvoid\b.*\bedit\b/i],
+        ['cash basis', /\bcash basis\b/i],
+        ['keys', KEYS_HEADING],
+    ])('has a section for the task: %s', (_task, heading) => {
+        expect(
+            headings.some(h => heading.test(h)),
+            `a heading matching ${heading}`
+        ).toBe(true)
+    })
+
+    it.each([
+        'Create credit memo',
+        'Unapplied',
+        'Credit amount',
+        'For invoice',
+    ])('names "%s"', phrase => {
+        expect(body).toContain(phrase)
+    })
+
+    it.each([
+        '⌘↵',
+        '⌘⇧↵',
+        '⌘S',
+        'Esc',
+        '⌘⌫',
+        '⌘P',
+        '⌥1',
+        '⌥2',
+    ])('lists the key %s in its key map', key => {
+        expect(section(KEYS_HEADING)).toContain(key)
+    })
+
+    // A one-letter key stands alone: in a table cell, before a colon, or in backticks.
+    it.each(['E', 'V', 'C', 'J', 'M'])('lists the key %s in its key map', key => {
+        expect(section(KEYS_HEADING)).toMatch(new RegExp(`(^|[\\s|\`])${key}(?=[\\s|:\`]|$)`, 'm'))
+    })
+
+    it('writes keys with Mac glyphs only, no Ctrl', () => {
+        expect(exists).toBe(true)
+        expect(body).not.toMatch(/\bCtrl\b/)
+        expect(body).not.toMatch(/\b(Cmd|Alt|Shift)\b/)
+    })
+
+    it.each([
+        'help://books:invoices',
+        'help://books:customer-pages',
+        'help://books:sales-tax',
+    ])('links %s', link => {
+        expect(body).toContain(`(${link})`)
+    })
+})

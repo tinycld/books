@@ -115,6 +115,16 @@ describe('help/invoices.md', () => {
         expect(line, 'a line with R and Receive payment').toBeDefined()
     })
 
+    // Credit memo checkpoint 4 (spec §3.10, Q2): the action with its key, and the section.
+    it('names Create credit memo with its key M and the Credit memos section', () => {
+        expect(topicExists).toBe(true)
+        const line = body
+            .split('\n')
+            .find(l => /(^|[^\w⌘⌥⇧])M([^\w]|$)/.test(l) && /Create credit memo/.test(l))
+        expect(line, 'a line with M and Create credit memo').toBeDefined()
+        expect(body).toMatch(/\bCredit memos\b/)
+    })
+
     it('has no Ctrl or Alt keyboard text', () => {
         expect(topicExists).toBe(true)
         expect(body).not.toMatch(/\bCtrl\b/i)

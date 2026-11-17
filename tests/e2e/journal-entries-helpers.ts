@@ -51,8 +51,11 @@ export async function openEntriesList(page: Page) {
         await expect(entries.or(back).filter({ visible: true }).first()).toBeVisible()
     }
     if (await entries.isVisible()) return
-    if (await back.isVisible()) {
-        await back.click()
+    // A record pushed over another record keeps the lower one mounted but hidden, with its
+    // own Back: only the visible Back is the screen on top, and one press must reach the list.
+    const shownBack = back.filter({ visible: true }).first()
+    if (await shownBack.isVisible()) {
+        await shownBack.click()
         await expect(entries).toBeVisible()
         return
     }

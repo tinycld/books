@@ -26,6 +26,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerSalesDocGuards(app, invoiceKind)
 	registerSalesDocGuards(app, salesReceiptKind)
 	registerSalesDocGuards(app, estimateKind)
+	registerSalesDocGuards(app, creditMemoKind)
 	registerSalesDocGuards(app, billKind)
 	registerSalesDocGuards(app, expenseKind)
 	registerPaymentGuards(app)

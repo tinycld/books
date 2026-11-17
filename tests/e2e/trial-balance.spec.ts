@@ -7,7 +7,6 @@ import {
     pressToolbar,
     waitForTableFit,
 } from '@tinycld/core/e2e-helpers'
-import { ACCOUNT_TYPES } from '~/tinycld/books/lib/account-types'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     browserToday,
@@ -61,6 +60,7 @@ import { uniqueName } from './record-form-helpers'
 const EXPENSE = { type: 'Expense', detailType: 'Advertising and marketing' }
 const CREDIT_CARD = { type: 'Credit card', detailType: 'Credit card' }
 const BANK = { type: 'Bank', detailType: 'Checking' }
+const INCOME = { type: 'Income', detailType: 'Service income' }
 
 const SEEDED_EQUITY_AND_INCOME = ['Retained earnings', "Owner's Equity", 'Consulting Income']
 
@@ -85,9 +85,6 @@ const SEEDED_DEFAULT_ROWS = [
     // A sub-account: the accounts filter names it by its full path.
     'Software Subscriptions:Design Tools',
 ]
-
-// The account types in chart order (server/account_types.json, mirrored by lib).
-const CHART_TYPE_ORDER = ACCOUNT_TYPES.map(type => type.key)
 
 const SIZES = [
     ['desktop', DESKTOP],
@@ -319,13 +316,18 @@ test.describe("trial-balance: the report in core's view", () => {
             page,
         }) => {
             await startBooks(page, DESKTOP)
-            const first = uniqueName(`TB filter expense one ${sizeName}`)
-            const second = uniqueName(`TB filter expense two ${sizeName}`)
-            const bank = uniqueName(`TB filter bank ${sizeName}`)
+            // One tag in the four names, so a search for it lists only this test's
+            // accounts, whatever other specs' accounts fill the picker's first page.
+            const tag = uniqueName(`TB filter ${sizeName}`)
+            const first = `${tag} expense one`
+            const second = `${tag} expense two`
+            const bank = `${tag} bank`
+            const income = `${tag} income`
             await createAccounts(page, [
                 { name: first, kind: EXPENSE },
                 { name: second, kind: EXPENSE },
                 { name: bank, kind: BANK },
+                { name: income, kind: INCOME },
             ])
             await openEntriesFromSidebar(page)
             await postEntry(page, '10.00', first, bank)
@@ -348,21 +350,23 @@ test.describe("trial-balance: the report in core's view", () => {
             await page.getByTestId('report-param-accounts').click()
             const picker = page.getByTestId('report-filter-picker')
             await expect(picker).toBeVisible()
-            // The type groups come in chart order. The shared DB holds other specs'
-            // accounts, so the types present are some of them, in that order.
+            // The type groups come in chart order: searched to this test's four accounts,
+            // the picker lists exactly their three types, Bank, Income, Expense
+            // (server/account_types.json). A sort by type key or by label would put
+            // Expense before Income.
             const groupPicks = picker.locator('[data-testid^="report-filter-group-"]')
-            await expect.poll(() => groupPicks.count()).toBeGreaterThanOrEqual(2)
-            const shownTypes = await groupPicks.evaluateAll(picks =>
-                picks.map(pick =>
-                    (pick.getAttribute('data-testid') ?? '').slice('report-filter-group-'.length)
+            await picker.getByTestId('report-filter-search').fill(tag)
+            await expect
+                .poll(() =>
+                    groupPicks.evaluateAll(picks =>
+                        picks.map(pick =>
+                            (pick.getAttribute('data-testid') ?? '').slice(
+                                'report-filter-group-'.length
+                            )
+                        )
+                    )
                 )
-            )
-            expect(shownTypes.filter(type => !CHART_TYPE_ORDER.includes(type))).toEqual([])
-            expect(shownTypes).toEqual(
-                [...shownTypes].sort(
-                    (x, y) => CHART_TYPE_ORDER.indexOf(x) - CHART_TYPE_ORDER.indexOf(y)
-                )
-            )
+                .toEqual(['bank', 'income', 'expense'])
             await picker.getByTestId('report-filter-search').fill(first)
             const wholeType = picker.getByTestId('report-filter-group-expense')
             await expect(wholeType).toHaveText('All Expense accounts')
@@ -380,6 +384,7 @@ test.describe("trial-balance: the report in core's view", () => {
             )
             expect(expenses.labels).toContain(first)
             expect(expenses.labels).not.toContain(bank)
+            expect(expenses.labels).not.toContain(income)
 
             await page.getByTestId('report-filter-remove-accounts').click()
             await expect(page.getByTestId('report-param-accounts')).toHaveCount(0)

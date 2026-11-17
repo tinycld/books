@@ -21,6 +21,7 @@ import type {
     BooksBillPaymentLines,
     BooksBillPayments,
     BooksBills,
+    BooksCreditMemos,
     BooksCustomers,
     BooksEstimates,
     BooksExpenses,
@@ -51,6 +52,8 @@ export type DocumentScreenInput = {
     fresh?: string
     // On an invoice's new form: the estimate it is made from (Convert to invoice).
     estimate?: string
+    // On a credit memo's new form: the invoice it is made from (Create credit memo).
+    invoice?: string
 }
 
 // The columns every kind's header row has, as the generated invoice type names them,
@@ -104,12 +107,14 @@ export type ExpenseKindFields = { kind: 'expense' } & Pick<
     BooksExpenses,
     'vendor' | 'paid_from' | 'payment_method' | 'reference_no'
 >
+export type CreditMemoKindFields = { kind: 'credit_memo' } & Pick<BooksCreditMemos, 'invoice'>
 export type DocumentKindFields =
     | InvoiceKindFields
     | SalesReceiptKindFields
     | EstimateKindFields
     | BillKindFields
     | ExpenseKindFields
+    | CreditMemoKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -120,7 +125,8 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 // which its payment line names. An invoice's own fields add the estimate it was made from
 // ("From estimate <n>") and its open balance (Balance due, the badge). An estimate's own
 // fields add the invoice that was made from it ("Converted to invoice <n>"). A bill's own
-// fields add its vendor's name and its open balance (Balance due, the badge).
+// fields add its vendor's name and its open balance (Balance due, the badge). A credit
+// memo's own fields add the invoice it is for ("For invoice <n>") and its unapplied credit.
 export type DocumentRecord = SharedColumns & {
     kindFields:
         | (InvoiceKindFields & {
@@ -142,6 +148,11 @@ export type DocumentRecord = SharedColumns & {
         | (ExpenseKindFields & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
               paidFromRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
+          })
+        | (CreditMemoKindFields & {
+              invoiceRow: Pick<BooksInvoices, 'number' | 'status'> | undefined
+              // The credit not yet applied, which the server keeps.
+              balance: BooksCreditMemos['balance']
           })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
@@ -200,6 +211,7 @@ export type DocumentStart =
     | { kind: 'invoice' }
     | { kind: 'sales_receipt'; deposit: CopyDeposit }
     | { kind: 'estimate' }
+    | { kind: 'credit_memo' }
     | { kind: 'bill'; purchaseLines: PurchaseLines; vendorAccountListed?: boolean }
     | {
           kind: 'expense'
@@ -309,6 +321,9 @@ export type DocumentRead<T> = {
 // The estimate an invoice is made from (`?estimate`), as its own row.
 export type EstimateSource = BooksEstimates
 
+// The invoice a credit memo is made from (`?invoice`), as its own row.
+export type InvoiceSource = BooksInvoices
+
 export type DocumentScreenReads = {
     // The row as the form keeps it: while the form is held through a delete, the last row
     // read (the store already dropped it).
@@ -320,6 +335,11 @@ export type DocumentScreenReads = {
     // lines in order. Idle (ready and empty) on every other form and kind.
     estimateSource: DocumentRead<EstimateSource | undefined>
     estimateSourceLines: DocumentRead<DocumentLineRow[]>
+    // On a credit memo's new form with `?invoice`, or a new correction of a linked memo:
+    // the invoice it is made from (or names) and its lines in order. Idle (ready and
+    // empty) on every other form and kind.
+    invoiceSource: DocumentRead<InvoiceSource | undefined>
+    invoiceSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
     // On a posted or void invoice or bill: the posted payments applied to it, oldest
     // first. Idle (ready and empty) on every other form and kind.
@@ -425,6 +445,14 @@ export const NO_ESTIMATE_SOURCE: Pick<
     estimateSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
     estimateSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
 }
+
+// The invoice reads of a form that is not made from an invoice: ready, empty, never
+// failed.
+export const NO_INVOICE_SOURCE: Pick<DocumentScreenReads, 'invoiceSource' | 'invoiceSourceLines'> =
+    {
+        invoiceSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
+        invoiceSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
+    }
 
 // The payment read of every kind but the invoice and the bill: ready, empty, never failed.
 export const NO_DOCUMENT_PAYMENTS: Pick<DocumentScreenReads, 'documentPayments'> = {

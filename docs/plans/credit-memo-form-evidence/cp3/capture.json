@@ -1,0 +1,1022 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "./new",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "draft",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-save-draft"
+                },
+                {
+                    "waitFor": "Draft credit memo"
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 1500
+        },
+        {
+            "name": "draft-phone",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-save-draft"
+                },
+                {
+                    "waitFor": "Draft credit memo"
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 2600
+        },
+        {
+            "name": "correction",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pushPath": "/a/books/credit-memos/new?replaces=$urlId"
+                },
+                {
+                    "waitFor": "credit-memo-replace-note"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 1500
+        },
+        {
+            "name": "correction-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pushPath": "/a/books/credit-memos/new?replaces=$urlId"
+                },
+                {
+                    "waitFor": "credit-memo-replace-note"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 2600
+        },
+        {
+            "name": "exempt",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Northwind Traders"
+                },
+                {
+                    "clickMenuItem": "Northwind Traders"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fill": "form-input-message",
+                    "value": "Resale certificate CO-98-01234-0000 on file."
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-save-draft"
+                },
+                {
+                    "waitFor": "Draft credit memo"
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "credit-memo-post"
+                },
+                {
+                    "waitFor": "form-field-customer-error"
+                },
+                {
+                    "waitFor": "Lines is required"
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "./errors",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "credit-memo-post"
+                },
+                {
+                    "waitFor": "form-field-customer-error"
+                },
+                {
+                    "waitFor": "Lines is required"
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "pause": 300
+                }
+            ]
+        },
+        {
+            "name": "pdf-unsaved",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new?tab=pdf",
+            "ready": "credit-memo-pdf-unsaved",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "./pdf-unsaved",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new?tab=pdf",
+            "ready": "credit-memo-pdf-unsaved",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "pdf-stale",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-save-draft"
+                },
+                {
+                    "waitFor": "Draft credit memo"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count by Friday"
+                },
+                {
+                    "click": "credit-memo-tab-pdf"
+                },
+                {
+                    "waitFor": "credit-memo-pdf-stale"
+                },
+                {
+                    "waitFor": "credit-memo-pdf"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "name": "./pdf-stale",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-save-draft"
+                },
+                {
+                    "waitFor": "Draft credit memo"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count by Friday"
+                },
+                {
+                    "click": "credit-memo-tab-pdf"
+                },
+                {
+                    "waitFor": "credit-memo-pdf-stale"
+                },
+                {
+                    "waitFor": "credit-memo-pdf"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "name": "posted",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 1700
+        },
+        {
+            "name": "posted-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 3600
+        },
+        {
+            "name": "phone-more",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "click": "credit-memo-read-more"
+                },
+                {
+                    "waitFor": "credit-memo-read-void"
+                }
+            ],
+            "stable": "credit-memo-read-void"
+        },
+        {
+            "name": "void",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-post"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "click": "credit-memo-read-void"
+                },
+                {
+                    "click": "void-confirm"
+                },
+                {
+                    "waitFor": "credit-memo-voided-by"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "void-phone",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "height": 2600,
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-post"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "click": "credit-memo-read-more"
+                },
+                {
+                    "click": "credit-memo-read-void"
+                },
+                {
+                    "click": "void-confirm"
+                },
+                {
+                    "waitFor": "credit-memo-voided-by"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "reader",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 1700
+        },
+        {
+            "name": "reader-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                }
+            ],
+            "height": 3600
+        },
+        {
+            "name": "no-access",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "./no-access",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "cannot-edit",
+            "widths": [390],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-save-draft"
+                },
+                {
+                    "waitFor": "Draft credit memo"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "pushPath": "/a/books/credit-memos/new?replaces=$urlId"
+                },
+                {
+                    "waitFor": "credit-memo-cannot-edit"
+                }
+            ]
+        },
+        {
+            "name": "./cannot-edit",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "click": "form-table-lines-add"
+                },
+                {
+                    "clickLabel": "Product or service, row 2"
+                },
+                {
+                    "clickMenuItem": "Cat6 patch cable, 10 ft"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Waiting for the foundation to confirm the cable count"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "click": "credit-memo-save-draft"
+                },
+                {
+                    "waitFor": "Draft credit memo"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "pushPath": "/a/books/credit-memos/new?replaces=$urlId"
+                },
+                {
+                    "waitFor": "credit-memo-cannot-edit"
+                }
+            ]
+        },
+        {
+            "name": "not-found",
+            "widths": [390],
+            "url": "/a/books/credit-memos/doesnotexist000",
+            "ready": "credit-memo-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "./not-found",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/doesnotexist000",
+            "ready": "credit-memo-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "widths": [390],
+            "url": "/a/books/credit-memos/doesnotexist000",
+            "ready": "credit-memo-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_credit_memos",
+                "hold": true
+            }
+        },
+        {
+            "name": "./loading",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/doesnotexist000",
+            "ready": "credit-memo-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_credit_memos",
+                "hold": true
+            }
+        },
+        {
+            "name": "error",
+            "widths": [390],
+            "url": "/a/books/credit-memos/doesnotexist000",
+            "ready": "credit-memo-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_credit_memos",
+                "status": 400
+            }
+        },
+        {
+            "name": "./error",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/doesnotexist000",
+            "ready": "credit-memo-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_credit_memos",
+                "status": 400
+            }
+        },
+        {
+            "name": "pdf-posted",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "click": "credit-memo-tab-pdf"
+                },
+                {
+                    "waitFor": "credit-memo-pdf"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        },
+        {
+            "name": "./pdf-posted",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "click": "credit-memo-tab-pdf"
+                },
+                {
+                    "waitFor": "credit-memo-pdf"
+                },
+                {
+                    "pause": 1500
+                }
+            ]
+        }
+    ]
+}

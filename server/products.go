@@ -58,15 +58,16 @@ var productReferences = []productReference{
 	{collection: "books_bundle_items", field: "product", distinct: "bundle", message: productOnBundlesMessage},
 	{collection: "books_invoice_lines", field: "product", distinct: "invoice", message: productOnInvoicesMessage},
 	{collection: "books_sales_receipt_lines", field: "product", distinct: "sales_receipt", message: productOnSalesReceiptsMessage},
+	{collection: "books_credit_memo_lines", field: "product", distinct: "credit_memo", message: productOnCreditMemosMessage},
 	{collection: "books_estimate_lines", field: "product", distinct: "estimate", message: productOnEstimatesMessage},
 	{collection: billLinesCollection, field: "product", distinct: "bill", message: productOnBillsMessage},
 	{collection: expenseLinesCollection, field: "product", distinct: "expense", message: productOnExpensesMessage},
 }
 
 // The delete refusals of a product on invoice lines, counted by invoice, on
-// sales receipt lines, counted by sales receipt, on estimate lines, counted
-// by estimate, on bill lines, counted by bill, and on expense lines, counted
-// by expense.
+// sales receipt lines, counted by sales receipt, on credit memo lines, counted
+// by credit memo, on estimate lines, counted by estimate, on bill lines,
+// counted by bill, and on expense lines, counted by expense.
 const (
 	msgProductOnOneBill         = "This product or service is on 1 bill. Make it inactive instead."
 	msgProductOnBills           = "This product or service is on %d bills. Make it inactive instead."
@@ -76,6 +77,8 @@ const (
 	msgProductOnInvoices        = "This product or service is on %d invoices. Make it inactive instead."
 	msgProductOnOneSalesReceipt = "This product or service is on 1 sales receipt. Make it inactive instead."
 	msgProductOnSalesReceipts   = "This product or service is on %d sales receipts. Make it inactive instead."
+	msgProductOnOneCreditMemo   = "This product or service is on 1 credit memo. Make it inactive instead."
+	msgProductOnCreditMemos     = "This product or service is on %d credit memos. Make it inactive instead."
 	msgProductOnOneEstimate     = "This product or service is on 1 estimate. Make it inactive instead."
 	msgProductOnEstimates       = "This product or service is on %d estimates. Make it inactive instead."
 )
@@ -293,6 +296,13 @@ func productOnSalesReceiptsMessage(count int) string {
 		return msgProductOnOneSalesReceipt
 	}
 	return fmt.Sprintf(msgProductOnSalesReceipts, count)
+}
+
+func productOnCreditMemosMessage(count int) string {
+	if count == 1 {
+		return msgProductOnOneCreditMemo
+	}
+	return fmt.Sprintf(msgProductOnCreditMemos, count)
 }
 
 func productOnEstimatesMessage(count int) string {

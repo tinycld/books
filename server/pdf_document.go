@@ -37,6 +37,7 @@ type pdfDocument struct {
 	Dates         []pdfDate  // in print order: "Date", "Due"
 	Expiration    string     // YYYY-MM-DD, printed as "Expiration date" under the dates when set; only an estimate sets it
 	Payment       string     // printed under the dates when set: "Check · 43567"; the invoice leaves it empty
+	Source        string     // printed under the dates when set: "For invoice 1004"; only a linked credit memo sets it
 	Company       pdfCompany // the seller, from books_settings
 	Parties       []pdfParty // "Bill to", "Ship to"
 	Lines         []pdfLine
@@ -140,6 +141,7 @@ type pdfView struct {
 	Title, Number string
 	Dates         []pdfText
 	Payment       string
+	Source        string
 	Company       pdfBlock
 	Parties       []pdfBlock
 	Rows          []pdfRow
@@ -175,7 +177,10 @@ type pdfBrand struct {
 
 func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	money := func(cents int64) string { return formatMoney(cents, doc.Currency) }
-	v := pdfView{Title: doc.Title, Number: doc.Number, Payment: strings.TrimSpace(doc.Payment), Brand: brandOf(org)}
+	v := pdfView{
+		Title: doc.Title, Number: doc.Number, Payment: strings.TrimSpace(doc.Payment),
+		Source: strings.TrimSpace(doc.Source), Brand: brandOf(org),
+	}
 	for _, d := range doc.Dates {
 		v.Dates = append(v.Dates, pdfText{Label: d.Label, Text: formatDay(d.Day)})
 	}

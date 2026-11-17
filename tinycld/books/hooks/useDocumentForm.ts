@@ -6,7 +6,7 @@ import { type FormHost, useFormHost } from '@tinycld/core/lib/forms/use-form-hos
 import { log } from '@tinycld/core/lib/logger'
 import { z } from '@tinycld/core/ui/form'
 import { useFormCreate, useFormEdit, useHostUi } from '@tinycld/core/ui/forms'
-import { type RefObject, useEffect, useMemo, useRef } from 'react'
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useWatch } from 'react-hook-form'
 import {
     type DocumentKind,
@@ -112,14 +112,21 @@ function documentRecordSchema(
 }
 
 // The built-ins of a correction's, a copy's or an invoice-from-estimate's values:
-// `replaces` and `estimate` are no fields of the form (the save writes them), so the
-// engine never files them among the custom fields.
+// `replaces`, `estimate` and a credit memo's `invoice` are no fields of the form (the save
+// writes them), so the engine never files them among the custom fields.
 function builtinValuesOf(values: DocumentStartValues | undefined): DocumentStartValues | undefined {
     if (!values) return undefined
     const builtins: DocumentStartValues = { ...values }
     delete builtins.replaces
     delete builtins.estimate
+    delete builtins.invoice
     return builtins
+}
+
+// The invoice a stored credit memo names; '' for every other kind.
+function storedInvoiceOf(record: FormInput['record']): string {
+    const fields = record?.kindFields
+    return fields?.kind === 'credit_memo' ? fields.invoice : ''
 }
 
 // The key Post's line-count error is filed at on a form with several line tables: no
@@ -305,6 +312,17 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     }, [engineDefinition, hiddenKeys, host, kind])
     // Read through the form state proxy, so a change re-renders the guard (useRecordForm).
     const dirtyFields = chosen.form.formState.dirtyFields
+    // The invoice link is no field of the form: it starts as the start values' `invoice`
+    // (a memo made from an invoice, or a correction of a linked memo) or the stored
+    // memo's, and Remove link (or a pick of another customer) drops it for this form
+    // session. Local, synchronous UI state: a new session mounts a new form.
+    const [linkRemoved, setLinkRemoved] = useState(false)
+    const linkStart = isNew ? textOf(input.startValues?.invoice) : storedInvoiceOf(record)
+    const linkId = linkRemoved ? '' : linkStart
+    const invoiceLink = useMemo(
+        () => ({ id: linkId, remove: () => setLinkRemoved(true) }),
+        [linkId]
+    )
     return {
         // The kind as the screen runs it (its writes, its empty columns), and its words.
         document: documentKind,
@@ -328,6 +346,12 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         // The estimate a new invoice is made from, or a new correction keeps; its insert
         // writes it. A stored invoice's is on its record and is never written again.
         estimate: isNew ? textOf(input.startValues?.estimate) : '',
+        // The invoice a credit memo is for, as the form holds it now, and its Remove link.
+        invoiceLink,
+        // The link this form session started with: a new form's start values' `invoice`,
+        // or the stored memo's ('' on every other kind). The save compares the form's link
+        // with it, or with the link a new form's written draft holds (useDocumentSave).
+        linkStart,
         // Post's line-count error under the first shown table, on a form with several
         // tables: its table and the key it is filed at. Null for a kind with one table
         // (its table's field cell draws it).
@@ -343,6 +367,9 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         revision: record?.revision ?? 0,
         saveMode,
         isReady: chosen.isReady && ui !== null,
+        // A field or a line differs from the form's baseline. A changed invoice link is
+        // counted by the save (useDocumentSave `isDirty`), which knows what a new form's
+        // written draft holds.
         isDirty: Object.keys(dirtyFields).length > 0,
     }
 }

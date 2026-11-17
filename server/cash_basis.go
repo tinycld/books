@@ -10,7 +10,8 @@ import (
 )
 
 // The cash basis (pay-bills spec §3.10). A document of a deferred kind (a bill,
-// an invoice) counts on the cash basis when and as far as it is paid. Its rows
+// an invoice, a credit memo) counts on the cash basis when and as far as it is
+// paid (a credit memo: applied or refunded, which no write does yet). Its rows
 // in books_cash_basis_lines are derived from the ledger and the payments:
 //
 //   - taken out: each posted line of the document's entries (its entry and the
@@ -25,7 +26,7 @@ import (
 // Every write that changes a document's entries or payments rebuilds that
 // document's rows in its own transaction (rebuildCashBasisFor); the ledger
 // rebuild recomputes every document (rebuildCashBasis). Nothing else writes the
-// rows. An invoice's sales tax has its own rows, rebuilt with these
+// rows. An invoice's and a credit memo's sales tax has its own rows, rebuilt with these
 // (cash_basis_tax.go). Whether a payment counts is read from its entry (posted, origin
 // document, naming the payment), not from the payment row: a payment's post
 // and void change its entry before its own row is saved.
@@ -68,9 +69,21 @@ var (
 		PaidMemo:       "Invoice %s paid (cash basis)",
 		TaxLines:       "books_invoice_tax_lines",
 	}
+	// creditMemoCashDeferral takes a credit memo's lines out of the cash layer
+	// on its date. Nothing applies or refunds a memo yet, so it has no payment
+	// doc type and nothing brings its lines back; PaidMemo is the text the rows
+	// that apply it will carry.
+	creditMemoCashDeferral = cashDeferral{
+		Kind:       "credit_memo",
+		DocType:    docTypeCreditMemo,
+		Balance:    creditMemoBalanceKind,
+		UnpaidMemo: "Unapplied credit memo (cash basis)",
+		PaidMemo:   "Credit memo %s applied (cash basis)",
+		TaxLines:   "books_credit_memo_tax_lines",
+	}
 	// cashDeferrals are the deferred kinds. A customer payment's unapplied
 	// credit is not deferred: it is cash received on its own date.
-	cashDeferrals = []cashDeferral{billCashDeferral, invoiceCashDeferral}
+	cashDeferrals = []cashDeferral{billCashDeferral, invoiceCashDeferral, creditMemoCashDeferral}
 )
 
 // cashDeferralOf is the deferred kind of a document collection, and false for
@@ -142,9 +155,13 @@ func documentEntryLines(tx core.App, d cashDeferral, docID string) ([]cashSource
 }
 
 // documentPayments reads the posted payments that pay the document, in
-// payment order: date, then number.
+// payment order: date, then number. A kind with no payment lines (a credit
+// memo, which nothing applies yet) has none.
 func documentPayments(tx core.App, d cashDeferral, docID string) ([]cashPayment, error) {
 	k := d.Balance
+	if k.LinesCollection == "" {
+		return nil, nil
+	}
 	var payments []cashPayment
 	err := tx.DB().NewQuery(`
 		SELECT pe.id AS entry, pe.date AS date, CAST(pe.sequence AS INTEGER) AS sequence,

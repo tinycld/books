@@ -161,6 +161,26 @@ const SALES_RECEIPT_LAYOUT = {
     rules: [],
 } satisfies FormHostDefInput['layout']
 
+export const CREDIT_MEMO_HOST_KEY = 'books:credit_memo'
+
+// The default Credit memo form (spec §4.4): one page. Customer, Bill to and Email span
+// the header band; Credit memo date and Tax share the next row, a half each, and Tax
+// takes the full row on a narrow form. A credit memo has no Terms and no Due date. The
+// lines, the message to the customer and the internal memo follow.
+export const CREDIT_MEMO_LAYOUT = {
+    pages: [{ key: 'main', title: 'Credit memo' }],
+    fields: {
+        customer: { width: 'full' },
+        bill_to: { width: 'full' },
+        email: { width: 'full' },
+        date: { width: 'half' },
+        tax_rate: { width: 'half', narrowWidth: 'full' },
+        message: { description: 'Shown on the credit memo and its PDF.' },
+        memo: { description: MEMO_HINT },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
 export const ESTIMATE_HOST_KEY = 'books:estimate'
 
 // The default Estimate form (spec §3.3): one page. The header band's first row holds
@@ -242,7 +262,8 @@ export const EXPENSE_LAYOUT = {
 } satisfies FormHostDefInput['layout']
 
 // The lines built-in the sales documents share: the same columns, row kinds and keys,
-// so the server's line guard checks an invoice, receipt or estimate line alike.
+// so the server's line guard checks an invoice, receipt, credit memo or estimate line
+// alike.
 const DOCUMENT_LINES_BUILTIN = {
     key: 'lines',
     label: 'Lines',
@@ -1029,6 +1050,117 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'lines',
         layout: SALES_RECEIPT_LAYOUT,
+    },
+    {
+        key: CREDIT_MEMO_HOST_KEY,
+        label: 'Credit memo',
+        collection: 'books_credit_memos',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column. invoice is a stored column, not a built-in: the form's link row
+        // writes it.
+        columns: [
+            'id',
+            'customer',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'bill_to',
+            'email',
+            'tax_rate',
+            'invoice',
+            'message',
+            'memo',
+            'subtotal',
+            'tax_total',
+            'total',
+            'balance',
+            'revision',
+            'currency',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'customer',
+                label: 'Customer',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'CustomerField',
+                chrome: 'cell',
+            },
+            {
+                key: 'bill_to',
+                label: 'Bill to',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BillToField',
+                chrome: 'cell',
+            },
+            {
+                key: 'email',
+                label: 'Email',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BandEmailField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Credit memo date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_rate',
+                label: 'Tax',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DocumentTaxField',
+                chrome: 'cell',
+            },
+            DOCUMENT_LINES_BUILTIN,
+            // Core allows maxLength only on a text built-in; documentSchema bounds these
+            // two at 4000 code points, as the migration does.
+            {
+                key: 'message',
+                label: DOCUMENT_NOTE_LABELS.message,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'memo',
+                label: DOCUMENT_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'lines',
+        layout: CREDIT_MEMO_LAYOUT,
     },
     {
         key: ESTIMATE_HOST_KEY,

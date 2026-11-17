@@ -8,6 +8,7 @@ import { documentHref } from '../tinycld/books/lib/document-routes'
 import { entryHref } from '../tinycld/books/lib/entry-route'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
@@ -23,6 +24,7 @@ const ON_EXPENSE = { id: ID, bill: '', expense: 'bkexpense001001' }
 const DOCUMENTS = [
     { collection: 'books_invoices', kind: INVOICE_KIND, path: 'books/invoices' },
     { collection: 'books_sales_receipts', kind: SALES_RECEIPT_KIND, path: 'books/sales-receipts' },
+    { collection: 'books_credit_memos', kind: CREDIT_MEMO_KIND, path: 'books/credit-memos' },
     { collection: 'books_estimates', kind: ESTIMATE_KIND, path: 'books/estimates' },
     { collection: 'books_bills', kind: BILL_KIND, path: 'books/bills' },
     { collection: 'books_expenses', kind: EXPENSE_KIND, path: 'books/expenses' },
@@ -62,6 +64,15 @@ describe('auditRecordHref', () => {
         const href = auditRecordHref(collection, ID, { id: ID })
         expect(href).toBe(documentHref(kind, ID))
         expect(href).toBe(`${path}/${ID}`)
+    })
+
+    // A credit memo line's audit rows are filed under its memo (parent_type
+    // books_credit_memos, parent_id the memo id: migration 2100000023), so the history of a
+    // line is the memo's, and its Open is the memo's read view.
+    it('a credit memo record, and the memo id a line’s history is filed under, open books/credit-memos/<id>', () => {
+        expect(auditRecordHref('books_credit_memos', ID, { id: ID })).toBe(
+            `books/credit-memos/${ID}`
+        )
     })
 
     it('opens a journal entry where its live row says (entryHref)', () => {

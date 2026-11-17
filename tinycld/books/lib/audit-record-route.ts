@@ -11,6 +11,7 @@ import { productPath } from './product-route'
 import type { RecordRoute } from './record-route'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
@@ -24,10 +25,14 @@ type LiveRecord = Record<string, unknown>
 // Each document kind by the collection it is stored in; DOCUMENT_COLLECTIONS is the one
 // map of kind to collection.
 const DOCUMENT_KINDS = new Map<string, SalesDocumentKind>(
-    [INVOICE_KIND, SALES_RECEIPT_KIND, ESTIMATE_KIND, BILL_KIND, EXPENSE_KIND].map(kind => [
-        DOCUMENT_COLLECTIONS[kind.key],
-        kind,
-    ])
+    [
+        INVOICE_KIND,
+        SALES_RECEIPT_KIND,
+        CREDIT_MEMO_KIND,
+        ESTIMATE_KIND,
+        BILL_KIND,
+        EXPENSE_KIND,
+    ].map(kind => [DOCUMENT_COLLECTIONS[kind.key], kind])
 )
 
 // A record route's filled path: the route pattern `…/[id]` with its id.
@@ -73,6 +78,7 @@ const ROUTED_DOC_TYPES: readonly string[] = [
     'transfer',
     'invoice',
     'sales_receipt',
+    'credit_memo',
     'bill',
     'expense',
     'payment',

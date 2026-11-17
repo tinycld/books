@@ -243,10 +243,10 @@ To see the sales tax you owe each agency, open the Sales Tax Liability report. C
 
 The report shows the sales tax that you charged in the period, by agency and then by rate. The agencies show in name order, and inside each agency its rates show in name order. An inactive agency or rate with tax in the period shows like an active one.
 
-- Only posted invoices and posted sales receipts count: a draft does not count, and a voided document does not count. When you edit a posted document, Books voids the original, so only the new version counts.
+- Only posted invoices, posted sales receipts and posted credit memos count: a draft does not count, and a voided document does not count. A credit memo lowers the figures of its rate: its Gross total, Taxable amount and Tax amount show as negative figures. When you edit a posted document, Books voids the original, so only the new version counts.
 - The report opens on Accrual. To change the method, press the Method chip and pick Accrual or Cash (see "Accrual and cash basis" above). The heading shows "Accrual basis" or "Cash basis" under the period.
 - On Accrual, a sale counts in the period of its own date, not the day it is paid.
-- On Cash, the tax of an invoice counts only when the invoice is paid, and only as far as it is paid. Each payment brings back its share of the invoice's Gross total, Taxable amount and Tax amount on the date of the payment. For example, an invoice of 1,080.00 with 80.00 of tax, paid 540.00, counts 40.00 of tax on the payment date. A sales receipt counts on its own date, because it is paid when you enter it.
+- On Cash, the tax of an invoice counts only when the invoice is paid, and only as far as it is paid. Each payment brings back its share of the invoice's Gross total, Taxable amount and Tax amount on the date of the payment. For example, an invoice of 1,080.00 with 80.00 of tax, paid 540.00, counts 40.00 of tax on the payment date. A sales receipt counts on its own date, because it is paid when you enter it. A credit memo counts only when its credit is used; Books cannot yet apply or refund a credit, so on Cash a credit memo changes no figure.
 - On Cash, an open rate shows each invoice on its own date with its tax, and again with the same tax taken out, so the two add up to 0.00. Each payment shows its share as one more row of the invoice, on the payment date.
 - Gross total is the sale before tax. Taxable amount is the part of the sale that the tax was calculated on. Non-taxable is Gross total minus Taxable amount. Tax amount is the tax of the rate.
 - Each figure is the one Books stored when the document was posted. A later change to a rate, to a product's Taxable setting or to a customer's exemption does not change the report.
@@ -255,7 +255,7 @@ The report shows the sales tax that you charged in the period, by agency and the
 - A sale with no tax rate, for example a sale to an exempt customer, has no sales tax, so it is not in the report.
 - A sale with a tax rate and no taxable line shows under that rate: its sales are Non-taxable, and its tax is 0.00. A rate of 0% shows its sales with tax 0.00.
 
-The agencies are open when the report opens, and the rates are folded. To see the documents that charged a rate, press the rate row. Its documents open below it, in date order, then by number. Each document shows the date it counts on, its type and number, and its customer, for example "2026-10-14 · Invoice 1042 · Harborview Dental", with its four figures. A sales receipt with no customer ends after its number. To open the invoice or sales receipt, press its document row. To fold or open all levels, press Collapse all or Expand all.
+The agencies are open when the report opens, and the rates are folded. To see the documents that charged a rate, press the rate row. Its documents open below it, in date order, then by number. Each document shows the date it counts on, its type and number, and its customer, for example "2026-10-14 · Invoice 1042 · Harborview Dental" or "2026-11-10 · Credit memo 1001 · Harborview Dental", with its four figures. A sales receipt with no customer ends after its number. To open the invoice, sales receipt or credit memo, press its document row. To fold or open all levels, press Collapse all or Expand all.
 
 To change the dates, press the Period chip. The default is Last month. Pick a preset, such as This month or Last quarter, or pick Custom and type the first and last day. When no posted sale was taxed in the period, the report shows "No rows for" and the period.
 
@@ -265,7 +265,7 @@ The balance of an agency's liability account on the Balance Sheet also holds the
 
 To change how the numbers look, press Customize. Customize never changes the figures.
 
-The report stays current. When someone posts or voids an invoice, a sales receipt or a customer payment, the report runs again.
+The report stays current. When someone posts or voids an invoice, a sales receipt, a credit memo or a customer payment, the report runs again.
 
 On a phone, each row wraps onto three lines in the table: the name; then Gross total and Non-taxable; then Taxable amount and Tax amount. The table does not scroll sideways.
 
@@ -315,4 +315,4 @@ A reader can change the chips and Customize for the run, copy a link with Copy l
 
 To make your own report from Books data, such as accounts, journal entries, journal lines, monthly account balances or customers, see [Build, share and publish reports](help://core:reports).
 
-The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices and the sales receipts together. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.
+The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices, the sales receipts and the credit memos together. In Sales documents, a credit memo has the Kind "Credit memo", and its Subtotal, Tax and Total are positive, as they are on the credit memo. A credit memo lowers what the customer owes, so a report that adds totals across kinds must filter by Kind, for example to invoices and sales receipts only. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.

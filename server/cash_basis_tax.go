@@ -9,7 +9,11 @@ import (
 
 // The cash-basis tax rows (pay-bills spec §3.10, Q3). On the cash basis an
 // invoice's sales tax counts when and as far as the invoice is paid, as its
-// journal lines do (cash_basis.go). Its rows in books_cash_basis_tax_lines:
+// journal lines do (cash_basis.go); a credit memo's when it is applied or
+// refunded (no write does that yet, so only its taken-out rows exist). Each
+// row names its document in the kind's own relation (invoice, credit_memo)
+// and in document, the one field the report source reads for both kinds.
+// Its rows in books_cash_basis_tax_lines:
 //
 //   - taken out: each tax line posting wrote (writeTaxSnapshot) with its gross,
 //     taxable and tax amounts negated, at the tax line's date;
@@ -19,8 +23,8 @@ import (
 //     tax lines of each figure, at the payment's date. An invoice paid in full
 //     brings back exactly its tax lines.
 //
-// Only an invoice whose own entry is posted has tax rows: a void or replaced
-// invoice has none, as the Sales Tax Liability leaves out its ledger tax
+// Only a document whose own entry is posted has tax rows: a void or replaced
+// invoice or credit memo has none, as the Sales Tax Liability leaves out its ledger tax
 // lines. A sales receipt has no cash tax rows: it counts on its own date.
 // The rows are rebuilt with the document's other cash-basis rows
 // (syncCashRows); nothing else writes them.
@@ -30,9 +34,9 @@ const cashTaxLinesCollection = "books_cash_basis_tax_lines"
 // cashTaxLine is one cash-basis tax row as Books derives it, and the key a
 // stored row is matched by.
 type cashTaxLine struct {
-	Rate, Component, Agency, Currency, Date, PaymentEntry string
-	RatePpm, Gross, Taxable, Amount                       int64
-	Position                                              int
+	Document, Rate, Component, Agency, Currency, Date, PaymentEntry string
+	RatePpm, Gross, Taxable, Amount                                 int64
+	Position                                                        int
 }
 
 // cashTaxSource is one tax line of a posted document.
@@ -93,7 +97,7 @@ func wantCashTaxRows(tx core.App, d cashDeferral, docID string) ([]cashTaxLine, 
 	total := int64(doc.GetInt("total"))
 	row := func(l cashTaxSource, date, paymentEntry string, figures [3]int64) cashTaxLine {
 		return cashTaxLine{
-			Rate: l.Rate, Component: l.Comp, Agency: l.Agency, Currency: l.Currency,
+			Document: docID, Rate: l.Rate, Component: l.Comp, Agency: l.Agency, Currency: l.Currency,
 			Date: date, PaymentEntry: paymentEntry, RatePpm: l.RatePpm,
 			Gross: figures[0], Taxable: figures[1], Amount: figures[2],
 		}
@@ -201,7 +205,7 @@ func cashTaxRowDiff(tx core.App, d cashDeferral, docID string) (stray []*core.Re
 // storedCashTaxLine is a stored tax row as a cashTaxLine.
 func storedCashTaxLine(r *core.Record) cashTaxLine {
 	return cashTaxLine{
-		Rate: r.GetString("rate"), Component: r.GetString("component"), Agency: r.GetString("agency"),
+		Document: r.GetString("document"), Rate: r.GetString("rate"), Component: r.GetString("component"), Agency: r.GetString("agency"),
 		Currency: r.GetString("currency"), Date: r.GetString("date"), PaymentEntry: r.GetString("payment_entry"),
 		RatePpm: int64(r.GetInt("rate_ppm")), Gross: int64(r.GetInt("gross_amount")),
 		Taxable: int64(r.GetInt("taxable_amount")), Amount: int64(r.GetInt("amount")),
@@ -232,6 +236,7 @@ func syncCashTaxRows(tx core.App, d cashDeferral, docID string) (int, error) {
 	for _, w := range missing {
 		r := core.NewRecord(col)
 		r.Set(d.Kind, docID)
+		r.Set("document", w.Document)
 		r.Set("rate", w.Rate)
 		r.Set("component", w.Component)
 		r.Set("agency", w.Agency)

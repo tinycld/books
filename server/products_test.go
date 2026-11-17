@@ -940,6 +940,32 @@ func TestProduct_DeleteRefusedWhileOnSalesReceiptLines(t *testing.T) {
 	requireProductCount(t, app, 1)
 }
 
+// Credit memo spec §3.10: a product on a credit memo line cannot be deleted;
+// the count is of credit memos, not of lines.
+func TestProduct_DeleteRefusedWhileOnCreditMemoLines(t *testing.T) {
+	app := newGuardedApp(t)
+	cable := mkService(t, app, "Patch cable", mkIncomeAccount(t, app))
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+	line := func(memo *core.Record, position int) {
+		t.Helper()
+		saveRecord(t, app, "books_credit_memo_lines", map[string]any{
+			"credit_memo": memo.Id, "kind": "item", "product": cable.Id, "quantity": 1, "rate": 875, "position": position,
+		})
+	}
+	first := mkCreditMemoRow(t, app, customer, nil)
+	line(first, 0)
+	line(first, 1)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 1 credit memo. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+
+	second := mkCreditMemoRow(t, app, customer, map[string]any{"status": "posted", "number": "1001"})
+	line(second, 0)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 2 credit memos. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+}
+
 // Spec §3.11: a product on an estimate line cannot be deleted; the count is of
 // estimates, not of lines.
 func TestProduct_DeleteRefusedWhileOnEstimateLines(t *testing.T) {

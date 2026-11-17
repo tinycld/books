@@ -35,6 +35,10 @@ export type DocumentFormScope = {
     // keeps), else the stored invoice's; '' when it names none. While it is set the
     // customer cannot change (the server refuses it), so Customer draws as text.
     estimateId: string
+    // The invoice a credit memo is for, as the form holds it now ('' when it names none,
+    // and on every other kind), its link label ("For invoice <n>", with "(void)" on a void
+    // one; '' until the invoice is read), and Remove link (the link row, a customer pick).
+    invoiceLink: { id: string; label: string; remove: () => void }
 }
 
 export const DocumentFormContext = createContext<DocumentFormScope | null>(null)
@@ -54,6 +58,7 @@ const EMPTY_SCOPE: DocumentFormScope = {
     expiredOn: null,
     estimateNumber: '',
     estimateId: '',
+    invoiceLink: { id: '', label: '', remove: () => {} },
 }
 
 export function useDocumentFormScope(): DocumentFormScope {
