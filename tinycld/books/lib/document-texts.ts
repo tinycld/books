@@ -165,6 +165,49 @@ export const SALES_RECEIPT_MESSAGES = {
     referenceTooLong: 'Reference no. can be at most 40 characters',
 } as const satisfies DocumentMessages & { voidBody: string }
 
+// The credit memo's texts. The first group is shown by the client and refused by the
+// server with the same words (server/credit_memos.go, and the inactive customer text in
+// server/invoices.go); tests/document-messages.test.ts fails when they drift. The
+// zero-total Post rule is the server's only: the client shows its refusal. The line texts
+// are the invoice's.
+export const CREDIT_MEMO_MESSAGES = {
+    percentTarget: INVOICE_MESSAGES.percentTarget,
+    totalNegative: 'A credit memo total cannot be below zero. Use an invoice.',
+    totalTooLarge: 'The credit memo total is more than Books can store.',
+    tooManyLines: 'A credit memo can have at most 250 lines.',
+    customerInactive: INVOICE_MESSAGES.customerInactive,
+    customerOnInvoices: '%s is on credit memos. Make it inactive instead.',
+    zeroTotal:
+        'A credit memo with a total of zero cannot be posted. Add an amount or keep it as a draft.',
+
+    // Client only.
+    needItemLine: INVOICE_MESSAGES.needItemLine,
+    quantityNotPositive: INVOICE_MESSAGES.quantityNotPositive,
+    quantityDecimals: INVOICE_MESSAGES.quantityDecimals,
+    quantityTooLarge: INVOICE_MESSAGES.quantityTooLarge,
+    rateMalformed: INVOICE_MESSAGES.rateMalformed,
+    rateTooLarge: INVOICE_MESSAGES.rateTooLarge,
+    percentRange: INVOICE_MESSAGES.percentRange,
+    percentDecimals: INVOICE_MESSAGES.percentDecimals,
+    noAccess: 'You need bookkeeper access to create credit memos',
+    notFound: 'This credit memo does not exist',
+    cannotEdit: 'This credit memo cannot be edited',
+    loadFailed: 'Books could not load this credit memo.',
+    customerLoadFailed: INVOICE_MESSAGES.customerLoadFailed,
+    bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
+    bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
+    pdfUnsaved: INVOICE_MESSAGES.pdfUnsaved,
+    pdfUnsavedSave: INVOICE_MESSAGES.pdfUnsavedSave,
+    pdfStale: INVOICE_MESSAGES.pdfStale,
+    voidBody: INVOICE_MESSAGES.voidBody,
+    // The notice at `?invoice=` of an invoice that is not posted or cannot be read.
+    cannotCredit: 'This invoice cannot be credited',
+} as const satisfies DocumentMessages & {
+    zeroTotal: string
+    voidBody: string
+    cannotCredit: string
+}
+
 // The bill's texts. The first group is shown by the client and refused by the server with
 // the same words (server/bills.go, and the line texts in server/purchase_lines.go);
 // tests/document-messages.test.ts fails when they drift.

@@ -7,6 +7,7 @@
 
 import {
     BILL_MESSAGES,
+    CREDIT_MEMO_MESSAGES,
     type DocumentMessages,
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
@@ -18,7 +19,13 @@ import {
 // forms host (forms/hosts.ts) seeds it too.
 export const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
 
-export type SalesDocKey = 'invoice' | 'sales_receipt' | 'estimate' | 'bill' | 'expense'
+export type SalesDocKey =
+    | 'invoice'
+    | 'sales_receipt'
+    | 'credit_memo'
+    | 'estimate'
+    | 'bill'
+    | 'expense'
 
 // How a kind's statuses run (lib/document-lifecycle.ts): `posting` (draft → posted →
 // void) or `quote` (pending / accepted / rejected → closed, never posted).
@@ -208,6 +215,35 @@ export const SALES_RECEIPT_KIND: SalesDocumentKind = {
     // The Payment row: Payment method, Reference no. and Deposit to.
     bandSplitAt: 'payment_method',
     helpTopic: 'books:sales-receipts',
+    party: 'customer',
+    lineTables: SALES_LINE_TABLES,
+    features: SALES_FEATURES,
+    keepsEmptyLinesOnRefusal: false,
+}
+
+// A credit memo (credit memo spec §3.1): the invoice's mirror. Its big figure and last
+// total are the credit amount (= the total). Its messages keep their own type, so a
+// reader of a credit-memo-only text (cannotCredit) needs no fallback.
+export const CREDIT_MEMO_KIND: SalesDocumentKind & { messages: typeof CREDIT_MEMO_MESSAGES } = {
+    key: 'credit_memo',
+    lifecycle: 'posting',
+    hostKey: 'books:credit_memo',
+    testId: 'credit-memo',
+    routeBase: 'books/credit-memos',
+    noun: 'Credit memo',
+    thisNoun: 'This credit memo',
+    draftTitle: 'Draft credit memo',
+    newTitle: 'New credit memo',
+    shortcutGroup: 'Credit memo',
+    figure: { label: 'Credit amount', testId: 'credit-amount' },
+    lastTotal: { label: 'Credit amount', testId: 'total-credit' },
+    customerRequired: true,
+    noteHints: { message: 'Shown on the credit memo and its PDF.', memo: MEMO_HINT },
+    messages: CREDIT_MEMO_MESSAGES,
+    // The server's names (server/pdf_credit_memo.go).
+    pdfStem: number => (number ? `credit-memo-${number}` : 'draft-credit-memo'),
+    bandSplitAt: null,
+    helpTopic: 'books:credit-memos',
     party: 'customer',
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,

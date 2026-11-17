@@ -110,6 +110,25 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Credit memo follows Receive payment in the Customers column
+    // (credit memo spec §2).
+    it('draws Credit memo right after Receive payment and opens books/credit-memos/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const payment = byTestId(document.body, 'books-new-receive-payment')
+        const creditMemo = byTestId(document.body, 'books-new-credit-memo')
+        expect(payment).not.toBeNull()
+        expect(creditMemo).not.toBeNull()
+        if (!payment || !creditMemo) return
+        expect(creditMemo.textContent).toContain('Credit memo')
+        expect(
+            payment.compareDocumentPosition(creditMemo) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(creditMemo)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'credit_memo', href: 'books/credit-memos/new' })
+        )
+    })
+
     it('draws only the heading of a single non-empty column', () => {
         renderOpenMenu(columns.filter(column => column.heading === 'Vendors'))
         expect(screen.getByText('Vendors')).toBeTruthy()

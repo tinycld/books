@@ -2,7 +2,11 @@
 import { describe, expect, it } from 'vitest'
 import { postAndNewHref } from '../tinycld/books/hooks/useDocumentSave'
 import { documentHref, documentNewHref } from '../tinycld/books/lib/document-routes'
-import { ESTIMATE_KIND, INVOICE_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import {
+    CREDIT_MEMO_KIND,
+    ESTIMATE_KIND,
+    INVOICE_KIND,
+} from '../tinycld/books/lib/sales-document-kinds'
 
 // A kind with another route base: the routes must come from the kind, not a constant.
 const OTHER_KIND = { ...INVOICE_KIND, routeBase: 'books/x' }
@@ -110,5 +114,35 @@ describe('postAndNewHref', () => {
 
     it("takes the route from the kind's routeBase", () => {
         expect(postAndNewHref(OTHER_KIND, 'c1')).toMatch(/^books\/x\/new\?fresh=[^&]+&customer=c1$/)
+    })
+})
+
+// The credit memo's routes (spec §2): the two pushed pages under books/credit-memos.
+describe('the credit memo routes', () => {
+    it('opens a new memo, a copy, a correction and a memo for a customer', () => {
+        expect(documentNewHref(CREDIT_MEMO_KIND, {})).toBe('books/credit-memos/new')
+        expect(documentNewHref(CREDIT_MEMO_KIND, { customer: 'c1' })).toBe(
+            'books/credit-memos/new?customer=c1'
+        )
+        expect(documentNewHref(CREDIT_MEMO_KIND, { copy: 'm1' })).toBe(
+            'books/credit-memos/new?copy=m1'
+        )
+        expect(documentNewHref(CREDIT_MEMO_KIND, { replaces: 'm1' })).toBe(
+            'books/credit-memos/new?replaces=m1'
+        )
+    })
+
+    it('opens a memo and its PDF tab', () => {
+        expect(documentHref(CREDIT_MEMO_KIND, 'm1')).toBe('books/credit-memos/m1')
+        expect(documentHref(CREDIT_MEMO_KIND, 'm1', 'pdf')).toBe('books/credit-memos/m1?tab=pdf')
+    })
+
+    it('Post & new starts a fresh memo, with the customer only when the form had one', () => {
+        expect(postAndNewHref(CREDIT_MEMO_KIND, undefined)).toMatch(
+            /^books\/credit-memos\/new\?fresh=[^&]+$/
+        )
+        expect(postAndNewHref(CREDIT_MEMO_KIND, 'c1')).toMatch(
+            /^books\/credit-memos\/new\?fresh=[^&]+&customer=c1$/
+        )
     })
 })

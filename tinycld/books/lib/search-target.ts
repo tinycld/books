@@ -1,8 +1,8 @@
 // Where a federated search hit opens. The server (server/search.go) prefixes
 // each row id with its kind; the screens below are the account register, the
 // journal entry screen, the transfer screen, the customer screen, the vendor
-// screen, the product screen, the invoice screen, the sales receipt screen
-// (drafts included for both documents), the estimate screen, the bill and
+// screen, the product screen, the invoice screen, the sales receipt screen, the
+// credit memo screen (drafts included for the three documents), the estimate screen, the bill and
 // expense screens (drafts included), the payment screen (drafts included), and the
 // bill payment read view.
 export interface SearchTarget {
@@ -21,6 +21,7 @@ const PATHS = new Map([
     ['product', 'books/products/[id]'],
     ['invoice', 'books/invoices/[id]'],
     ['sales_receipt', 'books/sales-receipts/[id]'],
+    ['credit_memo', 'books/credit-memos/[id]'],
     ['estimate', 'books/estimates/[id]'],
     ['bill', 'books/bills/[id]'],
     ['expense', 'books/expenses/[id]'],

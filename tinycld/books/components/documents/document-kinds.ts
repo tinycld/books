@@ -5,6 +5,7 @@ import { type TableRowMapper, tableRowsOf } from '@tinycld/core/lib/forms/table-
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import type { ComponentType, ReactNode } from 'react'
 import { BILL_DATA } from '../../hooks/bill-data'
+import { CREDIT_MEMO_DATA } from '../../hooks/credit-memo-data'
 import {
     customerPartyOf,
     type DocumentDataSource,
@@ -30,6 +31,12 @@ import {
     newBillValues,
     vendorBillFills,
 } from '../../lib/bill-values'
+import { creditMemoColumnsFrom, EMPTY_CREDIT_MEMO_COLUMNS } from '../../lib/credit-memo-columns'
+import {
+    copyCreditMemoValues,
+    creditMemoCorrectionValues,
+    newCreditMemoValues,
+} from '../../lib/credit-memo-values'
 import type { TaxRateFill } from '../../lib/document-fills'
 import {
     DOCUMENT_LINE_COLUMNS,
@@ -70,6 +77,7 @@ import type { PurchaseLines } from '../../lib/purchase-lines'
 import type { ColumnsParse } from '../../lib/record-columns'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
@@ -88,6 +96,7 @@ import {
 } from '../../lib/sales-receipt-values'
 import type { BooksVendors } from '../../types'
 import { BillReadDetails } from './BillReadDetails'
+import { CreditMemoInvoiceLink, CreditMemoReadDetails } from './CreditMemoReadDetails'
 import type { DocumentReadLinesProps } from './DocumentReadLines'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
 import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
@@ -284,6 +293,55 @@ export const INVOICE_DOCUMENT: DocumentKind = {
     },
     ReadDetails: InvoiceReadDetails,
     ReadStampRow: InvoiceFromEstimateLink,
+    lineSpecs: SALES_LINE_SPECS,
+}
+
+// The source row with the credit memo's own columns back at the top level, as
+// invoiceRowOf.
+function creditMemoRowOf(source: DocumentSource) {
+    const fields = source.kindFields
+    if (fields.kind !== 'credit_memo') {
+        throw new Error(`a credit memo source has ${fields.kind} columns`)
+    }
+    return { ...source, ...fields }
+}
+
+// A credit memo always has a customer (it is required): the screen passes null only for a
+// source saved without one, which a credit memo never is.
+function creditMemoCustomerOf(party: DocumentPartyRow | null) {
+    const customer = customerPartyOf(party)
+    if (!customer) throw new Error('a credit memo copy has no customer')
+    return customer
+}
+
+// A new credit memo's message starts empty (Q8): the "Default message to customer"
+// setting the screen passes is not used. A copied customer, product or tax rate that is
+// now inactive stays in the form, and Post refuses it with the shared inactive texts.
+export const CREDIT_MEMO_DOCUMENT: DocumentKind = {
+    doc: CREDIT_MEMO_KIND,
+    data: CREDIT_MEMO_DATA,
+    columnsFrom: creditMemoColumnsFrom,
+    emptyColumns: EMPTY_CREDIT_MEMO_COLUMNS,
+    values: {
+        new: ({ party, today, rates, defaultRateId }) =>
+            newCreditMemoValues({
+                today,
+                rates,
+                defaultRateId,
+                customer: customerPartyOf(party),
+            }),
+        copy: (source, lines, today, party) =>
+            copyCreditMemoValues(
+                creditMemoRowOf(source),
+                lines.filter(isSalesLine),
+                today,
+                creditMemoCustomerOf(party)
+            ),
+        correction: (source, lines) =>
+            creditMemoCorrectionValues(creditMemoRowOf(source), lines.filter(isSalesLine)),
+    },
+    ReadDetails: CreditMemoReadDetails,
+    ReadBandRow: CreditMemoInvoiceLink,
     lineSpecs: SALES_LINE_SPECS,
 }
 

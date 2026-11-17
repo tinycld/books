@@ -56,6 +56,23 @@ describe('AUDIT_FIELDS against the generated schema', () => {
     })
 })
 
+// The credit memo's history (as the sales receipt's): its record and its lines are
+// audited, and the memo's own fields read in words.
+describe('the credit memo fields', () => {
+    it('audits the credit memo and its lines', () => {
+        expect(AUDITED).toContain('books_credit_memos')
+        expect(AUDITED).toContain('books_credit_memo_lines')
+    })
+
+    it('names the invoice it credits and its unapplied credit', () => {
+        const rows = changedFieldRows('books_credit_memos', {
+            invoice: { before: '', after: 'invc1' },
+            balance: { before: 0, after: 1_000 },
+        })
+        expect(rows.map(row => row.label).sort()).toEqual(['Invoice', 'Unapplied credit'])
+    })
+})
+
 describe('a field with no entry', () => {
     it('reads its key in words', () => {
         const rows = changedFieldRows('books_not_audited', {
