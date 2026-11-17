@@ -168,6 +168,8 @@ func reportSources() []reports.Source {
 		basisLinesSource(),
 		salesDocumentsSource(),
 		salesTaxLinesSource(),
+		salesLinesSource(),
+		productsSource(),
 		auditLogSource(),
 	}
 	for i := range sources {
@@ -296,6 +298,85 @@ func salesDocumentsSource() reports.Source {
 		Links: []reports.Link{
 			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
 			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
+			// The back link of books.sales_lines' document, for the builder.
+			{Key: "lines", Label: "Lines", Target: "books.sales_lines", Cardinality: reports.ToMany, BackField: "document"},
+		},
+	}
+}
+
+// salesLineColumns are the columns invoice, sales receipt and credit memo
+// lines share, by the same name in each collection.
+var salesLineColumns = []string{
+	"kind", "description", "quantity", "rate", "amount", "taxable", "position", "product",
+}
+
+// salesLinesSource is every invoice, sales receipt and credit memo line, one
+// union of the three line collections (core SourcePart; sales-reports spec
+// §5). The document link reads each part's own parent column, and sign is
+// each part's constant: 1 on an invoice and a sales receipt, -1 on a credit
+// memo, whose line amounts and quantities are stored positive. The lines have
+// no currency column, so the money fields name none and read the source's
+// Currency (the Books currency, which posting stamps on every document).
+func salesLinesSource() reports.Source {
+	part := func(collection, parent string, sign int) reports.SourcePart {
+		columns := sameNames(salesLineColumns...)
+		columns["document"] = parent
+		return reports.SourcePart{Collection: collection, Columns: columns, Values: map[string]any{"sign": sign}}
+	}
+	return reports.Source{
+		Key: "books.sales_lines", Label: "Sales lines",
+		Parts: []reports.SourcePart{
+			part("books_invoice_lines", "invoice", 1),
+			part("books_sales_receipt_lines", "sales_receipt", 1),
+			part("books_credit_memo_lines", "credit_memo", -1),
+		},
+		Fields: []reports.Field{
+			{Key: "kind", Label: "Kind", Type: reports.Select, Options: []reports.Option{
+				{Value: "item", Label: "Item"},
+				{Value: "description", Label: "Description"},
+				{Value: "subtotal", Label: "Subtotal"},
+				{Value: "percent", Label: "Percent"},
+			}},
+			{Key: "description", Label: "Description", Type: reports.Text},
+			{Key: "quantity", Label: "Quantity", Type: reports.Number, Aggregates: reports.SumAll},
+			{Key: "rate", Label: "Rate", Type: reports.Money},
+			{Key: "amount", Label: "Amount", Type: reports.Money, Aggregates: reports.SumAll},
+			{Key: "taxable", Label: "Taxable", Type: reports.Bool},
+			// The line's order in its document: the last sort key of a
+			// document's lines.
+			{Key: "position", Label: "Position", Type: reports.Number},
+			{Key: "sign", Label: "Sign", Type: reports.Number},
+		},
+		Links: []reports.Link{
+			{Key: "document", Label: "Document", Target: "books.sales_documents", Cardinality: reports.ToOne, Field: "document"},
+			{Key: "product", Label: "Product/Service", Target: "books.products", Cardinality: reports.ToOne, Field: "product"},
+		},
+	}
+}
+
+// productsSource is the products and services. Left out: the purchase fields
+// (purchases, purchase_description, cost, expense_account), the form columns
+// (form, fields) and the name and sort keys.
+func productsSource() reports.Source {
+	return reports.Source{
+		Key: "books.products", Collection: "books_products", Label: "Products and services",
+		Fields: []reports.Field{
+			{Key: "name", Label: "Name", Type: reports.Text, Aggregates: reports.MinMax},
+			{Key: "sku", Label: "SKU", Type: reports.Text},
+			{Key: "type", Label: "Type", Type: reports.Select, Options: []reports.Option{
+				{Value: "service", Label: "Service"},
+				{Value: "non_inventory", Label: "Non-inventory"},
+				{Value: "bundle", Label: "Bundle"},
+			}},
+			{Key: "sales_description", Label: "Sales description", Type: reports.Text},
+			{Key: "price", Label: "Price", Type: reports.Money, Currency: "currency"},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "inactive", Label: "Inactive", Type: reports.Bool},
+		},
+		Links: []reports.Link{
+			{Key: "income_account", Label: "Income account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "income_account"},
+			// The back link of books.sales_lines' product, for the builder.
+			{Key: "sales_lines", Label: "Sales lines", Target: "books.sales_lines", Cardinality: reports.ToMany, BackField: "product"},
 		},
 	}
 }
