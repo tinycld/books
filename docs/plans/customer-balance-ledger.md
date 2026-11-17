@@ -60,7 +60,14 @@
 - cp 3 · reviewer A NOTE 2: `expectBalanceRowsFit` takes the row box as the nearest ancestor holding the label and the Balance cell, so "Balance inside the row" is almost always true; "right of the label" and "same line band" do the work. The list cell would be a firmer row box.
 - cp 2 · reviewer A NOTE 7: the group pick is keyed by the parent's display name (core `optionsFrom.group`, as the spec asks): a saved link with "All X sub-customers" stops matching after X is renamed, and two parents with the same name merge into one group.
 
+- cp 4 · reviewer A NOTE 1: core reads the header's pick labels with no topic map (`params.go` `pickLabels` → `optionsPage`/`readOptionGroups` call `readRows(..., nil)`), so a report that filters on a source choice but reads none of that source's labels in its rows would keep an old name in the header after a rename until the next run. Customer Balance and the stub both read the picked collection in their rows, so neither is affected now. Fix: pass the run's topic map to the header reads.
+- cp 4 · reviewer A NOTE 2 / critic (filtered-390): the filled header line has no cap; the chip shows two names and a count (`namedChoices = 2`), the header lists every pick, so 30 picked customers make a paragraph above the table, on a phone too. A cap ("N names and k more") would need a rule in docs/packages.md.
+- cp 4 · filtered-* (critic): the header line repeats the Customer chip's text just above it on screen; the spec asks for it.
+
 ## Out-of-plan changes
+- cp 4 (core) `core/server/reports/options.go`: `optionGroups` split into a shared `readOptionGroups` plus the new `pickedGroups`, to read a whole-group pick's label under the reader's rules (not declared by the implementer; found by reviewers A and B).
+- cp 4 (core) `tests/scripts/reports-stub/server/register.go.txt`: the stub team totals `teams` param gains `header` (revision 2 → 3), the setup the core e2e asks for.
+- cp 4 books `help/reports.md`: one sentence on the Customer header line (help rule).
 - cp 0 (core) `core/server/reports/alias.go`, `lookup.go`, `section_percent.go`: the spec walks gain `Inline` and `Muted` beside `Having`, so the two conditions get the key-alias, lookup and section-percent checks a having gets.
 - cp 0 (core) `core/server/reports/layout.go`: the computed union legs select `0 AS __inline, 0 AS __muted` so every leg has the same columns.
 - cp 0 (core) `core/server/reports/fill.go`: fill parent keys read `mayShowUnder` under an inline level (the exact form makes a circular CTE; see Design notes).
@@ -172,4 +179,24 @@
 - gate 3 A notes: 1 under Design notes (A NOTE 2); gate 2 notes: 4 under Design notes.
 - model trial: lines in /Users/nas/tmp/tinycld/auto-helix-books/model-trial.md (one shadow-only real finding, fixed).
 - commit: 17ae261f
+- human: none (review mode C)
+
+## Checkpoint 4
+- Do 0: core PR #483 MERGED (b95c7a8b); the core branch books/p5-customer-balance is at it.
+- test writer (`cp4-tests.md`): core `core/server/reports/params_test.go`, `run_test.go` (5 new tests), `core/reports/lib/__tests__/spec.test.ts` (1), `tests/e2e/reports-source-params.spec.ts` (existing source-choice test extended: two picks in the header, line gone after the chip is removed; no new test or describe), stub template `tests/scripts/reports-stub/server/register.go.txt` (team totals `teams` param gains `header`, revision 3); books `TestCustomerBalanceSpecLoads` (header with `{label}`), e2e 6 and 9 header checks. Red for the right reason: 8 of 9 (Go: "only a single choice param with listed options has a header line"; core e2e: the stub report is refused at reconcile, so its hub row is missing; books Go `customers.header = ""`; books e2e: no `report-header-param-customers`). The core vitest is green before the code: client `paramDefSchema` already keeps `header` on any param and `headerLinesOf` pairs any choice param — kept as a guard; the client needs no change for it. Untestable: none.
+- implementer (`cp4-impl.md`): core `params.go` `checkHeader` takes `header` on any `choice` (single or multiple, listed or `optionsFrom`; still refused without `{label}`, on a non-choice, over 200 chars); `headerLines` becomes a compiler method: the pick labels joined by ", " (listed options in option order; `optionsFrom` values read through `optionsPage` under the reader's rules, then each whole-group pick as its `groupLabel` text); `options.go` `pickedGroups` (shared `readOptionGroups`); `run.go` fills `HeaderLines` and returns its error; comments in `spec.go`/`spec.ts`; `core/help/reports.md`, `docs/packages.md`. Books `customersParam()` `Header: "Customer: {label}"`. DONE.
+- test disputes: none
+- self-declared differences: (1) `bind.go` unchanged: acceptance is in `checkHeader`, which bind reaches through `checkParamDefs`; (2) N1 prints no header line in the PDF (export.go uses only `ParamsLine`), so no PDF change (Do 1: "if N1 puts it there"); (3) a pick the reader may not list is left out of the line, all unlistable → no line; (4) non-choice refusal text now "only a choice param has a header line"; (5) out-of-plan books `help/reports.md` (one sentence).
+- gate 1: tests unedited: yes (`git diff` empty on the 7 staged test files in both repos) · core `packages:generate`, `pnpm run checks`, core `tinycld-pkg check`, `go test ./reports/...`; books `go test ./...`, `tinycld-pkg check`: green · e2e ONE command, reports-source-params + reports-period-pivot + books-customer-balance: 30 passed.
+- gate 2: capture `evidence/cp4/capture.json` (`filtered`: group pick, then Aspen Ridge Dental; waits for the whole header line), 4 shots. invalid shots: none · blocking: none · notes: 2, listed under Design notes (critique `evidence/cp4/critique.md`).
+- gate 3 A (correctness): 0 BLOCK, 5 NOTE, 0 DEFERRAL. NOTE 1 (header label reads add no realtime topics) and NOTE 2 (no cap on the filled line) → Design notes. NOTE 3, 4 (out-of-plan `options.go`, stub template) → Out-of-plan changes. NOTE 5 (Books e2e header checks use `toContainText`) = B finding 6 → fix item 1.
+- gate 3 B (conformance): script lines: 0 (core and books) · findings 1–3 (out-of-plan `options.go`, `register.go.txt`, books `help/reports.md`) accepted as needed → Out-of-plan changes; findings 4–5 (`reports-period-pivot.spec.ts` and `pnpm run checks` not in the implementer's runs) → already run by the runner in gate 1 above (30 passed; checks green); finding 6 (weak header asserts) accepted → fix item 1. Note: `customersParam()` is shared; other lanes' reports that use it now print a "Customer: …" line → for the driver.
+- gate 3 B shadow (sonnet; not acted on): 0 findings; it named the same three out-of-plan files. No shadow-only finding.
+- reviewer-caught deferrals: none
+- fix round (`cp4-fix.md`, 1 item, to a fresh test writer, `cp4-fix-tests.md`): e2e 6 and 9 assert the whole header line with `toHaveText(\`Customer: ${…}\`)`; a temporary probe (removed) showed the line holds exactly "Customer: <label>". Causes: weak-test 1.
+- gate 1 again: test-only change; `books-customer-balance.spec.ts` (12) green; biome on the staged files clean. No shot changed, no capture or critic again.
+- fix review: n/a (no non-test source changed in the fix round); 0 rounds.
+- gate 3 A notes: 2 under Design notes (A NOTE 1, 2); gate 2 notes: 2 under Design notes (one shared with A NOTE 2).
+- model trial: line in /Users/nas/tmp/tinycld/auto-helix-books/model-trial.md (no shadow-only finding).
+- commit: core fff405b0 (branch books/p5-customer-balance, not pushed); books: this commit.
 - human: none (review mode C)

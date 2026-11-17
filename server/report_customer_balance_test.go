@@ -310,6 +310,10 @@ func TestCustomerBalanceSpecLoads(t *testing.T) {
 	if got, want := mustJSON(customers.OptionsFrom), mustJSON(wantFrom); string(got) != string(want) {
 		t.Errorf("customers.optionsFrom = %s\nwant %s", got, want)
 	}
+	// Spec §3: with customers picked, the document header names the picks.
+	if !strings.Contains(customers.Header, reports.HeaderLabelToken) {
+		t.Errorf("customers.header = %q, want a header line that names the picks with %s", customers.Header, reports.HeaderLabelToken)
+	}
 	if got, want := mustJSON(customers), mustJSON(customersParam()); string(got) != string(want) {
 		t.Errorf("the customers param = %s, want customersParam() %s (the helper p5-ar-aging and p2-statements read)", got, want)
 	}
