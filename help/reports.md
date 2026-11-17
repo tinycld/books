@@ -289,7 +289,7 @@ To change the day, press the As of chip. The default is Today.
 
 To choose which customers show, press the Rows chip. Non-zero, the default, shows each customer whose balance is not 0. With activity also shows a customer whose transactions add up to 0. A family whose customers are all hidden is hidden with its total.
 
-To show only some customers, press Add filter, then Customer. Pick one or more customers, inactive customers included; a sub-customer is listed under its parent's name, and "All" with the parent's name and "sub-customers" picks the whole family. Then press Apply. With customers picked, the No customer row does not show. To remove the filter, press the × on the Customer chip.
+To show only some customers, press Add filter, then Customer. Pick one or more customers, inactive customers included; a sub-customer is listed under its parent's name, and "All" with the parent's name and "sub-customers" picks the whole family. Then press Apply. With customers picked, the No customer row does not show, and a line under the date names your picks, for example "Customer: Aspen Ridge Dental, All Harborview Hospitality Group sub-customers". To remove the filter, press the × on the Customer chip.
 
 To change the order, press the Order chip. Name, the default, orders families and customers by name. Largest balance puts the largest balance first; a family counts by its total, and inside a family the parent's own row stays first.
 

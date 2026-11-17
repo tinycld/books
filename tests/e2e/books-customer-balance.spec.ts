@@ -327,6 +327,10 @@ test.describe('customer-balance: report', () => {
             ['total', 'Total', 64000],
         ])
         await expect(page.getByTestId('report-param-customers')).toHaveText(`Customer: ${name}`)
+        // Spec §3: with customers picked, the document header names the picks.
+        await expect(page.getByTestId('report-header-param-customers')).toHaveText(
+            `Customer: ${name}`
+        )
 
         await openBalanceRow(page, name)
         const lines = reportLinesUnder(await reportSnapshot(page), name)
@@ -457,6 +461,10 @@ test.describe('customer-balance: report', () => {
             group: parent,
         })
         await expect(page.getByTestId('report-param-customers')).toHaveText(`Customer: ${pick}`)
+        // Spec §3: the document header names a whole-group pick by its group text.
+        await expect(page.getByTestId('report-header-param-customers')).toHaveText(
+            `Customer: ${pick}`
+        )
 
         const snapshot = await snapshotWhen(
             page,

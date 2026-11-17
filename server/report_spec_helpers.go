@@ -135,11 +135,14 @@ func accountsParam() reports.ParamDef {
 // customersParam is the Customer param of the Customer Balance: any number
 // of customers, inactive ones included, a sub-customer listed under its
 // parent's name with a pick of all the sub-customers of a parent; the
-// parent's own row is not in it. The A/R aging report (p5-ar-aging)
-// and customer statements (p2-statements) use it too.
+// parent's own row is not in it. The document header names the picks under
+// the period ("Customer: Aspen Ridge Dental, All Harborview Hospitality
+// Group sub-customers"). The A/R aging report (p5-ar-aging) and customer
+// statements (p2-statements) use it too.
 func customersParam() reports.ParamDef {
 	return reports.ParamDef{
 		ID: "customers", Type: reports.ParamChoice, Label: "Customer", Multiple: true,
+		Header: "Customer: {label}",
 		OptionsFrom: &reports.OptionsFrom{
 			Source:     "books.customers",
 			Value:      path("id"),
