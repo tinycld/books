@@ -3,6 +3,10 @@ import { AMOUNT_TEXT_STYLE } from '../../forms/document-line-cells'
 import type { DocumentTableSubtotal } from '../../lib/document-tax'
 import { useDocumentKind } from './document-kind-context'
 
+// A row a kind's read view draws after Total (DocumentKind.readTotals): its label, its
+// amount as text and its full test id.
+export type DocumentTotalRow = { label: string; amount: string; testId: string; isStrong?: boolean }
+
 export type DocumentTotalsView = {
     // Null on a kind with more than one line table: no Subtotal row shows.
     subtotal: string | null
@@ -18,6 +22,9 @@ export type DocumentTotalsView = {
     // The kind's last row (Balance due on an invoice and a bill, so the total less its
     // payments is what is still owed).
     last: string
+    // The kind's rows drawn after Total, in order (a vendor credit's Applied and Unapplied
+    // credit); left out by every form and by a kind without such rows.
+    after?: readonly DocumentTotalRow[]
 }
 
 interface TotalRowProps {
@@ -84,9 +91,23 @@ function TableSubtotalRows({ rows }: { rows: DocumentTableSubtotal[] }) {
     return <>{drawn}</>
 }
 
-// Subtotal (or each table's subtotal), the header tax's one line, Total, the payments
-// applied (an invoice's read view) and the kind's last row, right-aligned so the figures
-// end where the lines' Amount column ends.
+// The kind's rows after Total (DocumentTotalsView.after), each with its own full test id.
+function AfterRows({ rows }: { rows: readonly DocumentTotalRow[] }) {
+    const drawn = rows.map(row => (
+        <TotalRow
+            key={row.testId}
+            label={row.label}
+            amount={row.amount}
+            testID={row.testId}
+            isStrong={row.isStrong}
+        />
+    ))
+    return <>{drawn}</>
+}
+
+// Subtotal (or each table's subtotal), the header tax's one line, Total, the kind's rows
+// after Total, the payments applied (an invoice's read view) and the kind's last row,
+// right-aligned so the figures end where the lines' Amount column ends.
 export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) {
     const { doc } = useDocumentKind()
     const testId = doc.testId
@@ -98,6 +119,7 @@ export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) 
         payments: `${testId}-total-payments`,
     }
     const payments = totals.payments ?? null
+    const after = totals.after ?? []
     return (
         <View testID={ids.totals}>
             <SubtotalRow amount={totals.subtotal} testID={ids.subtotal} />
@@ -106,6 +128,7 @@ export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) 
             <View className="border-t border-border">
                 <TotalRow label="Total" amount={totals.total} testID={ids.total} isStrong />
             </View>
+            <AfterRows rows={after} />
             <PaymentsRow amount={payments} testID={ids.payments} />
             <LastRow amount={totals.last} />
         </View>

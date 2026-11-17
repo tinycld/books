@@ -57,9 +57,10 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
-    // A bill's or an expense's file. A row is created by core's uploadRecordWithFile (the
-    // file bytes), never by an insert here; the server stamps name, size and uploaded_by
-    // from the upload.
+    // A bill's, an expense's or a vendor credit's file. A row is created by core's
+    // uploadRecordWithFile (the file bytes), never by an insert here; the server stamps
+    // name, size and uploaded_by from the upload. A reader filters by the parent's id
+    // column and never reads the parent through the row, so no parent relation is declared.
     const books_attachments = newCollection('books_attachments', {
         omitOnInsert: ['created', 'updated', 'name', 'size', 'uploaded_by'] as const,
         ...onDemand,

@@ -17,6 +17,7 @@ import {
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
+    VENDOR_CREDIT_KIND,
 } from './sales-document-kinds'
 import { vendorPath } from './vendor-route'
 
@@ -32,6 +33,7 @@ const DOCUMENT_KINDS = new Map<string, SalesDocumentKind>(
         ESTIMATE_KIND,
         BILL_KIND,
         EXPENSE_KIND,
+        VENDOR_CREDIT_KIND,
     ].map(kind => [DOCUMENT_COLLECTIONS[kind.key], kind])
 )
 
@@ -124,15 +126,18 @@ function contactPath(live: LiveRecord): string | null {
     return vendor ? filledPath(vendorPath(vendor)) : null
 }
 
-// The document an attachment belongs to (a bill or an expense), from its live row.
+// The document an attachment belongs to (a bill, an expense or a vendor credit), from its
+// live row.
 function attachmentParent(live: LiveRecord): { collection: string; id: string } | null {
     const bill = textOf(live, 'bill')
     if (bill) return { collection: 'books_bills', id: bill }
     const expense = textOf(live, 'expense')
-    return expense ? { collection: 'books_expenses', id: expense } : null
+    if (expense) return { collection: 'books_expenses', id: expense }
+    const credit = textOf(live, 'vendor_credit')
+    return credit ? { collection: 'books_vendor_credits', id: credit } : null
 }
 
-// An attachment opens its bill or expense.
+// An attachment opens its bill, expense or vendor credit.
 function attachmentPath(live: LiveRecord): string | null {
     const parent = attachmentParent(live)
     const kind = parent ? DOCUMENT_KINDS.get(parent.collection) : undefined
@@ -169,7 +174,7 @@ export function auditOpenLabel(collection: string): string {
 /**
  * The Open button's label for a record's live row: it names the screen the button opens,
  * so a party contact reads "Open customer" or "Open vendor" (contactPath), and an
- * attachment "Open bill" or "Open expense" (attachmentPath).
+ * attachment "Open bill", "Open expense" or "Open vendor credit" (attachmentPath).
  */
 export function auditRecordOpenLabel(collection: string, live: LiveRecord | undefined): string {
     if (!live) return auditOpenLabel(collection)

@@ -14,6 +14,7 @@ import {
     EXPENSE_KIND,
     SALES_FEATURES,
     SALES_RECEIPT_KIND,
+    VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
 
 // The read view's actions by the invoice's status and the user's access (spec §3.6), and
@@ -206,6 +207,7 @@ describe('payBillOffered', () => {
     it('is false for any other kind, an invoice included', () => {
         expect(payBillOffered('invoice', 'posted', 20000)).toBe(false)
         expect(payBillOffered('expense', 'posted', 20000)).toBe(false)
+        expect(payBillOffered('vendor_credit', 'posted', 20000)).toBe(false)
     })
 })
 
@@ -292,7 +294,14 @@ describe('Create credit memo', () => {
         expect(creditMemoOffered('invoice', 'posted')).toBe(true)
         expect(creditMemoOffered('invoice', 'void')).toBe(false)
         expect(creditMemoOffered('invoice', 'draft')).toBe(false)
-        for (const kind of ['sales_receipt', 'estimate', 'bill', 'expense', 'credit_memo']) {
+        for (const kind of [
+            'sales_receipt',
+            'estimate',
+            'bill',
+            'expense',
+            'credit_memo',
+            'vendor_credit',
+        ]) {
             expect(creditMemoOffered(kind, 'posted'), kind).toBe(false)
         }
     })
@@ -400,5 +409,27 @@ describe('the expense read view', () => {
                 expect(expense(status, canWrite)).not.toContain('pdf')
             }
         }
+    })
+})
+
+// The vendor credit's read view (vendor credit spec §3.7): Edit, Void, Copy and View
+// journal entry for a writer on a posted credit; Copy and View journal entry on a void
+// one; View journal entry only for a reader. No PDF, no Receive payment, no Pay bill, no
+// Create credit memo. (Apply to bills is checkpoint 4.)
+describe('the vendor credit read view', () => {
+    const credit = (status: 'posted' | 'void', canWrite: boolean) =>
+        documentReadActions(status, canWrite, VENDOR_CREDIT_KIND.features)
+
+    it('offers a writer Edit, Void, Copy and View journal entry on a posted credit', () => {
+        expect(credit('posted', true)).toEqual(['edit', 'void', 'copy', 'entry'])
+    })
+
+    it('offers a writer Copy and View journal entry on a void credit', () => {
+        expect(credit('void', true)).toEqual(['copy', 'entry'])
+    })
+
+    it('offers a reader View journal entry only', () => {
+        expect(credit('posted', false)).toEqual(['entry'])
+        expect(credit('void', false)).toEqual(['entry'])
     })
 })

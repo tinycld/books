@@ -1,12 +1,10 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
-import type { TableRowWrite } from '@tinycld/core/lib/forms/table-rows'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { billColumnsFrom, type EMPTY_BILL_COLUMNS } from '../lib/bill-columns'
-import { isPurchaseAccountListed } from '../lib/purchase-pickers'
 import { columnsOrThrow } from '../lib/record-save'
 import { BILL_KIND } from '../lib/sales-document-kinds'
 import type { BooksBills } from '../types'
@@ -17,45 +15,37 @@ import {
     type DocumentRecord,
     type DocumentScreenInput,
     type DocumentScreenReads,
-    type DocumentSource,
     type DocumentWrites,
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
     NO_INVOICE_SOURCE,
-    NO_RECOVERY,
     postedPaymentsOf,
-    purchaseLineMapperOf,
     useHeldRecord,
 } from './document-data'
 import { vendorPartyRead } from './party-read'
-import { useBooksSettings } from './useBooksSettings'
+import {
+    NO_PURCHASE_TAX_LINES,
+    PURCHASE_SALES_COLUMNS,
+    purchaseLineOps,
+    usePurchaseStart,
+} from './purchase-data'
 
 const LOG_CONTEXT = 'books.bill'
 
 type BillInsertColumns = typeof EMPTY_BILL_COLUMNS
 
-// The bill's own columns go into `kindFields`; the row keeps the shared ones. A bill has
-// no customer, bill-to address, email, tax rate, message or tax (it is a purchase and
-// prints nothing), so those shared columns are ''/null/0 on it: every shared reader keeps
-// its type, and none of them finds a customer or a tax on a bill.
+// The bill's own columns go into `kindFields`; the row keeps the shared ones, with the
+// sales columns a purchase does not have empty (PURCHASE_SALES_COLUMNS).
 function billSourceOf<R extends BooksBills>(
     row: R
 ): R &
-    Pick<
-        DocumentSource,
-        'customer' | 'bill_to' | 'email' | 'tax_rate' | 'message' | 'tax_total'
-    > & {
+    typeof PURCHASE_SALES_COLUMNS & {
         kindFields: Extract<DocumentKindFields, { kind: 'bill' }>
     } {
     return {
         ...row,
-        customer: '',
-        bill_to: null,
-        email: '',
-        tax_rate: '',
-        message: '',
-        tax_total: 0,
+        ...PURCHASE_SALES_COLUMNS,
         kindFields: {
             kind: 'bill',
             vendor: row.vendor,
@@ -82,52 +72,16 @@ function useBillSourceQuery(sourceId: string) {
     })
 }
 
-// On a new form opened with `?vendor`: that vendor's default expense account, as one
-// query (the vendor with its account), which says whether the Account picker lists it.
-function useVendorAccountQuery(vendorId: string) {
-    const [vendorsCollection, accountsCollection] = useStore('books_vendors', 'books_accounts')
-    const query = useLiveQuery({
-        query: q => {
-            if (!vendorId) return undefined
-            return q
-                .from({ v: vendorsCollection })
-                .where(({ v }) => eq(v.id, vendorId))
-                .select(({ v }) => ({
-                    id: v.id,
-                    account: materialize(
-                        q
-                            .from({ a: accountsCollection })
-                            .where(({ a }) => eq(a.id, v.expense_account))
-                            .findOne()
-                    ),
-                }))
-                .findOne()
-        },
-        queryKey: ['books.bill.vendor-account', vendorId],
-    })
-    return { query, sources: [vendorsCollection, accountsCollection] }
-}
-
-/**
- * The form start of a bill: the Purchase lines setting (Settings → Purchases), which decides
- * the tables a new form shows, and on a new form opened with `?vendor` whether the Account
- * picker lists the vendor's default expense account (isPurchaseAccountListed), which then
- * starts the first account line. The settings row is the screen's own read (its readiness,
- * its error and its Retry are there, useDocumentScreen); the vendor's account is this
- * read's own, so its loading, its error and its Retry join the screen's.
- */
+// The form start of a bill: the purchase start (usePurchaseStart), with the vendor
+// account's read as its own.
 function useBillFormStart(input: DocumentScreenInput): DocumentScreenReads['formStart'] {
-    const { settings } = useBooksSettings()
-    const purchaseLines = settings?.purchase_lines ?? 'both'
-    const vendorId = input.id === null ? (input.vendor ?? '') : ''
-    const { query, sources } = useVendorAccountQuery(vendorId)
-    const vendorAccountListed = vendorId ? isPurchaseAccountListed(query.data?.account) : undefined
+    const { purchaseLines, vendorAccountListed, vendorRead } = usePurchaseStart(input, LOG_CONTEXT)
     // Kept between renders: a copy's values (new line ids) are memoised on the start.
     const data = useMemo<DocumentFormStart>(
         () => ({ start: { kind: 'bill', purchaseLines, vendorAccountListed }, deposit: undefined }),
         [purchaseLines, vendorAccountListed]
     )
-    return documentRead(vendorId, query, data, sources)
+    return { ...vendorRead, data }
 }
 
 /**
@@ -283,17 +237,9 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
             paymentLinesCollection,
             billPaymentsCollection,
         ]),
-        taxLines: NO_TAX_LINES,
+        taxLines: NO_PURCHASE_TAX_LINES,
         formStart,
     }
-}
-
-// A bill has no sales tax, so it has no tax snapshot to read.
-const NO_TAX_LINES: DocumentScreenReads['taxLines'] = {
-    data: [],
-    isReady: true,
-    isError: false,
-    recovery: NO_RECOVERY,
 }
 
 // The bill's writes: its row and the lines of both tables (one collection, each line
@@ -332,26 +278,15 @@ function useBillWrites(): DocumentWrites {
             }),
         storedRevision: id => billsCollection.get(id)?.revision,
         deleteRecord: id => billsCollection.delete(id),
-        lineOps: (billId, mapper) => {
-            const { toRecord } = purchaseLineMapperOf(mapper)
-            const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)
-            return {
-                // A product line's record has no amount (the server writes Qty x Rate over
-                // the 0 the insert carries); an account line's record sets its typed one.
-                insert: write =>
-                    linesCollection.insert({
-                        id: write.row.id,
-                        bill: billId,
-                        amount: 0,
-                        ...lineRecord(write),
-                    }),
-                update: write =>
-                    linesCollection.update(write.row.id, draft => {
-                        Object.assign(draft, lineRecord(write))
+        lineOps: (billId, mapper) =>
+            purchaseLineOps(mapper, {
+                insert: record => linesCollection.insert({ ...record, bill: billId }),
+                update: (lineId, record) =>
+                    linesCollection.update(lineId, draft => {
+                        Object.assign(draft, record)
                     }),
                 remove: lineId => linesCollection.delete(lineId),
-            }
-        },
+            }),
     }
 }
 
