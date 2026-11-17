@@ -29,6 +29,7 @@ import { billColumnsFrom, EMPTY_BILL_COLUMNS } from '../../lib/bill-columns'
 import {
     type BillFormValues,
     billCorrectionValues,
+    billReadTotals,
     copyBillValues,
     newBillValues,
     vendorBillFills,
@@ -49,6 +50,7 @@ import {
     type DocumentLineRow,
     type DocumentLineValues,
 } from '../../lib/document-line-columns'
+import type { DocumentTotalRow } from '../../lib/document-total-rows'
 import type { DocumentFormValuesBase } from '../../lib/document-values'
 import { EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../../lib/estimate-columns'
 import { copyEstimateValues, newEstimateValues } from '../../lib/estimate-values'
@@ -116,7 +118,6 @@ import { BillReadDetails } from './BillReadDetails'
 import { CreditMemoLinkRow } from './CreditMemoLinkRow'
 import { CreditMemoInvoiceLink, CreditMemoReadDetails } from './CreditMemoReadDetails'
 import type { DocumentReadLinesProps } from './DocumentReadLines'
-import type { DocumentTotalRow } from './DocumentTotalsPanel'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
 import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
 import { InvoiceCreditMemos } from './InvoiceCreditMemos'
@@ -309,11 +310,14 @@ export type DocumentKind = {
     // an invoice and a bill, Applied on a vendor credit), from the stored balance; a kind
     // without it shows its status badge.
     balanceBadge?: BalanceBadge
-    // The rows the read view draws after Total (a vendor credit's Applied and Unapplied
-    // credit). `applied` is the sum of the record's credit applications, 0 for a kind that
-    // does not read them (`readApplications`).
+    // The rows the read view draws after Total (a bill's Credits applied, a vendor credit's
+    // Applied and Unapplied credit). `applied` is the credit applied to a posted bill, read
+    // from its stored record (billCreditsApplied: the total less its posted payments and its
+    // stored balance), so the rows add up while the applications read is loading or failed;
+    // 0 for every other kind.
     readTotals?: (record: DocumentRecord, extra: { applied: number }) => DocumentTotalRow[]
-    // True makes the read view read the record's credit applications (`applied` above).
+    // True makes the read view read the record's credit applications, the rows its Payments
+    // block lists with Remove.
     readApplications?: boolean
 }
 
@@ -585,6 +589,11 @@ export const BILL_DOCUMENT: DocumentKind = {
             account_lines: rowsOf(current.account_lines),
         }),
     balanceBadge: paidBadge,
+    // "Credits applied" above Balance due while vendor credits are applied to the bill: the
+    // read view passes the credit its stored record holds as `applied` (billCreditsApplied),
+    // and reads the bill's credit applications for its Payments block.
+    readTotals: billReadTotals,
+    readApplications: true,
 }
 
 // The source row with the expense's own columns back at the top level, as invoiceRowOf.

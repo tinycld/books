@@ -13,7 +13,7 @@ import type {
 import type { StatusTone } from './document-lifecycle'
 import { statusBadgeOf } from './document-lifecycle'
 import { estimateStatusLabel, isExpired } from './estimate-status'
-import { formatMoney } from './money'
+import { formatMoney, MINUS } from './money'
 import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
@@ -225,12 +225,9 @@ export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
     }
 }
 
-// U+2212: a typographic minus, not the hyphen `formatMoney` writes for a negative amount.
-const MINUS_SIGN = '−'
-
 export function transactionTotalText(row: PartyTransactionRow, currency: string): string {
     if (row.total >= 0) return formatMoney(row.total, currency)
-    return `${MINUS_SIGN}${formatMoney(-row.total, currency)}`
+    return `${MINUS}${formatMoney(-row.total, currency)}`
 }
 
 // A void original that a correction replaced is left out: the correction carries its

@@ -83,6 +83,18 @@ export function openCountText(count: number, _mode: 'new' | 'replaces'): string 
     return `${count} open ${plural(count, 'bill', 'bills')}`
 }
 
+// A line of the notice of unapplied vendor credits above the open bills (vendor credit
+// spec §3.10): "Vendor credit 1002 · Office Supply World · $50.00 unapplied".
+export function unappliedCreditText(credit: {
+    number: string
+    vendorName: string
+    balance: number
+    currency: string
+}): string {
+    const balance = formatMoney(credit.balance, credit.currency)
+    return `Vendor credit ${credit.number} · ${credit.vendorName} · ${balance} unapplied`
+}
+
 const NO_AMOUNT = '—'
 
 /**

@@ -1,0 +1,76 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "elsewhere-bill",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300,
+            "actions": [
+                { "press": "/" },
+                { "type": "Scissor lift" },
+                { "clickOption": "^Bill \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "bill-total-credits" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "elsewhere-bill-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2000,
+            "actions": [
+                { "press": "/" },
+                { "type": "Scissor lift" },
+                { "clickOption": "^Bill \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "bill-total-credits" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "remove-bill",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "actions": [
+                { "press": "/" },
+                { "type": "Scissor lift" },
+                { "clickOption": "^Bill \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "bill-total-credits" },
+                { "clickText": "Remove" },
+                { "waitFor": "remove-application-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "remove-bill-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [
+                { "press": "/" },
+                { "type": "Scissor lift" },
+                { "clickOption": "^Bill \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "bill-total-credits" },
+                { "clickText": "Remove" },
+                { "waitFor": "remove-application-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "elsewhere-pay-bills",
+            "url": "/a/books/pay-bills",
+            "ready": "pay-bills-form",
+            "hideLabels": ["New"],
+            "widths": [1280, 390],
+            "height": 1300,
+            "actions": [{ "waitFor": "pay-bills-credits-notice" }, { "pause": 500 }]
+        }
+    ]
+}

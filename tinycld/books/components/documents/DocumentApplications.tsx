@@ -10,7 +10,7 @@ import { APPLY_CREDIT_MESSAGES } from '../../lib/apply-credit-schema'
 import { formatMoney } from '../../lib/money'
 import { fillPaymentText } from '../../lib/payment-texts'
 import { formatDay } from '../../lib/register-range'
-import { BILL_KIND } from '../../lib/sales-document-kinds'
+import { BILL_KIND, VENDOR_CREDIT_KIND } from '../../lib/sales-document-kinds'
 import { RefusalSummary } from '../entries/RefusalSummary'
 import { ListBanner } from '../ListBanner'
 
@@ -21,8 +21,34 @@ const AUTOFOCUS = autoFocusDataSet({ autoFocus: true })
 
 function ignore() {}
 
+// What an application row names and opens: the bill on a vendor credit's Applied to block,
+// the vendor credit on a bill's Payments block. The row's ids follow it:
+// `<prefix>-application-<id>` / `<prefix>-application-remove-<id>` on the credit,
+// `<prefix>-credit-<id>` / `<prefix>-credit-remove-<id>` on the bill.
+const APPLICATION_TARGETS = {
+    bill: {
+        kind: BILL_KIND,
+        noun: 'Bill',
+        idSuffix: 'application',
+        documentOf: (row: CreditApplicationRow) => ({ id: row.billId, number: row.billNumber }),
+    },
+    credit: {
+        kind: VENDOR_CREDIT_KIND,
+        noun: 'Vendor credit',
+        idSuffix: 'credit',
+        documentOf: (row: CreditApplicationRow) => ({
+            id: row.creditId,
+            number: row.creditNumber,
+        }),
+    },
+} as const
+
+export type ApplicationTarget = keyof typeof APPLICATION_TARGETS
+
 interface ApplicationRowProps {
     application: CreditApplicationRow
+    // The document the row names and opens (APPLICATION_TARGETS).
+    target: ApplicationTarget
     currency: string
     testIdPrefix: string
     // A writer on a posted document: the row offers Remove.
@@ -48,29 +74,35 @@ function RemoveButton({
 }
 
 /**
- * One application of the Applied to block: "Bill 1003 · Nov 16, 2026 · $30.00", a link
- * that opens the bill (back to its screen when it is below, else pushed), and Remove for a
- * writer on a posted document. Remove only opens the confirm, so it is a plain Button.
+ * One application: on a vendor credit's Applied to block "Bill 1003 · Nov 16, 2026 ·
+ * $30.00", on a bill's Payments block "Vendor credit 1002 · Nov 16, 2026 · $30.00"; a link
+ * that opens that document (back to its screen when it is below, else pushed), and Remove
+ * for a writer on a posted document. Remove only opens the confirm, so it is a plain Button.
  */
 export function ApplicationRow({
     application,
+    target,
     currency,
     testIdPrefix,
     canRemove,
     onRemove,
 }: ApplicationRowProps) {
-    const openBill = useOpenDocument(BILL_KIND, application.billId)
+    const named = APPLICATION_TARGETS[target]
+    const document = named.documentOf(application)
+    const open = useOpenDocument(named.kind, document.id)
     const amount = formatMoney(application.amount, currency)
-    const text = `Bill ${application.billNumber} · ${formatDay(application.date)} · ${amount}`
+    const day = formatDay(application.date)
+    const text = `${named.noun} ${document.number} · ${day} · ${amount}`
     const remove = () => onRemove(application)
+    const ids = {
+        row: `${testIdPrefix}-${named.idSuffix}-${application.id}`,
+        remove: `${testIdPrefix}-${named.idSuffix}-remove-${application.id}`,
+    }
     return (
-        <View
-            testID={`${testIdPrefix}-application-${application.id}`}
-            className="flex-row flex-wrap items-center gap-3"
-        >
+        <View testID={ids.row} className="flex-row flex-wrap items-center gap-3">
             <Pressable
                 accessibilityRole="link"
-                onPress={openBill}
+                onPress={open}
                 className="min-w-0 justify-center self-start"
                 style={TAP}
             >
@@ -78,11 +110,7 @@ export function ApplicationRow({
                     {text}
                 </Text>
             </Pressable>
-            <RemoveButton
-                isVisible={canRemove}
-                testID={`${testIdPrefix}-application-remove-${application.id}`}
-                onPress={remove}
-            />
+            <RemoveButton isVisible={canRemove} testID={ids.remove} onPress={remove} />
         </View>
     )
 }
@@ -131,6 +159,7 @@ export function DocumentApplications({
             <ApplicationRow
                 key={application.id}
                 application={application}
+                target="bill"
                 currency={currency}
                 testIdPrefix={testIdPrefix}
                 canRemove={canRemove}

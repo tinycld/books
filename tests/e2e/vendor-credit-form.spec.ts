@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { formatDay } from '../../tinycld/books/lib/register-range'
 import { DESKTOP, PHONE } from './account-register-helpers'
-import { setPurchaseLines } from './bill-helpers'
+import { PURCHASES_CARD_TITLE, setPurchaseLines } from './bill-helpers'
 import { batchAnswered } from './document-batch-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
 import { moneyCents, shown } from './pay-bills-helpers'
@@ -50,6 +50,8 @@ const SOFTWARE = '6200 Software Subscriptions'
 const NO_LINES = 'Add at least one account or product line'
 const VOID_BODY = 'A reversing entry is posted in the original period. The number is kept.'
 const ITEM_HEADING = 'Product and service details'
+const PURCHASE_LINES_NOTE =
+    'Which line tables new bills, expenses and vendor credits show. A form still shows a table its record already has lines in.'
 // The seeded credits (seed.ts seedVendorCredits), found by their memos.
 const UNAPPLIED_MEMO = 'Meter 4471 was read twice in October'
 const PARTLY_MEMO = 'Return authorised by Dana, RMA 5521'
@@ -670,6 +672,13 @@ test.describe('vendor-credit-form: purchase lines setting', () => {
     test('Products only shows only the product table on a new credit', async ({ page }) => {
         await openBooks(page)
         await setPurchaseLines(page, 'Products only')
+        // The card and its note name all three forms (spec §3.8).
+        await expect(
+            page.getByText(PURCHASES_CARD_TITLE, { exact: true }).filter({ visible: true })
+        ).toBeVisible()
+        await expect(
+            page.getByText(PURCHASE_LINES_NOTE, { exact: true }).filter({ visible: true })
+        ).toBeVisible()
         await leaveSettings(page)
 
         // New → Vendor credit: one empty product line and no account table.

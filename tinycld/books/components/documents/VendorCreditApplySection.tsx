@@ -58,7 +58,8 @@ function ApplySection({
     reads: SectionReads
 }) {
     const { applications, openBills } = reads
-    const removal = useRemoveApplication()
+    const canRemove = removeApplicationOffered(canWrite, status)
+    const removal = useRemoveApplication({ applications: applications.applications, canRemove })
     const openFor = useApplyCreditStore(state => state.openFor)
     const isHeld = useApplyCreditStore(state => state.isHeld)
     const closeDialog = useApplyCreditStore(state => state.close)
@@ -77,11 +78,6 @@ function ApplySection({
     // Open while the store names this credit and Apply is still offered (the credit was not
     // voided or applied elsewhere meanwhile), or while its own write runs.
     const isDialogVisible = openFor === creditId && (isOffered || isHeld)
-    const canRemove = removeApplicationOffered(canWrite, status)
-    const target = removal.target
-    const isTargetListed =
-        target !== null && applications.applications.some(row => row.id === target.id)
-    const isRemoveVisible = (isTargetListed && canRemove) || removal.isPending
     return (
         <View className="gap-4">
             <DocumentApplications
@@ -100,8 +96,8 @@ function ApplySection({
                 sectionRecovery={openBills.read.recovery}
             />
             <RemoveApplicationDialog
-                application={target}
-                isVisible={isRemoveVisible}
+                application={removal.target}
+                isVisible={removal.isVisible}
                 currency={credit.currency}
                 isPending={removal.isPending}
                 errorMessage={removal.errorMessage}

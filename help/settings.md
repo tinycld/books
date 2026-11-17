@@ -28,13 +28,13 @@ For more, see [Sales receipts](help://books:sales-receipts).
 
 ## Purchases
 
-To choose which line tables new bills and expenses show, open Settings and choose Purchases. Everyone with Books access sees the section; only a Books admin can change it. The Bills and expenses card has one setting, **Purchase lines**, with its own Save button:
+To choose which line tables new bills, expenses and vendor credits show, open Settings and choose Purchases. Everyone with Books access sees the section; only a Books admin can change it. The Bills, expenses and vendor credits card has one setting, **Purchase lines**, with its own Save button:
 
-- Accounts and products (the default): a new bill or expense shows Account details and Product and service details.
-- Accounts only: a new bill or expense shows Account details only.
-- Products only: a new bill or expense shows Product and service details only.
+- Accounts and products (the default): a new bill, expense or vendor credit shows Account details and Product and service details.
+- Accounts only: a new bill, expense or vendor credit shows Account details only.
+- Products only: a new bill, expense or vendor credit shows Product and service details only.
 
-A table that the setting hides still shows on a bill or expense that already has lines in it, so editing an older one never loses lines. For more, see [Bills](help://books:bills) and [Expenses](help://books:expenses).
+A table that the setting hides still shows on a bill, expense or vendor credit that already has lines in it, so editing an older one never loses lines. For more, see [Bills](help://books:bills), [Expenses](help://books:expenses) and [Vendor credits](help://books:vendor-credits).
 
 ## Numbering
 

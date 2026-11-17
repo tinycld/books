@@ -4,11 +4,8 @@
 // draw none. Applied is the total less the stored balance, so no applications read is
 // needed. Pure.
 
-import type { DocumentTotalRow } from '../components/documents/DocumentTotalsPanel'
-import { formatMoney } from './money'
-
-// U+2212, not the ASCII hyphen formatMoney writes for a negative amount.
-const MINUS = '−'
+import type { DocumentTotalRow } from './document-total-rows'
+import { formatMoney, MINUS } from './money'
 
 export function vendorCreditReadTotals(record: {
     status: string
