@@ -1,0 +1,79 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "product-populated",
+            "url": "/a/reports?package=books",
+            "height": 1800,
+            "actions": [
+                { "idFromText": "Sales by Product/Service", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "product-opened",
+            "url": "/a/reports?package=books",
+            "height": 1800,
+            "actions": [
+                { "idFromText": "Sales by Product/Service", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "clickText": "Wireless access point" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "product-by-sales",
+            "url": "/a/reports?package=books",
+            "height": 1800,
+            "actions": [
+                {
+                    "idFromText": "Sales by Product/Service",
+                    "goto": "/a/reports/$urlId?p-order=sales"
+                },
+                { "waitFor": "report-table" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "product-filtered",
+            "url": "/a/reports?package=books",
+            "actions": [
+                { "idFromText": "Sales by Product/Service", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-products" },
+                { "waitFor": "report-filter-options" },
+                { "click": "report-filter-group-service" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "report-header-param-products" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "product-picker",
+            "url": "/a/reports?package=books",
+            "actions": [
+                { "idFromText": "Sales by Product/Service", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-products" },
+                { "waitFor": "report-filter-options" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "product-empty",
+            "url": "/a/reports?package=books",
+            "actions": [
+                {
+                    "idFromText": "Sales by Product/Service",
+                    "goto": "/a/reports/$urlId?p-period=2020-01-01..2020-12-31"
+                },
+                { "waitFor": "report-empty" }
+            ]
+        }
+    ]
+}

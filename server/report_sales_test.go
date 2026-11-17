@@ -32,6 +32,8 @@ func runSalesErr(t *testing.T, app core.App, reader *core.Record, key string, pa
 	switch key {
 	case salesByCustomerKey:
 		shipped = salesByCustomerShipped()
+	case salesByProductKey:
+		shipped = salesByProductShipped()
 	default:
 		t.Fatalf("runSales: no shipped sales report %q", key)
 	}
@@ -980,5 +982,731 @@ func TestSalesByCustomerEmptyAndHeading(t *testing.T) {
 	}
 	if !bsHas(byDefault, "October Co") {
 		t.Errorf("the default period leaves out the October sale; rows %q", bsLabels(byDefault))
+	}
+}
+
+// Sales by Product/Service (checkpoint 2).
+
+func (b salesBook) runProducts(t *testing.T, params map[string]any) *reports.Result {
+	t.Helper()
+	return runSales(t, b.app, b.reader, salesByProductKey, withPeriod(params), reports.Options{Today: salesToday})
+}
+
+// runProductsOpen runs Sales by Product/Service with the product rows of keys
+// opened, as core's view sends a press.
+func (b salesBook) runProductsOpen(t *testing.T, params map[string]any, keys ...[]any) *reports.Result {
+	t.Helper()
+	return runSales(t, b.app, b.reader, salesByProductKey, withPeriod(params), reports.Options{
+		Today: salesToday, Expand: keys, Collapse: [][]any{},
+	})
+}
+
+// addProduct saves an active product of productType ("service" or
+// "non_inventory") on the book's income account of that kind.
+func (b salesBook) addProduct(t *testing.T, name, productType string) *core.Record {
+	t.Helper()
+	income := b.revenue
+	if productType == "non_inventory" {
+		income = b.hardware
+	}
+	r, err := newProduct(b.app, map[string]any{"type": productType, "name": name, "income_account": income.Id})
+	if err != nil {
+		t.Fatalf("save product %s: %v", name, err)
+	}
+	return r
+}
+
+// sbpProductRow is the product row (the one group level, byProduct) of
+// product.
+func sbpProductRow(t *testing.T, res *reports.Result, product *core.Record) reports.Row {
+	t.Helper()
+	r, ok := cbGroupRow(res, 1, product.Id)
+	if !ok {
+		t.Fatalf("no product row for %s; rows %q", product.GetString("name"), bsLabels(res))
+	}
+	return r
+}
+
+func sbpHasProduct(res *reports.Result, product *core.Record) bool {
+	_, ok := cbGroupRow(res, 1, product.Id)
+	return ok
+}
+
+// qtyCell reads a Quantity cell: ok false for an empty cell. A cell of any
+// other type fails the test.
+func qtyCell(t *testing.T, r reports.Row) (float64, bool) {
+	t.Helper()
+	switch v := r.Cells["quantity"].(type) {
+	case nil:
+		return 0, false
+	case float64:
+		return v, true
+	case int64:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	default:
+		t.Fatalf("%s (%s) quantity = %#v, a %T; want a number", r.Label, r.Kind, v, v)
+		return 0, false
+	}
+}
+
+func requireQty(t *testing.T, r reports.Row, want float64) {
+	t.Helper()
+	got, ok := qtyCell(t, r)
+	if !ok {
+		t.Errorf("%s (%s) has a blank Quantity, want %v", r.Label, r.Kind, want)
+		return
+	}
+	if math.Abs(got-want) > 1e-9 {
+		t.Errorf("%s (%s) Quantity = %v, want %v", r.Label, r.Kind, got, want)
+	}
+}
+
+// requireNoCell checks that a row has no figure in col.
+func requireNoCell(t *testing.T, r reports.Row, col, why string) {
+	t.Helper()
+	if v := r.Cells[col]; v != nil {
+		t.Errorf("%s (%s) %s = %#v, want no cell (%s)", r.Label, r.Kind, col, v, why)
+	}
+}
+
+// wantAvg is amount ÷ quantity in whole cents, rounded half away from zero.
+func wantAvg(amount int64, qty float64) int64 {
+	return int64(math.Round(float64(amount) / qty))
+}
+
+func TestSalesByProductSpecLoads(t *testing.T) {
+	b := newSalesBook(t)
+	if err := reports.CheckSources(b.app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+
+	shipped := salesByProductShipped()
+	if salesByProductKey != "books.sales_by_product" || shipped.Key != salesByProductKey {
+		t.Errorf("key = %q (const %q), want books.sales_by_product", shipped.Key, salesByProductKey)
+	}
+	if shipped.Title != "Sales by Product/Service" {
+		t.Errorf("title = %q, want Sales by Product/Service", shipped.Title)
+	}
+	if want := "What you sold of each product and service in a period, from posted invoices and sales receipts, less posted credit memos, before sales tax."; shipped.Description != want {
+		t.Errorf("description = %q, want %q", shipped.Description, want)
+	}
+	if shipped.Revision != 1 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	}
+	built, err := json.Marshal(salesByProductSpec())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !jsonEqual(t, shipped.Spec, string(built)) {
+		t.Errorf("the shipped spec is not salesByProductSpec()")
+	}
+
+	spec, _, err := reports.Load(shipped.Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if spec.Source != "books.sales_lines" {
+		t.Errorf("source = %q, want books.sales_lines", spec.Source)
+	}
+	if err := reports.Validate(b.app, spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	paramIDs := make([]string, len(spec.Params))
+	for i, p := range spec.Params {
+		paramIDs[i] = p.ID
+	}
+	if !reflect.DeepEqual(paramIDs, []string{"period", "products", "customers", "order"}) {
+		t.Fatalf("params = %v, want exactly period, products, customers, order", paramIDs)
+	}
+	if got, want := mustJSON(paramOf(t, spec, "products")), mustJSON(productsParam()); string(got) != string(want) {
+		t.Errorf("the products param = %s, want productsParam() %s", got, want)
+	}
+	if got, want := mustJSON(paramOf(t, spec, "customers")), mustJSON(customersParam()); string(got) != string(want) {
+		t.Errorf("the customers param = %s, want customersParam() %s", got, want)
+	}
+	products := productsParam()
+	from := products.OptionsFrom
+	if products.ID != "products" || products.Type != reports.ParamChoice || products.Label != "Product" ||
+		!products.Multiple || products.Header != "Product: {label}" {
+		t.Errorf("productsParam() = %+v, want a multiple choice Product with the header \"Product: {label}\"", products)
+	}
+	if from == nil || from.Source != "books.products" || !reflect.DeepEqual(from.Value, path("id")) ||
+		!reflect.DeepEqual(from.Label, path("name")) || !reflect.DeepEqual(from.Group, path("type")) ||
+		from.GroupLabel != "All {group} items" || from.Where == nil {
+		t.Errorf("productsParam().OptionsFrom = %+v, want books.products: value id, label name, group type, groupLabel \"All {group} items\", a where", from)
+	}
+	order := paramOf(t, spec, "order")
+	wantOrder := []reports.Option{{Value: "name", Label: "Name"}, {Value: "sales", Label: "Largest sales"}}
+	if order.Type != reports.ParamChoice || order.Multiple || !reflect.DeepEqual(order.Options, wantOrder) || !jsonEqual(t, order.Default, `"name"`) {
+		t.Errorf("order = %+v (default %s), want a single choice Order: Name (default), Largest sales", order, order.Default)
+	}
+	if period := paramOf(t, spec, "period"); period.Type != reports.ParamDateRange || !jsonEqual(t, period.Default, `{"preset":"thisFiscalYearToDate"}`) {
+		t.Errorf("period = %+v (default %s), want a date range, This fiscal year to date", period, period.Default)
+	}
+}
+
+// The product halves of spec §3's shared bullets: % of sales with a zero
+// Total, Empty, Live, the readers, and the Heading.
+func TestSalesByProductSharedBehavior(t *testing.T) {
+	b := newSalesBook(t)
+	if err := setFields(t, b.app, "books_settings", settingsID, map[string]any{
+		"business_name": "Harbor Lane Design LLC", "fiscal_year_start_month": 7,
+	}); err != nil {
+		t.Fatalf("save settings: %v", err)
+	}
+	zero := b.addCustomer(t, "Zero Co", nil)
+	b.invoice(t, zero, "2026-10-05", sale(b.service, 1, 5000))
+	b.memo(t, zero, "2026-10-06", nil, sale(b.accessPoint, 1, 5000))
+
+	res := b.runProducts(t, nil)
+	if got := amt(t, sbpProductRow(t, res, b.service), "amount"); got != 5000 {
+		t.Errorf("Monthly bookkeeping's Amount = %d, want 5000", got)
+	}
+	if got := amt(t, sbpProductRow(t, res, b.accessPoint), "amount"); got != -5000 {
+		t.Errorf("Wireless access point's Amount = %d, want -5000", got)
+	}
+	if got := amt(t, totalOf(t, res), "amount"); got != 0 {
+		t.Errorf("Total Amount = %d, want 0", got)
+	}
+	for _, r := range res.Rows {
+		requireNoCell(t, r, "pct", "the Total is zero")
+	}
+
+	// Heading: the business name, the title, the period the run resolved.
+	if res.Heading != "Harbor Lane Design LLC" {
+		t.Errorf("heading = %q, want the Books business name", res.Heading)
+	}
+	if title := salesByProductShipped().Title; title != "Sales by Product/Service" {
+		t.Errorf("title = %q, want Sales by Product/Service", title)
+	}
+	var period *reports.ResolvedParam
+	for i, p := range res.Params {
+		if p.ID == "period" {
+			period = &res.Params[i]
+		}
+	}
+	if period == nil || period.From != "2026-10-01" || period.To != "2026-10-31" {
+		t.Errorf("the period resolved to %+v, want 2026-10-01 to 2026-10-31", period)
+	}
+
+	// Empty: a period with no posted sale line has no group or detail row.
+	empty := b.runProducts(t, map[string]any{"period": glPeriod("2020-01-01", "2020-12-31")})
+	for _, r := range empty.Rows {
+		if r.Kind != reports.KindTotal {
+			t.Errorf("row %q (%s) in a period with no sale, want the Total only", r.Label, r.Kind)
+		}
+	}
+
+	// Live: the nine topics of TestSalesReportsTopics on the closed run (its
+	// group label reads books_products) and on the opened run. Not an exact
+	// set: core adds the topics of the access rules it reads (books_admins,
+	// org_pkg_access, users; run.go ruleTopics).
+	nine := []string{
+		"collection/books_invoice_lines",
+		"collection/books_sales_receipt_lines",
+		"collection/books_credit_memo_lines",
+		"collection/books_invoices",
+		"collection/books_sales_receipts",
+		"collection/books_credit_memos",
+		"collection/books_customers",
+		"collection/books_products",
+		"collection/books_settings",
+	}
+	opened := b.runProductsOpen(t, nil, sbpProductRow(t, res, b.service).GroupKey)
+	for name, run := range map[string]*reports.Result{"closed": res, "opened": opened} {
+		for _, topic := range nine {
+			if !slices.Contains(run.Topics, topic) {
+				t.Errorf("%s run topics = %v, want %s", name, run.Topics, topic)
+			}
+		}
+	}
+
+	// A Books reader with no write access runs it (b.reader is read-only);
+	// a user with Books level none reads no row.
+	if _, err := runSalesErr(t, b.app, b.reader, salesByProductKey, withPeriod(nil), reports.Options{Today: salesToday}); err != nil {
+		t.Errorf("the read-only reader's run was refused: %v", err)
+	}
+	none, err := runSalesErr(t, b.app, b.users.none, salesByProductKey, withPeriod(nil), reports.Options{Today: salesToday})
+	if err != nil {
+		t.Fatalf("the run of a user with Books level none was refused (%v); core runs it with the rule's rows", err)
+	}
+	if groups := cbGroupRows(none); len(groups) != 0 {
+		t.Errorf("a user with Books level none sees rows %q", labelsOf(groups))
+	}
+
+	// Shipped by register.go, unpublished, and shared with every Books reader.
+	reports.ResetForTesting()
+	t.Cleanup(reports.ResetForTesting)
+	app, _ := newRegisteredApp(t)
+	mkUser(t, app, "owner")
+	reader := mkUser(t, app, "guest")
+	setPkgAccess(t, app, reader, "readonly")
+	outsider := mkUser(t, app, "guest")
+	if err := reports.ReconcileShipped(app); err != nil {
+		t.Fatalf("ReconcileShipped: %v", err)
+	}
+	row, err := app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": salesByProductKey})
+	if err != nil {
+		t.Fatalf("no reports row with shipped_key %s: %v", salesByProductKey, err)
+	}
+	if row.GetBool("published") {
+		t.Errorf("published = true, want unpublished")
+	}
+	if row.GetString("title") != "Sales by Product/Service" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.sales_lines" {
+		t.Errorf("row = %v", row.PublicExport())
+	}
+	if err := reconcileBooksReportShares(app); err != nil {
+		t.Fatalf("reconcileBooksReportShares: %v", err)
+	}
+	requireViewer(t, app, row, reader, "a guest with Books readonly access")
+	requireNoShare(t, app, row, outsider, "a guest without Books access")
+}
+
+// Spec §3 Sales by Product/Service "Columns" and "Rows" (Q7, Q8).
+func TestSalesByProductFigures(t *testing.T) {
+	b := newSalesBook(t)
+	harbor := b.customer
+	spool := b.addProduct(t, "Cable spool", "non_inventory")
+	b.invoice(t, harbor, "2026-10-05", sale(b.service, 1.5, 10000), sale(b.accessPoint, 2, 20000))
+	b.receipt(t, harbor, "2026-10-08", sale(b.service, 2.25, 6000))
+	spoolInv := b.invoice(t, harbor, "2026-10-09", sale(spool, 1, 1000))
+	// The forms keep a quantity to 2 decimals; a stored quantity of three
+	// pins the report's own rounding (half away from zero: 1.125 → 1.13).
+	spoolLine := saleLinesOf(t, b.app, invoiceKind, spoolInv.Id)[0]
+	if _, err := b.app.DB().NewQuery("UPDATE books_invoice_lines SET quantity = 1.125 WHERE id = {:id}").
+		Bind(dbx.Params{"id": spoolLine.Id}).Execute(); err != nil {
+		t.Fatalf("store a quantity of three decimals: %v", err)
+	}
+	// Outside the period: the products it names have no other sale.
+	b.invoice(t, harbor, "2026-11-02", sale(b.discount, 1, 700))
+
+	res := b.runProducts(t, nil)
+	const total = int64(15000 + 40000 + 13500 + 1000)
+	if got := amt(t, totalOf(t, res), "amount"); got != total {
+		t.Fatalf("Total Amount = %d, want %d", got, total)
+	}
+	var pct *reports.ResultColumn
+	for i, c := range res.Columns {
+		if c.ID == "pct" {
+			pct = &res.Columns[i]
+		}
+	}
+	if pct == nil {
+		t.Fatalf("the result has no pct column; columns %+v", res.Columns)
+	}
+	if pct.Label != "% of sales" || pct.Type != reports.Percent || pct.Scale == nil || *pct.Scale != 2 {
+		t.Errorf("pct column = label %q type %q scale %v, want %% of sales, percent, scale 2", pct.Label, pct.Type, pct.Scale)
+	}
+
+	for _, w := range []struct {
+		product *core.Record
+		qty     float64
+		amount  int64
+		avg     int64
+	}{
+		{b.service, 3.75, 28500, 7600},
+		{b.accessPoint, 2, 40000, 20000},
+		// The average divides by the stored quantity: 1000 ÷ 1.125.
+		{spool, 1.13, 1000, wantAvg(1000, 1.125)},
+	} {
+		r := sbpProductRow(t, res, w.product)
+		requireQty(t, r, w.qty)
+		if got := amt(t, r, "amount"); got != w.amount {
+			t.Errorf("%s Amount = %d, want %d", r.Label, got, w.amount)
+		}
+		if got := amt(t, r, "avg"); got != w.avg {
+			t.Errorf("%s Avg price = %d, want %d (Amount ÷ Quantity in whole cents)", r.Label, got, w.avg)
+		}
+		requireSalesShare(t, r, wantShare(w.amount, total))
+	}
+	for _, p := range []*core.Record{b.discount, b.retired} {
+		if sbpHasProduct(res, p) {
+			t.Errorf("%s, with no sale line in the period, has a row; rows %q", p.GetString("name"), bsLabels(res))
+		}
+	}
+	groups := cbGroupRows(res)
+	if len(groups) != 3 {
+		t.Errorf("product rows %q, want 3", labelsOf(groups))
+	}
+	for _, r := range res.Rows {
+		if r.Kind == reports.KindSubtotal {
+			t.Errorf("a subtotal row %q in a flat list", r.Label)
+		}
+		if r.Kind == reports.KindGroup && (r.Depth != 0 || r.Level != 1) {
+			t.Errorf("product row %q at depth %d level %d, want one flat list at depth 0", r.Label, r.Depth, r.Level)
+		}
+	}
+}
+
+// Spec §3 "Discounts" (Q11).
+func TestSalesByProductDiscount(t *testing.T) {
+	b := newSalesBook(t)
+	inv := b.invoice(t, b.customer, "2026-10-05",
+		sale(b.service, 1, 10000),
+		sale(b.accessPoint, 1, 20000),
+		percentLine(b.discount, -100000),
+	)
+	lines := saleLinesOf(t, b.app, invoiceKind, inv.Id)
+	if len(lines) != 3 {
+		t.Fatalf("the invoice has %d sale lines, want 3", len(lines))
+	}
+	off := int64(lines[2].GetInt("amount"))
+	if off >= 0 {
+		t.Fatalf("the percent line's stored amount = %d, want below zero", off)
+	}
+
+	res := b.runProducts(t, nil)
+	total := 30000 + off
+	d := sbpProductRow(t, res, b.discount)
+	if got := amt(t, d, "amount"); got != off {
+		t.Errorf("Discount Amount = %d, want the percent line's %d", got, off)
+	}
+	share, ok := pctCell(t, d)
+	if !ok || share >= 0 {
+		t.Errorf("Discount %% of sales = %v (shown %v), want a share below zero", share, ok)
+	}
+	requireSalesShare(t, d, wantShare(off, total))
+	requireNoCell(t, d, "quantity", "a percent line has no quantity")
+	requireNoCell(t, d, "avg", "a percent line has no average price")
+	if got := amt(t, sbpProductRow(t, res, b.accessPoint), "amount"); got != 20000 {
+		t.Errorf("the discounted Wireless access point's Amount = %d, want its full 20000", got)
+	}
+	if got := amt(t, sbpProductRow(t, res, b.service), "amount"); got != 10000 {
+		t.Errorf("Monthly bookkeeping's Amount = %d, want its full 10000", got)
+	}
+}
+
+// Spec §3 "Total": Amount and 100.00%, no Quantity and no Avg price.
+func TestSalesByProductTotal(t *testing.T) {
+	b := newSalesBook(t)
+	b.invoice(t, b.customer, "2026-10-05", sale(b.service, 2, 10000))
+	// Sold and fully credited by quantity: its quantities net to 0.
+	b.invoice(t, b.customer, "2026-10-06", sale(b.accessPoint, 2, 5000))
+	b.memo(t, b.customer, "2026-10-07", nil, sale(b.accessPoint, 2, 4000))
+
+	res := b.runProducts(t, nil)
+	total := totalOf(t, res)
+	if got := amt(t, total, "amount"); got != 20000+10000-8000 {
+		t.Errorf("Total Amount = %d, want %d", got, 20000+10000-8000)
+	}
+	requireSalesShare(t, total, 100)
+	requireNoCell(t, total, "quantity", "units of different products do not add up")
+	requireNoCell(t, total, "avg", "units of different products do not add up")
+
+	netZero := sbpProductRow(t, res, b.accessPoint)
+	if got := amt(t, netZero, "amount"); got != 2000 {
+		t.Errorf("Wireless access point's Amount = %d, want 2000", got)
+	}
+	requireNoCell(t, netZero, "avg", "its quantities net to 0")
+	requireNoCell(t, netZero, "quantity", "its quantities net to 0 (D13)")
+}
+
+// Spec §3 "Sign" (Q4), the product half.
+func TestSalesByProductCreditMemo(t *testing.T) {
+	b := newSalesBook(t)
+	b.invoice(t, b.customer, "2026-10-05", sale(b.service, 3, 10000))
+	before := b.runProducts(t, nil)
+	requireQty(t, sbpProductRow(t, before, b.service), 3)
+
+	b.memo(t, b.customer, "2026-10-10", nil, sale(b.service, 1, 10000))
+	// A product sold only on a credit memo in the period.
+	b.memo(t, b.customer, "2026-10-12", nil, sale(b.accessPoint, 1, 5000))
+
+	res := b.runProducts(t, nil)
+	service := sbpProductRow(t, res, b.service)
+	requireQty(t, service, 2)
+	if got := amt(t, service, "amount"); got != 20000 {
+		t.Errorf("Monthly bookkeeping's Amount = %d, want 20000 (30000 less the memo's 10000)", got)
+	}
+	total := amt(t, totalOf(t, res), "amount")
+	if total != 15000 {
+		t.Errorf("Total Amount = %d, want 15000", total)
+	}
+	below := sbpProductRow(t, res, b.accessPoint)
+	requireQty(t, below, -1)
+	if got := amt(t, below, "amount"); got != -5000 {
+		t.Errorf("Wireless access point's Amount = %d, want -5000 (a row below zero)", got)
+	}
+	share, ok := pctCell(t, below)
+	if !ok || share >= 0 {
+		t.Errorf("Wireless access point's %% of sales = %v (shown %v), want a share below zero", share, ok)
+	}
+	requireSalesShare(t, below, wantShare(-5000, total))
+}
+
+// Spec §3 "Opening a product".
+func TestSalesByProductOpened(t *testing.T) {
+	b := newSalesBook(t)
+	openCo := b.addCustomer(t, "Open Co", nil)
+	inv := b.invoice(t, openCo, "2026-10-05", sale(b.service, 1.5, 10000), sale(b.accessPoint, 1, 9000))
+	rct := b.receipt(t, nil, "2026-10-08", sale(b.service, 2, 6000))
+	memo := b.memo(t, openCo, "2026-10-12", nil, sale(b.service, 1, 3000))
+	// Two invoices on one day: the correction of the first keeps its lower
+	// sequence but is written after the second, so only document.sequence
+	// puts it first; the second has two lines of the service, in position
+	// order.
+	original := b.invoice(t, openCo, "2026-10-20", sale(b.service, 1, 1000))
+	second := b.invoice(t, openCo, "2026-10-20", sale(b.service, 2, 1500), sale(b.service, 1, 2000))
+	first := b.correct(t, original, sale(b.service, 1, 1200))
+	if first.GetInt("sequence") >= second.GetInt("sequence") {
+		t.Fatalf("sequences %d, %d: the correction must keep the original's lower sequence", first.GetInt("sequence"), second.GetInt("sequence"))
+	}
+
+	closed := b.runProducts(t, nil)
+	for _, r := range closed.Rows {
+		if r.Kind == reports.KindDetail {
+			t.Errorf("with no Expand, a sale line row %q is in the result", r.Label)
+		}
+	}
+	opened := b.runProductsOpen(t, nil, sbpProductRow(t, closed, b.service).GroupKey)
+	row := sbpProductRow(t, opened, b.service)
+	lines := salesLinesUnder(opened, row)
+
+	type want struct {
+		label, open string
+		qty         float64
+		amount      int64
+	}
+	var wants []want
+	add := func(day, word, segment string, kind salesDocKind, doc *core.Record, sign int64, customer string) {
+		for _, l := range saleLinesOf(t, b.app, kind, doc.Id) {
+			if l.GetString("product") != b.service.Id {
+				continue
+			}
+			label := day + " · " + word + " " + doc.GetString("number")
+			if customer != "" {
+				label += " · " + customer
+			}
+			wants = append(wants, want{
+				label:  label,
+				open:   "books/" + segment + "/" + doc.Id,
+				qty:    float64(sign) * l.GetFloat("quantity"),
+				amount: sign * int64(l.GetInt("amount")),
+			})
+		}
+	}
+	add("2026-10-05", "Invoice", "invoices", invoiceKind, inv, 1, "Open Co")
+	add("2026-10-08", "Sales receipt", "sales-receipts", salesReceiptKind, rct, 1, "")
+	add("2026-10-12", "Credit memo", "credit-memos", creditMemoKind, memo, -1, "Open Co")
+	add("2026-10-20", "Invoice", "invoices", invoiceKind, first, 1, "Open Co")
+	add("2026-10-20", "Invoice", "invoices", invoiceKind, second, 1, "Open Co")
+	if len(wants) != 6 {
+		t.Fatalf("the book has %d sale lines of the service, want 6", len(wants))
+	}
+
+	gotLabels, wantLabels := labelsOf(lines), make([]string, len(wants))
+	for i, w := range wants {
+		wantLabels[i] = w.label
+	}
+	if !reflect.DeepEqual(gotLabels, wantLabels) {
+		t.Fatalf("Monthly bookkeeping's sale line rows =\n%q\nwant (date, then sequence, then position)\n%q", gotLabels, wantLabels)
+	}
+	for i, w := range wants {
+		r := lines[i]
+		requireQty(t, r, w.qty)
+		if got := amt(t, r, "amount"); got != w.amount {
+			t.Errorf("%s Amount = %d, want %d", w.label, got, w.amount)
+		}
+		if got := amt(t, r, "avg"); got != wantAvg(w.amount, w.qty) {
+			t.Errorf("%s Avg price = %d, want %d (amount ÷ quantity)", w.label, got, wantAvg(w.amount, w.qty))
+		}
+		requireNoCell(t, r, "pct", "a sale line row has no share")
+		if r.Open != w.open {
+			t.Errorf("%s opens %q, want %q", w.label, r.Open, w.open)
+		}
+	}
+	if q, _ := qtyCell(t, lines[2]); q >= 0 {
+		t.Errorf("the credit memo line's Quantity = %v, want below zero", q)
+	}
+}
+
+// Spec §3 "Params" and "Order" of Sales by Product/Service.
+func TestSalesByProductParams(t *testing.T) {
+	b := newSalesBook(t)
+	harbor := b.customer
+	bay := b.addCustomer(t, "Bay Co", nil)
+	audit := b.addProduct(t, "alpha audit", "service")
+	spool := b.addProduct(t, "Cable spool", "non_inventory")
+	bundle := mkBundle(t, b.app, "Office kit")
+	mkBundleItem(t, b.app, bundle, b.accessPoint, 0)
+
+	b.invoice(t, harbor, "2026-10-05", sale(b.service, 1, 1000), sale(b.accessPoint, 1, 2000), sale(audit, 1, 300))
+	b.invoice(t, bay, "2026-10-06", sale(b.service, 1, 4000), sale(spool, 1, 500))
+
+	spec, _, err := reports.Load(salesByProductShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	options, err := reports.ReadParamOptions(context.Background(), b.app, reports.OptionsRequest{
+		Spec: spec, Param: "products", Auth: b.reader, Today: salesToday,
+	})
+	if err != nil {
+		t.Fatalf("the products param's options: %v", err)
+	}
+	groupLabel := paramOf(t, spec, "products").OptionsFrom.GroupLabel
+	picks := []string{}
+	for _, g := range options.Groups {
+		picks = append(picks, strings.ReplaceAll(groupLabel, reports.GroupLabelToken, g.Label))
+	}
+	slices.Sort(picks)
+	if want := []string{"All Non-inventory items", "All Service items"}; !reflect.DeepEqual(picks, want) {
+		t.Errorf("the Product picker's group picks = %q, want %q", picks, want)
+	}
+	values := map[string]reports.ParamOption{}
+	for _, o := range options.Options {
+		values[o.Value] = o
+	}
+	if _, ok := values[bundle.Id]; ok {
+		t.Errorf("the Product picker offers the bundle Office kit; options %+v", options.Options)
+	}
+	if o, ok := values[b.retired.Id]; !ok || o.Label != "Old retainer" || o.Group != "service" {
+		t.Errorf("the Product picker's inactive Old retainer = %+v (offered %v), want label Old retainer in the service group", o, ok)
+	}
+	if o, ok := values[b.accessPoint.Id]; !ok || o.Label != "Wireless access point" || o.Group != "non_inventory" {
+		t.Errorf("Wireless access point's option = %+v (offered %v), want it in the non_inventory group", o, ok)
+	}
+
+	one := b.runProducts(t, map[string]any{"products": []string{b.accessPoint.Id}})
+	if got, want := cbDepth0(one), []string{"Wireless access point"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("products = [Wireless access point] shows %q, want %q", got, want)
+	}
+	if got := amt(t, totalOf(t, one), "amount"); got != 2000 {
+		t.Errorf("Total with one product picked = %d, want 2000", got)
+	}
+	if !slices.Contains(one.HeaderLines, "Product: Wireless access point") {
+		t.Errorf("header lines = %q, want \"Product: Wireless access point\"", one.HeaderLines)
+	}
+	for _, line := range b.runProducts(t, nil).HeaderLines {
+		if line != "" {
+			t.Errorf("with no product or customer picked, header line %q, want no text", line)
+		}
+	}
+
+	services := b.runProducts(t, map[string]any{"products": []any{map[string]any{"group": "service"}}})
+	if got, want := cbDepth0(services), []string{"alpha audit", "Monthly bookkeeping"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("the whole Service group picked shows %q, want %q", got, want)
+	}
+
+	both := b.runProducts(t, map[string]any{"products": []string{b.service.Id}, "customers": []string{bay.Id}})
+	if got, want := cbDepth0(both), []string{"Monthly bookkeeping"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("products = [Monthly bookkeeping], customers = [Bay Co] shows %q, want %q", got, want)
+	}
+	if got := amt(t, totalOf(t, both), "amount"); got != 4000 {
+		t.Errorf("Total of Bay Co's Monthly bookkeeping = %d, want 4000 (the lines that match both)", got)
+	}
+
+	byName := b.runProducts(t, map[string]any{"order": "name"})
+	if got, want := cbDepth0(byName), []string{"alpha audit", "Cable spool", "Monthly bookkeeping", "Wireless access point"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order = name shows %q, want %q (by name ignoring case)", got, want)
+	}
+	if byDefault := b.runProducts(t, nil); !reflect.DeepEqual(cbDepth0(byDefault), cbDepth0(byName)) {
+		t.Errorf("no Order param gives %q, want Name's %q", cbDepth0(byDefault), cbDepth0(byName))
+	}
+	bySales := b.runProducts(t, map[string]any{"order": "sales"})
+	if got, want := cbDepth0(bySales), []string{"Monthly bookkeeping", "Wireless access point", "Cable spool", "alpha audit"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("order = sales shows %q, want %q (by Amount, largest first)", got, want)
+	}
+}
+
+// Spec §3 "Inactive records", the product half.
+func TestSalesByProductInactive(t *testing.T) {
+	b := newSalesBook(t)
+	fax := b.addProduct(t, "Fax line", "service")
+	b.invoice(t, b.customer, "2026-10-05", sale(fax, 1, 1000), sale(b.service, 1, 2000))
+	// A product on a new line must be active, so it is made inactive after
+	// its sale posts.
+	makeProductInactive(t, b.app, fax)
+
+	res := b.runProducts(t, nil)
+	r := sbpProductRow(t, res, fax)
+	if r.Label != "Fax line (inactive)" || !r.Muted {
+		t.Errorf("Fax line's row = label %q, muted %v; want \"Fax line (inactive)\", muted", r.Label, r.Muted)
+	}
+	for _, r := range []reports.Row{sbpProductRow(t, res, b.service), totalOf(t, res)} {
+		if strings.HasSuffix(r.Label, " (inactive)") || r.Muted {
+			t.Errorf("active row = label %q (%s), muted %v; want no mark", r.Label, r.Kind, r.Muted)
+		}
+	}
+}
+
+// postedSubtotals adds the stored subtotal of collection's posted documents
+// dated from..to.
+func postedSubtotals(t *testing.T, app core.App, collection, from, to string) int64 {
+	t.Helper()
+	docs, err := app.FindRecordsByFilter(collection, "status = {:status} && date >= {:from} && date <= {:to}", "", 0, 0,
+		dbx.Params{"status": statusPosted, "from": from, "to": to})
+	if err != nil {
+		t.Fatalf("read the posted %s: %v", collection, err)
+	}
+	var sum int64
+	for _, d := range docs {
+		sum += int64(d.GetInt("subtotal"))
+	}
+	return sum
+}
+
+// Spec §3 "What counts" (Q2): the two reports read the same lines, so their
+// Totals are equal, and equal the documents' Subtotals.
+func TestSalesReportsTotalsAgree(t *testing.T) {
+	b := newSalesBook(t)
+	harbor := b.customer
+	bay := b.addCustomer(t, "Bay Co", nil)
+
+	b.invoice(t, harbor, "2026-09-15",
+		sale(b.service, 2, 10000),
+		sale(b.accessPoint, 1, 15000),
+		descriptionLine("Installed on site"),
+		subtotalLine(),
+		percentLine(b.discount, -100000),
+	)
+	b.receipt(t, harbor, "2026-10-08", sale(b.service, 1, 6000))
+	b.receipt(t, nil, "2026-10-09", sale(b.service, 1.5, 2500))
+	b.invoice(t, bay, "2026-10-20", sale(b.accessPoint, 3, 7000), percentLine(b.discount, -50000))
+	b.memo(t, harbor, "2026-10-25", nil, sale(b.service, 1, 4000))
+	b.memo(t, bay, "2026-11-05", nil, sale(b.accessPoint, 1, 7000))
+	b.draftInv(t, harbor, "2026-10-10", nil, sale(b.service, 1, 99900))
+	b.draftMemo(t, bay, "2026-10-11", nil, sale(b.service, 1, 88800))
+	voided := b.invoice(t, harbor, "2026-10-12", sale(b.service, 1, 77700))
+	if err := voidInvoiceAs(b.app, voided.Id, b.actor); err != nil {
+		t.Fatalf("void the invoice: %v", err)
+	}
+	voidRct := b.receipt(t, nil, "2026-10-13", sale(b.service, 1, 55500))
+	if err := voidReceiptAs(b.app, voidRct.Id, b.actor); err != nil {
+		t.Fatalf("void the sales receipt: %v", err)
+	}
+
+	wide := glPeriod("2026-09-01", "2026-11-30")
+	for _, w := range []struct {
+		name     string
+		params   map[string]any
+		from, to string // set when no customer is picked
+	}{
+		{"no filter", map[string]any{"period": wide}, "2026-09-01", "2026-11-30"},
+		{"one customer", map[string]any{"period": wide, "customers": []string{harbor.Id}}, "", ""},
+		{"one month", map[string]any{"period": glPeriod("2026-10-01", "2026-10-31")}, "2026-10-01", "2026-10-31"},
+	} {
+		byCustomer := amt(t, totalOf(t, b.run(t, w.params)), "sales")
+		byProduct := amt(t, totalOf(t, b.runProducts(t, w.params)), "amount")
+		if byCustomer != byProduct {
+			t.Errorf("%s: Sales by Customer's Total %d, Sales by Product/Service's %d; want equal", w.name, byCustomer, byProduct)
+		}
+		if w.from == "" {
+			continue
+		}
+		want := postedSubtotals(t, b.app, "books_invoices", w.from, w.to) +
+			postedSubtotals(t, b.app, "books_sales_receipts", w.from, w.to) -
+			postedSubtotals(t, b.app, "books_credit_memos", w.from, w.to)
+		if want == 0 {
+			t.Fatalf("%s: the documents' Subtotals add up to 0 (the book is not as the test means)", w.name)
+		}
+		if byProduct != want {
+			t.Errorf("%s: Sales by Product/Service's Total %d, want the posted Subtotals %d (credit memos subtracted)", w.name, byProduct, want)
+		}
+		if byCustomer != want {
+			t.Errorf("%s: Sales by Customer's Total %d, want the posted Subtotals %d (credit memos subtracted)", w.name, byCustomer, want)
+		}
 	}
 }

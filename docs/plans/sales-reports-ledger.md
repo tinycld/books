@@ -21,8 +21,8 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, checkpoint 2, DEFERRAL 3: "`TestSalesByProductSharedBehavior`, "Heading": Agreed: "the heading holds the business name, the title and the period in words". Exists: `res.Heading` equals the business name, the title is read from `salesByProductShipped()` (not from the run), and the period is checked as resolved From/To dates, not as words."
+  **rebutted because:** each of the three parts is pinned; none was left unbuilt. The business name: `if res.Heading != "Harbor Lane Design LLC"` (Go). The title: the same test's shipped part runs `reports.ReconcileShipped(app)` and checks the stored `reports` row (reviewer A: "assert the stored `reports` row title (already done in the ReconcileShipped part)"), and e2e `openSalesByProduct` opens the report by that title. The period in words: core's client writes them (`periodWords`, plan D5 "Books pins what Books owns"), and e2e test 4 reads `report-document-period` after it sets its Period (reviewer A: "test 4 reads it after a custom period"). Checkpoint 1's `TestSalesByCustomerEmptyAndHeading` takes the same split.
 
 ## Design notes
 - cp 0 · customer-filtered-390 and the other phone shots: no phone shot shows a whole "100.00%" Total cell (the Total is behind the tab bar or below the shot's end, the same capture scroll as before the change); core e2e `reports-percent-places.spec.ts` checks that no percent cell is cut (critic NOTE).
@@ -35,9 +35,16 @@ with the reason, and shown to the human at the end)
 - cp 1 · reviewer A NOTE: `TestSalesReportsTopics` requires `books_products` only on an opened run (a closed run reads no product; a product name shows only on an opened line).
 - cp 1 · reviewer A NOTE: the `shipped-reports.ts` comment "Sales by Product/Service is not registered yet" must go in checkpoint 2.
 - cp 1 · reviewer A NOTE: an inactive parent's family header and "Total <parent>" carry no " (inactive)" mark and are not muted; only the parent's own customer row is (as `cbGroups()` of the Customer Balance).
+- cp 2 · product-populated and every table shot: Product/Service, Quantity, Amount and Avg price have a sort icon in the column header, % of sales has none (core's view on a live report; the static reference has no icons) (critic NOTE).
+- cp 2 · reviewer A NOTE: e2e test 2 compares the opened line labels after sorting, so it does not pin date/document/line order (both lines are dated today); `TestSalesByProductOpened` pins that order in Go.
+- cp 2 · fix round: the topics of both reports are not exactly the nine Books collections: each run also carries `books_admins`, `org_pkg_access` and `users`, from core's access-rule CTEs (`run.go` `ruleTopics`). `TestSalesByProductSharedBehavior` checks the nine with Contains on the closed and the opened run; spec §3 "Live" names only the nine.
+- cp 2 · product-opened capture presses the row by its text (`clickText` "Wireless access point") and then pauses: the row test id holds a run-made id, and the opened state has no test id of its own to wait on.
+- cp 2 · built shots: "Initial consultation" shows Quantity 1, Amount 0.00, Avg price 0.00 (a seeded zero-price line); spec §3 blanks Avg price only when the quantity is 0.
 
 ## Out-of-plan changes
 - cp 0 · core `core/server/reports/run_test.go`: `TestColumnTypesDoNotDependOnWhetherRowsLoaded` deep-equals the result columns, and its `share` column is a `percentOfTotal` at scale 1, so its expected column gained `Scale: ptr(1)`. The test gets more exact, not weaker (reviewers A and B agree).
+
+- cp 2 · `tinycld/books/lib/shipped-reports.ts`: comment only; removes the cp1 line that said Sales by Product/Service is not registered yet (cp1 reviewer A NOTE; false after this checkpoint). Reviewers A and B agree.
 
 ## Phase notes
 - phase 1: design gate 2026-11-17 (first packet): direction A; Q1–Q14 and Q16 as recommended; Q15 changed (Sales by Customer has a % of sales column, blank on sale-line rows, 100% on the Total; phone row: name on line 1, Sales and % of sales on line 2); Q17: p2-credit-memo owns the kind-aware document open/label, reused unchanged.
@@ -90,6 +97,23 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 5, listed under Design notes
 - reviewer-caught deferrals: none
 - commit: see git log (`feat(books): sales sources and Sales by Customer`)
+- human: none (review mode C)
+
+## Checkpoint 2 — Sales by Product/Service report
+- test writer: `server/report_sales_test.go` (10 tests: SpecLoads, SharedBehavior, Figures, Discount, Total, CreditMemo, Opened, Params, Inactive, `TestSalesReportsTotalsAgree`), `tests/e2e/sales-reports-helpers.ts` (`openSalesByProduct`, `filterToProducts`, `salesByProductHubRow`), `tests/e2e/books-sales-reports.spec.ts` (4 tests); red for the right reason: yes (Go does not compile on `salesByProductKey`, `salesByProductShipped`, `salesByProductSpec`, `productsParam`; compiled against stubs in the scratchpad, every setup ran; e2e 4 fail in the hub with no "Sales by Product/Service" row); untestable: none
+- implementer: `productsParam()`, `salesByProductKey`/`Spec`/`Shipped`, `sbpColumns` (D13 `lit(nil)` blanks, `pct` scale 2), `sbpGroups`, `sbpSort`, `sbpDisplay`, registered after `salesByCustomerShipped()`; removed the stale `shipped-reports.ts` comment; no core gap (the engine took `lit(nil)` and the cell is blank; a mutation probe showed the tests fail without it); DONE
+- test disputes: none
+- self-declared differences: (1) path helper `sbpProduct()` (as `sbcCustomer()`); (2) the bundle filter is `op("ne", fld("type"), lit("bundle"))`; (3) Sales by Customer's `pct` column has no `Format`, left as checkpoint 1 built it; (4) hidden column labels "Product key", "Customer key" (as `sbcColumns`)
+- gate 1: tests unedited: yes · pass: `go test ./...`, `packages:generate`, `tinycld-pkg check` (325 files, 6364 tests), e2e `-g "sales-reports:"` 18 passed (8 tests of both reports' blocks plus setup projects)
+- gate 2 capture: `docs/plans/sales-reports-evidence/cp2/capture.json` (shipped route; `opened` = Wireless access point; `by-sales` = `?p-order=sales`; `filtered` = the "All Service items" group pick; `picker` = the Product picker open; `empty` = `?p-period=2020-01-01..2020-12-31`), 1280 light and dark, 12 shots. First capture of `opened` failed: `clickText` is an exact match and the label is "Fax line setup (inactive)" → pressed "Wireless access point" (retro log)
+- gate 2: invalid shots: none · blocking: none · notes: 1, listed under Design notes
+- gate 3 A (correctness): 0 BLOCK, 5 NOTE: out-of-plan comment (→ Out-of-plan changes); heading title/period (→ Rebuttals, B DEFERRAL 3); topics "includes" not "are" (same as B DEFERRAL 2, accepted+fixed); empty text unpinned (same as B DEFERRAL 1, accepted+fixed); e2e opened order (→ Design notes)
+- gate 3 B (conformance): script lines: 0 · 1. `shipped-reports.ts` out-of-plan: accepted (ledger only) · 2. `capture.json` waits on text "Product: All Service items" (lesson 16): accepted+fixed (cause conformance: wait on `report-header-param-products`; the opened press stays `clickText`, see Design notes) · DEFERRAL 1 (no cp2 test pins core's empty text for this report): accepted+fixed (weak-test, test writer: e2e test 4 sets Period 2020 and asserts `report-empty` and no rows) · DEFERRAL 2 (topics checked with Contains on the opened run only): accepted+fixed (weak-test, test writer: closed and opened run; an exact set is not possible, see Design notes) · DEFERRAL 3: rebutted (see Rebuttals)
+- fix round: findings `cp2-fix.md` (2, both weak-test) to one test-writer dispatch; the capture manifest fixed by the runner. Gate 1 after the fix: `go test -count=1 ./...`, `packages:generate`, `tinycld-pkg check` pass; e2e `-g "sales-reports:"` 18 passed; `product-filtered` captured again with the new wait (no visual change, no critic re-run)
+- fix review: n/a (the fix touched only test files and the capture manifest; round count 0)
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none in the implementation; reviewer B's three test DEFERRALs were not self-declared by the test writer (it named only the period-words point)
+- commit: see git log (`feat(books): Sales by Product/Service report`)
 - human: none (review mode C)
 
 ## Final review
