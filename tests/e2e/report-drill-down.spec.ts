@@ -28,7 +28,6 @@ import {
     figureDigits,
     figureText,
     filterToAccounts,
-    filterToAccountsAndWait,
     openBalanceSheet,
     openEntriesFromSidebar,
     openGeneralLedger,
@@ -482,7 +481,7 @@ test.describe('report-drill-down: screen', () => {
         await expect(page.getByTestId('report-param-accounts')).toHaveCount(0)
         await page.getByTestId('report-add-filter').click()
         await expect(page.getByTestId('report-add-filter-accounts')).toBeVisible()
-        await filterToAccountsAndWait(page, [expense])
+        await filterToAccounts(page, [expense])
         await expect(page.getByTestId('report-param-accounts')).toContainText(expense)
         await expect(page.getByTestId('report-empty-message')).toHaveText(
             `No rows for ${monthToDateWords(today)}`
@@ -799,7 +798,7 @@ test.describe('report-drill-down: screen', () => {
 
         await openTrialBalance(page)
         await chooseAsOf(page, { preset: 'today' })
-        await filterToAccountsAndWait(page, [bank, RETAINED_EARNINGS])
+        await filterToAccounts(page, [bank, RETAINED_EARNINGS])
         const debit = await figureText(page, 'debit', bank)
         expect(figureDigits(debit)).toBe('325.00')
         // B's Credit draws no figure, so it is no link.
