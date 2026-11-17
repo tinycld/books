@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/customer-balance-checkpoints.md
 - reference: docs/plans/customer-balance-reference/
 - evidence: docs/plans/customer-balance-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-16)
 - capture manifest: docs/plans/customer-balance-capture.json
 - review mode: C — none (unattended)
 - core extension: R1 `groups[].inline` (major, lane holds exclusive) + R2 `groups[].muted` (small), checkpoint 0, core branch books/p5-customer-balance; PR not opened yet
@@ -200,3 +200,6 @@
 - model trial: line in /Users/nas/tmp/tinycld/auto-helix-books/model-trial.md (no shadow-only finding).
 - commit: core fff405b0 (branch books/p5-customer-balance, not pushed); books: this commit.
 - human: none (review mode C)
+
+## Final review
+- eval: approved 2026-11-16 (human) at books 5b6dc7ef (CI green: Typecheck & Unit, E2E shards 1-4; core #488 merged at eeb47774 on the human's word). Core #489 ("(none)" picker group, human decision at cp4) open.
