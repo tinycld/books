@@ -52,6 +52,7 @@
 - cp 3 · no-match-1280 (critique-no-match): the customer trigger draws its focus ring after the pick, so the 1280 shot does not show its resting look; the phone shots show it at rest.
 
 ## Out-of-plan changes
+- cp 5 · `tinycld/books/screens/sales/index.tsx`: passes `isCovered={false}`, because `DocumentListScreen` now requires the prop (All sales has no kind layout).
 - cp 4 · `tinycld/books/stores/document-list-store.ts` (checkpoint 1): `leaveScope`, `rowDialog`, `batchDialog` (fix items 1 and 5).
 - cp 4 · `tinycld/books/components/PressBoundary.tsx` (new), `components/entries/EntryRowMenu.tsx`, `components/accounts/AccountRowMenu.tsx`, `components/opening-balances/OpeningActionBar.tsx`: the stop-propagation boundary that four files copied is one shared component with `tabIndex={-1}` (fix items 3, 4).
 - cp 4 · `tests/list-selection.test.ts`: the fix round's unit test of the selection clear (fix item 1).
@@ -184,6 +185,17 @@
 - gate 3 A notes: 1, listed under Design notes.
 - commit: the commit that adds this row ("feat(books): sales row menus and batch actions")
 - human: none (review mode C)
+
+## Checkpoint 5
+- test writer: tests/list-shortcuts.test.ts, tests/help-sales-lists.test.ts (27), tests/e2e/sales-lists-keyboard.spec.ts (1); red for the right reason: yes (unit: module missing; help: topic missing, no Sales entry; e2e: the first `3` press does not change the tab after the setup passed); untestable: none.
+- implementer: `lib/list-shortcuts.ts`, `hooks/useListShortcuts.ts`, `help/sales-lists.md`, the Sales paragraph of `help/navigating-books.md`, row focus (`useRowFocus`) in `useDocumentListScreen`, focus look, `aria-current`, `tabIndex={-1}` on web and `scrollToIndex` in the table, cards and names column, `isCovered` from `SalesKindLayout`; DONE with 1 test dispute.
+- test disputes: 1 — the e2e pressed `j` on the pushed invoice read view and expected the URL to stay; the read view owns J (View journal entry, `lib/document-actions.ts` `DOCUMENT_READ_KEYS.entry`), so it opened the entry. Settled by the checkpoint: "on the invoice page `j` and `2` do nothing (the list under the page has no keys: the URL stays)" — the step tests list keys only. A fresh test writer pressed `ArrowDown` (not a read-view key) in place of `j` (`cp5-tests-fix.md`), staged again; every key of the map is still pressed.
+- self-declared differences: 4 (cp5-impl.md): `listShortcuts` takes an optional `when` and the hook passes "no non-modal layer on top" (the date-range and Sort `PickMenu`s and the customer `SearchPicker` are not the store's `menu` and push no scope); the keys of the 320 px column do not fire (see stop); in the names column the open row's `bg-accent` wins over the focus's `bg-muted` and both set `aria-current`, `scrollToIndex` is the focused row, else the open row; `ROW_TAB_INDEX` and `rowBackground` exported from `DocumentListTable.tsx` for the cards and the names column.
+- gate 1: tests unedited: yes (the disputed spec changed only by the test writer) · `packages:generate` · `tinycld-pkg check` pass (340 files, 6642 tests) · e2e `-g "sales-lists:"` 22 passed.
+- gate 2: not run (stopped). gate 3 A / B: not run (stopped). fix review: not run.
+- **STOPPED (needs the human, core change).** Spec §Keys: "A key is registered only while its action is offered (no `X`, `A` or `N` for a reader; no `X` or `A` in the 320 px column)", and the checkpoint's Do 2: "in the 320 px column beside a document the keys are offered". Core fires a scoped shortcut only when its scope is the top scope entry (`tinycld/core/lib/shortcuts/matcher.ts` `isScopeActive`: `if (!top || shortcut.scope !== top.scope) return false`). The document beside the column pushes its own scope (`compose` for the form, `hooks/useDocumentShortcuts.ts`; `compose` for the read view, `DocumentReadView.tsx`), so at 1360 px and wider with a document open the list keys never fire and ⇧? does not list them. A Books-only route (registering the list keys in the document's scope) collides with the read view's own keys (J = View journal entry against J = Next row). The decision for the human: (a) a core change — a scope that stays active under another (for example a secondary scope beside the top one) and the rule for a key that both own; or (b) revise the spec: no list keys in the 320 px column (the column shows only beside a document, so its keys could never fire). The checkpoint's code is in the tree, uncommitted (tests staged); gate 1 is green; gates 2 and 3 have not run.
+- commit: none (stopped)
+- human: decision needed (above)
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
