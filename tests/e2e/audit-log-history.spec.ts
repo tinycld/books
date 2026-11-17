@@ -305,7 +305,14 @@ test.describe('audit-log: record history', () => {
             {
                 trigger: 'invoice-read-more',
                 history: 'invoice-read-history',
-                before: [/Receive payment/, /Void/, /Copy/, /View journal entry/, /Download PDF/],
+                before: [
+                    /Receive payment/,
+                    /Void/,
+                    /Copy/,
+                    /Create credit memo/,
+                    /View journal entry/,
+                    /Download PDF/,
+                ],
             },
             { collection: 'books_invoices', id: invoice.id, title: `Invoice ${invoice.number}` }
         )
