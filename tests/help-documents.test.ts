@@ -34,6 +34,11 @@ describe('help/documents.md', () => {
         expect(body).toContain('(help://books:estimates)')
     })
 
+    // Credit memo checkpoint 5: cross-linked from the credit memo topic's neighbours.
+    it('links the credit memos topic', () => {
+        expect(body).toContain('(help://books:credit-memos)')
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)

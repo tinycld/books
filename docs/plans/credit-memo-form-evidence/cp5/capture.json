@@ -1,0 +1,123 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "customer-transactions",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1000,
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-credit-memo" },
+                { "waitFor": "Unapplied" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "customer-transactions-empty",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1000,
+            "actions": [
+                { "fill": "customers-search", "value": "Alvarez" },
+                { "clickText": "Marisol Alvarez" },
+                { "waitFor": "customer-tab-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-credit-memo" },
+                { "waitFor": "No credit memos for this customer" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "customer-transactions-statuses",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1000,
+            "fakeRecords": {
+                "collection": "books_credit_memos",
+                "items": [
+                    {
+                        "collectionName": "books_credit_memos",
+                        "id": "helixcmdraft001",
+                        "customer": "$filterCustomer",
+                        "status": "draft",
+                        "number": "",
+                        "date": "2026-11-14",
+                        "total": 32000,
+                        "balance": 0,
+                        "currency": "USD",
+                        "replaced_by": "",
+                        "created": "2026-11-14 10:00:00.000Z"
+                    },
+                    {
+                        "collectionName": "books_credit_memos",
+                        "id": "helixcmunapp001",
+                        "customer": "$filterCustomer",
+                        "status": "posted",
+                        "number": "1004",
+                        "date": "2026-11-12",
+                        "total": 25000,
+                        "balance": 25000,
+                        "currency": "USD",
+                        "replaced_by": "",
+                        "created": "2026-11-12 10:00:00.000Z"
+                    },
+                    {
+                        "collectionName": "books_credit_memos",
+                        "id": "helixcmapplie01",
+                        "customer": "$filterCustomer",
+                        "status": "posted",
+                        "number": "1003",
+                        "date": "2026-11-08",
+                        "total": 14250,
+                        "balance": 0,
+                        "currency": "USD",
+                        "replaced_by": "",
+                        "created": "2026-11-08 10:00:00.000Z"
+                    },
+                    {
+                        "collectionName": "books_credit_memos",
+                        "id": "helixcmvoided01",
+                        "customer": "$filterCustomer",
+                        "status": "void",
+                        "number": "1002",
+                        "date": "2026-11-05",
+                        "total": 8000,
+                        "balance": 0,
+                        "currency": "USD",
+                        "replaced_by": "",
+                        "created": "2026-11-05 10:00:00.000Z"
+                    }
+                ]
+            },
+            "hideLabels": ["Reconnecting…"],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-credit-memo" },
+                { "waitFor": "customer-transaction-helixcmapplie01" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "sales-tax-liability",
+            "url": "/a/books/taxes",
+            "ready": "taxes-liability-report",
+            "height": 1600,
+            "actions": [
+                { "click": "taxes-liability-report" },
+                { "waitFor": "report-screen" },
+                { "pushPath": "/a/reports/$urlId?p-period=2026-11-01..2026-11-30" },
+                { "waitFor": "report-screen" },
+                { "waitFor": "Denver city" },
+                { "clickText": "Denver city" },
+                { "pause": 1500 }
+            ]
+        }
+    ]
+}

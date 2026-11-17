@@ -2,8 +2,8 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { Text, View, type ViewStyle } from 'react-native'
 import { type InvoiceCreditMemoRow, useInvoiceCreditMemos } from '../../hooks/useInvoiceCreditMemos'
-import type { StatusTone } from '../../lib/document-lifecycle'
 import { formatMoney } from '../../lib/money'
+import { creditMemoStatus } from '../../lib/party-transactions'
 import { formatDay } from '../../lib/register-range'
 import { CREDIT_MEMO_KIND } from '../../lib/sales-document-kinds'
 import { StatusBadge } from '../StatusBadge'
@@ -18,18 +18,6 @@ const COLUMN_COUNT = 4
 // The grid's own least width (4 × 95 + 3 × 16): a narrower section draws cards.
 const GRID_MIN_WIDTH = COLUMN_COUNT * CREDIT_MEMO_COLUMN.minWidth + (COLUMN_COUNT - 1) * COLUMN_GAP
 const ROW_STYLE = { gap: COLUMN_GAP, minHeight: 44 } satisfies ViewStyle
-
-// The memo's status as the customer Transactions tab words it: Draft, Unapplied (posted
-// with credit left), Applied (posted with none left), Void.
-function memoBadge(row: Pick<InvoiceCreditMemoRow, 'status' | 'balance'>): {
-    label: string
-    tone: StatusTone
-} {
-    if (row.status === 'draft') return { label: 'Draft', tone: 'muted' }
-    if (row.status === 'void') return { label: 'Void', tone: 'muted' }
-    if (row.balance > 0) return { label: 'Unapplied', tone: 'warning' }
-    return { label: 'Applied', tone: 'success' }
-}
 
 // A draft has no number yet: its link reads "Draft".
 function memoLinkLabel(row: Pick<InvoiceCreditMemoRow, 'status' | 'number'>): string {
@@ -54,7 +42,7 @@ function MemoLink({ row }: { row: InvoiceCreditMemoRow }) {
 }
 
 function MemoGridRow({ row, currency }: MemoProps) {
-    const badge = memoBadge(row)
+    const badge = creditMemoStatus(row)
     const amount = formatMoney(row.total, row.currency || currency)
     return (
         <View
@@ -96,7 +84,7 @@ function HeaderCell({ label, align }: { label: string; align?: 'right' }) {
 }
 
 function MemoCard({ row, currency }: MemoProps) {
-    const badge = memoBadge(row)
+    const badge = creditMemoStatus(row)
     const amount = formatMoney(row.total, row.currency || currency)
     return (
         <View

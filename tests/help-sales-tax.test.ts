@@ -106,6 +106,28 @@ describe('help/sales-tax.md', () => {
         expect(body).toContain('[Sales Tax Liability report](help://books:reports)')
     })
 
+    // Credit memo §3.10 and §3.11 (Q5, Q17): a posted credit memo lowers the tax owed on
+    // Accrual, and changes no figure on the Cash method.
+    describe('credit memos', () => {
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('says a credit memo lowers the sales tax liability', () => {
+            expect(
+                oneSentence(
+                    /\bcredit memos?\b/i,
+                    /\b(lowers?|reduces?|less)\b/i,
+                    /\b(liability|tax (you )?owe)/i
+                )
+            ).toBe(true)
+        })
+
+        it('says how a credit memo counts on the Cash method', () => {
+            expect(oneSentence(/\bcredit memos?\b/i, /\bCash\b/)).toBe(true)
+        })
+    })
+
     it('names no seeded agency, rate or group', () => {
         for (const { name } of [...TAX_AGENCIES, ...TAX_RATE_ROWS]) {
             expect(body, name).not.toContain(name)
