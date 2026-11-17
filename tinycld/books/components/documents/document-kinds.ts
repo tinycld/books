@@ -15,6 +15,7 @@ import {
     type DocumentStart,
     type DocumentStoredLine,
     type EstimateSource,
+    type InvoiceSource,
     isPurchaseLine,
     isSalesLine,
     vendorPartyOf,
@@ -35,6 +36,7 @@ import { creditMemoColumnsFrom, EMPTY_CREDIT_MEMO_COLUMNS } from '../../lib/cred
 import {
     copyCreditMemoValues,
     creditMemoCorrectionValues,
+    creditMemoValuesFromInvoice,
     newCreditMemoValues,
 } from '../../lib/credit-memo-values'
 import type { TaxRateFill } from '../../lib/document-fills'
@@ -96,10 +98,12 @@ import {
 } from '../../lib/sales-receipt-values'
 import type { BooksVendors } from '../../types'
 import { BillReadDetails } from './BillReadDetails'
+import { CreditMemoLinkRow } from './CreditMemoLinkRow'
 import { CreditMemoInvoiceLink, CreditMemoReadDetails } from './CreditMemoReadDetails'
 import type { DocumentReadLinesProps } from './DocumentReadLines'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
 import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
+import { InvoiceCreditMemos } from './InvoiceCreditMemos'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { PurchaseReadLines } from './PurchaseReadLines'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
@@ -240,6 +244,13 @@ export type DocumentKind = {
             party: DocumentPartyRow,
             message: string
         ) => DocumentStartValues
+        // Create credit memo (`?invoice`): the credit memo's only.
+        fromInvoice?: (
+            invoice: InvoiceSource,
+            lines: readonly DocumentLineRow[],
+            today: string,
+            party: DocumentPartyRow
+        ) => DocumentStartValues
     }
     ReadDetails: ComponentType<DocumentReadDetailsProps>
     // A ruled row at the bottom of the read view's band (a sales receipt's Payment).
@@ -247,6 +258,11 @@ export type DocumentKind = {
     // A line under the read view's message and memo, below the Posted-by stamp of a posting
     // kind (an invoice's "From estimate <n>", a closed estimate's "Converted to invoice <n>").
     ReadStampRow?: ComponentType<DocumentReadBandRowProps>
+    // A section of the read view after the Payments block (an invoice's Credit memos).
+    ReadSection?: ComponentType<DocumentReadBandRowProps>
+    // A row of the form's band between its first row and the date (a credit memo's invoice
+    // link). It reads the form's scope; a kind without it draws the band in one piece.
+    FormBandRow?: ComponentType
     // Each line table's spec, keyed by the table's key (`doc.lineTables`).
     lineSpecs: Record<string, DocumentLineSpec>
     // The read view's lines; DocumentReadLines when absent.
@@ -293,6 +309,7 @@ export const INVOICE_DOCUMENT: DocumentKind = {
     },
     ReadDetails: InvoiceReadDetails,
     ReadStampRow: InvoiceFromEstimateLink,
+    ReadSection: InvoiceCreditMemos,
     lineSpecs: SALES_LINE_SPECS,
 }
 
@@ -339,9 +356,12 @@ export const CREDIT_MEMO_DOCUMENT: DocumentKind = {
             ),
         correction: (source, lines) =>
             creditMemoCorrectionValues(creditMemoRowOf(source), lines.filter(isSalesLine)),
+        fromInvoice: (invoice, lines, today, party) =>
+            creditMemoValuesFromInvoice(invoice, lines, today, creditMemoCustomerOf(party)),
     },
     ReadDetails: CreditMemoReadDetails,
     ReadBandRow: CreditMemoInvoiceLink,
+    FormBandRow: CreditMemoLinkRow,
     lineSpecs: SALES_LINE_SPECS,
 }
 

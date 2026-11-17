@@ -39,10 +39,49 @@ function creditMemoSourceOf<R extends BooksCreditMemos>(
 }
 
 /**
+ * The invoice a credit memo is made from (`?invoice=<id>`), or that a new correction of a
+ * linked memo keeps, and its lines in position order, for the credit memo's data source:
+ * this module holds the invoice collections' `useStore` for it. Both reads are idle
+ * (ready and empty) with no id.
+ */
+export function useInvoiceSourceReads(
+    invoiceId: string
+): Pick<DocumentScreenReads, 'invoiceSource' | 'invoiceSourceLines'> {
+    const [invoicesCollection, linesCollection] = useStore('books_invoices', 'books_invoice_lines')
+    const sourceQuery = useLiveQuery({
+        query: q => {
+            if (!invoiceId) return undefined
+            return q
+                .from({ invoice: invoicesCollection })
+                .where(({ invoice }) => eq(invoice.id, invoiceId))
+                .findOne()
+        },
+        queryKey: ['books.creditMemo.invoice', invoiceId],
+    })
+    const linesQuery = useLiveQuery({
+        query: q => {
+            if (!invoiceId) return undefined
+            return q
+                .from({ line: linesCollection })
+                .where(({ line }) => eq(line.invoice, invoiceId))
+                .orderBy(({ line }) => line.position)
+        },
+        queryKey: ['books.creditMemo.invoice-lines', invoiceId],
+    })
+    return {
+        invoiceSource: documentRead(invoiceId, sourceQuery, sourceQuery.data, [invoicesCollection]),
+        invoiceSourceLines: documentRead(invoiceId, linesQuery, linesQuery.data ?? [], [
+            linesCollection,
+        ]),
+    }
+}
+
+/**
  * The credit memo's reads: the memo with the people who posted and voided it, its tax
  * rate and the invoice it is for, its lines in order with their products, the memo a
- * correction replaces or a copy starts from with its lines, and the tax lines of a posted
- * or void memo.
+ * correction replaces or a copy starts from with its lines, the invoice a new memo is
+ * made from (`?invoice`, or the one a new correction keeps) with its lines, and the tax
+ * lines of a posted or void memo.
  */
 function useCreditMemoScreenReads(
     input: DocumentScreenInput & { isHeld: boolean }
@@ -145,6 +184,13 @@ function useCreditMemoScreenReads(
         () => (sourceRow ? creditMemoSourceOf(sourceRow) : undefined),
         [sourceRow]
     )
+    // Only a new form reads it: the invoice it is made from (`?invoice`), or, on a new
+    // correction, the one the posted memo names (the correction keeps the link, and the
+    // link row names its number). A stored memo names its invoice through `invoiceRow`.
+    const correctedInvoice = input.replaces ? (sourceRow?.invoice ?? '') : ''
+    const invoiceReads = useInvoiceSourceReads(
+        input.id === null ? input.invoice || correctedInvoice : ''
+    )
     const sourceLinesQuery = useLiveQuery({
         query: q => {
             if (!ids.sourceLinesId) return undefined
@@ -190,6 +236,7 @@ function useCreditMemoScreenReads(
         ),
         // A credit memo is never made from an estimate, and no payment is applied to it.
         ...NO_ESTIMATE_SOURCE,
+        ...invoiceReads,
         ...NO_DOCUMENT_PAYMENTS,
         taxLines: documentRead(ids.postedReadsId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,

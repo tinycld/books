@@ -215,6 +215,47 @@ describe('documentScreenState for a credit memo', () => {
         expect(documentScreenState({ ...draft(), status: 'posted' })).toBe('read')
         expect(documentScreenState(draft())).toBe('form')
     })
+
+    // Create credit memo (spec §3.2, §3.9): `books/credit-memos/new?invoice=<id>`.
+    // `invoiceStatus` is the invoice's status, null when it does not exist or cannot be read.
+    // Only a posted invoice can be credited.
+    it('a new memo from a posted invoice is the form for a writer', () => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus: 'posted' })).toBe('form')
+    })
+
+    it.each([
+        'draft',
+        'void',
+        null,
+    ] as const)('a new memo from an invoice whose status is %s cannot be credited', invoiceStatus => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus })).toBe('cannot-credit')
+        expect(CREDIT_MEMO_KIND.messages.cannotCredit).toBe('This invoice cannot be credited')
+    })
+
+    it('no ?invoice (invoiceStatus undefined) changes nothing', () => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined })).toBe('form')
+        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined, canWrite: false })).toBe(
+            'no-access'
+        )
+        expect(documentScreenState({ ...draft(), invoiceStatus: undefined })).toBe('form')
+        expect(
+            documentScreenState({ ...draft(), status: 'posted', invoiceStatus: undefined })
+        ).toBe('read')
+    })
+
+    it('a failed read of the invoice is the error', () => {
+        expect(documentScreenState({ ...fresh(), invoiceStatus: null, isError: true })).toBe(
+            'error'
+        )
+        expect(
+            documentScreenState({
+                ...fresh(),
+                invoiceStatus: undefined,
+                isError: true,
+                isReady: false,
+            })
+        ).toBe('error')
+    })
 })
 
 // The quote lifecycle (spec §3.1): the form opens for a writer on pending, accepted and

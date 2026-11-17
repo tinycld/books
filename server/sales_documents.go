@@ -575,6 +575,11 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 		}
 		return voidSalesDoc(tx, kind, r, now)
 	case from == to:
+		// An invoice correction moves the link of a posted or void credit memo
+		// to itself (moveCreditMemoLinks); nothing else may change with it.
+		if isMovingCreditMemoLink(tx, r.Id) && len(changedFields(stored, r, invoiceOnly)) == 0 {
+			return nil
+		}
 		unlinks, err := onlySalesDocUnlinks(tx, stored, r)
 		if err != nil || unlinks {
 			return err

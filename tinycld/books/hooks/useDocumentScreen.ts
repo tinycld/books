@@ -4,7 +4,7 @@ import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { newRecordId } from 'pbtsdb/core'
 import { useEffect, useMemo, useState } from 'react'
 import type { DocumentKind } from '../components/documents/document-kinds'
-import { documentScreenState } from '../lib/document-screen-state'
+import { type DocumentScreenState, documentScreenState } from '../lib/document-screen-state'
 import { defaultMessageFor } from '../lib/document-values'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { todayIso } from '../lib/register-range'
@@ -21,23 +21,41 @@ export type { DocumentScreenInput } from './document-data'
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
 // The party a new form starts with: a copy's source party, the estimate's customer on an
-// invoice made from one, else the route's party param (`?customer`, or `?vendor` on a
-// kind whose party is a vendor).
+// invoice made from one, the invoice's customer on a credit memo made from one, else the
+// route's party param (`?customer`, or `?vendor` on a kind whose party is a vendor).
 function newPartyIdOf(
     input: DocumentScreenInput,
     partyField: DocumentPartyKey,
     sourceParty: string | undefined,
-    estimateCustomer: string | undefined
+    madeFromCustomer: { estimate: string | undefined; invoice: string | undefined }
 ): string | undefined {
     if (input.copy) return sourceParty
-    if (input.estimate) return estimateCustomer
+    if (input.estimate) return madeFromCustomer.estimate
+    if (input.invoice) return madeFromCustomer.invoice
     return input[partyField]
 }
 
 // A new route's form key: each start mounts its own form.
 function newFormKey(input: DocumentScreenInput): string {
-    const { fresh, replaces, copy, estimate } = input
-    return `new:${fresh ?? ''}:${replaces ?? ''}:${copy ?? ''}:${estimate ?? ''}`
+    const { fresh, replaces, copy, estimate, invoice } = input
+    return `new:${fresh ?? ''}:${replaces ?? ''}:${copy ?? ''}:${estimate ?? ''}:${invoice ?? ''}`
+}
+
+// The `?invoice` start check runs until the credit memo form shows. Once it has, a later
+// change of that invoice (voided in another session) keeps the form and what is typed in
+// it, as a stored draft keeps its link (spec §3.2, Q18): the save then shows the server's
+// refusal under the link row, and Remove link clears it. Kept per invoice id, so another
+// `?invoice` on the same mount is checked again. `note` is React's "adjust state while
+// rendering": the first render whose state is the form records the invoice, and React
+// renders again at once, before it paints, with the check frozen.
+function useShownInvoiceForm(invoiceId: string | undefined) {
+    const [shownInvoice, setShownInvoice] = useState<string | null>(null)
+    const wasShown = invoiceId !== undefined && invoiceId === shownInvoice
+    const note = (state: DocumentScreenState) => {
+        if (!invoiceId || wasShown || state !== 'form') return
+        setShownInvoice(invoiceId)
+    }
+    return { wasShown, note }
 }
 
 // A key of its own per screen mount (useId is not: it repeats for a remount at the same
@@ -78,13 +96,21 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     // posted invoice was made from (its number names it); undefined otherwise.
     const estimateSource = reads.estimateSource.data
     const isFromEstimate = isNew && Boolean(input.estimate)
+    // The invoice a new credit memo is made from (`?invoice`), or the one a correction's
+    // posted memo names (its number labels the link row); undefined otherwise.
+    const invoiceSource = reads.invoiceSource.data
+    const isFromInvoice = isNew && Boolean(input.invoice)
     // The form's party (DOCUMENT_PARTIES): the draft's own, the route's party param on a
     // new form, a copy's source party (a copy fills the header from its current record),
-    // or the estimate's customer on an invoice made from one. Read through the kind's data
-    // source, whose live query shows a refused read as an error with Retry.
+    // the estimate's customer on an invoice made from one, or the invoice's customer on a
+    // credit memo made from one. Read through the kind's data source, whose live query
+    // shows a refused read as an error with Retry.
     const partyField = DOCUMENT_PARTIES[documentKind.doc.party].field
     const sourcePartyId = source ? documentPartyIdOf(source) : undefined
-    const newPartyId = newPartyIdOf(input, partyField, sourcePartyId, estimateSource?.customer)
+    const newPartyId = newPartyIdOf(input, partyField, sourcePartyId, {
+        estimate: estimateSource?.customer,
+        invoice: invoiceSource?.customer,
+    })
     const partyId = (isNew ? newPartyId : record && documentPartyIdOf(record)) ?? ''
     const party = documentKind.data.useParty(partyId)
     const kindReads = [
@@ -94,6 +120,8 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         reads.sourceLines,
         reads.estimateSource,
         reads.estimateSourceLines,
+        reads.invoiceSource,
+        reads.invoiceSourceLines,
         reads.taxLines,
         reads.documentPayments,
         reads.formStart,
@@ -128,6 +156,12 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     // then Forward) wrote nothing, so it shows the cannot-convert notice.
     const ownsEstimate =
         isFromEstimate && writtenId !== undefined && estimateSource?.invoice === writtenId
+    // An invoice that does not exist, or whose customer cannot be read, cannot be
+    // credited (null); else its status, and only a posted one is credited, until the form
+    // has shown (useShownInvoiceForm).
+    const shownInvoiceForm = useShownInvoiceForm(isFromInvoice ? input.invoice : undefined)
+    const readInvoiceStatus = invoiceSource && copyParty !== undefined ? invoiceSource.status : null
+    const invoiceStatus = shownInvoiceForm.wasShown ? 'posted' : readInvoiceStatus
     const state = documentScreenState({
         lifecycle: documentKind.doc.lifecycle,
         isReady,
@@ -139,9 +173,12 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         replacesStatus: isNew && input.replaces ? sourceStatus : undefined,
         copyStatus: isNew && input.copy ? copyStatus : undefined,
         estimateStatus: isFromEstimate ? estimateStatus : undefined,
+        invoiceStatus: isFromInvoice ? invoiceStatus : undefined,
     })
+    shownInvoiceForm.note(state)
     const sourceLines = reads.sourceLines.data
     const estimateLines = reads.estimateSourceLines.data
+    const invoiceLines = reads.invoiceSourceLines.data
     const { values } = documentKind
     // What a new form or a copy starts from besides the document, and the kind's schema
     // rule for its Deposit to (none for an invoice).
@@ -157,6 +194,10 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
             const { message } = estimateSource
             return values.fromEstimate(estimateSource, estimateLines, today, copyParty, message)
         }
+        if (isFromInvoice) {
+            if (!invoiceSource || !copyParty || !values.fromInvoice) return undefined
+            return values.fromInvoice(invoiceSource, invoiceLines, todayIso(), copyParty)
+        }
         if (!source || !reads.sourceLines.isReady) return undefined
         if (input.replaces) return values.correction(source, sourceLines)
         if (input.copy && hasCopyParty) {
@@ -168,6 +209,9 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         isFromEstimate,
         estimateSource,
         estimateLines,
+        isFromInvoice,
+        invoiceSource,
+        invoiceLines,
         source,
         sourceLines,
         reads.sourceLines.isReady,
@@ -238,6 +282,9 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         // kinds.
         documentPayments: reads.documentPayments.data,
         estimateSource,
+        // The invoice a new credit memo is made from or a new correction keeps: its
+        // number and status label the link row.
+        invoiceSource,
         retry,
         attachments,
         canWrite: access.canWrite,

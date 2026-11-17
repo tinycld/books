@@ -52,6 +52,8 @@ export type DocumentScreenInput = {
     fresh?: string
     // On an invoice's new form: the estimate it is made from (Convert to invoice).
     estimate?: string
+    // On a credit memo's new form: the invoice it is made from (Create credit memo).
+    invoice?: string
 }
 
 // The columns every kind's header row has, as the generated invoice type names them,
@@ -319,6 +321,9 @@ export type DocumentRead<T> = {
 // The estimate an invoice is made from (`?estimate`), as its own row.
 export type EstimateSource = BooksEstimates
 
+// The invoice a credit memo is made from (`?invoice`), as its own row.
+export type InvoiceSource = BooksInvoices
+
 export type DocumentScreenReads = {
     // The row as the form keeps it: while the form is held through a delete, the last row
     // read (the store already dropped it).
@@ -330,6 +335,11 @@ export type DocumentScreenReads = {
     // lines in order. Idle (ready and empty) on every other form and kind.
     estimateSource: DocumentRead<EstimateSource | undefined>
     estimateSourceLines: DocumentRead<DocumentLineRow[]>
+    // On a credit memo's new form with `?invoice`, or a new correction of a linked memo:
+    // the invoice it is made from (or names) and its lines in order. Idle (ready and
+    // empty) on every other form and kind.
+    invoiceSource: DocumentRead<InvoiceSource | undefined>
+    invoiceSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
     // On a posted or void invoice or bill: the posted payments applied to it, oldest
     // first. Idle (ready and empty) on every other form and kind.
@@ -435,6 +445,14 @@ export const NO_ESTIMATE_SOURCE: Pick<
     estimateSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
     estimateSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
 }
+
+// The invoice reads of a form that is not made from an invoice: ready, empty, never
+// failed.
+export const NO_INVOICE_SOURCE: Pick<DocumentScreenReads, 'invoiceSource' | 'invoiceSourceLines'> =
+    {
+        invoiceSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
+        invoiceSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
+    }
 
 // The payment read of every kind but the invoice and the bill: ready, empty, never failed.
 export const NO_DOCUMENT_PAYMENTS: Pick<DocumentScreenReads, 'documentPayments'> = {

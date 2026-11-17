@@ -33,9 +33,11 @@ export async function openNewCreditMemo(page: Page) {
 }
 
 // A Books SearchPicker: the trigger opens a menu whose search field takes the term, and
-// each option is a menu item named by its label.
+// each option is a menu item named by its label. A form pushed over another form of the
+// same kind (a memo started from an invoice over a reopened memo) keeps the lower one
+// mounted but hidden, so only the visible trigger is the top form's.
 async function pickFromSearchPicker(page: Page, triggerTestId: string, label: string) {
-    const trigger = page.getByTestId(triggerTestId)
+    const trigger = page.getByTestId(triggerTestId).filter({ visible: true })
     await trigger.click()
     const search = page.getByTestId(`${triggerTestId}-search`)
     await expect(search).toBeFocused()
@@ -97,6 +99,21 @@ export async function openCreditMemoBySearch(page: Page, memo: string) {
     await expect(
         page.getByTestId('credit-memo-form').or(page.getByTestId('credit-memo-read-only'))
     ).toBeVisible()
+}
+
+// A new credit memo started from an invoice: `books/credit-memos/new?invoice=<id>`.
+export const CREDIT_MEMO_FROM_INVOICE_URL = /\/books\/credit-memos\/new\?(?:[^#]*&)?invoice=[^&#]+/
+
+// On a posted invoice's read view: presses "Create credit memo" (a bar button on a wide
+// screen, a More row on a phone) and waits for the new form started from the invoice.
+export async function createCreditMemoFromInvoice(page: Page) {
+    if (isPhone(page)) {
+        await page.locator('[data-testid="invoice-read-more"]:visible').click()
+    }
+    await page.locator('[data-testid="invoice-read-credit-memo"]:visible').click()
+    await expect(page).toHaveURL(NEW_CREDIT_MEMO_URL)
+    await expect(page).toHaveURL(CREDIT_MEMO_FROM_INVOICE_URL)
+    await expect(page.getByTestId('credit-memo-form')).toBeVisible()
 }
 
 // Books must already be open. Leaves the page on the saved draft's form.

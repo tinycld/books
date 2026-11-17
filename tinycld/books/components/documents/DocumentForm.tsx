@@ -10,7 +10,15 @@ import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { FormRenderer, NARROW_BELOW } from '@tinycld/core/ui/forms'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { useFocusEffect } from 'expo-router'
-import { type ReactNode, useCallback, useEffect, useId, useMemo, useState } from 'react'
+import {
+    type ComponentType,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useId,
+    useMemo,
+    useState,
+} from 'react'
 import { FormProvider, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
 import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
@@ -23,6 +31,7 @@ import { useDocumentSave } from '../../hooks/useDocumentSave'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useDocumentShortcuts } from '../../hooks/useDocumentShortcuts'
 import { usePdfDownload } from '../../hooks/usePdfDownload'
+import { invoiceLinkLabel } from '../../lib/credit-memo-link'
 import { DOCUMENT_PDF_KEY } from '../../lib/document-actions'
 import {
     DOCUMENT_FOOTER_MENU_SPACER,
@@ -285,6 +294,10 @@ function PartRenderer({ state, definition, testID }: RendererProps) {
 
 const BAND_CLASS = 'rounded-xl border border-border bg-surface-secondary p-4'
 
+// The built-in a kind's FormBandRow is drawn before: its Tab stops come after the first
+// row's (the Customer's links) and before the date's.
+const FORM_BAND_ROW_BEFORE = 'date'
+
 // The stored estimate whose customer decline the band shows: its id and its SAVED status.
 type DeclineNoteTarget = { estimateId: string; status: BooksEstimates['status'] | undefined }
 
@@ -292,19 +305,26 @@ interface BandProps {
     state: DocumentFormState
     first: FormDefinition
     second: FormDefinition
+    // The kind's row between the two parts (DocumentKind.FormBandRow), or undefined.
+    FormRow: ComponentType | undefined
     declineNote: DeclineNoteTarget | null
 }
 
 // The header band; a kind that splits it draws the fields from `bandSplitAt` on as a
-// second row inside it (`<test id>-payment`). A stored quote's customer decline note
-// sits directly under that row.
-function DocumentBand({ state, first, second, declineNote }: BandProps) {
+// second row inside it (`<test id>-payment`). A kind with a FormBandRow is split before
+// the date instead, and draws its row between the two parts with the band's row gap (a
+// field cell's bottom margin) above and below it, and no rule. A stored quote's customer
+// decline note sits directly under the last row.
+function DocumentBand({ state, first, second, FormRow, declineNote }: BandProps) {
     const { testId } = state.kind
     const ids = { band: `${testId}-band`, form: `${testId}-band-form` }
+    const middleRow = FormRow ? <FormRow /> : null
+    const isRuled = FormRow === undefined
     return (
         <View testID={ids.band} className={BAND_CLASS}>
             <PartRenderer state={state} definition={first} testID={ids.form} />
-            <BandSecondRow state={state} definition={second} />
+            {middleRow}
+            <BandSecondRow state={state} definition={second} isRuled={isRuled} />
             <BandDeclineNote target={declineNote} />
         </View>
     )
@@ -322,12 +342,19 @@ function BandDeclineNote({ target }: { target: DeclineNoteTarget | null }) {
     )
 }
 
-function BandSecondRow({ state, definition }: Omit<RendererProps, 'testID'>) {
+function BandSecondRow({
+    state,
+    definition,
+    isRuled,
+}: Omit<RendererProps, 'testID'> & { isRuled: boolean }) {
     if (definition.fields.length === 0) return null
     const { testId } = state.kind
     const ids = { row: `${testId}-payment`, form: `${testId}-payment-form` }
+    // Unruled (a kind with a FormBandRow): the row above already ends with the band's row
+    // gap (the last field cell's bottom margin, or the FormBandRow's own), so no margin.
+    const rowClass = isRuled ? 'mt-4 border-t border-border pt-4' : undefined
     return (
-        <View testID={ids.row} className="mt-4 border-t border-border pt-4">
+        <View testID={ids.row} className={rowClass}>
             <PartRenderer state={state} definition={definition} testID={ids.form} />
         </View>
     )
@@ -556,6 +583,19 @@ function QuoteSaveBar({ isVisible, ...props }: DocumentSaveBarProps & { isVisibl
 
 const PDF_HINT = formatHint(DOCUMENT_PDF_KEY).text
 
+// The link row's label for the invoice the form names: read from the invoice a new form
+// is made from (or a new correction keeps), or from the stored memo's `invoiceRow`; ''
+// when the form names none or the invoice is not read.
+function invoiceLinkLabelOf(data: DocumentScreenData, invoiceId: string): string {
+    if (invoiceId === '') return ''
+    const fields = data.record?.kindFields
+    const stored = fields?.kind === 'credit_memo' && fields.invoice === invoiceId
+    const invoice = stored ? fields.invoiceRow : undefined
+    const source = data.invoiceSource?.id === invoiceId ? data.invoiceSource : undefined
+    const named = invoice ?? source
+    return named ? invoiceLinkLabel(named) : ''
+}
+
 // The estimate a stored invoice was made from; '' for any other record.
 function estimateIdOf(record: DocumentScreenData['record']): string {
     const fields = record?.kindFields
@@ -718,6 +758,12 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
     const instanceId = useId()
     const bandKey = `${data.formKey}#${instanceId}`
     const partyFills = documentKind.partyFills
+    const { id: invoiceLinkId, remove: removeInvoiceLink } = state.invoiceLink
+    const invoiceLinkText = invoiceLinkLabelOf(data, invoiceLinkId)
+    const invoiceLink = useMemo(
+        () => ({ id: invoiceLinkId, label: invoiceLinkText, remove: removeInvoiceLink }),
+        [invoiceLinkId, invoiceLinkText, removeInvoiceLink]
+    )
     const scope = useMemo<DocumentFormScope>(
         () => ({
             kind,
@@ -732,6 +778,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             expiredOn,
             estimateNumber,
             estimateId,
+            invoiceLink,
         }),
         [
             kind,
@@ -746,6 +793,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             expiredOn,
             estimateNumber,
             estimateId,
+            invoiceLink,
         ]
     )
     const totals = useDocumentTotals(form, scope)
@@ -796,17 +844,19 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
+    // A kind with a row inside the band (FormBandRow) splits it before the date.
+    const bandSplitAt = documentKind.FormBandRow ? FORM_BAND_ROW_BEFORE : kind.bandSplitAt
     const parts = useMemo(
         () =>
             state.definition
-                ? splitDefinition(state.definition, kind.bandSplitAt, kind.lineTables)
+                ? splitDefinition(state.definition, bandSplitAt, kind.lineTables)
                 : null,
-        [state.definition, kind.bandSplitAt, kind.lineTables]
+        [state.definition, bandSplitAt, kind.lineTables]
     )
 
     if (!state.isReady || !parts) return <DocumentLoading />
 
-    const isEdited = state.isDirty || hasAttachmentChanges
+    const isEdited = save.isDirty || hasAttachmentChanges
     const cancel = () => (isEdited ? setDiscardOpen(true) : leave())
     // Discard drops the pending files and restores the rows marked for removal: the
     // session is emptied, not dropped, as another mounted screen of the same document
@@ -929,6 +979,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
                                         state={state}
                                         first={parts.band}
                                         second={parts.bandSecond}
+                                        FormRow={documentKind.FormBandRow}
                                         declineNote={declineNote}
                                     />
                                     <View testID={ids.lines} onLayout={linesLayout.onLayout}>
@@ -948,7 +999,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
                                     <DocumentPdfView
                                         documentId={pdfDocumentId}
                                         version={pdfVersion}
-                                        isDirty={state.isDirty}
+                                        isDirty={save.isDirty}
                                         isSaving={save.isSaving}
                                         onSave={onPdfSave}
                                     />

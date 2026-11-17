@@ -238,6 +238,45 @@ describe('documentRefusalTarget with the credit memo kind', () => {
             )
         ).toBe('root')
     })
+
+    // Spec §3.6: the server's link refusal shows under the link row, not in the summary.
+    it('puts the invoice link refusal under the link row', () => {
+        expect(creditMemoTarget('Choose a posted invoice of this customer.')).toBe('invoice')
+    })
+})
+
+// The link texts of checkpoint 4 (spec §3.6, §3.10, Q18), as the server writes them.
+const CREDIT_MEMO_LINK_TEXTS = {
+    invoice: 'Choose a posted invoice of this customer.',
+    correctionCreditMemos:
+        'Credit memos are made from this invoice, so its customer cannot change.',
+} as const
+
+describe('the credit memo link texts', () => {
+    it('holds the link refusal as the Go constant msgCreditMemoInvoice', () => {
+        expect(creditMemoServerSource()).toMatch(
+            new RegExp(`msgCreditMemoInvoice\\s*=\\s*"${CREDIT_MEMO_LINK_TEXTS.invoice}"`)
+        )
+    })
+
+    it('holds the invoice correction text as the Go constant msgInvoiceCorrectionCreditMemos', () => {
+        expect(serverSource()).toMatch(
+            new RegExp(
+                `msgInvoiceCorrectionCreditMemos\\s*=\\s*"${CREDIT_MEMO_LINK_TEXTS.correctionCreditMemos}"`
+            )
+        )
+    })
+
+    it('the invoice shows the correction text under Customer', () => {
+        expect(INVOICE_MESSAGES.correctionCreditMemos).toBe(
+            CREDIT_MEMO_LINK_TEXTS.correctionCreditMemos
+        )
+        expect(
+            invoiceRefusalTarget(
+                'Credit memos are made from this invoice, so its customer cannot change.'
+            )
+        ).toBe('customer')
+    })
 })
 
 // The estimate's texts the client and the server both show, whose Go constants live in

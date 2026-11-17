@@ -21,6 +21,7 @@ import {
     linkedReadIds,
     NO_DOCUMENT_PAYMENTS,
     NO_ESTIMATE_SOURCE,
+    NO_INVOICE_SOURCE,
     NO_RECOVERY,
     salesLineMapperOf,
     useHeldRecord,
@@ -207,8 +208,9 @@ function useEstimateScreenReads(
             sourceLinesQuery.data ?? [],
             [linesCollection]
         ),
-        // An estimate is never made from an estimate.
+        // An estimate is never made from an estimate or an invoice.
         ...NO_ESTIMATE_SOURCE,
+        ...NO_INVOICE_SOURCE,
         ...NO_DOCUMENT_PAYMENTS,
         taxLines: NO_TAX_LINES,
         formStart: ESTIMATE_FORM_START,

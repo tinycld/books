@@ -104,6 +104,11 @@ export const INVOICE_MESSAGES = {
     tooManyLines: 'An invoice can have at most 250 lines.',
     customerInactive: '%s is inactive. Choose an active customer.',
     customerOnInvoices: '%s is on invoices. Make it inactive instead.',
+    // server/invoices.go msgInvoiceCorrectionCreditMemos: a correction that changes the
+    // customer while a draft or posted credit memo names the invoice (credit memo spec
+    // §3.10, Q18), shown under Customer.
+    correctionCreditMemos:
+        'Credit memos are made from this invoice, so its customer cannot change.',
 
     // Client only.
     needItemLine: 'Add at least one product or service line',
@@ -125,7 +130,11 @@ export const INVOICE_MESSAGES = {
     pdfUnsavedSave: 'Save draft',
     pdfStale: 'Shows the last saved version',
     voidBody: 'A reversing entry is posted in the original period. The number is kept.',
-} as const satisfies DocumentMessages & { dueBeforeDate: string; voidBody: string }
+} as const satisfies DocumentMessages & {
+    dueBeforeDate: string
+    voidBody: string
+    correctionCreditMemos: string
+}
 
 // The sales receipt's texts. The first group is shown by the client and refused by the
 // server with the same words (server/sales_receipts.go); tests/document-messages.test.ts

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
-import { ESTIMATE_KIND } from '../../lib/sales-document-kinds'
+import { CREDIT_MEMO_KIND, ESTIMATE_KIND } from '../../lib/sales-document-kinds'
 import { formSessionKey, useAttachmentsStore } from '../../stores/attachments-store'
 import { DocumentForm } from './DocumentForm'
 import { DocumentLoadError } from './DocumentLoadError'
@@ -36,9 +36,12 @@ function ScreenState({ data, tab, reloads, onReload, attachmentSession }: Screen
         noAccess: `${testId}-no-access`,
         cannotEdit: `${testId}-cannot-edit`,
         cannotConvert: `${testId}-cannot-convert`,
+        cannotCredit: `${testId}-cannot-credit`,
     }
     // Only an invoice is made from an estimate; the estimate's words say it cannot be.
     const { cannotConvert } = ESTIMATE_KIND.messages
+    // Only a credit memo is made from an invoice; its words say the invoice cannot be.
+    const { cannotCredit } = CREDIT_MEMO_KIND.messages
     switch (data.state) {
         case 'loading':
             return <DocumentLoading />
@@ -52,6 +55,8 @@ function ScreenState({ data, tab, reloads, onReload, attachmentSession }: Screen
             return <DocumentNotice testID={ids.cannotEdit} message={messages.cannotEdit} />
         case 'cannot-convert':
             return <DocumentNotice testID={ids.cannotConvert} message={cannotConvert} />
+        case 'cannot-credit':
+            return <DocumentNotice testID={ids.cannotCredit} message={cannotCredit} />
         case 'read':
             return <ReadState data={data} tab={tab} />
         case 'form':
