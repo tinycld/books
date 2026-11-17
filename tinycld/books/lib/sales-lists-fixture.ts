@@ -310,8 +310,8 @@ export const SALES_LIST_INVOICES = [
         customer: NORTHWIND_SEATTLE,
         status: 'posted',
         number: '999',
-        date: '2026-06-18',
-        due_date: '2026-07-18',
+        date: '2026-07-01',
+        due_date: '2026-07-31',
         memo: 'Pallet racking',
         total: 192_475,
         balance: 0,
@@ -377,7 +377,7 @@ export const SALES_LIST_ESTIMATES = [
         customer: OLD_MILL,
         status: 'accepted',
         number: '83',
-        date: '2026-06-30',
+        date: '2026-07-01',
         expiration_date: '2026-07-30',
         memo: 'Bread racks',
         total: 57_500,
@@ -548,3 +548,17 @@ export const SALES_LIST_TICKED = [
 // What the server answers when it refuses a void, for the batch result banner.
 export const SALES_LIST_REFUSAL =
     'Invoice 1048 has a payment applied to it. Void the payment first.'
+
+const draftsOf = <Row extends { status: string }>(rows: readonly Row[]) =>
+    rows.filter(row => row.status === 'draft')
+
+// The rows the e2e seed creates (seed.ts `seedSalesListDrafts`): drafts only, because a
+// posted row moves the ledger totals that report specs assert, and no estimate, because
+// `seedDeclinedEstimates` expects the estimate numbers. Every fixture date is after
+// 2026-06-30, the close date books-settings.spec.ts holds on the shared e2e database.
+export const SALES_LIST_SEED_DRAFTS = {
+    invoices: draftsOf(SALES_LIST_INVOICES),
+    salesReceipts: draftsOf(SALES_LIST_SALES_RECEIPTS),
+    payments: draftsOf(SALES_LIST_PAYMENTS),
+    creditMemos: draftsOf(SALES_LIST_CREDIT_MEMOS),
+}

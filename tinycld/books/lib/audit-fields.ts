@@ -114,7 +114,7 @@ const PURCHASE_LINE_KIND = [
     { value: 'account', label: 'Account' },
     { value: 'item', label: 'Product or service' },
 ]
-const DOC_TYPE = [
+export const DOC_TYPE = [
     { value: 'journal', label: 'Journal entry' },
     { value: 'transfer', label: 'Transfer' },
     { value: 'invoice', label: 'Invoice' },
@@ -124,6 +124,7 @@ const DOC_TYPE = [
     { value: 'bill', label: 'Bill' },
     { value: 'expense', label: 'Expense' },
     { value: 'payment', label: 'Payment' },
+    { value: 'bill_payment', label: 'Bill payment' },
 ]
 const ENTRY_ORIGIN = [
     ...Object.entries(ENTRY_TYPE_LABELS).map(([value, label]) => ({ value, label })),

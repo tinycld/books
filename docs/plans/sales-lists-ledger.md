@@ -21,13 +21,13 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, cp 1: "`tinycld/books/lib/document-list.ts` `ChipFields` (diff lines 2037-2044) and `ChipRule`: same rule. All the fields except `id` are optional, so any kind's ref is accepted and a rule that reads a field the kind does not have (or a renamed field, for example `credited`) compiles and evaluates against `undefined` (clause false: the chip silently lists nothing). … Fix: per-kind ref types … with `chipClause` overloads per kind"
+  **rebutted because:** `ChipFields` is the constraint of a `where` builder, not a row shape that the UI reads; the rule it cites is about rendering ("the read returns `undefined` and the UI silently renders a fallback"). The failure it describes cannot pass silently: the fixture rows "already use `satisfies` on the generated types" (checkpoint Files block), so a renamed field fails tsc on the fixture, and `tests/document-list.test.ts` evaluates every chip of every tab over the fixture rows with `expect(expected.length).toBeGreaterThan(0)` and `expect(ids).toEqual(expected)`, so a rule that reads a field its kind lacks (an always-false clause) fails that test. The optional fields exist because the test harness passes `Ref<T>` of the fixture's `Partial<…>` rows (implementer, declared difference 2).
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · reviewer A: `hooks/useDocumentList.ts` — when a new filter's query fails while the previous filter's rows are kept, `isError` is true and those kept rows still show under the error banner (needs a forced 4xx; the customer page behaved the same before).
+- cp 1 · reviewer A: `lib/document-list.ts` `columnLabel` — no unit case asserts "Amount" for the Payments `total` column.
+- cp 1 · implementer: fixture invoice 999 and estimate 83 now dated 2026-07-01 (were 2026-06-18 / 2026-06-30), so the reference shots' date cells for those rows differ from the built ones.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
@@ -83,6 +83,21 @@ and again at the end)
     - low: the ellipsis in a list, `columnStyle`, `SelectBoxState` values, `ListCards` `heightOf`, the `migrationField` scan, core `useDebouncedValue`, the seed's ids and the draft payment, the access read's loading and error, the tab-replace test.
     - not acted on: no e2e for "Search does not match the customer's name" and for the tab strip scrolling (the search clauses unit test and gate 2 cover them); `new` beside the list and a document opened from a customer page or a report at 1440 (the same route and layout as the tested case).
 - review mode switches: none
+
+## Checkpoint 1
+- test writer: tests/document-list.test.ts, tests/sales-lists.test.ts, tests/document-list-store.test.ts, tests/sales-lists-fixture.test.ts, tests/doc-type-coverage.test.ts, tests/migration-prefixes.test.ts, tests/party-transactions.test.ts (one case); tests/audit-fields.test.ts not changed (it lists no options; `bill_payment` is asserted in doc-type-coverage); red for the right reason: yes, except two guards green on today's tree by design (migration-prefixes, the fixture's 15-character ids); untestable: none. Interpretations: `rangeClauses(row, { start, end } | null)` takes the resolved range; `searchPieces('10 4')` is one piece, so the test asserts one clause per piece; invoice 999 and estimate 83 move to dates after 2026-06-30.
+- implementer: the five files of Produces, `useCustomerTransactions` through `useDocumentList`, generic `mergeTransactions` with a compare, `SALES_LIST_SEED_DRAFTS` + `seedSalesListDrafts`, `DOC_TYPE` / `ROUTED_DOC_TYPES` exported with `bill_payment`; DONE.
+- test disputes: 1 — party-transactions 'orders by a given compare function, still cut to n' asserted the oldest-first merge is the exact reverse of the newest-first merge; the fixture has a date + created tie (`cpest0000000205`, `cpsr00000000064`). Settled by the spec: "Rows with the same value in the sort column are in creation order, newest first, in both directions." — a full tie has no order, so a stable merge keeps input order and the exact reverse cannot hold. A fresh test writer changed the case to a compare by distinct ids (cut and `hasMore` kept).
+- self-declared differences: 11 (cp1-impl.md): `seedSalesListDrafts(pb, accountIds, customerIds)` (a receipt draft needs `deposit_to`); `chipClause` ref type with only `id` required; fixture dates of invoice 999 (2026-07-01, due 2026-07-31) and estimate 83 (2026-07-01) moved, so reference shots show the old dates; extra exports `allOf`, `ListLayout`; `customerTransactionsTab` shape (key `customer-<filter>`, chips [All], sort keys [date]); `keepRows` keyed by `tab.key`; `mergeTransactions` generic; `.select` spreads the row; `hasFilterSet` counts search only when it has a piece; `salesTabOf` falls back to All sales; the estimate query has a `where` only when a filter is set.
+- gate 1: tests unedited: yes (the disputed case changed only by the test writer, staged again) · `tinycld-pkg check` pass (331 files, 6479 tests) · e2e customer-pages-transactions + books-customer-balance + customer-form-list: 16 passed.
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): BLOCK `keepRows` got `limit: 50` after a window of 100, so a filter or sort change dropped the rows and showed loading → accepted+fixed (fix item 1). NOTEs: query key without `tab.key` and keep key without the customer → accepted with B's findings 3 and 4; kept rows of the previous filter under an error banner → Design notes; no unit case for `columnLabel` "Amount" on Payments → Design notes.
+- gate 3 B (conformance): script lines: 0 real, 1 false positive (five live queries in one hook — one per kind, spec §4, customer by `materialize`) · `extraFields` hand-declared optional `customerRow` → accepted+fixed (item 2) · `ChipFields` with optional fields → rebutted (see Rebuttals) · query key without `tab.key` → accepted+fixed (item 3) · keep key without the customer → accepted+fixed (item 4).
+- reviewer-caught deferrals: 1, found by reviewers A and B, not self-declared: bullet (d) tested `rangeClauses` with a resolved range, so the `all-dates` / preset → range mapping in the hook had no test → not a blocker, fixed now: a test writer added `listRange` tests, the implementer adds `listRange` (item 5). The gap came from the test writer's interpretation of `rangeClauses(row, range)`.
+- fix review: round 1: items 1-5 fixed; BLOCK — the keep key `[tab.key, customer]` (from the runner's fix item 4) dropped the rows on a Sales tab when the customer filter changed (spec §3 States) → fixed in round 2: the keep key is `tab.key` alone and `useCustomerTransactions` passes a tab key `customer-<customerId>-<filter>`; NOTE (comment wording) → fixed with it. round 2: clean. Gate 1 after each round: check pass (6483 tests), the three e2e specs 16 passed. Rounds: 2.
+- gate 3 A notes: 2, listed under Design notes.
+- commit: the commit that adds this row ("feat(books): sales document list query, rules and store")
+- human: none (review mode C)
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
