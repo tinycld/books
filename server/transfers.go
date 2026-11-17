@@ -52,6 +52,8 @@ func entryNouns(docType string) (noun, this, draft string) {
 		return "Bill", "This bill", "Draft bill"
 	case docTypeExpense:
 		return "Expense", "This expense", "Draft expense"
+	case docTypeVendorCredit:
+		return "Vendor credit", "This vendor credit", "Draft vendor credit"
 	case docTypePayment:
 		return "Payment", "This payment", "Draft payment"
 	case docTypeBillPayment:

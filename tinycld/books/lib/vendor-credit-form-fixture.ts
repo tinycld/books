@@ -9,17 +9,18 @@
 // every line of both tables. `balance` is the credit not yet applied: the total of a
 // posted credit less its applications, 0 on a draft and on a void one.
 //
-// The collections do not exist yet. VendorCreditRecord, VendorCreditLineRecord and
-// VendorCreditApplicationRecord mirror spec §4 (migration
-// 2100000023_create_books_vendor_credits.js). The checkpoint that adds that migration
-// (checkpoint 1) must replace them with the generated `BooksVendorCredits`,
-// `BooksVendorCreditLines` and `BooksVendorCreditApplications` from '../types', and the
-// `satisfies` checks below then hold the rows to the real schema.
+// The record types are the generated ones (migration
+// 2100000023_create_books_vendor_credits.js), so the `satisfies` checks below hold the
+// rows to the real schema.
 //
 // A line names its account by seed account number (`account_number`), as the bill fixture
 // does: the relation id is known only after the seed creates the accounts.
 
-import type { BooksBillLines, BooksBills } from '../types'
+import type {
+    BooksVendorCreditApplications,
+    BooksVendorCreditLines,
+    BooksVendorCredits,
+} from '../types'
 import { INVOICE_USER_IDS, INVOICE_USER_NAMES } from './invoice-form-fixture'
 import { PAY_BILLS_BILLS } from './pay-bills-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
@@ -34,29 +35,20 @@ export const VENDOR_CREDIT_TODAY = '2026-11-17'
 const STAMP = '2026-11-17 09:00:00.000Z'
 
 // Spec §4 `books_vendor_credits`: the bill's columns without Terms, Due date and Mailing
-// address (Q7). Replaced by `BooksVendorCredits` in checkpoint 1.
-export type VendorCreditRecord = Omit<BooksBills, 'terms' | 'due_date' | 'mailing_address'>
+// address (Q7).
+export type VendorCreditRecord = BooksVendorCredits
 export type VendorCreditStatus = VendorCreditRecord['status']
 
 // Spec §4 `books_vendor_credit_lines`: as `books_bill_lines` with `vendor_credit` as the
-// parent. Replaced by `BooksVendorCreditLines` in checkpoint 1.
-export type VendorCreditLineRecord = Omit<BooksBillLines, 'bill'> & { vendor_credit: string }
+// parent.
+export type VendorCreditLineRecord = BooksVendorCreditLines
 // `account_number` is a fixture column the seed maps to `account`.
 export type VendorCreditLineFixtureRecord = Omit<VendorCreditLineRecord, 'account'> & {
     account_number: string
 }
 
-// Spec §4 `books_vendor_credit_applications`. Replaced by `BooksVendorCreditApplications`
-// in checkpoint 1. `date` is the apply date, an ISO day.
-export type VendorCreditApplicationRecord = {
-    id: string
-    vendor_credit: string
-    bill: string
-    amount: number
-    date: string
-    applied_by: string
-    created: string
-}
+// Spec §4 `books_vendor_credit_applications`. `date` is the apply date, an ISO day.
+export type VendorCreditApplicationRecord = BooksVendorCreditApplications
 
 // The users the read view names in "Posted by" and "Voided by" (the invoice fixture's).
 export const VENDOR_CREDIT_USER_IDS = INVOICE_USER_IDS

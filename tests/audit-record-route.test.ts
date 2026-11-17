@@ -67,7 +67,7 @@ describe('auditRecordHref', () => {
     })
 
     // A credit memo line's audit rows are filed under its memo (parent_type
-    // books_credit_memos, parent_id the memo id: migration 2100000023), so the history of a
+    // books_credit_memos, parent_id the memo id: migration 2100000024), so the history of a
     // line is the memo's, and its Open is the memo's read view.
     it('a credit memo record, and the memo id a line’s history is filed under, open books/credit-memos/<id>', () => {
         expect(auditRecordHref('books_credit_memos', ID, { id: ID })).toBe(
@@ -100,6 +100,22 @@ describe('auditRecordHref', () => {
         expect(auditRecordHref('books_journal_entries', ID, payment)).toBe(
             'books/payments/bkpayment001001'
         )
+    })
+
+    // Vendor credit spec §3.12: a vendor credit's entry opens on its credit, and its void
+    // reversal as an entry.
+    it('opens a vendor credit’s entry on its credit, and its void reversal as an entry', () => {
+        const posted = {
+            id: ID,
+            doc_type: 'vendor_credit',
+            origin: 'document',
+            document: 'vcrd1001pacpw01',
+        } as const
+        expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
+            'books/vendor-credits/vcrd1001pacpw01'
+        )
+        const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
+        expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
     })
 
     it('opens an attachment’s bill or expense', () => {

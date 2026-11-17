@@ -1,12 +1,6 @@
 package books
 
 import (
-	"database/sql"
-	"errors"
-	"fmt"
-	"strings"
-
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -179,41 +173,8 @@ func checkBillHeader(tx core.App, _, r *core.Record) error {
 	return checkBillRef(tx, r)
 }
 
-// checkBillRef stores the vendor's bill no. trimmed and refuses one that
-// another bill of the same vendor already has, unless that bill is void or is
-// the posted bill this one corrects (the correction takes its place). An empty
-// number never clashes. It runs inside the header guard's transaction, so no
-// other write commits between the check and the write.
+// checkBillRef refuses a vendor's bill no. that another bill of the same
+// vendor already has (checkVendorRef).
 func checkBillRef(tx core.App, r *core.Record) error {
-	ref := strings.TrimSpace(r.GetString("ref_no"))
-	r.Set("ref_no", ref)
-	vendorID := r.GetString("vendor")
-	if ref == "" || vendorID == "" {
-		return nil
-	}
-	others, err := tx.FindRecordsByFilter("books_bills",
-		"vendor = {:vendor} && ref_no = {:ref} && status != {:void} && id != {:id} && id != {:replaces}",
-		"-sequence,id", 1, 0, dbx.Params{
-			"vendor": vendorID, "ref": ref, "void": statusVoid, "id": r.Id, "replaces": r.GetString("replaces"),
-		})
-	if err != nil {
-		return fmt.Errorf("books: read the vendor's bills: %w", err)
-	}
-	if len(others) == 0 {
-		return nil
-	}
-	vendor, err := tx.FindRecordById("books_vendors", vendorID)
-	if errors.Is(err, sql.ErrNoRows) {
-		// The schema refuses a vendor that does not exist.
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("books: read the bill's vendor: %w", err)
-	}
-	other := billDraftName
-	if n := others[0].GetString("number"); n != "" {
-		noun, _, _ := entryNouns(docTypeBill)
-		other = noun + " " + n
-	}
-	return refuseNamedField("ref_no", msgBillDuplicateRef, vendor.GetString("display_name"), ref, other)
+	return checkVendorRef(tx, r, "books_bills", docTypeBill, billDraftName, msgBillDuplicateRef)
 }

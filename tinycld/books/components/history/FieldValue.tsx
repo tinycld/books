@@ -23,6 +23,7 @@ const NUMBERED = new Set([
     'books_estimates',
     'books_bills',
     'books_expenses',
+    'books_vendor_credits',
     'books_journal_entries',
 ])
 

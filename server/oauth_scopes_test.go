@@ -364,6 +364,39 @@ func TestOAuth_ExpensesAreReadWrite(t *testing.T) {
 	}
 }
 
+// Vendor credit spec §4: the Books scopes read and write the vendor credits,
+// their lines and their applications, as the bill's.
+func TestOAuth_VendorCreditsAreReadWrite(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	vendorCredits := []string{"books_vendor_credits", "books_vendor_credit_lines", "books_vendor_credit_applications"}
+	for _, c := range vendorCredits {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, rw.Read) || !reflect.DeepEqual(got.Write, rw.Write) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, rw.Read, rw.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range vendorCredits {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if !oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("POST %s: books:write must write", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("POST %s: books:read alone must not write", path)
+		}
+	}
+}
+
 // Spec §3.9: books_attachments joins the Books scope, read for read, write
 // for write.
 func TestOAuth_AttachmentsAreReadWrite(t *testing.T) {

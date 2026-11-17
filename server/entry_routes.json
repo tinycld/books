@@ -5,5 +5,6 @@
     "bill": "bills",
     "expense": "expenses",
     "payment": "payments",
-    "bill_payment": "bill-payments"
+    "bill_payment": "bill-payments",
+    "vendor_credit": "vendor-credits"
 }

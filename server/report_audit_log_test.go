@@ -470,6 +470,10 @@ var auditParentOf = map[string]string{
 	"books_estimate_responses":  "books_estimates",
 	"books_bill_payment_lines":  "books_bill_payments",
 	"books_credit_memo_lines":   "books_credit_memos",
+	// A vendor credit's line and its application both open the credit
+	// (vendor credit spec §4).
+	"books_vendor_credit_lines":        "books_vendor_credits",
+	"books_vendor_credit_applications": "books_vendor_credits",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -527,6 +531,19 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 			"vendor": vendor.Id, "paid_from": account.Id, "payment_method": "check", "status": "posted", "date": "2026-11-10",
 		})
 		line = saveRecord(t, app, lines, map[string]any{"payment": parent.Id, "bill": bill.Id, "amount": 100, "position": 0})
+	case "books_vendor_credit_lines":
+		vendor := saveRecord(t, app, "books_vendors", map[string]any{
+			"display_name": fmt.Sprintf("Office Supply %d", n), "name_key": fmt.Sprintf("office supply %d", n),
+		})
+		parent = saveRecord(t, app, "books_vendor_credits", map[string]any{"vendor": vendor.Id, "status": "draft", "date": "2026-11-12"})
+		line = saveRecord(t, app, lines, map[string]any{"vendor_credit": parent.Id, "kind": "account", "account": account.Id, "position": 0})
+	case "books_vendor_credit_applications":
+		vendor := saveRecord(t, app, "books_vendors", map[string]any{
+			"display_name": fmt.Sprintf("Ironclad Rentals %d", n), "name_key": fmt.Sprintf("ironclad rentals %d", n),
+		})
+		bill := saveRecord(t, app, "books_bills", map[string]any{"vendor": vendor.Id, "status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
+		parent = saveRecord(t, app, "books_vendor_credits", map[string]any{"vendor": vendor.Id, "status": "posted", "date": "2026-11-12"})
+		line = saveRecord(t, app, lines, map[string]any{"vendor_credit": parent.Id, "bill": bill.Id, "amount": 100, "date": "2026-11-16"})
 	default:
 		t.Fatalf("no fixture for %s", lines)
 	}

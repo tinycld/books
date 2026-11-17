@@ -59,8 +59,15 @@ var (
 		Collection: "books_credit_memos",
 		Noun:       "credit memo",
 	}
+	// vendorCreditBalanceKind: the vendor credit not yet applied to bills.
+	// Nothing applies a vendor credit yet, so it has no lines and no payment
+	// collection, and its balance is its total while it is posted.
+	vendorCreditBalanceKind = balanceKind{
+		Collection: vendorCreditsCollection,
+		Noun:       "vendor credit",
+	}
 	// balanceKinds are verified and rebuilt by the ledger rebuild.
-	balanceKinds = []balanceKind{invoiceBalanceKind, billBalanceKind, creditMemoBalanceKind}
+	balanceKinds = []balanceKind{invoiceBalanceKind, billBalanceKind, creditMemoBalanceKind, vendorCreditBalanceKind}
 )
 
 // balanceKindOf is the balance kind of a document collection, and false for a

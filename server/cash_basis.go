@@ -10,8 +10,9 @@ import (
 )
 
 // The cash basis (pay-bills spec §3.10). A document of a deferred kind (a bill,
-// an invoice, a credit memo) counts on the cash basis when and as far as it is
-// paid (a credit memo: applied or refunded, which no write does yet). Its rows
+// an invoice, a credit memo, a vendor credit) counts on the cash basis when and
+// as far as it is paid (a credit memo or a vendor credit: applied or refunded,
+// which no write does yet). Its rows
 // in books_cash_basis_lines are derived from the ledger and the payments:
 //
 //   - taken out: each posted line of the document's entries (its entry and the
@@ -81,9 +82,20 @@ var (
 		PaidMemo:   "Credit memo %s applied (cash basis)",
 		TaxLines:   "books_credit_memo_tax_lines",
 	}
+	// vendorCreditCashDeferral takes a vendor credit's lines out of the cash
+	// layer on its date. Nothing applies a vendor credit yet, so it has no
+	// payment doc type and nothing brings its lines back; PaidMemo is the text
+	// the rows that apply it will carry.
+	vendorCreditCashDeferral = cashDeferral{
+		Kind:       "vendor_credit",
+		DocType:    docTypeVendorCredit,
+		Balance:    vendorCreditBalanceKind,
+		UnpaidMemo: "Unapplied vendor credit (cash basis)",
+		PaidMemo:   "Vendor credit %s applied (cash basis)",
+	}
 	// cashDeferrals are the deferred kinds. A customer payment's unapplied
 	// credit is not deferred: it is cash received on its own date.
-	cashDeferrals = []cashDeferral{billCashDeferral, invoiceCashDeferral, creditMemoCashDeferral}
+	cashDeferrals = []cashDeferral{billCashDeferral, invoiceCashDeferral, creditMemoCashDeferral, vendorCreditCashDeferral}
 )
 
 // cashDeferralOf is the deferred kind of a document collection, and false for
