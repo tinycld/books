@@ -5,6 +5,7 @@ import { type CustomerRecord, useCustomersQuery } from '../../hooks/useCustomers
 import { useListFilters } from '../../hooks/useListFilters'
 import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
+import { useShippedReportHref } from '../../hooks/useShippedReportHref'
 import {
     CUSTOMER_MENU_LABELS,
     CUSTOMER_MENU_TEST_IDS,
@@ -15,8 +16,10 @@ import { CUSTOMER_INDENT, customerListCopy } from '../../lib/customer-display'
 import { CUSTOMERS_PATH } from '../../lib/customer-route'
 import type { ListLayout } from '../../lib/detail-surface'
 import { partyTitle } from '../../lib/party-list'
+import { CUSTOMER_BALANCE_SHIPPED_KEY } from '../../lib/shipped-reports'
 import { useCustomerFormStore } from '../../stores/customer-form-store'
 import { PartyList } from '../party/PartyList'
+import { ShippedReportButton } from '../reports/ShippedReportButton'
 import { DeleteCustomerDialog } from './DeleteCustomerDialog'
 
 const LOAD_ERROR = 'Could not load customers'
@@ -59,6 +62,17 @@ export function CustomersList({ openId, layout }: { openId: string; layout: List
     const loadError = list.viewState === 'error' ? LOAD_ERROR : null
     // Unwrapped, the press event would reach `openNew(parentId?)` as a parent id.
     const openNew = () => navigation.openNew()
+    // Null while the report loads, when its read fails and when the reader has none: the
+    // list then shows no button and stays usable; the live query shows it once it loads.
+    const balanceHref = useShippedReportHref(CUSTOMER_BALANCE_SHIPPED_KEY)
+    const balanceButton =
+        balanceHref === null ? undefined : (
+            <ShippedReportButton
+                href={balanceHref}
+                label="Balance report"
+                testID="customers-balance-report"
+            />
+        )
     const dialog = (
         <DeleteCustomerDialog
             customer={menus.deleteDialog.record}
@@ -87,6 +101,7 @@ export function CustomersList({ openId, layout }: { openId: string; layout: List
             isLoadError={loadError !== null}
             onDismissBanner={menus.dismissRefusal}
             dialog={dialog}
+            headerAction={balanceButton}
             layout={layout}
         />
     )
