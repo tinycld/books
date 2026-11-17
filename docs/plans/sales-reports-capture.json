@@ -1,0 +1,106 @@
+{
+    "outDir": "sales-reports-reference",
+    "shots": [
+        {
+            "name": "customer-populated",
+            "url": "/a/books/helix-mockup?report=customer&state=populated",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "widths": [375, 390, 1280],
+            "height": 1800
+        },
+        {
+            "name": "customer-opened",
+            "url": "/a/books/helix-mockup?report=customer&state=opened",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "widths": [375, 390, 1280],
+            "height": 2100
+        },
+        {
+            "name": "customer-by-sales",
+            "url": "/a/books/helix-mockup?report=customer&state=by-sales",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "height": 1800
+        },
+        {
+            "name": "customer-filtered",
+            "url": "/a/books/helix-mockup?report=customer&state=filtered",
+            "ready": "report-table",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "customer-zero-total",
+            "url": "/a/books/helix-mockup?report=customer&state=zero",
+            "ready": "report-table",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "customer-empty",
+            "url": "/a/books/helix-mockup?report=customer&state=empty",
+            "ready": "report-empty",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "customer-loading",
+            "url": "/a/books/helix-mockup?report=customer&state=loading",
+            "ready": "report-loading",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "customer-error",
+            "url": "/a/books/helix-mockup?report=customer&state=error",
+            "ready": "report-error",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "product-populated",
+            "url": "/a/books/helix-mockup?report=product&state=populated",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "widths": [375, 390, 1280],
+            "height": 2400
+        },
+        {
+            "name": "product-opened",
+            "url": "/a/books/helix-mockup?report=product&state=opened",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "widths": [375, 390, 1280],
+            "height": 2700
+        },
+        {
+            "name": "product-by-sales",
+            "url": "/a/books/helix-mockup?report=product&state=by-sales",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "height": 2400
+        },
+        {
+            "name": "product-filtered",
+            "url": "/a/books/helix-mockup?report=product&state=filtered",
+            "ready": "report-table",
+            "hideLabels": ["New"],
+            "height": 1200
+        },
+        {
+            "name": "product-picker",
+            "url": "/a/books/helix-mockup?report=product&state=picker",
+            "ready": "report-filter-picker",
+            "hideLabels": ["New"],
+            "fakeOptions": true,
+            "actions": [
+                {
+                    "waitFor": "report-filter-options"
+                }
+            ]
+        },
+        {
+            "name": "product-empty",
+            "url": "/a/books/helix-mockup?report=product&state=empty",
+            "ready": "report-empty",
+            "hideLabels": ["New"]
+        }
+    ]
+}
