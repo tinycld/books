@@ -162,14 +162,16 @@ export function ListHeaderCell({
     label,
     style,
     align = 'left',
+    testID,
 }: {
     label: string
     style: ViewStyle
     align?: 'left' | 'right'
+    testID?: string
 }) {
     const alignClass = align === 'right' ? ' text-right' : ''
     return (
-        <View className="min-w-0 pr-3" style={style}>
+        <View testID={testID} className="min-w-0 pr-3" style={style}>
             <Text
                 numberOfLines={1}
                 className={`text-xs font-semibold uppercase text-muted-foreground${alignClass}`}

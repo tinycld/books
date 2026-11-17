@@ -2,8 +2,8 @@
 // the kinds it lists, its columns, chips and sortable columns, and its New action.
 
 import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'
+import { NEW_ACTIONS } from './new-actions'
 import type { TransactionFilter, TransactionKind } from './party-transactions'
-import { NEW_ACTIONS } from './shell-nav'
 
 const ALL_KINDS: readonly TransactionKind[] = [
     'invoice',

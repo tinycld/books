@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { NewMenu } from '../tinycld/books/components/NewMenu'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import { NEW_ACTIONS_FIXTURE } from '../tinycld/books/lib/books-shell-fixture'
-import { NEW_ACTIONS, newMenuForAccess } from '../tinycld/books/lib/shell-nav'
+import { NEW_ACTIONS } from '../tinycld/books/lib/new-actions'
+import { newMenuForAccess } from '../tinycld/books/lib/shell-nav'
 import { byTestId } from './accounts-test-rows'
 
 function renderOpenMenu(

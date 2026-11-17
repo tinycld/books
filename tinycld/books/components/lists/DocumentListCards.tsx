@@ -1,0 +1,116 @@
+import type { ReactNode } from 'react'
+import { Pressable, Text, View } from 'react-native'
+import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
+import { cardLines, listCardHeight } from '../../lib/document-list-cells'
+import { ListCards } from '../ListCards'
+import { StatusBadge } from '../StatusBadge'
+
+interface DocumentListCardsProps {
+    tab: DocumentListTab
+    rows: readonly DocumentListRow[]
+    currency: string
+    onOpen(row: DocumentListRow): void
+    onNearEnd(): void
+    // The 44 px cells before and after a card's text (a tick box and a row menu); none
+    // draws while they are not given.
+    renderLead?(row: DocumentListRow): ReactNode
+    renderTrail?(row: DocumentListRow): ReactNode
+}
+
+const EDGE_CELL_STYLE = { width: 44 }
+
+function EdgeCell({ children }: { children: ReactNode }) {
+    if (children === undefined || children === null) return null
+    return <View style={EDGE_CELL_STYLE}>{children}</View>
+}
+
+function keyOfRow(row: DocumentListRow): string {
+    return row.id
+}
+
+interface CardProps {
+    row: DocumentListRow
+    tab: DocumentListTab
+    currency: string
+    height: number
+    onOpen(row: DocumentListRow): void
+    renderLead?(row: DocumentListRow): ReactNode
+    renderTrail?(row: DocumentListRow): ReactNode
+}
+
+// Two lines: the title with the amount at the right, then the detail with the status
+// badge at the right (`cardLines`).
+function Card({ row, tab, currency, height, onOpen, renderLead, renderTrail }: CardProps) {
+    const { title, amount, detail } = cardLines(row, tab, currency)
+    const lead = renderLead?.(row)
+    const trail = renderTrail?.(row)
+    const press = () => onOpen(row)
+    const style = { height }
+    return (
+        <View
+            className="flex-row items-center border-b border-border bg-background px-4"
+            style={style}
+        >
+            <EdgeCell>{lead}</EdgeCell>
+            <Pressable
+                testID={`sales-row-${row.id}`}
+                accessibilityRole="button"
+                onPress={press}
+                className="min-w-0 flex-1 justify-center gap-1"
+                style={style}
+            >
+                <View className="flex-row items-center justify-between gap-3">
+                    <Text numberOfLines={1} className="shrink text-sm font-medium text-foreground">
+                        {title}
+                    </Text>
+                    <Text className="text-sm font-medium text-foreground">{amount}</Text>
+                </View>
+                <View className="flex-row items-center justify-between gap-3">
+                    <Text numberOfLines={1} className="shrink text-xs text-muted-foreground">
+                        {detail}
+                    </Text>
+                    <StatusBadge
+                        testID={`sales-status-${row.id}`}
+                        label={row.status.label}
+                        tone={row.status.tone}
+                    />
+                </View>
+            </Pressable>
+            <EdgeCell>{trail}</EdgeCell>
+        </View>
+    )
+}
+
+// A Sales list as cards, below the table's own minimum width: each card is its document's
+// open button, drawn at `listCardHeight`.
+export function DocumentListCards({
+    tab,
+    rows,
+    currency,
+    onOpen,
+    onNearEnd,
+    renderLead,
+    renderTrail,
+}: DocumentListCardsProps) {
+    const renderCard = (row: DocumentListRow, height: number) => (
+        <Card
+            row={row}
+            tab={tab}
+            currency={currency}
+            height={height}
+            onOpen={onOpen}
+            renderLead={renderLead}
+            renderTrail={renderTrail}
+        />
+    )
+    return (
+        <ListCards
+            testID="sales-cards"
+            rows={rows}
+            heightOf={listCardHeight}
+            keyOf={keyOfRow}
+            renderCard={renderCard}
+            onNearEnd={onNearEnd}
+        />
+    )
+}

@@ -1,0 +1,145 @@
+import { useRef } from 'react'
+import { Pressable, Text, type TextInputInstance, View } from 'react-native'
+import type { DocumentListScreenState } from '../../hooks/useDocumentListScreen'
+import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
+import { LIST_NAME_ROW_HEIGHT, nameRowLines } from '../../lib/document-list-cells'
+import { ListBanner } from '../ListBanner'
+import { ListTable } from '../ListTable'
+import { SearchField } from '../ListToolbar'
+import { StatusBadge } from '../StatusBadge'
+import { DocumentListHeader } from './DocumentListHeader'
+import { DocumentListStates, LIST_LOAD_ERROR, SEARCH_PLACEHOLDER } from './DocumentListStates'
+
+const NAME_ROW_STYLE = { height: LIST_NAME_ROW_HEIGHT }
+
+function keyOfRow(row: DocumentListRow): string {
+    return row.id
+}
+
+interface NameRowProps {
+    row: DocumentListRow
+    currency: string
+    isOpen: boolean
+    onOpen(row: DocumentListRow): void
+}
+
+// Number and customer, then the amount with the status badge. The open document's row is
+// marked.
+function NameRow({ row, currency, isOpen, onOpen }: NameRowProps) {
+    const { title, amount } = nameRowLines(row, currency)
+    const bg = isOpen ? 'bg-accent' : 'bg-background'
+    const current = isOpen ? 'true' : undefined
+    const press = () => onOpen(row)
+    return (
+        <Pressable
+            testID={`sales-name-row-${row.id}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isOpen }}
+            aria-current={current}
+            onPress={press}
+            className={`justify-center gap-1 border-b border-border px-4 ${bg}`}
+            style={NAME_ROW_STYLE}
+        >
+            <Text numberOfLines={1} className="text-sm font-medium text-foreground">
+                {title}
+            </Text>
+            <View className="flex-row items-center justify-between gap-3">
+                <Text numberOfLines={1} className="shrink text-xs text-muted-foreground">
+                    {amount}
+                </Text>
+                <StatusBadge label={row.status.label} tone={row.status.tone} />
+            </View>
+        </Pressable>
+    )
+}
+
+interface NamesListProps {
+    isVisible: boolean
+    rows: readonly DocumentListRow[]
+    currency: string
+    openId: string
+    onOpen(row: DocumentListRow): void
+    onNearEnd(): void
+}
+
+function NamesList({ isVisible, rows, currency, openId, onOpen, onNearEnd }: NamesListProps) {
+    if (!isVisible) return null
+    const openIndex = rows.findIndex(row => row.id === openId)
+    const scrollToIndex = openIndex < 0 ? undefined : openIndex
+    const renderRow = (row: DocumentListRow) => (
+        <NameRow row={row} currency={currency} isOpen={row.id === openId} onOpen={onOpen} />
+    )
+    return (
+        <ListTable
+            testID="sales-names-table"
+            minWidth={0}
+            rowHeight={LIST_NAME_ROW_HEIGHT}
+            header={null}
+            rows={rows}
+            keyOf={keyOfRow}
+            renderRow={renderRow}
+            onNearEnd={onNearEnd}
+            scrollToIndex={scrollToIndex}
+        />
+    )
+}
+
+// The search row draws in every state, so the search that led to a refused query can
+// still be changed or cleared. Escape blurs the field through its ref.
+function SearchRow({ screen }: { screen: DocumentListScreenState }) {
+    const inputRef = useRef<TextInputInstance>(null)
+    const search = { query: screen.filters.search, setQuery: screen.setSearch }
+    return (
+        <View className="flex-row items-center gap-2 px-4 pb-3 pt-3">
+            <SearchField
+                testIdPrefix="sales"
+                placeholder={SEARCH_PLACEHOLDER}
+                list={search}
+                isWide={false}
+                inputRef={inputRef}
+            />
+        </View>
+    )
+}
+
+interface DocumentNamesColumnProps {
+    tab: DocumentListTab
+    openId: string
+    screen: DocumentListScreenState
+}
+
+/**
+ * The 320 px column of a kind's list beside its open document (layout `names`, spec §3
+ * "Opening a document"): the title, New and the tabs, the search field, then two-line rows
+ * with the open document's row marked. It lists the tab's rows with the tab's kept
+ * filters and sort; the chips, menus, tick boxes and row menus do not draw here.
+ */
+export function DocumentNamesColumn({ tab, openId, screen }: DocumentNamesColumnProps) {
+    const { list } = screen
+    // No rows draw while the screen loads (the access read included).
+    const hasRows = !list.isLoading && list.rows.length > 0
+    const bannerMessage = list.isError ? LIST_LOAD_ERROR : null
+    return (
+        <View testID="sales-names" aria-busy={list.isBusy} className="flex-1 bg-background">
+            <DocumentListHeader tab={tab} screen={screen} />
+            <SearchRow screen={screen} />
+            <ListBanner testIdPrefix="sales" message={bannerMessage} onRetry={list.retry} />
+            <DocumentListStates
+                tab={tab}
+                list={list}
+                filters={screen.appliedFilters}
+                showNew={false}
+                onNew={screen.openNew}
+                onClearFilters={screen.clearFilters}
+            />
+            <NamesList
+                isVisible={hasRows}
+                rows={list.rows}
+                currency={list.currency}
+                openId={openId}
+                onOpen={screen.openRow}
+                onNearEnd={list.loadMore}
+            />
+        </View>
+    )
+}
