@@ -74,6 +74,25 @@ export const TRANSACTION_DOC_KINDS: Record<
     credit_memo: CREDIT_MEMO_KIND,
 }
 
+const TRANSACTION_KINDS: readonly TransactionKind[] = [
+    'invoice',
+    'estimate',
+    'sales_receipt',
+    'payment',
+    'credit_memo',
+]
+
+// The inverse of TRANSACTION_DOC_KINDS: the transaction kind of a document kind, by its
+// route; null for a kind no sales list holds (a bill, an expense).
+export function transactionKindOf(
+    doc: Pick<SalesDocumentKind, 'routeBase'>
+): TransactionKind | null {
+    return (
+        TRANSACTION_KINDS.find(kind => TRANSACTION_DOC_KINDS[kind].routeBase === doc.routeBase) ??
+        null
+    )
+}
+
 type InvoiceInput = Pick<
     BooksInvoices,
     'id' | 'status' | 'number' | 'date' | 'due_date' | 'total' | 'balance' | 'currency' | 'created'

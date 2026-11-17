@@ -1,8 +1,10 @@
 import { create } from '@tinycld/core/lib/store'
+import type { BatchAction } from '../lib/document-batch'
 import {
     DEFAULT_LIST_FILTERS,
     DEFAULT_LIST_SORT,
     type DocumentListFilters,
+    type DocumentListRow,
     type ListLayout,
     type ListRange,
     type ListSort,
@@ -11,9 +13,30 @@ import {
 type TabState = { filters: DocumentListFilters; sort: ListSort }
 
 // A selection or a row focus is kept with the scope it was set in (`selectionScope`): a
-// change of tab, layout or filter makes a new scope, so a reader of that scope gets none
-// and no effect has to clear it. A change of sort keeps the scope.
+// change of tab, layout or filter makes a new scope, so a reader of that scope gets none at
+// once. The list that leaves a scope also drops what was kept for it (`leaveScope`), so
+// coming back to that scope shows none. A change of sort keeps the scope.
 type Scoped<T> = { scope: string } & T
+
+// A row menu's Void or Delete draft dialog. `row` is the row as it was when the dialog
+// opened, so its words stay while the write changes the row under it; `listKey` is the tab
+// whose list opened it, so a list mounted under another one does not draw it too.
+export type RowDialog = {
+    listKey: string
+    action: 'void' | 'delete_draft'
+    row: DocumentListRow
+    isRunning: boolean
+}
+
+export type BatchCounts = { applies: number; skipped: number }
+
+// The open Batch actions dialog of the tab `listKey`; `running` holds the counts it showed
+// when its confirm was pressed, so its words stay while the writes change the rows.
+export type BatchDialog = {
+    listKey: string
+    action: BatchAction
+    running: BatchCounts | null
+}
 
 interface DocumentListState {
     // Each tab's search, chip, date range, customer and sort, kept while the app is open.
@@ -29,6 +52,12 @@ interface DocumentListState {
     setSelection: (scope: string, ids: readonly string[]) => void
     focus: Scoped<{ id: string }>
     setFocus: (scope: string, id: string) => void
+    // Drops the selection and the row focus kept for `scope`, if it is theirs.
+    leaveScope: (scope: string) => void
+    rowDialog: RowDialog | null
+    setRowDialog: (dialog: RowDialog | null) => void
+    batchDialog: BatchDialog | null
+    setBatchDialog: (dialog: BatchDialog | null) => void
     // The list's banner (a refusal or a batch result); null when none shows.
     banner: string | null
     setBanner: (text: string | null) => void
@@ -62,6 +91,15 @@ export const useDocumentListStore = create<DocumentListState>()((set, get) => {
         setSelection: (scope, ids) => set({ selection: { scope, ids } }),
         focus: { scope: '', id: '' },
         setFocus: (scope, id) => set({ focus: { scope, id } }),
+        leaveScope: scope => {
+            const { selection, focus } = get()
+            if (selection.scope === scope) set({ selection: { scope: '', ids: [] } })
+            if (focus.scope === scope) set({ focus: { scope: '', id: '' } })
+        },
+        rowDialog: null,
+        setRowDialog: rowDialog => set({ rowDialog }),
+        batchDialog: null,
+        setBatchDialog: batchDialog => set({ batchDialog }),
         banner: null,
         setBanner: banner => set({ banner }),
         menu: '',

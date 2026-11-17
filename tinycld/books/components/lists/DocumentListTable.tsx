@@ -27,19 +27,32 @@ interface DocumentListTableProps {
     onOpen(row: DocumentListRow): void
     onNearEnd(): void
     // The 44 px cells before and after a row's cells, and the header's (a tick box and a
-    // row menu); none draws while they are not given.
+    // row menu); none draws while they are not given. The header keeps an empty cell over
+    // the rows' trail cells.
     renderLead?(row: DocumentListRow): ReactNode
     renderTrail?(row: DocumentListRow): ReactNode
     headerLead?: ReactNode
-    headerTrail?: ReactNode
+    // A ticked row draws `bg-accent`.
+    isTicked?(id: string): boolean
 }
 
 const ROW_STYLE = { height: LIST_ROW_HEIGHT }
 const EDGE_CELL_STYLE = { width: 44 }
+// A row that starts with a 44 px cell has no left padding; a reader's row keeps its 16 px.
+const LEAD_ROW_CLASS = 'flex-row items-center pr-2'
+
+function rowClassOf(hasLead: boolean): string {
+    return hasLead ? LEAD_ROW_CLASS : PARTY_ROW_CLASS
+}
 
 function EdgeCell({ children }: { children: ReactNode }) {
     if (children === undefined || children === null) return null
     return <View style={EDGE_CELL_STYLE}>{children}</View>
+}
+
+function TrailSpacer({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <View style={EDGE_CELL_STYLE} />
 }
 
 function keyOfRow(row: DocumentListRow): string {
@@ -121,22 +134,30 @@ interface TableRowProps {
     onOpen(row: DocumentListRow): void
     renderLead?(row: DocumentListRow): ReactNode
     renderTrail?(row: DocumentListRow): ReactNode
+    isTicked: boolean
 }
 
 // The lead cell, the button that opens the document (its cells) and the trail cell are
 // siblings, so a press on a tick box or a row menu never opens the row.
-function TableRow({ row, tab, currency, onOpen, renderLead, renderTrail }: TableRowProps) {
+function TableRow({
+    row,
+    tab,
+    currency,
+    onOpen,
+    renderLead,
+    renderTrail,
+    isTicked,
+}: TableRowProps) {
     const press = () => onOpen(row)
     const lead = renderLead?.(row)
     const trail = renderTrail?.(row)
     const cells = tab.columns.map(column => (
         <RowCell key={column} row={row} column={column} tab={tab} currency={currency} />
     ))
+    const rowClass = rowClassOf(renderLead !== undefined)
+    const bg = isTicked ? 'bg-accent' : 'bg-background'
     return (
-        <View
-            className={`${PARTY_ROW_CLASS} border-b border-border bg-background`}
-            style={ROW_STYLE}
-        >
+        <View className={`${rowClass} border-b border-border ${bg}`} style={ROW_STYLE}>
             <EdgeCell>{lead}</EdgeCell>
             <Pressable
                 testID={`sales-row-${row.id}`}
@@ -169,16 +190,16 @@ export function DocumentListTable({
     renderLead,
     renderTrail,
     headerLead,
-    headerTrail,
+    isTicked,
 }: DocumentListTableProps) {
     const headerCells = tab.columns.map(column => (
         <HeaderCell key={column} tab={tab} column={column} sort={sort} onSort={onSort} />
     ))
     const header = (
-        <ListHeaderRow testID="sales-header">
+        <ListHeaderRow testID="sales-header" rowClass={rowClassOf(renderLead !== undefined)}>
             <EdgeCell>{headerLead}</EdgeCell>
             {headerCells}
-            <EdgeCell>{headerTrail}</EdgeCell>
+            <TrailSpacer isVisible={renderTrail !== undefined} />
         </ListHeaderRow>
     )
     const renderRow = (row: DocumentListRow) => (
@@ -189,6 +210,7 @@ export function DocumentListTable({
             onOpen={onOpen}
             renderLead={renderLead}
             renderTrail={renderTrail}
+            isTicked={isTicked?.(row.id) ?? false}
         />
     )
     const minWidth = tableMinWidth(tab.columns, canWrite)

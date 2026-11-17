@@ -15,9 +15,19 @@ interface DocumentListCardsProps {
     // draws while they are not given.
     renderLead?(row: DocumentListRow): ReactNode
     renderTrail?(row: DocumentListRow): ReactNode
+    // A ticked card draws `bg-accent`.
+    isTicked?(id: string): boolean
 }
 
 const EDGE_CELL_STYLE = { width: 44 }
+
+// A card's padding at each end: none beside a 44 px cell, 16 px otherwise.
+function cardClassOf(hasLead: boolean, hasTrail: boolean, isTicked: boolean): string {
+    const start = hasLead ? '' : ' pl-4'
+    const end = hasTrail ? '' : ' pr-4'
+    const bg = isTicked ? ' bg-accent' : ' bg-background'
+    return `flex-row items-center border-b border-border${start}${end}${bg}`
+}
 
 function EdgeCell({ children }: { children: ReactNode }) {
     if (children === undefined || children === null) return null
@@ -36,21 +46,29 @@ interface CardProps {
     onOpen(row: DocumentListRow): void
     renderLead?(row: DocumentListRow): ReactNode
     renderTrail?(row: DocumentListRow): ReactNode
+    isTicked: boolean
 }
 
 // Two lines: the title with the amount at the right, then the detail with the status
 // badge at the right (`cardLines`).
-function Card({ row, tab, currency, height, onOpen, renderLead, renderTrail }: CardProps) {
+function Card({
+    row,
+    tab,
+    currency,
+    height,
+    onOpen,
+    renderLead,
+    renderTrail,
+    isTicked,
+}: CardProps) {
     const { title, amount, detail } = cardLines(row, tab, currency)
     const lead = renderLead?.(row)
     const trail = renderTrail?.(row)
     const press = () => onOpen(row)
     const style = { height }
+    const cardClass = cardClassOf(renderLead !== undefined, renderTrail !== undefined, isTicked)
     return (
-        <View
-            className="flex-row items-center border-b border-border bg-background px-4"
-            style={style}
-        >
+        <View className={cardClass} style={style}>
             <EdgeCell>{lead}</EdgeCell>
             <Pressable
                 testID={`sales-row-${row.id}`}
@@ -91,6 +109,7 @@ export function DocumentListCards({
     onNearEnd,
     renderLead,
     renderTrail,
+    isTicked,
 }: DocumentListCardsProps) {
     const renderCard = (row: DocumentListRow, height: number) => (
         <Card
@@ -101,6 +120,7 @@ export function DocumentListCards({
             onOpen={onOpen}
             renderLead={renderLead}
             renderTrail={renderTrail}
+            isTicked={isTicked?.(row.id) ?? false}
         />
     )
     return (
