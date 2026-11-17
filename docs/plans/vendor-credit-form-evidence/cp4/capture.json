@@ -1,0 +1,304 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300,
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-apply-notice" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2000,
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-apply-notice" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "partly",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-applications" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "partly-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2400,
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-applications" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "phone-more",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "click": "vendor-credit-read-more" },
+                { "waitFor": "vendor-credit-read-void" }
+            ],
+            "stable": "vendor-credit-read-void"
+        },
+        {
+            "name": "apply",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "press": "a" },
+                { "waitFor": "apply-credit-summary" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "click": "vendor-credit-read-apply" },
+                { "waitFor": "apply-credit-summary" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-errors",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "press": "a" },
+                { "waitFor": "apply-credit-summary" },
+                { "pause": 300 },
+                { "type": "99999" },
+                { "press": "ControlOrMeta+Enter" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-errors-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "click": "vendor-credit-read-apply" },
+                { "waitFor": "apply-credit-summary" },
+                { "pause": 300 },
+                { "type": "99999" },
+                { "click": "apply-credit-submit" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-empty",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "press": "a" },
+                { "waitFor": "apply-credit-empty" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-empty-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "click": "vendor-credit-read-apply" },
+                { "waitFor": "apply-credit-empty" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-loading",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_bills", "hold": true },
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "press": "a" },
+                { "waitFor": "apply-credit-loading" }
+            ],
+            "stable": "apply-credit-loading"
+        },
+        {
+            "name": "apply-loading-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "widths": [390],
+            "fakeRecords": { "collection": "books_bills", "hold": true },
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "click": "vendor-credit-read-apply" },
+                { "waitFor": "apply-credit-loading" }
+            ],
+            "stable": "apply-credit-loading"
+        },
+        {
+            "name": "apply-error",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_bills", "status": 400 },
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "press": "a" },
+                { "waitFor": "apply-credit-load-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-error-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "widths": [390],
+            "fakeRecords": { "collection": "books_bills", "status": 400 },
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "click": "vendor-credit-read-apply" },
+                { "waitFor": "apply-credit-load-error" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "remove",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-applications" },
+                { "clickText": "Remove" },
+                { "waitFor": "remove-application-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "remove-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-applications" },
+                { "clickText": "Remove" },
+                { "waitFor": "remove-application-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "applied",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280, 390],
+            "height": 1500,
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-apply" },
+                { "press": "a" },
+                { "waitFor": "apply-credit-summary" },
+                { "pause": 300 },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitForHidden": "apply-credit-dialog" },
+                { "waitFor": "vendor-credit-applications" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

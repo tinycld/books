@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    applyCreditOffered,
     creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
     DOCUMENT_READ_KEYS,
@@ -7,6 +8,7 @@ import {
     documentReadActions,
     payBillOffered,
     receivePaymentOffered,
+    removeApplicationOffered,
 } from '../tinycld/books/lib/document-actions'
 import {
     BILL_KIND,
@@ -41,7 +43,7 @@ describe('documentReadActions', () => {
 })
 
 describe('DOCUMENT_READ_KEYS', () => {
-    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P, Create credit memo M', () => {
+    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P, Create credit memo M, Apply to bills A', () => {
         expect(DOCUMENT_READ_KEYS).toEqual({
             edit: 'e',
             void: 'v',
@@ -51,6 +53,7 @@ describe('DOCUMENT_READ_KEYS', () => {
             receive_payment: 'r',
             pay_bill: 'p',
             credit_memo: 'm',
+            apply_credit: 'a',
         })
     })
 })
@@ -260,6 +263,7 @@ describe('the sales receipt read view', () => {
             receive_payment: 'r',
             pay_bill: 'p',
             credit_memo: 'm',
+            apply_credit: 'a',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
@@ -431,5 +435,92 @@ describe('the vendor credit read view', () => {
     it('offers a reader View journal entry only', () => {
         expect(credit('posted', false)).toEqual(['entry'])
         expect(credit('void', false)).toEqual(['entry'])
+    })
+})
+
+// Apply to bills (vendor credit spec §3.7, §3.9, §3.2): a writer's action on a posted
+// vendor credit with a balance above zero, key A, first in the bar (before Edit). The read
+// view sets `canApplyCredit` from applyCreditOffered.
+describe('Apply to bills', () => {
+    const NONE = { canReceivePayment: false, canPayBill: false, canCreateCreditMemo: false }
+    const credit = (status: 'posted' | 'void' | 'draft', canWrite: boolean, balance: number) =>
+        documentReadActions(status, canWrite, VENDOR_CREDIT_KIND.features, {
+            ...NONE,
+            canApplyCredit: applyCreditOffered('vendor_credit', status, balance),
+        })
+
+    it('applyCreditOffered is true for a posted vendor credit with a balance above zero', () => {
+        expect(applyCreditOffered('vendor_credit', 'posted', 1)).toBe(true)
+    })
+
+    it('applyCreditOffered is false for a balance of 0, a void or draft credit, and a bill', () => {
+        expect(applyCreditOffered('vendor_credit', 'posted', 0)).toBe(false)
+        expect(applyCreditOffered('vendor_credit', 'void', 5_000)).toBe(false)
+        expect(applyCreditOffered('vendor_credit', 'draft', 5_000)).toBe(false)
+        expect(applyCreditOffered('bill', 'posted', 5_000)).toBe(false)
+        expect(applyCreditOffered('credit_memo', 'posted', 5_000)).toBe(false)
+    })
+
+    it('comes first, before Edit, for a writer on a posted credit with a balance', () => {
+        expect(credit('posted', true, 5_000)).toEqual([
+            'apply_credit',
+            'edit',
+            'void',
+            'copy',
+            'entry',
+        ])
+    })
+
+    it('is gone once the credit is applied in full', () => {
+        expect(credit('posted', true, 0)).toEqual(['edit', 'void', 'copy', 'entry'])
+    })
+
+    it('is never offered on a void or draft credit', () => {
+        expect(credit('void', true, 5_000)).toEqual(['copy', 'entry'])
+        expect(credit('draft', true, 5_000)).toEqual([])
+    })
+
+    it('is never offered to a reader, even when canApplyCredit is set', () => {
+        expect(credit('posted', false, 5_000)).toEqual(['entry'])
+        expect(
+            documentReadActions('posted', false, VENDOR_CREDIT_KIND.features, {
+                ...NONE,
+                canApplyCredit: true,
+            })
+        ).toEqual(['entry'])
+    })
+
+    it('is not offered without canApplyCredit (an existing call shape)', () => {
+        expect(documentReadActions('posted', true, VENDOR_CREDIT_KIND.features, NONE)).toEqual([
+            'edit',
+            'void',
+            'copy',
+            'entry',
+        ])
+    })
+
+    it('has the key A, and no other read key is A', () => {
+        expect(DOCUMENT_READ_KEYS.apply_credit).toBe('a')
+        expect(DOCUMENT_READ_ACTION_KEYS.apply_credit).toBe('a')
+        const others = Object.entries(DOCUMENT_READ_ACTION_KEYS).filter(
+            ([action]) => action !== 'apply_credit'
+        )
+        for (const [action, key] of others) {
+            expect(key.toLowerCase(), action).not.toBe('a')
+        }
+    })
+})
+
+// Remove on an Applied to row (vendor credit spec §3.7, §3.9): a writer on a posted
+// document only.
+describe('removeApplicationOffered', () => {
+    it('is true for a writer on a posted document', () => {
+        expect(removeApplicationOffered(true, 'posted')).toBe(true)
+    })
+
+    it('is false for a reader, a void document and a draft', () => {
+        expect(removeApplicationOffered(false, 'posted')).toBe(false)
+        expect(removeApplicationOffered(true, 'void')).toBe(false)
+        expect(removeApplicationOffered(true, 'draft')).toBe(false)
     })
 })

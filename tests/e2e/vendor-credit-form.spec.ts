@@ -628,12 +628,14 @@ test.describe('vendor-credit-form: phone', () => {
         await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
         await vendorCreditNumberOf(page)
 
-        // The read bar keeps Edit and moves Void, Copy and View journal entry into More.
-        await expect(page.getByTestId('vendor-credit-read-edit')).toBeVisible()
+        // The unapplied credit offers Apply to bills: the read bar keeps it and moves Edit,
+        // Void, Copy and View journal entry into More.
+        await expect(page.getByTestId('vendor-credit-read-apply')).toBeVisible()
         await expect(page.getByTestId('vendor-credit-read-more')).toBeVisible()
+        await expect(page.getByTestId('vendor-credit-read-edit')).not.toBeVisible()
         await expect(page.getByTestId('vendor-credit-read-void')).not.toBeVisible()
         await page.getByTestId('vendor-credit-read-more').click()
-        for (const label of ['Void', 'Copy', 'View journal entry']) {
+        for (const label of ['Edit', 'Void', 'Copy', 'View journal entry']) {
             await expect(
                 // A menu item's name ends with its shortcut hint, when it has one.
                 page.getByRole('menuitem', { name: new RegExp(`^${label}( \\S)?$`) }),
