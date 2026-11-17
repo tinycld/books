@@ -7,6 +7,7 @@ import { useState } from 'react'
 import type { DocumentMoreItem } from '../components/documents/DocumentActionBar'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import {
+    creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
     type DocumentReadAction,
     documentReadActions,
@@ -16,7 +17,7 @@ import {
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
 import { writeRefusalText } from '../lib/refusal'
-import { INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
+import { CREDIT_MEMO_KIND, INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
 import type { DocumentRecord } from './document-data'
 import { useOpenDocument } from './useOpenDocument'
 import { usePdfDownload } from './usePdfDownload'
@@ -32,6 +33,7 @@ const LABELS: Record<DocumentReadAction, string> = {
     edit: 'Edit',
     void: 'Void',
     copy: 'Copy',
+    credit_memo: 'Create credit memo',
     entry: 'View journal entry',
     invoice: 'Open invoice',
     pdf: 'Download PDF',
@@ -72,6 +74,7 @@ function offeredActionsOf(
     const extra = {
         canReceivePayment: receivePaymentOffered(kind, record.status, balance),
         canPayBill: payBillOffered(kind, record.status, balance),
+        canCreateCreditMemo: creditMemoOffered(kind, record.status),
     }
     const actions =
         doc.lifecycle === 'quote'
@@ -132,6 +135,9 @@ export function useDocumentReadActions(
             setVoidOpen(true)
         },
         copy: () => router.replace(orgHref(documentNewHref(doc, { copy: record.id }))),
+        // Pushed, so the memo's link goes back to the invoice below it (useOpenDocument).
+        credit_memo: () =>
+            router.push(orgHref(documentNewHref(CREDIT_MEMO_KIND, { invoice: record.id }))),
         entry: () => router.replace(orgHref(`books/entries/${record.entry}`)),
         // Back to the invoice's screen when it is below; else pushed, so Back returns to
         // the estimate.

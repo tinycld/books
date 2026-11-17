@@ -96,7 +96,10 @@ var invoiceKind = salesDocKind{
 		if err := moveInvoicePayments(tx, original, correction); err != nil {
 			return err
 		}
-		return moveEstimateTo(tx, original, correction)
+		if err := moveEstimateTo(tx, original, correction); err != nil {
+			return err
+		}
+		return moveCreditMemoLinks(tx, original, correction)
 	},
 	DebitAccount: func(tx core.App, _ *core.Record) (string, error) {
 		receivable, err := ensureReceivables(tx)
@@ -114,6 +117,12 @@ const (
 	msgInvoiceCorrectionBelowPaid = "Payments of %s are applied to this invoice. Its total cannot be below that."
 	msgInvoiceCorrectionCustomer  = "Payments are applied to this invoice, so its customer cannot change."
 )
+
+// The refusal of an invoice correction that changes the customer while a
+// draft or posted credit memo names the invoice (credit memo spec §3.10, Q18;
+// moveCreditMemoLinks). The client shows it under Customer with the same
+// words (INVOICE_MESSAGES.correctionCreditMemos, lib/document-texts.ts).
+const msgInvoiceCorrectionCreditMemos = "Credit memos are made from this invoice, so its customer cannot change."
 
 // refuseVoidWithPayments is the invoice's CheckVoid: an invoice that a posted
 // payment pays stays posted until that payment is voided or edited. A draft

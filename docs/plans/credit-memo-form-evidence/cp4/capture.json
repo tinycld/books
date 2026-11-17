@@ -1,0 +1,282 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "from-invoice",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1900,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickText": "Seed invoice posted" },
+                { "waitFor": "invoice-read-only" },
+                { "pushPath": "/a/books/credit-memos/new?invoice=$urlId" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "click": "credit-memo-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "from-invoice-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 4400,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickText": "Seed invoice posted" },
+                { "waitFor": "invoice-read-only" },
+                { "pushPath": "/a/books/credit-memos/new?invoice=$urlId" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "click": "credit-memo-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "batchRefusal": {
+                "collection": "books_credit_memos",
+                "message": "Failed to create record.",
+                "data": {
+                    "invoice": {
+                        "code": "validation_invalid",
+                        "message": "Choose a posted invoice of this customer."
+                    }
+                }
+            },
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickText": "Seed invoice posted" },
+                { "waitFor": "invoice-read-only" },
+                { "pushPath": "/a/books/credit-memos/new?invoice=$urlId" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "click": "credit-memo-save-draft" },
+                { "waitFor": "credit-memo-invoice-error" },
+                { "click": "credit-memo-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "./errors",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "batchRefusal": {
+                "collection": "books_credit_memos",
+                "message": "Failed to create record.",
+                "data": {
+                    "invoice": {
+                        "code": "validation_invalid",
+                        "message": "Choose a posted invoice of this customer."
+                    }
+                }
+            },
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickText": "Seed invoice posted" },
+                { "waitFor": "invoice-read-only" },
+                { "pushPath": "/a/books/credit-memos/new?invoice=$urlId" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "click": "credit-memo-save-draft" },
+                { "waitFor": "credit-memo-invoice-error" },
+                { "click": "credit-memo-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "void-link",
+            "widths": [390],
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture void-link invoice 390" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "click": "invoice-read-more" },
+                { "click": "invoice-read-credit-memo" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "fill": "form-input-memo", "value": "Helix capture void-link credit 390" },
+                { "pause": 300 },
+                { "click": "credit-memo-post" },
+                { "waitFor": "credit-memo-read-only" },
+                { "click": "credit-memo-invoice-link" },
+                { "waitFor": "invoice-credit-memos" },
+                { "click": "invoice-read-more" },
+                { "click": "invoice-read-void" },
+                { "click": "void-confirm" },
+                { "waitForHidden": "void-dialog" },
+                { "pushPath": "/a/books/entries" },
+                { "waitFor": "entries-screen" },
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Helix capture void-link credit 390" },
+                { "clickText": "Helix capture void-link credit 390" },
+                { "waitFor": "credit-memo-read-only" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./void-link",
+            "widths": [1280],
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture void-link invoice 1280" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "click": "invoice-read-credit-memo" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "fill": "form-input-memo", "value": "Helix capture void-link credit 1280" },
+                { "pause": 300 },
+                { "click": "credit-memo-post" },
+                { "waitFor": "credit-memo-read-only" },
+                { "click": "credit-memo-invoice-link" },
+                { "waitFor": "invoice-credit-memos" },
+                { "click": "invoice-read-void" },
+                { "click": "void-confirm" },
+                { "waitForHidden": "void-dialog" },
+                { "pushPath": "/a/books/entries" },
+                { "waitFor": "entries-screen" },
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Helix capture void-link credit 1280" },
+                { "clickText": "Helix capture void-link credit 1280" },
+                { "waitFor": "credit-memo-read-only" },
+                { "waitFor": "credit-memo-invoice-link" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "cannot-credit",
+            "widths": [390],
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Northwind Traders" },
+                { "clickMenuItem": "Northwind Traders" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture cannot-credit draft 390" },
+                { "pause": 300 },
+                { "click": "invoice-save-draft" },
+                { "waitFor": "Draft invoice" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/credit-memos/new?invoice=$urlId" },
+                { "waitFor": "credit-memo-cannot-credit" }
+            ]
+        },
+        {
+            "name": "./cannot-credit",
+            "widths": [1280],
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Northwind Traders" },
+                { "clickMenuItem": "Northwind Traders" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture cannot-credit draft 1280" },
+                { "pause": 300 },
+                { "click": "invoice-save-draft" },
+                { "waitFor": "Draft invoice" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/credit-memos/new?invoice=$urlId" },
+                { "waitFor": "credit-memo-cannot-credit" }
+            ]
+        },
+        {
+            "name": "invoice-read",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1900,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickText": "Seed invoice posted" },
+                { "waitFor": "invoice-read-only" },
+                { "waitFor": "invoice-credit-memos" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "invoice-read-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 4600,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickText": "Seed invoice posted" },
+                { "waitFor": "invoice-read-only" },
+                { "waitFor": "invoice-credit-memos" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "invoice-more-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed invoice posted" },
+                { "clickText": "Seed invoice posted" },
+                { "waitFor": "invoice-read-only" },
+                { "click": "invoice-read-more" },
+                { "waitFor": "invoice-read-credit-memo" }
+            ],
+            "stable": "invoice-read-credit-memo"
+        }
+    ]
+}

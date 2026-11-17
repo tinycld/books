@@ -5,3 +5,8 @@ export function invoiceLinkLabel(invoice: { number: string; status: string }): s
     const label = `For invoice ${invoice.number}`
     return invoice.status === 'void' ? `${label} (void)` : label
 }
+
+// The key the server's refusal of a credit memo's invoice link is filed at in the form:
+// no built-in draws it, so the form's link row (DocumentKind.FormBandRow) draws it while
+// the link shows.
+export const INVOICE_LINK_KEY = 'invoice'

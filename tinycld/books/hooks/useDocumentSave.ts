@@ -14,6 +14,7 @@ import type { ViewInstance } from 'react-native'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { attachmentsNotSavedText } from '../lib/attachments'
 import { refusedRecordId } from '../lib/batch-refusal'
+import { INVOICE_LINK_KEY } from '../lib/credit-memo-link'
 import {
     documentRefusalTarget,
     labelledLineRefusal,
@@ -111,6 +112,13 @@ function rootServerForm(form: DocumentFormState['form']): RefusalForm {
 
 type Refused = { error: unknown; rowLabel: string | null }
 
+// Whether the form draws its invoice link row (a credit memo's FormBandRow, while the
+// form names an invoice): the server's refusal of `invoice` then shows under that row,
+// though no built-in draws the key.
+function isInvoiceLinkDrawn(state: DocumentFormState): boolean {
+    return state.document.FormBandRow !== undefined && state.invoiceLink.id !== ''
+}
+
 // The field a text refusal names, or null for the summary: "<row label> <n>: …" names
 // that line of the table with that row label; a target the form does not draw when the
 // answer arrives has no cell. A "Line n" text on a kind that has no table of that row
@@ -150,7 +158,9 @@ function showRefusal(
     const server = (message: string): ErrorOption => ({ type: 'server', message })
     const hidden = hiddenFields()
     const inDefinition = new Set(state.definition?.fields.map(f => f.key) ?? [])
-    const isDrawn = (key: string) => inDefinition.has(key) && !hidden.has(key)
+    const isLinkDrawn = isInvoiceLinkDrawn(state)
+    const isDrawn = (key: string) =>
+        (inDefinition.has(key) && !hidden.has(key)) || (key === INVOICE_LINK_KEY && isLinkDrawn)
     const message = messageOnlyRefusal(refused.error)
     if (message !== null) {
         const text = labelledLineRefusal(refused.rowLabel, message)
@@ -283,8 +293,8 @@ function newProgress(): Progress {
 // The draft a new form wrote before its post was refused: the form stays on `new` with
 // the refusal, and its next save updates this document instead of inserting another.
 // `rows` are each line table's rows as written, keyed by the table's key; `revision` is
-// what that save states it saw.
-type Written = { id: string; rows: Record<string, TableRow[]>; revision: number }
+// what that save states it saw; `invoice` is the credit memo's invoice link it wrote ('').
+type Written = { id: string; rows: Record<string, TableRow[]>; revision: number; invoice: string }
 
 type DocumentSaveOptions = {
     // The tab a draft saved from `new` opens on (default the form): a save from the PDF
@@ -320,7 +330,8 @@ const QUOTE_RULE_KEYS = ['expiration_date', 'accepted_date'] as const
 // after `setError` or a validation, before any render.
 function hasFieldErrors(state: DocumentFormState): boolean {
     const keys = state.definition?.fields.map(f => f.key) ?? []
-    return keys.some(key => state.form.getFieldState(key).invalid)
+    const linkKeys = isInvoiceLinkDrawn(state) ? [INVOICE_LINK_KEY] : []
+    return [...keys, ...linkKeys].some(key => state.form.getFieldState(key).invalid)
 }
 
 /**
@@ -390,6 +401,14 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // kind's draft title) and offers Delete draft, and the next save is pressed after the
     // render this sets, so it reads the written draft.
     const [written, setWritten] = useState<Written | null>(null)
+    // A credit memo's invoice link is no field of the form. It changed when it differs from
+    // the link the document holds: the one a new form's written draft holds, else the one
+    // the form session started with (the stored memo's, or a new form's start link).
+    const invoiceLinkId = state.invoiceLink.id
+    const isLinkChanged = invoiceLinkId !== (written ? written.invoice : state.linkStart)
+    // A field, a line or the link differs from what is stored: the leave guard, the PDF
+    // tab's notice and the save's baseline.
+    const isDirty = state.isDirty || isLinkChanged
     // Another session changed the document after this form took its values. A state of
     // the screen, not a field error: what the person typed is valid and stays as it is.
     const [isConflict, setConflict] = useState(false)
@@ -398,7 +417,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // change it stays, whatever the row does. Never the live value at submit: realtime
     // moves that, and a save would then state a revision the person did not see.
     const baseline = useRef(state.revision)
-    if (!state.isDirty) baseline.current = state.revision
+    if (!isDirty) baseline.current = state.revision
     const onError = state.isNew ? state.create.onError : state.edit.onError
     const runAttachmentStep = useAttachmentSaveStep()
     const attachmentSession = options.attachmentSession ?? ''
@@ -499,6 +518,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             fields: Record<string, unknown>
             lines: LineWrite[]
             rows: Record<string, TableRow[]>
+            // The invoice link the insert writes ('' for none).
+            invoice: string
             mode: SaveMode
             progress: Progress
             // Puts back the empty lines the save dropped (dropEmptyLines).
@@ -528,13 +549,13 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             state.create.form.reset(state.create.form.getValues())
             navigateAfter(id, mode)
         },
-        onError: (error, { id, rows, lines, progress, restoreLines }) => {
+        onError: (error, { id, rows, invoice, lines, progress, restoreLines }) => {
             // The draft is written and its attachments step failed or its post was
             // refused: it stays, and the notice or the refusal shows on this form, whose
             // next save updates it. The post is no line's write, so its refusal gets no
             // "Line n" label.
             if (progress.drafted) {
-                markWritten({ id, rows, revision: progress.revision })
+                markWritten({ id, rows, revision: progress.revision, invoice })
                 if (error instanceof AttachmentsNotSaved) showAttachmentsNotSaved(error)
                 else refuse({ error, rowLabel: null })
                 return
@@ -698,10 +719,12 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         if (isHeld) useDocumentSaveStore.getState().hold(id)
     }
 
-    // The estimate a new invoice names, and the invoice a new credit memo is for, are no
-    // fields of the form: the insert writes them.
+    // The estimate a new invoice names, and the invoice a credit memo is for, are no
+    // fields of the form: the insert writes them, and a credit memo's update writes its
+    // link when the form's differs from the stored one (Remove link, another customer).
     const estimateColumn = state.estimate === '' ? {} : { estimate: state.estimate }
-    const invoiceColumn = state.invoice === '' ? {} : { invoice: state.invoice }
+    const invoiceColumn = invoiceLinkId === '' ? {} : { invoice: invoiceLinkId }
+    const linkPatch = isLinkChanged ? { invoice: invoiceLinkId } : {}
 
     const startCreate = async (mode: SaveMode, restoreLines: () => void) => {
         const split = await state.create.submit()
@@ -725,6 +748,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             fields: split.fields,
             lines: lineWrites(id, plans),
             rows: lineTableRowsOf(kind, split.tables),
+            invoice: invoiceLinkId,
             mode,
             progress: newProgress(),
             restoreLines,
@@ -752,17 +776,21 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         holdFor(draft.id, mode)
         update.mutate({
             id: draft.id,
-            patch: columnsOrThrow(documentKind.columnsFrom, split.columns),
+            patch: columnsOrThrow(documentKind.columnsFrom, {
+                ...split.columns,
+                ...linkPatch,
+            }),
             fields: split.fields,
             lines,
             saw: draft.revision,
-            onDrafted: revision => markWritten({ id: draft.id, rows, revision }),
+            onDrafted: revision =>
+                markWritten({ id: draft.id, rows, revision, invoice: invoiceLinkId }),
             mode,
             progress: newProgress(),
             restoreLines,
             hasAttachmentWork: hasAttachmentWork(attachmentSession),
             // markWritten reset the form to what it wrote, so a dirty form has a change.
-            hasWrites: state.isDirty || lines.length > 0,
+            hasWrites: isDirty || lines.length > 0,
         })
         return true
     }
@@ -781,7 +809,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         const result = await state.edit.patch()
         const rulesHold = await quoteRulesHold()
         if (!result || !rulesHold) return false
-        const isUnchanged = Object.keys(result.written).length === 0
+        const isUnchanged =
+            Object.keys(result.written).length === 0 && Object.keys(linkPatch).length === 0
         const withAttachments = hasAttachmentWork(attachmentSession)
         // Nothing changed: a draft save has nothing to write; a post sets only the status;
         // a quote's Save & close, Save & new or Convert still goes on, as a save that wrote
@@ -795,7 +824,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         holdFor(id, mode)
         update.mutate({
             id,
-            patch: columnsOrThrow(documentKind.columnsFrom, result.columns),
+            patch: columnsOrThrow(documentKind.columnsFrom, { ...result.columns, ...linkPatch }),
             fields: result.fields,
             lines,
             hasAttachmentWork: withAttachments,
@@ -899,6 +928,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             runLocked(lock, () => start(quoteMode({ close: false, andNew: false, convert: true }))),
         isSaving: insert.isPending || update.isPending,
         isConflict,
+        // A field, a line or the invoice link is not saved yet.
+        isDirty,
         reload,
         writtenId: written?.id ?? null,
         surfaceRef,

@@ -107,10 +107,13 @@ func checkCreditMemoHeader(tx core.App, stored, r *core.Record) error {
 // when the link or the customer is chosen: an update that changes neither
 // passes, so a draft whose invoice was voided after the link was stored still
 // saves and posts (a void keeps the link, spec Q18). A correction that keeps
-// its original's invoice and customer passes for the same reason.
+// its original's invoice and customer passes for the same reason. A link an
+// invoice correction moves (moveCreditMemoLinks) passes too: that Replace step
+// runs before the correction is posted, so the link names an invoice that is
+// not posted yet.
 func checkCreditMemoInvoice(tx core.App, stored, r *core.Record) error {
 	invoiceID := r.GetString("invoice")
-	if invoiceID == "" {
+	if invoiceID == "" || isMovingCreditMemoLink(tx, r.Id) {
 		return nil
 	}
 	customer := r.GetString("customer")
