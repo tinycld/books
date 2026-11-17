@@ -4,6 +4,7 @@ import { ATTACHMENTS, SEED_ATTACHMENT_IDS } from './lib/attachments-fixture'
 import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
+import { CUSTOMER_BALANCE_SEED } from './lib/customer-balance-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { CUSTOMER_PAGE_CONTACTS } from './lib/customer-page-fixture'
 import {
@@ -236,6 +237,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedBillPayments(pb, ctx, accountIds)
     const expenseIds = await seedExpenses(pb, ctx, accountIds)
     await seedAttachments(pb, ctx, billIds, expenseIds)
+    // Last among the document seeds, so the earlier seeded documents keep their numbers.
+    await seedCustomerBalance(pb, ctx, ids, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -1276,15 +1279,7 @@ async function seedPartyEntries(
 ) {
     const year = new Date().getFullYear()
     for (const [index, seedEntry] of GENERAL_LEDGER_PARTY_SEED.entries()) {
-        const created = await pb.collection('books_journal_entries').create({
-            date: `${year}-${PARTY_ENTRY_DAYS[index]}`,
-            memo: seedEntry.memo,
-            status: 'draft',
-            doc_type: 'journal',
-            origin: 'manual',
-            created_by: ctx.user.id,
-        })
-        for (const [position, line] of seedEntry.lines.entries()) {
+        const lines = seedEntry.lines.map(line => {
             const account = ids.get(line.account)
             const customer = line.customer ? customerIds.get(line.customer) : ''
             if (account === undefined || customer === undefined) {
@@ -1292,19 +1287,145 @@ async function seedPartyEntries(
                     `seed: party entry "${seedEntry.memo}" names account ${line.account} or customer ${line.customer}, which was not created`
                 )
             }
-            await pb.collection('books_journal_lines').create({
-                entry: created.id,
+            return {
                 account,
                 debit: line.debit,
                 credit: line.credit,
                 memo: line.memo,
                 customer,
                 vendor: line.vendor,
-                position,
-            })
-        }
-        await postSeedDraft(pb, created.id, ctx.user.id)
+            }
+        })
+        await postSeedJournalEntry(pb, ctx, {
+            date: `${year}-${PARTY_ENTRY_DAYS[index]}`,
+            memo: seedEntry.memo,
+            lines,
+        })
     }
+}
+
+interface SeedJournalLine {
+    account: string
+    debit: number
+    credit: number
+    memo?: string
+    customer: string
+    vendor?: string
+}
+
+// A draft manual journal entry with its lines in the given order, then posted. Each line
+// names created records (account, customer), not seed keys or fixture ids.
+async function postSeedJournalEntry(
+    pb: PocketBase,
+    ctx: SeedContext,
+    entry: { date: string; memo: string; lines: SeedJournalLine[] }
+): Promise<void> {
+    const created = await pb.collection('books_journal_entries').create({
+        date: entry.date,
+        memo: entry.memo,
+        status: 'draft',
+        doc_type: 'journal',
+        origin: 'manual',
+        created_by: ctx.user.id,
+    })
+    for (const [position, line] of entry.lines.entries()) {
+        await pb.collection('books_journal_lines').create({ entry: created.id, ...line, position })
+    }
+    await postSeedDraft(pb, created.id, ctx.user.id)
+}
+
+// The Customer Balance's seed rows (CUSTOMER_BALANCE_SEED, plan D2): an invoice for the
+// sub-customer Harborview Kitchen, one for the long-named St. Jude gala, an Accounts
+// receivable entry with no customer, and one that names the inactive Old Mill Bakery. The
+// invoices are created as seedInvoices creates one (draft, one untaxed item line, then the
+// post); the entries as seedPartyEntries creates one. `ids` maps a seed account key to the
+// created account; `customerIds` maps a customer-form fixture id to the created customer.
+export async function seedCustomerBalance(
+    pb: PocketBase,
+    ctx: SeedContext,
+    ids: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const { kitchenInvoice, galaInvoice, noCustomerEntry, inactiveEntry } = CUSTOMER_BALANCE_SEED
+    for (const invoice of [kitchenInvoice, galaInvoice]) {
+        await postCustomerBalanceInvoice(pb, ctx, customerIds, invoice)
+    }
+    await postCustomerBalanceEntry(pb, ctx, ids, '', noCustomerEntry)
+
+    const oldMill = customerIds.get(inactiveEntry.customer)
+    if (oldMill === undefined) {
+        throw new Error(
+            `seed: customer balance entry names customer ${inactiveEntry.customer}, which was not created`
+        )
+    }
+    // The line guard (checkLineParty, server/lines.go) refuses a new line that names an
+    // inactive customer, so Old Mill Bakery is made active for the post and inactive again
+    // after it, as retireSeededTax retires rates after the documents under them.
+    await pb.collection('books_customers').update(oldMill, { inactive: false })
+    await postCustomerBalanceEntry(pb, ctx, ids, oldMill, inactiveEntry)
+    await pb.collection('books_customers').update(oldMill, { inactive: true })
+}
+
+type CustomerBalanceInvoice = (typeof CUSTOMER_BALANCE_SEED)['kitchenInvoice' | 'galaInvoice']
+
+async function postCustomerBalanceInvoice(
+    pb: PocketBase,
+    ctx: SeedContext,
+    customerIds: Map<string, string>,
+    invoice: CustomerBalanceInvoice
+): Promise<void> {
+    const customer = customerIds.get(invoice.customer)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: customer balance invoice "${invoice.memo}" names customer ${invoice.customer}, which was not created`
+        )
+    }
+    const created = await pb.collection('books_invoices').create({
+        customer,
+        status: 'draft',
+        date: invoice.date,
+        due_date: invoice.date,
+        terms: 'due_on_receipt',
+        memo: invoice.memo,
+    })
+    await pb.collection('books_invoice_lines').create({
+        invoice: created.id,
+        position: 0,
+        kind: 'item',
+        product: 'prodbookkeep001',
+        quantity: 1,
+        rate: invoice.cents,
+        taxable: false,
+    })
+    await postSeedDocument(pb, 'books_invoices', created.id, ctx.user.id)
+}
+
+type CustomerBalanceEntry = (typeof CUSTOMER_BALANCE_SEED)['noCustomerEntry' | 'inactiveEntry']
+
+// A posted entry: a debit of `cents` on Accounts receivable naming `customer` ('' for
+// none), credited to Consulting Income.
+async function postCustomerBalanceEntry(
+    pb: PocketBase,
+    ctx: SeedContext,
+    ids: Map<string, string>,
+    customer: string,
+    entry: CustomerBalanceEntry
+): Promise<void> {
+    const receivable = ids.get('receivable')
+    const consulting = ids.get('consulting')
+    if (receivable === undefined || consulting === undefined) {
+        throw new Error(
+            `seed: customer balance entry "${entry.memo}" names an account that was not created`
+        )
+    }
+    await postSeedJournalEntry(pb, ctx, {
+        date: entry.date,
+        memo: entry.memo,
+        lines: [
+            { account: receivable, debit: entry.cents, credit: 0, customer },
+            { account: consulting, debit: 0, credit: entry.cents, customer: '' },
+        ],
+    })
 }
 
 // A section longer than the General Ledger's first page of 200 lines, so its paging
