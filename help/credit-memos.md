@@ -34,6 +34,10 @@ On the customer's Transactions tab, choose the **Credit memos** chip to see the 
 
 A posted credit memo lowers the sales tax that you owe. On the [Sales Tax Liability report](help://books:reports) on Accrual, it lowers the Gross total, the Taxable amount and the Tax amount of its rate on the credit memo's date, and shows as a row such as "Credit memo 1001" with negative figures. Press the row to open the credit memo. To set up rates, see [Sales tax](help://books:sales-tax).
 
+## Credit memos in the sales reports
+
+A posted credit memo lowers both sales reports, Sales by Customer and Sales by Product/Service, on its date, whether or not its credit is used: its customer's figures and its products' figures go down by its line amounts. When you open the customer's row in Sales by Customer, or the product's row in Sales by Product/Service, the memo's lines show with negative figures, for example "2026-11-10 · Credit memo 1001 · Network visit" (Sales by Customer ends with the product's name, Sales by Product/Service with the customer's name). Press a line to open the credit memo. To read the reports, see the [sales reports](help://books:reports).
+
 ## Cash basis
 
 On Accrual, a posted credit memo counts on its own date, as every posted entry does. On Cash, a credit memo counts only when its credit is used, as an invoice counts only when it is paid. Books cannot yet apply or refund a credit, so on Cash a credit memo changes no figure of the Profit and Loss, the Balance Sheet, Transaction Detail by Account or the Sales Tax Liability. See "Accrual and cash basis" in [Reports](help://books:reports).

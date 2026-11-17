@@ -1,0 +1,108 @@
+{
+    "outDir": ".",
+    "widths": [375, 390],
+    "shots": [
+        {
+            "name": "customer-populated",
+            "url": "/a/reports?package=books",
+            "height": 1800,
+            "actions": [
+                { "idFromText": "Sales by Customer", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "customer-opened",
+            "url": "/a/reports?package=books",
+            "height": 2100,
+            "actions": [
+                { "idFromText": "Sales by Customer", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "clickText": "Harborview Kitchen" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "product-populated",
+            "url": "/a/reports?package=books",
+            "height": 2400,
+            "actions": [
+                { "idFromText": "Sales by Product/Service", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "product-opened",
+            "url": "/a/reports?package=books",
+            "height": 2700,
+            "actions": [
+                { "idFromText": "Sales by Product/Service", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "clickText": "Wireless access point" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "customers-header",
+            "url": "/a/books/customers",
+            "widths": [1280],
+            "actions": [{ "waitFor": "customers-reports" }, { "pause": 1000 }]
+        },
+        {
+            "name": "customers-header-phone",
+            "url": "/a/books/customers",
+            "widths": [390],
+            "actions": [{ "waitFor": "customers-reports" }, { "pause": 1000 }]
+        },
+        {
+            "name": "customers-reports-open",
+            "url": "/a/books/customers",
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "customers-reports" },
+                { "click": "customers-reports" },
+                { "waitFor": "customers-reports-sales" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "customers-reports-open-phone",
+            "url": "/a/books/customers",
+            "widths": [390],
+            "actions": [
+                { "waitFor": "customers-reports" },
+                { "click": "customers-reports" },
+                { "waitFor": "customers-reports-sales" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "products-header",
+            "url": "/a/books/products",
+            "widths": [1280],
+            "actions": [{ "waitFor": "products-sales-report" }, { "pause": 1000 }]
+        },
+        {
+            "name": "products-header-phone",
+            "url": "/a/books/products",
+            "widths": [390],
+            "actions": [{ "waitFor": "products-sales-report" }, { "pause": 1000 }]
+        },
+        {
+            "name": "products-header-narrow",
+            "url": "/a/books/products",
+            "widths": [375],
+            "height": 812,
+            "actions": [{ "waitFor": "products-sales-report" }, { "pause": 1000 }]
+        },
+        {
+            "name": "customers-header-narrow",
+            "url": "/a/books/customers",
+            "widths": [375],
+            "height": 812,
+            "actions": [{ "waitFor": "customers-reports" }, { "pause": 1000 }]
+        }
+    ]
+}

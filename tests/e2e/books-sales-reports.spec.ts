@@ -1,11 +1,22 @@
 import { expect, type Page, test } from '@playwright/test'
+import {
+    CUSTOMER_BALANCE_SEED,
+    CUSTOMER_BALANCE_TITLE,
+} from '~/tinycld/books/lib/customer-balance-fixture'
 import { CUSTOMER_IDS, CUSTOMERS } from '~/tinycld/books/lib/customer-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from '~/tinycld/books/lib/products-services-fixture'
 import {
     SALES_BY_CUSTOMER_DESCRIPTION,
+    SALES_BY_CUSTOMER_TITLE,
     SALES_BY_PRODUCT_DESCRIPTION,
+    SALES_BY_PRODUCT_TITLE,
 } from '~/tinycld/books/lib/sales-reports-fixture'
-import { DESKTOP } from './account-register-helpers'
+import {
+    CUSTOMER_BALANCE_SHIPPED_KEY,
+    SALES_BY_CUSTOMER_SHIPPED_KEY,
+    SALES_BY_PRODUCT_SHIPPED_KEY,
+} from '~/tinycld/books/lib/shipped-reports'
+import { DESKTOP, PHONE } from './account-register-helpers'
 import {
     browserToday,
     choosePeriod,
@@ -16,18 +27,23 @@ import {
 import { CREDIT_MEMO_URL, postCreditMemo } from './credit-memo-helpers'
 import { centsOf } from './customer-balance-helpers'
 import {
+    customerEntries,
     customerPageUrl,
     customerPath,
     field,
     openBooks,
+    openCustomersList,
     uniqueName,
 } from './customer-form-helpers'
 import { INVOICE_URL, lineCellTestId, pickLineProduct } from './invoice-helpers'
+import { openProductsList, productEntries } from './products-services-helpers'
 import { SALES_RECEIPT_URL } from './sales-receipt-helpers'
 import {
     amountCents,
     chooseSalesOrder,
     DISCOUNT_PRODUCT,
+    expectSalesPhoneLines,
+    expectSalesRowsFit,
     filterSalesTo,
     filterToProducts,
     openSalesByCustomer,
@@ -40,7 +56,9 @@ import {
     salesByCustomerHubRow,
     salesByProductHubRow,
     salesRows,
+    scrollToSalesRow,
 } from './sales-reports-helpers'
+import { fakeReadOnlyAccess } from './tax-rates-helpers'
 
 // Sales by Customer (sales-reports checkpoint 1): the shipped report from the Books hub,
 // read for the customers each test creates. Every test posts its documents today and reads
@@ -698,6 +716,267 @@ test.describe('sales-reports: Sales by Product/Service', () => {
             'No rows for January 1 – December 31, 2020'
         )
         await expect(page.locator('[data-testid^="report-row-"]')).toHaveCount(0)
+    })
+})
+
+// The list entries and the phone (sales-reports checkpoint 3).
+
+const SALES_COLUMNS = ['sales', 'pct'] as const
+const PRODUCT_COLUMNS = ['quantity', 'amount', 'pct', 'avg'] as const
+// Spec §3 "Phone": Sales by Customer puts the name on line 1 and Sales and % of sales on
+// line 2; Sales by Product/Service puts Quantity and Amount on line 2, % of sales and Avg
+// price on line 3.
+const CUSTOMER_PHONE_LINES = [['sales', 'pct']] as const
+const PRODUCT_PHONE_LINES = [
+    ['quantity', 'amount'],
+    ['pct', 'avg'],
+] as const
+// Lesson 32: CI's 390 viewport leaves a 375 px row; the two widths wrap differently.
+const PHONE_375 = { width: 375, height: 812 }
+
+// The seeded long-named family (St. Jude) and its sub-customer the gala, which holds the
+// seeded posted invoice (customer-balance-fixture.ts), and the seeded long-named product,
+// on the seeded posted invoice 1004 of 2026-10-21 (invoice-form-fixture.ts).
+const ST_JUDE = CUSTOMERS.find(customer => customer.id === CUSTOMER_IDS.stJude)
+const ST_JUDE_GALA = CUSTOMERS.find(
+    customer => customer.id === CUSTOMER_BALANCE_SEED.galaInvoice.customer
+)
+const NETWORK_VISIT = PRODUCTS.find(product => product.id === PRODUCT_IDS.networkVisit)
+
+// A reports list answer of the given rows, as PocketBase pages it: the asked page at the
+// asked page size, so the SDK's full-list read stops after the last page.
+function reportRows(items: readonly Record<string, string>[], url: URL) {
+    const page = Math.max(Number(url.searchParams.get('page') ?? '1') || 1, 1)
+    const perPage = Math.max(Number(url.searchParams.get('perPage') ?? '30') || 30, 1)
+    const start = (page - 1) * perPage
+    return JSON.stringify({
+        page,
+        perPage,
+        totalItems: items.length,
+        totalPages: Math.ceil(items.length / perPage),
+        items: items.slice(start, start + perPage),
+    })
+}
+
+/**
+ * A fresh page of the same context, for a Books reader, whose reports list read answers
+ * only the rows of `rows` whose shipped key the read asks for: realtime is cut first
+ * (fakeReadOnlyAccess), so no row arrives by another path. Returns the page and the
+ * filters of the reads that were answered (a filter is added only after its answer was
+ * sent to the page).
+ */
+async function freshPageWithReports(
+    page: Page,
+    rows: readonly { id: string; shipped_key: string; title: string }[]
+) {
+    const fresh = await page.context().newPage()
+    const answered: string[] = []
+    await fakeReadOnlyAccess(fresh)
+    await fresh.route('**/api/collections/reports/records**', async route => {
+        const url = new URL(route.request().url())
+        const filter = url.searchParams.get('filter') ?? ''
+        const items = rows
+            .filter(row => filter.includes(row.shipped_key))
+            .map(row => ({ ...row, collectionName: 'reports' }))
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: reportRows(items, url),
+        })
+        answered.push(filter)
+    })
+    return { fresh, answered }
+}
+
+// The number of elements in the row of the list header's title: the title alone when the
+// header draws no button group.
+function titleRowChildren(page: Page, titleTestId: string): Promise<number> {
+    return page
+        .getByTestId(titleTestId)
+        .filter({ visible: true })
+        .evaluate(title => title.parentElement?.children.length ?? -1)
+}
+
+// The visible report's document title.
+function shownReportTitle(page: Page) {
+    return page.getByTestId('report-document-title').filter({ visible: true })
+}
+
+test.describe('sales-reports: entry points and phone', () => {
+    test("the Customers list's Reports menu opens both reports, for a reader too", async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openCustomersList(page)
+        const button = page.getByTestId('customers-reports')
+        await expect(button).toHaveText('Reports')
+        await expect(page.getByTestId('customer-new-header')).toHaveCount(0)
+        const items = page.locator('[data-testid^="customers-reports-"]').filter({ visible: true })
+
+        await button.click()
+        await expect(items).toHaveText(['Customer Balance', 'Sales by Customer'])
+        await page.getByTestId('customers-reports-sales').click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(shownReportTitle(page)).toHaveText(SALES_BY_CUSTOMER_TITLE)
+
+        await page.goBack()
+        await expect(page.getByTestId('customers-title').filter({ visible: true })).toBeVisible()
+        await button.click()
+        await expect(items).toHaveText(['Customer Balance', 'Sales by Customer'])
+        await page.getByTestId('customers-reports-balance').click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(shownReportTitle(page)).toHaveText(CUSTOMER_BALANCE_TITLE)
+
+        // Only the Customer Balance is found: the menu holds only its item.
+        const one = await freshPageWithReports(page, [
+            {
+                id: 'fakecbalance001',
+                shipped_key: CUSTOMER_BALANCE_SHIPPED_KEY,
+                title: CUSTOMER_BALANCE_TITLE,
+            },
+        ])
+        await openBooks(one.fresh, DESKTOP)
+        await openCustomersList(one.fresh)
+        const oneButton = one.fresh.getByTestId('customers-reports')
+        await expect(oneButton).toBeVisible()
+        await oneButton.click()
+        await expect(
+            one.fresh.locator('[data-testid^="customers-reports-"]').filter({ visible: true })
+        ).toHaveText(['Customer Balance'])
+        await one.fresh.close()
+
+        // No report is found: no menu, and no empty button group beside the title.
+        const none = await freshPageWithReports(page, [])
+        await openBooks(none.fresh, DESKTOP)
+        await openCustomersList(none.fresh)
+        await expect(none.fresh.getByTestId('customers-title')).toBeVisible()
+        // The reads of both reports were answered with no row, and the list's own rows
+        // show: `useShippedReportHref` also gives null while its read loads, so without
+        // this the absent button below would prove nothing.
+        await expect
+            .poll(
+                () =>
+                    [CUSTOMER_BALANCE_SHIPPED_KEY, SALES_BY_CUSTOMER_SHIPPED_KEY].every(key =>
+                        none.answered.some(filter => filter.includes(key))
+                    ),
+                'the Customers list got its answer for both shipped reports'
+            )
+            .toBe(true)
+        await expect(customerEntries(none.fresh).first()).toBeVisible()
+        await expect(none.fresh.getByTestId('customers-reports')).toHaveCount(0)
+        await expect.poll(() => titleRowChildren(none.fresh, 'customers-title')).toBe(1)
+    })
+
+    test("the Products list's Sales report button opens the report for a reader, and hides with no report", async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openProductsList(page)
+        const button = page.getByTestId('products-sales-report')
+        await expect(button).toHaveText('Sales report')
+        await expect(page.getByTestId('product-new-header')).toHaveCount(0)
+        await button.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(shownReportTitle(page)).toHaveText(SALES_BY_PRODUCT_TITLE)
+
+        const none = await freshPageWithReports(page, [])
+        await openBooks(none.fresh, DESKTOP)
+        await openProductsList(none.fresh)
+        await expect(none.fresh.getByTestId('products-title')).toBeVisible()
+        // The read was answered with no row, and the list's own rows show (see the
+        // Customers test).
+        await expect
+            .poll(
+                () => none.answered.some(filter => filter.includes(SALES_BY_PRODUCT_SHIPPED_KEY)),
+                'the Products list got its answer for the shipped Sales by Product/Service'
+            )
+            .toBe(true)
+        await expect(productEntries(none.fresh).first()).toBeVisible()
+        await expect(none.fresh.getByTestId('products-sales-report')).toHaveCount(0)
+        await expect.poll(() => titleRowChildren(none.fresh, 'products-title')).toBe(1)
+    })
+
+    // A phone run: the phone path is other code (each report's `mobile` arrangement, core's
+    // phone row layout).
+    test('on a 390 phone both reports keep their arrangements', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const book = await postSaleBook(page)
+        const name = book.customer.name
+
+        await openSalesByCustomer(page)
+        const filtered = await filterToOwnCustomer(page, name)
+        const own = customerRow(filtered, name)
+        if (!own) throw new Error(`no mounted row "${name}"`)
+        await page.setViewportSize(PHONE)
+        await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+        await expectSalesPhoneLines(page, own.id, CUSTOMER_PHONE_LINES)
+        expect(shareOf(customerRow(await salesRows(page), name))).toBe('100.00%')
+        await pressReportRow(page, own.id)
+        const opened = await filterSettled(
+            page,
+            rows => linesUnder(rows, name).length === 4,
+            `${name}'s four sale lines show`
+        )
+        const [firstLine] = linesUnder(opened, name)
+        await expectSalesPhoneLines(page, firstLine.id, CUSTOMER_PHONE_LINES)
+        await expectSalesRowsFit(page, SALES_COLUMNS)
+
+        await page.setViewportSize(DESKTOP)
+        await openSalesByProduct(page)
+        const products = await filterProductsToCustomer(page, name, [
+            book.service,
+            book.goods,
+            DISCOUNT_PRODUCT,
+        ])
+        const service = productRow(products, book.service)
+        if (!service) throw new Error(`no mounted row "${book.service}"`)
+        await page.setViewportSize(PHONE)
+        await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+        await expectSalesPhoneLines(page, service.id, PRODUCT_PHONE_LINES)
+        await pressReportRow(page, service.id)
+        const serviceLines = linesUnder(
+            await filterSettled(
+                page,
+                rows => linesUnder(rows, book.service).length === 2,
+                `${book.service}'s two sale lines show`
+            ),
+            book.service
+        )
+        for (const line of serviceLines) {
+            await expectSalesPhoneLines(page, line.id, PRODUCT_PHONE_LINES)
+        }
+        await expectSalesRowsFit(page, PRODUCT_COLUMNS)
+    })
+
+    test('on a 375 phone the seeded long names wrap and no figure is cut', async ({ page }) => {
+        if (!ST_JUDE || !ST_JUDE_GALA || !NETWORK_VISIT) {
+            throw new Error('no St. Jude family or long-named product in the fixtures')
+        }
+        await openBooks(page, DESKTOP)
+        await openSalesByCustomer(page)
+        // A fixed period that holds the seeded sales, so the test does not hang on the day
+        // it runs.
+        await choosePeriod(page, { from: SEEDED_PERIOD.from, to: SEEDED_PERIOD.to })
+        await expect(page.getByTestId('report-document-period')).toHaveText(SEEDED_PERIOD.words)
+        await page.setViewportSize(PHONE_375)
+        await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+        await scrollToSalesRow(page, ST_JUDE.display_name)
+        const gala = customerRow(await salesRows(page), ST_JUDE_GALA.display_name)
+        if (!gala) throw new Error(`no mounted row "${ST_JUDE_GALA.display_name}"`)
+        await expectSalesPhoneLines(page, gala.id, CUSTOMER_PHONE_LINES)
+        await expectSalesRowsFit(page, SALES_COLUMNS)
+
+        await page.setViewportSize(DESKTOP)
+        await openSalesByProduct(page)
+        await choosePeriod(page, { from: SEEDED_PERIOD.from, to: SEEDED_PERIOD.to })
+        await expect(page.getByTestId('report-document-period')).toHaveText(SEEDED_PERIOD.words)
+        await page.setViewportSize(PHONE_375)
+        await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+        const visitId = await scrollToSalesRow(page, NETWORK_VISIT.name)
+        await expectSalesPhoneLines(page, visitId, PRODUCT_PHONE_LINES)
+        await expectSalesRowsFit(page, PRODUCT_COLUMNS)
     })
 })
 

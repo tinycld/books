@@ -16,10 +16,13 @@ import { CUSTOMER_INDENT, customerListCopy } from '../../lib/customer-display'
 import { CUSTOMERS_PATH } from '../../lib/customer-route'
 import type { ListLayout } from '../../lib/detail-surface'
 import { partyTitle } from '../../lib/party-list'
-import { CUSTOMER_BALANCE_SHIPPED_KEY } from '../../lib/shipped-reports'
+import {
+    CUSTOMER_BALANCE_SHIPPED_KEY,
+    SALES_BY_CUSTOMER_SHIPPED_KEY,
+} from '../../lib/shipped-reports'
 import { useCustomerFormStore } from '../../stores/customer-form-store'
 import { PartyList } from '../party/PartyList'
-import { ShippedReportButton } from '../reports/ShippedReportButton'
+import { ShippedReportsMenu } from '../reports/ShippedReportsMenu'
 import { DeleteCustomerDialog } from './DeleteCustomerDialog'
 
 const LOAD_ERROR = 'Could not load customers'
@@ -62,17 +65,30 @@ export function CustomersList({ openId, layout }: { openId: string; layout: List
     const loadError = list.viewState === 'error' ? LOAD_ERROR : null
     // Unwrapped, the press event would reach `openNew(parentId?)` as a parent id.
     const openNew = () => navigation.openNew()
-    // Null while the report loads, when its read fails and when the reader has none: the
-    // list then shows no button and stays usable; the live query shows it once it loads.
+    // Each is null while its report loads, when its read fails and when the reader has
+    // none: the menu then leaves its item out (no menu when both are null) and the list
+    // stays usable; the live query shows it once it loads.
     const balanceHref = useShippedReportHref(CUSTOMER_BALANCE_SHIPPED_KEY)
-    const balanceButton =
-        balanceHref === null ? undefined : (
-            <ShippedReportButton
-                href={balanceHref}
-                label="Balance report"
-                testID="customers-balance-report"
-            />
-        )
+    const salesHref = useShippedReportHref(SALES_BY_CUSTOMER_SHIPPED_KEY)
+    const reportItems = [
+        {
+            key: CUSTOMER_BALANCE_SHIPPED_KEY,
+            label: 'Customer Balance',
+            href: balanceHref,
+            testID: 'customers-reports-balance',
+        },
+        {
+            key: SALES_BY_CUSTOMER_SHIPPED_KEY,
+            label: 'Sales by Customer',
+            href: salesHref,
+            testID: 'customers-reports-sales',
+        },
+    ]
+    // Undefined, not a menu that renders null, so the header draws no empty button group.
+    const hasReport = balanceHref !== null || salesHref !== null
+    const reportsMenu = hasReport ? (
+        <ShippedReportsMenu items={reportItems} testID="customers-reports" />
+    ) : undefined
     const dialog = (
         <DeleteCustomerDialog
             customer={menus.deleteDialog.record}
@@ -101,7 +117,7 @@ export function CustomersList({ openId, layout }: { openId: string; layout: List
             isLoadError={loadError !== null}
             onDismissBanner={menus.dismissRefusal}
             dialog={dialog}
-            headerAction={balanceButton}
+            headerAction={reportsMenu}
             layout={layout}
         />
     )
