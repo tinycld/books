@@ -3,6 +3,7 @@ package books
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"reflect"
@@ -338,12 +339,13 @@ func expectedCatalog(t *testing.T) []wantSource {
 			links: []wantLink{toOne("agency", "books.tax_agencies", "agency")},
 		},
 		{
-			// A union (core SourcePart) of the two sales document kinds; kind
+			// A union (core SourcePart) of the three sales document kinds; kind
 			// is each part's constant.
 			key: "books.sales_documents", label: "Sales documents",
 			fields: []wantField{
 				{key: "kind", typ: reports.Select, options: []reports.Option{
 					{Value: "invoice", Label: "Invoice"}, {Value: "sales_receipt", Label: "Sales receipt"},
+					{Value: "credit_memo", Label: "Credit memo"},
 				}},
 				{key: "date", typ: reports.Date, textDay: true, anyAggs: true},
 				{key: "status", typ: reports.Select, optionValues: []string{"draft", "posted", "void"}},
@@ -367,10 +369,15 @@ func expectedCatalog(t *testing.T) []wantSource {
 					columns:    identity("date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry"),
 					values:     map[string]any{"kind": "sales_receipt"},
 				},
+				{
+					collection: "books_credit_memos",
+					columns:    identity("date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry"),
+					values:     map[string]any{"kind": "credit_memo"},
+				},
 			},
 		},
 		{
-			// A union of the two ledger tax line collections and the cash-basis
+			// A union of the three ledger tax line collections and the cash-basis
 			// tax rows (pay-bills spec §3.10, Q3); the document link reads each
 			// part's own parent column, date is each row's own stored day, and
 			// layer is each part's constant.
@@ -387,6 +394,9 @@ func expectedCatalog(t *testing.T) []wantSource {
 				toOne("rate", "books.tax_rates", "rate"),
 				toOne("component", "books.tax_rates", "component"),
 				toOne("agency", "books.tax_agencies", "agency"),
+				// Only the cash part maps it, so it reads empty on a ledger
+				// row and on a cash row that takes a document out.
+				toOne("payment_entry", "books.journal_entries", "payment_entry"),
 			},
 			parts: []wantPart{
 				{
@@ -406,12 +416,20 @@ func expectedCatalog(t *testing.T) []wantSource {
 					values: map[string]any{"layer": "ledger"},
 				},
 				{
-					collection: "books_cash_basis_tax_lines",
+					collection: "books_credit_memo_tax_lines",
 					columns: mergeColumns(
 						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
-						map[string]string{"document": "invoice"},
+						map[string]string{"document": "credit_memo"},
 					),
-					values: map[string]any{"layer": "cash"},
+					values: map[string]any{"layer": "ledger"},
+				},
+				{
+					// The cash rows of an invoice and of a credit memo both name
+					// their document in document; payment_entry is empty on a
+					// row that takes a document out.
+					collection: "books_cash_basis_tax_lines",
+					columns:    identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date", "document", "payment_entry"),
+					values:     map[string]any{"layer": "cash"},
 				},
 			},
 		},
@@ -850,5 +868,136 @@ func TestReportSourcesRun(t *testing.T) {
 	}
 	if outsider.Heading != "" {
 		t.Errorf("heading for a user with Books level none = %q, want \"\" (they may not view books_settings)", outsider.Heading)
+	}
+}
+
+// salesDocumentsRows reads every sales document row: its kind, id, status and
+// stored figures.
+const salesDocumentsRows = `{"version":4,"source":"books.sales_documents","columns":[
+	{"id":"kind","path":[{"field":"kind"}]},
+	{"id":"doc","path":[{"field":"id"}]},
+	{"id":"status","path":[{"field":"status"}]},
+	{"id":"subtotal","path":[{"field":"subtotal"}]},
+	{"id":"tax","path":[{"field":"tax_total"}]},
+	{"id":"total","path":[{"field":"total"}]}]}`
+
+// Credit memo spec §3.10 (Q19): the source "Sales documents" holds a credit
+// memo with kind credit_memo (option label "Credit memo") and its stored,
+// positive Subtotal, Tax and Total.
+func TestReportSources_SalesDocumentsHoldACreditMemo(t *testing.T) {
+	ce := newCreditMemoEnv(t)
+	registerBooksSources(t)
+	if err := reports.CheckSources(ce.app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+	memo := ce.denverMemo(t, nil)
+	mustPostCreditMemo(t, ce.app, memo.Id, ce.users.bookkeeper.Id)
+	inv := ce.postedInvoiceFor(t, ce.customer, 50000)
+
+	var kindOptions []reports.Option
+	for _, s := range reportSources() {
+		if s.Key != "books.sales_documents" {
+			continue
+		}
+		for _, f := range s.Fields {
+			if f.Key == "kind" {
+				kindOptions = f.Options
+			}
+		}
+	}
+	if !slices.Contains(kindOptions, reports.Option{Value: "credit_memo", Label: "Credit memo"}) {
+		t.Errorf("the kind options %v have no {credit_memo, Credit memo}", kindOptions)
+	}
+
+	details, _ := splitRows(t, runAs(t, ce.app, ce.users.readOnly, salesDocumentsRows))
+	byDoc := map[string]reports.Row{}
+	for _, r := range details {
+		if id, ok := r.Cells["doc"].(string); ok {
+			byDoc[id] = r
+		}
+	}
+	type docCells struct {
+		kind, status         any
+		subtotal, tax, total any
+	}
+	read := func(r reports.Row) docCells {
+		return docCells{r.Cells["kind"], r.Cells["status"], r.Cells["subtotal"], r.Cells["tax"], r.Cells["total"]}
+	}
+	got, ok := byDoc[memo.Id]
+	if !ok {
+		t.Fatalf("books.sales_documents has no row for the credit memo %s; rows %v", memo.Id, details)
+	}
+	if want := (docCells{"credit_memo", "posted", int64(100000), int64(8710), int64(108710)}); read(got) != want {
+		t.Errorf("the credit memo's row (kind, status, subtotal, tax, total) = %+v, want %+v", read(got), want)
+	}
+	if r, ok := byDoc[inv.Id]; !ok || r.Cells["kind"] != "invoice" {
+		t.Errorf("the invoice's row = %+v (found %v), want kind invoice beside the memo", r.Cells, ok)
+	}
+}
+
+// salesTaxLineRows reads every sales tax line: its layer, its document's id
+// and kind, and its three figures.
+const salesTaxLineRows = `{"version":4,"source":"books.sales_tax_lines","columns":[
+	{"id":"layer","path":[{"field":"layer"}]},
+	{"id":"doc","path":[{"link":"document"},{"field":"id"}]},
+	{"id":"kind","path":[{"link":"document"},{"field":"kind"}]},
+	{"id":"component","path":[{"link":"component"},{"field":"id"}]},
+	{"id":"gross","path":[{"field":"gross_amount"}]},
+	{"id":"taxable","path":[{"field":"taxable_amount"}]},
+	{"id":"amount","path":[{"field":"amount"}]}]}`
+
+// taxLineCells is one books.sales_tax_lines row as the run returns it.
+type taxLineCells struct {
+	layer, doc, kind, component any
+	gross, taxable, amount      any
+}
+
+// Credit memo spec §4.3 (Q5, Q17): the source "Sales tax lines" holds a credit
+// memo's tax lines on layer ledger with negative figures and document the
+// memo; the cash layer's rows name their document, an invoice or a memo.
+func TestReportSources_SalesTaxLinesHoldACreditMemo(t *testing.T) {
+	ce := newCreditMemoEnv(t)
+	registerBooksSources(t)
+	if err := reports.CheckSources(ce.app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+	memo := ce.denverMemo(t, nil)
+	mustPostCreditMemo(t, ce.app, memo.Id, ce.users.bookkeeper.Id)
+	inv, err := newInvoice(ce.app, ce.customer, map[string]any{"tax_rate": ce.denver.Id})
+	if err != nil {
+		t.Fatalf("save a draft invoice: %v", err)
+	}
+	mkInvoiceLine(t, ce.app, inv, 0, item(ce.service, 1, 100000, true))
+	mustPostInvoice(t, ce.app, inv.Id, ce.users.bookkeeper.Id)
+
+	details, _ := splitRows(t, runAs(t, ce.app, ce.users.readOnly, salesTaxLineRows))
+	var got []taxLineCells
+	for _, r := range details {
+		got = append(got, taxLineCells{
+			r.Cells["layer"], r.Cells["doc"], r.Cells["kind"], r.Cells["component"],
+			r.Cells["gross"], r.Cells["taxable"], r.Cells["amount"],
+		})
+	}
+	sort.Slice(got, func(i, j int) bool { return fmt.Sprint(got[i]) < fmt.Sprint(got[j]) })
+
+	components := []struct {
+		rate *core.Record
+		tax  int64
+	}{{ce.state, 2900}, {ce.rtd, 1000}, {ce.city, 4810}}
+	var want []taxLineCells
+	for _, c := range components {
+		// The ledger snapshot: the memo's negated, the invoice's positive.
+		want = append(want,
+			taxLineCells{"ledger", memo.Id, "credit_memo", c.rate.Id, int64(-100000), int64(-100000), -c.tax},
+			taxLineCells{"ledger", inv.Id, "invoice", c.rate.Id, int64(100000), int64(100000), c.tax},
+			// The cash rows take each out: the memo's turned back to positive,
+			// the invoice's negated.
+			taxLineCells{"cash", memo.Id, "credit_memo", c.rate.Id, int64(100000), int64(100000), c.tax},
+			taxLineCells{"cash", inv.Id, "invoice", c.rate.Id, int64(-100000), int64(-100000), -c.tax},
+		)
+	}
+	sort.Slice(want, func(i, j int) bool { return fmt.Sprint(want[i]) < fmt.Sprint(want[j]) })
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("books.sales_tax_lines rows =\n%v\nwant\n%v", got, want)
 	}
 }

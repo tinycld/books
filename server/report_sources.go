@@ -245,8 +245,8 @@ func basisLinesSource() reports.Source {
 	}
 }
 
-// salesDocumentColumns are the columns invoices and sales receipts share, by
-// the same name in both collections.
+// salesDocumentColumns are the columns invoices, sales receipts and credit
+// memos share, by the same name in each collection.
 var salesDocumentColumns = []string{
 	"date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry",
 }
@@ -260,20 +260,24 @@ func sameNames(keys ...string) map[string]string {
 	return out
 }
 
-// salesDocumentsSource is every invoice and sales receipt, one union of the
-// two collections (core SourcePart); kind is each part's constant, so a
-// report can tell the two apart and label a row by its kind.
+// salesDocumentsSource is every invoice, sales receipt and credit memo, one
+// union of the three collections (core SourcePart); kind is each part's
+// constant, so a report can tell them apart and label a row by its kind. A
+// credit memo's figures are stored positive (credit memo spec Q19): a report
+// that adds totals across kinds filters by kind.
 func salesDocumentsSource() reports.Source {
 	return reports.Source{
 		Key: "books.sales_documents", Label: "Sales documents",
 		Parts: []reports.SourcePart{
 			{Collection: "books_invoices", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "invoice"}},
 			{Collection: "books_sales_receipts", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "sales_receipt"}},
+			{Collection: "books_credit_memos", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "credit_memo"}},
 		},
 		Fields: []reports.Field{
 			{Key: "kind", Label: "Kind", Type: reports.Select, Options: []reports.Option{
 				{Value: "invoice", Label: "Invoice"},
 				{Value: "sales_receipt", Label: "Sales receipt"},
+				{Value: "credit_memo", Label: "Credit memo"},
 			}},
 			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 			{Key: "status", Label: "Status", Type: reports.Select, Options: []reports.Option{
@@ -296,14 +300,19 @@ func salesDocumentsSource() reports.Source {
 	}
 }
 
-// salesTaxLinesSource is every tax line posting wrote and the invoices'
-// cash-basis tax rows (pay-bills spec §3.10, Q3), one union of three parts:
-// the invoice and sales receipt tax lines (layer "ledger") and
-// books_cash_basis_tax_lines (layer "cash"). Each row is one document and tax
-// component with its stored figures and its own day: a ledger line's is the
-// document date, a cash row's the day it takes out or brings back. The
-// document link reads each part's own parent column. A report on it reads the
-// ledger alone on Accrual and both layers on Cash (basisFilter).
+// salesTaxLinesSource is every tax line posting wrote and the invoices' and
+// credit memos' cash-basis tax rows (pay-bills spec §3.10, Q3), one union of
+// four parts: the invoice, sales receipt and credit memo tax lines (layer
+// "ledger") and books_cash_basis_tax_lines (layer "cash"). Each row is one
+// document and tax component with its stored figures and its own day: a
+// ledger line's is the document date, a cash row's the day it takes out or
+// brings back. The document link reads each ledger part's own parent column,
+// and the cash part's document column, which names an invoice or a credit
+// memo. The payment entry link reads the cash part's payment_entry column:
+// the entry that brings tax back, empty on a row that takes it out; the ledger
+// parts do not map it, so it is empty there. A credit memo's ledger lines are
+// below zero. A report on it reads the ledger alone on Accrual and both layers
+// on Cash (basisFilter).
 func salesTaxLinesSource() reports.Source {
 	shared := []string{"gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"}
 	part := func(collection, parent, layer string) reports.SourcePart {
@@ -311,12 +320,15 @@ func salesTaxLinesSource() reports.Source {
 		columns["document"] = parent
 		return reports.SourcePart{Collection: collection, Columns: columns, Values: map[string]any{"layer": layer}}
 	}
+	cash := part(cashTaxLinesCollection, "document", "cash")
+	cash.Columns["payment_entry"] = "payment_entry"
 	return reports.Source{
 		Key: "books.sales_tax_lines", Label: "Sales tax lines",
 		Parts: []reports.SourcePart{
 			part("books_invoice_tax_lines", "invoice", "ledger"),
 			part("books_sales_receipt_tax_lines", "sales_receipt", "ledger"),
-			part(cashTaxLinesCollection, "invoice", "cash"),
+			part("books_credit_memo_tax_lines", "credit_memo", "ledger"),
+			cash,
 		},
 		Fields: []reports.Field{
 			{Key: "gross_amount", Label: "Gross total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
@@ -335,6 +347,7 @@ func salesTaxLinesSource() reports.Source {
 			{Key: "rate", Label: "Tax rate", Target: "books.tax_rates", Cardinality: reports.ToOne, Field: "rate"},
 			{Key: "component", Label: "Component rate", Target: "books.tax_rates", Cardinality: reports.ToOne, Field: "component"},
 			{Key: "agency", Label: "Agency", Target: "books.tax_agencies", Cardinality: reports.ToOne, Field: "agency"},
+			{Key: "payment_entry", Label: "Payment entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "payment_entry"},
 		},
 	}
 }

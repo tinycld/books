@@ -67,6 +67,8 @@ var taxRateReferences = []taxRateReference{
 	{collection: "books_invoice_tax_lines", field: "component", message: rateOnInvoicesMessage},
 	{collection: "books_sales_receipts", field: "tax_rate", message: rateOnSalesReceiptsMessage},
 	{collection: "books_sales_receipt_tax_lines", field: "component", message: rateOnSalesReceiptsMessage},
+	{collection: "books_credit_memos", field: "tax_rate", message: rateOnCreditMemosMessage},
+	{collection: "books_credit_memo_tax_lines", field: "component", message: rateOnCreditMemosMessage},
 	// An estimate never posts, so it has no tax lines: only its header rate.
 	{collection: "books_estimates", field: "tax_rate", message: rateOnEstimatesMessage},
 }
@@ -75,7 +77,13 @@ const (
 	msgRateOnInvoices      = "This tax rate is on invoices. Make it inactive instead."
 	msgRateOnSalesReceipts = "This tax rate is on sales receipts. Make it inactive instead."
 	msgRateOnEstimates     = "This tax rate is on estimates. Make it inactive instead."
+	msgRateOnCreditMemos   = "This tax rate is on credit memos. Make it inactive instead."
 )
+
+// rateOnCreditMemosMessage is rateOnInvoicesMessage for credit memos.
+func rateOnCreditMemosMessage(core.App, []string) (string, error) {
+	return msgRateOnCreditMemos, nil
+}
 
 // rateOnInvoicesMessage is the delete refusal of a rate on any invoice, draft or
 // posted, as its header rate or one of its tax lines' components.

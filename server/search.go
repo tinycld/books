@@ -84,6 +84,10 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	creditMemos, creditMemoTotal, err := searchSalesDocs(ctx, app, creditMemoSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	estimates, estimateTotal, err := searchSalesDocs(ctx, app, estimateSearch, q.Include, q.Exclude, window)
 	if err != nil {
 		return search.Result{}, err
@@ -104,10 +108,10 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, estimates, bills, expenses,
-		payments, billPayments)
+	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, estimates,
+		bills, expenses, payments, billPayments)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
-		estimateTotal + billTotal + expenseTotal + paymentTotal + billPaymentTotal
+		creditMemoTotal + estimateTotal + billTotal + expenseTotal + paymentTotal + billPaymentTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -390,6 +394,15 @@ var invoiceSearch = salesDocSearch{
 
 var salesReceiptSearch = salesDocSearch{
 	table: "books_sales_receipts", index: salesReceiptsIndex, docType: docTypeSalesReceipt, kind: "sales_receipt",
+	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
+}
+
+// creditMemoSearch names its customer: "Credit memo 1001 · Harborview Dental"
+// / "Draft credit memo · Harborview Dental", drafts included. A word matches
+// the memo's number, memo and message, or the customer's display name,
+// company and email.
+var creditMemoSearch = salesDocSearch{
+	table: creditMemoKind.Collection, index: creditMemosIndex, docType: docTypeCreditMemo, kind: "credit_memo",
 	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
 }
 

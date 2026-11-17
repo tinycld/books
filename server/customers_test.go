@@ -841,6 +841,64 @@ func TestCustomer_DeleteRefusedWhileOnSalesReceipts(t *testing.T) {
 	})
 }
 
+// mkCreditMemoRow saves a credit memo with saveRecord on an app whose credit
+// memo guards may not be bound (the delete-guard tests of customers, products
+// and tax rates), with the fields given over a valid draft.
+func mkCreditMemoRow(t testing.TB, app core.App, customer *core.Record, fields map[string]any) *core.Record {
+	t.Helper()
+	all := map[string]any{"customer": customer.Id, "status": "draft", "date": "2026-11-10", "currency": "USD"}
+	for k, v := range fields {
+		all[k] = v
+	}
+	return saveRecord(t, app, "books_credit_memos", all)
+}
+
+// Credit memo spec §3.10: a customer on any credit memo, draft or posted,
+// cannot be deleted. The credit memo check comes after the invoice one and
+// before the journal-lines one.
+func TestCustomer_DeleteRefusedWhileOnCreditMemos(t *testing.T) {
+	wantOnMemos := func(name string) string { return name + " is on credit memos. Make it inactive instead." }
+	wantOnInvoices := func(name string) string { return name + " is on invoices. Make it inactive instead." }
+
+	t.Run("on one draft credit memo", func(t *testing.T) {
+		app := newGuardedApp(t)
+		cust := mkCustomer(t, app, "Old Mill Bakery", "")
+		mkCreditMemoRow(t, app, cust, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnMemos("Old Mill Bakery"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on one posted credit memo", func(t *testing.T) {
+		app := newGuardedApp(t)
+		cust := mkCustomer(t, app, "Northwind Traders", "")
+		mkCreditMemoRow(t, app, cust, map[string]any{"status": "posted", "number": "1001"})
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnMemos("Northwind Traders"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on an invoice and a credit memo gets the invoice text", func(t *testing.T) {
+		app := newGuardedApp(t)
+		cust := mkCustomer(t, app, "Alvarez Family", "")
+		mkCreditMemoRow(t, app, cust, nil)
+		mkInvoiceRow(t, app, cust, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnInvoices("Alvarez Family"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on a credit memo and on journal lines gets the credit memo text", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		cust := mkCustomer(t, env.app, "Harbor Studio", "")
+		mustPartyLine(t, env.app, draftEntry(t, env.app, "2026-08-04"), env.checking, 0, map[string]any{"customer": cust.Id})
+		mkCreditMemoRow(t, env.app, cust, nil)
+		requireMessageOnlyRefusal(t, env.app.Delete(reload(t, env.app, "books_customers", cust.Id)),
+			wantOnMemos("Harbor Studio"))
+		reload(t, env.app, "books_customers", cust.Id)
+	})
+}
+
 // Receive payment spec §3.9: a customer on any payment, draft or posted,
 // cannot be deleted. The payment check comes after the sales receipt one.
 func TestCustomer_DeleteRefusedWhileOnPayments(t *testing.T) {
