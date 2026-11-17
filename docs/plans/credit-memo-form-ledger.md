@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/credit-memo-form-checkpoints.md
 - reference: docs/plans/credit-memo-form-reference/
 - evidence: docs/plans/credit-memo-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-17)
 - capture manifest: docs/plans/credit-memo-form-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -233,4 +233,4 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
+- eval: approved 2026-11-17 by the human; CI full suite green at 9dee6c98 (PR books#62) on core 06fbaa3 (PR tinycld#490, green). Retro items and the core realtime leave-check slowdown (staging ci-fix-4-rootcause.md) left open for the human.
