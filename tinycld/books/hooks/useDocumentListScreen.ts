@@ -28,25 +28,44 @@ import { navigationModeFor, openRecordFromPath } from '../lib/record-route'
 import { SALES_NEW_ITEMS, salesTabOf } from '../lib/sales-lists'
 import { selectionScope, useDocumentListStore } from '../stores/document-list-store'
 import { useBooksAccess } from './useBooksAccess'
+import { useDocumentBatch } from './useDocumentBatch'
 import { useDocumentList } from './useDocumentList'
+import { useDocumentRowActions } from './useDocumentRowActions'
+import { useListSelection } from './useListSelection'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
+// When the list route loses the focus (a tab press replaces it, the user leaves the Sales
+// area, or All sales pushes a document over itself) every menu of the screen (New, Batch
+// actions, a row's) closes, the banner of a refusal or a batch result goes, since it tells
+// about this list only, and so do this list's confirm dialogs unless their write runs. A
+// kind tab's list lives in its kind `_layout.tsx` and keeps the focus while a document opens
+// in the child stack beside it, so opening a document there clears none of them.
+function useBlurCleanup(listKey: string) {
+    useFocusEffect(
+        useCallback(
+            () => () => {
+                const store = useDocumentListStore.getState()
+                store.setMenu('')
+                store.setBanner(null)
+                const row = store.rowDialog
+                if (row?.listKey === listKey && !row.isRunning) store.setRowDialog(null)
+                const batch = store.batchDialog
+                if (batch?.listKey === listKey && batch.running === null) {
+                    store.setBatchDialog(null)
+                }
+            },
+            [listKey]
+        )
+    )
+}
+
 // The All sales New menu: open while the store's menu is 'new' and this screen has the
-// focus. A screen below a pushed document stays mounted, so its menu must not draw there,
-// and the menu closes when the screen loses the focus.
+// focus, so it never draws on a list below a pushed screen.
 function useNewMenu() {
     const isFocused = useIsFocused()
     const menu = useDocumentListStore(state => state.menu)
     const setMenu = useDocumentListStore(state => state.setMenu)
-    useFocusEffect(
-        useCallback(
-            () => () => {
-                useDocumentListStore.getState().setMenu('')
-            },
-            []
-        )
-    )
     return {
         isOpen: isFocused && menu === 'new',
         setOpen: (isOpen: boolean) => setMenu(isOpen ? 'new' : ''),
@@ -104,6 +123,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const queryFilters = { ...filters, search }
     const documentList = useDocumentList({ tab, filters: queryFilters, sort })
     const newMenu = useNewMenu()
+    useBlurCleanup(tab.key)
     const { width, onListLayout } = useListWidth()
 
     const canWrite = access.canWrite
@@ -156,6 +176,22 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const minWidth = tableMinWidth(tab.columns, canWrite)
     const drawsCards = isPhone || (width > 0 && width < minWidth)
 
+    // The ticks hold for the tab, the layout and the filters (`selectionScope`), so a change
+    // of any of them, or the list narrowing to the names column, clears them for good; a
+    // sort keeps them.
+    const scope = selectionScope(tab.key, layout, filters)
+    const loadedIds = list.rows.map(row => row.id)
+    const selection = useListSelection(scope, loadedIds)
+    const rowActions = useDocumentRowActions({
+        listKey: tab.key,
+        rows: list.rows,
+        canWrite,
+        openRow,
+    })
+    const batch = useDocumentBatch({ listKey: tab.key, rows: list.rows, selection })
+    // A row action's refusal or a batch's result; the list's load error shows before it.
+    const actionBanner = useDocumentListStore(state => state.banner)
+
     return {
         list,
         filters,
@@ -163,7 +199,12 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         sort,
         canWrite,
         controls: listControls(canWrite, layout),
-        scope: selectionScope(tab.key, layout, filters),
+        scope,
+        selection,
+        rowActions,
+        batch,
+        actionBanner,
+        dismissBanner: () => store.setBanner(null),
         newMenu,
         openRow,
         openNew,

@@ -14,6 +14,7 @@ import { writeRefusalText } from '../lib/refusal'
 import { tableWriteSteps } from '../lib/table-writes'
 import { usePaymentSaveStore } from '../stores/payment-save-store'
 import { useBackToEntries } from './useBackToEntries'
+import { useDeleteDraftDocument } from './useDeleteDraftDocument'
 import type { PaymentFormState } from './usePaymentForm'
 
 const LOG_CONTEXT = 'books.payment'
@@ -84,6 +85,7 @@ export function usePaymentSave({
         'books_payments',
         'books_payment_applications'
     )
+    const deleteDraft = useDeleteDraftDocument()
     const orgHref = useOrgHref()
     const back = useBackToEntries()
     const { form, outstanding } = paymentForm
@@ -184,7 +186,7 @@ export function usePaymentSave({
             if (input.applicationIds.length > 0) {
                 yield input.applicationIds.map(rowId => applicationsCollection.delete(rowId))
             }
-            yield paymentsCollection.delete(input.id)
+            yield deleteDraft('payment', input.id)
         },
         // The Delete draft dialog shows the refusal (or it is logged once the user left).
         onError: () => {},

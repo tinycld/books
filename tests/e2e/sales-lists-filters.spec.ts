@@ -23,7 +23,13 @@ import {
     nonTaxableService,
     postInvoice,
 } from './receive-payment-helpers'
-import { draftInvoiceFor, openSales, openSalesTab, salesRow } from './sales-lists-helpers'
+import {
+    draftInvoiceFor,
+    openSales,
+    openSalesTab,
+    pickSalesCustomer,
+    salesRow,
+} from './sales-lists-helpers'
 
 // The Sales list's filters and sort (sales-lists checkpoint 3, spec §3 "Search and
 // filters" and "Sort"): the status chips, the date-range menu, the customer picker (a
@@ -69,17 +75,6 @@ function rowOrder(page: Page): Promise<string[]> {
 
 function customerIdFromUrl(page: Page): string {
     return new URL(page.url()).pathname.split('/').pop() ?? ''
-}
-
-// Picks a customer in the visible list's customer picker by its search field.
-async function pickSalesCustomer(page: Page, input: { name: string; id: string }) {
-    await visible(page, 'sales-customer').click()
-    const search = page.getByTestId('sales-customer-search').filter({ visible: true })
-    await expect(search).toBeVisible()
-    await search.fill(input.name)
-    await page.getByTestId(`sales-customer-option-${input.id}`).filter({ visible: true }).click()
-    await expect(search).toBeHidden()
-    await expect(visible(page, 'sales-customer')).toContainText(input.name)
 }
 
 // A parent customer and a sub-customer of it, made through the customer form's Parent

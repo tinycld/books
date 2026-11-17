@@ -1,0 +1,202 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "all-ticked",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "actions": [
+                { "click": "sales-tick-slinv00000draft" },
+                { "click": "sales-tick-slpay00000draft" }
+            ]
+        },
+        {
+            "name": "all-ticked-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "actions": [
+                { "click": "sales-tick-slinv00000draft" },
+                { "click": "sales-tick-slpay00000draft" }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "read-only-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "actions": [
+                { "click": "sales-chip-open" },
+                { "waitForHidden": "sales-row-slinv00000draft" },
+                { "clickLabel": "More actions" },
+                { "waitFor": "sales-row-action-receive-payment" }
+            ]
+        },
+        {
+            "name": "row-menu-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "stable": "sales-row-action-receive-payment",
+            "actions": [
+                { "click": "sales-chip-open" },
+                { "waitForHidden": "sales-row-slinv00000draft" },
+                { "clickLabel": "More actions" },
+                { "waitFor": "sales-row-action-receive-payment" }
+            ]
+        },
+        {
+            "name": "batch-menu",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "actions": [
+                { "click": "sales-tick-slinv00000draft" },
+                { "click": "sales-tick-slpay00000draft" },
+                { "click": "sales-batch-actions" },
+                { "waitFor": "sales-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "batch-menu-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "stable": "sales-batch-delete-drafts",
+            "actions": [
+                { "click": "sales-tick-slinv00000draft" },
+                { "click": "sales-tick-slpay00000draft" },
+                { "click": "sales-batch-actions" },
+                { "waitFor": "sales-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "batch-confirm",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "opaque": "sales-batch-dialog",
+            "actions": [
+                { "click": "sales-tick-all" },
+                { "click": "sales-batch-actions" },
+                { "click": "sales-batch-delete-drafts" },
+                { "waitFor": "sales-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-confirm-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "opaque": "sales-batch-dialog",
+            "actions": [
+                { "click": "sales-batch-actions" },
+                { "click": "sales-batch-select-all" },
+                { "waitForHidden": "sales-batch-select-all" },
+                { "click": "sales-batch-actions" },
+                { "click": "sales-batch-delete-drafts" },
+                { "waitFor": "sales-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-none",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "opaque": "sales-batch-dialog",
+            "actions": [
+                { "click": "sales-chip-open" },
+                { "waitForHidden": "sales-row-slinv00000draft" },
+                { "click": "sales-tick-all" },
+                { "click": "sales-batch-actions" },
+                { "click": "sales-batch-delete-drafts" },
+                { "waitFor": "sales-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-result",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "writes": {
+                "collection": "books_invoices",
+                "answers": [400],
+                "message": "The period is closed."
+            },
+            "actions": [
+                { "click": "sales-tick-slinv00000draft" },
+                { "click": "sales-tick-slsr000000draft" },
+                { "click": "sales-batch-actions" },
+                { "click": "sales-batch-delete-drafts" },
+                { "click": "sales-batch-confirm" },
+                { "waitFor": "sales-banner" },
+                { "waitForHidden": "sales-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-result-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "writes": {
+                "collection": "books_invoices",
+                "answers": [400],
+                "message": "The period is closed."
+            },
+            "actions": [
+                { "click": "sales-tick-slinv00000draft" },
+                { "click": "sales-tick-slcm000000draft" },
+                { "click": "sales-batch-actions" },
+                { "click": "sales-batch-delete-drafts" },
+                { "click": "sales-batch-confirm" },
+                { "waitFor": "sales-banner" },
+                { "waitForHidden": "sales-batch-dialog" }
+            ]
+        }
+    ]
+}

@@ -46,6 +46,38 @@ export async function searchSales(page: Page, text: string) {
     await expect(field).toHaveValue(text)
 }
 
+// Picks a customer in the visible list's customer picker by its search field.
+export async function pickSalesCustomer(page: Page, input: { name: string; id: string }) {
+    await visible(page, 'sales-customer').click()
+    const search = page.getByTestId('sales-customer-search').filter({ visible: true })
+    await expect(search).toBeVisible()
+    await search.fill(input.name)
+    await page.getByTestId(`sales-customer-option-${input.id}`).filter({ visible: true }).click()
+    await expect(search).toBeHidden()
+    await expect(visible(page, 'sales-customer')).toContainText(input.name)
+}
+
+// Opens the row menu ("More actions") of a document; the list stays on screen.
+export async function openRowMenu(page: Page, id: string) {
+    await visible(page, `sales-row-menu-${id}`).click()
+    await expect(page.getByTestId('sales-row-action-open').filter({ visible: true })).toBeVisible()
+}
+
+// The actions of the open row menu, in menu order (`open`, `receive-payment`, …), read
+// in one snapshot.
+export function rowMenuActions(page: Page): Promise<string[]> {
+    return page.evaluate(() => {
+        const pattern =
+            /^sales-row-action-(open|receive-payment|void|copy|credit-memo|entry|invoice|pdf|delete-draft|edit)$/
+        return Array.from(
+            document.querySelectorAll<HTMLElement>('[data-testid^="sales-row-action-"]')
+        )
+            .filter(el => el.checkVisibility())
+            .map(el => pattern.exec(el.dataset.testid ?? '')?.[1])
+            .filter((action): action is string => action !== undefined)
+    })
+}
+
 // The row (table) or card of a document, by its id.
 export function salesRow(page: Page, id: string) {
     return visible(page, `sales-row-${id}`)

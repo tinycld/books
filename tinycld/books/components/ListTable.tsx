@@ -149,11 +149,21 @@ export function ListTable<Row>({
     )
 }
 
-export function ListHeaderRow({ testID, children }: { testID: string; children: ReactNode }) {
+export function ListHeaderRow({
+    testID,
+    children,
+    rowClass = PARTY_ROW_CLASS,
+}: {
+    testID: string
+    children: ReactNode
+    // The row's layout and padding; a table whose rows start with a 44 px cell drops the
+    // left padding.
+    rowClass?: string
+}) {
     return (
         <View
             testID={testID}
-            className={`${PARTY_ROW_CLASS} border-b border-border bg-background`}
+            className={`${rowClass} border-b border-border bg-background`}
             style={{ minHeight: 44 }}
         >
             {children}
