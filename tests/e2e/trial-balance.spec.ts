@@ -60,6 +60,7 @@ import { uniqueName } from './record-form-helpers'
 const EXPENSE = { type: 'Expense', detailType: 'Advertising and marketing' }
 const CREDIT_CARD = { type: 'Credit card', detailType: 'Credit card' }
 const BANK = { type: 'Bank', detailType: 'Checking' }
+const INCOME = { type: 'Income', detailType: 'Service income' }
 
 const SEEDED_EQUITY_AND_INCOME = ['Retained earnings', "Owner's Equity", 'Consulting Income']
 
@@ -315,16 +316,18 @@ test.describe("trial-balance: the report in core's view", () => {
             page,
         }) => {
             await startBooks(page, DESKTOP)
-            // One tag in the three names, so a search for it lists only this test's
+            // One tag in the four names, so a search for it lists only this test's
             // accounts, whatever other specs' accounts fill the picker's first page.
             const tag = uniqueName(`TB filter ${sizeName}`)
             const first = `${tag} expense one`
             const second = `${tag} expense two`
             const bank = `${tag} bank`
+            const income = `${tag} income`
             await createAccounts(page, [
                 { name: first, kind: EXPENSE },
                 { name: second, kind: EXPENSE },
                 { name: bank, kind: BANK },
+                { name: income, kind: INCOME },
             ])
             await openEntriesFromSidebar(page)
             await postEntry(page, '10.00', first, bank)
@@ -347,9 +350,10 @@ test.describe("trial-balance: the report in core's view", () => {
             await page.getByTestId('report-param-accounts').click()
             const picker = page.getByTestId('report-filter-picker')
             await expect(picker).toBeVisible()
-            // The type groups come in chart order: searched to this test's three accounts,
-            // the picker lists exactly their two types, Bank before Expense
-            // (server/account_types.json).
+            // The type groups come in chart order: searched to this test's four accounts,
+            // the picker lists exactly their three types, Bank, Income, Expense
+            // (server/account_types.json). A sort by type key or by label would put
+            // Expense before Income.
             const groupPicks = picker.locator('[data-testid^="report-filter-group-"]')
             await picker.getByTestId('report-filter-search').fill(tag)
             await expect
@@ -362,7 +366,7 @@ test.describe("trial-balance: the report in core's view", () => {
                         )
                     )
                 )
-                .toEqual(['bank', 'expense'])
+                .toEqual(['bank', 'income', 'expense'])
             await picker.getByTestId('report-filter-search').fill(first)
             const wholeType = picker.getByTestId('report-filter-group-expense')
             await expect(wholeType).toHaveText('All Expense accounts')
@@ -380,6 +384,7 @@ test.describe("trial-balance: the report in core's view", () => {
             )
             expect(expenses.labels).toContain(first)
             expect(expenses.labels).not.toContain(bank)
+            expect(expenses.labels).not.toContain(income)
 
             await page.getByTestId('report-filter-remove-accounts').click()
             await expect(page.getByTestId('report-param-accounts')).toHaveCount(0)

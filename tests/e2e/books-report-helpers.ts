@@ -260,12 +260,15 @@ function runAccountIds(response: Response): string[] | null {
 // Accounts picker under Add filter (opened here unless the test already opened it): a
 // search per name, its option checked, then Apply. Returns the picked account ids, read
 // from each option's test id (core ParamPickerParts `report-filter-option-<id>`).
-// It returns only when the filtered rows are on screen: core keeps the previous run's
-// rows (keepPreviousData) and shows "Updating…" until the new run lands, so a row read
-// or pressed before then belongs to a list about to be replaced. So it waits for a run
-// that asks for exactly the picked ids (the key change refetches even a cached body, as
-// the run's staleTime is 0), then for "Updating…" to go, then for the chip to name the
-// picks (when it names them, at most two).
+// It waits for a run response that asks for exactly the picked ids (the key change
+// refetches even a cached body, as the run's staleTime is 0), then for "Updating…" to
+// go, then for the chip to name the picks (when it names them, at most two).
+// For a body new to the page, that means the filtered rows are on screen: core keeps
+// the previous run's rows (keepPreviousData) and shows "Updating…" until the new run
+// lands. For a body already run on the page, it does not: React Query draws the cached
+// rows at once with no "Updating…", and the response event comes when the headers
+// arrive, before the refetch commits. So the helper can return while the cached figures
+// are still on screen; a caller that needs the new figures waits for them itself.
 export async function filterToAccounts(page: Page, names: readonly string[]): Promise<string[]> {
     const entry = page.getByTestId('report-add-filter-accounts')
     if (!(await entry.isVisible())) await page.getByTestId('report-add-filter').click()
