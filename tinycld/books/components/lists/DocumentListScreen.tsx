@@ -1,5 +1,5 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { type RefObject, useRef } from 'react'
+import { useRef } from 'react'
 import { type TextInputInstance, View } from 'react-native'
 import {
     type DocumentListScreenState,
@@ -8,11 +8,11 @@ import {
 import type { ListLayout } from '../../lib/detail-surface'
 import type { DocumentListTab } from '../../lib/document-list'
 import { ListBanner } from '../ListBanner'
-import { SearchField } from '../ListToolbar'
 import { DocumentListCards } from './DocumentListCards'
 import { DocumentListHeader } from './DocumentListHeader'
-import { DocumentListStates, LIST_LOAD_ERROR, SEARCH_PLACEHOLDER } from './DocumentListStates'
+import { DocumentListStates, LIST_LOAD_ERROR } from './DocumentListStates'
 import { DocumentListTable } from './DocumentListTable'
+import { DocumentListToolbar } from './DocumentListToolbar'
 import { DocumentNamesColumn } from './DocumentNamesColumn'
 
 interface ListBodyProps {
@@ -43,37 +43,19 @@ function ListBody({ tab, screen }: ListBodyProps) {
             rows={list.rows}
             currency={list.currency}
             canWrite={screen.canWrite}
+            sort={screen.sort}
+            onSort={screen.toggleSort}
             onOpen={screen.openRow}
             onNearEnd={list.loadMore}
         />
     )
 }
 
-interface ToolbarProps {
-    screen: DocumentListScreenState
-    inputRef: RefObject<TextInputInstance | null>
-}
-
-// The search row draws in every state, so the search that led to a refused query can
-// still be changed or cleared.
-function Toolbar({ screen, inputRef }: ToolbarProps) {
-    const isWide = useBreakpoint() !== 'mobile'
-    const search = { query: screen.filters.search, setQuery: screen.setSearch }
-    return (
-        <View className="flex-row flex-wrap items-center gap-2 px-4 pb-3 pt-3">
-            <SearchField
-                testIdPrefix="sales"
-                placeholder={SEARCH_PLACEHOLDER}
-                list={search}
-                isWide={isWide}
-                inputRef={inputRef}
-            />
-        </View>
-    )
-}
-
+// The toolbar draws in every state, so the search or filter that led to a refused or an
+// empty list can still be changed or cleared.
 function FullList({ tab, screen }: ListBodyProps) {
     const { list } = screen
+    const isPhone = useBreakpoint() === 'mobile'
     const inputRef = useRef<TextInputInstance>(null)
     const bannerMessage = list.isError ? LIST_LOAD_ERROR : null
     return (
@@ -84,7 +66,7 @@ function FullList({ tab, screen }: ListBodyProps) {
             className="min-w-0 flex-1 bg-background"
         >
             <DocumentListHeader tab={tab} screen={screen} />
-            <Toolbar screen={screen} inputRef={inputRef} />
+            <DocumentListToolbar screen={screen} tab={tab} isPhone={isPhone} inputRef={inputRef} />
             <ListBanner testIdPrefix="sales" message={bannerMessage} onRetry={list.retry} />
             <DocumentListStates
                 tab={tab}

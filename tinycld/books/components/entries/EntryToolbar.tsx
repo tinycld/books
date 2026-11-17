@@ -3,10 +3,11 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { PickMenu } from '@tinycld/core/ui/pick-menu'
 import { Search } from 'lucide-react-native'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { EntriesRange, EntriesStatusFilter } from '../../lib/entries-query'
 import { RANGE_PRESETS } from '../../lib/register-range'
 import { useEntriesUiStore } from '../../stores/entries-ui-store'
+import { ListFilterChip } from '../ListFilterChips'
 
 interface EntryToolbarProps {
     canWrite: boolean
@@ -36,19 +37,15 @@ function StatusChip({
     isActive: boolean
 }) {
     const setStatus = useEntriesUiStore(s => s.setStatus)
-    const bg = isActive ? 'bg-primary border-primary' : 'bg-background border-border'
-    const text = isActive ? 'text-primary-foreground' : 'text-foreground'
+    const select = () => setStatus(id)
     return (
-        <Pressable
+        <ListFilterChip
             testID={`entries-chip-${id}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isActive }}
-            onPress={() => setStatus(id)}
-            className={`items-center justify-center rounded-full border px-4 ${bg}`}
-            style={{ minHeight: 44 }}
-        >
-            <Text className={`text-sm ${text}`}>{label}</Text>
-        </Pressable>
+            label={label}
+            isOn={isActive}
+            onPress={select}
+            size="touch"
+        />
     )
 }
 
