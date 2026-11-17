@@ -10,7 +10,7 @@ import { todayIso } from '../lib/register-range'
 import { type BillPaymentLineRow, useBillPaymentRecord } from './useBillPaymentRecord'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
-import { useOpenBills } from './useOpenBills'
+import { useOpenBills, usePayBillsVendors } from './useOpenBills'
 import { usePaidFromAccounts } from './usePaidFromAccounts'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
@@ -42,7 +42,7 @@ function useReplacedPayment(id: string) {
 
 /**
  * Every read of the Pay Bills screen (spec §3.5 States, §4.4): access, settings (the
- * currency), the open bills and the vendors (useOpenBills), the Paid from accounts with
+ * currency), the open bills (useOpenBills) and the vendors (usePayBillsVendors), the Paid from accounts with
  * their balances and, on `?replaces`, the payment. Returns the surface to show
  * (`payBillsScreenState`: no access, one error with one Retry over every failed read,
  * loading, not found, cannot edit, or the form), and what the form starts from. The form's
@@ -66,6 +66,7 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
                 ? null
                 : { vendorName: original?.vendorRow?.display_name ?? '', lines: heldLines },
     })
+    const vendors = usePayBillsVendors(openBills.rows)
     const writes = useWritesAvailable()
     // The day the screen opened: the default Payment date and the Due filters' today.
     const [today] = useState(todayIso)
@@ -85,7 +86,14 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
         isError: paidFrom.isError,
         recovery: paidFrom.recovery,
     }
-    const reads = [accessRead, settingsRead, paidFromRead, replaced.read, ...openBills.reads]
+    const reads = [
+        accessRead,
+        settingsRead,
+        paidFromRead,
+        replaced.read,
+        openBills.read,
+        vendors.read,
+    ]
     // A non-writer is told so only once access is known; until then the screen loads.
     const canWrite = access.canWrite || !access.isReady
     const state = payBillsScreenState({
@@ -121,7 +129,7 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
         currency: settings.settings?.currency ?? 'USD',
         today,
         rows: openBills.rows,
-        vendorOptions: openBills.vendorOptions,
+        vendorOptions: vendors.vendorOptions,
         startVendor: input.vendor ?? null,
         startBill: input.bill ?? null,
     }

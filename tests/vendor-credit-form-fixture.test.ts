@@ -1,13 +1,18 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, expectTypeOf, it } from 'vitest'
+import { APPLY_CREDIT_MESSAGES, appliedToastText } from '../tinycld/books/lib/apply-credit-schema'
 import { BILLS } from '../tinycld/books/lib/bill-form-fixture'
 import { VENDOR_CREDIT_MESSAGES, VENDOR_CREDIT_REF_HINT } from '../tinycld/books/lib/document-texts'
 import { PAY_BILLS_BILLS, PAY_BILLS_SEED_BILLS } from '../tinycld/books/lib/pay-bills-fixture'
+import { fillPaymentText } from '../tinycld/books/lib/payment-texts'
 import { PRODUCTS } from '../tinycld/books/lib/products-services-fixture'
 import { PURCHASE_ACCOUNT_TYPES } from '../tinycld/books/lib/purchase-line-columns'
 import { documentConflictText } from '../tinycld/books/lib/revision'
 import { VENDOR_CREDIT_KIND } from '../tinycld/books/lib/sales-document-kinds'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import {
+    APPLY_CREDIT_TEXTS,
     VENDOR_CREDIT_APPLICATIONS,
     VENDOR_CREDIT_IDS,
     VENDOR_CREDIT_LINES,
@@ -173,6 +178,53 @@ describe('VENDOR_CREDIT_TEXTS', () => {
         expect(documentConflictText(VENDOR_CREDIT_KIND.noun, 'posting')).toContain(
             VENDOR_CREDIT_TEXTS.conflictAction
         )
+    })
+})
+
+// The apply dialog's texts: the client's from APPLY_CREDIT_MESSAGES and appliedToastText,
+// the server's refusals from server/vendor_credit_applications.go.
+describe('APPLY_CREDIT_TEXTS', () => {
+    const go = () =>
+        readFileSync(join(__dirname, '..', 'server', 'vendor_credit_applications.go'), 'utf8')
+
+    it('holds the shipped client texts', () => {
+        const m = APPLY_CREDIT_MESSAGES
+        expect(APPLY_CREDIT_TEXTS.applyDateBeforeCredit).toBe(m.dateBeforeCredit)
+        expect(APPLY_CREDIT_TEXTS.rowOverBalance).toBe(fillPaymentText(m.rowOverOpen, '$420.00'))
+        expect(APPLY_CREDIT_TEXTS.overUnapplied).toBe(fillPaymentText(m.overUnapplied, '$650.00'))
+        expect(APPLY_CREDIT_TEXTS.noneSelected).toBe(m.selectOne)
+        expect(APPLY_CREDIT_TEXTS.loadFailed).toBe(m.loadFailed)
+        expect(APPLY_CREDIT_TEXTS.noOpenBills).toBe(
+            fillPaymentText(m.noOpenBills, 'Ironclad Equipment Rentals')
+        )
+        expect(APPLY_CREDIT_TEXTS.remove).toBe(fillPaymentText(m.removeBody, '1013', '$30.00'))
+        expect(APPLY_CREDIT_TEXTS.toast).toBe(appliedToastText(65_000, 2, 'USD'))
+    })
+
+    it('holds the server refusals the dialog shows', () => {
+        const source = go()
+        for (const [template, text] of [
+            ['Bill %s: the credit is more than its open balance of %s.', 'rowServerOver'],
+            ['Bill %s is not open. Clear it to continue.', 'rowNotOpen'],
+            ["The apply date can't be before the credit date.", 'applyDateBeforeCredit'],
+            ['More than the unapplied credit of %s.', 'overUnapplied'],
+        ] as const) {
+            expect(source, text).toContain(`"${template}"`)
+        }
+        expect(APPLY_CREDIT_TEXTS.rowServerOver).toBe(
+            fillPaymentText(
+                'Bill %s: the credit is more than its open balance of %s.',
+                '1004',
+                '$420.00'
+            )
+        )
+        expect(APPLY_CREDIT_TEXTS.rowNotOpen).toBe(
+            fillPaymentText('Bill %s is not open. Clear it to continue.', '1007')
+        )
+        expect(APPLY_CREDIT_MESSAGES.dateBeforeCredit).toBe(
+            "The apply date can't be before the credit date."
+        )
+        expect(APPLY_CREDIT_MESSAGES.overUnapplied).toBe('More than the unapplied credit of %s.')
     })
 })
 

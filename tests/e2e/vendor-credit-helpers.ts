@@ -145,6 +145,48 @@ export async function searchToVendorCredit(page: Page, term: string, title: stri
     await expect(page).toHaveURL(VENDOR_CREDIT_URL)
 }
 
+// The apply dialog (vendor credit spec §3.9): a core Dialog, a Sheet on a phone (no dialog
+// role there), so it is found by its test id.
+export function applyDialog(page: Page) {
+    return page.getByTestId('apply-credit-dialog')
+}
+
+// A bill row's Credit to apply cell in the apply dialog (the grid's or the card's).
+export function applyAmountCell(page: Page, billId: string) {
+    return page.getByTestId(`apply-credit-row-amount-${billId}`)
+}
+
+// On a posted vendor credit's read view: presses the bar's Apply to bills (wide, and on a
+// phone, where the bar keeps it) and waits for the dialog.
+export async function openApplyDialog(page: Page) {
+    await page.getByTestId('vendor-credit-read-apply').filter({ visible: true }).click()
+    await expect(applyDialog(page)).toBeVisible()
+}
+
+/**
+ * Books must already be open. Applies `amount` of the vendor credit whose unique memo is
+ * `memo` to one bill through the apply dialog: reopens the credit by search unless its
+ * read view is on screen, opens the dialog, clears the spread, types the amount in the
+ * bill's cell and presses Apply credit; waits for the dialog to close.
+ */
+export async function applyCreditToBill(
+    page: Page,
+    input: { memo: string; billId: string; amount: string }
+) {
+    const readView = page.getByTestId('vendor-credit-read-only').filter({ visible: true })
+    const isOnScreen =
+        (await readView.count()) === 1 && (await readView.innerText()).includes(input.memo)
+    if (!isOnScreen) await openVendorCreditBySearch(page, input.memo)
+    await openApplyDialog(page)
+    const cell = applyAmountCell(page, input.billId)
+    await expect(cell).toBeVisible()
+    await page.getByTestId('apply-credit-clear').click()
+    await expect(cell).toHaveValue('')
+    await cell.fill(input.amount)
+    await page.getByTestId('apply-credit-submit').click()
+    await expect(applyDialog(page)).toHaveCount(0)
+}
+
 // Reopens a vendor credit through core's search palette (`/`), by a term only one vendor
 // credit matches (a unique memo): a draft in the form, a posted or void credit in the read
 // view.

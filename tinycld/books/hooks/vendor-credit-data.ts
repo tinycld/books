@@ -1,9 +1,12 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
+import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
+import { mergeRecoveries } from '../lib/live-recovery'
 import { columnsOrThrow } from '../lib/record-save'
 import { VENDOR_CREDIT_KIND } from '../lib/sales-document-kinds'
 import {
@@ -33,6 +36,8 @@ import {
     purchaseLineOps,
     usePurchaseStart,
 } from './purchase-data'
+import { useCreditApplications } from './useCreditApplications'
+import { useOpenBills } from './useOpenBills'
 
 const LOG_CONTEXT = 'books.vendor-credit'
 
@@ -286,6 +291,33 @@ function useVendorCreditReload(): () => Promise<void> {
     return async () => {
         await Promise.all([creditsCollection.reload(), linesCollection.reload()])
     }
+}
+
+/**
+ * The reads of the vendor credit's read view parts (vendor credit spec §4 Client reads),
+ * run once by its ReadFrame: the credit's applications (its Applied to block) and its
+ * vendor's open bills (the notice above the band reads its rows and state; the apply dialog
+ * runs its own query). Neither is the screen's read: the credit still shows when one fails.
+ * The block's Retry recovers both failed reads in one call, as the screen's Retry does for
+ * its own; the apply dialog's Retry takes the open-bills read's recovery too
+ * (`openBills.read.recovery`), so either Retry brings the notice back. The open-bills read
+ * runs only while Apply can be offered (`canApply`: a writer on a posted credit).
+ */
+export function useVendorCreditSectionReads(credit: {
+    id: string
+    vendor: string
+    canApply: boolean
+}) {
+    const applications = useCreditApplications({ credit: credit.id })
+    const openBills = useOpenBills({ vendor: credit.vendor, isEnabled: credit.canApply })
+    const bills = openBills.read
+    const retry = () => {
+        void recoverLiveQueries({
+            ...mergeRecoveries([applications.recovery, bills.recovery]),
+            onError: error => log.error(LOG_CONTEXT, error),
+        })
+    }
+    return { applications, openBills, retry }
 }
 
 // The vendor credit kind's data source: every `useStore` of a vendor credit collection.

@@ -41,7 +41,11 @@ import { DOCUMENT_READ_TRAILING_WIDTH, DocumentReadLines } from './DocumentReadL
 import { DocumentTabs, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import { useDocumentKind } from './document-kind-context'
-import { type DocumentKind, storedLineTableRows } from './document-kinds'
+import {
+    type DocumentKind,
+    type DocumentReadFrameProps,
+    storedLineTableRows,
+} from './document-kinds'
 
 const LINK_STYLE = { minHeight: 44 }
 
@@ -370,6 +374,20 @@ function ReadStamps({ record, isPosting }: StampsProps) {
     )
 }
 
+// The Details panel of a kind without its own ReadFrame: the body, the kind's ReadSection
+// (an invoice's Credit memos), then the stamps.
+function SectionReadFrame({ record, body, stamps }: DocumentReadFrameProps) {
+    const { ReadSection } = useDocumentKind()
+    const section = ReadSection ? <ReadSection record={record} /> : null
+    return (
+        <>
+            {body}
+            {section}
+            {stamps}
+        </>
+    )
+}
+
 interface DocumentReadViewProps {
     data: DocumentScreenData
     record: DocumentRecord
@@ -378,11 +396,13 @@ interface DocumentReadViewProps {
 
 /**
  * A posted or void sales document, or a quote shown read only (a closed estimate, or any
- * estimate for a reader): the header, Customer, Bill to, Email, the date and the kind's
+ * estimate for a reader): the header, the kind's notice (in its ReadFrame: a vendor
+ * credit's Apply to bills), Customer, Bill to, Email, the date and the kind's
  * own details, Tax, the lines with their stored amounts, the stored totals with the tax
  * snapshot (an invoice's or a bill's with its Payments row and its Balance due from its
  * open balance), Message and Memo, an invoice's or a bill's Payments block, the kind's own
- * section after it (ReadSection: an invoice's Credit memos), the kind's line under them
+ * section after it (ReadSection: an invoice's Credit memos; in its ReadFrame: a vendor
+ * credit's Applied to), the kind's line under them
  * (ReadStampRow)
  * and, for the posting lifecycle only, the Posted by / Voided by stamps around it and, for
  * a replaced original, the link to its replacement; or, on the PDF view tab, its PDF. The
@@ -428,8 +448,30 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
         />
     ) : null
     const badge = readBadgeOf(record, documentKind.balanceBadge)
-    const { ReadSection } = documentKind
-    const section = ReadSection ? <ReadSection record={record} /> : null
+    const ReadFrame = documentKind.ReadFrame ?? SectionReadFrame
+    const body = (
+        <>
+            <ReadBand
+                isPhone={isPhone}
+                record={record}
+                partyName={partyName}
+                address={address}
+                date={date}
+                tax={tax}
+            />
+            <ReadLines lines={data.lines} currency={data.currency} isPhone={isPhone} />
+            <ReadFooter
+                isPhone={isPhone}
+                totals={totals}
+                message={message}
+                memo={record.memo}
+                memoLabel={memoLabel}
+                attachments={attachments}
+            />
+            <PaymentsBlock data={data} record={record} />
+        </>
+    )
+    const stamps = <ReadStamps record={record} isPosting={isPosting} />
     return (
         <ScopeProvider owner={scopeOwner}>
             <View testID={readOnlyId} className="flex-1 bg-background">
@@ -444,26 +486,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     />
                     <DocumentTabs selected={tab} firstLabel="Details" scopeOwner={scopeOwner} />
                     <TabPanel isVisible={isDetailsTab}>
-                        <ReadBand
-                            isPhone={isPhone}
-                            record={record}
-                            partyName={partyName}
-                            address={address}
-                            date={date}
-                            tax={tax}
-                        />
-                        <ReadLines lines={data.lines} currency={data.currency} isPhone={isPhone} />
-                        <ReadFooter
-                            isPhone={isPhone}
-                            totals={totals}
-                            message={message}
-                            memo={record.memo}
-                            memoLabel={memoLabel}
-                            attachments={attachments}
-                        />
-                        <PaymentsBlock data={data} record={record} />
-                        {section}
-                        <ReadStamps record={record} isPosting={isPosting} />
+                        <ReadFrame record={record} body={body} stamps={stamps} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>
                         <DocumentPdfView

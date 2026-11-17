@@ -123,6 +123,7 @@ import { InvoiceCreditMemos } from './InvoiceCreditMemos'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { PurchaseReadLines } from './PurchaseReadLines'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
+import { VendorCreditReadFrame } from './VendorCreditApplySection'
 import { VendorCreditReadDetails } from './VendorCreditReadDetails'
 
 export type DocumentReadDetailsProps = {
@@ -133,6 +134,15 @@ export type DocumentReadDetailsProps = {
 }
 
 export type DocumentReadBandRowProps = { record: DocumentRecord }
+
+// The read view's Details panel as two parts: `body` is the band through the Payments block,
+// `stamps` the stamps under it. A kind's ReadFrame draws them in order with its own parts
+// around them (a notice before the band, a section before the stamps).
+export type DocumentReadFrameProps = {
+    record: DocumentRecord
+    body: ReactNode
+    stamps: ReactNode
+}
 
 // How a kind's stored line rows map to a line table's form rows and back: the sales
 // kinds' lines are DocumentLineRow, a purchase kind's PurchaseLineRow. `lines` tags which,
@@ -281,6 +291,11 @@ export type DocumentKind = {
     ReadStampRow?: ComponentType<DocumentReadBandRowProps>
     // A section of the read view after the Payments block (an invoice's Credit memos).
     ReadSection?: ComponentType<DocumentReadBandRowProps>
+    // The read view's Details panel around its body, for a kind whose parts before the band
+    // and after the Payments block share reads (a vendor credit's Apply to bills notice and
+    // its Applied to section read the open bills once). A kind without it draws the body,
+    // its ReadSection and the stamps.
+    ReadFrame?: ComponentType<DocumentReadFrameProps>
     // A row of the form's band between its first row and the date (a credit memo's invoice
     // link). It reads the form's scope; a kind without it draws the band in one piece.
     FormBandRow?: ComponentType
@@ -657,7 +672,8 @@ function vendorCreditTotalsOf(record: DocumentRecord): DocumentTotalRow[] {
 // lines are the bill's two tables, and it has no tax, message, email, PDF or party address.
 // A copied vendor, account or product that is now inactive stays in the form, and Post
 // refuses it with the purchase texts. Its badge is Applied / Partly applied, and the read
-// view's rows after Total are Applied and Unapplied credit.
+// view's rows after Total are Applied and Unapplied credit. Its read section holds the Apply
+// to bills notice, the Applied to block and the apply dialog.
 export const VENDOR_CREDIT_DOCUMENT: DocumentKind = {
     doc: VENDOR_CREDIT_KIND,
     data: VENDOR_CREDIT_DATA,
@@ -685,4 +701,5 @@ export const VENDOR_CREDIT_DOCUMENT: DocumentKind = {
     partyFills: vendorCreditVendorFills,
     balanceBadge: appliedBadge,
     readTotals: vendorCreditTotalsOf,
+    ReadFrame: VendorCreditReadFrame,
 }
