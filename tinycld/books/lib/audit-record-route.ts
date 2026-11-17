@@ -73,7 +73,7 @@ type RoutedEntry = Parameters<typeof entryHref>[0]
 
 // An entry's doc types and origins (migration 2100000002). A value not listed (a newer
 // schema's) reads as a journal entry's reversal, which entryHref opens as a plain entry.
-const ROUTED_DOC_TYPES: readonly string[] = [
+export const ROUTED_DOC_TYPES: readonly string[] = [
     'journal',
     'transfer',
     'invoice',
