@@ -688,3 +688,22 @@ func TestBill_EntryNounsAndDocType(t *testing.T) {
 		t.Errorf("docTypeBill %q in documentDocTypes %v, want bill and true", docTypeBill, documentDocTypes[docTypeBill])
 	}
 }
+
+// A bill with no payment and no credit voids as before: its CheckVoid,
+// refuseBillVoidApplied, lets it through, and the void writes balance 0.
+func TestBillVoid_NoPaymentAndNoCreditVoidsAsBefore(t *testing.T) {
+	bp := newApplyBook(t)
+	bill := bp.postedBill(t, bp.pacificPower, 3000)
+
+	if err := refuseBillVoidApplied(bp.app, bill); err != nil {
+		t.Errorf("refuseBillVoidApplied of a bill with no payment and no credit = %v, want nil", err)
+	}
+	if err := voidBillAs(bp.app, bill.Id, bp.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void a bill with no payment and no credit: %v", err)
+	}
+	voided := reload(t, bp.app, "books_bills", bill.Id)
+	if voided.GetString("status") != statusVoid || voided.GetInt("balance") != 0 {
+		t.Errorf("bill status %q balance %d, want void and 0", voided.GetString("status"), voided.GetInt("balance"))
+	}
+	requireNoDocumentDrift(t, bp.app)
+}

@@ -1,6 +1,9 @@
 package books
 
 import (
+	"fmt"
+
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -54,8 +57,9 @@ const vendorCreditDraftName = "a draft vendor credit"
 // and posting debits Accounts payable (which posting creates when the chart
 // has none, ensurePayables) for the total and credits each line's expense
 // account (expenseByAccount, mirrored). Its balance is the credit not yet
-// applied to bills (vendorCreditBalanceKind). A correction takes its
-// original's files (replaceVendorCredit). Its BeforePost is set in init: it
+// applied to bills (vendorCreditBalanceKind); a void is refused while it is
+// applied, and a correction takes its applications and its original's files
+// (replaceVendorCredit). Its BeforePost is set in init: it
 // reads the kind's own lines, and a field of vendorCreditKind that names
 // vendorCreditKind is an initialization cycle.
 var vendorCreditKind = salesDocKind{
@@ -100,7 +104,29 @@ var vendorCreditKind = salesDocKind{
 		return payable.Id, nil
 	},
 	LineAccounts: expenseByAccount,
+	CheckVoid:    refuseVendorCreditVoidApplied,
 	Replace:      replaceVendorCredit,
+}
+
+// Refusals of a vendor credit that is applied to bills (vendor credit spec
+// §3.10). %s is the amount its applications apply.
+const (
+	msgVendorCreditVoidApplied      = "This credit is applied to bills. Remove it from those bills first."
+	msgVendorCreditCorrectionBelow  = "%s of this credit is applied to bills. Its total cannot be below that."
+	msgVendorCreditCorrectionVendor = "This credit is applied to bills, so its vendor cannot change."
+)
+
+// refuseVendorCreditVoidApplied is the vendor credit's CheckVoid: a credit
+// applied to bills stays posted until those applications are removed.
+func refuseVendorCreditVoidApplied(tx core.App, doc *core.Record) error {
+	applied, err := postedAppliedTo(tx, vendorCreditBalanceKind, doc.Id)
+	if err != nil {
+		return err
+	}
+	if applied > 0 {
+		return refuse(msgVendorCreditVoidApplied)
+	}
+	return nil
 }
 
 func init() {
@@ -109,10 +135,43 @@ func init() {
 	}
 }
 
-// replaceVendorCredit is the vendor credit's Replace step: the correction
-// takes every file of the original.
+// replaceVendorCredit is the vendor credit's Replace step: while applications
+// apply the original, the correction keeps a total of at least what they
+// apply and keeps the vendor; then the applications move to the correction,
+// whose balance postSalesDoc then sets to its total less them, and the
+// correction takes every file of the original. The bills those applications
+// pay rebuild their cash-basis rows: the rows an application brings back
+// name the credit's posted entry, which is now the correction's
+// (moveLinesWhere rebuilds only the credits' own rows).
 func replaceVendorCredit(tx core.App, original, correction *core.Record) error {
-	return moveAttachments(tx, "vendor_credit", original.Id, correction.Id)
+	applied, err := postedAppliedTo(tx, vendorCreditBalanceKind, original.Id)
+	if err != nil {
+		return err
+	}
+	var bills []string
+	if applied > 0 {
+		if int64(correction.GetInt("total")) < applied {
+			return refuse(msgVendorCreditCorrectionBelow, formatMoney(applied, correction.GetString("currency")))
+		}
+		if correction.GetString("vendor") != original.GetString("vendor") {
+			return refuse(msgVendorCreditCorrectionVendor)
+		}
+		applications, err := tx.FindAllRecords(vendorCreditApplicationsCollection,
+			dbx.HashExp{"vendor_credit": original.Id})
+		if err != nil {
+			return fmt.Errorf("books: read the applications of vendor credit %s: %w", original.Id, err)
+		}
+		for _, a := range applications {
+			bills = append(bills, a.GetString("bill"))
+		}
+	}
+	if err := movePostedLines(tx, vendorCreditBalanceKind, original, correction); err != nil {
+		return err
+	}
+	if err := moveAttachments(tx, "vendor_credit", original.Id, correction.Id); err != nil {
+		return err
+	}
+	return rebuildCashBasisOf(tx, billBalanceKind.Collection, bills...)
 }
 
 // checkVendorCreditHeader is the vendor credit's own header guard on a draft

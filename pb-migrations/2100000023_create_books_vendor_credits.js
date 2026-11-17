@@ -26,9 +26,11 @@
 //
 // APPLICATIONS. A row applies part of a posted credit to a posted bill of the
 // same vendor on an apply date. A writer creates and deletes rows; a row never
-// changes (remove it and apply again). The server writes applied_by and moves
-// both balances (server/vendor_credit_applications.go). Neither relation
-// cascades: a posted credit or bill is never deleted.
+// changes (remove it and apply again). The server writes applied_by and
+// close_override (the override that admitted an apply date on or before the
+// close date) and moves both balances (server/vendor_credit_applications.go).
+// Neither document relation cascades: a posted credit or bill is never
+// deleted.
 //
 // ATTACHMENTS AND CASH BASIS. books_attachments and books_cash_basis_lines gain
 // a vendor_credit relation here, where books_vendor_credits exists, as
@@ -204,15 +206,21 @@ migrate(
                 type: 'base',
                 listRule: READ,
                 viewRule: READ,
-                createRule: `${WRITE} && ${unset('applied_by')}`,
+                createRule: `${WRITE} && ${unset('applied_by', 'close_override')}`,
                 updateRule: null,
                 deleteRule: WRITE,
                 fields: [
                     relation('vendor_credit', credits.id, { required: true }),
                     relation('bill', bills.id, { required: true }),
-                    { name: 'amount', type: 'number', onlyInt: true, min: 1, max: MAX_STORED },
+                    // required: PocketBase skips min for 0, and refuses 0 only
+                    // on a required number field.
+                    { name: 'amount', type: 'number', required: true, onlyInt: true, min: 1, max: MAX_STORED },
                     { name: 'date', type: 'text', required: true, max: 10, pattern: DAY },
                     userRef('applied_by'),
+                    // The close-date override that admitted an application dated
+                    // on or before the close date, as on a journal entry. Only
+                    // the server writes it.
+                    relation('close_override', 'pbc_books_closeov'),
                     { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
                 ],
                 indexes: [

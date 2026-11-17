@@ -345,6 +345,7 @@ const AUDIT_FIELD_MAPS = {
         amount: money('Credit applied'),
         date: day('Apply date'),
         applied_by: relation('Applied by', 'users'),
+        close_override: relation('Close date override', 'books_close_overrides'),
         id: STAMPS.id,
         created: STAMPS.created,
     },
