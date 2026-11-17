@@ -102,6 +102,26 @@ function useListWidth() {
     return { width, onListLayout }
 }
 
+// The row the list keys focused (`focus` in the store, kept under `scope`), never DOM
+// focus. With none kept for the scope, the open document's row (`openId`, '' for none) is
+// the focus, so the 320 px column, whose scope is new when the list narrows to it, moves
+// on from the open row. '' when neither is in the list; `focusedIndex` is -1 then. The
+// store drops it with the selection when the list leaves the scope.
+function useRowFocus(scope: string, rows: readonly DocumentListRow[], openId: string) {
+    const keptId = useDocumentListStore(state =>
+        state.focus.scope === scope ? state.focus.id : ''
+    )
+    const setFocus = useDocumentListStore(state => state.setFocus)
+    const storedId = keptId === '' ? openId : keptId
+    const focusedIndex = storedId === '' ? -1 : rows.findIndex(row => row.id === storedId)
+    const focusedId = focusedIndex < 0 ? '' : storedId
+    return {
+        focusedId,
+        focusedIndex,
+        setFocusedId: (id: string) => setFocus(scope, id),
+    }
+}
+
 /**
  * One Sales list tab (spec docs/specs/sales-lists-design.md §3): its kept search, chip,
  * date range, customer and sort (`useDocumentListStore`), its rows (`useDocumentList`,
@@ -146,10 +166,19 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     }
     const list = { ...documentList, isLoading, isBusy, isError, retry }
 
-    // A kind list beside an open document replaces it, so Back returns to the list; the
-    // open document's own row keeps the form, its scroll and its edits.
+    // The ticks and the row focus hold for the tab, the layout and the filters
+    // (`selectionScope`), so a change of any of them, or the list narrowing to the names
+    // column, clears them for good; a sort keeps them.
+    const scope = selectionScope(tab.key, layout, filters)
     const open = openRecordFromPath(tab.path, pathname)
+    const openId = open.kind === 'id' ? open.id : ''
+    const rowFocus = useRowFocus(scope, list.rows, openId)
+
+    // A kind list beside an open document replaces it, so Back returns to the list; the
+    // open document's own row keeps the form, its scroll and its edits. The opened row
+    // takes the row focus, so the list keys go on from it.
     const openRow = (row: DocumentListRow) => {
+        rowFocus.setFocusedId(row.id)
         if (open.kind === 'id' && open.id === row.id) return
         const href = orgHref(documentHref(TRANSACTION_DOC_KINDS[row.kind], row.id))
         if (navigationModeFor(open) === 'replace') router.replace(href)
@@ -176,10 +205,6 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const minWidth = tableMinWidth(tab.columns, canWrite)
     const drawsCards = isPhone || (width > 0 && width < minWidth)
 
-    // The ticks hold for the tab, the layout and the filters (`selectionScope`), so a change
-    // of any of them, or the list narrowing to the names column, clears them for good; a
-    // sort keeps them.
-    const scope = selectionScope(tab.key, layout, filters)
     const loadedIds = list.rows.map(row => row.id)
     const selection = useListSelection(scope, loadedIds)
     const rowActions = useDocumentRowActions({
@@ -201,6 +226,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         controls: listControls(canWrite, layout),
         scope,
         selection,
+        rowFocus,
         rowActions,
         batch,
         actionBanner,

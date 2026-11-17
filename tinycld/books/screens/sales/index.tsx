@@ -8,5 +8,5 @@ const ALL_SALES = salesTabOf('all')
  * memo. A document opens at its own kind's route, so it never shows beside this list.
  */
 export default function SalesScreen() {
-    return <DocumentListScreen tab={ALL_SALES} openId="" layout="table" />
+    return <DocumentListScreen tab={ALL_SALES} openId="" layout="table" isCovered={false} />
 }
