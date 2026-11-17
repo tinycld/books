@@ -25,7 +25,7 @@ import (
 // from the ledger; a bank file's parsed rows are written by the upload hook, and
 // the import row that made the transactions is audited. A writer changes a
 // transaction's status, so the transactions are audited, not server-only. An
-// invoice's or a sales receipt's tax lines are its posting snapshot, written with
+// invoice's, a sales receipt's or a credit memo's tax lines are its posting snapshot, written with
 // the audited document. The cash-basis rows are rebuilt by the server from the
 // posted documents and their payments (pay-bills spec §4.1).
 var serverOnly = map[string]bool{
@@ -33,6 +33,7 @@ var serverOnly = map[string]bool{
 	"books_bank_file_contents":      true,
 	"books_cash_basis_lines":        true,
 	"books_cash_basis_tax_lines":    true,
+	"books_credit_memo_tax_lines":   true,
 	"books_invoice_tax_lines":       true,
 	"books_sales_receipt_tax_lines": true,
 }
@@ -861,6 +862,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSalesDocGuards(parts, invoiceKind)
 	registerSalesDocGuards(parts, salesReceiptKind)
 	registerSalesDocGuards(parts, estimateKind)
+	registerSalesDocGuards(parts, creditMemoKind)
 	registerSalesDocGuards(parts, billKind)
 	registerSalesDocGuards(parts, expenseKind)
 	registerPaymentGuards(parts)

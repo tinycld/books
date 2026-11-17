@@ -469,6 +469,7 @@ var auditParentOf = map[string]string{
 	"books_bundle_items":        "books_products",
 	"books_estimate_responses":  "books_estimates",
 	"books_bill_payment_lines":  "books_bill_payments",
+	"books_credit_memo_lines":   "books_credit_memos",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -488,6 +489,9 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 	case "books_invoice_lines":
 		parent = saveRecord(t, app, "books_invoices", map[string]any{"customer": customer.Id, "status": "draft", "date": "2026-11-10", "due_date": "2026-12-10"})
 		line = saveRecord(t, app, lines, map[string]any{"invoice": parent.Id, "kind": "description", "position": 0})
+	case "books_credit_memo_lines":
+		parent = saveRecord(t, app, "books_credit_memos", map[string]any{"customer": customer.Id, "status": "draft", "date": "2026-11-10"})
+		line = saveRecord(t, app, lines, map[string]any{"credit_memo": parent.Id, "kind": "description", "position": 0})
 	case "books_sales_receipt_lines":
 		parent = mkReceiptRow(t, app, account, nil)
 		line = saveRecord(t, app, lines, map[string]any{"sales_receipt": parent.Id, "kind": "description", "position": 0})

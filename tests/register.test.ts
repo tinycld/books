@@ -567,6 +567,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             transfer: 'Transfer',
             invoice: 'Invoice',
             sales_receipt: 'Sales receipt',
+            credit_memo: 'Credit memo',
             bill: 'Bill',
             expense: 'Expense',
             payment: 'Payment',
@@ -579,6 +580,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
         expect(docTypes.map(([docType]) => docType).sort()).toEqual([
             'bill',
             'bill_payment',
+            'credit_memo',
             'expense',
             'invoice',
             'payment',

@@ -119,6 +119,7 @@ const DOC_TYPE = [
     { value: 'transfer', label: 'Transfer' },
     { value: 'invoice', label: 'Invoice' },
     { value: 'sales_receipt', label: 'Sales receipt' },
+    { value: 'credit_memo', label: 'Credit memo' },
     { value: 'estimate', label: 'Estimate' },
     { value: 'bill', label: 'Bill' },
     { value: 'expense', label: 'Expense' },
@@ -160,7 +161,7 @@ const STAMPS = {
     updated: internal('Updated'),
 }
 
-// A posting document's header (invoice, sales receipt, bill, expense).
+// A posting document's header (invoice, sales receipt, credit memo, bill, expense).
 function postingFields(self: string): AuditFieldMap {
     return {
         status: select('Status', DOCUMENT_STATUS),
@@ -186,7 +187,7 @@ function postingFields(self: string): AuditFieldMap {
     }
 }
 
-// A sales document's line (invoice, sales receipt, estimate).
+// A sales document's line (invoice, sales receipt, estimate, credit memo).
 function salesLineFields(parent: string, parentLabel: string): AuditFieldMap {
     return {
         [parent]: relation(parentLabel, `books_${parent}s`),
@@ -295,6 +296,18 @@ const AUDIT_FIELD_MAPS = {
         name: text('Name'),
         reason: text('Reason'),
         ...STAMPS,
+    },
+    books_credit_memos: {
+        customer: relation('Customer', 'books_customers'),
+        ...postingFields('books_credit_memos'),
+        date: day('Credit memo date'),
+        bill_to: text('Bill to'),
+        email: text('Email'),
+        tax_rate: relation('Tax rate', 'books_tax_rates'),
+        message: text('Message'),
+        tax_total: money('Tax'),
+        balance: money('Unapplied credit'),
+        invoice: relation('Invoice', 'books_invoices'),
     },
     books_bills: {
         vendor: relation('Vendor', 'books_vendors'),
@@ -410,6 +423,7 @@ const AUDIT_FIELD_MAPS = {
     books_invoice_lines: salesLineFields('invoice', 'Invoice'),
     books_sales_receipt_lines: salesLineFields('sales_receipt', 'Sales receipt'),
     books_estimate_lines: salesLineFields('estimate', 'Estimate'),
+    books_credit_memo_lines: salesLineFields('credit_memo', 'Credit memo'),
     books_bill_lines: purchaseLineFields('bill', 'Bill'),
     books_expense_lines: purchaseLineFields('expense', 'Expense'),
     books_journal_lines: {

@@ -1,6 +1,7 @@
 {
     "invoice": "invoices",
     "sales_receipt": "sales-receipts",
+    "credit_memo": "credit-memos",
     "bill": "bills",
     "expense": "expenses",
     "payment": "payments",

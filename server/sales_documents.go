@@ -33,13 +33,14 @@ const (
 )
 
 // salesDocKind is one kind of document of the shared layer: the sales
-// documents (an invoice, a sales receipt, an estimate) and the purchase
-// documents (a bill, an expense). It holds the collections the kind writes,
-// the forms host of its lines, its doc type, its lifecycle, its party, its
-// refusal texts and the parts of its guards and posting that differ by kind.
-// Every guard and the posting below take a kind; invoiceKind (invoices.go),
-// salesReceiptKind (sales_receipts.go), estimateKind (estimates.go), billKind
-// (bills.go) and expenseKind (expenses.go) are the kinds.
+// documents (an invoice, a sales receipt, an estimate, a credit memo) and the
+// purchase documents (a bill, an expense). It holds the collections the kind
+// writes, the forms host of its lines, its doc type, its lifecycle, its party,
+// its refusal texts and the parts of its guards and posting that differ by
+// kind. Every guard and the posting below take a kind; invoiceKind
+// (invoices.go), salesReceiptKind (sales_receipts.go), estimateKind
+// (estimates.go), creditMemoKind (credit_memos.go), billKind (bills.go) and
+// expenseKind (expenses.go) are the kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
@@ -87,7 +88,12 @@ type salesDocKind struct {
 	// writes balance (its total less what payments already apply), a void
 	// writes 0, and only document_balance.go changes it in between.
 	TracksBalance bool
-	Msgs          salesDocMessages
+	// Credit is true for a kind that posts the mirror of a sale (a credit
+	// memo): the total is credited to CreditAccount, the income accounts and
+	// each tax component's liability account are debited, and the tax snapshot
+	// holds the gross, taxable and tax figures negated.
+	Credit bool
+	Msgs   salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
@@ -116,12 +122,14 @@ type salesDocKind struct {
 	BeforePost func(tx core.App, doc *core.Record) error
 	// DebitAccount is the account the posting debits for the total (a sales
 	// kind's control account); CreditAccount the account it credits for the
-	// total (a bill's Accounts payable, an expense's Paid from). A posting kind sets exactly one of
-	// them; a quote, which never posts, sets neither.
+	// total (a bill's Accounts payable, an expense's Paid from, a credit memo's
+	// Accounts receivable). A posting kind sets exactly one of them; a quote,
+	// which never posts, sets neither.
 	DebitAccount  func(tx core.App, doc *core.Record) (string, error)
 	CreditAccount func(tx core.App, doc *core.Record) (string, error)
 	// LineAccounts are the entry's lines for the document's lines, on the side
-	// opposite the total's; nil is incomeByAccount (the sales kinds' credits).
+	// opposite the total's; nil is incomeByAccount (the sales kinds' credits,
+	// turned to debits on a Credit kind).
 	LineAccounts func(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error)
 }
 
@@ -181,7 +189,7 @@ const (
 // come only from posting the document (entries.go).
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
-	docTypeBillPayment: true,
+	docTypeBillPayment: true, docTypeCreditMemo: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's
@@ -406,15 +414,29 @@ func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
 // salesDocKeptBooksFields cannot change while a person edits the document.
 // posted_by is not in it: a Go caller names the poster with the post, as for
 // an entry. replaces is fixed at create: an invoice's estimate is checked
-// against it only then (checkInvoiceEstimate). balance (an invoice's or a
-// bill's open amount) is written only by document_balance.go and the posting.
+// against it only then (checkInvoiceEstimate). balance (an invoice's, a
+// bill's or a credit memo's open amount) is written only by
+// document_balance.go and the posting.
+//
+// quoteBooksFields are Books' own on a quote only: an estimate's invoice is
+// written by the conversion, while a credit memo's invoice is the link a
+// person chooses (checkCreditMemoInvoice holds it).
 var (
-	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "invoice", "balance"}
-	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "invoice", "balance"}
+	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "balance"}
+	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "balance"}
+	quoteBooksFields        = []string{"invoice"}
 )
 
+// booksFieldsOf adds the kind's own Books fields to a shared list.
+func booksFieldsOf(kind salesDocKind, shared []string) []string {
+	if kind.Lifecycle == lifecycleQuote {
+		return slices.Concat(shared, quoteBooksFields)
+	}
+	return shared
+}
+
 func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
-	names := salesDocNewBooksFields
+	names := booksFieldsOf(kind, salesDocNewBooksFields)
 	if kind.Lifecycle == lifecyclePosting {
 		names = append([]string{"number", "sequence"}, names...)
 	}
@@ -437,9 +459,9 @@ func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
 	return refuseServerFields(set)
 }
 
-func checkSalesDocBooksFieldsKept(stored, r *core.Record) error {
+func checkSalesDocBooksFieldsKept(kind salesDocKind, stored, r *core.Record) error {
 	var changed []string
-	for _, name := range salesDocKeptBooksFields {
+	for _, name := range booksFieldsOf(kind, salesDocKeptBooksFields) {
 		if r.Collection().Fields.GetByName(name) == nil {
 			continue
 		}
@@ -522,7 +544,7 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 		if isOwnWrite(tx, kind.Collection, stored.Id) {
 			return nil
 		}
-		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+		if err := checkSalesDocBooksFieldsKept(kind, stored, r); err != nil {
 			return err
 		}
 		return checkDraftSalesDoc(tx, kind, stored, r)
@@ -530,7 +552,7 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 		if err := settleRevision(tx, stored, r, kind.Msgs.RevisionConflict); err != nil {
 			return err
 		}
-		if err := checkSalesDocBooksFieldsKept(stored, r); err != nil {
+		if err := checkSalesDocBooksFieldsKept(kind, stored, r); err != nil {
 			return err
 		}
 		if err := checkDraftSalesDoc(tx, kind, stored, r); err != nil {

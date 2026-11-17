@@ -63,6 +63,16 @@ describe('bill_payment doc type', () => {
     })
 })
 
+// The seeded `credit_memo` row (booksseqcreditm) gets the "Credit memos" card;
+// registers and the ledger read "Credit memo" as its Type.
+describe('credit_memo doc type', () => {
+    it('names the Numbering card "Credit memos" and labels the Type "Credit memo"', () => {
+        expect(DOC_TYPES.credit_memo).toEqual({ label: 'Credit memos', noun: 'credit memo' })
+        expect(DOC_TYPE_LABELS.credit_memo).toBe('Credit memo')
+        expect(nextNumberPreview('credit_memo', '', '1001')).toBe('Next credit memo: 1001')
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(
