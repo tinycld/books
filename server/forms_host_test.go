@@ -29,6 +29,21 @@ func bindInvoiceHost(t *testing.T, app core.App) {
 	forms.BindHooks(app, &forms.Defs{Hosts: []forms.Host{*host}})
 }
 
+// bindCreditMemoHost binds the generated books:credit_memo forms host on app,
+// as the server does at boot, so the credit memo line guard reads its row kinds.
+func bindCreditMemoHost(t *testing.T, app core.App) {
+	t.Helper()
+	defs, err := forms.LoadHosts(generatedHostsPath)
+	if err != nil {
+		t.Fatalf("load the generated forms hosts: %v", err)
+	}
+	host := defs.Host(creditMemoHostKey)
+	if host == nil {
+		t.Fatalf("%s has no %s host: run `pnpm run packages:generate` in the tinycld repo", generatedHostsPath, creditMemoHostKey)
+	}
+	forms.BindHooks(app, &forms.Defs{Hosts: []forms.Host{*host}})
+}
+
 // bindEstimateHost binds the generated books:estimate forms host on app, as the
 // server does at boot, so the estimate line guard reads its row kinds.
 func bindEstimateHost(t *testing.T, app core.App) {

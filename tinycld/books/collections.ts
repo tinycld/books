@@ -316,6 +316,48 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the invoice's three: server-owned fields below the omit line (the
+    // number at posting, the totals at every draft write, the credit not yet
+    // applied at posting and void), no relations (the credit memo screen reads
+    // its customer, tax rate, invoice and users through its own queries).
+    const books_credit_memos = newCollection('books_credit_memos', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'tax_total',
+            'total',
+            'balance',
+            'revision',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // amount is recomputed by the server at every line write.
+    const books_credit_memo_lines = newCollection('books_credit_memo_lines', {
+        omitOnInsert: ['created', 'updated', 'amount'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // Written by the server at posting; clients only read it.
+    const books_credit_memo_tax_lines = newCollection('books_credit_memo_tax_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     // As the invoice's: server-owned fields below the omit line (the number and
     // the public token when the estimate is created, the totals at every write,
     // the invoice made from it by the invoice guards), no relations (the
@@ -564,6 +606,9 @@ export function registerCollections(
         books_sales_receipts,
         books_sales_receipt_lines,
         books_sales_receipt_tax_lines,
+        books_credit_memos,
+        books_credit_memo_lines,
+        books_credit_memo_tax_lines,
         books_estimates,
         books_estimate_lines,
         books_estimate_public,

@@ -575,6 +575,14 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		entry := mustPostPayment(t, pe.app, p.Id, pe.users.bookkeeper.Id).GetString("entry")
 		return tdPosted{pe.app, pe.users.readOnly, entry, pe.checking, p.Id}
 	},
+	"credit_memo": func(t *testing.T) tdPosted {
+		ce := newCreditMemoEnv(t)
+		registerBooksSources(t)
+		memo := ce.mkCreditMemo(t, nil)
+		mkCreditMemoLine(t, ce.app, memo, 0, item(ce.service, 1, 45000, false))
+		entry := mustPostCreditMemo(t, ce.app, memo.Id, ce.users.bookkeeper.Id).GetString("entry")
+		return tdPosted{ce.app, ce.users.readOnly, entry, ce.revenue, memo.Id}
+	},
 	// A bill payment posts only from its batch (bill_payments_test.go).
 	"bill_payment": func(t *testing.T) tdPosted {
 		bp := newBillPayEnv(t)
@@ -599,6 +607,9 @@ func TestTransactionDetailPostersHaveRoutes(t *testing.T) {
 	}
 	if got := routes["bill_payment"]; got != "bill-payments" {
 		t.Errorf("entry_routes.json bill_payment = %q, want bill-payments", got)
+	}
+	if got := routes["credit_memo"]; got != "credit-memos" {
+		t.Errorf("entry_routes.json credit_memo = %q, want credit-memos", got)
 	}
 }
 

@@ -180,6 +180,30 @@ describe('a payment entry', () => {
     })
 })
 
+// A credit memo's entry (credit memo spec §3.7): it opens on its credit memo, is
+// edited as a correction of it, and is never reversed by itself.
+describe('a credit memo entry', () => {
+    it('opens on its credit memo', () => {
+        expect(entryHref(entry('credit_memo', 'document', 'c1'))).toBe('books/credit-memos/c1')
+    })
+
+    it('edits as a correction of its credit memo', () => {
+        expect(entryEditHref(entry('credit_memo', 'document', 'c1'))).toBe(
+            'books/credit-memos/new?replaces=c1'
+        )
+    })
+
+    it('offers Open and Edit, and no Reverse', () => {
+        const actions = entryActions(
+            { status: 'posted', origin: 'document', doc_type: 'credit_memo', isReversed: false },
+            { canWrite: true }
+        )
+        expect(actions).toContain('open')
+        expect(actions).toContain('edit')
+        expect(actions).not.toContain('reverse')
+    })
+})
+
 // A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
 describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {

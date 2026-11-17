@@ -101,7 +101,15 @@ test.describe('audit-log: report', () => {
             'the Audit Log header'
         )
         const month = monthOf(await browserToday(page))
-        expect(shown.business).toBe(await expectedHeading(page))
+        // books-settings.spec.ts changes the business name on the shared DB, so the heading
+        // and the name it should show are read in the same poll.
+        await expect
+            .poll(async () => {
+                const snapshot = await reportSnapshot(page)
+                const expected = await expectedHeading(page)
+                return { matches: snapshot.business === expected && expected !== '', expected }
+            })
+            .toMatchObject({ matches: true })
         expect(shown.header).toBe(rangeWords(month.from, month.to))
         await expect(page.getByTestId('report-document-zone')).toHaveCount(1)
         await expect(page.getByTestId('report-document-zone')).toHaveText(AUDIT_LOG_ZONE_WORDS)

@@ -6,15 +6,10 @@
 // `subtotal`, `tax_total` and `total` are the values the server writes at every save, as
 // in invoice-form-fixture.ts. `balance` is the credit not yet applied (spec §4.1): the
 // total of a posted memo, 0 on a draft and on a void one. The posted tax snapshot
-// (CREDIT_MEMO_TAX_LINES) is negative (spec §4.3, Q5).
-//
-// CreditMemoRecord, CreditMemoLineRecord and CreditMemoTaxLineRecord are LOCAL types that
-// mirror spec §4.1, derived from the generated invoice types. The collections do not exist
-// yet: the migration checkpoint (2100000022_create_books_credit_memos.js) must replace
-// them with the generated `BooksCreditMemos`, `BooksCreditMemoLines` and
-// `BooksCreditMemoTaxLines` through `satisfies`.
+// (CREDIT_MEMO_TAX_LINES) holds each figure negated (spec §4.3, Q5), so it is 0 or
+// below for these memos, whose taxable sums are 0 or above.
 
-import type { BooksInvoiceLines, BooksInvoices, BooksInvoiceTaxLines } from '../types'
+import type { BooksCreditMemoLines, BooksCreditMemos, BooksCreditMemoTaxLines } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import {
     DISCOUNT_PRODUCT_ID,
@@ -34,15 +29,10 @@ export const CREDIT_MEMO_TODAY = '2026-11-16'
 
 const STAMP = '2026-11-16 09:00:00.000Z'
 
-// Spec §4.1: the invoice's fields without terms, due date and the estimate link; `invoice`
-// is the optional link to the invoice the memo was made from.
-export type CreditMemoRecord = Omit<BooksInvoices, 'terms' | 'due_date' | 'estimate'> & {
-    invoice: string
-}
-export type CreditMemoLineRecord = Omit<BooksInvoiceLines, 'invoice'> & { credit_memo: string }
-export type CreditMemoTaxLineRecord = Omit<BooksInvoiceTaxLines, 'invoice'> & {
-    credit_memo: string
-}
+// The generated record types (migration 2100000022_create_books_credit_memos.js).
+export type CreditMemoRecord = BooksCreditMemos
+export type CreditMemoLineRecord = BooksCreditMemoLines
+export type CreditMemoTaxLineRecord = BooksCreditMemoTaxLines
 export type CreditMemoStatus = CreditMemoRecord['status']
 
 // The users the read view names in "Posted by" and "Voided by".
@@ -214,7 +204,7 @@ export const CREDIT_MEMOS = [
         posted_by: CREDIT_MEMO_USER_IDS.omar,
         posted_at: '2026-11-13 16:20:00.000Z',
     }),
-] satisfies CreditMemoRecord[]
+] satisfies BooksCreditMemos[]
 
 // The memo the seed posts (spec §4.6: linked to a seeded posted invoice of the same
 // customer, with "Denver combined" tax) and the draft it keeps. The plan picks the days
@@ -373,7 +363,7 @@ export const CREDIT_MEMO_LINES = [
             amount: 25_000,
         },
     ]),
-] satisfies CreditMemoLineRecord[]
+] satisfies BooksCreditMemoLines[]
 
 const DENVER_COMPONENTS = [
     { component: TAX_IDS.state, agency: TAX_IDS.colorado, rate_ppm: 29_000 },
@@ -414,7 +404,7 @@ export const CREDIT_MEMO_TAX_LINES = [
     ...denverTaxLines(IDS.voided, '1002', 10_200, [296, 102, 491]),
     ...denverTaxLines(IDS.correction, 'fix2', 13_600, [394, 136, 654]),
     ...denverTaxLines(IDS.exempt, '1003', 0, [0, 0, 0]),
-] satisfies CreditMemoTaxLineRecord[]
+] satisfies BooksCreditMemoTaxLines[]
 
 // What a memo's link row reads from its invoice (spec §3.2, §3.7): the number, and
 // whether that invoice is void now ("For invoice 1001 (void)", Q18). Invoice 1001 is

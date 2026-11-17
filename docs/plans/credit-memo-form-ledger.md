@@ -25,12 +25,17 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · reviewer A NOTE 1: `tests/e2e/audit-log.spec.ts:104-112` now polls the heading against the business name; a heading wrong at first draw and right later passes. The source of the race is `books-settings.spec.ts` changing the shared business name while report specs read it.
+- cp 1 · reviewer A NOTE 5: `TestCreditMemo_ServerFieldsRefused` cannot tell the create rule from the Go guard (`checkNewSalesDoc` refuses the same fields with the same 400), so dropping `balance` from the migration's server fields would stay green; the behavior (refused) is pinned.
+- cp 1 · reviewer A NOTE 7: until checkpoint 2, a customer whose only document is a credit memo is refused on delete with PocketBase's generic relation error, not "<name> is on credit memos."; the FTS table stays empty and the seeded memo counts on the Cash method. No UI reaches this before checkpoint 3.
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- cp 1 · `server/sales_documents.go` (shared Books-field lists, `booksFieldsOf`) and `server/estimates.go` (call shape of `checkSalesDocBooksFieldsKept`): `invoice` was a Books-only field for every kind, so the shared guard refused every linked credit memo.
+- cp 1 · `server/oauth_scopes.go`: memos and lines rw, tax lines ro (spec §4.3 Registrations); `TestOAuth_CoversEveryBooksCollection` fails without it.
+- cp 1 · `server/report_general_ledger_test.go` (golden Type formula gains `credit_memo`), `tests/register.test.ts` and `tinycld/books/lib/register.ts` (`DOC_TYPE_LABELS.credit_memo`, mirrored against `entry_type_labels.json`; `tests/doc-types.test.ts` reads it): list additions for the new doc type.
+- cp 1 · `tinycld/books/lib/audit-log.ts`, `tinycld/books/lib/audit-fields.ts`: TS mirrors of the audit record type options and field maps (`tests/audit-log-fixture.test.ts`, `tests/audit-fields.test.ts`).
+- cp 1 · `tinycld/books/lib/entry-route.ts`: comment only.
+- cp 1 · `tests/e2e/audit-log.spec.ts`: gate-1 regression fix (a cross-spec race on the business name), see Checkpoint 1 gate 1.
 
 ## Phase notes
 - phase 1: first design gate (2026-11-15, lane purchases): direction A; Q1–Q16 as recommended (credit stays on the customer; Create credit memo key M on a posted invoice with a stored invoice link; label "Credit amount"; credit A/R, debit income and tax; negative tax lines; own sequence `booksseqcreditm`; PDF in; empty default message; statement message cut; server-written balance; customer Transactions chip; edit/void as the invoice; all line kinds, total ≥ 0; delete guards; seed one posted + one draft; Copy without memo and link); waits_for p3-pay-bills.
@@ -69,6 +74,23 @@ and again at the end)
     - low, text: the Accrual bullet's test place named; four conditional Files entries settled (three removed, `seedInvoices` change made definite, `postSeedDocument` union); `storedInvoiceOf` removed; fixture helper names explained; seed customer's name corrected; `server/credit_memos.go` added to checkpoint 4 Files; `NO_INVOICE_SOURCE` named; the section's loading decision stated.
     - low, not changed: three old documents keep the old migration number (decision above).
 - review mode switches: none
+
+## Checkpoint 1
+- test writer: new `server/credit_memos_test.go`, `server/credit_memo_posting_test.go`, `tests/credit-memo-host.test.ts`, `tests/credit-memo-form-fixture.test.ts`; edited `server/forms_host_test.go` (`bindCreditMemoHost`), `server/numbering_test.go`, `server/entry_type_labels_test.go`, `server/report_transaction_detail_test.go`, `server/audit_test.go`, `server/audit_log_test.go`, `server/report_audit_log_test.go`, `tests/doc-types.test.ts`, `tests/entry-route.test.ts`, `tests/collections.test.ts`; 52 tests, red for the right reason: yes (the fixture test and the entry-route actions test are red in tsc only: generated types and the `credit_memo` doc type missing); untestable: none
+- implementer: two dispatches split by layer. Part 1: migrations (new 2100000022, audit log renamed 2100000023 with its LINES row, 2100000001/2100000002 in place), collections, types, label and route tables, `books:credit_memo` host, fixture aliases. Part 2: `creditMemoKind`, `Credit` mirror posting and negated tax snapshot, balance kind, link guard, audit labels and registration, OAuth scopes, seed (`seedInvoices` returns its map, `seedCreditMemos`). DONE
+- test disputes: none
+- self-declared differences: (1) `invoice` left the shared Books-only field lists (`salesDocNewBooksFields`/`salesDocKeptBooksFields`) for `quoteBooksFields` through `booksFieldsOf(kind, …)`, and `checkSalesDocBooksFieldsKept` takes the kind — else the shared guard refuses every linked credit memo; (2) `CREDIT_MEMO_LAYOUT.fields.message.description` is a literal until checkpoint 3's `CREDIT_MEMO_KIND.noteHints`; `CREDIT_MEMO_LAYOUT` exported; (3) audit field labels "Credit memo date", "Unapplied credit", "Invoice" (the spec names none); audit record type options after the estimate's; (4) migration ids `pbc_books_creditmemos`, `pbc_books_creditmemo_lines`, `pbc_books_creditmemo_tax`, plain indexes as the invoice's plus `invoice`; (5) the seed memos' `memo` is the fixture's text
+- gate 1: tests unedited: yes · `packages:generate`, `tinycld-pkg check` (321 files / 6203 tests), `go test ./...`: pass · regression e2e (9 files): fail, 88 passed, 1 failed → `audit-log.spec.ts:104` compared a one-shot report snapshot with a later read of the business name, and `books-settings.spec.ts` (same run, shared DB) sets that name between the two reads → a fresh test writer made it one `expect.poll` that reads both in one probe, the pattern of `balance-sheet.spec.ts:348-354` (no other spec had the one-shot shape) → `audit-log.spec.ts` + `books-settings.spec.ts`: 20 passed
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 0 BLOCK, 7 NOTE (NOTEs 1-4 out-of-plan files → Out-of-plan changes; NOTE 6 comments ahead of code → accepted, fix item 2; NOTEs 1, 5 and 7 → Design notes)
+- gate 3 B (conformance): script lines: 0 real, 3 false positive (in-place edits of unreleased migrations 2100000001, 2100000002 and the 2100000022→2100000023 rename, all named by the Files block and spec §4.2) · findings 1-9 out-of-plan files → Out-of-plan changes, no code change; 10 shared Books-field helper change → accepted as is (declared difference 1; the estimate keeps its check, no other posting kind has an `invoice` column); 11 migration comments ahead of code → accepted, fix item 2
+- shadow reviewer B (sonnet): its finding 4 (credit memo tax line range max 0 refuses the negated figure of a negative tax component; the invoice tax lines' range is −MAX..MAX and spec §4.1 says "as well") is real → fix item 1
+- fix round: items 1 (cause spec-logic: tax line range −MAX..MAX; test `TestCreditMemoPost_ANegativeTaxableSumStoresPositiveSnapshotFigures` by a fresh test writer, red on the schema refusal) and 2 (cause other: comment ahead of code) fixed; gate 1 again: check, `go test ./...`, regression e2e 89 passed
+- fix review: round 1: clean (shadow fix reviewer also clean) · rounds: 1
+- gate 3 A notes: 3 (NOTEs 1, 5, 7), listed under Design notes
+- reviewer-caught deferrals: none
+- commit: see git log (`feat(books): credit memo data and posting`)
+- human: none (review mode C)
 
 ## Final review
 - eval:
