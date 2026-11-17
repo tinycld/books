@@ -1,0 +1,44 @@
+{
+    "outDir": ".",
+    "widths": [390, 1280],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "height": 1400,
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" }
+            ]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/reports?package=books",
+            "height": 1200,
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "click": "report-fold-all" },
+                { "waitFor": "Expand all" }
+            ]
+        },
+        {
+            "name": "with-activity",
+            "url": "/a/reports?package=books",
+            "height": 1400,
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId?p-rows=activity" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Rows: With activity" }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "actions": [
+                { "idFromText": "Customer Balance", "goto": "/a/reports/$urlId?p-asOf=2020-01-01" },
+                { "waitFor": "report-empty" }
+            ]
+        }
+    ]
+}
