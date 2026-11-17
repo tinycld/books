@@ -73,7 +73,9 @@ type RoutedEntry = Parameters<typeof entryHref>[0]
 
 // An entry's doc types and origins (migration 2100000002). A value not listed (a newer
 // schema's) reads as a journal entry's reversal, which entryHref opens as a plain entry.
-const ROUTED_DOC_TYPES: readonly string[] = [
+// tests/migration-doc-types.test.ts fails when the migration gains a doc type this list
+// lacks.
+export const ROUTED_DOC_TYPES: readonly string[] = [
     'journal',
     'transfer',
     'invoice',
@@ -81,6 +83,7 @@ const ROUTED_DOC_TYPES: readonly string[] = [
     'credit_memo',
     'bill',
     'expense',
+    'vendor_credit',
     'payment',
     'bill_payment',
 ] satisfies readonly RoutedEntry['doc_type'][]

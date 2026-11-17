@@ -1297,7 +1297,10 @@ const generalLedgerSpecGolden = "" +
 	`{"value":"Payment"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"sales_receipt"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
 	`{"value":"Sales receipt"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"transfer"}]},` +
-	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},{"value":"Transfer"},{"op":"eq","args":[{"path":[{"link":"entry` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},{"value":"Transfer"},` +
+	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"vendor_credit"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Vendor credit"},{"op":"eq","args":[{"path":[{"link":"entry` +
 	`"},{"field":"origin"}]},{"value":"reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]},{` +
 	`"value":"Reversal"},{"op":"concat","args":[{"value":"Reversal"},{"value":" of "},{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]}]},{"op":"e` +
 	`q","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"void_reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"lin` +

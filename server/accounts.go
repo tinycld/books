@@ -44,9 +44,8 @@ const (
 )
 
 // accountLineReferences are the document tables that hold an account, in the
-// order their refusals are checked. Later purchase documents (vendor credits)
-// append theirs here. A bill's or an
-// expense's product line names no account (its account is the product's
+// order their refusals are checked. A bill's, an expense's or a vendor
+// credit's product line names no account (its account is the product's
 // expense account, which the product guard holds).
 var accountLineReferences = []accountLineReference{
 	{
@@ -66,6 +65,11 @@ var accountLineReferences = []accountLineReference{
 	{
 		collection: billPaymentsCollection, field: "paid_from", distinct: "id",
 		one: msgAccountPaidOneBillPayment, many: msgAccountPaidBillPayments,
+	},
+	{
+		collection: vendorCreditLinesCollection, field: "account", distinct: "vendor_credit",
+		one:  "This account is on 1 vendor credit and cannot be deleted. Make it inactive instead.",
+		many: "This account is on %d vendor credits and cannot be deleted. Make it inactive instead.",
 	},
 }
 

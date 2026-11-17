@@ -305,6 +305,7 @@ const STORED_PDF: BooksAttachments = {
     collectionName: 'books_attachments',
     bill: DRAFT_ROW.id,
     expense: '',
+    vendor_credit: '',
     field: '',
     file: 'a_stored.pdf',
     thumbnail: '',

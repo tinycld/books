@@ -49,6 +49,9 @@ const NAMES = [
     'books_credit_memos',
     'books_credit_memo_lines',
     'books_credit_memo_tax_lines',
+    'books_vendor_credits',
+    'books_vendor_credit_lines',
+    'books_vendor_credit_applications',
 ]
 
 function register() {
@@ -273,6 +276,44 @@ describe('registerCollections', () => {
         expect(log?.syncMode).toBe('on-demand')
         expect(log?.liveTopics).toEqual(['collection/books_audit_log'])
         expect(log?.relations).toBeUndefined()
+    })
+
+    // Vendor credit spec §4: as the bill's two collections and the bill payment lines.
+    // The server writes the number, the totals, the unapplied balance and the posting
+    // stamps of a credit, and who applied an application; the client never sends them.
+    it('never inserts a vendor credit or application column the server writes', () => {
+        const { calls } = register()
+        const credits = calls.get('books_vendor_credits')?.omitOnInsert
+        expect(credits).toEqual(
+            expect.arrayContaining([
+                'created',
+                'updated',
+                'number',
+                'sequence',
+                'subtotal',
+                'total',
+                'balance',
+                'revision',
+                'currency',
+                'entry',
+                'replaced_by',
+                'posted_by',
+                'posted_at',
+                'voided_by',
+                'voided_at',
+                'sort_key',
+            ])
+        )
+        for (const written of ['vendor', 'status', 'date', 'ref_no', 'memo', 'replaces']) {
+            expect(credits, written).not.toContain(written)
+        }
+        // An account line's amount is typed by the writer, as on a bill line.
+        expect(calls.get('books_vendor_credit_lines')?.omitOnInsert).toEqual(['created', 'updated'])
+        const applications = calls.get('books_vendor_credit_applications')?.omitOnInsert
+        expect(applications).toEqual(expect.arrayContaining(['created', 'applied_by']))
+        for (const written of ['vendor_credit', 'bill', 'amount', 'date']) {
+            expect(applications, written).not.toContain(written)
+        }
     })
 
     // The contacts tab reads the contacts of one customer; nothing else enters

@@ -1027,3 +1027,21 @@ func TestProduct_DeleteRefusedWhileOnExpenseLines(t *testing.T) {
 		"This product or service is on 2 expenses. Make it inactive instead.")
 	reload(t, ee.app, "books_products", ee.patchCable.Id)
 }
+
+// Vendor credit spec §4: a product on a vendor credit line cannot be deleted;
+// the count is of vendor credits, not of lines.
+func TestProduct_DeleteRefusedWhileOnVendorCreditLines(t *testing.T) {
+	ve := newVendorCreditEnv(t)
+	first := ve.mkVendorCredit(t, ve.officeSupply, nil)
+	mkVendorCreditLine(t, ve.app, first, 0, productLine(ve.patchCable, 1, 310))
+	mkVendorCreditLine(t, ve.app, first, 1, productLine(ve.patchCable, 2, 310))
+	requireMessageOnlyRefusal(t, ve.app.Delete(reload(t, ve.app, "books_products", ve.patchCable.Id)),
+		"This product or service is on 1 vendor credit. Make it inactive instead.")
+	reload(t, ve.app, "books_products", ve.patchCable.Id)
+
+	second := ve.mkVendorCredit(t, ve.pacificPower, nil)
+	mkVendorCreditLine(t, ve.app, second, 0, productLine(ve.patchCable, 15, 310))
+	requireMessageOnlyRefusal(t, ve.app.Delete(reload(t, ve.app, "books_products", ve.patchCable.Id)),
+		"This product or service is on 2 vendor credits. Make it inactive instead.")
+	reload(t, ve.app, "books_products", ve.patchCable.Id)
+}

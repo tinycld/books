@@ -19,9 +19,14 @@ export const NO_PARTY_TEXT: Record<DocumentPartyKey, string> = {
     vendor: NO_VENDOR_TEXT,
 }
 
-// The hint under a bill's Vendor's bill no.: the layout's description (the design canvas)
-// and the text VendorRefField draws on the record.
+// The hint under a bill's Vendor's bill no.: the bill layout's description
+// (forms/hosts.ts), which VendorRefField draws, also when a stored form has none.
 export const VENDOR_REF_HINT = "The number on the vendor's bill"
+
+// The hint under a vendor credit's Vendor's credit no.: the vendor credit layout's
+// description (forms/hosts.ts), which VendorRefField draws, also when a stored form has
+// none.
+export const VENDOR_CREDIT_REF_HINT = "The number on the vendor's credit note"
 
 // The hint under an expense's Ref no.: the layout's description (forms/hosts.ts).
 export const EXPENSE_REF_HINT = 'Check number or card reference'

@@ -908,6 +908,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSalesDocGuards(parts, creditMemoKind)
 	registerSalesDocGuards(parts, billKind)
 	registerSalesDocGuards(parts, expenseKind)
+	registerSalesDocGuards(parts, vendorCreditKind)
 	registerPaymentGuards(parts)
 	registerBillPaymentGuards(parts)
 	registerEstimateResponses(parts)
