@@ -33,6 +33,14 @@ export function nonTaxableService() {
     return row.name
 }
 
+// A plain dollar rate ("1250.00") as the line's amount cell writes it ("$1,250.00").
+const usdAmount = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+})
+
 // The seeded single rate a taxable invoice charges: one component, so its tax shows under
 // one rate row of the Sales Tax Liability.
 const TAXABLE_INVOICE_RATE = /^Colorado state\b/
@@ -48,7 +56,9 @@ export async function fillInvoice(
     await page.getByTestId('form-input-due_date').fill(input.dueDate)
     const rowId = await pickLineProduct(page, 0, nonTaxableService())
     await page.getByTestId(lineCellTestId(rowId, 'rate')).fill(input.rate)
-    await expect(page.getByTestId(lineCellTestId(rowId, 'amount'))).toContainText(`$${input.rate}`)
+    await expect(page.getByTestId(lineCellTestId(rowId, 'amount'))).toContainText(
+        usdAmount.format(Number(input.rate))
+    )
     if (!input.taxable) return
     await page.getByTestId('form-input-tax_rate').click()
     const rate = page.getByRole('menuitem', { name: TAXABLE_INVOICE_RATE })

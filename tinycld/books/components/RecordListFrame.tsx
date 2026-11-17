@@ -37,6 +37,9 @@ export type RecordListFrameProps<Row> = {
     renderTable(selectedId: string): ReactNode
     renderCards(): ReactNode
     dialog: ReactNode
+    // A control beside the New button, such as a report link. Pass undefined, not an
+    // element that renders null, when there is none to show.
+    headerAction?: ReactNode
 }
 
 function BackLink({ testID, onPress }: { testID: string; onPress: () => void }) {
@@ -74,18 +77,51 @@ function NewButton({
     )
 }
 
+// An empty row would still take the header's gap, so it renders only with a button in it.
+// With a header action it takes the width the title leaves and wraps its buttons, so they
+// fit beside the title in the narrow names layout; with the New button alone it keeps the
+// button's width and the title wraps instead (G8).
+function HeaderButtons({
+    isVisible,
+    hasAction,
+    children,
+}: {
+    isVisible: boolean
+    hasAction: boolean
+    children: ReactNode
+}) {
+    if (!isVisible) return null
+    const className = hasAction
+        ? 'flex-row flex-wrap items-center justify-end gap-2 min-w-0 flex-1'
+        : 'flex-row flex-wrap items-center justify-end gap-2'
+    return <View className={className}>{children}</View>
+}
+
 interface HeaderProps {
     listPrefix: string
     recordPrefix: string
     copy: PartyListCopy
     canWrite: boolean
+    // Undefined when there is nothing to show: the frame cannot see that an element
+    // renders null.
+    headerAction: ReactNode | undefined
     onBack: () => void
     onNew: () => void
 }
 
-function ListHeader({ listPrefix, recordPrefix, copy, canWrite, onBack, onNew }: HeaderProps) {
+function ListHeader({
+    listPrefix,
+    recordPrefix,
+    copy,
+    canWrite,
+    headerAction,
+    onBack,
+    onNew,
+}: HeaderProps) {
     const { showNewButton } = listWriteControls(canWrite)
     const newLabel = `New ${copy.singular}`
+    const hasAction = headerAction !== undefined
+    const hasButtons = showNewButton || hasAction
     return (
         <View className="gap-2 px-4 pb-3 pt-4">
             <BackLink testID={`${listPrefix}-back`} onPress={onBack} />
@@ -97,12 +133,15 @@ function ListHeader({ listPrefix, recordPrefix, copy, canWrite, onBack, onNew }:
                 >
                     {copy.title}
                 </Text>
-                <NewButton
-                    isVisible={showNewButton}
-                    testID={`${recordPrefix}-new-header`}
-                    label={newLabel}
-                    onPress={onNew}
-                />
+                <HeaderButtons isVisible={hasButtons} hasAction={hasAction}>
+                    {headerAction}
+                    <NewButton
+                        isVisible={showNewButton}
+                        testID={`${recordPrefix}-new-header`}
+                        label={newLabel}
+                        onPress={onNew}
+                    />
+                </HeaderButtons>
             </View>
         </View>
     )
@@ -149,6 +188,7 @@ export function RecordListFrame<Row>(props: RecordListFrameProps<Row>) {
                 recordPrefix={recordPrefix}
                 copy={copy}
                 canWrite={canWrite}
+                headerAction={props.headerAction}
                 onBack={backToLists}
                 onNew={props.onNew}
             />

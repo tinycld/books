@@ -1,0 +1,78 @@
+{
+    "outDir": "customer-balance-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [375, 390, 1280],
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "opened",
+            "url": "/a/books/helix-mockup?state=opened",
+            "ready": "report-table",
+            "widths": [375, 390, 1280],
+            "height": 1800,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "collapsed",
+            "url": "/a/books/helix-mockup?state=collapsed",
+            "ready": "report-table",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "with-activity",
+            "url": "/a/books/helix-mockup?state=with-activity",
+            "ready": "report-table",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "by-balance",
+            "url": "/a/books/helix-mockup?state=by-balance",
+            "ready": "report-table",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "report-table",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "picker",
+            "url": "/a/books/helix-mockup?state=picker",
+            "ready": "report-filter-picker",
+            "fakeOptions": true,
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "waitFor": "report-filter-options"
+                }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "report-empty",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "report-loading",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "report-error",
+            "hideLabels": ["New"]
+        }
+    ]
+}

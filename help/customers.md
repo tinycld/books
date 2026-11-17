@@ -5,7 +5,7 @@ tags: [customers, sub-customers, inactive, delete, custom fields]
 order: 30
 ---
 
-A customer is a person or a company that you sell to. To see your customers, choose Lists in the sidebar and pick the Customers card. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Customers or Chart of Accounts list. You can also swipe in from the left edge of the screen to open the sidebar, then choose Lists. Then pick the Customers card. A read-only user can open customers but cannot change them.
+A customer is a person or a company that you sell to. To see your customers, choose Lists in the sidebar and pick the Customers card. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Customers or Chart of Accounts list. You can also swipe in from the left edge of the screen to open the sidebar, then choose Lists. Then pick the Customers card. To see what each customer owes, press Balance report at the top of the Customers list: it opens the [Customer Balance report](help://books:reports). A read-only user can open customers but cannot change them.
 
 ## Find a customer
 
