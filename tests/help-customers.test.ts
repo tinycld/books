@@ -51,12 +51,30 @@ describe('help/customers.md', () => {
         expect(body).toContain('(help://books:estimates)')
     })
 
-    // Customer balance checkpoint 3: the list's Balance report button opens the report.
-    it('links the Customer Balance report and names the Balance report button', () => {
+    // Sales reports checkpoint 3 (plan D9): the list's Reports menu, with Customer Balance
+    // and Sales by Customer, replaces the Balance report button.
+    it('links the Customer Balance report and the sales reports section', () => {
         const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
         expect(links.some(text => /Customer Balance/.test(text))).toBe(true)
-        // The button's name, apart from the link's own text.
-        expect(body.replace(/\[[^\]]*\]\([^)]*\)/g, '')).toContain('Balance report')
+        expect(links.some(text => /\bsales reports?\b|\bSales by Customer\b/i.test(text))).toBe(
+            true
+        )
+    })
+
+    it('names the Reports button and its two items, Customer Balance and Sales by Customer', () => {
+        // The button's name, apart from the links' own text.
+        const plain = body.replace(/\[[^\]]*\]\([^)]*\)/g, '')
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        expect(plain).toMatch(/\bReports\b/)
+        expect(
+            sentences.some(
+                sentence =>
+                    /\bReports\b/.test(sentence) &&
+                    /\bCustomer Balance\b/.test(sentence) &&
+                    /\bSales by Customer\b/.test(sentence)
+            )
+        ).toBe(true)
+        expect(plain).not.toMatch(/\bpress Balance report\b/)
     })
 
     it('explains creating a customer', () => {

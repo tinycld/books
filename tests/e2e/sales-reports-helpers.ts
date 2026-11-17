@@ -327,6 +327,275 @@ export async function pressReportRow(page: Page, rowId: string): Promise<void> {
     await row.click()
 }
 
+type Box = { left: number; right: number; top: number; bottom: number }
+
+// One mounted row as drawn: its label's box and drawn lines, and each named column's cell.
+// A cell is whole when no element in it is wider or taller than its box and its text is
+// drawn on one line (a figure broken onto a second line is not whole).
+interface DrawnSalesRow {
+    id: string
+    label: string
+    labelBox: Box
+    labelLines: number
+    cells: Record<string, { text: string; box: Box; isWhole: boolean } | null>
+}
+
+interface DrawnSalesRows {
+    rows: DrawnSalesRow[]
+    table: Box | null
+    // Elements of the report table (outside the controls strip) that scroll sideways, and
+    // the page's own sideways overflow.
+    sideways: string[]
+}
+
+// Every mounted row of the report table and the named columns' cells, read in ONE pass
+// (lesson 11). A label's lines are its text box's height over its line height: core clamps
+// a wrapped label with line-clamp, whose hidden lines still have boxes.
+function readSalesRows(page: Page, columns: readonly string[]): Promise<DrawnSalesRows> {
+    return page.evaluate(cols => {
+        const boxOf = (element: Element) => {
+            const rect = element.getBoundingClientRect()
+            return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
+        }
+        const textElementOf = (element: Element): HTMLElement | null => {
+            const whole = (element.textContent ?? '').trim()
+            if (whole === '') return null
+            let found: HTMLElement | null = element instanceof HTMLElement ? element : null
+            for (const node of element.querySelectorAll('*')) {
+                if (node instanceof HTMLElement && (node.textContent ?? '').trim() === whole) {
+                    found = node
+                }
+            }
+            return found
+        }
+        const linesOf = (element: HTMLElement | null) => {
+            if (!element) return 0
+            const style = getComputedStyle(element)
+            const parsed = Number.parseFloat(style.lineHeight)
+            const lineHeight = Number.isNaN(parsed)
+                ? Number.parseFloat(style.fontSize) * 1.2
+                : parsed
+            return Math.round(element.getBoundingClientRect().height / lineHeight)
+        }
+        const isUncut = (node: Element) =>
+            [node, ...node.querySelectorAll('*')].every(
+                e =>
+                    !(e instanceof HTMLElement) ||
+                    (e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight <= e.clientHeight + 1)
+            )
+        const isOneLine = (node: Element) => {
+            const rects: DOMRect[] = []
+            const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
+            for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+                if (!text.textContent?.trim()) continue
+                const range = document.createRange()
+                range.selectNodeContents(text)
+                for (const rect of range.getClientRects()) {
+                    if (rect.width > 0 && rect.height > 0) rects.push(rect)
+                }
+            }
+            if (rects.length === 0) return true
+            const top = Math.min(...rects.map(rect => rect.top))
+            const bottom = Math.max(...rects.map(rect => rect.bottom))
+            const lineHeight = Math.max(...rects.map(rect => rect.height))
+            return bottom - top <= lineHeight + 1
+        }
+        const table = document.querySelector('[data-testid="report-table"]')
+        // Row ids hold quotes and brackets, so cells are keyed by test id, not selected.
+        const byTestId = new Map<string, Element>()
+        for (const node of table?.querySelectorAll('[data-testid^="report-"]') ?? []) {
+            byTestId.set(node.getAttribute('data-testid') ?? '', node)
+        }
+        const rows: DrawnSalesRow[] = []
+        for (const label of table?.querySelectorAll('[data-testid^="report-row-"]') ?? []) {
+            const id = (label.getAttribute('data-testid') ?? '').slice('report-row-'.length)
+            const cells: DrawnSalesRow['cells'] = {}
+            for (const column of cols) {
+                const cell = byTestId.get(`report-cell-${column}-${id}`)
+                cells[column] = cell
+                    ? {
+                          text: (cell as HTMLElement).innerText.trim(),
+                          box: boxOf(cell),
+                          isWhole: isUncut(cell) && isOneLine(cell),
+                      }
+                    : null
+            }
+            rows.push({
+                id,
+                label: (label.textContent ?? '').replace(/\s+/g, ' ').trim(),
+                labelBox: boxOf(label),
+                labelLines: linesOf(textElementOf(label)),
+                cells,
+            })
+        }
+        rows.sort((a, b) => a.labelBox.top - b.labelBox.top)
+        const sideways: string[] = []
+        if (table) {
+            for (const node of [table, ...table.querySelectorAll('*')]) {
+                if (node.closest('[data-testid="report-controls"]') !== null) continue
+                const overflowX = getComputedStyle(node).overflowX
+                const scrolls = node === table || overflowX === 'auto' || overflowX === 'scroll'
+                if (scrolls && node.scrollWidth > node.clientWidth + 1) {
+                    sideways.push(
+                        `${node.getAttribute('data-testid') ?? node.tagName} (scrollWidth ${node.scrollWidth}, clientWidth ${node.clientWidth})`
+                    )
+                }
+            }
+        }
+        const scroller = document.scrollingElement ?? document.documentElement
+        if (scroller.scrollWidth > scroller.clientWidth) {
+            sideways.push(
+                `the page (scrollWidth ${scroller.scrollWidth}, clientWidth ${scroller.clientWidth})`
+            )
+        }
+        return { rows, table: table ? boxOf(table) : null, sideways }
+    }, columns)
+}
+
+// What is wrong with the drawn rows, in words; empty when every row fits.
+function salesRowProblems(read: DrawnSalesRows, columns: readonly string[]): string[] {
+    const problems: string[] = []
+    if (!read.table) return ['no report table']
+    if (read.rows.length === 0) problems.push('no report row is mounted')
+    const table = read.table
+    for (const row of read.rows) {
+        const name = `row ${row.id} "${row.label.slice(0, 40)}"`
+        if (row.labelLines > 3) problems.push(`${name}: its label takes ${row.labelLines} lines`)
+        for (const column of columns) {
+            const cell = row.cells[column]
+            if (!cell || cell.text === '') continue
+            if (!cell.isWhole) problems.push(`${name}: its ${column} "${cell.text}" is not whole`)
+            if (cell.box.right > table.right + 1 || cell.box.left < table.left - 1) {
+                problems.push(`${name}: its ${column} "${cell.text}" lies outside the table`)
+            }
+        }
+    }
+    for (const what of read.sideways) problems.push(`scrolls sideways: ${what}`)
+    return problems
+}
+
+/**
+ * Asserts the open sales report fits the screen (sales-reports checkpoint 3): on every
+ * mounted row each of the named `columns` (column ids, e.g. `sales`, `pct`) that shows a
+ * figure shows it whole, on one line and inside the table; every label takes at most three
+ * lines; and neither the report table nor the page scrolls sideways. Polled: the layout
+ * settles a frame after a resize or a press; each poll is one read.
+ */
+export async function expectSalesRowsFit(page: Page, columns: readonly string[]): Promise<void> {
+    await expect
+        .poll(async () => salesRowProblems(await readSalesRows(page, columns), columns), {
+            message: 'the sales report rows fit the screen',
+        })
+        .toEqual([])
+}
+
+// What breaks the phone `lines` of the row `rowId` on one read; empty when they hold.
+function phoneLineProblems(
+    read: DrawnSalesRows,
+    rowId: string,
+    lines: readonly (readonly string[])[]
+): string[] {
+    const row = read.rows.find(r => r.id === rowId)
+    if (!row) return [`the row ${rowId} is not mounted`]
+    const problems: string[] = []
+    // Line 1 is the label; each later line lies below the line above it.
+    let above = { label: 'the label', bottom: row.labelBox.bottom }
+    let shown = 0
+    for (const [index, line] of lines.entries()) {
+        const cells = line
+            .map(column => ({ column, cell: row.cells[column] }))
+            .filter(({ column, cell }) => {
+                if (!cell) problems.push(`no ${column} cell`)
+                return cell !== null && cell !== undefined && cell.text !== ''
+            })
+        if (cells.length === 0) continue
+        shown += cells.length
+        const tops = cells.map(({ cell }) => cell?.box.top ?? Number.NaN)
+        const top = Math.min(...tops)
+        if (Math.max(...tops) - top > 1) {
+            problems.push(
+                `line ${index + 2} (${line.join(', ')}) is not one line: tops ${tops.join(', ')}`
+            )
+        }
+        if (!(top >= above.bottom - 1)) {
+            problems.push(
+                `line ${index + 2} (top ${top}) is not below ${above.label} (bottom ${above.bottom})`
+            )
+        }
+        for (const { column, cell } of cells) {
+            if (cell && !cell.isWhole) problems.push(`${column} "${cell.text}" is not whole`)
+        }
+        above = {
+            label: `line ${index + 2}`,
+            bottom: Math.max(...cells.map(({ cell }) => cell?.box.bottom ?? Number.NaN)),
+        }
+    }
+    if (shown === 0) problems.push('the row shows no figure')
+    return problems
+}
+
+/**
+ * Asserts the mounted row `rowId` of the open sales report is laid out in its phone
+ * arrangement: the label on line 1, then each of `lines` (column ids) on its own line below
+ * the one before, the figures of a line side by side on one line band, each whole. A blank
+ * cell (a sale line's % of sales) is not placed. Polled.
+ */
+export async function expectSalesPhoneLines(
+    page: Page,
+    rowId: string,
+    lines: readonly (readonly string[])[]
+): Promise<void> {
+    await expect
+        .poll(
+            async () => phoneLineProblems(await readSalesRows(page, lines.flat()), rowId, lines),
+            {
+                message: `the phone lines of report row ${rowId}`,
+            }
+        )
+        .toEqual([])
+}
+
+/**
+ * Scrolls the open report's table from its top, a screen at a time, until a row whose
+ * label is `label` is mounted, puts it in the middle of the view, and returns its row id.
+ * In ONE page.evaluate (lesson 11). Throws when the list ends with no such row.
+ */
+export async function scrollToSalesRow(page: Page, label: string): Promise<string> {
+    const id = await page.evaluate(async wanted => {
+        const frames = () =>
+            new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const find = () =>
+            [
+                ...document.querySelectorAll(
+                    '[data-testid="report-table"] [data-testid^="report-row-"]'
+                ),
+            ].find(row => (row.textContent ?? '').replace(/\s+/g, ' ').trim() === wanted)
+        const first = document.querySelector(
+            '[data-testid="report-table"] [data-testid^="report-row-"]'
+        )
+        let list = first?.parentElement ?? null
+        while (list && getComputedStyle(list).overflowY !== 'auto') list = list.parentElement
+        if (!list) return null
+        list.scrollTop = 0
+        await frames()
+        for (let step = 0; step < 400; step++) {
+            const row = find()
+            if (row) {
+                row.scrollIntoView({ block: 'center' })
+                await frames()
+                return (find()?.getAttribute('data-testid') ?? '').slice('report-row-'.length)
+            }
+            const before = list.scrollTop
+            list.scrollTop = before + list.clientHeight * 0.8
+            await frames()
+            if (list.scrollTop === before && !find()) return null
+        }
+        return null
+    }, label)
+    if (!id) throw new Error(`no report row labelled "${label}"`)
+    return id
+}
+
 // The computed text color of a mounted row's label and of its `column` figure: each read
 // on the deepest element that holds the whole text, in ONE pass.
 export function rowColors(

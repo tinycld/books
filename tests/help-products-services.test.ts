@@ -35,6 +35,17 @@ describe('help/products-services.md', () => {
         }
     })
 
+    // Sales reports checkpoint 3: the list's Sales report button opens Sales by
+    // Product/Service.
+    it('links the sales reports section and names the Sales report button', () => {
+        const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
+        expect(
+            links.some(text => /\bsales reports?\b|\bSales by Product\/Service\b/i.test(text))
+        ).toBe(true)
+        // The button's name, apart from the links' own text.
+        expect(body.replace(/\[[^\]]*\]\([^)]*\)/g, '')).toMatch(/\bSales report\b/)
+    })
+
     // The chooser's sentence says what each type is for; the topic gives it beside the label.
     it('names the three types, each with what it is for', () => {
         expect(topicExists).toBe(true)
