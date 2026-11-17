@@ -637,6 +637,36 @@ describe('entryTypeLabel for invoices', () => {
     })
 })
 
+// The credit memo's entry (spec §3.9 "Journal Entries list, registers, entry drawer"):
+// Type "Credit memo", and the drawer's Open picks the memo by the entry's document.
+describe('entryTypeLabel for credit memos', () => {
+    it('labels a credit memo entry "Credit memo"', () => {
+        expect(entryTypeLabel('document', '', 'credit_memo')).toBe('Credit memo')
+    })
+
+    it("keeps the reversal suffix on a credit memo's void reversal", () => {
+        expect(entryTypeLabel('void_reversal', '1001', 'credit_memo')).toBe('Void reversal of 1001')
+    })
+
+    it("gives the drawer detail of a credit memo entry the memo's id", () => {
+        const base = synthetic('c', { credit: 45_000 })
+        const line = {
+            ...base,
+            entryRecord: {
+                ...entryOf('e_c', '2026-11-16 09:00:00.000Z'),
+                number: '1001',
+                doc_type: 'credit_memo',
+                origin: 'document',
+                document: 'crmp1001every01',
+            },
+        } satisfies RegisterSourceLine
+        const detail = entryDetail(line, ME)
+        expect(detail?.typeLabel).toBe('Credit memo')
+        expect(detail?.docType).toBe('credit_memo')
+        expect(detail?.document).toBe('crmp1001every01')
+    })
+})
+
 describe('entryTypeLabel for opening balances', () => {
     it('names an opening entry and leaves a manual entry unchanged', () => {
         expect(entryTypeLabel('opening_balance', '')).toBe('Opening balances')

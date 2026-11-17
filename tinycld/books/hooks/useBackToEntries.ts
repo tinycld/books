@@ -4,6 +4,7 @@ import { useNavigationState } from 'expo-router/react-navigation'
 import { documentHref, documentStackRouteName } from '../lib/document-routes'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
@@ -27,10 +28,14 @@ const LABELS: Record<string, string> = {
     'payments/[id]': 'Payment',
     'bill-payments/[id]': 'Bill payment',
     ...Object.fromEntries(
-        [INVOICE_KIND, SALES_RECEIPT_KIND, ESTIMATE_KIND, BILL_KIND, EXPENSE_KIND].map(kind => [
-            documentStackRouteName(kind),
-            kind.noun,
-        ])
+        [
+            INVOICE_KIND,
+            SALES_RECEIPT_KIND,
+            CREDIT_MEMO_KIND,
+            ESTIMATE_KIND,
+            BILL_KIND,
+            EXPENSE_KIND,
+        ].map(kind => [documentStackRouteName(kind), kind.noun])
     ),
 }
 

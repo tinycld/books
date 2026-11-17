@@ -117,6 +117,7 @@ describe('registries', () => {
             'estimate',
             'sales_receipt',
             'receive_payment',
+            'credit_memo',
         ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual([
@@ -176,6 +177,7 @@ describe('registries', () => {
             'Estimate',
             'Sales receipt',
             'Receive payment',
+            'Credit memo',
         ])
         const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
         expect(invoice).toMatchObject({
@@ -233,12 +235,30 @@ describe('registries', () => {
 
     // Customer pages §3.3: the customer page's New transaction menu lists the actions
     // that take a customer.
-    it('flags exactly Invoice, Estimate, Sales receipt and Receive payment as taking a customer', () => {
+    // Credit memo spec §2: + New → Customers → "Credit memo", after "Receive payment",
+    // taking a customer so the customer page's New transaction menu lists it.
+    it('the New menu lists an available Credit memo right after Receive payment', () => {
+        const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
+        const ids = customers?.actions.map(a => a.id) ?? []
+        expect(ids).toContain('credit_memo')
+        expect(ids.indexOf('credit_memo')).toBe(ids.indexOf('receive_payment') + 1)
+        expect(NEW_ACTIONS.find(a => a.id === 'credit_memo')).toEqual({
+            id: 'credit_memo',
+            label: 'Credit memo',
+            href: 'books/credit-memos/new',
+            column: 'customers',
+            available: true,
+            takesCustomer: true,
+        })
+    })
+
+    it('flags exactly Invoice, Estimate, Sales receipt, Receive payment and Credit memo as taking a customer', () => {
         expect(NEW_ACTIONS.filter(a => a.takesCustomer).map(a => a.id)).toEqual([
             'invoice',
             'estimate',
             'sales_receipt',
             'receive_payment',
+            'credit_memo',
         ])
         for (const other of NEW_ACTIONS.filter(a => !a.takesCustomer)) {
             expect(other).not.toHaveProperty('takesCustomer')
@@ -550,6 +570,8 @@ describe('hidesNewFab', () => {
         '/a/acme/books/invoices/abc123/',
         '/a/books/sales-receipts/new',
         '/a/books/sales-receipts/abc',
+        '/a/books/credit-memos/new',
+        '/a/books/credit-memos/abc',
         '/a/books/estimates/new',
         '/a/books/estimates/abc',
         '/a/books/bills/new',

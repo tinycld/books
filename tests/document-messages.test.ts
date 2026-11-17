@@ -13,6 +13,7 @@ import {
 } from '../tinycld/books/lib/document-messages'
 import {
     BILL_MESSAGES,
+    CREDIT_MEMO_MESSAGES,
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
 } from '../tinycld/books/lib/document-texts'
@@ -20,6 +21,7 @@ import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
 import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
@@ -139,6 +141,103 @@ describe('server/sales_receipts.go', () => {
             expect(receiptServerSource()).toContain(`"${text}"`)
         })
     }
+})
+
+// The credit memo's texts the client and the server both show (checkpoint 3 Decisions:
+// Messages). The shared customer text's Go constant is server/invoices.go's.
+const CREDIT_MEMO_SHARED = {
+    totalNegative: 'A credit memo total cannot be below zero. Use an invoice.',
+    totalTooLarge: 'The credit memo total is more than Books can store.',
+    tooManyLines: 'A credit memo can have at most 250 lines.',
+    zeroTotal:
+        'A credit memo with a total of zero cannot be posted. Add an amount or keep it as a draft.',
+} as const
+
+const CREDIT_MEMO_CLIENT_ONLY = {
+    noAccess: 'You need bookkeeper access to create credit memos',
+    notFound: 'This credit memo does not exist',
+    cannotEdit: 'This credit memo cannot be edited',
+    loadFailed: 'Books could not load this credit memo.',
+    cannotCredit: 'This invoice cannot be credited',
+    pdfUnsaved: 'Save a draft to see the PDF',
+    pdfStale: 'Shows the last saved version',
+    needItemLine: 'Add at least one product or service line',
+    voidBody: 'A reversing entry is posted in the original period. The number is kept.',
+} as const
+
+function creditMemoServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'credit_memos.go'), 'utf8')
+}
+
+describe('CREDIT_MEMO_MESSAGES', () => {
+    it('holds every shared text under its key', () => {
+        expect(CREDIT_MEMO_MESSAGES).toMatchObject(CREDIT_MEMO_SHARED)
+        expect(CREDIT_MEMO_MESSAGES.customerInactive).toBe(
+            '%s is inactive. Choose an active customer.'
+        )
+    })
+
+    it('holds every client text under its key', () => {
+        expect(CREDIT_MEMO_MESSAGES).toMatchObject(CREDIT_MEMO_CLIENT_ONLY)
+        expect(CREDIT_MEMO_MESSAGES.voidBody).toBe(INVOICE_MESSAGES.voidBody)
+    })
+
+    it('is the credit memo kind’s texts', () => {
+        expect(CREDIT_MEMO_KIND.messages).toBe(CREDIT_MEMO_MESSAGES)
+    })
+})
+
+describe('server/credit_memos.go', () => {
+    for (const [key, text] of Object.entries(CREDIT_MEMO_SHARED)) {
+        it(`holds the credit memo's ${key} text verbatim as a Go string`, () => {
+            expect(creditMemoServerSource()).toContain(`"${text}"`)
+        })
+    }
+
+    it('holds the customer-on-credit-memos text, and the client shows the same words', () => {
+        expect(creditMemoServerSource()).toContain(
+            '"%s is on credit memos. Make it inactive instead."'
+        )
+        expect(CREDIT_MEMO_MESSAGES.customerOnInvoices).toBe(
+            '%s is on credit memos. Make it inactive instead.'
+        )
+    })
+
+    it('shares the inactive customer text with server/invoices.go', () => {
+        expect(serverSource()).toContain(`"${CREDIT_MEMO_MESSAGES.customerInactive}"`)
+    })
+})
+
+describe('documentRefusalTarget with the credit memo kind', () => {
+    const creditMemoTarget = (message: string) => documentRefusalTarget(message, CREDIT_MEMO_KIND)
+
+    it('puts the inactive customer under Customer', () => {
+        expect(creditMemoTarget('Old Mill Bakery is inactive. Choose an active customer.')).toBe(
+            'customer'
+        )
+    })
+
+    it('puts the shared day texts under the date', () => {
+        expect(creditMemoTarget('Enter a date that exists, in the form YYYY-MM-DD.')).toBe('date')
+        expect(creditMemoTarget('Enter a date in 1900 or later.')).toBe('date')
+    })
+
+    it('puts the shared tax-rate texts under Tax', () => {
+        expect(creditMemoTarget('Tax rate Old is inactive. Choose an active rate.')).toBe(
+            'tax_rate'
+        )
+        expect(creditMemoTarget('The tax rate is inactive. Choose an active rate.')).toBe(
+            'tax_rate'
+        )
+    })
+
+    it('puts the close-date text at the root', () => {
+        expect(
+            creditMemoTarget(
+                'The books are closed through 2026-06-30. Ask a Books admin for a close-date override to post on 2026-06-15.'
+            )
+        ).toBe('root')
+    })
 })
 
 // The estimate's texts the client and the server both show, whose Go constants live in

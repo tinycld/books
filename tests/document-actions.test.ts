@@ -9,6 +9,7 @@ import {
 } from '../tinycld/books/lib/document-actions'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     EXPENSE_KIND,
     SALES_FEATURES,
     SALES_RECEIPT_KIND,
@@ -253,6 +254,25 @@ describe('the sales receipt read view', () => {
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
+    })
+})
+
+// The credit memo's read view (spec §3.7): the invoice's actions, from the kind's own
+// features.
+describe('the credit memo read view', () => {
+    const creditMemo = (status: 'posted' | 'void', canWrite: boolean) =>
+        documentReadActions(status, canWrite, CREDIT_MEMO_KIND.features)
+
+    it('offers a writer Edit, Void, Copy, View journal entry and Download PDF on a posted memo', () => {
+        expect(creditMemo('posted', true)).toEqual(['edit', 'void', 'copy', 'entry', 'pdf'])
+    })
+
+    it('offers a writer Copy, View journal entry and Download PDF on a void memo', () => {
+        expect(creditMemo('void', true)).toEqual(['copy', 'entry', 'pdf'])
+    })
+
+    it('offers a reader View journal entry and Download PDF', () => {
+        expect(creditMemo('posted', false)).toEqual(['entry', 'pdf'])
     })
 })
 

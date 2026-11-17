@@ -58,6 +58,13 @@ describe('searchTarget', () => {
         })
     })
 
+    it('routes a credit memo hit to the credit memo screen', () => {
+        expect(searchTarget('credit_memo:abc')).toEqual({
+            path: 'books/credit-memos/[id]',
+            id: 'abc',
+        })
+    })
+
     it('routes an estimate hit to the estimate screen', () => {
         expect(searchTarget('estimate:abc')).toEqual({
             path: 'books/estimates/[id]',

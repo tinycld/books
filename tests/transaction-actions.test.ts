@@ -12,7 +12,7 @@ function withReceivePayment(change: (action: NewAction) => NewAction): NewAction
 }
 
 describe('transactionActions', () => {
-    it('lists Invoice, Estimate, Sales receipt and Receive payment in NEW_ACTIONS order', () => {
+    it('lists Invoice, Estimate, Sales receipt, Receive payment and Credit memo in NEW_ACTIONS order', () => {
         expect(transactionActions()).toEqual([
             { id: 'invoice', label: 'Invoice', testId: 'customer-new-invoice' },
             { id: 'estimate', label: 'Estimate', testId: 'customer-new-estimate' },
@@ -22,6 +22,7 @@ describe('transactionActions', () => {
                 label: 'Receive payment',
                 testId: 'customer-new-receive-payment',
             },
+            { id: 'credit_memo', label: 'Credit memo', testId: 'customer-new-credit-memo' },
         ])
     })
 
@@ -31,6 +32,7 @@ describe('transactionActions', () => {
             'invoice',
             'estimate',
             'sales_receipt',
+            'credit_memo',
         ])
     })
 
@@ -40,6 +42,7 @@ describe('transactionActions', () => {
             'invoice',
             'estimate',
             'sales_receipt',
+            'credit_memo',
         ])
     })
 })
@@ -52,5 +55,9 @@ describe('transactionHref', () => {
             'books/sales-receipts/new?customer=abc'
         )
         expect(transactionHref('receive_payment', 'abc')).toBe('books/payments/new?customer=abc')
+    })
+
+    it('opens a new credit memo with the customer', () => {
+        expect(transactionHref('credit_memo', 'abc')).toBe('books/credit-memos/new?customer=abc')
     })
 })

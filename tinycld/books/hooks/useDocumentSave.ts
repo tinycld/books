@@ -698,15 +698,21 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         if (isHeld) useDocumentSaveStore.getState().hold(id)
     }
 
-    // The estimate a new invoice names is no field of the form: the insert writes it.
+    // The estimate a new invoice names, and the invoice a new credit memo is for, are no
+    // fields of the form: the insert writes them.
     const estimateColumn = state.estimate === '' ? {} : { estimate: state.estimate }
+    const invoiceColumn = state.invoice === '' ? {} : { invoice: state.invoice }
 
     const startCreate = async (mode: SaveMode, restoreLines: () => void) => {
         const split = await state.create.submit()
         if (!split) return false
         const columns = {
             ...documentKind.emptyColumns,
-            ...columnsOrThrow(documentKind.columnsFrom, { ...split.columns, ...estimateColumn }),
+            ...columnsOrThrow(documentKind.columnsFrom, {
+                ...split.columns,
+                ...estimateColumn,
+                ...invoiceColumn,
+            }),
         }
         const id = newRecordId()
         const plans = createTablePlans(split.tables, lineColumns)

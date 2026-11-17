@@ -53,6 +53,11 @@ const CUSTOMER_REFUSAL = /^Customer\b|is inactive\. Choose an active customer\.?
 // server sends them for its due date too, so the text names the date field only for a
 // kind with no due date.
 const DATE_REFUSAL = /^Enter a date (that exists|in 1900 or later)\b/
+// The customer kinds whose one day field is `date`: they have no due date.
+const DATE_ONLY_KINDS: ReadonlySet<SalesDocumentKind['key']> = new Set([
+    'sales_receipt',
+    'credit_memo',
+])
 const DUE_DATE_REFUSAL = /^(The due date|Due date)\b/
 // The server's own "The tax rate is inactive. Choose an active rate." included.
 const TAX_REFUSAL = /^(The tax|Tax)\b/
@@ -99,7 +104,8 @@ function isTableLineText(message: string, kind: Pick<SalesDocumentKind, 'lineTab
 }
 
 // The kind decides which fields it has (its `key` and `party`): only an invoice and a
-// bill have a due date, only a sales receipt has Deposit to, only an estimate has
+// bill have a due date (so a day text names `date` only on a sales receipt or a credit
+// memo), only a sales receipt has Deposit to, only an estimate has
 // Expiration date and Accepted date, only a bill has Vendor's bill no., only an expense
 // has Paid from and Ref no., and a kind whose party is a vendor has Vendor (and no
 // customer or tax).
@@ -129,7 +135,7 @@ function customerKindRefusalTarget(
     kind: Pick<SalesDocumentKind, 'key'>
 ): DocumentRefusalTarget {
     if (CUSTOMER_REFUSAL.test(message)) return 'customer'
-    if (kind.key === 'sales_receipt' && DATE_REFUSAL.test(message)) return 'date'
+    if (DATE_ONLY_KINDS.has(kind.key) && DATE_REFUSAL.test(message)) return 'date'
     if (kind.key === 'invoice' && DUE_DATE_REFUSAL.test(message)) return 'due_date'
     if (TAX_REFUSAL.test(message)) return 'tax_rate'
     if (kind.key === 'sales_receipt' && DEPOSIT_REFUSAL.test(message)) return 'deposit_to'

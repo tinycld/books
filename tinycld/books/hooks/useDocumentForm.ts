@@ -112,13 +112,14 @@ function documentRecordSchema(
 }
 
 // The built-ins of a correction's, a copy's or an invoice-from-estimate's values:
-// `replaces` and `estimate` are no fields of the form (the save writes them), so the
-// engine never files them among the custom fields.
+// `replaces`, `estimate` and a credit memo's `invoice` are no fields of the form (the save
+// writes them), so the engine never files them among the custom fields.
 function builtinValuesOf(values: DocumentStartValues | undefined): DocumentStartValues | undefined {
     if (!values) return undefined
     const builtins: DocumentStartValues = { ...values }
     delete builtins.replaces
     delete builtins.estimate
+    delete builtins.invoice
     return builtins
 }
 
@@ -328,6 +329,9 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         // The estimate a new invoice is made from, or a new correction keeps; its insert
         // writes it. A stored invoice's is on its record and is never written again.
         estimate: isNew ? textOf(input.startValues?.estimate) : '',
+        // The invoice a new credit memo is for (a correction of a linked memo keeps its
+        // original's); its insert writes it. A stored memo's is on its record.
+        invoice: isNew ? textOf(input.startValues?.invoice) : '',
         // Post's line-count error under the first shown table, on a form with several
         // tables: its table and the key it is filed at. Null for a kind with one table
         // (its table's field cell draws it).
