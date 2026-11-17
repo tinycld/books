@@ -47,6 +47,8 @@
 - cp 3 · products-header-phone-390: after the fix the header actions take their own row, so the search row starts about 44 px lower than on the Customers list (the buttons do not fit beside this title; critic NOTE).
 - cp 3 · reviewer A NOTE: `ShippedReportsMenu` items use `onSelect` only; core `Menu.Item` also takes `href` (a link on web, ⌘-click to a new tab). `ShippedReportButton` has the same gap, so not a regression.
 - cp 3 · fix review NOTE: the no-row halves now wait for the fulfilled fake answer and the list's first row before `toHaveCount(0)`; a wrong button that rendered a few ms after the answer could still slip past (a theoretical window; the one-row half proves the item shows with the same fake).
+- CI fix 1 · fix review NOTE: `filterSalesTo`'s per-pick wait for a changed `p-<param>` URL value fails on a pick that does not change it (an option already ticked); no caller does this.
+- CI fix 1 · fix review NOTE: the `/api/reports/run` response listener calls `postDataJSON()`, which would throw on a non-JSON body; the run endpoint takes JSON only.
 
 ## Out-of-plan changes
 - cp 0 · core `core/server/reports/run_test.go`: `TestColumnTypesDoNotDependOnWhetherRowsLoaded` deep-equals the result columns, and its `share` column is a `percentOfTotal` at scale 1, so its expected column gained `Scale: ptr(1)`. The test gets more exact, not weaker (reviewers A and B agree).
@@ -144,3 +146,4 @@
 
 ## Final review
 - eval:
+- CI fix 1 (books PR #63, run 44160010173, E2E shard 1/4): "a sub-customer sale turns the row into a family with a total" read other customers in its first five rows. Evidence: the CI error-context.md shows the page already on the filtered run (the Customer chip and only the family + Total), while the rows the test read held Aspen Ridge Dental, Audit … customers, Bluefin, Delta at depth 0, the earlier unfiltered run. Root cause: core keeps the previous run's rows until the new run lands, and the settle predicate (`familyShows`, also `filterToOwnCustomer`'s) was true for the unfiltered run as well when the whole report was mounted; locally the default period held only the test's own sales, so the race was hidden. Fix (tests only, test writer, `ci1-fix.md`, cause weak-test ×3): `filterSalesTo` waits for the `/api/reports/run` response that carries the final param value before it polls; the family and own-customer predicates are true only for the filtered run (depth-0 groups exactly the test's own); the family assertion also checks that the Total follows the five family rows. Gate 1: `packages:generate`, `tinycld-pkg check` pass; `books-sales-reports.spec.ts` 12 passed. Fix review: round 1: 0 BLOCK, 2 NOTE (→ Design notes).

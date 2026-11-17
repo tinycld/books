@@ -99,17 +99,25 @@ function customerRow(rows: SalesRow[], name: string): SalesRow | undefined {
     return rows.find(row => row.kind === 'group' && row.label === name)
 }
 
+// The depth-0 group labels before the Total, in screen order.
+function topLabels(rows: SalesRow[]): string[] {
+    const end = rows.findIndex(row => row.kind === 'total')
+    return (end < 0 ? rows : rows.slice(0, end))
+        .filter(row => row.kind === 'group' && row.depth === 0)
+        .map(row => row.label)
+}
+
+// Only the run filtered to `name` holds `name` as its one depth-0 row, then the Total: the
+// mounted rows of an unfiltered run hold other customers too.
+function onlyTopRow(rows: SalesRow[], name: string): boolean {
+    return (
+        rows.at(-1)?.kind === 'total' && JSON.stringify(topLabels(rows)) === JSON.stringify([name])
+    )
+}
+
 // The report filtered to one customer: its row and the Total, nothing else.
 async function filterToOwnCustomer(page: Page, name: string): Promise<SalesRow[]> {
-    return filterSalesTo(
-        page,
-        'customers',
-        [{ label: name }],
-        rows =>
-            customerRow(rows, name) !== undefined &&
-            rows.at(-1)?.kind === 'total' &&
-            !rows.some(row => row.label === 'No customer')
-    )
+    return filterSalesTo(page, 'customers', [{ label: name }], rows => onlyTopRow(rows, name))
 }
 
 // Presses a customer row and waits for its sale lines.
@@ -246,9 +254,11 @@ test.describe('sales-reports: Sales by Customer', () => {
 
         await openSalesByCustomer(page)
         // The parent's own row (depth 1) shows only in the run of the final pick: the first
-        // pick, "All <parent> sub-customers", leaves it out.
+        // pick, "All <parent> sub-customers", leaves it out. The family as the one depth-0
+        // row before the Total holds only for the filtered run: an unfiltered run also
+        // holds the family, but beside other customers.
         const familyShows = (rows: SalesRow[]) =>
-            rows.some(row => row.kind === 'group' && row.label === parent && row.depth === 0) &&
+            onlyTopRow(rows, parent) &&
             rows.some(row => row.kind === 'group' && row.label === parent && row.depth === 1) &&
             rows.some(row => row.kind === 'subtotal' && row.label === `Total ${parent}`) &&
             rows.some(row => row.label === small) &&
@@ -270,6 +280,8 @@ test.describe('sales-reports: Sales by Customer', () => {
             ['group', big, 1],
             ['subtotal', `Total ${parent}`, 0],
         ])
+        // The family's five rows, then only the report's Total.
+        expect(rows.slice(5).map(row => row.kind)).toEqual(['total'])
         const [, own, smallRow, bigRow, familyTotal] = family
         expect(salesOf(own)).toBe(book.invoice.subtotalCents + book.receipt.subtotalCents)
         expect(salesOf(bigRow)).toBeGreaterThan(salesOf(own))
@@ -295,7 +307,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         await pressReportRow(page, header.id)
         const folded = await filterSettled(
             page,
-            r => !r.some(row => row.label === small || row.label === big),
+            r => onlyTopRow(r, parent) && !r.some(row => row.label === small || row.label === big),
             `the ${parent} family folds`
         )
         const familyRows = folded.filter(row => row.kind !== 'total')
@@ -369,14 +381,8 @@ test.describe('sales-reports: Sales by Customer', () => {
         const activeColors = await rowColors(page, active.id, 'sales')
 
         // Only the filtered run has Old Mill Bakery as its one customer row.
-        const rows = await filterSalesTo(
-            page,
-            'customers',
-            [{ label: oldMill.display_name }],
-            r =>
-                JSON.stringify(
-                    r.filter(row => row.kind === 'group' && row.depth === 0).map(row => row.label)
-                ) === JSON.stringify([inactiveLabel]) && r.at(-1)?.kind === 'total'
+        const rows = await filterSalesTo(page, 'customers', [{ label: oldMill.display_name }], r =>
+            onlyTopRow(r, inactiveLabel)
         )
         await expect(page.getByTestId('report-document-period')).toHaveText(SEEDED_PERIOD.words)
         const inactive = customerRow(rows, inactiveLabel)
@@ -454,14 +460,6 @@ function productRow(rows: SalesRow[], name: string): SalesRow | undefined {
     return rows.find(row => row.kind === 'group' && row.depth === 0 && row.label === name)
 }
 
-// The depth-0 group labels before the Total, in screen order.
-function productLabels(rows: SalesRow[]): string[] {
-    const end = rows.findIndex(row => row.kind === 'total')
-    return (end < 0 ? rows : rows.slice(0, end))
-        .filter(row => row.kind === 'group' && row.depth === 0)
-        .map(row => row.label)
-}
-
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
     return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
 }
@@ -484,8 +482,7 @@ function filterProductsToCustomer(
         page,
         'customers',
         [{ label: name }],
-        rows =>
-            rows.at(-1)?.kind === 'total' && sameSet(productLabels(rows), products) && extra(rows)
+        rows => rows.at(-1)?.kind === 'total' && sameSet(topLabels(rows), products) && extra(rows)
     )
 }
 
@@ -639,7 +636,7 @@ test.describe('sales-reports: Sales by Product/Service', () => {
         const amounts = new Map(products.map(p => [p, centsIn(productRow(all, p), AMOUNT)]))
 
         const one = await filterToProducts(page, [book.service])
-        expect(productLabels(one)).toEqual([book.service])
+        expect(topLabels(one)).toEqual([book.service])
         expect(centsIn(one.at(-1), AMOUNT)).toBe(amounts.get(book.service))
         await expect(page.getByTestId('report-header-param-products')).toHaveText(
             `Product: ${book.service}`
@@ -667,7 +664,7 @@ test.describe('sales-reports: Sales by Product/Service', () => {
         await expect(page.getByTestId('report-param-products')).toHaveCount(0)
         await filterSettled(
             page,
-            rows => sameSet(productLabels(rows), products),
+            rows => sameSet(topLabels(rows), products),
             'the three products back after the Product filter is removed'
         )
         const byAmount = [...products].sort((a, b) => (amounts.get(b) ?? 0) - (amounts.get(a) ?? 0))
@@ -676,13 +673,13 @@ test.describe('sales-reports: Sales by Product/Service', () => {
         await chooseSalesOrder(page, 'sales')
         await filterSettled(
             page,
-            rows => JSON.stringify(productLabels(rows)) === JSON.stringify(byAmount),
+            rows => JSON.stringify(topLabels(rows)) === JSON.stringify(byAmount),
             'the products in Amount order, largest first'
         )
         await chooseSalesOrder(page, 'name')
         await filterSettled(
             page,
-            rows => JSON.stringify(productLabels(rows)) === JSON.stringify(byName),
+            rows => JSON.stringify(topLabels(rows)) === JSON.stringify(byName),
             'the products in name order'
         )
 
@@ -693,13 +690,8 @@ test.describe('sales-reports: Sales by Product/Service', () => {
         await expect(page.getByTestId('report-document-period')).toHaveText(SEEDED_PERIOD.words)
         expect(FAX_SETUP, 'Fax line setup in the product fixture').not.toBe('')
         const inactiveLabel = `${FAX_SETUP} (inactive)`
-        const fax = await filterSalesTo(
-            page,
-            'products',
-            [{ label: FAX_SETUP }],
-            rows =>
-                JSON.stringify(productLabels(rows)) === JSON.stringify([inactiveLabel]) &&
-                rows.at(-1)?.kind === 'total'
+        const fax = await filterSalesTo(page, 'products', [{ label: FAX_SETUP }], rows =>
+            onlyTopRow(rows, inactiveLabel)
         )
         const faxRow = productRow(fax, inactiveLabel)
         const total = fax.at(-1)

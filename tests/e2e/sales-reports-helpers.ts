@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page, type Request } from '@playwright/test'
 import { chooseParamOption, hubRow } from '@tinycld/core/e2e-helpers'
 import {
     SALES_BY_CUSTOMER_TITLE,
@@ -255,13 +255,21 @@ export async function salesRows(page: Page): Promise<SalesRow[]> {
     })
 }
 
+// The value of the report param `param` in the page's URL, as core writes it (a multiple
+// choice as the JSON the run endpoint reads); null while it is unset.
+function urlParam(page: Page, param: string): string | null {
+    return new URL(page.url()).searchParams.get(`p-${param}`)
+}
+
 /**
  * Narrows the open report through core's picker of `param` (sales-reports plan D16): an
  * unset param has no chip, so the first pick starts from Add filter and each later one from
  * the chip. A pick with a `group` presses that group's "All …" row; any other ticks the
- * option labelled `label`; each is found through the picker's search for `label`. It then
- * polls the mounted rows until `settled` holds (core keeps the previous run's rows until
- * the new run lands) and returns those rows.
+ * option labelled `label`; each is found through the picker's search for `label`. It waits
+ * until the run for the final value of the param has landed (by its request body, as
+ * chooseSalesOrder does), then polls the mounted rows until `settled` holds and returns
+ * them. Core keeps the previous run's rows until the new run is drawn, so `settled` must
+ * hold only for the rows of the filtered run.
  */
 export async function filterSalesTo(
     page: Page,
@@ -269,15 +277,50 @@ export async function filterSalesTo(
     picks: readonly { label: string; group?: string }[],
     settled: (rows: SalesRow[]) => boolean
 ): Promise<SalesRow[]> {
-    for (const [index, pick] of picks.entries()) {
-        const from = index === 0 ? 'add-filter' : 'chip'
-        if (pick.group !== undefined) {
-            await chooseParamOption(page, param, { from, search: pick.label, group: pick.group })
-        } else {
-            await chooseParamOption(page, param, { from, search: pick.label, labels: [pick.label] })
-        }
+    // The param value of every run that has landed, as the URL writes it. Collected from
+    // before the first pick, so a run that lands before the wait below still counts.
+    const landed: string[] = []
+    const onFinished = async (request: Request) => {
+        if (!request.url().includes('/api/reports/run')) return
+        const response = await request.response()
+        if (!response?.ok()) return
+        const body = request.postDataJSON() as { params?: Record<string, unknown> } | null
+        const value = body?.params?.[param]
+        if (value === undefined) return
+        landed.push(typeof value === 'string' ? value : JSON.stringify(value))
     }
-    await expect.poll(() => new URL(page.url()).searchParams.get(`p-${param}`)).not.toBeNull()
+    page.on('requestfinished', onFinished)
+    try {
+        for (const [index, pick] of picks.entries()) {
+            const from = index === 0 ? 'add-filter' : 'chip'
+            const before = urlParam(page, param)
+            if (pick.group !== undefined) {
+                await chooseParamOption(page, param, {
+                    from,
+                    search: pick.label,
+                    group: pick.group,
+                })
+            } else {
+                await chooseParamOption(page, param, {
+                    from,
+                    search: pick.label,
+                    labels: [pick.label],
+                })
+            }
+            await expect
+                .poll(() => urlParam(page, param), { message: `pick ${index + 1} sets ${param}` })
+                .not.toBe(before)
+        }
+        const value = urlParam(page, param)
+        expect(value, `the ${param} filter is in the URL`).not.toBeNull()
+        await expect
+            .poll(() => landed.includes(value ?? ''), {
+                message: `the run for ${param} = ${value} lands`,
+            })
+            .toBe(true)
+    } finally {
+        page.off('requestfinished', onFinished)
+    }
     const last: { rows: SalesRow[] } = { rows: [] }
     await expect
         .poll(
