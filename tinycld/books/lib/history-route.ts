@@ -14,4 +14,5 @@ export const DOCUMENT_COLLECTIONS: Record<SalesDocKey, string> = {
     estimate: 'books_estimates',
     bill: 'books_bills',
     expense: 'books_expenses',
+    vendor_credit: 'books_vendor_credits',
 }

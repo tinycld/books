@@ -13,6 +13,7 @@ import {
     EXPENSE_MESSAGES,
     INVOICE_MESSAGES,
     SALES_RECEIPT_MESSAGES,
+    VENDOR_CREDIT_MESSAGES,
 } from './document-texts'
 
 // The memo's hint on a kind that posts: the memo goes on the journal entry. The bill's
@@ -26,6 +27,7 @@ export type SalesDocKey =
     | 'estimate'
     | 'bill'
     | 'expense'
+    | 'vendor_credit'
 
 // How a kind's statuses run (lib/document-lifecycle.ts): `posting` (draft → posted →
 // void) or `quote` (pending / accepted / rejected → closed, never posted).
@@ -351,6 +353,49 @@ export const EXPENSE_KIND: SalesDocumentKind & { messages: typeof EXPENSE_MESSAG
     // The second band row: Payment method and Ref no.
     bandSplitAt: 'payment_method',
     helpTopic: 'books:expenses',
+    party: 'vendor',
+    lineTables: PURCHASE_LINE_TABLES,
+    features: {
+        tax: false,
+        message: false,
+        email: false,
+        pdf: false,
+        partyAddress: false,
+        attachments: true,
+    },
+    keepsEmptyLinesOnRefusal: true,
+}
+
+// A vendor credit (vendor credit spec §3.1): a credit a vendor gave, the bill's mirror. The
+// bill's two line tables and required vendor; no tax, message, email, PDF or party
+// address. Its big figure is the credit amount (= the total); the read view's rows after
+// Total are Applied and Unapplied credit (DocumentKind.readTotals), so no lastTotal row.
+// Its messages keep their own type, so a reader of a vendor-credit-only text
+// (duplicateRef) needs no fallback.
+export const VENDOR_CREDIT_KIND: SalesDocumentKind & {
+    messages: typeof VENDOR_CREDIT_MESSAGES
+} = {
+    key: 'vendor_credit',
+    lifecycle: 'posting',
+    hostKey: 'books:vendor_credit',
+    testId: 'vendor-credit',
+    routeBase: 'books/vendor-credits',
+    noun: 'Vendor credit',
+    thisNoun: 'This vendor credit',
+    draftTitle: 'Draft vendor credit',
+    newTitle: 'New vendor credit',
+    shortcutGroup: 'Vendor credit',
+    figure: { label: 'Credit amount', testId: 'credit-amount' },
+    lastTotal: null,
+    customerRequired: true,
+    // A vendor credit has no message; the field is never drawn.
+    noteHints: { message: '', memo: MEMO_HINT },
+    messages: VENDOR_CREDIT_MESSAGES,
+    // Never called: a vendor credit has no PDF (`features.pdf`); kept so the type holds.
+    pdfStem: number => (number ? `vendor-credit-${number}` : 'draft-vendor-credit'),
+    // One band row: Vendor, Credit date and Vendor's credit no.
+    bandSplitAt: null,
+    helpTopic: 'books:vendor-credits',
     party: 'vendor',
     lineTables: PURCHASE_LINE_TABLES,
     features: {

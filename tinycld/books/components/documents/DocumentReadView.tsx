@@ -17,7 +17,7 @@ import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useHistoryItem } from '../../hooks/useHistoryItem'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
-import { paidBadge } from '../../lib/document-lifecycle'
+import type { BalanceBadge } from '../../lib/document-lifecycle'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
 import { documentTaxOf } from '../../lib/document-tax'
@@ -105,10 +105,12 @@ function openBalanceOf(record: DocumentRecord): number | undefined {
 // balance, which the server keeps (receive-payment spec §3.9, pay-bills spec §3.9), with a
 // Payments row above it while any posted payment applies; every other kind's is its
 // total, posted or void.
+// The kind's rows after Total (a vendor credit's Applied and Unapplied credit) read the
+// stored total and balance, so `applied` is 0 until a kind reads its applications.
 function readTotals(
     data: DocumentScreenData,
     record: DocumentRecord,
-    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs'>
+    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs' | 'readTotals'>
 ): DocumentTotalsView {
     const { doc } = documentKind
     const money = (cents: number) => formatMoney(cents, data.currency)
@@ -119,6 +121,7 @@ function readTotals(
     const last = balance === undefined ? total : money(balance)
     const applied = appliedCents(data)
     const payments = applied > 0 ? `−${money(applied)}` : null
+    const after = documentKind.readTotals?.(record, { applied: 0 })
     return {
         subtotal,
         tableSubtotals: readTableSubtotals(data, documentKind),
@@ -126,17 +129,29 @@ function readTotals(
         total,
         payments,
         last,
+        after,
     }
 }
 
-// An invoice's or a bill's badge follows its open balance (Paid, Partly paid); undefined
-// for every other kind, whose header shows its status's badge.
-function readBadgeOf(record: DocumentRecord) {
-    const balance = openBalanceOf(record)
+// The balance the server keeps on a kind that has one (an invoice's or a bill's open
+// balance, a credit memo's or a vendor credit's unapplied credit); undefined for every
+// other kind. The badge reads it; the big figure reads openBalanceOf.
+function storedBalanceOf(record: DocumentRecord): number | undefined {
+    const fields = record.kindFields
+    if (fields.kind === 'invoice' || fields.kind === 'bill') return fields.balance
+    if (fields.kind === 'credit_memo' || fields.kind === 'vendor_credit') return fields.balance
+    return undefined
+}
+
+// The badge of a kind with a balance badge (an invoice's or a bill's Paid / Partly paid, a
+// vendor credit's Applied / Partly applied) follows its stored balance; undefined for every
+// other kind, whose header shows its status's badge.
+function readBadgeOf(record: DocumentRecord, balanceBadge: BalanceBadge | undefined) {
+    const balance = storedBalanceOf(record)
     const { status } = record
-    if (balance === undefined) return undefined
+    if (!balanceBadge || balance === undefined) return undefined
     if (status !== 'draft' && status !== 'posted' && status !== 'void') return undefined
-    return paidBadge(status, balance, record.total)
+    return balanceBadge(status, balance, record.total)
 }
 
 // What the Payments block names and opens on an invoice and on a bill; null for every
@@ -412,7 +427,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
             onRetry={data.retry}
         />
     ) : null
-    const badge = readBadgeOf(record)
+    const badge = readBadgeOf(record, documentKind.balanceBadge)
     const { ReadSection } = documentKind
     const section = ReadSection ? <ReadSection record={record} /> : null
     return (

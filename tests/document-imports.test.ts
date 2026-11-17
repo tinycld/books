@@ -107,6 +107,11 @@ describe('components/documents imports', () => {
         expect(graph.get(join(DOCUMENTS_DIR, 'PurchaseReadLines.tsx'))).toContain(
             join(DOCUMENTS_DIR, 'document-kind-context.ts')
         )
+        // The vendor credit's parts (checkpoint 3) are in the graph the cycle check reads.
+        expect(graph.has(join(DOCUMENTS_DIR, 'VendorCreditReadDetails.tsx'))).toBe(true)
+        expect(graph.get(join(DOCUMENTS_DIR, 'document-kinds.ts'))).toContain(
+            join(DOCUMENTS_DIR, 'VendorCreditReadDetails.tsx')
+        )
         expect(findCycles(graph)).toEqual([])
     })
 })

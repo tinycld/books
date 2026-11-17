@@ -1,13 +1,15 @@
-// The start values every purchase kind (the bill, the expense) shares (spec §3.1, §3.3,
-// §3.4): the empty lines of its two tables, the lines a new form starts with by the
-// Purchase lines setting, a stored document's lines as new rows, and the vendor pick's
-// fill of the first account line. Plain: type imports, the id maker, core's row mapper
-// and purchase-line-columns.ts only.
+// The start values every purchase kind (the bill, the expense, the vendor credit) shares
+// (spec §3.1, §3.3, §3.4): the empty lines of its two tables, the lines a new form starts
+// with by the Purchase lines setting, a stored document's lines as new rows, and the
+// vendor pick's fill of the first account line. Plain: type imports, the id maker, core's
+// row mapper, form-values.ts and purchase-line-columns.ts only.
 
+import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import { tableRowsOf } from '@tinycld/core/lib/forms/table-rows'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { newRecordId } from 'pbtsdb/core'
 import type { BooksVendors } from '../types'
+import { rowsOf } from './form-values'
 import { PURCHASE_LINE_MAPPER, type PurchaseLineRow } from './purchase-line-columns'
 import type { PurchaseLines } from './purchase-lines'
 
@@ -61,4 +63,18 @@ export function vendorAccountFill(
     const isFirstEmpty = first !== undefined && (first.account ?? '') === ''
     if (!isFirstEmpty || !accountIsListed || vendor.expense_account === '') return null
     return [{ ...first, account: vendor.expense_account }, ...rest]
+}
+
+// What picking a vendor fills on a purchase kind with nothing to fill in its band (an
+// expense, a vendor credit): when the account table holds a first line with no account,
+// that line gets the vendor's default expense account, only when the Account picker lists
+// it (`accountIsListed`, vendorAccountFill); otherwise the fills are empty.
+export function vendorAccountLineFills(
+    vendor: Pick<BooksVendors, 'expense_account'>,
+    accountIsListed: boolean,
+    current: FormValues
+): Partial<PurchaseTableRows> {
+    const accountLines = vendorAccountFill(vendor, accountIsListed, rowsOf(current.account_lines))
+    if (!accountLines) return {}
+    return { account_lines: accountLines }
 }

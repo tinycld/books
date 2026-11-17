@@ -166,6 +166,13 @@ export const NEW_ACTIONS: NewAction[] = [
         available: true,
     },
     {
+        id: 'vendor_credit',
+        label: 'Vendor credit',
+        href: 'books/vendor-credits/new',
+        column: 'vendors',
+        available: true,
+    },
+    {
         id: 'journal-entry',
         label: 'Journal entry',
         href: 'books/entries/new',
@@ -268,15 +275,15 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 }
 
 // The entry, customer, vendor, product, transfer, invoice, sales receipt, credit memo,
-// estimate, bill, expense and payment forms, Pay Bills, and the entry, transfer, invoice,
-// sales receipt, credit memo, estimate, bill, expense, payment and bill payment views own
-// the bottom of the phone screen, so the New button stays off them. `/entries`,
-// `/customers`, `/vendors` and `/products` alone are the lists, which keep it; transfers,
-// invoices, sales receipts, credit memos, estimates, bills, expenses, payments and bill
-// payments have no list, and their bare path is no screen to hide it on. Pay Bills has no
-// id: `/pay-bills` itself is the form.
+// estimate, bill, expense, vendor credit and payment forms, Pay Bills, and the entry,
+// transfer, invoice, sales receipt, credit memo, estimate, bill, expense, vendor credit,
+// payment and bill payment views own the bottom of the phone screen, so the New button
+// stays off them. `/entries`, `/customers`, `/vendors` and `/products` alone are the
+// lists, which keep it; transfers, invoices, sales receipts, credit memos, estimates,
+// bills, expenses, vendor credits, payments and bill payments have no list, and their bare
+// path is no screen to hide it on. Pay Bills has no id: `/pay-bills` itself is the form.
 const FAB_FREE_SCREEN =
-    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|estimates|bills|expenses|payments|bill-payments)\/[^/]+|pay-bills)\/?$/
+    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|estimates|bills|expenses|vendor-credits|payments|bill-payments)\/[^/]+|pay-bills)\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)

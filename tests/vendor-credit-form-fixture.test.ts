@@ -1,8 +1,11 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { BILLS } from '../tinycld/books/lib/bill-form-fixture'
+import { VENDOR_CREDIT_MESSAGES, VENDOR_CREDIT_REF_HINT } from '../tinycld/books/lib/document-texts'
 import { PAY_BILLS_BILLS, PAY_BILLS_SEED_BILLS } from '../tinycld/books/lib/pay-bills-fixture'
 import { PRODUCTS } from '../tinycld/books/lib/products-services-fixture'
 import { PURCHASE_ACCOUNT_TYPES } from '../tinycld/books/lib/purchase-line-columns'
+import { documentConflictText } from '../tinycld/books/lib/revision'
+import { VENDOR_CREDIT_KIND } from '../tinycld/books/lib/sales-document-kinds'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import {
     VENDOR_CREDIT_APPLICATIONS,
@@ -11,6 +14,7 @@ import {
     VENDOR_CREDIT_SEED_APPLICATION_IDS,
     VENDOR_CREDIT_SEED_BILL,
     VENDOR_CREDIT_SEED_IDS,
+    VENDOR_CREDIT_TEXTS,
     VENDOR_CREDITS,
     type VendorCreditApplicationRecord,
     type VendorCreditLineFixtureRecord,
@@ -137,6 +141,38 @@ describe('VENDOR_CREDIT_LINES', () => {
         const productLines = VENDOR_CREDIT_LINES.filter(line => line.kind === 'item')
         expect(productLines.length).toBeGreaterThan(0)
         expect(productLines.filter(line => !purchased.has(line.product)).map(l => l.id)).toEqual([])
+    })
+})
+
+// The reference shows the texts the form ships (plan, Decisions: Messages): a fixture
+// text that differs from the shipped constant fails here.
+describe('VENDOR_CREDIT_TEXTS', () => {
+    const shipped = () => Object.values(VENDOR_CREDIT_MESSAGES).map(String)
+
+    it('holds the shipped client texts', () => {
+        for (const key of [
+            'belowZero',
+            'zeroTotal',
+            'tooLarge',
+            'tooManyLines',
+            'voidNote',
+            'noAccess',
+            'notFound',
+            'cannotEdit',
+            'loadError',
+        ] as const) {
+            expect(shipped(), key).toContain(VENDOR_CREDIT_TEXTS[key])
+        }
+    })
+
+    it('holds the shipped hint, delete confirm and conflict action', () => {
+        expect(VENDOR_CREDIT_TEXTS.refHint).toBe(VENDOR_CREDIT_REF_HINT)
+        expect(VENDOR_CREDIT_TEXTS.deleteDraft).toBe(
+            `${VENDOR_CREDIT_MESSAGES.deleteTitle} ${VENDOR_CREDIT_MESSAGES.deleteBody}`
+        )
+        expect(documentConflictText(VENDOR_CREDIT_KIND.noun, 'posting')).toContain(
+            VENDOR_CREDIT_TEXTS.conflictAction
+        )
     })
 })
 
