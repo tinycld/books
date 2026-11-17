@@ -443,7 +443,7 @@ func TestAuditLogEvents(t *testing.T) {
 		"Entry posted | posted | Avery Lin | books_journal_entries",
 		"Entry voided | voided | Avery Lin | books_journal_entries",
 		reversalLabel + " | added | System | books_journal_entries",
-		"Change by a leaver | changed | Deleted user | books_products",
+		"Change by a leaver | changed | Jordan Leaver | books_products",
 		"Change by a removed user | changed | Unknown user | books_products",
 	} {
 		if !slices.Contains(got, want) {
