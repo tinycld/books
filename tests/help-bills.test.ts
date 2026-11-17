@@ -159,6 +159,56 @@ describe('help/bills.md', () => {
         })
     })
 
+    // Vendor credit spec §3.10, §3.12, §3.13: Credits applied, the credit rows of the
+    // Payments block, the void and correction refusals, and the target of "Use a vendor
+    // credit".
+    describe('vendor credits applied to a bill', () => {
+        it('names Credits applied above Balance due', () => {
+            expect(
+                lineWith(/\bCredits applied\b/, /\bBalance due\b/),
+                'a line on Credits applied and Balance due'
+            ).toBeDefined()
+        })
+
+        it('says the Payments block lists each applied vendor credit, which opens', () => {
+            expect(
+                lineWith(/\bPayments\b/, /\bvendor credits?\b/i, /\bopen/i),
+                'a line saying the Payments block lists the vendor credits and opens them'
+            ).toBeDefined()
+        })
+
+        it('says Remove on a credit row takes the credit off the bill', () => {
+            expect(
+                lineWith(/\bRemove\b/, /\bvendor credit|\bcredit\b/i),
+                'a line on Remove on a credit row of the Payments block'
+            ).toBeDefined()
+        })
+
+        it('gives the void refusal of a bill with credits in its words', () => {
+            expect(body).toContain('Vendor credits are applied to this bill. Remove them first.')
+        })
+
+        it('gives the correction refusal of a bill with payments and credits in its words', () => {
+            expect(body).toMatch(
+                /Payments and credits of \$?[\d,]+\.\d\d are applied to this bill\. Its total cannot be below that\./
+            )
+        })
+
+        it('links the vendor credits topic, the target of "Use a vendor credit"', () => {
+            expect(body).toContain('help://books:vendor-credits')
+            expect(
+                lineWith(/\bvendor credit\b/i, /help:\/\/books:vendor-credits/),
+                'the "use a vendor credit" line links the topic'
+            ).toBeDefined()
+        })
+    })
+
+    // Vendor credit spec §3.8: the Purchases card names all three forms.
+    it('names the Bills, expenses and vendor credits card, not the old card title', () => {
+        expect(body).toContain('Bills, expenses and vendor credits')
+        expect(body).not.toContain('Bills and expenses card')
+    })
+
     it('names Delete draft with ⌘⌫ on one line', () => {
         expect(lineWith(/⌘⌫/, /Delete draft/)).toBeDefined()
     })

@@ -153,10 +153,14 @@ export async function openBillBySearch(page: Page, term: string) {
     ).toBeVisible()
 }
 
-// Settings → Purchases → Bills and expenses (expense spec §3.10). Only the bill and
-// expense tests whose describe title ends in "lines setting" may change the setting: it
-// is the shared books_settings row, and those tests run in their own Playwright project
-// before every other test (playwright.config.ts).
+// Settings → Purchases → Bills, expenses and vendor credits (expense spec §3.10, vendor
+// credit spec §3.8). Only the bill, expense and vendor credit tests whose describe title
+// ends in "lines setting" may change the setting: it is the shared books_settings row, and
+// those tests run in their own Playwright project before every other test
+// (playwright.config.ts).
+
+// The Purchases card's title (vendor credit spec §3.8).
+export const PURCHASES_CARD_TITLE = 'Bills, expenses and vendor credits'
 
 export const SETTINGS_ROW_PATH = '/api/collections/books_settings/records/bookssettings01'
 
@@ -177,6 +181,10 @@ export async function openPurchasesSettings(page: Page) {
     await expect(page).toHaveURL(/\/books\/settings$/)
     await visibleTestId(page, 'books-settings-section-purchases').click()
     await expect(page).toHaveURL(/\/books\/settings\/purchases$/)
+    // The card is found by its title, then the setting inside it.
+    await expect(
+        page.getByText(PURCHASES_CARD_TITLE, { exact: true }).filter({ visible: true })
+    ).toBeVisible()
     await expect(visibleTestId(page, 'books-settings-purchase-lines')).toBeVisible()
 }
 

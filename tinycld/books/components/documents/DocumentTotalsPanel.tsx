@@ -1,11 +1,8 @@
 import { Text, View } from 'react-native'
 import { AMOUNT_TEXT_STYLE } from '../../forms/document-line-cells'
 import type { DocumentTableSubtotal } from '../../lib/document-tax'
+import { type DocumentTotalRow, totalRowOrder } from '../../lib/document-total-rows'
 import { useDocumentKind } from './document-kind-context'
-
-// A row a kind's read view draws after Total (DocumentKind.readTotals): its label, its
-// amount as text and its full test id.
-export type DocumentTotalRow = { label: string; amount: string; testId: string; isStrong?: boolean }
 
 export type DocumentTotalsView = {
     // Null on a kind with more than one line table: no Subtotal row shows.
@@ -62,21 +59,6 @@ function TaxRow({ tax, testID }: { tax: DocumentTotalsView['tax']; testID: strin
     return <TotalRow label={tax.label} amount={tax.amount} testID={testID} />
 }
 
-function PaymentsRow({ amount, testID }: { amount: string | null; testID: string }) {
-    if (amount === null) return null
-    return <TotalRow label="Payments" amount={amount} testID={testID} />
-}
-
-// The kind's last row (Balance due on an invoice and a bill, which payments pay); a kind
-// with none (an estimate) draws nothing.
-function LastRow({ amount }: { amount: string }) {
-    const { doc } = useDocumentKind()
-    const last = doc.lastTotal
-    if (!last) return null
-    const testID = `${doc.testId}-${last.testId}`
-    return <TotalRow label={last.label} amount={amount} testID={testID} isStrong />
-}
-
 // Each line table's own subtotal (a kind with more than one table), in table order.
 function TableSubtotalRows({ rows }: { rows: DocumentTableSubtotal[] }) {
     const { doc } = useDocumentKind()
@@ -91,8 +73,8 @@ function TableSubtotalRows({ rows }: { rows: DocumentTableSubtotal[] }) {
     return <>{drawn}</>
 }
 
-// The kind's rows after Total (DocumentTotalsView.after), each with its own full test id.
-function AfterRows({ rows }: { rows: readonly DocumentTotalRow[] }) {
+// The rows under Total (totalRowOrder), each with its own full test id.
+function BelowTotalRows({ rows }: { rows: readonly DocumentTotalRow[] }) {
     const drawn = rows.map(row => (
         <TotalRow
             key={row.testId}
@@ -105,9 +87,11 @@ function AfterRows({ rows }: { rows: readonly DocumentTotalRow[] }) {
     return <>{drawn}</>
 }
 
-// Subtotal (or each table's subtotal), the header tax's one line, Total, the kind's rows
-// after Total, the payments applied (an invoice's read view) and the kind's last row,
-// right-aligned so the figures end where the lines' Amount column ends.
+// Subtotal (or each table's subtotal), the header tax's one line, Total, then the rows
+// totalRowOrder gives under it: the payments applied (an invoice's or a bill's read view),
+// the kind's rows after Total (a bill's Credits applied, a vendor credit's Applied and
+// Unapplied credit) and the kind's last row (Balance due; none for an estimate or a vendor
+// credit), right-aligned so the figures end where the lines' Amount column ends.
 export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) {
     const { doc } = useDocumentKind()
     const testId = doc.testId
@@ -115,22 +99,39 @@ export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) 
         totals: `${testId}-totals`,
         subtotal: `${testId}-total-subtotal`,
         tax: `${testId}-total-tax`,
-        total: `${testId}-total`,
-        payments: `${testId}-total-payments`,
     }
     const payments = totals.payments ?? null
-    const after = totals.after ?? []
+    const last = doc.lastTotal
+    const [total, ...belowTotal] = totalRowOrder({
+        total: { label: 'Total', amount: totals.total, testId: `${testId}-total`, isStrong: true },
+        payments:
+            payments === null
+                ? null
+                : { label: 'Payments', amount: payments, testId: `${testId}-total-payments` },
+        after: totals.after ?? [],
+        last: last
+            ? {
+                  label: last.label,
+                  amount: totals.last,
+                  testId: `${testId}-${last.testId}`,
+                  isStrong: true,
+              }
+            : null,
+    })
     return (
         <View testID={ids.totals}>
             <SubtotalRow amount={totals.subtotal} testID={ids.subtotal} />
             <TableSubtotalRows rows={totals.tableSubtotals} />
             <TaxRow tax={totals.tax} testID={ids.tax} />
             <View className="border-t border-border">
-                <TotalRow label="Total" amount={totals.total} testID={ids.total} isStrong />
+                <TotalRow
+                    label={total.label}
+                    amount={total.amount}
+                    testID={total.testId}
+                    isStrong={total.isStrong}
+                />
             </View>
-            <AfterRows rows={after} />
-            <PaymentsRow amount={payments} testID={ids.payments} />
-            <LastRow amount={totals.last} />
+            <BelowTotalRows rows={belowTotal} />
         </View>
     )
 }
