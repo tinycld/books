@@ -21,8 +21,10 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, core task 1, DEFERRAL 1: "Brief: 'on a union part, a link column may be a text field'. Delivered: only a to-one link's Field. A to-many link's BackField (also a link column on a union part) must still be a relation (implementer's declared difference 1). … the task must add the to-many case … with a run test." (shadow reviewer B made the same point)
+  **rebutted because:** the brief defines the accepted column as one "that holds the id of a row in one of the link target's part collections" (core-task-1.md, Delivers). A to-many link's `BackField` lives on the target and holds the id of a *source* row, not a target row, so the brief's case is the to-one `Field` only; its "Tests it must add" name only the to-one run ("a run over a fictional union source whose text link names rows of two collections opens each row's own target"). The refusal of a text `BackField` is now pinned by a test (fix item 2b).
+- **finding:** reviewer B, core task 1, DEFERRAL 2: "Brief: 'on a union part' (the source is a union). Delivered: also requires the target to be a union."
+  **rebutted because:** the brief asks for it: "prefer accepting the text column where the target is a union over a new flag" (core-task-1.md, Delivers), and a text id can name a row of "one of the link target's part collections" only when the target has parts. The refusal on a non-union target is pinned by a test (fix item 2a).
 
 ## Design notes
 - cp 1 · reviewer A NOTE 1: `tests/e2e/audit-log.spec.ts:104-112` now polls the heading against the business name; a heading wrong at first draw and right later passes. The source of the race is `books-settings.spec.ts` changing the shared business name while report specs read it.
@@ -36,6 +38,7 @@ with the reason, and shown to the human at the end)
 - cp 1 · `tinycld/books/lib/audit-log.ts`, `tinycld/books/lib/audit-fields.ts`: TS mirrors of the audit record type options and field maps (`tests/audit-log-fixture.test.ts`, `tests/audit-fields.test.ts`).
 - cp 1 · `tinycld/books/lib/entry-route.ts`: comment only.
 - cp 1 · `tests/e2e/audit-log.spec.ts`: gate-1 regression fix (a cross-spec race on the business name), see Checkpoint 1 gate 1.
+- core task 1 · core `core/server/reports/registry.go`: comment only (the `Link.Field` doc now names the text id column), reviewer B finding 1.
 
 ## Phase notes
 - phase 1: first design gate (2026-11-15, lane purchases): direction A; Q1–Q16 as recommended (credit stays on the customer; Create credit memo key M on a posted invoice with a stored invoice link; label "Credit amount"; credit A/R, debit income and tax; negative tax lines; own sequence `booksseqcreditm`; PDF in; empty default message; statement message cut; server-written balance; customer Transactions chip; edit/void as the invoice; all line kinds, total ≥ 0; delete guards; seed one posted + one draft; Copy without memo and link); waits_for p3-pay-bills.
@@ -100,6 +103,24 @@ with the reason, and shown to the human at the end)
 - test disputes: `server/sales_tax_test.go:698` `TestTaxRateReferences_StartWithGroupComponents` pins `len(taxRateReferences) == 6`; the implementer is right — the checkpoint's Do step 3 says "`productReferences` and `taxRateReferences` entries with the nouns `credit memo` / `credit memos`" and Files: "`taxRateReferences` += `books_credit_memos.tax_rate`, `books_credit_memo_tax_lines.component`", so the list has 8 → on resume a fresh test writer updates that test (8, and the two pairs in its `want`), then `git add` it.
 - self-declared differences (cp2-impl.md): (1) interim cash mapping above; (2) `cashCreditMemoFilter` in the STL spec filter, not named by the brief, for "on Cash the memo changes no figure and has no row"; (3) STL `Revision` 2 and Description unchanged (pinned by tests); (4) `cashTaxLine` keyed by `Document`; (5) no "For invoice" line when the linked invoice row is gone; (6) `Source` printed unlabelled under Payment, `server/pdf_template.html` edited (not in Files); (7) `byDocumentKind` helper for label/path; (8) search order: credit memos after sales receipts
 - gate 1, gate 3: not run (stopped before gate 1). The checkpoint's code stays in the working tree, uncommitted.
+
+## Core task 1 — union-part links over a text id column
+- brief: `/Users/nas/tmp/tinycld/auto-helix-books/staging/p2-credit-memo/cp/core-task-1.md` (approved by the human 2026-11-16, option A at the checkpoint 2 stop); core branch `books/p2-credit-memo` from main
+- test writer: new `core/server/reports/union_text_link_test.go` (fictional zoo package); 4 tests (refusal test with 4 subtests), red for the right reason: yes (the check refused `"meal" is not a relation field of "zoo_receipts"`); untestable: none
+- implementer: `checkLink`/`relationCheck` (check.go) accept a visible text column on a to-one link between two unions; new refusals `"x" is not a relation or text field of "c"`, `text "x" of "c" is hidden from the API`, `column "x" of "c" does not exist`; no run/join change (`scope.join` joins `ON target.id = alias.<Field>` over the target's rule CTE, so the target parts' list rules apply); `docs/packages.md` union link rules. DONE
+- test disputes: the two run tests expected one total row; core totals per currency (`fill_test.go:50` expects `total:[null]`), and the `cost` column read through the link gives a null-currency total for a row with no visible target → test wrong (brief: "no existing source changes behavior") → a fresh test writer asserted `total:["USD"]`, `total:[null]`
+- self-declared differences: (1) to-one link, both sides unions only (to-many `BackField` stays a relation); (2) a missing link column now reads `column "x" of "c" does not exist`; (3) no run code change
+- gate 1: tests unedited: yes · `go test ./reports/...`, `tinycld-pkg check` (520 files / 4846 tests): pass
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): 0 BLOCK, 5 NOTE: NOTE 1 missing-column branch not pinned → accepted, fix item 1 (weak-test); NOTE 2 ids must be unique across the target's parts → accepted, docs, item 8; NOTEs 3, 4 stale/ragged comments → accepted, items 5, 6; NOTE 5 docs wording on `BackField` → no change (the earlier sentence covers it)
+- gate 3 B (conformance): script lines: 0 · findings 1 registry.go stale comment → item 4 (out-of-plan, comment); 2 refusal tests for non-union target and text `BackField` → item 2; 3-5 comment/docs wrap and the missing messages → items 6, 7 · DEFERRALS 1, 2 → rebutted (see Rebuttals)
+- shadow reviewer B (sonnet): its DEFERRAL 2 (no test for a union mixing a relation part and a text part) is real → fix item 3, new test
+- fix round: items 1-3 (test writer: exact missing-column reason, two refusal cases, the mixed-part acceptance test), 4-8 (implementer: comments and docs); the runner changed "view rules" to "list rules" in the check.go comment; gate 1 again: pass
+- fix review: round 1: clean (shadow fix reviewer also clean) · rounds: 1
+- gate 3 A notes: 0 to Design notes
+- reviewer-caught deferrals: none (the two DEFERRAL findings were rebutted)
+- commit: core `eda401a` on `books/p2-credit-memo` (`feat(reports): union parts may link by a text id column`)
+- human: none (review mode C)
 
 ## Final review
 - eval:
