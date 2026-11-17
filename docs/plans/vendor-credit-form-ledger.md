@@ -256,3 +256,8 @@
 - biome: staged files checked before the commit.
 - commit: feat(books): vendor credits on bills, Pay Bills and help (the sha this row is committed with)
 - human: review mode C, no message
+
+## Final review
+- eval: approved 2026-11-17 by the human; CI full suite green at 0d54d1a2 (PR books#67: Typecheck & Unit, E2E shards 1-4) on core aadbe7f8. Retro items 1-9 approved (lesson in docs/helix-lessons.md; process items in the auto-helix unit file). Design notes and the rebuttals stand as built; the account delete precheck (cp 3 reviewer A NOTE 3) is left open as a follow-up.
+- human comments and what changed: none at the gate.
+- native: not executed in this run
