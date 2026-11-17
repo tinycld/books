@@ -6,11 +6,14 @@ import {
     type DocumentListTab,
     LIST_COLUMNS,
     type ListColumnKey,
+    type ListSort,
+    type ListSortKey,
     tableMinWidth,
 } from '../../lib/document-list'
 import { cellText, columnStyle, LIST_ROW_HEIGHT } from '../../lib/document-list-cells'
+import { ariaSortOf } from '../../lib/document-list-menus'
 import { PARTY_ROW_CLASS } from '../../lib/party-list'
-import { ListHeaderCell, ListHeaderRow, ListTable } from '../ListTable'
+import { ListHeaderCell, ListHeaderRow, ListSortHeaderCell, ListTable } from '../ListTable'
 import { StatusBadge } from '../StatusBadge'
 
 interface DocumentListTableProps {
@@ -18,6 +21,9 @@ interface DocumentListTableProps {
     rows: readonly DocumentListRow[]
     currency: string
     canWrite: boolean
+    sort: ListSort
+    // A press on a sortable header (the screen's `toggleSort`).
+    onSort(key: ListSortKey): void
     onOpen(row: DocumentListRow): void
     onNearEnd(): void
     // The 44 px cells before and after a row's cells, and the header's (a tick box and a
@@ -40,10 +46,33 @@ function keyOfRow(row: DocumentListRow): string {
     return row.id
 }
 
-function HeaderCell({ tab, column }: { tab: DocumentListTab; column: ListColumnKey }) {
+interface HeaderCellProps {
+    tab: DocumentListTab
+    column: ListColumnKey
+    sort: ListSort
+    onSort(key: ListSortKey): void
+}
+
+// A column sorts when the tab offers its sort key; Type, Customer, Memo, Reference no.
+// and Status never do.
+function HeaderCell({ tab, column, sort, onSort }: HeaderCellProps) {
     const label = columnLabel(tab, column)
     const style = columnStyle(column)
     const align = LIST_COLUMNS[column].align ?? 'left'
+    const sortKey = LIST_COLUMNS[column].sortKey
+    if (sortKey !== undefined && tab.sortKeys.includes(sortKey)) {
+        const press = () => onSort(sortKey)
+        return (
+            <ListSortHeaderCell
+                testID={`sales-header-${column}`}
+                label={label}
+                style={style}
+                align={align}
+                sorted={ariaSortOf(sort, sortKey)}
+                onPress={press}
+            />
+        )
+    }
     return (
         <ListHeaderCell
             testID={`sales-header-${column}`}
@@ -133,6 +162,8 @@ export function DocumentListTable({
     rows,
     currency,
     canWrite,
+    sort,
+    onSort,
     onOpen,
     onNearEnd,
     renderLead,
@@ -141,7 +172,7 @@ export function DocumentListTable({
     headerTrail,
 }: DocumentListTableProps) {
     const headerCells = tab.columns.map(column => (
-        <HeaderCell key={column} tab={tab} column={column} />
+        <HeaderCell key={column} tab={tab} column={column} sort={sort} onSort={onSort} />
     ))
     const header = (
         <ListHeaderRow testID="sales-header">

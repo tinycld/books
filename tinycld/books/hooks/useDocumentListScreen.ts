@@ -13,9 +13,13 @@ import {
     type DocumentListFilters,
     type DocumentListRow,
     type DocumentListTab,
+    type ListRange,
+    type ListSort,
+    type ListSortKey,
     listControls,
     tableMinWidth,
 } from '../lib/document-list'
+import { nextSort } from '../lib/document-list-menus'
 import { documentHref } from '../lib/document-routes'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
@@ -165,6 +169,13 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         openNew,
         goToTab,
         setSearch: (text: string) => store.setSearch(tab.key, text),
+        setChip: (chipId: string) => store.setChip(tab.key, chipId),
+        setRange: (range: ListRange) => store.setRange(tab.key, range),
+        // '' (All customers) removes the filter.
+        setCustomer: (customerId: string) => store.setCustomer(tab.key, customerId),
+        // A header press: a new column ascending, the sorted column turned around.
+        toggleSort: (key: ListSortKey) => store.setSort(tab.key, nextSort(sort, key)),
+        setSort: (next: ListSort) => store.setSort(tab.key, next),
         clearFilters: () => store.clearFilters(tab.key),
         drawsCards,
         onListLayout,

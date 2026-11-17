@@ -1,9 +1,12 @@
 import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { ArrowDown, ArrowUp } from 'lucide-react-native'
 import { Fragment, type ReactNode, type RefObject, useEffect, useRef } from 'react'
 import {
     type LayoutChangeEvent,
     type NativeScrollEvent,
     type NativeSyntheticEvent,
+    Pressable,
     ScrollView,
     type ScrollViewInstance,
     Text,
@@ -158,6 +161,8 @@ export function ListHeaderRow({ testID, children }: { testID: string; children: 
     )
 }
 
+const HEADER_TEXT_CLASS = 'text-xs font-semibold uppercase text-muted-foreground'
+
 export function ListHeaderCell({
     label,
     style,
@@ -172,12 +177,69 @@ export function ListHeaderCell({
     const alignClass = align === 'right' ? ' text-right' : ''
     return (
         <View testID={testID} className="min-w-0 pr-3" style={style}>
-            <Text
-                numberOfLines={1}
-                className={`text-xs font-semibold uppercase text-muted-foreground${alignClass}`}
-            >
+            <Text numberOfLines={1} className={`${HEADER_TEXT_CLASS}${alignClass}`}>
                 {label}
             </Text>
+        </View>
+    )
+}
+
+function SortArrow({ sorted }: { sorted: 'ascending' | 'descending' | 'none' }) {
+    const color = useThemeColor('muted-foreground')
+    if (sorted === 'none') return null
+    const Icon = sorted === 'ascending' ? ArrowUp : ArrowDown
+    return <Icon size={14} color={color} />
+}
+
+const SORT_BUTTON_HEIGHT = { minHeight: 44 }
+
+// The button's accessible name carries the order, because screen readers ignore
+// `aria-sort` on a button.
+function sortCellLabel(label: string, sorted: 'ascending' | 'descending' | 'none') {
+    if (sorted === 'none') return `Sort by ${label}`
+    return `${label}, sorted ${sorted}`
+}
+
+/**
+ * A header cell that sorts its column: a button that states its order to assistive
+ * technology (`aria-sort` and its name) and draws an arrow while its column is sorted.
+ * The column's `style` goes on an outer View, as in `ListHeaderCell`, so its `alignItems`
+ * places the button horizontally (a right column's label at the right edge); the button
+ * is centered vertically in the 44 px header row like the plain cells.
+ */
+export function ListSortHeaderCell({
+    label,
+    style,
+    align = 'left',
+    testID,
+    sorted,
+    onPress,
+}: {
+    label: string
+    style: ViewStyle
+    align?: 'left' | 'right'
+    testID: string
+    sorted: 'ascending' | 'descending' | 'none'
+    onPress(): void
+}) {
+    const justify = align === 'right' ? ' justify-end' : ''
+    const accessibilityLabel = sortCellLabel(label, sorted)
+    return (
+        <View className="min-w-0 justify-center pr-3" style={style}>
+            <Pressable
+                testID={testID}
+                accessibilityRole="button"
+                accessibilityLabel={accessibilityLabel}
+                aria-sort={sorted}
+                onPress={onPress}
+                className={`max-w-full flex-row items-center gap-1${justify}`}
+                style={SORT_BUTTON_HEIGHT}
+            >
+                <Text numberOfLines={1} className={`shrink ${HEADER_TEXT_CLASS}`}>
+                    {label}
+                </Text>
+                <SortArrow sorted={sorted} />
+            </Pressable>
         </View>
     )
 }
