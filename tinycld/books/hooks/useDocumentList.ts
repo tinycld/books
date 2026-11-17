@@ -386,16 +386,19 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         source: NonNullable<LiveRecovery['sources']>[number]
     ): LiveRecovery =>
         isFailed ? { queries: [query], sources: [source, customersCollection] } : NO_RECOVERY
+    // A screen with other reads (the Sales lists' access read) merges this into its one
+    // recovery call; `retry` is that call for a caller with none.
+    const recovery = mergeRecoveries([
+        recoveryOf(invoicesError, invoicesQuery.collection, invoicesCollection),
+        recoveryOf(estimatesError, estimatesQuery.collection, estimatesCollection),
+        recoveryOf(receiptsError, receiptsQuery.collection, receiptsCollection),
+        recoveryOf(paymentsError, paymentsQuery.collection, paymentsCollection),
+        recoveryOf(creditMemosError, creditMemosQuery.collection, creditMemosCollection),
+        settings.recovery,
+    ])
     const retry = () => {
         void recoverLiveQueries({
-            ...mergeRecoveries([
-                recoveryOf(invoicesError, invoicesQuery.collection, invoicesCollection),
-                recoveryOf(estimatesError, estimatesQuery.collection, estimatesCollection),
-                recoveryOf(receiptsError, receiptsQuery.collection, receiptsCollection),
-                recoveryOf(paymentsError, paymentsQuery.collection, paymentsCollection),
-                recoveryOf(creditMemosError, creditMemosQuery.collection, creditMemosCollection),
-                settings.recovery,
-            ]),
+            ...recovery,
             onError: err => log.warn('books.sales-lists', 'retry failed', { err }),
         })
     }
@@ -409,6 +412,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         isLoading,
         isBusy,
         isError,
+        recovery,
         retry,
         loadMore,
         hasMore,

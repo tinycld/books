@@ -1,6 +1,7 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
-import { type NewAction, newMenuForAccess } from '../lib/shell-nav'
+import type { NewAction } from '../lib/new-actions'
+import { newMenuForAccess } from '../lib/shell-nav'
 import { useBooksAccess } from './useBooksAccess'
 
 export function useNewMenu(actions?: readonly NewAction[]) {

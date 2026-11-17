@@ -2,6 +2,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { useEffect, useState } from 'react'
+import { NEW_ACTIONS } from '../lib/new-actions'
 import {
     buildRegister,
     defaultOrder,
@@ -18,7 +19,7 @@ import {
     todayIso,
 } from '../lib/register-range'
 import { newEntryVisible, registerViewState } from '../lib/register-state'
-import { isNewActionAvailable, NEW_ACTIONS } from '../lib/shell-nav'
+import { isNewActionAvailable } from '../lib/shell-nav'
 import { transferButtonVisible } from '../lib/transfer'
 import { useRegisterStore } from '../stores/register-store'
 import { useBackToChart } from './useBackToChart'

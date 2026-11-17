@@ -1,4 +1,4 @@
-import { NEW_ACTIONS, type NewAction } from './shell-nav'
+import { NEW_ACTIONS, type NewAction } from './new-actions'
 
 export interface TransactionAction {
     id: string

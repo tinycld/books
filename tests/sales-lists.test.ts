@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { NEW_ACTIONS } from '../tinycld/books/lib/new-actions'
 import {
     customerTransactionsTab,
     SALES_NEW_ITEMS,
@@ -6,7 +7,6 @@ import {
     salesTabForKind,
     salesTabOf,
 } from '../tinycld/books/lib/sales-lists'
-import { NEW_ACTIONS } from '../tinycld/books/lib/shell-nav'
 
 const chips = (...labels: string[]) =>
     labels.map(label => ({ id: label.toLowerCase().replace(/ /g, '-'), label }))

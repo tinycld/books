@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { View } from 'react-native'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
@@ -118,15 +119,20 @@ export function DocumentScreen({
         await reloadRows()
         setReloads(count => count + 1)
     }
+    // The root opts back into pointer events and draws its own background: a sales kind's
+    // child stack (SalesKindLayout) turns pointer events off on web and draws its screens
+    // over a transparent layer, so the list under it never takes the document's clicks.
     return (
         <DocumentKindContext.Provider value={documentKind}>
-            <ScreenState
-                data={data}
-                tab={tab}
-                reloads={reloads}
-                onReload={onReload}
-                attachmentSession={attachmentSession}
-            />
+            <View pointerEvents="auto" className="flex-1 bg-background">
+                <ScreenState
+                    data={data}
+                    tab={tab}
+                    reloads={reloads}
+                    onReload={onReload}
+                    attachmentSession={attachmentSession}
+                />
+            </View>
         </DocumentKindContext.Provider>
     )
 }

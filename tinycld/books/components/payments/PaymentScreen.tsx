@@ -1,5 +1,6 @@
 import { type ScopeOwner, ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useMemo, useState } from 'react'
+import { View } from 'react-native'
 import type { OutstandingInvoice } from '../../hooks/useOutstandingInvoices'
 import type { PaymentApplicationRow } from '../../hooks/usePaymentRecord'
 import {
@@ -248,15 +249,20 @@ export function PaymentScreen(input: PaymentScreenInput) {
     const screen = usePaymentScreen(input)
     // A refusal the new form handed over when it moved to this draft's route.
     const [refused] = useState(() => refusedSaveOf(input.id))
+    // The root opts back into pointer events and draws its own background: the Payments
+    // child stack (SalesKindLayout) turns pointer events off on web and draws its screens
+    // over a transparent layer, so the list under it never takes the payment's clicks.
     return (
         <DocumentChromeContext.Provider value={PAYMENT_CHROME}>
             <ScopeProvider owner={scopeOwner}>
-                <PaymentSurface
-                    screen={screen}
-                    input={input}
-                    refused={refused}
-                    scopeOwner={scopeOwner}
-                />
+                <View pointerEvents="auto" className="flex-1 bg-background">
+                    <PaymentSurface
+                        screen={screen}
+                        input={input}
+                        refused={refused}
+                        scopeOwner={scopeOwner}
+                    />
+                </View>
             </ScopeProvider>
         </DocumentChromeContext.Provider>
     )
