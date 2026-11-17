@@ -6,7 +6,10 @@ import {
     CUSTOMER_PAGE_TODAY,
 } from '../tinycld/books/lib/customer-page-fixture'
 import { statusBadgeOf } from '../tinycld/books/lib/document-lifecycle'
+import { documentHref } from '../tinycld/books/lib/document-routes'
 import {
+    creditMemoRow,
+    creditMemoStatus,
     emptyText,
     estimateRow,
     filterTestId,
@@ -19,6 +22,7 @@ import {
     TRANSACTION_FILTERS,
     TRANSACTION_PAGE,
     TRANSACTION_TYPE_LABELS,
+    transactionTotalText,
 } from '../tinycld/books/lib/party-transactions'
 import { PAYMENT_IDS, PAYMENTS } from '../tinycld/books/lib/receive-payment-fixture'
 import {
@@ -217,6 +221,137 @@ describe('paymentRow', () => {
 
     it('opens books/payments/<id>', () => {
         expect(TRANSACTION_DOC_KINDS.payment.routeBase).toBe('books/payments')
+    })
+})
+
+// The customer page's fifth kind (credit memo spec §3.10, Q11).
+const POSTED_MEMO = {
+    id: 'cmtest000001001',
+    status: 'posted' as const,
+    number: '1001',
+    date: '2026-11-05',
+    total: 25_000,
+    balance: 25_000,
+    currency: 'USD',
+    created: '2026-11-05 09:00:00.000Z',
+}
+const DRAFT_MEMO = {
+    ...POSTED_MEMO,
+    id: 'cmtestdraft0001',
+    status: 'draft' as const,
+    number: '',
+    balance: 0,
+}
+// U+2212, not the ASCII hyphen formatMoney writes for a negative amount.
+const MINUS = '−'
+
+describe('creditMemoStatus', () => {
+    it('a draft is Draft, muted', () => {
+        expect(creditMemoStatus({ status: 'draft', balance: 0 })).toEqual({
+            label: 'Draft',
+            tone: 'muted',
+        })
+    })
+
+    it('a posted memo with credit left is Unapplied, warning', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 25_000 })).toEqual({
+            label: 'Unapplied',
+            tone: 'warning',
+        })
+    })
+
+    it('a posted memo with no credit left is Applied, success', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 0 })).toEqual({
+            label: 'Applied',
+            tone: 'success',
+        })
+    })
+
+    it('a void memo is Void, muted', () => {
+        expect(creditMemoStatus({ status: 'void', balance: 0 })).toEqual({
+            label: 'Void',
+            tone: 'muted',
+        })
+    })
+})
+
+describe('creditMemoRow', () => {
+    it('maps a posted memo to one row of kind credit_memo, its total negated, no due date', () => {
+        expect(creditMemoRow(POSTED_MEMO)).toEqual({
+            id: POSTED_MEMO.id,
+            kind: 'credit_memo',
+            number: '1001',
+            date: '2026-11-05',
+            dueDate: '',
+            total: -25_000,
+            currency: 'USD',
+            created: POSTED_MEMO.created,
+            status: creditMemoStatus(POSTED_MEMO),
+        })
+        expect(creditMemoRow(POSTED_MEMO).status).toEqual({ label: 'Unapplied', tone: 'warning' })
+    })
+
+    it('a draft has no number and its total negated', () => {
+        const row = creditMemoRow(DRAFT_MEMO)
+        expect(row.number).toBe('')
+        expect(row.total).toBe(-25_000)
+        expect(row.status).toEqual({ label: 'Draft', tone: 'muted' })
+    })
+})
+
+describe('transactionTotalText', () => {
+    it('writes a credit memo total with U+2212 in front, not a hyphen', () => {
+        const text = transactionTotalText(creditMemoRow(POSTED_MEMO), 'USD')
+        expect(text).toBe(`${MINUS}$250.00`)
+        expect(text.startsWith('-')).toBe(false)
+    })
+
+    it('writes an invoice total as before', () => {
+        const row = invoiceRow({ ...invoice('cpinv0000001041'), total: 25_000 }, today)
+        expect(transactionTotalText(row, 'USD')).toBe('$250.00')
+    })
+})
+
+describe('the credit memo kind', () => {
+    it('has the type label Credit memo', () => {
+        expect(TRANSACTION_TYPE_LABELS.credit_memo).toBe('Credit memo')
+    })
+
+    it('opens books/credit-memos/<id>', () => {
+        expect(TRANSACTION_DOC_KINDS.credit_memo.routeBase).toBe('books/credit-memos')
+        expect(documentHref(TRANSACTION_DOC_KINDS.credit_memo, POSTED_MEMO.id)).toBe(
+            `books/credit-memos/${POSTED_MEMO.id}`
+        )
+    })
+
+    it('has the last chip, Credit memos, after Payments', () => {
+        expect(TRANSACTION_FILTERS.slice(-2)).toEqual([
+            { key: 'payment', label: 'Payments' },
+            { key: 'credit_memo', label: 'Credit memos' },
+        ])
+        expect(filterTestId('credit_memo')).toBe('customer-transactions-filter-credit-memo')
+    })
+
+    it('names the empty Credit memos chip', () => {
+        expect(emptyText('credit_memo')).toBe('No credit memos for this customer')
+    })
+
+    it('drops a void memo that a correction replaced and keeps a plain void memo', () => {
+        const plainVoid = { ...POSTED_MEMO, status: 'void' as const, balance: 0, replaced_by: '' }
+        const replaced = { ...plainVoid, replaced_by: 'cmtestcorrect01' }
+        expect(isListedTransaction(replaced)).toBe(false)
+        expect(isListedTransaction(plainVoid)).toBe(true)
+        expect(creditMemoRow(plainVoid).status).toEqual({ label: 'Void', tone: 'muted' })
+    })
+
+    it('mergeTransactions sorts a memo among the other kinds by date, newest first', () => {
+        // INV-1041 and EST-0211 are dated 2026-11-03, SR-0077 2026-11-07: a memo of
+        // 2026-11-05 sits between SR-0077 and INV-1041.
+        const memo = creditMemoRow(POSTED_MEMO)
+        const { rows } = mergeTransactions([...harborviewLists(), [memo]], TRANSACTION_PAGE)
+        const ids = rows.map(r => r.id)
+        expect(ids.indexOf(memo.id)).toBe(ids.indexOf('cpsr00000000077') + 1)
+        expect(ids.indexOf('cpinv0000001041')).toBe(ids.indexOf(memo.id) + 1)
     })
 })
 

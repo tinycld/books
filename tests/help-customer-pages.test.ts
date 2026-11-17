@@ -60,6 +60,21 @@ describe('help/customer-pages.md', () => {
         }
     })
 
+    // Credit memo §3.10: the Transactions tab's fifth kind, its chip and its statuses.
+    it('names the Credit memos chip and the statuses Unapplied and Applied', () => {
+        expect(exists).toBe(true)
+        expect(body).toMatch(/\bCredit memos\b/)
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        expect(
+            sentences.some(s => /\bcredit memos?\b/i.test(s) && /\bUnapplied\b/.test(s)),
+            'a sentence naming a credit memo and Unapplied'
+        ).toBe(true)
+        expect(
+            sentences.some(s => /\bcredit memos?\b/i.test(s) && /\bApplied\b/.test(s)),
+            'a sentence naming a credit memo and Applied'
+        ).toBe(true)
+    })
+
     it('is linked from help/customers.md', () => {
         expect(customers.body).toContain('(help://books:customer-pages)')
     })

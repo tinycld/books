@@ -41,6 +41,11 @@ describe('help/customers.md', () => {
         expect(body).toContain('[Customer pages](help://books:customer-pages)')
     })
 
+    // Credit memo checkpoint 5: cross-linked from the credit memo topic's neighbours.
+    it('links the credit memos topic', () => {
+        expect(body).toContain('(help://books:credit-memos)')
+    })
+
     // Estimate checkpoint 4: cross-linked from the estimate topic's neighbours.
     it('links the estimates topic', () => {
         expect(body).toContain('(help://books:estimates)')

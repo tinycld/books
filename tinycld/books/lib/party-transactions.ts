@@ -1,21 +1,28 @@
 // One customer's sales documents as one list (spec §3.5): invoices, estimates, sales
-// receipts and payments mapped to one row shape with their status badge, merged newest
-// first. Pure, so each rule is unit-tested; the hook (hooks/useCustomerTransactions.ts)
-// feeds it.
+// receipts, payments and credit memos mapped to one row shape with their status badge,
+// merged newest first. Pure, so each rule is unit-tested; the hook
+// (hooks/useCustomerTransactions.ts) feeds it.
 
-import type { BooksEstimates, BooksInvoices, BooksPayments, BooksSalesReceipts } from '../types'
+import type {
+    BooksCreditMemos,
+    BooksEstimates,
+    BooksInvoices,
+    BooksPayments,
+    BooksSalesReceipts,
+} from '../types'
 import type { StatusTone } from './document-lifecycle'
 import { statusBadgeOf } from './document-lifecycle'
 import { estimateStatusLabel, isExpired } from './estimate-status'
 import { formatMoney } from './money'
 import {
+    CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from './sales-document-kinds'
 
-export type TransactionKind = 'invoice' | 'estimate' | 'sales_receipt' | 'payment'
+export type TransactionKind = 'invoice' | 'estimate' | 'sales_receipt' | 'payment' | 'credit_memo'
 
 export type TransactionFilter = 'all' | TransactionKind
 
@@ -26,6 +33,7 @@ export interface PartyTransactionRow {
     date: string
     // Invoices only; '' for the other kinds.
     dueDate: string
+    // A credit memo's total is its stored total negated: the credit lowers what is owed.
     total: number
     currency: string
     created: string
@@ -40,6 +48,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionKind, string> = {
     estimate: 'Estimate',
     sales_receipt: 'Sales receipt',
     payment: 'Payment',
+    credit_memo: 'Credit memo',
 }
 
 // The chips, in strip order.
@@ -49,6 +58,7 @@ export const TRANSACTION_FILTERS: readonly { key: TransactionFilter; label: stri
     { key: 'estimate', label: 'Estimates' },
     { key: 'sales_receipt', label: 'Sales receipts' },
     { key: 'payment', label: 'Payments' },
+    { key: 'credit_memo', label: 'Credit memos' },
 ]
 
 // The route of each kind, for `documentHref`. A payment is not a sales-document kind
@@ -61,6 +71,7 @@ export const TRANSACTION_DOC_KINDS: Record<
     estimate: ESTIMATE_KIND,
     sales_receipt: SALES_RECEIPT_KIND,
     payment: { routeBase: 'books/payments' },
+    credit_memo: CREDIT_MEMO_KIND,
 }
 
 type InvoiceInput = Pick<
@@ -78,6 +89,10 @@ type SalesReceiptInput = Pick<
 type PaymentInput = Pick<
     BooksPayments,
     'id' | 'status' | 'number' | 'date' | 'amount' | 'credited' | 'currency' | 'created'
+>
+type CreditMemoInput = Pick<
+    BooksCreditMemos,
+    'id' | 'status' | 'number' | 'date' | 'total' | 'balance' | 'currency' | 'created'
 >
 
 const DRAFT = { label: 'Draft', tone: 'muted' } as const
@@ -122,6 +137,18 @@ function paymentStatus(row: PaymentInput): PartyTransactionRow['status'] {
     if (row.credited > 0) {
         return { label: `Credit ${formatMoney(row.credited, row.currency)}`, tone: 'warning' }
     }
+    return { label: 'Applied', tone: 'success' }
+}
+
+// A posted credit memo reads Unapplied while credit is left on it, else Applied (credit
+// memo spec §3.10). The Transactions tab and the invoice's Credit memos section both use it.
+export function creditMemoStatus(row: { status: string; balance: number }): {
+    label: string
+    tone: StatusTone
+} {
+    if (row.status === 'draft') return { ...DRAFT }
+    if (row.status === 'void') return { ...VOID }
+    if (row.balance > 0) return { label: 'Unapplied', tone: 'warning' }
     return { label: 'Applied', tone: 'success' }
 }
 
@@ -182,6 +209,30 @@ export function paymentRow(row: PaymentInput): PartyTransactionRow {
     }
 }
 
+// A credit memo's total is stored positive; the row negates it, as the credit lowers what
+// the customer owes. It has no due date.
+export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
+    return {
+        id: row.id,
+        kind: 'credit_memo',
+        number: row.number,
+        date: row.date,
+        dueDate: '',
+        total: -row.total,
+        currency: row.currency,
+        created: row.created,
+        status: creditMemoStatus(row),
+    }
+}
+
+// U+2212: a typographic minus, not the hyphen `formatMoney` writes for a negative amount.
+const MINUS_SIGN = '−'
+
+export function transactionTotalText(row: PartyTransactionRow, currency: string): string {
+    if (row.total >= 0) return formatMoney(row.total, currency)
+    return `${MINUS_SIGN}${formatMoney(-row.total, currency)}`
+}
+
 // A void original that a correction replaced is left out: the correction carries its
 // number. A plain void stays. The hook's query applies this rule in its `where`, before
 // `.limit(n)`, so each window holds only listed rows; this function states it for the tests.
@@ -212,6 +263,7 @@ const EMPTY_NOUNS: Record<TransactionKind, string> = {
     estimate: 'estimates',
     sales_receipt: 'sales receipts',
     payment: 'payments',
+    credit_memo: 'credit memos',
 }
 
 export function emptyText(filter: TransactionFilter): string {

@@ -11,6 +11,8 @@ To open the sales tax setup, choose Taxes in the sidebar. On a phone, swipe in f
 
 To see the sales tax you charged each agency in a period, press Liability report at the top of the page. See [Sales Tax Liability report](help://books:reports).
 
+A posted [credit memo](help://books:credit-memos) gives back tax that you charged, so it lowers the sales tax liability of its rate on the credit memo's date. On the Cash method, a credit memo changes no tax figure yet, because Books counts it only when its credit is used, and Books cannot yet apply or refund a credit.
+
 ## Add an agency
 
 An agency is the government body that you pay sales tax to, such as a state, a county or a city. To add one, choose Add agency. Type its name and choose its liability account, then choose Add agency in the dialog.
