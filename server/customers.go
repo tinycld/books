@@ -77,10 +77,10 @@ func registerCustomerGuard(app core.App) {
 				return refuse(msgDeleteHasSubs)
 			}
 			// Any sales document or payment, draft or posted, keeps its
-			// customer: invoices first, then sales receipts, then estimates, then
-			// payments, all before the journal lines, so a customer on a posted
-			// document gets that document's text.
-			for _, kind := range []salesDocKind{invoiceKind, salesReceiptKind, estimateKind} {
+			// customer: invoices first, then sales receipts, then credit memos,
+			// then estimates, then payments, all before the journal lines, so a
+			// customer on a posted document gets that document's text.
+			for _, kind := range []salesDocKind{invoiceKind, salesReceiptKind, creditMemoKind, estimateKind} {
 				docs, err := tx.CountRecords(kind.Collection, dbx.HashExp{"customer": e.Record.Id})
 				if err != nil {
 					return err

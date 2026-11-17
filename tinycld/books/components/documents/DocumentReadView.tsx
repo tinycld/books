@@ -366,8 +366,9 @@ interface DocumentReadViewProps {
  * estimate for a reader): the header, Customer, Bill to, Email, the date and the kind's
  * own details, Tax, the lines with their stored amounts, the stored totals with the tax
  * snapshot (an invoice's or a bill's with its Payments row and its Balance due from its
- * open balance), Message and Memo, an invoice's or a bill's Payments block, the kind's line
- * under them (ReadStampRow)
+ * open balance), Message and Memo, an invoice's or a bill's Payments block, the kind's own
+ * section after it (ReadSection: an invoice's Credit memos), the kind's line under them
+ * (ReadStampRow)
  * and, for the posting lifecycle only, the Posted by / Voided by stamps around it and, for
  * a replaced original, the link to its replacement; or, on the PDF view tab, its PDF. The
  * bar's actions follow the lifecycle's read actions for the user's
@@ -412,6 +413,8 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
         />
     ) : null
     const badge = readBadgeOf(record)
+    const { ReadSection } = documentKind
+    const section = ReadSection ? <ReadSection record={record} /> : null
     return (
         <ScopeProvider owner={scopeOwner}>
             <View testID={readOnlyId} className="flex-1 bg-background">
@@ -444,6 +447,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                             attachments={attachments}
                         />
                         <PaymentsBlock data={data} record={record} />
+                        {section}
                         <ReadStamps record={record} isPosting={isPosting} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>

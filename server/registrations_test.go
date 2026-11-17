@@ -25,7 +25,7 @@ import (
 // from the ledger; a bank file's parsed rows are written by the upload hook, and
 // the import row that made the transactions is audited. A writer changes a
 // transaction's status, so the transactions are audited, not server-only. An
-// invoice's or a sales receipt's tax lines are its posting snapshot, written with
+// invoice's, a sales receipt's or a credit memo's tax lines are its posting snapshot, written with
 // the audited document. The cash-basis rows are rebuilt by the server from the
 // posted documents and their payments (pay-bills spec §4.1).
 var serverOnly = map[string]bool{
@@ -33,6 +33,7 @@ var serverOnly = map[string]bool{
 	"books_bank_file_contents":      true,
 	"books_cash_basis_lines":        true,
 	"books_cash_basis_tax_lines":    true,
+	"books_credit_memo_tax_lines":   true,
 	"books_invoice_tax_lines":       true,
 	"books_sales_receipt_tax_lines": true,
 }
@@ -547,6 +548,49 @@ func TestPDFRoute_SalesReceiptFollowsTheReceiptViewRule(t *testing.T) {
 	})
 }
 
+// The credit_memo kind prints a books_credit_memos record at
+// /api/books/pdf/credit_memo/<id> under the memo's view rule: a reader
+// downloads credit-memo-<n>.pdf; a memo the view rule hides is not found.
+func TestPDFRoute_CreditMemoFollowsTheMemoViewRule(t *testing.T) {
+	postedMemo := func(t *testing.T) (*creditMemoEnv, *core.Record) {
+		t.Helper()
+		ce := newCreditMemoEnv(t)
+		m := ce.mkCreditMemo(t, nil)
+		mkCreditMemoLine(t, ce.app, m, 0, item(ce.service, 1, 45000, false))
+		return ce, mustPostCreditMemo(t, ce.app, m.Id, ce.users.bookkeeper.Id)
+	}
+	t.Run("a reader downloads credit-memo-<n>.pdf", func(t *testing.T) {
+		ce, posted := postedMemo(t)
+		apiReq{
+			method:  http.MethodGet,
+			url:     "/api/books/pdf/credit_memo/" + posted.Id,
+			token:   tokenFor(t, ce.users.readOnly),
+			want:    http.StatusOK,
+			content: []string{"%PDF-"},
+			before:  bindPDFRoutes,
+			response: func(t testing.TB, res *http.Response) {
+				want := `attachment; filename="credit-memo-` + posted.GetString("number") + `.pdf"`
+				if got := res.Header.Get("Content-Disposition"); got != want {
+					t.Errorf("Content-Disposition = %q, want %q", got, want)
+				}
+			},
+		}.run(t, ce.app)
+	})
+	t.Run("a memo the view rule hides is not found", func(t *testing.T) {
+		ce, posted := postedMemo(t)
+		col, err := ce.app.FindCollectionByNameOrId("books_credit_memos")
+		if err != nil {
+			t.Fatalf("find: %v", err)
+		}
+		rule := `id = "never"`
+		col.ViewRule = &rule
+		if err := ce.app.Save(col); err != nil {
+			t.Fatalf("save rule: %v", err)
+		}
+		pdfReq(t, ce.app, "/api/books/pdf/credit_memo/"+posted.Id, tokenFor(t, ce.users.readOnly), http.StatusNotFound)
+	})
+}
+
 // The estimate kind prints a books_estimates record at
 // /api/books/pdf/estimate/<id> under the estimate's view rule: a reader
 // downloads estimate-<n>.pdf; an estimate the view rule hides is not found.
@@ -861,6 +905,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSalesDocGuards(parts, invoiceKind)
 	registerSalesDocGuards(parts, salesReceiptKind)
 	registerSalesDocGuards(parts, estimateKind)
+	registerSalesDocGuards(parts, creditMemoKind)
 	registerSalesDocGuards(parts, billKind)
 	registerSalesDocGuards(parts, expenseKind)
 	registerPaymentGuards(parts)

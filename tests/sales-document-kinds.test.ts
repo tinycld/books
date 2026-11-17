@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { documentTotals } from '../tinycld/books/lib/document-lines'
 import { bigFigureText } from '../tinycld/books/lib/document-messages'
+import { CREDIT_MEMO_MESSAGES } from '../tinycld/books/lib/document-texts'
 import { maxLineAmount } from '../tinycld/books/lib/money-text'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     DOCUMENT_PARTIES,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    MEMO_HINT,
     PURCHASE_LINE_TABLES,
+    SALES_FEATURES,
     SALES_LINE_TABLES,
     SALES_RECEIPT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -231,6 +235,59 @@ describe('EXPENSE_KIND', () => {
 describe('bigFigureText with the sales receipt kind', () => {
     it('is a dash while the total is invalid and Too large past the limit', () => {
         expect(SALES_RECEIPT_KIND.figure.label).toBe('Amount received')
+        expect(bigFigureText(null, 'USD')).toBe('—')
+        const item = {
+            kind: 'item' as const,
+            quantity: 2,
+            rate: maxLineAmount,
+            percentPpm: 0,
+            taxable: false,
+        }
+        expect(bigFigureText(documentTotals([item], null), 'USD')).toBe('Too large')
+    })
+})
+
+// The credit memo kind (checkpoint 3 Decisions, spec §3.1).
+describe('CREDIT_MEMO_KIND', () => {
+    it('has the values of the Decisions', () => {
+        expect(CREDIT_MEMO_KIND.key).toBe('credit_memo')
+        expect(CREDIT_MEMO_KIND.lifecycle).toBe('posting')
+        expect(CREDIT_MEMO_KIND.hostKey).toBe('books:credit_memo')
+        expect(CREDIT_MEMO_KIND.testId).toBe('credit-memo')
+        expect(CREDIT_MEMO_KIND.routeBase).toBe('books/credit-memos')
+        expect(CREDIT_MEMO_KIND.noun).toBe('Credit memo')
+        expect(CREDIT_MEMO_KIND.thisNoun).toBe('This credit memo')
+        expect(CREDIT_MEMO_KIND.draftTitle).toBe('Draft credit memo')
+        expect(CREDIT_MEMO_KIND.newTitle).toBe('New credit memo')
+        expect(CREDIT_MEMO_KIND.shortcutGroup).toBe('Credit memo')
+        expect(CREDIT_MEMO_KIND.figure).toEqual({ label: 'Credit amount', testId: 'credit-amount' })
+        expect(CREDIT_MEMO_KIND.lastTotal).toEqual({
+            label: 'Credit amount',
+            testId: 'total-credit',
+        })
+        expect(CREDIT_MEMO_KIND.customerRequired).toBe(true)
+        expect(CREDIT_MEMO_KIND.noteHints).toEqual({
+            message: 'Shown on the credit memo and its PDF.',
+            memo: MEMO_HINT,
+        })
+        expect(CREDIT_MEMO_KIND.messages).toBe(CREDIT_MEMO_MESSAGES)
+        expect(CREDIT_MEMO_KIND.bandSplitAt).toBeNull()
+        expect(CREDIT_MEMO_KIND.helpTopic).toBe('books:credit-memos')
+        expect(CREDIT_MEMO_KIND.party).toBe('customer')
+        expect(CREDIT_MEMO_KIND.lineTables).toBe(SALES_LINE_TABLES)
+        expect(CREDIT_MEMO_KIND.features).toBe(SALES_FEATURES)
+        expect(CREDIT_MEMO_KIND.keepsEmptyLinesOnRefusal).toBe(false)
+    })
+
+    it('names its PDF credit-memo-<number>, or draft-credit-memo before a number', () => {
+        expect(CREDIT_MEMO_KIND.pdfStem('1001')).toBe('credit-memo-1001')
+        expect(CREDIT_MEMO_KIND.pdfStem('')).toBe('draft-credit-memo')
+    })
+})
+
+describe('bigFigureText with the credit memo kind', () => {
+    it('is a dash while the total is invalid and Too large past the limit', () => {
+        expect(CREDIT_MEMO_KIND.figure.label).toBe('Credit amount')
         expect(bigFigureText(null, 'USD')).toBe('—')
         const item = {
             kind: 'item' as const,

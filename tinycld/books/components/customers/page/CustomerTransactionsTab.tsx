@@ -7,7 +7,6 @@ import { useState } from 'react'
 import { Pressable, ScrollView, Text, View, type ViewStyle } from 'react-native'
 import { useCustomerTransactions } from '../../../hooks/useCustomerTransactions'
 import { documentHref } from '../../../lib/document-routes'
-import { formatMoney } from '../../../lib/money'
 import {
     emptyText,
     filterTestId,
@@ -16,6 +15,7 @@ import {
     TRANSACTION_FILTERS,
     TRANSACTION_TYPE_LABELS,
     type TransactionFilter,
+    transactionTotalText,
 } from '../../../lib/party-transactions'
 import { formatDay } from '../../../lib/register-range'
 import { ListBanner } from '../../ListBanner'
@@ -126,7 +126,7 @@ function Cell({ style, text, align }: { style: ViewStyle; text: string; align?: 
 
 function TransactionTableRow({ row, currency, onOpen }: RowProps) {
     const open = () => onOpen(row)
-    const total = formatMoney(row.total, currency)
+    const total = transactionTotalText(row, currency)
     return (
         <Pressable
             testID={`customer-transaction-${row.id}`}
@@ -160,7 +160,7 @@ const TABLE_HEADER = (
 
 function TransactionCard({ row, currency, height, onOpen }: RowProps & { height: number }) {
     const open = () => onOpen(row)
-    const total = formatMoney(row.total, currency)
+    const total = transactionTotalText(row, currency)
     return (
         <Pressable
             testID={`customer-transaction-${row.id}`}
@@ -342,11 +342,11 @@ function TransactionsBody({
 }
 
 /**
- * The customer page's default tab (spec §3.5): every invoice, estimate and sales receipt
- * of the customer, newest first, with type chips. A row opens its document, pushed over
- * the page, so Back returns to the page as it was. The chip is local to the tab and starts
- * at All whenever the page mounts. The empty state's New transaction opens the header's
- * menu (`onNewTransaction`), so one menu serves both buttons.
+ * The customer page's default tab (spec §3.5): every invoice, estimate, sales receipt,
+ * payment and credit memo of the customer, newest first, with type chips. A row opens its
+ * document, pushed over the page, so Back returns to the page as it was. The chip is local
+ * to the tab and starts at All whenever the page mounts. The empty state's New transaction
+ * opens the header's menu (`onNewTransaction`), so one menu serves both buttons.
  */
 export function CustomerTransactionsTab({ customerId, ...props }: CustomerTransactionsTabProps) {
     const [filter, setFilter] = useState<TransactionFilter>('all')

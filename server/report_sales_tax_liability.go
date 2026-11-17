@@ -13,20 +13,23 @@ func salesTaxLiabilityShipped() reports.Shipped {
 	return reports.Shipped{
 		Key:         salesTaxLiabilityKey,
 		Title:       "Sales Tax Liability",
-		Description: "The sales tax you charged on posted invoices and sales receipts, by agency and rate.",
+		Description: "The sales tax you charged on posted invoices and sales receipts, less the tax on posted credit memos, by agency and rate.",
 		Spec:        mustJSON(salesTaxLiabilitySpec()),
 		// Revision 2: the Method param (pay-bills spec §3.10, Q3).
-		Revision:    2,
+		// Revision 3: credit memos (credit memo spec §3.11, Q17).
+		Revision:    3,
 		Unpublished: true,
 	}
 }
 
-// salesTaxLiabilitySpec is the tax lines of the posted invoices and sales
-// receipts whose own date is in the period, grouped by the agency stored on
-// each line, then by its component rate, both in name order (spec §5). On
+// salesTaxLiabilitySpec is the tax lines of the posted invoices, credit memos
+// and sales receipts whose own date is in the period, grouped by the agency
+// stored on each line, then by its component rate, both in name order (spec
+// §5); a credit memo's lines are below zero and lower its rate's figures. On
 // Accrual it reads the ledger tax lines alone; on Cash also the invoices'
 // cash-basis tax rows, which take an invoice's tax out at the invoice date and
-// bring back each payment's share at the payment date (pay-bills spec §3.10).
+// bring back each payment's share at the payment date (pay-bills spec §3.10),
+// and leaves out an unapplied credit memo (cashCreditMemoFilter).
 // Each tax line is one document and one component, so a rate row adds each
 // of its documents once; the agency total and the Total add the rate rows'
 // tax and leave the sales figures blank, because a document taxed by two
@@ -45,6 +48,7 @@ func salesTaxLiabilitySpec() *reports.Spec {
 			// takes out or brings back, not on the document's date.
 			op("between", fld("date"), prm("period")),
 			basisFilter(),
+			cashCreditMemoFilter(),
 			// An unset Agency keeps every line.
 			op("in", col("agencyKey"), prm("agencies")),
 		),
@@ -63,31 +67,68 @@ func salesTaxLiabilitySpec() *reports.Spec {
 	}
 }
 
-// stlDetailOpen is the read view of a document row's invoice or sales
-// receipt, by the document's kind and id. Only detail rows carry it: rate,
-// agency and total rows open nothing. The route segments come from
-// entry_routes.json, the one list of document screens.
-func stlDetailOpen() *reports.Node {
-	return op("if", op("eq", fld("document", "kind"), lit("invoice")),
-		op("concat", lit("books/"+entryRoutes["invoice"]+"/"), fld("document", "id")),
-		op("concat", lit("books/"+entryRoutes["sales_receipt"]+"/"), fld("document", "id")),
-	)
+// stlDocumentKinds are the kinds of a tax line's document with the words of
+// its row; the last one is the formula's fallback.
+var stlDocumentKinds = []struct{ kind, noun string }{
+	{"invoice", "Invoice"},
+	{"credit_memo", "Credit memo"},
+	{"sales_receipt", "Sales receipt"},
 }
 
-// stlDetailLabel is "<date> · <Invoice|Sales receipt> <number> · <customer>",
-// the date the line's own (the day it counts on); a document with no customer
-// ends after its number. The kind is a constant select, and a formula reads
-// its value, so the words are written here (D6).
+// byDocumentKind is the value of the document's kind among stlDocumentKinds:
+// an if per kind, the last kind the fallback.
+func byDocumentKind(value func(kind, noun string) *reports.Node) *reports.Node {
+	last := stlDocumentKinds[len(stlDocumentKinds)-1]
+	out := value(last.kind, last.noun)
+	for i := len(stlDocumentKinds) - 2; i >= 0; i-- {
+		k := stlDocumentKinds[i]
+		out = op("if", op("eq", fld("document", "kind"), lit(k.kind)), value(k.kind, k.noun), out)
+	}
+	return out
+}
+
+// stlDetailOpen is the read view of a document row's invoice, credit memo or
+// sales receipt, by the document's kind and id. Only detail rows carry it:
+// rate, agency and total rows open nothing. The route segments come from
+// entry_routes.json, the one list of document screens.
+func stlDetailOpen() *reports.Node {
+	return byDocumentKind(func(kind, _ string) *reports.Node {
+		return op("concat", lit("books/"+entryRoutes[kind]+"/"), fld("document", "id"))
+	})
+}
+
+// stlDetailLabel is "<date> · <Invoice|Credit memo|Sales receipt> <number> ·
+// <customer>", the date the line's own (the day it counts on); a document
+// with no customer ends after its number. The kind is a constant select, and
+// a formula reads its value, so the words are written here (D6).
 func stlDetailLabel() *reports.Node {
 	customer := fld("document", "customer", "display_name")
 	return op("concat",
 		fld("date"),
 		lit(" · "),
-		op("if", op("eq", fld("document", "kind"), lit("invoice")), lit("Invoice"), lit("Sales receipt")),
+		byDocumentKind(func(_, noun string) *reports.Node { return lit(noun) }),
 		lit(" "),
 		fld("document", "number"),
 		op("if", op("isEmpty", customer), lit(""), op("concat", lit(" · "), customer)),
 	)
+}
+
+// cashCreditMemoFilter leaves out, on Cash, a credit memo's ledger tax lines
+// and the cash rows that take them out (credit memo spec §3.11, Q17). Both lie
+// on the memo's date and cancel, so the figures stay; without them an
+// unapplied memo shows no row. A taken-out row has no payment entry; a row
+// that brings a memo back (when something applies or refunds it) names the
+// entry that did it and stays. The rows' signs decide nothing: a memo's
+// subtotal can be zero or below zero.
+func cashCreditMemoFilter() *reports.Node {
+	return op("not", op("and",
+		op("eq", prm("method"), lit("cash")),
+		op("eq", fld("document", "kind"), lit("credit_memo")),
+		op("or",
+			op("eq", fld("layer"), lit("ledger")),
+			op("isEmpty", fld("payment_entry", "id")),
+		),
+	))
 }
 
 // stlParams are the Period (Last month by default), the Method (Accrual by

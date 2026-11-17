@@ -35,6 +35,7 @@ var wantAuditParentFields = map[string]string{
 	"books_estimate_responses":   "estimate",
 	"books_payment_applications": "payment",
 	"books_bill_payment_lines":   "payment",
+	"books_credit_memo_lines":    "credit_memo",
 }
 
 // auditGolden is server/testdata/audit_log_spec.json, which the vitest

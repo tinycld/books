@@ -78,6 +78,7 @@ describe('backTarget', () => {
         const below: [string, string][] = [
             ['invoices/[id]', 'Invoice'],
             ['sales-receipts/[id]', 'Sales receipt'],
+            ['credit-memos/[id]', 'Credit memo'],
             ['estimates/[id]', 'Estimate'],
             ['expenses/[id]', 'Expense'],
             ['payments/[id]', 'Payment'],

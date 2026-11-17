@@ -83,11 +83,18 @@ export async function pickLineProduct(page: Page, index: number, name: string) {
 
 // Reopens an invoice through core's search palette (`/`): drafts are found there by
 // their memo, as the option titled "Draft invoice · <Customer>" or "Invoice <n> · <Customer>".
+// The search pushes the invoice over the screen open before it, which stays mounted but
+// hidden (another invoice view, when the stack already holds one), so only a visible view
+// is the pushed one. Exactly one invoice view may be visible: two mean the hidden one
+// did not hide.
 export async function openInvoiceBySearch(page: Page, memo: string) {
     await searchToInvoice(page, memo)
-    await expect(
-        page.getByTestId('invoice-form').or(page.getByTestId('invoice-read-only'))
-    ).toBeVisible()
+    const view = page
+        .getByTestId('invoice-form')
+        .or(page.getByTestId('invoice-read-only'))
+        .filter({ visible: true })
+    await expect(view).toHaveCount(1)
+    await expect(view).toBeVisible()
 }
 
 // Leaves the page on the invoice's route without waiting for it to load, for a test

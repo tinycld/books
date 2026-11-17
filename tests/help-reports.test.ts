@@ -511,6 +511,23 @@ describe('help/reports.md', () => {
         expect(section('## Build your own Books report')).toContain(label)
     })
 
+    // Credit memo §3.10 (Q19): "Sales documents" holds credit memos with the Kind "Credit
+    // memo" and their positive totals, so a report that adds totals across kinds filters by
+    // Kind.
+    describe('credit memos in "Build your own Books report"', () => {
+        const sentences = section('## Build your own Books report').split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('names the Kind "Credit memo" of Sales documents', () => {
+            expect(oneSentence(/Sales documents/, /\bKind\b/, /"?Credit memo"?/)).toBe(true)
+        })
+
+        it('says to filter by Kind when adding totals across kinds', () => {
+            expect(oneSentence(/\bfilter/i, /\bKind\b/, /\btotals?\b/i)).toBe(true)
+        })
+    })
+
     it('"Who sees Books reports" names the Profit and Loss, the Profit and Loss by Month and Transaction Detail by Account', () => {
         const who = section('## Who sees Books reports')
         expect(who).toContain('Profit and Loss by Month')

@@ -245,10 +245,30 @@ export async function chooseAsOf(
 
 const FILTER_OPTION_PREFIX = 'report-filter-option-'
 
+// A chip names at most two choices (core NAMED_CHOICES); more read as a count.
+const CHIP_NAMED_CHOICES = 2
+
+// The accounts a run asked for, sorted: the ids of `params.accounts` in its body.
+function runAccountIds(response: Response): string[] | null {
+    const body = response.request().postDataJSON() as { params?: { accounts?: unknown } } | null
+    const accounts = body?.params?.accounts
+    if (!Array.isArray(accounts) || !accounts.every(id => typeof id === 'string')) return null
+    return [...accounts].sort()
+}
+
 // Narrows the report to the accounts named (full names), picked one by one through the
 // Accounts picker under Add filter (opened here unless the test already opened it): a
 // search per name, its option checked, then Apply. Returns the picked account ids, read
 // from each option's test id (core ParamPickerParts `report-filter-option-<id>`).
+// It waits for a run response that asks for exactly the picked ids (the key change
+// refetches even a cached body, as the run's staleTime is 0), then for "Updating…" to
+// go, then for the chip to name the picks (when it names them, at most two).
+// For a body new to the page, that means the filtered rows are on screen: core keeps
+// the previous run's rows (keepPreviousData) and shows "Updating…" until the new run
+// lands. For a body already run on the page, it does not: React Query draws the cached
+// rows at once with no "Updating…", and the response event comes when the headers
+// arrive, before the refetch commits. So the helper can return while the cached figures
+// are still on screen; a caller that needs the new figures waits for them itself.
 export async function filterToAccounts(page: Page, names: readonly string[]): Promise<string[]> {
     const entry = page.getByTestId('report-add-filter-accounts')
     if (!(await entry.isVisible())) await page.getByTestId('report-add-filter').click()
@@ -266,9 +286,30 @@ export async function filterToAccounts(page: Page, names: readonly string[]): Pr
         ids.push(testId.slice(FILTER_OPTION_PREFIX.length))
         await option.click()
     }
-    await picker.getByTestId('report-filter-apply').click()
-    await expect(picker).toBeHidden()
-    await expect(page.getByTestId('report-param-accounts')).toBeVisible()
+    const picked = JSON.stringify([...ids].sort())
+    const runs: string[] = []
+    const watch = (response: Response) => {
+        if (!response.url().includes('/api/reports/run') || !response.ok()) return
+        const runIds = runAccountIds(response)
+        if (runIds) runs.push(JSON.stringify(runIds))
+    }
+    page.on('response', watch)
+    try {
+        await picker.getByTestId('report-filter-apply').click()
+        await expect(picker).toBeHidden()
+        await expect
+            .poll(() => runs.includes(picked), {
+                message: `a run with the accounts ${picked} landed`,
+            })
+            .toBe(true)
+    } finally {
+        page.off('response', watch)
+    }
+    await expect(page.getByTestId('report-updating')).toHaveCount(0)
+    const chip = page.getByTestId('report-param-accounts')
+    await expect(chip).toBeVisible()
+    const chipNamesPicks = names.length <= CHIP_NAMED_CHOICES
+    if (chipNamesPicks) for (const name of names) await expect(chip).toContainText(name)
     return ids
 }
 
@@ -933,42 +974,6 @@ export async function openTransactionDetailFromHub(page: Page): Promise<void> {
     ).toBeVisible()
 }
 
-// The accounts a run asked for, sorted: the ids of `params.accounts` in its body.
-function runAccountIds(response: Response): string[] | null {
-    const body = response.request().postDataJSON() as { params?: { accounts?: unknown } } | null
-    const accounts = body?.params?.accounts
-    if (!Array.isArray(accounts) || !accounts.every(id => typeof id === 'string')) return null
-    return [...accounts].sort()
-}
-
-// Narrows the open report to the accounts named (full names) and waits until a run that
-// asks for exactly the picked account ids has landed and the Accounts chip names every
-// one: core keeps the previous run's rows on screen until the new run lands. The run is
-// awaited by its body, so the choice must be one the page has not run before (React Query
-// answers a cached body with no request). A chip names at most two choices (core
-// NAMED_CHOICES), so pass at most two names.
-export async function filterToAccountsAndWait(page: Page, names: readonly string[]): Promise<void> {
-    const runs: string[] = []
-    const watch = (response: Response) => {
-        if (!response.url().includes('/api/reports/run') || !response.ok()) return
-        const ids = runAccountIds(response)
-        if (ids) runs.push(JSON.stringify(ids))
-    }
-    page.on('response', watch)
-    try {
-        const picked = [...(await filterToAccounts(page, names))].sort()
-        await expect
-            .poll(() => runs.includes(JSON.stringify(picked)), {
-                message: `a run with the accounts ${picked.join(', ')} landed`,
-            })
-            .toBe(true)
-    } finally {
-        page.off('response', watch)
-    }
-    const chip = page.getByTestId('report-param-accounts')
-    for (const name of names) await expect(chip).toContainText(name)
-}
-
 // Transaction Detail by Account narrowed to `opts.accounts` (full names), opened from
 // the Books sidebar's Reports hub.
 export async function openTransactionDetail(
@@ -976,7 +981,7 @@ export async function openTransactionDetail(
     opts: { accounts: readonly string[] }
 ): Promise<void> {
     await openTransactionDetailFromHub(page)
-    await filterToAccountsAndWait(page, opts.accounts)
+    await filterToAccounts(page, opts.accounts)
 }
 
 export type TdSnapshot = {

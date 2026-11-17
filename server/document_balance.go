@@ -52,8 +52,15 @@ var (
 		PaymentField:      "payment",
 		Noun:              "bill",
 	}
+	// creditMemoBalanceKind: the credit not yet applied. Nothing applies a
+	// credit memo yet, so it has no lines and no payment collection, and its
+	// balance is its total while it is posted.
+	creditMemoBalanceKind = balanceKind{
+		Collection: "books_credit_memos",
+		Noun:       "credit memo",
+	}
 	// balanceKinds are verified and rebuilt by the ledger rebuild.
-	balanceKinds = []balanceKind{invoiceBalanceKind, billBalanceKind}
+	balanceKinds = []balanceKind{invoiceBalanceKind, billBalanceKind, creditMemoBalanceKind}
 )
 
 // balanceKindOf is the balance kind of a document collection, and false for a
@@ -92,8 +99,12 @@ func isMovingLines(tx core.App, kind balanceKind, paymentID string) bool {
 
 // postedAppliedTo is the sum of the lines of posted payments that name the
 // document. A draft payment's lines do not count, and a void payment's were
-// released. The table and column names are the constants of balanceKinds.
+// released. The table and column names are the constants of balanceKinds. A
+// kind with no LinesCollection has nothing applied: 0.
 func postedAppliedTo(tx core.App, kind balanceKind, docID string) (int64, error) {
+	if kind.LinesCollection == "" {
+		return 0, nil
+	}
 	var row struct {
 		Applied int64 `db:"applied"`
 	}
@@ -261,19 +272,24 @@ type DocumentBalanceDrift struct {
 
 // verifyDocumentBalances is the verify part of the document balances: it
 // recomputes every document's balance as documentBalance does, for each kind,
-// and reports each stored one that differs.
+// and reports each stored one that differs. A kind with no LinesCollection
+// has 0 applied.
 func verifyDocumentBalances(app core.App) ([]DocumentBalanceDrift, error) {
 	drifts := []DocumentBalanceDrift{}
 	for _, kind := range balanceKinds {
+		applied := "0"
+		if kind.LinesCollection != "" {
+			applied = `(
+				           SELECT SUM(a.amount) FROM ` + kind.LinesCollection + ` a
+				           JOIN ` + kind.PaymentCollection + ` p ON p.id = a.` + kind.PaymentField + `
+				           WHERE a.` + kind.LineField + ` = d.id AND p.status = 'posted')`
+		}
 		found := []DocumentBalanceDrift{}
 		err := app.DB().NewQuery(`
 			SELECT {:kind} AS kind, document, number, stored, want FROM (
 				SELECT d.id AS document, d.number AS number,
 				       CAST(COALESCE(d.balance, 0) AS INTEGER) AS stored,
-				       CASE WHEN d.status = 'posted' THEN CAST(d.total AS INTEGER) - CAST(COALESCE((
-				           SELECT SUM(a.amount) FROM ` + kind.LinesCollection + ` a
-				           JOIN ` + kind.PaymentCollection + ` p ON p.id = a.` + kind.PaymentField + `
-				           WHERE a.` + kind.LineField + ` = d.id AND p.status = 'posted'), 0) AS INTEGER)
+				       CASE WHEN d.status = 'posted' THEN CAST(d.total AS INTEGER) - CAST(COALESCE(` + applied + `, 0) AS INTEGER)
 				       ELSE 0 END AS want
 				FROM ` + kind.Collection + ` d)
 			WHERE stored != want

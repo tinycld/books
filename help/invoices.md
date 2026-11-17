@@ -43,7 +43,7 @@ When you pick a bundle on an item line, Books replaces the line with one item li
 
 Under the lines, Books shows the Subtotal, the tax line, the Total and the Balance due. The tax line shows the name of the tax rate or group and its percent, for example "Denver combined (8.71%)". Books calculates tax on the taxable lines only. For a group, it calculates the tax of each rate in the group, rounds it to the cent, and adds the amounts. With no tax chosen, there is no tax line. An exempt customer's lines start with Tax off. To set up rates, see [Sales tax](help://books:sales-tax).
 
-The total cannot be below zero. To give money back to a customer, use a credit memo.
+The total cannot be below zero. To give money back to a customer, use a [credit memo](help://books:credit-memos).
 
 ## Balance due and payments
 
@@ -83,11 +83,23 @@ To cancel a posted invoice, open it and choose Void, then confirm. Books posts a
 
 While a posted payment pays the invoice, Books refuses Void: "Payments are applied to this invoice. Void or edit those payments first." An edit of a paid invoice keeps its payments: when you post the edit, they move to it. Its total cannot be below the payments, and its customer cannot change while payments are applied.
 
+An edit of an invoice also keeps its credit memos: when you post the edit, every credit memo made from the invoice names the new one, so it still reads "For invoice 1004". While a draft or posted credit memo names the invoice, its customer cannot change: Books refuses the post under Customer with "Credit memos are made from this invoice, so its customer cannot change." A void credit memo does not stop the change. A void of the invoice keeps its credit memos: each one reads "For invoice 1004 (void)", and the void invoice still lists them.
+
 To see the entry an invoice posted, open it and choose View journal entry. A posted invoice also shows in Journal Entries with the Type Invoice and its number.
 
 ## Copy an invoice
 
 To start a new invoice from one that you already have, open it and choose Copy. The new draft has the same customer, lines, tax and message, and today's date.
+
+## Create a credit memo
+
+To give the customer a credit for a posted invoice, open the invoice and choose **Create credit memo**, or press M. It shows only on a posted invoice, after Copy; a void invoice does not have it. On a phone, it is in the More menu. A new credit memo opens with the invoice's customer, Bill to, Email, Tax and a copy of all its lines, today's date, and an empty message and memo. Remove or change the lines that you do not credit. The credit is not limited to the invoice's total or its balance due.
+
+The credit memo shows **For invoice 1004** in its header: choose it to open the invoice. To keep the credit memo but not link it to the invoice, choose **Remove link**. When you pick another customer, the link goes away too. For more, see [Credit memos](help://books:credit-memos).
+
+## Credit memos on an invoice
+
+Under the payments of an invoice, the **Credit memos** section lists each credit memo made from it, with its number, date, amount and status. A draft credit memo shows "Draft" as its number. Choose a number to open the credit memo. An invoice with no credit memo has no such section. A credit memo does not change the invoice's Balance due: the credit goes to the customer.
 
 ## Convert an estimate
 
@@ -138,12 +150,13 @@ On a posted or void invoice:
 - E: Edit
 - V: Void
 - C: Copy to a new invoice
+- M: Create credit memo (a posted invoice)
 - J: View journal entry
 - ⌥1 / ⌥2: Details tab / PDF view tab
 - ⌘P: Download PDF
 
-The form keys also work while the cursor is in a text box. R, E, V, C and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys also work while the cursor is in a text box. R, E, V, C, M and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
-With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices, and receive payments for them. With read-only access you can open a posted or void invoice, view its journal entry and download its PDF.
+With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices, receive payments for them, and create credit memos from them. With read-only access you can open a posted or void invoice, view its journal entry and download its PDF.

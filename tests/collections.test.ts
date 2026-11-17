@@ -46,6 +46,9 @@ const NAMES = [
     'books_bill_payment_lines',
     'books_cash_basis_lines',
     'books_cash_basis_tax_lines',
+    'books_credit_memos',
+    'books_credit_memo_lines',
+    'books_credit_memo_tax_lines',
 ]
 
 function register() {

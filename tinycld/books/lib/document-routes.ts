@@ -8,7 +8,8 @@ type RouteKind = Pick<SalesDocumentKind, 'routeBase'>
 // The kind's new-document route with only the params given. `fresh` is a nonce: a
 // replace from one new form to another (Post & new) keys a fresh form on it; it comes
 // before the party (`customer` or `vendor`), which Post & new keeps only when the form
-// was opened with it. `estimate` starts an invoice from that estimate (Convert to invoice).
+// was opened with it. `estimate` starts an invoice from that estimate (Convert to invoice);
+// `invoice` starts a credit memo from that invoice (Create credit memo).
 export function documentNewHref(
     kind: RouteKind,
     input: {
@@ -18,10 +19,12 @@ export function documentNewHref(
         replaces?: string
         copy?: string
         estimate?: string
+        invoice?: string
     }
 ): string {
     const params = new URLSearchParams()
-    for (const key of ['replaces', 'copy', 'estimate', 'fresh', 'customer', 'vendor'] as const) {
+    const keys = ['replaces', 'copy', 'estimate', 'invoice', 'fresh', 'customer', 'vendor'] as const
+    for (const key of keys) {
         const value = input[key]
         if (value) params.set(key, value)
     }

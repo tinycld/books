@@ -299,7 +299,13 @@ function CustomerPickerField({ value, onChange, disabled, label }: BuiltinFieldP
     const picker = useSearchPicker()
     const focus = usePartyFocus(`${scope.kind.testId}-form`)
     const options = useDocumentCustomerOptions(picker.debouncedTerm, picker.isOpen)
-    const { pick, pickFailed } = useCustomerPick(id, onChange)
+    // Another customer drops a credit memo's invoice link (the invoice is the old one's),
+    // when the pick lands: a pick whose read fails keeps the customer and the link.
+    const onCustomerChange = (next: unknown) => {
+        if (next !== id) scope.invoiceLink.remove()
+        onChange(next)
+    }
+    const { pick, pickFailed } = useCustomerPick(id, onCustomerChange)
     const triggerLabel = partyTriggerLabel(id, scope)
     const triggerSuffix = scope.party?.inactive ? '(inactive)' : undefined
     const onPick = (next: string) => {

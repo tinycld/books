@@ -22,6 +22,7 @@ import {
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
+    NO_INVOICE_SOURCE,
     NO_RECOVERY,
     postedPaymentsOf,
     purchaseLineMapperOf,
@@ -277,6 +278,7 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
             [linesCollection]
         ),
         ...NO_ESTIMATE_SOURCE,
+        ...NO_INVOICE_SOURCE,
         documentPayments: documentRead(paymentsId, paymentsQuery, documentPayments, [
             paymentLinesCollection,
             billPaymentsCollection,

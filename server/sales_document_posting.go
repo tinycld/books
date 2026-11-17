@@ -301,7 +301,8 @@ func componentTaxes(tx core.App, totals documentTotalsResult) ([]componentTax, e
 // with the sum of the item and percent amounts of the products that name it;
 // a bill's expenseByAccount), in chart order; then each tax component
 // credited to its agency's liability account, in the rate's order (a zero tax
-// no line).
+// no line). A Credit kind (a credit memo) posts the mirror: the total credited
+// to its credit account, the line accounts and the tax components debited.
 func salesDocPostingLines(tx core.App, kind salesDocKind, doc *core.Record, lines []*core.Record, totals documentTotalsResult, taxes []componentTax) ([]postingLine, error) {
 	var out []postingLine
 	if kind.CreditAccount != nil {
@@ -326,13 +327,33 @@ func salesDocPostingLines(tx core.App, kind salesDocKind, doc *core.Record, line
 	if err != nil {
 		return nil, err
 	}
+	if kind.Credit {
+		accounts = mirroredLines(accounts)
+	}
 	out = append(out, accounts...)
 	for _, t := range taxes {
-		if t.Amount != 0 {
-			out = append(out, signedLine(t.account, t.Amount))
+		if t.Amount == 0 {
+			continue
 		}
+		amount := t.Amount
+		if kind.Credit {
+			amount = -amount
+		}
+		out = append(out, signedLine(t.account, amount))
 	}
 	return out, nil
+}
+
+// mirroredLines turns the side of every line: a credit kind debits what a sale
+// credits (an income account's sum above zero is a debit, below zero a
+// credit).
+func mirroredLines(lines []postingLine) []postingLine {
+	out := make([]postingLine, len(lines))
+	for i, l := range lines {
+		l.Debit, l.Credit = l.Credit, l.Debit
+		out[i] = l
+	}
+	return out
 }
 
 // signedLine credits a positive amount and debits a negative one.
@@ -438,12 +459,18 @@ func accountSums(tx core.App, sums map[string]int64, firstLine map[string]docume
 // amount and currency: a later change to a rate never changes what a posted
 // document charged, and the Sales Tax Liability report reads these figures.
 // Each line carries the document date, the day the report counts it on the
-// accrual basis (an invoice's cash-basis tax rows carry their own days).
+// accrual basis (an invoice's cash-basis tax rows carry their own days). A
+// Credit kind (a credit memo) stores the three figures negated, so it lowers
+// what its rate and agency report.
 func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult, taxes []componentTax) error {
 	defer markSnapshotting(tx, kind, doc.Id)()
 	col, err := tx.FindCachedCollectionByNameOrId(kind.TaxLinesCollection)
 	if err != nil {
 		return err
+	}
+	sign := int64(1)
+	if kind.Credit {
+		sign = -1
 	}
 	for i, t := range taxes {
 		r := core.NewRecord(col)
@@ -452,10 +479,10 @@ func writeTaxSnapshot(tx core.App, kind salesDocKind, doc *core.Record, totals d
 		r.Set("component", t.ComponentID)
 		r.Set("agency", t.agency)
 		r.Set("rate_ppm", t.Ppm)
-		r.Set("gross_amount", totals.Subtotal)
-		r.Set("taxable_amount", totals.TaxableTotal)
+		r.Set("gross_amount", sign*totals.Subtotal)
+		r.Set("taxable_amount", sign*totals.TaxableTotal)
 		r.Set("currency", doc.GetString("currency"))
-		r.Set("amount", t.Amount)
+		r.Set("amount", sign*t.Amount)
 		r.Set("date", doc.GetString("date"))
 		r.Set("position", i)
 		if err := tx.Save(r); err != nil {

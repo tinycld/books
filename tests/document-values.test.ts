@@ -4,12 +4,14 @@ import { BILL_CURRENCY, BILL_IDS, BILL_LINES } from '../tinycld/books/lib/bill-f
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import type { CustomerFill } from '../tinycld/books/lib/document-fills'
 import { documentTotals } from '../tinycld/books/lib/document-lines'
+import { documentSchema } from '../tinycld/books/lib/document-schema'
 import { shownDocumentTotals } from '../tinycld/books/lib/document-tax'
 import { defaultMessageFor } from '../tinycld/books/lib/document-values'
 import { INVOICE_IDS, INVOICE_LINES, INVOICES } from '../tinycld/books/lib/invoice-form-fixture'
 import { copyInvoiceValues, newInvoiceValues } from '../tinycld/books/lib/invoice-values'
 import { centsToText } from '../tinycld/books/lib/money-text'
 import {
+    CREDIT_MEMO_KIND,
     type DocumentLineTable,
     SALES_LINE_TABLES,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -296,5 +298,89 @@ describe('shownDocumentTotals over several line tables', () => {
                 tax
             )
         )
+    })
+})
+
+// The credit memo's schema (checkpoint 3): the layer's rules with the credit memo's texts,
+// and no due-date rule (a credit memo has no due date).
+describe("documentSchema(CREDIT_MEMO_KIND, 'USD', …)", () => {
+    const CM_TOTAL_NEGATIVE = 'A credit memo total cannot be below zero. Use an invoice.'
+    const CM_TOTAL_TOO_LARGE = 'The credit memo total is more than Books can store.'
+    const NEED_ITEM_LINE = 'Add at least one product or service line'
+
+    let nextRow = 0
+    function cmItem(cells: Partial<TableRow> = {}): TableRow {
+        nextRow += 1
+        return {
+            id: `cmrow${String(nextRow).padStart(10, '0')}`,
+            kind: 'item',
+            product: 'prodbookkeep001',
+            description: '',
+            quantity: 1,
+            rate: '100.00',
+            amount: null,
+            taxable: false,
+            ...cells,
+        }
+    }
+
+    function memoValues(lines: TableRow[], overrides: Record<string, unknown> = {}) {
+        return {
+            customer: CUSTOMER_IDS.harborview,
+            bill_to: null,
+            email: '',
+            date: TODAY,
+            tax_rate: '',
+            lines,
+            message: '',
+            memo: '',
+            ...overrides,
+        }
+    }
+
+    type Issue = { path: PropertyKey[]; message: string }
+
+    function issuesFor(mode: 'draft' | 'post', values: unknown): Issue[] {
+        const result = documentSchema(CREDIT_MEMO_KIND, 'USD', mode).safeParse(values)
+        return result.success ? [] : result.error.issues
+    }
+
+    function messagesAt(issues: Issue[], key: string): string[] {
+        return issues.filter(issue => issue.path.join('.') === key).map(issue => issue.message)
+    }
+
+    it('accepts a memo for a customer with one product line', () => {
+        expect(issuesFor('draft', memoValues([cmItem()]))).toEqual([])
+    })
+
+    it('refuses lines that sum below zero at lines with the credit memo text', () => {
+        const issues = issuesFor(
+            'draft',
+            memoValues([cmItem({ rate: '10.00' }), cmItem({ rate: '-20.00' })])
+        )
+        expect(messagesAt(issues, 'lines')).toEqual([CM_TOTAL_NEGATIVE])
+    })
+
+    it('refuses a total over the stored-amount limit at lines with the credit memo text', () => {
+        // Ten lines of 10^15 cents each: every line is at its limit, the total is past
+        // 2^53 - 1.
+        const lines = Array.from({ length: 10 }, () => cmItem({ rate: '10,000,000,000,000.00' }))
+        const issues = issuesFor('draft', memoValues(lines))
+        expect(messagesAt(issues, 'lines')).toEqual([CM_TOTAL_TOO_LARGE])
+    })
+
+    it('has no due-date rule: a due date before the memo date is not checked', () => {
+        const issues = issuesFor(
+            'draft',
+            memoValues([cmItem()], { date: '2026-11-11', due_date: '2026-11-01' })
+        )
+        expect(messagesAt(issues, 'due_date')).toEqual([])
+        expect(issues).toEqual([])
+    })
+
+    it('adds the one-product-line rule in Post mode', () => {
+        const issues = issuesFor('post', memoValues([cmItem({ product: '' })]))
+        expect(messagesAt(issues, 'lines')).toContain(NEED_ITEM_LINE)
+        expect(issuesFor('post', memoValues([cmItem()]))).toEqual([])
     })
 })

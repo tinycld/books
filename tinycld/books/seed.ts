@@ -4,6 +4,12 @@ import { ATTACHMENTS, SEED_ATTACHMENT_IDS } from './lib/attachments-fixture'
 import { BANK_SEED } from './lib/bank-connection-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
+import {
+    CREDIT_MEMO_LINES,
+    CREDIT_MEMO_SEED_DRAFT_ID,
+    CREDIT_MEMO_SEED_IDS,
+    CREDIT_MEMOS,
+} from './lib/credit-memo-form-fixture'
 import { CUSTOMER_BALANCE_SEED } from './lib/customer-balance-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { CUSTOMER_PAGE_CONTACTS } from './lib/customer-page-fixture'
@@ -149,7 +155,12 @@ async function postSeedDraft(pb: PocketBase, entryId: string, userId: string): P
 // increased the draft's revision.
 async function postSeedDocument(
     pb: PocketBase,
-    collection: 'books_invoices' | 'books_sales_receipts' | 'books_bills' | 'books_expenses',
+    collection:
+        | 'books_invoices'
+        | 'books_sales_receipts'
+        | 'books_credit_memos'
+        | 'books_bills'
+        | 'books_expenses',
     id: string,
     userId: string
 ): Promise<void> {
@@ -224,8 +235,9 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedProducts(pb, accountIds)
     await seed1099(pb, accountIds)
     await seedSalesTax(pb, accountIds, customerIds)
-    await seedInvoices(pb, ctx, customerIds)
+    const invoiceIds = await seedInvoices(pb, ctx, customerIds)
     await seedPayments(pb, ctx, accountIds, customerIds)
+    await seedCreditMemos(pb, ctx, customerIds, invoiceIds)
     await seedSalesReceipts(pb, ctx, accountIds, customerIds)
     // After the earlier seeded documents, so they keep their numbers.
     await seedSalesTaxLiability(pb, ctx, accountIds, customerIds)
@@ -428,12 +440,14 @@ function seedInvoiceMemo(id: string): string {
 // General Ledger's fixed seed days. The product fixture ids are valid
 // PocketBase ids and are sent as-is; `customerIds` maps a customer-form
 // fixture id to the created customer's id. The amounts and totals are the
-// server's, so none is sent.
+// server's, so none is sent. Returns the created id of each fixture invoice,
+// by its fixture id, for the documents that name one (seedCreditMemos).
 export async function seedInvoices(
     pb: PocketBase,
     ctx: SeedContext,
     customerIds: Map<string, string>
-): Promise<void> {
+): Promise<Map<string, string>> {
+    const invoiceIds = new Map<string, string>()
     for (const id of INVOICE_SEED_IDS) {
         const fixture = INVOICES.find(row => row.id === id)
         if (fixture === undefined) throw new Error(`seed: invoice ${id} is not in INVOICES`)
@@ -469,7 +483,80 @@ export async function seedInvoices(
             })
         }
         await postSeedDocument(pb, 'books_invoices', created.id, ctx.user.id)
+        invoiceIds.set(id, created.id)
     }
+    return invoiceIds
+}
+
+// Creates a fixture credit memo as a draft with its lines, through the writes
+// the credit memo form makes: the header, then its lines in order. The amounts
+// and totals are the server's, so none is sent. `customerIds` maps a
+// customer-form fixture id to the created customer's id; `invoiceIds` maps a
+// fixture invoice id to the created invoice's id.
+async function createSeedCreditMemo(
+    pb: PocketBase,
+    id: string,
+    customerIds: Map<string, string>,
+    invoiceIds: Map<string, string>
+): Promise<string> {
+    const fixture = CREDIT_MEMOS.find(row => row.id === id)
+    if (fixture === undefined) throw new Error(`seed: credit memo ${id} is not in CREDIT_MEMOS`)
+    const customer = customerIds.get(fixture.customer)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: credit memo ${id} names customer ${fixture.customer}, which was not created`
+        )
+    }
+    const invoice = fixture.invoice === '' ? '' : invoiceIds.get(fixture.invoice)
+    if (invoice === undefined) {
+        throw new Error(
+            `seed: credit memo ${id} names invoice ${fixture.invoice}, which was not seeded`
+        )
+    }
+    const created = await pb.collection('books_credit_memos').create({
+        customer,
+        status: 'draft',
+        date: fixture.date,
+        bill_to: fixture.bill_to,
+        email: fixture.email,
+        tax_rate: fixture.tax_rate,
+        message: fixture.message,
+        memo: fixture.memo,
+        invoice,
+    })
+    for (const line of CREDIT_MEMO_LINES.filter(row => row.credit_memo === id)) {
+        await pb.collection('books_credit_memo_lines').create({
+            credit_memo: created.id,
+            position: line.position,
+            kind: line.kind,
+            product: line.product,
+            description: line.description,
+            quantity: line.quantity,
+            rate: line.rate,
+            percent_ppm: line.percent_ppm,
+            taxable: line.taxable,
+        })
+    }
+    return created.id
+}
+
+// Posts the CREDIT_MEMO_SEED_IDS memos (spec §4.6: the posted one names the
+// seeded posted invoice of its customer, with Denver combined tax), so the
+// server numbers each (1001 on a fresh book), writes its journal entry, its
+// negative tax snapshot and its balance; then keeps CREDIT_MEMO_SEED_DRAFT_ID as
+// a draft. Their fixture days (2026-11-10, 2026-11-16) are days no report spec
+// reads.
+export async function seedCreditMemos(
+    pb: PocketBase,
+    ctx: SeedContext,
+    customerIds: Map<string, string>,
+    invoiceIds: Map<string, string>
+): Promise<void> {
+    for (const id of CREDIT_MEMO_SEED_IDS) {
+        const created = await createSeedCreditMemo(pb, id, customerIds, invoiceIds)
+        await postSeedDocument(pb, 'books_credit_memos', created, ctx.user.id)
+    }
+    await createSeedCreditMemo(pb, CREDIT_MEMO_SEED_DRAFT_ID, customerIds, invoiceIds)
 }
 
 // Posts the PAYMENT_SEED payments (spec §4.5), in order, through the writes the payment

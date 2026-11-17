@@ -240,6 +240,32 @@ func TestAllocateNumber_BillPaymentSequenceStartsAt1001(t *testing.T) {
 	}
 }
 
+// Credit memo spec §4.1: the credit memo sequence is seeded as booksseqcreditm,
+// with no prefix, starting at 1001, and a credit memo number takes no invoice's.
+func TestAllocateNumber_CreditMemoSequenceStartsAt1001(t *testing.T) {
+	app := newBooksApp(t)
+	row := reload(t, app, "books_doc_sequences", "booksseqcreditm")
+	if got := [3]any{row.GetString("doc_type"), row.GetString("prefix"), row.GetInt("next_number")}; got != [3]any{"credit_memo", "", 1001} {
+		t.Fatalf("doc_type/prefix/next_number = %v, want [credit_memo  1001]", got)
+	}
+	var seq int
+	var number string
+	err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		seq, number, err = allocateNumber(tx, docTypeCreditMemo)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("allocate a credit memo number: %v", err)
+	}
+	if seq != 1001 || number != "1001" {
+		t.Fatalf("got %d %q, want 1001 \"1001\"", seq, number)
+	}
+	if next := reload(t, app, "books_doc_sequences", "booksseqinvoice").GetInt("next_number"); next != 1001 {
+		t.Fatalf("invoice next_number = %d, want 1001 (a credit memo must not take an invoice number)", next)
+	}
+}
+
 func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 	app := newBooksApp(t)
 	col, err := app.FindCollectionByNameOrId("books_journal_entries")
@@ -260,7 +286,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	// Estimates never post, so only the sequences know the estimate doc type.
 	// The lists are compared sorted: where a new doc type lands in the select
 	// is not a rule.
-	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment"}
+	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo"}
 	want := map[string][]string{
 		"books_journal_entries": slices.Sorted(slices.Values(entryTypes)),
 		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate"))),

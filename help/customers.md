@@ -35,9 +35,9 @@ On a very wide window, an open customer's page shows beside the list of names, a
 
 ## A customer's transactions
 
-The Transactions tab lists the customer's invoices, estimates, sales receipts and payments, newest first. To select it, press ⌥1. Each row shows the date, the type, the number, the due date (invoices only), the total and the status. An invoice is Draft, Paid, Partly paid, Overdue (posted, nothing paid yet and due before today), Open or Void; an estimate is Pending, Accepted, Rejected, Closed or Expired; a sales receipt is Draft, Paid or Void; a payment is Draft, Applied, Credit (with the amount kept as a credit) or Void. A corrected invoice or sales receipt shows once, with its number: the voided original is left out.
+The Transactions tab lists the customer's invoices, estimates, sales receipts, payments and credit memos, newest first. To select it, press ⌥1. Each row shows the date, the type, the number, the due date (invoices only), the total and the status. An invoice is Draft, Paid, Partly paid, Overdue (posted, nothing paid yet and due before today), Open or Void; an estimate is Pending, Accepted, Rejected, Closed or Expired; a sales receipt is Draft, Paid or Void; a payment is Draft, Applied, Credit (with the amount kept as a credit) or Void; a credit memo is Draft, Unapplied, Applied or Void, and its total shows with a minus sign. A corrected invoice, sales receipt or credit memo shows once, with its number: the voided original is left out.
 
-To see one type only, choose Invoices, Estimates, Sales receipts or Payments above the list; choose All, or Show all, to see every type again. The list starts on All each time you open the customer or select the Transactions tab again. Choose a row to open the document; go back to return to the customer's page as you left it. If the customer has no transactions yet, choose New transaction to start an invoice, an estimate, a sales receipt or a payment for the customer. To record money a customer sent, see [Receive payment](help://books:receive-payment).
+To see one type only, choose Invoices, Estimates, Sales receipts, Payments or Credit memos above the list; choose All, or Show all, to see every type again. The list starts on All each time you open the customer or select the Transactions tab again. Choose a row to open the document; go back to return to the customer's page as you left it. If the customer has no transactions yet, choose New transaction to start an invoice, an estimate, a sales receipt, a payment or a credit memo for the customer. To record money a customer sent, see [Receive payment](help://books:receive-payment). To give a customer a credit, see [Credit memos](help://books:credit-memos).
 
 ## Sub-customers
 
@@ -57,7 +57,7 @@ To delete a customer, open the menu on its row and choose Delete, or choose More
 
 A customer with sub-customers cannot be deleted. If all of its sub-customers are inactive, the dialog lets you make the customer inactive. If one or more sub-customers are active, make them inactive first. If you delete the customer that is open with changes that are not saved, the dialog tells you that those changes will be lost.
 
-A customer that is on an invoice, a [sales receipt](help://books:sales-receipts) or a [payment](help://books:receive-payment), draft or posted, or on an [estimate](help://books:estimates), cannot be deleted. Make it inactive instead.
+A customer that is on an invoice, a [sales receipt](help://books:sales-receipts), a [payment](help://books:receive-payment) or a [credit memo](help://books:credit-memos), draft or posted, or on an [estimate](help://books:estimates), cannot be deleted. Make it inactive instead.
 
 ## Sales tax
 

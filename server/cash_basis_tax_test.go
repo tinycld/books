@@ -301,6 +301,27 @@ func TestCashBasisTax_VoidedInvoiceHasNoTaxRows(t *testing.T) {
 	requireNoCashDrift(t, ce.app)
 }
 
+// Credit memo spec §4.1, §4.3: every cash tax row names its document's id in
+// document, the column the report source reads for an invoice and a credit
+// memo alike; an invoice's rows leave credit_memo empty.
+func TestCashBasisTax_InvoiceRowsNameTheirDocument(t *testing.T) {
+	ce := newCashTaxEnv(t)
+	inv := ce.taxedInvoiceOn(t, ce.eight, cashDay1, 100000)
+	ce.payOn(t, inv, cashDay2, 54000)
+
+	recs := cashTaxRecordsOf(t, ce.app, dbx.HashExp{"invoice": inv.Id})
+	if len(recs) != 2 {
+		t.Fatalf("the part-paid invoice has %d cash tax rows, want 2 (taken out and the payment's share)", len(recs))
+	}
+	for _, r := range recs {
+		if r.document != inv.Id || r.creditMemo != "" {
+			t.Errorf("invoice cash tax row %+v: document %q, credit_memo %q; want document the invoice %s and no credit memo",
+				r, r.document, r.creditMemo, inv.Id)
+		}
+	}
+	requireNoCashDrift(t, ce.app)
+}
+
 func TestRebuildCashBasis_RestoresADeletedTaxRow(t *testing.T) {
 	ce := newCashTaxEnv(t)
 	inv := ce.taxedInvoiceOn(t, ce.eight, cashDay1, 100000)

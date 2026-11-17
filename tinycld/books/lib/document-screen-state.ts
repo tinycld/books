@@ -8,6 +8,7 @@ export type DocumentScreenState =
     | 'no-access'
     | 'cannot-edit'
     | 'cannot-convert'
+    | 'cannot-credit'
     | 'form'
     | 'read'
 
@@ -28,7 +29,10 @@ type Status = DocumentStatus
 // when the form is no copy, null when that document does not exist. `estimateStatus` is
 // the estimate an invoice is made from (`?estimate`): undefined when the form is not
 // made from one, null when that estimate does not exist; only a pending or accepted
-// estimate converts, any other shows the cannot-convert notice.
+// estimate converts, any other shows the cannot-convert notice. `invoiceStatus` is the
+// invoice a credit memo is made from (`?invoice`): undefined when the form is not made
+// from one, null when that invoice does not exist or cannot be read; only a posted
+// invoice is credited, any other shows the cannot-credit notice.
 export function documentScreenState(input: {
     lifecycle: DocumentLifecycle
     isReady: boolean
@@ -40,6 +44,7 @@ export function documentScreenState(input: {
     replacesStatus: Status | null | undefined
     copyStatus?: Status | null
     estimateStatus?: Status | null
+    invoiceStatus?: Status | null
 }): DocumentScreenState {
     const { lifecycle, isReady, isError, canWrite, isNew, status, isHeld } = input
     if (isError) return 'error'
@@ -59,15 +64,19 @@ function newFormState(
         replacesStatus: Status | null | undefined
         copyStatus?: Status | null
         estimateStatus?: Status | null
+        invoiceStatus?: Status | null
     }
 ): DocumentScreenState {
-    const { replacesStatus, copyStatus, estimateStatus } = sources
+    const { replacesStatus, copyStatus, estimateStatus, invoiceStatus } = sources
     if (!canWrite) return 'no-access'
     if (copyStatus === null) return 'not-found'
     if (estimateStatus === null) return 'not-found'
     if (estimateStatus !== undefined) {
         const converts = estimateStatus === 'pending' || estimateStatus === 'accepted'
         return converts ? 'form' : 'cannot-convert'
+    }
+    if (invoiceStatus !== undefined) {
+        return invoiceStatus === 'posted' ? 'form' : 'cannot-credit'
     }
     if (replacesStatus === undefined || replacesStatus === 'posted') return 'form'
     if (replacesStatus === null) return 'not-found'

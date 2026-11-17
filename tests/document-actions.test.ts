@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
     DOCUMENT_READ_KEYS,
     DOCUMENT_TAB_KEYS,
@@ -9,6 +10,7 @@ import {
 } from '../tinycld/books/lib/document-actions'
 import {
     BILL_KIND,
+    CREDIT_MEMO_KIND,
     EXPENSE_KIND,
     SALES_FEATURES,
     SALES_RECEIPT_KIND,
@@ -38,7 +40,7 @@ describe('documentReadActions', () => {
 })
 
 describe('DOCUMENT_READ_KEYS', () => {
-    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P', () => {
+    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P, Create credit memo M', () => {
         expect(DOCUMENT_READ_KEYS).toEqual({
             edit: 'e',
             void: 'v',
@@ -47,6 +49,7 @@ describe('DOCUMENT_READ_KEYS', () => {
             invoice: 'i',
             receive_payment: 'r',
             pay_bill: 'p',
+            credit_memo: 'm',
         })
     })
 })
@@ -55,7 +58,7 @@ describe('DOCUMENT_READ_KEYS', () => {
 // balance above zero, key R, first in the bar. The read view passes `canReceivePayment`
 // only for an invoice; any other kind takes the default (false).
 describe('Receive payment', () => {
-    const offer = { canReceivePayment: true, canPayBill: false }
+    const offer = { canReceivePayment: true, canPayBill: false, canCreateCreditMemo: false }
 
     it('comes first, before Edit, for a writer on a posted invoice that can receive one', () => {
         expect(documentReadActions('posted', true, SALES_FEATURES, offer)).toEqual([
@@ -79,6 +82,7 @@ describe('Receive payment', () => {
             documentReadActions('posted', true, SALES_FEATURES, {
                 canReceivePayment: false,
                 canPayBill: false,
+                canCreateCreditMemo: false,
             })
         ).not.toContain('receive_payment')
     })
@@ -139,6 +143,7 @@ describe('Pay bill', () => {
         documentReadActions(status, canWrite, BILL_KIND.features, {
             canReceivePayment: receivePaymentOffered('bill', status, balance),
             canPayBill: payBillOffered('bill', status, balance),
+            canCreateCreditMemo: creditMemoOffered('bill', status),
         })
 
     it('comes first, before Edit, for a writer on a posted bill with a balance', () => {
@@ -158,6 +163,7 @@ describe('Pay bill', () => {
             documentReadActions('draft', true, BILL_KIND.features, {
                 canReceivePayment: false,
                 canPayBill: payBillOffered('bill', 'draft', 20000),
+                canCreateCreditMemo: false,
             })
         ).toEqual([])
     })
@@ -170,6 +176,7 @@ describe('Pay bill', () => {
         const invoice = documentReadActions('posted', true, SALES_FEATURES, {
             canReceivePayment: receivePaymentOffered('invoice', 'posted', 20000),
             canPayBill: payBillOffered('invoice', 'posted', 20000),
+            canCreateCreditMemo: false,
         })
         expect(invoice).toEqual(['receive_payment', 'edit', 'void', 'copy', 'entry', 'pdf'])
         expect(invoice).not.toContain('pay_bill')
@@ -250,9 +257,84 @@ describe('the sales receipt read view', () => {
             invoice: 'i',
             receive_payment: 'r',
             pay_bill: 'p',
+            credit_memo: 'm',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
+    })
+})
+
+// The credit memo's read view (spec §3.7): the invoice's actions, from the kind's own
+// features.
+describe('the credit memo read view', () => {
+    const creditMemo = (status: 'posted' | 'void', canWrite: boolean) =>
+        documentReadActions(status, canWrite, CREDIT_MEMO_KIND.features)
+
+    it('offers a writer Edit, Void, Copy, View journal entry and Download PDF on a posted memo', () => {
+        expect(creditMemo('posted', true)).toEqual(['edit', 'void', 'copy', 'entry', 'pdf'])
+    })
+
+    it('offers a writer Copy, View journal entry and Download PDF on a void memo', () => {
+        expect(creditMemo('void', true)).toEqual(['copy', 'entry', 'pdf'])
+    })
+
+    it('offers a reader View journal entry and Download PDF', () => {
+        expect(creditMemo('posted', false)).toEqual(['entry', 'pdf'])
+    })
+})
+
+// Create credit memo (credit memo spec §3.3, §3.10, Q2): a writer's action on a posted
+// invoice, key M, after Copy. A void invoice and a reader do not get it.
+describe('Create credit memo', () => {
+    const offer = { canReceivePayment: true, canPayBill: false, canCreateCreditMemo: true }
+
+    it('creditMemoOffered is true only for a posted invoice', () => {
+        expect(creditMemoOffered('invoice', 'posted')).toBe(true)
+        expect(creditMemoOffered('invoice', 'void')).toBe(false)
+        expect(creditMemoOffered('invoice', 'draft')).toBe(false)
+        for (const kind of ['sales_receipt', 'estimate', 'bill', 'expense', 'credit_memo']) {
+            expect(creditMemoOffered(kind, 'posted'), kind).toBe(false)
+        }
+    })
+
+    it('comes after Copy for a writer on a posted invoice', () => {
+        expect(documentReadActions('posted', true, SALES_FEATURES, offer)).toEqual([
+            'receive_payment',
+            'edit',
+            'void',
+            'copy',
+            'credit_memo',
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('is never offered to a reader', () => {
+        expect(documentReadActions('posted', false, SALES_FEATURES, offer)).not.toContain(
+            'credit_memo'
+        )
+    })
+
+    it('is never offered on a void invoice', () => {
+        expect(
+            documentReadActions('void', true, SALES_FEATURES, {
+                ...offer,
+                canCreateCreditMemo: creditMemoOffered('invoice', 'void'),
+            })
+        ).not.toContain('credit_memo')
+        expect(documentReadActions('void', true, SALES_FEATURES, offer)).not.toContain(
+            'credit_memo'
+        )
+    })
+
+    it('has the key M, and no other read key is M', () => {
+        expect(DOCUMENT_READ_KEYS.credit_memo).toBe('m')
+        const others = Object.entries(DOCUMENT_READ_KEYS).filter(
+            ([action]) => action !== 'credit_memo'
+        )
+        for (const [action, key] of others) {
+            expect(key.toLowerCase(), action).not.toBe('m')
+        }
     })
 })
 

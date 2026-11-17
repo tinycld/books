@@ -54,6 +54,51 @@ func TestOAuth_SalesReceiptsAreScopedAsInvoices(t *testing.T) {
 	}
 }
 
+// Credit memo spec §4.3: a token reads and writes the credit memos and their
+// lines, and only reads the tax lines, which posting writes as its snapshot.
+func TestOAuth_CreditMemosAreScopedAsInvoices(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	want := map[string]oauth.Access{
+		"books_credit_memos":          rw,
+		"books_credit_memo_lines":     rw,
+		"books_credit_memo_tax_lines": {Read: []string{scopeRead}},
+	}
+	for c, access := range want {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range []string{"books_credit_memos", "books_credit_memo_lines"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if !oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("POST %s: books:write must write", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("POST %s: books:read alone must not write", path)
+		}
+	}
+	taxLines := "/api/collections/books_credit_memo_tax_lines/records"
+	if !oauth.ScopeForRoute(http.MethodGet, taxLines).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", taxLines)
+	}
+	if oauth.ScopeForRoute(http.MethodPost, taxLines).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+		t.Errorf("POST %s: no Books scope may write", taxLines)
+	}
+}
+
 // Receive payment spec §4.3: a token reads and writes payments and their
 // applications.
 func TestOAuth_PaymentsAreReadWrite(t *testing.T) {
