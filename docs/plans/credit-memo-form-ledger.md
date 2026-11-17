@@ -174,6 +174,7 @@
 - reviewer-caught deferrals: reviewer A DEFERRAL 1 (read view phone cards not asserted; not self-declared) → fixed as item 4; shadow reviewer B DEFERRAL → rebutted
 - commit: see git log (`feat(books): credit memo form and read view`)
 - human: none (review mode C)
+- CI fix 1: `tinycld/books/lib/sales-tax-liability-fixture.ts`: report description copy updated to cp2's text; books-sales-tax-liability.spec.ts green locally
 
 ## Final review
 - eval:
