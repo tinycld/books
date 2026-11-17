@@ -25,9 +25,9 @@ import type {
     BooksSalesReceiptLines,
     BooksSalesReceipts,
 } from '../types'
-import { CUSTOMERS } from './customer-form-fixture'
+import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { INVOICE_PRODUCTS } from './invoice-form-fixture'
-import { PRODUCTS } from './products-services-fixture'
+import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
 
 export const SALES_BY_CUSTOMER_TITLE = 'Sales by Customer'
 export const SALES_BY_PRODUCT_TITLE = 'Sales by Product/Service'
@@ -50,6 +50,18 @@ export const SALES_REPORTS_ZERO_TO = '2025-12-31'
 // No posted sale line: the empty report.
 export const SALES_REPORTS_EMPTY_FROM = '2025-07-01'
 export const SALES_REPORTS_EMPTY_TO = '2025-09-30'
+// What seedSalesReports (seed.ts) adds to the seeded book: the one sale of an inactive
+// product, for the inactive customer Old Mill Bakery, as a posted sales receipt with no
+// tax rate and one item line of Fax line setup (quantity 1 at `cents`).
+export const SALES_REPORTS_SEED = {
+    inactiveSale: {
+        date: '2026-10-16',
+        memo: 'Seed sales reports: inactive product',
+        cents: 6500,
+        productId: PRODUCT_IDS.faxSetup,
+        customerId: CUSTOMER_IDS.oldMill,
+    },
+} as const
 const CURRENCY = 'USD'
 const NO_CUSTOMER_LABEL = 'No customer'
 const INACTIVE_SUFFIX = ' (inactive)'
@@ -181,7 +193,7 @@ export const SALES_BY_CUSTOMER_COLUMNS: ResultColumn[] = [
         labelType: 'text',
     },
     { id: 'sales', label: 'Sales', type: 'money', aggregate: 'sum', currency: CURRENCY },
-    { id: 'pct', label: '% of sales', type: 'percent' },
+    { id: 'pct', label: '% of sales', type: 'percent', scale: 2 },
 ]
 
 export const SALES_BY_PRODUCT_COLUMNS: ResultColumn[] = [
@@ -194,7 +206,7 @@ export const SALES_BY_PRODUCT_COLUMNS: ResultColumn[] = [
     },
     { id: 'quantity', label: 'Quantity', type: 'number', aggregate: 'sum' },
     { id: 'amount', label: 'Amount', type: 'money', aggregate: 'sum', currency: CURRENCY },
-    { id: 'pct', label: '% of sales', type: 'percent', format: 'percent' },
+    { id: 'pct', label: '% of sales', type: 'percent', format: 'percent', scale: 2 },
     { id: 'avg', label: 'Avg price', type: 'money', currency: CURRENCY },
 ]
 

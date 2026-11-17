@@ -165,6 +165,26 @@ func receivableLines(asOf *reports.Node) []*reports.Node {
 	}
 }
 
+// postedSaleLines are the filter terms of the sale lines in period (spec §3
+// What counts): the item and percent lines of a posted document dated in the
+// period. Description and subtotal lines never count: a subtotal line repeats
+// the lines above it. The document link is required, so a line whose
+// document the reader cannot read drops out. Paths start at a sale line.
+func postedSaleLines(period *reports.Node) []*reports.Node {
+	return []*reports.Node{
+		op("in", fld("kind"), lit([]string{"item", "percent"})),
+		op("eq", &reports.Node{Path: reports.Path{{Link: "document", With: "required"}, {Field: "status"}}}, lit(statusPosted)),
+		op("between", fld("document", "date"), period),
+	}
+}
+
+// saleAmount is a sale line's amount times its sign: below zero on a credit
+// memo.
+func saleAmount() *reports.Node { return op("mul", fld("sign"), fld("amount")) }
+
+// saleQuantity is a sale line's quantity times its sign.
+func saleQuantity() *reports.Node { return op("mul", fld("sign"), fld("quantity")) }
+
 // methodParam is the Method param of the statements on books.basis_lines
 // (pay-bills spec §3.10): Accrual (the default) or Cash, printed in the
 // document header as "Accrual basis" or "Cash basis".
