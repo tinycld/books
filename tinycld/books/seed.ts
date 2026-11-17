@@ -70,7 +70,10 @@ import { TRANSFER_SEED } from './lib/transfer-fixture'
 import { PRIOR_YEAR_SEED } from './lib/trial-balance-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
 import {
+    VENDOR_CREDIT_APPLICATIONS,
     VENDOR_CREDIT_LINES,
+    VENDOR_CREDIT_SEED_APPLICATION_IDS,
+    VENDOR_CREDIT_SEED_BILL,
     VENDOR_CREDIT_SEED_IDS,
     VENDOR_CREDITS,
 } from './lib/vendor-credit-form-fixture'
@@ -254,7 +257,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     const billIds = await seedBills(pb, ctx, accountIds)
     await seedBillPayments(pb, ctx, accountIds)
     const expenseIds = await seedExpenses(pb, ctx, accountIds)
-    await seedVendorCredits(pb, ctx, accountIds)
+    const creditIds = await seedVendorCredits(pb, ctx, accountIds)
+    await seedVendorCreditApplications(pb, ctx, accountIds, creditIds)
     await seedAttachments(pb, ctx, billIds, expenseIds)
     // Last among the document seeds, so the earlier seeded documents keep their numbers.
     await seedCustomerBalance(pb, ctx, ids, customerIds)
@@ -1224,6 +1228,73 @@ export async function seedVendorCredits(
         }
     }
     return creditIds
+}
+
+// Posts VENDOR_CREDIT_SEED_BILL through the writes seedBills makes (one account line), then
+// applies the partly applied credit to it with the VENDOR_CREDIT_SEED_APPLICATION_IDS rows,
+// through the REST create the apply dialog makes, so the server checks each application and
+// lowers the credit's and the bill's balance. The bill is of a vendor with no other open
+// bill and the application covers it in full, so it reads Paid and no Pay Bills row
+// changes. `creditIds` maps a fixture credit id to the created one. The fixture's appliers
+// are reference users the seed does not create: the superuser names the seeded user, and
+// the request hook keeps the applier a superuser sends.
+export async function seedVendorCreditApplications(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    creditIds: Map<string, string>
+): Promise<void> {
+    const vendor = VENDORS.find(row => row.id === VENDOR_CREDIT_SEED_BILL.vendor)
+    if (vendor === undefined) {
+        throw new Error(
+            `seed: bill ${VENDOR_CREDIT_SEED_BILL.id} names vendor ${VENDOR_CREDIT_SEED_BILL.vendor}, not in VENDORS`
+        )
+    }
+    const bill = await pb.collection('books_bills').create({
+        vendor: VENDOR_CREDIT_SEED_BILL.vendor,
+        status: 'draft',
+        date: VENDOR_CREDIT_SEED_BILL.date,
+        due_date: VENDOR_CREDIT_SEED_BILL.due_date,
+        terms: vendor.terms,
+        ref_no: VENDOR_CREDIT_SEED_BILL.ref_no,
+        memo: VENDOR_CREDIT_SEED_BILL.memo,
+        mailing_address: vendor.address,
+    })
+    await pb.collection('books_bill_lines').create({
+        bill: bill.id,
+        position: 0,
+        kind: 'account',
+        description: VENDOR_CREDIT_SEED_BILL.description,
+        account: seededAccountId(
+            accountIds,
+            VENDOR_CREDIT_SEED_BILL.account_number,
+            `bill ${VENDOR_CREDIT_SEED_BILL.id}`
+        ),
+        amount: VENDOR_CREDIT_SEED_BILL.total,
+    })
+    await postSeedDocument(pb, 'books_bills', bill.id, ctx.user.id)
+    const billIds = new Map<string, string>([[VENDOR_CREDIT_SEED_BILL.id, bill.id]])
+    for (const id of VENDOR_CREDIT_SEED_APPLICATION_IDS) {
+        const fixture = VENDOR_CREDIT_APPLICATIONS.find(row => row.id === id)
+        if (fixture === undefined) {
+            throw new Error(`seed: application ${id} is not in VENDOR_CREDIT_APPLICATIONS`)
+        }
+        const credit = creditIds.get(fixture.vendor_credit)
+        const appliedTo = billIds.get(fixture.bill)
+        if (credit === undefined || appliedTo === undefined) {
+            throw new Error(
+                `seed: application ${id} names a credit or a bill the seed did not post`
+            )
+        }
+        await pb.collection('books_vendor_credit_applications').create({
+            id,
+            vendor_credit: credit,
+            bill: appliedTo,
+            amount: fixture.amount,
+            date: fixture.date,
+            applied_by: ctx.user.id,
+        })
+    }
 }
 
 // The seeded bytes of one attachment, decoded with atob so the seed runs in plain node and

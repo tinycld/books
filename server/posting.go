@@ -234,23 +234,43 @@ func validateLines(tx core.App, entry *core.Record, lines []*core.Record, allowI
 	return debits, nil
 }
 
+// msgClosedThrough is the ledger's close-date refusal: the close date, then
+// the refused day.
+const msgClosedThrough = "The books are closed through %s. Ask a Books admin for a close-date override to post on %s."
+
 // checkClosePeriod refuses a post on or before the close date unless the
 // poster holds an unexpired override, which the entry then records. A post
 // that needs no override records none, whatever the draft carried.
 func checkClosePeriod(tx core.App, entry *core.Record, s settings, day string, now time.Time) error {
-	if s.CloseDate == "" || day > s.CloseDate {
-		entry.Set("close_override", "")
-		return nil
-	}
-	override, err := activeOverride(tx, entry.GetString("posted_by"), now)
+	overrideID, closed, err := closeOverrideFor(tx, s, entry.GetString("posted_by"), day, now)
 	if err != nil {
 		return err
 	}
-	if override == nil {
-		return refuse("The books are closed through %s. Ask a Books admin for a close-date override to post on %s.", s.CloseDate, day)
+	if closed {
+		return refuse(msgClosedThrough, s.CloseDate, day)
 	}
-	entry.Set("close_override", override.Id)
+	entry.Set("close_override", overrideID)
 	return nil
+}
+
+// closeOverrideFor is the ledger's close-date rule for a write dated day by
+// userID, the one rule of every Books write the close date governs (a post, a
+// vendor credit application and its removal). A day after the close date, or
+// a book with none, needs no override: "", false. A day on or before it needs
+// the user's unexpired override: its id, or closed true when the user (or a
+// write with no user) holds none.
+func closeOverrideFor(tx core.App, s settings, userID, day string, now time.Time) (overrideID string, closed bool, err error) {
+	if s.CloseDate == "" || day > s.CloseDate {
+		return "", false, nil
+	}
+	override, err := activeOverride(tx, userID, now)
+	if err != nil {
+		return "", false, err
+	}
+	if override == nil {
+		return "", true, nil
+	}
+	return override.Id, false, nil
 }
 
 // checkAutoReverseDate also keeps the date after the close date. The

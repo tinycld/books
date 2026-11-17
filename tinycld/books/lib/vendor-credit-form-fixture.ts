@@ -304,6 +304,7 @@ export const VENDOR_CREDIT_APPLICATIONS = [
         amount: 3_000,
         date: '2026-11-16',
         applied_by: VENDOR_CREDIT_USER_IDS.omar,
+        close_override: '',
         created: '2026-11-16 10:15:00.000Z',
     },
     {
@@ -313,6 +314,7 @@ export const VENDOR_CREDIT_APPLICATIONS = [
         amount: 4_240,
         date: '2026-11-16',
         applied_by: VENDOR_CREDIT_USER_IDS.ana,
+        close_override: '',
         created: '2026-11-16 11:02:00.000Z',
     },
 ] satisfies VendorCreditApplicationRecord[]

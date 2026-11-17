@@ -573,10 +573,11 @@ export function registerCollections(
     })
 
     // One row per bill a credit is applied to; the client writes the credit, the
-    // bill, the amount and the apply date, and the server stamps applied_by. No
+    // bill, the amount and the apply date, and the server stamps applied_by and
+    // close_override (the create rule refuses a client value of either). No
     // relations: the screens read the credit and the bill through materialize().
     const books_vendor_credit_applications = newCollection('books_vendor_credit_applications', {
-        omitOnInsert: ['created', 'applied_by'] as const,
+        omitOnInsert: ['created', 'applied_by', 'close_override'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
