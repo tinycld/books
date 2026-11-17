@@ -1,13 +1,15 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { useRef } from 'react'
+import { type RefObject, useRef } from 'react'
 import { type TextInputInstance, View } from 'react-native'
 import {
     type DocumentListScreenState,
     useDocumentListScreen,
 } from '../../hooks/useDocumentListScreen'
+import { useListShortcuts } from '../../hooks/useListShortcuts'
 import type { ListLayout } from '../../lib/detail-surface'
 import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
 import { TRANSACTION_TYPE_LABELS } from '../../lib/party-transactions'
+import { SALES_TABS } from '../../lib/sales-lists'
 import { ListBanner } from '../ListBanner'
 import { SelectBox } from '../SelectBox'
 import { DocumentBatchActions } from './DocumentBatchActions'
@@ -23,6 +25,11 @@ import { DocumentRowMenu } from './DocumentRowMenu'
 interface ListBodyProps {
     tab: DocumentListTab
     screen: DocumentListScreenState
+}
+
+// The search field's ref, which the `/` list key focuses; Escape in the field blurs it.
+interface SearchRefProp {
+    searchRef: RefObject<TextInputInstance | null>
 }
 
 // A row's or card's lead and trail cells: the tick box (a writer, in the full list) and
@@ -69,8 +76,10 @@ function TickAll({ screen }: { screen: DocumentListScreenState }) {
 // None draw while the screen loads, which includes the wait for the user's access, so a
 // writer never sees the reader's list.
 function ListBody({ tab, screen }: ListBodyProps) {
-    const { list, selection } = screen
+    const { list, selection, rowFocus } = screen
     const slots = rowSlots(screen)
+    // The list keys' focused row stays in view.
+    const scrollToIndex = rowFocus.focusedIndex < 0 ? undefined : rowFocus.focusedIndex
     if (list.isLoading || list.rows.length === 0) return null
     if (screen.drawsCards) {
         return (
@@ -83,6 +92,8 @@ function ListBody({ tab, screen }: ListBodyProps) {
                 renderLead={slots.renderLead}
                 renderTrail={slots.renderTrail}
                 isTicked={selection.isTicked}
+                focusedId={rowFocus.focusedId}
+                scrollToIndex={scrollToIndex}
             />
         )
     }
@@ -101,6 +112,8 @@ function ListBody({ tab, screen }: ListBodyProps) {
             renderTrail={slots.renderTrail}
             headerLead={headerLead}
             isTicked={selection.isTicked}
+            focusedId={rowFocus.focusedId}
+            scrollToIndex={scrollToIndex}
         />
     )
 }
@@ -123,10 +136,9 @@ function Banner({ screen }: { screen: DocumentListScreenState }) {
 
 // The toolbar draws in every state, so the search or filter that led to a refused or an
 // empty list can still be changed or cleared.
-function FullList({ tab, screen }: ListBodyProps) {
+function FullList({ tab, screen, searchRef }: ListBodyProps & SearchRefProp) {
     const { list } = screen
     const isPhone = useBreakpoint() === 'mobile'
-    const inputRef = useRef<TextInputInstance>(null)
     const batch = (
         <DocumentBatchActions
             isVisible={screen.controls.showBatch}
@@ -148,7 +160,7 @@ function FullList({ tab, screen }: ListBodyProps) {
                 tab={tab}
                 isPhone={isPhone}
                 batch={batch}
-                inputRef={inputRef}
+                inputRef={searchRef}
             />
             <Banner screen={screen} />
             <DocumentListStates
@@ -164,15 +176,28 @@ function FullList({ tab, screen }: ListBodyProps) {
     )
 }
 
-function ListOfLayout({ tab, openId, layout, screen }: ListBodyProps & DocumentListScreenProps) {
-    if (layout === 'names') return <DocumentNamesColumn tab={tab} openId={openId} screen={screen} />
-    return <FullList tab={tab} screen={screen} />
+type ListOfLayoutProps = ListBodyProps &
+    SearchRefProp & {
+        openId: string
+        layout: ListLayout
+    }
+
+function ListOfLayout({ tab, openId, layout, screen, searchRef }: ListOfLayoutProps) {
+    if (layout === 'names') {
+        return (
+            <DocumentNamesColumn tab={tab} openId={openId} screen={screen} searchRef={searchRef} />
+        )
+    }
+    return <FullList tab={tab} screen={screen} searchRef={searchRef} />
 }
 
 interface DocumentListScreenProps {
     tab: DocumentListTab
     openId: string
     layout: ListLayout
+    // A document is pushed over the list, which stays mounted under it (a kind tab below
+    // 1360 px): the list keys are off then.
+    isCovered: boolean
 }
 
 /**
@@ -181,13 +206,25 @@ interface DocumentListScreenProps {
  * 320 px column of names beside an open document (layout `names`). Both read the tab's one
  * `useDocumentListScreen`, so the tab's kept filters and sort apply to each, and the list
  * keeps its rows when the window crosses the panel width. The confirm dialogs draw once,
- * at the root, so a write that runs while the list narrows keeps its dialog.
+ * at the root, so a write that runs while the list narrows keeps its dialog. The list keys
+ * (`useListShortcuts`) are registered here, so both layouts share them.
  */
-export function DocumentListScreen({ tab, openId, layout }: DocumentListScreenProps) {
+export function DocumentListScreen({ tab, openId, layout, isCovered }: DocumentListScreenProps) {
     const screen = useDocumentListScreen(tab, layout)
+    const searchRef = useRef<TextInputInstance>(null)
+    // The names column, beside an open document, has no tick boxes, so no tick keys.
+    const isBeside = layout === 'names'
+    const selection = isBeside ? null : screen.selection
+    useListShortcuts({ screen, selection, tabs: SALES_TABS, isCovered, isBeside, searchRef })
     return (
         <>
-            <ListOfLayout tab={tab} openId={openId} layout={layout} screen={screen} />
+            <ListOfLayout
+                tab={tab}
+                openId={openId}
+                layout={layout}
+                screen={screen}
+                searchRef={searchRef}
+            />
             <DocumentListDialogs rowActions={screen.rowActions} batch={screen.batch} />
         </>
     )

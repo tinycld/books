@@ -44,7 +44,12 @@ export function SalesKindLayout({ tabKey }: { tabKey: string }) {
         () => ({ kindRoute, belowName, belowId }),
         [kindRoute, belowName, belowId]
     )
-    const list = <DocumentListScreen tab={tab} openId={openId} layout={layout} />
+    // Below 1360 px the document is a page pushed over the list, which stays mounted under
+    // it; beside the 320 px column the list is in view.
+    const isCovered = isDetailOpen && layout !== 'names'
+    const list = (
+        <DocumentListScreen tab={tab} openId={openId} layout={layout} isCovered={isCovered} />
+    )
     return (
         <KindStackContext.Provider value={kindStack}>
             <ListDetailLayout

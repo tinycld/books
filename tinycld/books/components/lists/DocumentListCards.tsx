@@ -4,6 +4,7 @@ import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
 import { cardLines, listCardHeight } from '../../lib/document-list-cells'
 import { ListCards } from '../ListCards'
 import { StatusBadge } from '../StatusBadge'
+import { FocusBar, ROW_ON_FOCUS, ROW_TAB_INDEX, rowBackground } from './DocumentListTable'
 
 interface DocumentListCardsProps {
     tab: DocumentListTab
@@ -17,16 +18,19 @@ interface DocumentListCardsProps {
     renderTrail?(row: DocumentListRow): ReactNode
     // A ticked card draws `bg-accent`.
     isTicked?(id: string): boolean
+    // The list keys' focused card ('' for none) draws the focus look (`rowBackground`,
+    // `FocusBar`) and marks its open button `aria-current`; `scrollToIndex` keeps it in view.
+    focusedId?: string
+    scrollToIndex?: number
 }
 
 const EDGE_CELL_STYLE = { width: 44 }
 
 // A card's padding at each end: none beside a 44 px cell, 16 px otherwise.
-function cardClassOf(hasLead: boolean, hasTrail: boolean, isTicked: boolean): string {
+function cardClassOf(hasLead: boolean, hasTrail: boolean, bg: string): string {
     const start = hasLead ? '' : ' pl-4'
     const end = hasTrail ? '' : ' pr-4'
-    const bg = isTicked ? ' bg-accent' : ' bg-background'
-    return `flex-row items-center border-b border-border${start}${end}${bg}`
+    return `flex-row items-center border-b border-border${start}${end} ${bg}`
 }
 
 function EdgeCell({ children }: { children: ReactNode }) {
@@ -47,6 +51,7 @@ interface CardProps {
     renderLead?(row: DocumentListRow): ReactNode
     renderTrail?(row: DocumentListRow): ReactNode
     isTicked: boolean
+    isFocused: boolean
 }
 
 // Two lines: the title with the amount at the right, then the detail with the status
@@ -60,19 +65,25 @@ function Card({
     renderLead,
     renderTrail,
     isTicked,
+    isFocused,
 }: CardProps) {
     const { title, amount, detail } = cardLines(row, tab, currency)
     const lead = renderLead?.(row)
     const trail = renderTrail?.(row)
     const press = () => onOpen(row)
     const style = { height }
-    const cardClass = cardClassOf(renderLead !== undefined, renderTrail !== undefined, isTicked)
+    const bg = rowBackground(isTicked, isFocused)
+    const cardClass = cardClassOf(renderLead !== undefined, renderTrail !== undefined, bg)
+    const current = isFocused ? 'true' : undefined
     return (
         <View className={cardClass} style={style}>
             <EdgeCell>{lead}</EdgeCell>
             <Pressable
                 testID={`sales-row-${row.id}`}
                 accessibilityRole="button"
+                aria-current={current}
+                tabIndex={ROW_TAB_INDEX}
+                onFocus={ROW_ON_FOCUS}
                 onPress={press}
                 className="min-w-0 flex-1 justify-center gap-1"
                 style={style}
@@ -95,6 +106,7 @@ function Card({
                 </View>
             </Pressable>
             <EdgeCell>{trail}</EdgeCell>
+            <FocusBar isVisible={isFocused} />
         </View>
     )
 }
@@ -110,6 +122,8 @@ export function DocumentListCards({
     renderLead,
     renderTrail,
     isTicked,
+    focusedId = '',
+    scrollToIndex,
 }: DocumentListCardsProps) {
     const renderCard = (row: DocumentListRow, height: number) => (
         <Card
@@ -121,6 +135,7 @@ export function DocumentListCards({
             renderLead={renderLead}
             renderTrail={renderTrail}
             isTicked={isTicked?.(row.id) ?? false}
+            isFocused={row.id === focusedId}
         />
     )
     return (
@@ -131,6 +146,7 @@ export function DocumentListCards({
             keyOf={keyOfRow}
             renderCard={renderCard}
             onNearEnd={onNearEnd}
+            scrollToIndex={scrollToIndex}
         />
     )
 }

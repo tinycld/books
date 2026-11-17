@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { type FocusEvent, Platform, Pressable, Text, View } from 'react-native'
 import {
     columnLabel,
     type DocumentListRow,
@@ -34,6 +34,45 @@ interface DocumentListTableProps {
     headerLead?: ReactNode
     // A ticked row draws `bg-accent`.
     isTicked?(id: string): boolean
+    // The list keys' focused row ('' for none) draws the focus look (`rowBackground`,
+    // `FocusBar`) and marks its open button `aria-current`; `scrollToIndex` keeps it in view.
+    focusedId?: string
+    scrollToIndex?: number
+}
+
+// On the web, the open button of a row, a card or a name row never holds DOM focus: the
+// row focus is the store's. React-native-web presses a focused Pressable on plain Enter
+// and Space and stops the key, so a button that kept the focus after a mouse press would
+// take those keys from the list keys. `tabIndex={-1}` keeps the button out of the Tab
+// order, but a mouse press still focuses it, so the button gives the focus up at once
+// (`ROW_ON_FOCUS`). The tick box and the row menu stay Tab stops. Native is unchanged.
+export const ROW_TAB_INDEX = Platform.OS === 'web' ? -1 : undefined
+
+function dropFocus(event: FocusEvent) {
+    const target = event.currentTarget
+    if (typeof target !== 'number') target.blur()
+}
+
+export const ROW_ON_FOCUS = Platform.OS === 'web' ? dropFocus : undefined
+
+// A ticked row draws `bg-accent`; the list keys' focused row a light `bg-muted/10` tint
+// (muted text and badges stay legible on it) and the bar of `FocusBar`, so it does not
+// read as ticked or open in either scheme.
+export function rowBackground(isTicked: boolean, isFocused: boolean): string {
+    if (isTicked) return 'bg-accent'
+    if (isFocused) return 'bg-muted/10'
+    return 'bg-background'
+}
+
+const FOCUS_BAR_STYLE = { pointerEvents: 'none' } as const
+
+// The list keys' focused row: a 4 px primary bar at the row's left edge, over the row
+// (presses go through it).
+export function FocusBar({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return (
+        <View className="absolute bottom-0 left-0 top-0 w-1 bg-primary" style={FOCUS_BAR_STYLE} />
+    )
 }
 
 const ROW_STYLE = { height: LIST_ROW_HEIGHT }
@@ -135,6 +174,7 @@ interface TableRowProps {
     renderLead?(row: DocumentListRow): ReactNode
     renderTrail?(row: DocumentListRow): ReactNode
     isTicked: boolean
+    isFocused: boolean
 }
 
 // The lead cell, the button that opens the document (its cells) and the trail cell are
@@ -147,6 +187,7 @@ function TableRow({
     renderLead,
     renderTrail,
     isTicked,
+    isFocused,
 }: TableRowProps) {
     const press = () => onOpen(row)
     const lead = renderLead?.(row)
@@ -155,13 +196,17 @@ function TableRow({
         <RowCell key={column} row={row} column={column} tab={tab} currency={currency} />
     ))
     const rowClass = rowClassOf(renderLead !== undefined)
-    const bg = isTicked ? 'bg-accent' : 'bg-background'
+    const bg = rowBackground(isTicked, isFocused)
+    const current = isFocused ? 'true' : undefined
     return (
         <View className={`${rowClass} border-b border-border ${bg}`} style={ROW_STYLE}>
             <EdgeCell>{lead}</EdgeCell>
             <Pressable
                 testID={`sales-row-${row.id}`}
                 accessibilityRole="button"
+                aria-current={current}
+                tabIndex={ROW_TAB_INDEX}
+                onFocus={ROW_ON_FOCUS}
                 onPress={press}
                 className="min-w-0 flex-1 flex-row items-center"
                 style={ROW_STYLE}
@@ -169,6 +214,7 @@ function TableRow({
                 {cells}
             </Pressable>
             <EdgeCell>{trail}</EdgeCell>
+            <FocusBar isVisible={isFocused} />
         </View>
     )
 }
@@ -191,6 +237,8 @@ export function DocumentListTable({
     renderTrail,
     headerLead,
     isTicked,
+    focusedId = '',
+    scrollToIndex,
 }: DocumentListTableProps) {
     const headerCells = tab.columns.map(column => (
         <HeaderCell key={column} tab={tab} column={column} sort={sort} onSort={onSort} />
@@ -211,6 +259,7 @@ export function DocumentListTable({
             renderLead={renderLead}
             renderTrail={renderTrail}
             isTicked={isTicked?.(row.id) ?? false}
+            isFocused={row.id === focusedId}
         />
     )
     const minWidth = tableMinWidth(tab.columns, canWrite)
@@ -224,6 +273,7 @@ export function DocumentListTable({
             keyOf={keyOfRow}
             renderRow={renderRow}
             onNearEnd={onNearEnd}
+            scrollToIndex={scrollToIndex}
         />
     )
 }

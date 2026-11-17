@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import type { RefObject } from 'react'
 import { Pressable, Text, type TextInputInstance, View } from 'react-native'
 import type { DocumentListScreenState } from '../../hooks/useDocumentListScreen'
 import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
@@ -9,6 +9,7 @@ import { SearchField } from '../ListToolbar'
 import { StatusBadge } from '../StatusBadge'
 import { DocumentListHeader } from './DocumentListHeader'
 import { DocumentListStates, LIST_LOAD_ERROR, SEARCH_PLACEHOLDER } from './DocumentListStates'
+import { FocusBar, ROW_ON_FOCUS, ROW_TAB_INDEX } from './DocumentListTable'
 
 const NAME_ROW_STYLE = { height: LIST_NAME_ROW_HEIGHT }
 
@@ -20,15 +21,24 @@ interface NameRowProps {
     row: DocumentListRow
     currency: string
     isOpen: boolean
+    isFocused: boolean
     onOpen(row: DocumentListRow): void
 }
 
-// Number and customer, then the amount with the status badge. The open document's row is
-// marked.
-function NameRow({ row, currency, isOpen, onOpen }: NameRowProps) {
+// The open document's row draws `bg-accent`; the list keys' focused row the light
+// `bg-muted/10` tint and the `FocusBar`, as in the table and the cards.
+function nameRowBackground(isOpen: boolean, isFocused: boolean): string {
+    if (isOpen) return 'bg-accent'
+    if (isFocused) return 'bg-muted/10'
+    return 'bg-background'
+}
+
+// Number and customer, then the amount with the status badge. The open document's row and
+// the list keys' focused row are marked `aria-current`.
+function NameRow({ row, currency, isOpen, isFocused, onOpen }: NameRowProps) {
     const { title, amount } = nameRowLines(row, currency)
-    const bg = isOpen ? 'bg-accent' : 'bg-background'
-    const current = isOpen ? 'true' : undefined
+    const bg = nameRowBackground(isOpen, isFocused)
+    const current = isOpen || isFocused ? 'true' : undefined
     const press = () => onOpen(row)
     return (
         <Pressable
@@ -36,6 +46,8 @@ function NameRow({ row, currency, isOpen, onOpen }: NameRowProps) {
             accessibilityRole="button"
             accessibilityState={{ selected: isOpen }}
             aria-current={current}
+            tabIndex={ROW_TAB_INDEX}
+            onFocus={ROW_ON_FOCUS}
             onPress={press}
             className={`justify-center gap-1 border-b border-border px-4 ${bg}`}
             style={NAME_ROW_STYLE}
@@ -49,6 +61,7 @@ function NameRow({ row, currency, isOpen, onOpen }: NameRowProps) {
                 </Text>
                 <StatusBadge label={row.status.label} tone={row.status.tone} />
             </View>
+            <FocusBar isVisible={isFocused} />
         </Pressable>
     )
 }
@@ -58,16 +71,37 @@ interface NamesListProps {
     rows: readonly DocumentListRow[]
     currency: string
     openId: string
+    focusedId: string
     onOpen(row: DocumentListRow): void
     onNearEnd(): void
 }
 
-function NamesList({ isVisible, rows, currency, openId, onOpen, onNearEnd }: NamesListProps) {
+// The list keys' focused row stays in view; with none, the open document's row.
+function scrollIndexOf(rows: readonly DocumentListRow[], focusedId: string, openId: string) {
+    const target = focusedId === '' ? openId : focusedId
+    const index = rows.findIndex(row => row.id === target)
+    return index < 0 ? undefined : index
+}
+
+function NamesList({
+    isVisible,
+    rows,
+    currency,
+    openId,
+    focusedId,
+    onOpen,
+    onNearEnd,
+}: NamesListProps) {
     if (!isVisible) return null
-    const openIndex = rows.findIndex(row => row.id === openId)
-    const scrollToIndex = openIndex < 0 ? undefined : openIndex
+    const scrollToIndex = scrollIndexOf(rows, focusedId, openId)
     const renderRow = (row: DocumentListRow) => (
-        <NameRow row={row} currency={currency} isOpen={row.id === openId} onOpen={onOpen} />
+        <NameRow
+            row={row}
+            currency={currency}
+            isOpen={row.id === openId}
+            isFocused={row.id === focusedId}
+            onOpen={onOpen}
+        />
     )
     return (
         <ListTable
@@ -85,9 +119,15 @@ function NamesList({ isVisible, rows, currency, openId, onOpen, onNearEnd }: Nam
 }
 
 // The search row draws in every state, so the search that led to a refused query can
-// still be changed or cleared. Escape blurs the field through its ref.
-function SearchRow({ screen }: { screen: DocumentListScreenState }) {
-    const inputRef = useRef<TextInputInstance>(null)
+// still be changed or cleared. The `/` list key focuses the field through its ref, and
+// Escape blurs it.
+function SearchRow({
+    screen,
+    inputRef,
+}: {
+    screen: DocumentListScreenState
+    inputRef: RefObject<TextInputInstance | null>
+}) {
     const search = { query: screen.filters.search, setQuery: screen.setSearch }
     return (
         <View className="flex-row items-center gap-2 px-4 pb-3 pt-3">
@@ -106,6 +146,7 @@ interface DocumentNamesColumnProps {
     tab: DocumentListTab
     openId: string
     screen: DocumentListScreenState
+    searchRef: RefObject<TextInputInstance | null>
 }
 
 /**
@@ -114,7 +155,7 @@ interface DocumentNamesColumnProps {
  * with the open document's row marked. It lists the tab's rows with the tab's kept
  * filters and sort; the chips, menus, tick boxes and row menus do not draw here.
  */
-export function DocumentNamesColumn({ tab, openId, screen }: DocumentNamesColumnProps) {
+export function DocumentNamesColumn({ tab, openId, screen, searchRef }: DocumentNamesColumnProps) {
     const { list } = screen
     // No rows draw while the screen loads (the access read included).
     const hasRows = !list.isLoading && list.rows.length > 0
@@ -122,7 +163,7 @@ export function DocumentNamesColumn({ tab, openId, screen }: DocumentNamesColumn
     return (
         <View testID="sales-names" aria-busy={list.isBusy} className="flex-1 bg-background">
             <DocumentListHeader tab={tab} screen={screen} />
-            <SearchRow screen={screen} />
+            <SearchRow screen={screen} inputRef={searchRef} />
             <ListBanner testIdPrefix="sales" message={bannerMessage} onRetry={list.retry} />
             <DocumentListStates
                 tab={tab}
@@ -137,6 +178,7 @@ export function DocumentNamesColumn({ tab, openId, screen }: DocumentNamesColumn
                 rows={list.rows}
                 currency={list.currency}
                 openId={openId}
+                focusedId={screen.rowFocus.focusedId}
                 onOpen={screen.openRow}
                 onNearEnd={list.loadMore}
             />
